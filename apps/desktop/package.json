@@ -1,0 +1,32 @@
+{
+  "name": "@mobius/desktop",
+  "productName": "Mobius",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Mobius desktop shell.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --mode tauri",
+    "build:tauri": "vite build --mode tauri",
+    "app": "node scripts/app.mjs",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "e2e": "npm run build && playwright test"
+  },
+  "dependencies": {
+    "@mobius/shared": "*",
+    "@tauri-apps/api": "^2.0.0",
+    "motion": "^14.9.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.0.0"
+  }
+}

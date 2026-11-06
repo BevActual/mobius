@@ -1,0 +1,34 @@
+{
+  "name": "mobius",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Mobius Agent: a morphing desktop environment for people and agents.",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "npm run test:core && npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev": "npm run dev -w @mobius/desktop",
+    "build": "npm run build -w @mobius/desktop",
+    "e2e": "cargo build -p mobius-cored -p mobius-shell && npm run e2e -w @mobius/desktop",
+    "build:core": "cargo build -p mobius-cored",
+    "test:core": "cargo test --workspace",
+    "gen:types": "node scripts/gen-types.mjs",
+    "check:types": "node scripts/check-generated.mjs",
+    "app": "npm run app -w @mobius/desktop --"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
+  }
+}
