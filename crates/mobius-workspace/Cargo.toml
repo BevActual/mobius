@@ -1,0 +1,15 @@
+[package]
+name = "mobius-workspace"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Work on real local folders: checkpoints the agent's changes can be rolled back to."
+
+[dependencies]
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

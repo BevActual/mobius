@@ -1,0 +1,26 @@
+[package]
+name = "mobius-host"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+serde.workspace = true
+mobius-store = { path = "../mobius-store" }
+mobius-browser = { path = "../mobius-browser" }
+base64 = "0.22"
+url = "2"
+ureq.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+mobius-browser = { path = "../mobius-browser", features = ["fake"] }
+
+[[bin]]
+name = "fake-core"
+path = "src/bin/fake_core.rs"
+
+[lints]
+workspace = true
