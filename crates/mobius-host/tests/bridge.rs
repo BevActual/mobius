@@ -387,12 +387,75 @@ mod browser {
     }
 
     #[test]
+    fn file_tools_work_in_the_workspace_folder_without_a_window() {
+        let (b, _c, _e, dir) = bridge_in(tempfile::tempdir().unwrap());
+        let run = |tool: &str, arguments: serde_json::Value| b.host_request("host.tool", &json!({ "tool": tool, "arguments": arguments }));
+        run("files.write", json!({ "path": "notes/a.md", "content": "hi" })).unwrap();
+        assert!(run("files.read", json!({ "path": "notes/a.md" })).unwrap().as_str().unwrap().contains("\"hi\""));
+        // It really is a file in the workspace folder, and nothing can reach outside it.
+        assert_eq!(std::fs::read_to_string(dir.path().join("workspace/notes/a.md")).unwrap(), "hi");
+        assert!(run("files.read", json!({ "path": "../agent-settings.json" })).is_err());
+        assert!(run("files.read", json!({ "path": "..\\bookmarks.json" })).is_err());
+    }
+
+    fn registered_names(core: &Arc<CoreProcess>) -> Vec<String> {
+        let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
+        log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect()
+    }
+
+    fn dir_with_mcp(servers: serde_json::Value) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mcp.json"), json!({ "servers": servers }).to_string()).unwrap();
+        dir
+    }
+
+    #[test]
+    fn tools_of_configured_mcp_servers_are_registered_with_the_core_and_can_be_run() {
+        let dir = dir_with_mcp(json!({ "fake": { "command": env!("CARGO_BIN_EXE_fake-mcp-server") }, "broken": { "command": "definitely-not-a-program-xyz" } }));
+        let (b, core, _e, _d) = bridge_in(dir);
+        b.on_core_status(Status::Ready);
+        let start = Instant::now();
+        while !registered_names(&core).contains(&"mcp.fake.echo".to_owned()) {
+            assert!(start.elapsed() < Duration::from_secs(20), "the server's tools were never registered");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let names = registered_names(&core);
+        assert!(names.contains(&"browser.tabs".to_owned()) && names.contains(&"files.write".to_owned()));
+        let said = b.host_request("host.tool", &json!({ "tool": "mcp.fake.echo", "arguments": { "text": "hello" } })).unwrap();
+        assert!(said.as_str().unwrap().starts_with("hello"));
+        assert_eq!(b.host_request("host.tool", &json!({ "tool": "mcp.fake.fail_tool_", "arguments": {} })).unwrap_err(), "it broke");
+        assert_eq!(b.host_request("host.tool", &json!({ "tool": "mcp.fake.nothing", "arguments": {} })).unwrap_err(), "unknown tool");
+        assert_eq!(b.host_request("host.tool", &json!({ "tool": "mcp.broken.x", "arguments": {} })).unwrap_err(), "unknown tool");
+        // The person can see which server did not start, and why.
+        let status = b.mcp_status();
+        assert_eq!(status["running"], json!(["fake"]));
+        assert_eq!(status["failed"][0]["server"], "broken");
+        assert!(status["failed"][0]["error"].as_str().unwrap().contains("could not start"));
+    }
+
+    #[test]
+    fn a_bad_mcp_file_changes_nothing_and_is_reported() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
+        let (b, core, _e, _d) = bridge_in(dir);
+        b.on_core_status(Status::Ready);
+        assert_eq!(registered_names(&core).len(), 10, "the built-in tools are still registered");
+        let start = Instant::now();
+        while b.mcp_status()["problem"].is_null() {
+            assert!(start.elapsed() < Duration::from_secs(10));
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(b.mcp_status()["problem"].as_str().unwrap().contains("not valid JSON"));
+        assert!(b.host_request("host.tool", &json!({ "tool": "mcp.fake.echo", "arguments": {} })).is_err());
+    }
+
+    #[test]
     fn becoming_ready_registers_the_browser_tools_with_the_core() {
         let (b, core, _e, _d) = bridge_in(tempfile::tempdir().unwrap());
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit"]);
     }
 
     #[derive(Default)]
@@ -782,4 +845,120 @@ mod browser {
         assert_eq!(call(&b, "agent", "savedServers", json!([])).as_array().unwrap().len(), 1);
         assert_eq!(call(&b, "agent", "removeServer", json!(["x"]))["ok"], false);
     }
+}
+
+#[test]
+fn notes_are_real_files_the_window_can_list_edit_and_search() {
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    assert_eq!(call(&b, "notes", "list", json!([])), json!([]));
+    assert_eq!(call(&b, "notes", "createNotebook", json!(["Work"]))["name"], "Work");
+    let page = call(&b, "notes", "createPage", json!(["Work", "Plans"]));
+    assert_eq!(page["path"], "Work/Plans.md");
+    let base = page["modified"].clone();
+    let saved = call(&b, "notes", "save", json!(["Work/Plans.md", "# Plans\nship notes", base]));
+    assert!(saved["modified"].is_u64(), "{saved}");
+    assert_eq!(std::fs::read_to_string(dir.path().join("workspace/notes/Work/Plans.md")).unwrap(), "# Plans\nship notes");
+    assert_eq!(call(&b, "notes", "read", json!(["Work/Plans.md"]))["content"], "# Plans\nship notes");
+    assert_eq!(call(&b, "notes", "search", json!(["ship"]))[0]["path"], "Work/Plans.md");
+    assert_eq!(call(&b, "notes", "list", json!([]))[0]["pages"][0]["title"], "Plans");
+    // A stale save is refused, with the reason, and the window is told what to do.
+    let stale = call(&b, "notes", "save", json!(["Work/Plans.md", "old", 1]));
+    assert_eq!(stale["ok"], false);
+    assert_eq!(stale["conflict"], true);
+    // Bad arguments are refused without touching anything.
+    for bad in [json!(["../x.md", "x", null]), json!([5, "x", null]), json!(["Work/Plans.md", 5, null]), json!(["Work/Plans.md", "x", "soon"])] {
+        assert_eq!(call(&b, "notes", "save", bad.clone())["ok"], false, "{bad}");
+    }
+    assert_eq!(call(&b, "notes", "read", json!(["Work/Plans.md"]))["content"], "# Plans\nship notes");
+    assert_eq!(call(&b, "notes", "remove", json!(["Work/Plans.md"]))["ok"], true);
+    assert!(!dir.path().join("workspace/notes/Work/Plans.md").exists());
+    let changed = events.lock().unwrap().iter().filter(|(name, _)| name == "mobius:notes-changed").count();
+    assert!(changed >= 4, "create notebook, create page, save and remove each announce a change ({changed})");
+}
+
+#[test]
+fn the_assistant_changing_a_note_tells_the_window() {
+    let (b, _c, events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "notes", "createNotebook", json!(["A"]));
+    events.lock().unwrap().clear();
+    b.host_request("host.tool", &json!({ "tool": "files.write", "arguments": { "path": "notes/A/x.md", "content": "# x" } })).unwrap();
+    assert!(events.lock().unwrap().iter().any(|(name, v)| name == "mobius:notes-changed" && v["path"] == "A/x.md"));
+    events.lock().unwrap().clear();
+    b.host_request("host.tool", &json!({ "tool": "files.write", "arguments": { "path": "other.md", "content": "x" } })).unwrap();
+    assert!(!events.lock().unwrap().iter().any(|(name, _)| name == "mobius:notes-changed"));
+}
+
+/// A provider's models endpoint that answers only to one key, and remembers what it was sent.
+fn provider_server(key: &'static str) -> (String, Arc<std::sync::Mutex<Vec<String>>>) {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://127.0.0.1:{}/v1", listener.local_addr().unwrap().port());
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let log = seen.clone();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut s) = stream else { break };
+            let mut buf = [0u8; 8192];
+            let n = s.read(&mut buf).unwrap_or(0);
+            let request = String::from_utf8_lossy(&buf[..n]).to_string();
+            log.lock().unwrap().push(request.clone());
+            let allowed = request.lines().any(|l| l.eq_ignore_ascii_case(&format!("authorization: Bearer {key}")));
+            let (status, body) = if allowed { (200, r#"{"data":[{"id":"model-b"},{"id":"model-a"}]}"#) } else { (401, "{}") };
+            let _ = write!(s, "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+        }
+    });
+    (url, seen)
+}
+
+fn every_file_text(dir: &std::path::Path) -> String {
+    let mut all = String::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+            if e.path().is_dir() { stack.push(e.path()); } else { all.push_str(&String::from_utf8_lossy(&std::fs::read(e.path()).unwrap_or_default())); }
+        }
+    }
+    all
+}
+
+#[test]
+fn a_provider_key_is_used_only_for_that_provider_and_switching_keeps_the_rest() {
+    let (url, seen) = provider_server("sk-openai-12345678");
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.redirect_provider_for_tests("openai", &url);
+    // Without a key nothing is sent at all.
+    assert_eq!(call(&b, "providers", "models", json!(["openai"]))["ok"], false);
+    assert!(seen.lock().unwrap().is_empty());
+    assert_eq!(call(&b, "providers", "setKey", json!(["openai", "sk-openai-12345678"]))["ok"], true);
+    assert!(events.lock().unwrap().iter().any(|(n, _)| n == "mobius:providers-changed"));
+    assert_eq!(call(&b, "providers", "models", json!(["openai"]))["models"], json!(["model-a", "model-b"]));
+    // Instructions set earlier survive a switch of provider.
+    call(&b, "agent", "configure", json!([{ "baseUrl": "http://127.0.0.1:9/v1", "model": "old", "system": "Be brief." }]));
+    assert_eq!(call(&b, "providers", "use", json!(["openai", "model-b"]))["ok"], true);
+    let settings = call(&b, "agent", "getSettings", json!([]));
+    assert_eq!((settings["baseUrl"].as_str(), settings["model"].as_str(), settings["hasKey"].as_bool(), settings["system"].as_str()), (Some(url.as_str()), Some("model-b"), Some(true), Some("Be brief.")));
+    let listed = call(&b, "providers", "list", json!([]));
+    assert_eq!(listed.as_array().unwrap().iter().filter(|p| p["active"] == true).map(|p| p["id"].clone()).collect::<Vec<_>>(), [json!("openai")]);
+    // The key is never shown and never written to a plain file.
+    assert!(!listed.to_string().contains("sk-openai"));
+    assert!(!every_file_text(dir.path()).contains("sk-openai-12345678"));
+    // Another provider has no key: using it is refused and nothing is sent anywhere.
+    assert_eq!(call(&b, "providers", "use", json!(["groq", "llama"]))["ok"], false);
+    for bad in [json!(["nope", "m"]), json!(["openai", ""]), json!(["openai", "bad\nmodel"]), json!([5, "m"])] {
+        assert_eq!(call(&b, "providers", "use", bad.clone())["ok"], false, "{bad}");
+    }
+    assert_eq!(call(&b, "providers", "setKey", json!(["openai", 5]))["ok"], false);
+    // Removing the key stops it being sent, also by the agent that was using it.
+    call(&b, "providers", "removeKey", json!(["openai"]));
+    assert_eq!(call(&b, "agent", "getSettings", json!([]))["hasKey"], false);
+    assert_eq!(call(&b, "providers", "list", json!([]))[0]["hasKey"], false);
+}
+
+#[test]
+fn redirecting_a_provider_needs_the_test_hooks() {
+    let (b, _c, _e, _d) = bridge_in(tempfile::tempdir().unwrap());
+    b.redirect_provider_for_tests("openai", "http://127.0.0.1:9/v1");
+    assert_eq!(call(&b, "providers", "list", json!([]))[0]["baseUrl"], "https://api.openai.com/v1");
+    assert_eq!(b.provider_address("openai").as_deref(), Some("https://api.openai.com/v1"));
 }

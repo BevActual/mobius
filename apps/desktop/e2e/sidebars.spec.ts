@@ -59,7 +59,7 @@ test('a floating list can be opened with its button, and closes on Escape, on a 
   await expect(tabs()).toHaveCount(0);
   await toggleTabs().click();
   await expect(tabs()).toBeVisible();
-  await tabs().getByRole('button', { name: 'New tab' }).focus();
+  await tabs().getByRole('button', { name: 'New tab', exact: true }).focus();
   await shell().keyboard.press('Escape');
   await expect(tabs()).toHaveCount(0);
 

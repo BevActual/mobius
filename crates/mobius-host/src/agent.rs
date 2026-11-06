@@ -283,6 +283,33 @@ impl AgentService {
         self.apply_request(&Configure { base_url: s.base_url, model: model.to_owned(), system: Some(s.system), max_steps: Some(s.max_steps), fallback, ..Configure::default() }, true)
     }
 
+    /// Point the agent at another server and model, keeping its instructions, step limit and second model.
+    /// `key` replaces the saved key; `None` means the server needs none.
+    pub fn use_endpoint(&self, base_url: &str, model: &str, key: Option<String>) -> Value {
+        if !is_model_name(model) {
+            return failed("That model cannot be used.");
+        }
+        let s = lock(&self.saved).clone();
+        let fallback = s.fallback.as_ref().map(|f| FallbackRequest { base_url: f.base_url.clone(), model: f.model.clone(), api_key: None, clear_key: false });
+        let clear_key = key.is_none();
+        self.apply_request(&Configure { base_url: base_url.to_owned(), model: model.to_owned(), api_key: key, clear_key, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true)
+    }
+
+    /// Stop sending the saved key, if the agent is using this address. Used when a provider's key is removed.
+    pub fn drop_key_for(&self, base_url: &str) {
+        let s = lock(&self.saved).clone();
+        if s.key.is_none() || !s.base_url.trim_end_matches('/').eq_ignore_ascii_case(base_url.trim_end_matches('/')) {
+            return;
+        }
+        let fallback = s.fallback.as_ref().map(|f| FallbackRequest { base_url: f.base_url.clone(), model: f.model.clone(), api_key: None, clear_key: false });
+        self.apply_request(&Configure { base_url: s.base_url, model: s.model, api_key: None, clear_key: true, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true);
+    }
+
+    /// The address the agent uses now.
+    pub fn base_url(&self) -> String {
+        lock(&self.saved).base_url.clone()
+    }
+
     /// `bot` is the instructions and model of the bot the conversation belongs to, if it has one.
     pub fn send(&self, request: &SendRequest, bot: Option<(&str, &str)>) -> Value {
         let usual = lock(&self.saved).system.clone();
@@ -449,9 +476,14 @@ impl AgentService {
             Ok(x) => x,
             Err(e) => return e,
         };
-        let url = format!("{base}/models");
+        Self::models_at(&base, &key)
+    }
+
+    /// The models a server offers, asked with this key (only ever over https or to this computer).
+    pub fn models_at(base: &str, key: &Option<String>) -> Value {
+        let url = format!("{}/models", base.trim_end_matches('/'));
         let mut req = Self::agent().get(&url);
-        if let Some(a) = Self::auth(&url, &key) {
+        if let Some(a) = Self::auth(&url, key) {
             req = req.header("authorization", a);
         }
         let mut response = match req.call() {

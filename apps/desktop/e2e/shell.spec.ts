@@ -17,7 +17,7 @@ const address = () => mobius.shell.getByRole('textbox', { name: 'Address or ques
 const tabTitles = () => mobius.shell.locator('.tab-title');
 
 test('opens one window with a single visible page glued to the slot', async () => {
-  await expect(mobius.shell.locator('.strip-title')).toHaveText('Mobius · Browser');
+  await expect(mobius.shell.locator('.strip-title')).toHaveText('Fixture home');
   const view = await expectVisibleView(mobius.app);
   expect(view.url).toBe(fixture.origin + '/');
   await expect(tabTitles()).toHaveText(['Fixture home']);

@@ -4,8 +4,10 @@
 pub mod agent;
 pub mod awake;
 pub mod bridge;
+mod mcp;
 pub mod context;
 pub mod endpoints;
+pub mod providers;
 pub mod context_file;
 pub mod secrets;
 pub mod models;

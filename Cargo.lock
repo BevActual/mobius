@@ -2564,12 +2564,21 @@ version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
  "mobius-browser",
+ "mobius-mcp",
  "mobius-store",
+ "mobius-workspace",
  "serde",
  "serde_json",
  "tempfile",
  "ureq",
  "url",
+]
+
+[[package]]
+name = "mobius-mcp"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -2622,6 +2631,7 @@ dependencies = [
 name = "mobius-workspace"
 version = "0.0.0"
 dependencies = [
+ "serde_json",
  "tempfile",
 ]
 

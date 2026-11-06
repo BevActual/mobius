@@ -232,13 +232,26 @@ fn main() {
             }
             if test_mode {
                 bridge.enable_test_hooks();
+                // `MOBIUS_TEST_PROVIDER=openai=http://127.0.0.1:1234/v1` points one provider at a local fake server.
+                if let Some((id, url)) = std::env::var("MOBIUS_TEST_PROVIDER").ok().as_deref().and_then(|v| v.split_once('=')) {
+                    bridge.redirect_provider_for_tests(id, url);
+                }
             }
             let quit_handle = handle.clone();
             bridge.set_quit(Arc::new(move || quit_handle.exit(0)));
             app.manage(Shell { bridge: bridge.clone() });
             let hidden = test_mode && std::env::var("MOBIUS_HIDE_WINDOW").is_ok_and(|v| v == "1");
             // The window holds the interface as one web view that fills it, and the browser's pages as more views above it.
-            let window = WindowBuilder::new(app, "main").title("Mobius (Tauri preview)").inner_size(1440.0, 900.0).min_inner_size(720.0, 480.0).visible(!hidden).build()?;
+            // Tests need one known size; a person gets a window that fits the screen they have and opens in the middle of it.
+            let (width, height) = if test_mode {
+                (1440.0, 900.0)
+            } else {
+                app.primary_monitor().ok().flatten().map_or((1440.0, 900.0), |monitor| {
+                    let size = monitor.size().to_logical::<f64>(monitor.scale_factor());
+                    ((size.width * 0.9).min(1440.0), (size.height * 0.85).min(900.0))
+                })
+            };
+            let window = WindowBuilder::new(app, "main").title("Mobius").inner_size(width, height).min_inner_size(720.0, 480.0).center().visible(!hidden).build()?;
             let scale = window.scale_factor()?;
             let size = window.inner_size()?.to_logical::<f64>(scale);
             let interface = window.add_child(WebviewBuilder::new("main", WebviewUrl::default()), LogicalPosition::new(0.0, 0.0), size)?;

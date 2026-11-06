@@ -707,7 +707,7 @@ export function AboutSection({ subpage, highlight, coreStatus }: SectionProps) {
         <button type="button" className="btn" onClick={() => void window.mobius.app.openDataFolder()}>Open data folder</button>
       </Row>
       {window.mobius.app.removeData && (
-        <Row path={rowPath('about', subpage, 'remove-data')} title="Remove my data" description="Deletes conversations, settings, approvals, saved pages and downloaded models, and the saved API key. Mobius then closes. Files you downloaded with the browser are not touched." highlight={highlight === 'remove-data'}>
+        <Row path={rowPath('about', subpage, 'remove-data')} title="Remove my data" description="Deletes conversations, settings, approvals, saved pages, downloaded models and saved API keys, and your Notes and every other file in the Mobius workspace. Mobius then closes. Files you downloaded with the browser are not touched." highlight={highlight === 'remove-data'}>
           <RemoveData />
         </Row>
       )}

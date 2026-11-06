@@ -43,7 +43,7 @@ blocks it), **needs X**, **n/a** (Hermes-specific, no Mobius meaning).
 | auxiliary models (title, compression, vision...) | - | needs those features |
 | delegation / subagents, MoA | - | needs sub-agents |
 | custom endpoints list | one endpoint plus one fallback | done in the Tauri shell: Settings → Model → Saved servers (named, keys in the secret store) |
-| providers / keys page (many providers) | Provider presets (14: cloud + local) | done (presets fill the address; one active endpoint) |
+| providers / keys page (many providers) | Settings → Providers → API keys (Tauri shell): 14 providers, one key each in the system secret store, model list from the provider, "Use" switches the agent keeping its instructions and second model; removing a key also stops the agent sending it | done (not copied: account sign-in / OAuth providers, per-provider advanced overrides such as region; the address of a listed provider cannot be changed) |
 
 ## Chat (Hermes: Behavior, Attachments)
 | Hermes row | Mobius | Status |
@@ -118,7 +118,7 @@ tools (one registry, both ways). Not started.
 |---|---|---|
 | version, runtime info, open data folder | About | done (opens the folder in both shells) |
 | updates | - | needs a release channel |
-| uninstall | Settings → About → Remove my data (asks twice; empties the data folder and the saved keys, then closes; Tauri shell) | done |
+| uninstall | Settings → About → Remove my data (asks twice; empties the data folder, including Notes and the workspace, and every saved key, then closes; Tauri shell) | done |
 
 ## Order of work
 1. Appearance (done in this pass).

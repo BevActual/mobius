@@ -1,0 +1,106 @@
+/*
+ * Mobius design tokens. Every size, space, colour and motion value the interface uses comes from here, so the
+ * applications look like one product. Grounded in Apple's Human Interface Guidelines (macOS): a 4-pt grid, a small
+ * type scale, semantic colours with a dark counterpart, and quick, interruptible motion.
+ */
+:root {
+  color-scheme: light dark;
+
+  /* Type: five steps. 11 is for tertiary labels only; body is 13. */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 17px;
+  --fs-2xl: 22px;
+  --lh-tight: 1.25;
+  --lh-body: 1.5;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+
+  /* Space: 4-pt grid. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* Shape. */
+  --radius-control: 8px;
+  --radius-group: 12px;
+  --radius-panel: 16px;
+  --radius-sheet: 20px;
+  --control-h: 28px;
+  --control-h-lg: 36px;
+
+  /* Colour roles: surfaces, text, lines, accent, and status. */
+  --bg: #ffffff;
+  --panel: #f8f8fa;
+  --chrome: #f2f2f5;
+  --shell: #f5f5f7;
+  --ink: #1d1d1f;
+  --muted: #65656b;
+  --line: #e5e5e9;
+  --line-strong: #c7c7cc;
+  --soft: #ededf0;
+  --accent: #0066cc;
+  --on-accent: #ffffff;
+  --wash: #eaf2fc;
+  --danger: #c5221f;
+  --danger-wash: #fce8e6;
+  --success: #1e7b34;
+  --success-wash: #e6f4ea;
+  --warning: #9a5b00;
+  --warning-wash: #fef3e0;
+
+  /* Elevation. */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --shadow-3: 0 14px 44px rgba(0, 0, 0, 0.3);
+
+  /* Motion. */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur-med: 200ms;
+
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2365656b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e;
+    --panel: #242426;
+    --chrome: #29292c;
+    --shell: #202022;
+    --ink: #f5f5f7;
+    --muted: #b0b0b6;
+    --line: #3a3a3e;
+    --line-strong: #56565b;
+    --soft: #343437;
+    --accent: #80baff;
+    --on-accent: #0b1a2b;
+    --wash: #243950;
+    --danger: #ff8a80;
+    --danger-wash: #3d1f1d;
+    --success: #7bd88f;
+    --success-wash: #1c3324;
+    --warning: #f2b45a;
+    --warning-wash: #3a2c12;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23b0b0b6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root { --muted: #44444a; --line: #9b9ba3; --line-strong: #6e6e76; }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root { --muted: #d0d0d6; --line: #888890; --line-strong: #a8a8b0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-med: 0ms; }
+}

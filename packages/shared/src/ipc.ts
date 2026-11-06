@@ -126,6 +126,31 @@ export interface WindowState { maximized: boolean; fullScreen: boolean; focused:
 export type NavigateOutcome = 'navigated' | 'ask' | 'blocked' | 'empty';
 
 /** The API the preload script exposes. Nothing else is reachable from the renderer. */
+/** One page of the Notes app: a Markdown file in a notebook folder. `path` is `notebook/page.md`. */
+export interface NotePage { path: string; title: string; modified: number }
+export interface Notebook { name: string; pages: NotePage[] }
+export interface NoteContent { path: string; content: string; modified: number }
+export interface NoteHit { path: string; title: string; notebook: string; line: string }
+/** A refused notes call. `conflict` means the page changed elsewhere (the assistant) since it was read. */
+export interface NotesFailure { ok: false; message: string; conflict?: boolean }
+export interface NotesChange { path: string | null; by: 'person' | 'assistant' }
+export const isNotesFailure = (value: unknown): value is NotesFailure =>
+  typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === false;
+
+/** A model provider in Settings > Providers. The key itself is never sent to the window. */
+export interface ProviderInfo {
+  id: string;
+  name: string;
+  baseUrl: string;
+  note: string;
+  keyUrl: string | null;
+  needsKey: boolean;
+  hasKey: boolean;
+  /** The agent is using this provider now. */
+  active: boolean;
+  storage: 'keychain' | 'session' | 'none';
+}
+
 export interface MobiusBridge {
   platform: string;
   window: {
@@ -203,6 +228,27 @@ export interface MobiusBridge {
     toggle(): Promise<boolean>;
     remove(url: string): void;
     onChanged(listener: () => void): () => void;
+  };
+  /** Settings > Providers. Only the Tauri shell has it. */
+  providers?: {
+    list(): Promise<ProviderInfo[]>;
+    setKey(id: string, key: string): Promise<{ ok: true; storage: 'keychain' | 'session' } | { ok: false; error: string }>;
+    removeKey(id: string): Promise<void>;
+    models(id: string): Promise<{ ok: true; models: string[] } | { ok: false; error: string }>;
+    use(id: string, model: string): Promise<AgentResult>;
+    onChanged(listener: () => void): () => void;
+  };
+  /** The Notes app. Only the Tauri shell has it. */
+  notes?: {
+    list(): Promise<Notebook[] | NotesFailure>;
+    read(path: string): Promise<NoteContent | NotesFailure>;
+    /** `base` is the `modified` the page had when read; the save is refused if it changed since. */
+    save(path: string, content: string, base: number | null): Promise<{ path: string; modified: number } | NotesFailure>;
+    createNotebook(name: string): Promise<{ name: string } | NotesFailure>;
+    createPage(notebook: string, title: string): Promise<NoteContent | NotesFailure>;
+    remove(path: string): Promise<{ ok: true } | NotesFailure>;
+    search(query: string): Promise<NoteHit[] | NotesFailure>;
+    onChanged(listener: (change: NotesChange) => void): () => void;
   };
   history: {
     /** Newest first; an empty query lists everything recent. */

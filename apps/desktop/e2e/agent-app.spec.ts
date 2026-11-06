@@ -45,7 +45,6 @@ test('the launcher opens the Agent as a full app: the page is hidden and the sid
   await expect(shell().getByRole('complementary', { name: 'Agent' })).toBeVisible();
   expect(await visibleViews()).toHaveLength(1);
   await openApp('Agent');
-  await expect(shell().getByText('Mobius · Agent')).toBeVisible();
   await expect(shell().getByRole('region', { name: 'Agent conversation' })).toBeVisible();
   await expect(shell().getByRole('complementary', { name: 'Agent' })).toHaveCount(0);
   await expect(shell().getByRole('textbox', { name: 'Address or question' })).toHaveCount(0);
@@ -115,8 +114,8 @@ test('settings opens over the Agent app and closes back to it', async () => {
 
 test('apps that are not built cannot be opened', async () => {
   await start([]);
-  await openApp('Notes');
-  await expect(shell().getByText('Mobius · Browser')).toBeVisible();
+  await openApp('Documents');
+  await expect(shell().getByRole('button', { name: 'Applications. Current: Browser' })).toBeVisible();
 });
 
 test('a conversation waiting for you is flagged in the list and on the app button even from the Browser', async () => {

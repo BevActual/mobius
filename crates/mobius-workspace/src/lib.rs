@@ -3,3 +3,5 @@
 //! history (if it has one) is never touched. Modelled on Hermes's checkpoint manager.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 pub mod checkpoints;
+pub mod files;
+pub mod notes;

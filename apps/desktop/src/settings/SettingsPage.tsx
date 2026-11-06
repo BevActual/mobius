@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SETTINGS, findSection, searchSettings, type SectionId } from './manifest';
 import { AboutSection, AdvancedSection, AppearanceSection, BrowserSection, KeyboardSection, NotificationsSection, ModelSection, SafetySection, SessionsSection, type SectionProps } from './sections';
+import { ProvidersSection } from './ProviderKeys';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
 
 const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   appearance: AppearanceSection,
   model: ModelSection,
+  providers: ProvidersSection,
   safety: SafetySection,
   browser: BrowserSection,
   notifications: NotificationsSection,

@@ -1,4 +1,4 @@
-export type SectionId = 'appearance' | 'model' | 'safety' | 'browser' | 'notifications' | 'sessions' | 'keyboard' | 'advanced' | 'about';
+export type SectionId = 'appearance' | 'model' | 'providers' | 'safety' | 'browser' | 'notifications' | 'sessions' | 'keyboard' | 'advanced' | 'about';
 
 export interface SettingRow {
   id: string;
@@ -72,6 +72,16 @@ export const SETTINGS: readonly SettingsSection[] = [
         row('context-size', 'Context size', 'How much text a local model keeps in view. More uses more graphics memory.', 'context length', 'context window', 'tokens', 'ctx', 'memory', 'vram'),
         row('local-models', 'On this computer', 'Models you have downloaded. Run one to use it for the agent.', 'gguf', 'run', 'files', 'offline', 'private'),
         row('find-models', 'Find models', 'Search Hugging Face, or let Mobius suggest what will run well here, and download one.', 'download', 'search', 'recommend', 'suggest', 'huggingface', 'hugging face', 'gguf'),
+      ] },
+    ],
+  },
+  {
+    id: 'providers',
+    label: 'Providers',
+    description: 'Services the agent can use, each with its own key.',
+    subpages: [
+      { id: 'keys', label: 'API keys', rows: [
+        row('provider-keys', 'Provider keys', 'One key per service, kept in the system\'s secret store and never shown again. A key is only ever sent to its own service. Use a provider to switch the agent to it.', 'keys', 'credentials', 'accounts', 'switch provider', 'services', 'claude', 'gpt', 'grok', 'openrouter', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'hugging face', 'gemini'),
       ] },
     ],
   },

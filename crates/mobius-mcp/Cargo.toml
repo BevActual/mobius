@@ -1,0 +1,17 @@
+[package]
+name = "mobius-mcp"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Use tools from other programs over MCP (Model Context Protocol), through the same registry as Mobius's own tools."
+
+[dependencies]
+serde_json.workspace = true
+
+[[bin]]
+name = "fake-mcp-server"
+path = "src/bin/fake_mcp_server.rs"
+
+[lints]
+workspace = true

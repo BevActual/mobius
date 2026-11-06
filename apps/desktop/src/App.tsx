@@ -23,6 +23,10 @@ import { usePreferences } from './usePreferences';
 import { useConversation } from './useConversation';
 import { SettingsPage } from './settings/SettingsPage';
 import { useCoreStatus } from './useCoreStatus';
+import { useNotes } from './useNotes';
+import { NotesSidebar } from './NotesSidebar';
+import { NoteEditor } from './NoteEditor';
+import { liveTitle } from './notes-state';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
 
@@ -43,6 +47,7 @@ export function App() {
   const downloads = useDownloads();
   const preferences = usePreferences();
   const bookmarks = useBookmarks();
+  const notes = useNotes();
   const bindings = preferences.value.keybindings;
   // Clicking a notification brings Mobius forward; show the conversation it was about.
   useEffect(() => window.mobius.app.onOpenConversation((id) => { conversation.select(id); setChatOpen(true); }), [conversation.select]);
@@ -62,6 +67,7 @@ export function App() {
   const openFind = useCallback(() => { setFindOpen(true); setFinding((n) => n + 1); }, []);
   const inBrowser = app === 'browser';
   const inAgent = app === 'agent';
+  const inNotes = app === 'notes';
   const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
   const needsYou = conversation.list.reduce((sum, c) => sum + c.waiting, 0);
   const { settings, save: saveSettings, reload: reloadSettings } = useAgentSettings();
@@ -78,13 +84,15 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasLeft = inBrowser || inAgent;
+  const hasLeft = inBrowser || inAgent || inNotes;
+  // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
+  const hasRight = inBrowser || inNotes;
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
   const leftOpen = inAgent ? agentListOpen : panelOpen;
   const setLeftOpen = inAgent ? setAgentListOpen : setPanelOpen;
-  const rightOpen = inBrowser && chatOpen;
+  const rightOpen = hasRight && chatOpen;
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
   const [hovering, setHovering] = useState(false);
   const leftWidth = drag?.side === 'left' ? drag.width : appearance.value.leftWidth;
@@ -206,12 +214,12 @@ export function App() {
   return (
     <div className="app" data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <div className="strip" role="presentation">
-        <span className="strip-title">Mobius · {appName(app)}</span>
+        <span className="strip-title">{inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || appName(app)) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : appName(app)}</span>
         <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
       </div>
       <header className="context-strip">
         <div className="strip-left" role="group" aria-label="Window">
-          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
+          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
         </div>
@@ -248,7 +256,7 @@ export function App() {
           {findOpen && active && <FindBar key={active.id} tabId={active.id} focusToken={finding} onClose={() => setFindOpen(false)} />}
         </div>}
         <div className="strip-right" role="group" aria-label="Applications">
-          {inBrowser && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={chatOpen} aria-label="Show agent" title="Show or hide the agent" onClick={() => { setChatOpen((open) => !open); setFocusToken((n) => n + 1); }}>
+          {hasRight && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={chatOpen} aria-label="Show agent" title="Show or hide the agent" onClick={() => { setChatOpen((open) => !open); setFocusToken((n) => n + 1); }}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>
           </button>}
           <button type="button" className="strip-btn app-button" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${appName(app)}`} onClick={openLauncher}>
@@ -293,6 +301,8 @@ export function App() {
                 onDelete={conversation.remove}
                 pin={pin('left')}
               />
+            ) : inNotes ? (
+              <NotesSidebar notes={notes} pin={pin('left')} />
             ) : (
           <aside className="side" aria-label="Browser sidebar">
             <div className="side-head">
@@ -361,6 +371,7 @@ export function App() {
               coreStatus={coreStatus}
             />
           )}
+          {inNotes && <NoteEditor notes={notes} />}
           {inAgent && (
             <ChatPanel
               variant="full"
@@ -414,7 +425,7 @@ export function App() {
             {resizer('right', 'Resize the agent panel')}
           </div>
         )}
-        {inBrowser && rightFloating && !chatOpen && <div className="hotzone right" data-testid="hotzone-right" onPointerEnter={() => { rightFromEdge.current = true; setChatOpen(true); }} />}
+        {hasRight && rightFloating && !chatOpen && <div className="hotzone right" data-testid="hotzone-right" onPointerEnter={() => { rightFromEdge.current = true; setChatOpen(true); }} />}
       </div>
       <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp} />
     </div>

@@ -7,6 +7,7 @@ rust-version.workspace = true
 description = "Work on real local folders: checkpoints the agent's changes can be rolled back to."
 
 [dependencies]
+serde_json.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

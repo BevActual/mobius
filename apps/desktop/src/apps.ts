@@ -6,9 +6,9 @@ export interface AppInfo { id: AppId; name: string; available: boolean }
 export const APPS: readonly AppInfo[] = [
   { id: 'browser', name: 'Browser', available: true },
   { id: 'agent', name: 'Agent', available: true },
+  { id: 'notes', name: 'Notes', available: true },
   { id: 'code', name: 'Code', available: false },
   { id: 'documents', name: 'Documents', available: false },
-  { id: 'notes', name: 'Notes', available: false },
   { id: 'canvas', name: 'Canvas', available: false },
   { id: 'tasks', name: 'Tasks', available: false },
   { id: 'review', name: 'Review', available: false },

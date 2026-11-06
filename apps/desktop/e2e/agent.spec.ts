@@ -205,7 +205,7 @@ test('if the core restarts, the agent is set up again by itself', async () => {
 test('a web page cannot reach the agent, and the shell cannot call the core directly', async () => {
   await start([says(['x'])]);
   const keys = await mobius!.shell.evaluate(() => Object.keys(window.mobius).sort());
-  expect(keys).toEqual(['agent', 'app', 'appearance', 'bookmarks', 'bots', 'browser', 'context', 'core', 'downloads', 'history', 'models', 'platform', 'preferences', 'surface', 'window']);
+  expect(keys).toEqual(['agent', 'app', 'appearance', 'bookmarks', 'bots', 'browser', 'context', 'core', 'downloads', 'history', 'models', 'notes', 'platform', 'preferences', 'providers', 'surface', 'window']);
   const coreKeys = await mobius!.shell.evaluate(() => Object.keys(window.mobius.core).sort());
   expect(coreKeys).toEqual(['getStatus', 'onStatus']);
   const outcomes = await mobius!.shell.evaluate(async () => ({
@@ -321,5 +321,5 @@ test('the core still knows the browser tools after it restarts', async () => {
   await expect.poll(async () => (await coreHistory(mobius!.app)).includes('restarting'), { timeout: 15_000 }).toBe(true);
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   const tools = await coreCall<Array<{ name: string; external: boolean }>>(mobius!.app, 'tools.list');
-  expect(tools.filter((t) => t.external).map((t) => t.name)).toEqual(['browser.click', 'browser.open', 'browser.read', 'browser.tabs', 'browser.type']);
+  expect(tools.filter((t) => t.external).map((t) => t.name)).toEqual(['browser.click', 'browser.open', 'browser.read', 'browser.tabs', 'browser.type', 'files.edit', 'files.list', 'files.read', 'files.search', 'files.write']);
 });

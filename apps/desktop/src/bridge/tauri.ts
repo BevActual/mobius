@@ -18,6 +18,7 @@ import {
   type FindResult,
   type MobiusBridge,
   type ModelsEvent,
+  type NotesChange,
 } from '@mobius/shared';
 
 /**
@@ -136,6 +137,24 @@ export function createTauriBridge(): MobiusBridge {
       start: (id, context) => call('models', 'start', [id, context ?? null], () => ({ ok: false, error: refused.error }) as never),
       stop: () => call('models', 'stop', [], () => ({ ok: false, error: refused.error }) as never),
       onEvent: (listener) => on<ModelsEvent>('mobius:models-event', listener),
+    },
+    providers: {
+      list: () => call('providers', 'list', [], () => []),
+      setKey: (id, key) => call('providers', 'setKey', [id, key], () => ({ ok: false as const, error: 'Providers are not available.' })),
+      removeKey: (id) => call('providers', 'removeKey', [id], () => undefined),
+      models: (id) => call('providers', 'models', [id], () => ({ ok: false as const, error: 'Providers are not available.' })),
+      use: (id, model) => call('providers', 'use', [id, model], () => ({ ok: false as const, error: 'Providers are not available.' })),
+      onChanged: (listener) => on<null>('mobius:providers-changed', () => listener()),
+    },
+    notes: {
+      list: () => call('notes', 'list', [], () => []),
+      read: (path) => call('notes', 'read', [path], () => ({ ok: false as const, message: 'Notes is not available.' })),
+      save: (path, content, base) => call('notes', 'save', [path, content, base], () => ({ ok: false as const, message: 'Notes is not available.' })),
+      createNotebook: (name) => call('notes', 'createNotebook', [name], () => ({ ok: false as const, message: 'Notes is not available.' })),
+      createPage: (notebook, title) => call('notes', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Notes is not available.' })),
+      remove: (path) => call('notes', 'remove', [path], () => ({ ok: false as const, message: 'Notes is not available.' })),
+      search: (query) => call('notes', 'search', [query], () => []),
+      onChanged: (listener) => on<NotesChange>('mobius:notes-changed', listener),
     },
     bookmarks: {
       get: (query) => call('bookmarks', 'get', [query], () => []),

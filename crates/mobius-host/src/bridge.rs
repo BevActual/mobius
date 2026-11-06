@@ -141,6 +141,12 @@ pub struct Bridge {
     core: Arc<CoreProcess>,
     agent: AgentService,
     data_dir: PathBuf,
+    /// The folder of real files the assistant's file tools work in.
+    workspace: mobius_workspace::files::Workspace,
+    /// Tools from other programs the person set up (MCP servers).
+    mcp: Arc<crate::mcp::McpState>,
+    notes: mobius_workspace::notes::Notes,
+    providers: crate::providers::Providers,
     emit: Emit,
     appearance: Mutex<Settings>,
     preferences: Mutex<Settings>,
@@ -168,13 +174,17 @@ impl Bridge {
             downloads: Mutex::new(Downloads::new(data_dir.join("downloads"))),
             browser: OnceLock::new(),
             dialogs: OnceLock::new(),
-            agent: AgentService::new(core.clone(), data_dir.join("agent-settings.json"), secrets),
+            agent: AgentService::new(core.clone(), data_dir.join("agent-settings.json"), secrets.clone()),
             appearance: Mutex::new(appearance::open(data_dir.join("appearance.json"))),
             preferences: Mutex::new(preferences::open(data_dir.join("preferences.json"))),
             bots: Mutex::new(Bots::open(data_dir.join("bots.json"), Box::new(now_ms))),
             history: Mutex::new(History::open(data_dir.join("history.json"), Box::new(now_ms))),
             bookmarks: Mutex::new(Bookmarks::open(data_dir.join("bookmarks.json"), Box::new(now_ms))),
             core,
+            workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            mcp: Arc::default(),
+            providers: crate::providers::Providers::new(secrets.clone()),
+            notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             data_dir,
             emit,
         }
@@ -227,6 +237,8 @@ impl Bridge {
             }
             ("bookmarks", "remove") => Ok(self.with_url(arg(0), |url| lock(&self.bookmarks).remove(url), "bookmarks-changed")),
 
+            ("notes", _) => Ok(self.notes_call(method, args)),
+            ("providers", _) => Ok(self.providers_call(method, args)),
             ("agent", _) => self.agent_call(method, args),
             ("browser", _) => self.browser_call(method, args),
             ("surface", "setBounds") => {
@@ -282,6 +294,7 @@ impl Bridge {
         }
         self.agent.forget_keys();
         lock(&self.endpoints).forget_keys();
+        self.providers.forget_all();
         self.core.stop_shared();
         let mut failures = 0;
         let mut removed = 0;
@@ -681,9 +694,22 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
-        let browser = self.browser.get().ok_or("no window is open")?.clone();
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
+        if mobius_mcp::hub::is_mcp_tool(tool) {
+            return self.mcp.run(tool, &args).map(Value::String);
+        }
+        if mobius_workspace::files::is_file_tool(tool) {
+            let result = self.workspace.run(tool, &args).map(Value::String);
+            let path = args.get("path").and_then(Value::as_str).unwrap_or("").replace('\\', "/");
+            if result.is_ok() && matches!(tool, "files.write" | "files.edit")
+                && let Some(page) = path.strip_prefix("notes/")
+            {
+                (self.emit)("mobius:notes-changed", json!({ "path": page, "by": "assistant" }));
+            }
+            return result;
+        }
+        let browser = self.browser.get().ok_or("no window is open")?.clone();
         let prefs = self.preference("agentPrivateUrls");
         let deps = BrowserTools { browser, allow_private: Box::new(move || prefs == Value::Bool(true)) };
         run_browser_tool(tool, &args, &deps).map(Value::String)
@@ -691,9 +717,113 @@ impl Bridge {
 
     /// Tells the core about the tools this application runs. Called each time the core becomes ready.
     fn register_tools(&self) {
-        for tool in tool_descriptions() {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
+        self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
+    }
+
+    /// Point a provider at a local fake server. Does nothing unless the test hooks are on.
+    pub fn redirect_provider_for_tests(&self, id: &str, url: &str) {
+        if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
+            self.providers.redirect_for_tests(id, url);
+        }
+    }
+
+    pub fn provider_address(&self, id: &str) -> Option<String> {
+        self.providers.address(id)
+    }
+
+    /// Settings > Providers. A key goes in and is never given back; it is only ever sent to its provider's address.
+    fn providers_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let p = &self.providers;
+        let changed = || (self.emit)("mobius:providers-changed", Value::Null);
+        match method {
+            "list" => p.list(&self.agent.base_url()),
+            "setKey" => match (text(0), text(1)) {
+                (Some(id), Some(key)) => match p.set_key(id, key) {
+                    Ok(storage) => {
+                        changed();
+                        json!({ "ok": true, "storage": storage })
+                    }
+                    Err(e) => failed(e),
+                },
+                _ => failed("That key cannot be saved."),
+            },
+            "removeKey" => {
+                if let Some(id) = text(0)
+                    && let Some(address) = p.address(id)
+                {
+                    p.remove_key(id);
+                    self.agent.drop_key_for(&address);
+                    changed();
+                    (self.emit)("mobius:agent-settings", self.agent.settings());
+                }
+                Value::Null
+            }
+            "models" => {
+                let Some((id, address)) = text(0).and_then(|id| p.address(id).map(|a| (id, a))) else { return failed("That provider is not known.") };
+                let needs_key = crate::providers::find(id).is_some_and(|x| x.needs_key);
+                let key = p.key(id);
+                if needs_key && key.is_none() {
+                    return failed("Add a key for this provider first.");
+                }
+                AgentService::models_at(&address, &key)
+            }
+            "use" => {
+                let (Some(id), Some(model)) = (text(0), text(1)) else { return failed("Choose a provider and a model.") };
+                let Some(provider) = crate::providers::find(id) else { return failed("That provider is not known.") };
+                let key = p.key(id);
+                if provider.needs_key && key.is_none() {
+                    return failed(format!("Add a key for {} first.", provider.name));
+                }
+                let Some(address) = p.address(id) else { return failed("That provider is not known.") };
+                let result = self.agent.use_endpoint(&address, model.trim(), key);
+                changed();
+                (self.emit)("mobius:agent-settings", self.agent.settings());
+                result
+            }
+            _ => failed("unknown"),
+        }
+    }
+
+    /// The Notes app. Every answer is either the data asked for or `{ ok: false, message }`; a save that would
+    /// overwrite a change made elsewhere also says `conflict: true` so the window can reload the page.
+    fn notes_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let notes = &self.notes;
+        let result = match method {
+            "list" => notes.list(),
+            "read" => text(0).ok_or_else(|| "a page is needed".to_owned()).and_then(|p| notes.read(p)),
+            "search" => notes.search(&text(0).unwrap_or("").chars().take(200).collect::<String>()),
+            "createNotebook" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| notes.create_notebook(n)),
+            "createPage" => match (text(0), text(1)) {
+                (Some(notebook), Some(title)) => notes.create_page(notebook, title),
+                _ => Err("a notebook and a title are needed".to_owned()),
+            },
+            "save" => match (text(0), text(1), args.get(2).unwrap_or(&Value::Null)) {
+                (Some(path), Some(content), base @ (Value::Null | Value::Number(_))) => notes.save(path, content, base.as_u64()),
+                _ => Err("that cannot be saved".to_owned()),
+            },
+            "remove" => text(0).ok_or_else(|| "a page is needed".to_owned()).and_then(|p| notes.remove_page(p)).map(|_| json!({ "ok": true })),
+            _ => return json!({ "ok": false, "message": "unknown" }),
+        };
+        match result {
+            Ok(value) => {
+                if matches!(method, "createNotebook" | "createPage" | "save" | "remove") {
+                    let path = value.get("path").cloned().unwrap_or(Value::Null);
+                    (self.emit)("mobius:notes-changed", json!({ "path": path, "by": "person" }));
+                }
+                value
+            }
+            Err(message) => json!({ "ok": false, "conflict": message == "changed elsewhere", "message": message }),
+        }
+    }
+
+    /// Which MCP servers are running, which failed to start and why (for the settings page).
+    pub fn mcp_status(&self) -> Value {
+        self.mcp.status()
     }
 
     fn agent_call(&self, method: &str, args: &[Value]) -> Out {

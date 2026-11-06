@@ -4,6 +4,7 @@ import type { MobiusBridge } from '@mobius/shared';
 import { installTauriBridge } from './bridge/tauri';
 import { App } from './App';
 import { MotionRoot } from './motion';
+import './tokens.css';
 import './styles.css';
 
 declare global {

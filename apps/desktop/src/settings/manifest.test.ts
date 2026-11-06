@@ -3,7 +3,7 @@ import { SETTINGS, findSection, searchSettings, settingPath } from './manifest';
 
 describe('the settings map', () => {
   it('has the sections in a fixed order, each with at least one subpage', () => {
-    expect(SETTINGS.map((s) => s.id)).toEqual(['appearance', 'model', 'safety', 'browser', 'notifications', 'sessions', 'keyboard', 'advanced', 'about']);
+    expect(SETTINGS.map((s) => s.id)).toEqual(['appearance', 'model', 'providers', 'safety', 'browser', 'notifications', 'sessions', 'keyboard', 'advanced', 'about']);
     for (const section of SETTINGS) {
       expect(section.label).not.toBe('');
       expect(section.subpages.length).toBeGreaterThan(0);
@@ -38,6 +38,8 @@ describe('searching settings', () => {
     expect(top('vram')).toMatchObject({ section: 'model', subpage: 'local', row: 'hardware' });
     expect(top('download model')).toMatchObject({ section: 'model', subpage: 'local' });
     expect(top('llama.cpp')).toMatchObject({ section: 'model', subpage: 'local' });
+    expect(top('provider keys')).toMatchObject({ section: 'providers', subpage: 'keys', row: 'provider-keys' });
+    expect(top('credentials')).toMatchObject({ section: 'providers' });
     expect(top('ollama')).toMatchObject({ section: 'model', row: 'provider' });
     expect(top('browsing history')).toMatchObject({ section: 'browser', subpage: 'history' });
     expect(top('serif font')).toMatchObject({ section: 'appearance', row: 'chat-font' });

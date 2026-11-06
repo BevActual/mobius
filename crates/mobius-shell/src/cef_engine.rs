@@ -143,6 +143,15 @@ mod chromium {
             shared: Arc<Shared>,
         }
         impl App {
+            // Chromium's GPU process dies on this machine's driver and the pages then never paint, so drawing is done in software.
+            // Pages are drawn by a child window; nothing here is graphics-heavy enough to need more.
+            fn on_before_command_line_processing(&self, _process_type: Option<&CefString>, command_line: Option<&mut CommandLine>) {
+                if let Some(line) = command_line {
+                    for switch in ["disable-gpu", "disable-gpu-compositing"] {
+                        line.append_switch(Some(&CefString::from(switch)));
+                    }
+                }
+            }
             fn browser_process_handler(&self) -> Option<BrowserProcessHandler> {
                 Some(MobiusProcessHandler::new(self.shared.clone()))
             }
@@ -456,9 +465,11 @@ mod chromium {
         let again = shared.clone();
         again.ui(move || {
             use windows::Win32::Foundation::HWND;
-            use windows::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_SHOW, SWP_NOACTIVATE, SWP_NOZORDER, SetWindowPos, ShowWindow};
+            use windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, SetWindowRgn};
+            use windows::Win32::UI::WindowsAndMessaging::{HWND_TOP, SW_HIDE, SW_SHOW, SWP_NOACTIVATE, SetWindowPos, ShowWindow};
             let (visible, bounds) = lock(&shared.shown).clone();
             let (zoom, scale) = (*lock(&shared.zoom), (shared.scale)());
+            cut_hole_in_interface(shared.window, if visible.is_some() { bounds } else { None }, zoom * scale);
             let tabs = lock(&shared.tabs);
             for (id, state) in tabs.iter() {
                 let Some(host) = state.browser.as_ref().and_then(|b| b.host()) else { continue };
@@ -468,7 +479,12 @@ mod chromium {
                         let to_pixels = |v: i32| (f64::from(v) * zoom * scale).round() as i32;
                         // SAFETY: `handle` is the window CEF made for this tab; the calls only move and show it.
                         unsafe {
-                            let _ = SetWindowPos(handle, None, to_pixels(b.x), to_pixels(b.y), to_pixels(b.width), to_pixels(b.height), SWP_NOZORDER | SWP_NOACTIVATE);
+                            // On top: the interface's own view fills the window and would otherwise hide the page.
+                            let _ = SetWindowPos(handle, Some(HWND_TOP), to_pixels(b.x), to_pixels(b.y), to_pixels(b.width), to_pixels(b.height), SWP_NOACTIVATE);
+                            // The page sits in a rounded frame: its own corners are cut to match (the frame's inner radius is 15 points).
+                            let radius = (15.0 * zoom * scale * 2.0).round() as i32;
+                            let region = CreateRoundRectRgn(0, 0, to_pixels(b.width) + 1, to_pixels(b.height) + 1, radius, radius);
+                            SetWindowRgn(handle, Some(region), true);
                             let _ = ShowWindow(handle, SW_SHOW);
                         }
                         host.was_resized();
@@ -498,6 +514,55 @@ mod chromium {
         host.close_browser(1);
     }
 
+    /// The interface's own web view fills the window and is drawn above every other child window, whatever their order. So
+    /// the part of it where a page goes is cut away (a window region), and the page shows through. No page: the view is whole again.
+    fn cut_hole_in_interface(parent: isize, hole: Option<Bounds>, scale: f64) {
+        use windows::Win32::Foundation::{HWND, LPARAM, RECT};
+        use windows::core::BOOL;
+        use windows::Win32::Graphics::Gdi::{CombineRgn, CreateRectRgn, CreateRoundRectRgn, DeleteObject, HGDIOBJ, RGN_DIFF, SetWindowRgn};
+        use windows::Win32::UI::WindowsAndMessaging::{EnumChildWindows, GetClassNameW, GetClientRect};
+
+        unsafe extern "system" fn find(window: HWND, found: LPARAM) -> BOOL {
+            let mut name = [0u16; 32];
+            // SAFETY: `name` is a buffer we own; `found` points at the `Option<HWND>` passed in below, alive for the whole call.
+            unsafe {
+                let length = usize::try_from(GetClassNameW(window, &mut name)).unwrap_or(0);
+                if String::from_utf16_lossy(&name[..length]) == "WRY_WEBVIEW" {
+                    *(found.0 as *mut Option<HWND>) = Some(window);
+                    return BOOL(0);
+                }
+            }
+            BOOL(1)
+        }
+
+        let mut interface: Option<HWND> = None;
+        // SAFETY: the parent is the Mobius window; the callback only reads window class names and writes `interface`.
+        unsafe {
+            let _ = EnumChildWindows(Some(HWND(parent as *mut _)), Some(find), LPARAM(&mut interface as *mut _ as isize));
+        }
+        let Some(interface) = interface else { return };
+        let _ = scale;
+        // SAFETY: regions are created here and handed to the system (which owns the outer one afterwards); the hole is freed.
+        unsafe {
+            let Some(hole) = hole else {
+                let _ = SetWindowRgn(interface, None, true);
+                return;
+            };
+            let mut client = RECT::default();
+            if GetClientRect(interface, &mut client).is_err() {
+                return;
+            }
+            let to_px = |v: i32| (f64::from(v) * scale).round() as i32;
+            let outer = CreateRectRgn(0, 0, client.right, client.bottom);
+            // Rounded like the page itself, so the frame's own (dark) corners show instead of the window's.
+            let radius = (15.0 * scale * 2.0).round() as i32;
+            let cut = CreateRoundRectRgn(to_px(hole.x), to_px(hole.y), to_px(hole.x) + to_px(hole.width) + 1, to_px(hole.y) + to_px(hole.height) + 1, radius, radius);
+            CombineRgn(Some(outer), Some(outer), Some(cut), RGN_DIFF);
+            let _ = DeleteObject(HGDIOBJ(cut.0));
+            SetWindowRgn(interface, Some(outer), true);
+        }
+    }
+
     pub fn open(shared: &Arc<Shared>, tab: &str, url: &str) {
         lock(&shared.tabs).entry(tab.to_owned()).or_default();
         let (shared, tab, url) = (shared.clone(), tab.to_owned(), url.to_owned());
@@ -520,6 +585,7 @@ mod chromium {
         let settings = Settings {
             no_sandbox: 1,
             multi_threaded_message_loop: 1,
+            remote_debugging_port: std::env::var("MOBIUS_REMOTE_DEBUGGING_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(0),
             root_cache_path: CefString::from(cache_text.as_str()),
             cache_path: CefString::from(cache_text.as_str()),
             ..Default::default()
