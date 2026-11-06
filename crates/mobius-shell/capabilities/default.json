@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the Mobius window may do: listen for events from Rust. Everything else goes through the one bridge command.",
+  "windows": ["main"],
+  "permissions": ["core:event:default"]
+}
