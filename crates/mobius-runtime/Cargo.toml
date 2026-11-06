@@ -1,0 +1,25 @@
+[package]
+name = "mobius-runtime"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+ts-rs.workspace = true
+ureq.workspace = true
+sysinfo = { version = "0.36", default-features = false, features = ["system", "disk"] }
+sha2 = "0.11"
+
+[dev-dependencies]
+ureq = { workspace = true, features = ["json"] }
+
+[[bin]]
+name = "mobius-fake-llama"
+path = "src/bin/fake_llama.rs"
+
+[lints]
+workspace = true
