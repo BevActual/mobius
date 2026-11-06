@@ -1,0 +1,30 @@
+[workspace]
+resolver = "3"
+members = ["crates/mobius-core", "crates/mobius-cored", "crates/mobius-agent", "crates/mobius-runtime", "crates/mobius-host", "crates/mobius-store", "crates/mobius-browser", "crates/mobius-shell", "crates/mobius-workspace"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+publish = false
+rust-version = "1.85"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.41", features = ["bundled"] }
+thiserror = "2"
+ts-rs = "12"
+ureq = "3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
