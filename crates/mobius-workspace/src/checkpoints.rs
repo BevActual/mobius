@@ -222,6 +222,19 @@ impl Checkpoints {
         Ok(())
     }
 
+    /// A file's text as it was at `checkpoint`; `None` when it was not there then (or is not text).
+    pub fn read_at(&self, folder: &Path, checkpoint: &str, path: &str) -> Result<Option<String>, Error> {
+        if !is_inner_path(path) {
+            return Err(Error::BadInput("That path is not inside the folder.".into()));
+        }
+        let (folder, id) = self.prepare(folder)?;
+        let target = self.known(&folder, &id, checkpoint)?;
+        match self.git(&folder, &id, &["cat-file", "blob", &format!("{target}:{path}")]) {
+            Ok(text) => Ok(Some(text)),
+            Err(_) => Ok(None),
+        }
+    }
+
     /// Files that differ between `checkpoint` and the folder now: added, changed or removed since.
     pub fn changed_since(&self, folder: &Path, checkpoint: &str) -> Result<Vec<String>, Error> {
         let (folder, id) = self.prepare(folder)?;

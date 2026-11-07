@@ -36,7 +36,7 @@ export function useTasks() {
     return api?.onChanged((change) => {
       const before = live.current;
       void refresh().then((after) => {
-        if (change.by === 'person') return;
+        if (change.by === 'person' || change.by === 'undo') return;
         const old = new Set(Object.entries(before).flatMap(([l, ts]) => ts.map((t) => key(l, `${t.text}|${t.done}|${t.due}`))));
         const marked = Object.entries(after).flatMap(([l, ts]) => ts.filter((t) => !old.has(key(l, `${t.text}|${t.done}|${t.due}`))).map((t) => key(l, t.text)));
         if (marked.length === 0) return;

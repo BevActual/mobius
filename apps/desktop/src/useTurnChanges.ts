@@ -23,7 +23,7 @@ export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
   }, [conversation]);
   useEffect(() => { if (!busy) void load(); }, [busy, load]);
   useEffect(() => {
-    const again = (change: { by: string }) => { if (change.by === 'person') void load(); };
+    const again = (change: { by: string }) => { if (change.by === 'person' || change.by === 'undo') void load(); };
     const offNotes = window.mobius.notes?.onChanged(again);
     const offTasks = window.mobius.tasks?.onChanged(again);
     return () => { offNotes?.(); offTasks?.(); };

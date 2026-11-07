@@ -1222,9 +1222,12 @@ impl Bridge {
                 _ => failed("There is nothing to undo."),
             });
         };
-        let reload = |by: &str| {
-            (self.emit)("mobius:notes-changed", json!({ "path": null, "by": by }));
-            (self.emit)("mobius:tasks-changed", json!({ "list": null, "by": by }));
+        // Open pages and lists reload with what was put back; `undo` adds no new marks.
+        let reload = |path: Option<&str>| {
+            let note = path.and_then(|p| p.strip_prefix("notes/"));
+            let list = path.and_then(|p| p.strip_prefix("tasks/")).and_then(|p| p.strip_suffix(".md"));
+            (self.emit)("mobius:notes-changed", json!({ "path": note, "by": "undo" }));
+            (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "undo" }));
         };
         Ok(match method {
             "lastTurn" => match self.workspace.changed_since(&mark) {
@@ -1233,15 +1236,23 @@ impl Bridge {
             },
             "undo" => match self.workspace.restore(&mark) {
                 Ok(()) => {
-                    reload("person");
+                    reload(None);
                     json!({ "ok": true })
                 }
                 Err(e) => failed(e),
             },
+            // The file as it was before the turn, to show what changed. `null` when the turn made it.
+            "before" => match arg(1).as_str() {
+                Some(path) => match self.workspace.read_at(&mark, path) {
+                    Ok(text) => json!({ "ok": true, "text": text }),
+                    Err(e) => failed(e),
+                },
+                None => failed("Which file?"),
+            },
             "undoFile" => match arg(1).as_str() {
                 Some(path) => match self.workspace.restore_file(&mark, path) {
                     Ok(()) => {
-                        reload("person");
+                        reload(Some(path));
                         json!({ "ok": true })
                     }
                     Err(e) => failed(e),

@@ -97,6 +97,7 @@ export function createTauriBridge(): MobiusBridge {
       lastTurn: (conversation) => call('changes', 'lastTurn', [conversation], () => ({ checkpoint: null, files: [] })),
       undo: (conversation) => call('changes', 'undo', [conversation], () => refused),
       undoFile: (conversation, path) => call('changes', 'undoFile', [conversation, path], () => refused),
+      before: (conversation, path) => call('changes', 'before', [conversation, path], () => refused),
     },
     mini: {
       open: () => call('mini', 'open', [], () => null).then(() => undefined),

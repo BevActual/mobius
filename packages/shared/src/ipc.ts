@@ -133,7 +133,8 @@ export interface NoteContent { path: string; content: string; modified: number }
 export interface NoteHit { path: string; title: string; notebook: string; line: string }
 /** A refused notes call. `conflict` means the page changed elsewhere (the assistant) since it was read. */
 export interface NotesFailure { ok: false; message: string; conflict?: boolean }
-export interface NotesChange { path: string | null; by: 'person' | 'assistant' }
+/** `undo` is something put back from the review strip: open pages reload, as for the assistant, without new marks. */
+export interface NotesChange { path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 export const isNotesFailure = (value: unknown): value is NotesFailure =>
   typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === false;
 
@@ -143,7 +144,7 @@ export interface TaskList { list: string; tasks: TaskItem[]; version: string }
 export interface TaskListInfo { name: string; open: number; done: number }
 export interface TaskChange { text?: string; done?: boolean; due?: string | null }
 /** `by` says who changed it, so the window can show the agent's work without stealing focus. */
-export interface TasksChanged { list: string | null; by: 'person' | 'assistant' | 'another app' }
+export interface TasksChanged { list: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
 export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'device'; models: Array<{ id: string; label: string }> }
@@ -181,6 +182,8 @@ export interface MobiusBridge {
     lastTurn(conversation: string): Promise<TurnChanges | AgentFailure>;
     undo(conversation: string): Promise<{ ok: true } | AgentFailure>;
     undoFile(conversation: string, path: string): Promise<{ ok: true } | AgentFailure>;
+    /** A file as it was before the last turn: `text` is null when the turn made it. */
+    before(conversation: string, path: string): Promise<{ ok: true; text: string | null } | AgentFailure>;
   };
   /** Little Mobius: a small window, kept above other apps, with the conversation and nothing else. */
   mini: {

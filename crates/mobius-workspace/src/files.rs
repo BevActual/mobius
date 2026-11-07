@@ -122,6 +122,12 @@ impl Workspace {
         self.checkpoints.changed_since(&root, checkpoint).map_err(|e| e.to_string())
     }
 
+    /// A file's text as it was at `checkpoint`, or `None` when it was not there.
+    pub fn read_at(&self, checkpoint: &str, path: &str) -> Res<Option<String>> {
+        let root = self.real_root()?;
+        self.checkpoints.read_at(&root, checkpoint, path).map_err(|e| e.to_string())
+    }
+
     /// Puts the workspace back as it was at `checkpoint`; what is there now is saved first.
     pub fn restore(&self, checkpoint: &str) -> Res<()> {
         let root = self.real_root()?;
@@ -286,6 +292,8 @@ mod tests {
         assert!(ws.changed_since(&mark).unwrap().is_empty());
         ws.run("files.write", &json!({ "path": "keep.md", "content": "two" })).unwrap();
         ws.run("files.write", &json!({ "path": "new.md", "content": "new" })).unwrap();
+        assert_eq!(ws.read_at(&mark, "keep.md").unwrap().as_deref(), Some("one"));
+        assert_eq!(ws.read_at(&mark, "new.md").unwrap(), None);
         let mut changed = ws.changed_since(&mark).unwrap();
         changed.sort();
         assert_eq!(changed, vec!["keep.md", "new.md"]);

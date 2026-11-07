@@ -174,12 +174,12 @@ export function App() {
     const visible = (id: AppId) => here.current.app === id || here.current.other === id;
     const mark = (id: AppId) => { if (!visible(id)) setChanged((s) => new Set(s).add(id)); };
     const offNotes = window.mobius.notes?.onChanged((c) => {
-      if (c.by === 'person') return;
+      if (c.by === 'person' || c.by === 'undo') return;
       if (c.by === 'assistant' && c.path && showBeside('notes')) { void notesNow.current.open(c.path); return; }
       mark('notes');
     });
     const offTasks = window.mobius.tasks?.onChanged((c) => {
-      if (c.by === 'person') return;
+      if (c.by === 'person' || c.by === 'undo') return;
       if (c.by === 'assistant' && c.list && showBeside('tasks')) { tasksNow.current.setView({ kind: 'list', name: c.list }); return; }
       mark('tasks');
     });
@@ -559,7 +559,7 @@ export function App() {
           </>
         );
       case 'notes':
-        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} />;
+        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} review={notes.page && turnMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} />;
       case 'search':

@@ -4,6 +4,9 @@ import { liveTitle, onPageChanged, statusText } from './notes-state';
 describe('a page changed on disk', () => {
   it('reloads an assistant change to the open page only when nothing is waiting to be saved', () => {
     expect(onPageChanged('saved', true, 'assistant')).toBe('reload');
+    // Something put back from the review strip reloads the open page too, or asks when it has unsaved edits.
+    expect(onPageChanged('saved', true, 'undo')).toBe('reload');
+    expect(onPageChanged('unsaved', true, 'undo')).toBe('ask');
     for (const status of ['unsaved', 'saving', 'conflict', 'error'] as const) expect(onPageChanged(status, true, 'assistant')).toBe('ask');
   });
   it('only refreshes the list for the person\'s own saves and for other pages', () => {
