@@ -351,6 +351,8 @@ export interface MobiusBridge {
     page(): Promise<AgentResult<{ item: ContextItem }>>;
     /** A text file the person picks, as something to attach. `cancelled` when they close the picker. */
     file(): Promise<AgentResult<{ item: ContextItem | null }>>;
+    /** The text selected on the page that is showing, as something to attach. */
+    selection(): Promise<AgentResult<{ item: ContextItem }>>;
   };
   preferences: {
     get(): Promise<PreferencesSettings>;

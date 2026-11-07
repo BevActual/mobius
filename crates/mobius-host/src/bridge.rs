@@ -308,6 +308,7 @@ impl Bridge {
             ("bookmarks", "toggle") => Ok(self.toggle_bookmark()),
             ("context", "page") => Ok(self.context_page()),
             ("context", "file") => Ok(self.context_file()),
+            ("context", "selection") => Ok(self.context_selection()),
 
             ("bots", "get") => Ok(self.bots_state()),
             ("bots", "create") => {
@@ -783,6 +784,24 @@ impl Bridge {
             return failed("That page has no text Mobius could read.");
         }
         let title: String = if title.is_empty() { if tab_title.is_empty() { url.clone() } else { tab_title } } else { title }.chars().take(120).collect();
+        let source: String = page_url.chars().take(500).collect();
+        json!({ "ok": true, "item": { "kind": "page", "title": title, "source": source, "text": crate::context_file::cut(&text) } })
+    }
+
+    /// The text selected on the page that is showing, as something to attach: on-canvas actions for the web.
+    fn context_selection(&self) -> Value {
+        let nothing = || failed("Select some text on the page first.");
+        let Some(b) = self.browser.get() else { return nothing() };
+        let Some((id, url, tab_title, _)) = b.list().into_iter().find(|t| t.3) else { return nothing() };
+        if !mobius_browser::address::is_web_url(&url) {
+            return nothing();
+        }
+        let Some((page_url, title, text)) = b.selection(&id) else { return nothing() };
+        if text.trim().is_empty() {
+            return nothing();
+        }
+        let name = if title.is_empty() { if tab_title.is_empty() { url.clone() } else { tab_title } } else { title };
+        let title: String = format!("Selected on {name}").chars().take(120).collect();
         let source: String = page_url.chars().take(500).collect();
         json!({ "ok": true, "item": { "kind": "page", "title": title, "source": source, "text": crate::context_file::cut(&text) } })
     }

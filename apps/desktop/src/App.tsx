@@ -483,6 +483,13 @@ export function App() {
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
   const [incoming, setIncoming] = useState<{ token: number; item: ContextItem } | null>(null);
+  /** On-canvas actions for the web: the text selected on the page joins the agent's message box. */
+  const askAboutSelection = async () => {
+    const result = await window.mobius.context.selection().catch(() => ({ ok: false as const, error: 'The selection could not be read.' }));
+    if (!result.ok) { setNotice(result.error); return; }
+    if (!shows('agent')) setChatOpen(true);
+    setIncoming({ token: Date.now(), item: result.item });
+  };
   /** On-canvas actions: what to do with text selected in a note. */
   const onNoteSelection = (action: SelectionAction, text: string) => {
     const page = notes.page;
@@ -616,6 +623,9 @@ export function App() {
           </div>
           <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
             <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={saved}><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
+          </button>
+          <button type="button" className="strip-btn" data-selection-ask aria-label="Ask about the selected text" title="Ask the agent about the text selected on this page" disabled={!active || !/^https?:/.test(active.url)} onClick={() => void askAboutSelection()}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h8M4 9h5M4 13h4" /><path d="M14.5 9.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>
           </button>
           <form className="address" onSubmit={submit}>
             <input
