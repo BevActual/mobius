@@ -45,6 +45,11 @@ jobs:
           Write-Host "debugging port up: $up after $secs s; shell exited: $($p.HasExited) (code $($p.ExitCode))"
           Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Measure-Object | ForEach-Object { Write-Host "web view processes: $($_.Count)" }
           Get-Content (Join-Path $env:RUNNER_TEMP 'probe-err.log') -ErrorAction SilentlyContinue | Select-Object -First 40
+          $rt = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue
+          Write-Host "WebView2 runtime: $($rt.pv)"
+          Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -notmatch '--type=' } | ForEach-Object { Write-Host "browser process: $($_.ProcessId) $($_.CommandLine)" }
+          $ids = (Get-Process msedgewebview2 -ErrorAction SilentlyContinue).Id
+          Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess } | ForEach-Object { Write-Host "listening: $($_.LocalAddress):$($_.LocalPort) (process $($_.OwningProcess))" }
           if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
           Get-Process msedgewebview2, mobius-cored -ErrorAction SilentlyContinue | Stop-Process -Force
       - name: Run the end-to-end suite
