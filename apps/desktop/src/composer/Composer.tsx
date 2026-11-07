@@ -1,16 +1,29 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
-import { MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ContextItem, type EffortChoice } from '@mobius/shared';
+import { MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ApprovalModeChoice, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
+import { usePreferences } from '../usePreferences';
+import { filterCatalog } from './model-catalog';
 import { PopMenu } from './PopMenu';
+import type { Activity } from '../activity';
+import { isStarter, noteContext, suggestionsFor, tasksItem, type Suggestion, type SurfaceState } from '../surface';
 import { useDictation } from './useDictation';
 
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
   { id: '', label: 'Default' },
+  { id: 'none', label: 'Off' },
   { id: 'low', label: 'Low' },
   { id: 'medium', label: 'Medium' },
   { id: 'high', label: 'High' },
 ];
 
-type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; models: string[] } | { state: 'failed'; error: string };
+const APPROVALS: Array<{ id: ApprovalModeChoice; label: string; hint: string }> = [
+  { id: 'manual', label: 'Manual', hint: 'Ask me before using a tool' },
+  { id: 'smart', label: 'Smart', hint: 'Your model approves what is clearly safe' },
+  { id: 'off', label: 'Off', hint: 'Act without asking' },
+];
+
+const KIND_NOTE: Record<ModelGroup['kind'], string> = { subscription: 'Plan', provider: 'Key', local: 'On this computer', server: 'Server' };
+
+type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: ModelCatalog };
 
 export interface ComposerProps {
   draft: string;
@@ -30,14 +43,20 @@ export interface ComposerProps {
   onModelChanged: () => void;
   onOpenSettings: () => void;
   fieldRef: RefObject<HTMLTextAreaElement | null>;
+  /** Where the person is: the message box suggests what is worth asking there. */
+  surface?: SurfaceState;
+  /** What the agent is doing while it works: the box turns into a live status line with Stop. */
+  activity?: Activity | null;
 }
 
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onModelChanged, onOpenSettings, fieldRef }: ComposerProps) {
+export function Composer({ draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onModelChanged, onOpenSettings, fieldRef, surface, activity }: ComposerProps) {
   const [problem, setProblem] = useState<string | null>(null);
   const [models, setModels] = useState<ModelList>({ state: 'idle' });
+  const [find, setFind] = useState('');
+  const preferences = usePreferences();
   const [adding, setAdding] = useState(false);
   const latest = useRef(draft);
   latest.current = draft;
@@ -107,24 +126,80 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
     fieldRef.current?.focus();
   };
 
-  const loadModels = () => {
-    setModels({ state: 'loading' });
-    void window.mobius.agent.models().then((result) => setModels(result.ok ? { state: 'ready', models: result.models } : { state: 'failed', error: result.error }));
-  };
-  const chooseModel = async (name: string, close: () => void) => {
-    close();
-    if (name === settings?.model) return;
+  const suggestions = surface && canType && !busy && !listening && draft === '' ? suggestionsFor(surface) : [];
+  const suggest = async (s: Suggestion) => {
     setProblem(null);
-    const result = await window.mobius.agent.setModel(name);
+    if (isStarter(s)) {
+      onDraft(s.prompt);
+      queueMicrotask(() => fieldRef.current?.focus());
+      return;
+    }
+    let item: ContextItem | null = null;
+    if (s.attach === 'note' && surface?.note) item = noteContext(surface.note);
+    if (s.attach === 'tasks' && surface?.tasks) item = tasksItem(surface.tasks);
+    if (s.attach === 'page') {
+      const result = await window.mobius.context.page();
+      if (!result.ok) { setProblem(result.error); return; }
+      item = result.item;
+    }
+    const items = item ? [...context, item].slice(0, MAX_CONTEXT_ITEMS) : context;
+    onSend(s.prompt, items);
+  };
+
+  const loadModels = () => {
+    setFind('');
+    setModels({ state: 'loading' });
+    const providers = window.mobius.providers;
+    if (providers) {
+      void providers.catalog().then((catalog) => setModels({ state: 'ready', catalog }));
+      return;
+    }
+    // Without the provider catalog (the browser preview), list what the server in use offers.
+    void window.mobius.agent.models().then((result) => setModels({ state: 'ready', catalog: { current: settings?.model ?? '', groups: [{ kind: 'server', id: 'server', name: 'This server', active: true, models: result.ok ? result.models.map((m) => ({ id: m, label: m })) : [], error: result.ok ? null : result.error }] } }));
+  };
+  const isCurrent = (group: ModelGroup, model: { id: string; current?: boolean }) =>
+    group.active && (group.kind === 'local' ? model.current === true : models.state === 'ready' && model.id === models.catalog.current);
+  const chooseModel = async (group: ModelGroup, model: { id: string; current?: boolean }, close: () => void) => {
+    close();
+    if (isCurrent(group, model)) return;
+    setProblem(null);
+    const result =
+      group.kind === 'local' ? await window.mobius.models.start(model.id, preferences.value.localContext)
+      : group.kind === 'server' ? await window.mobius.agent.setModel(model.id)
+      : window.mobius.providers ? await window.mobius.providers.use(group.id, model.id)
+      : { ok: false as const, error: 'That cannot be used here.' };
     if (result.ok) onModelChanged();
     else setProblem(result.error);
   };
 
   const modelName = settings?.configured || settings?.model ? settings.model : '';
   const effortLabel = EFFORTS.find((e) => e.id === effort)?.label ?? 'Default';
+  const approval = APPROVALS.find((a) => a.id === preferences.value.approvalMode) ?? APPROVALS[0]!;
+  const shown = models.state === 'ready' ? filterCatalog(models.catalog.groups, find) : [];
 
   return (
-    <form className="composer" onSubmit={submit} onKeyDown={onFormKeyDown} data-listening={listening || undefined}>
+    <form className="composer" onSubmit={submit} onKeyDown={onFormKeyDown} data-listening={listening || undefined} data-working={activity ? (activity.needsYou ? 'you' : 'agent') : undefined}>
+      {activity && (
+        <div className="working" role="status" aria-label="Agent activity" aria-live="polite">
+          <span className="working-dot" aria-hidden="true" />
+          <span className="working-label" key={activity.label}>{activity.label}</span>
+          {activity.step && (
+            <span className="working-step" aria-label={`Step ${Math.min(activity.step.done + 1, activity.step.total)} of ${activity.step.total}`}>
+              <span className="working-track"><span style={{ width: `${(activity.step.done / activity.step.total) * 100}%` }} /></span>
+              {activity.step.done} of {activity.step.total}
+            </span>
+          )}
+        </div>
+      )}
+      {suggestions.length > 0 && (
+        <div className="suggest" role="group" aria-label="Suggestions">
+          {suggestions.map((s) => (
+            <button key={s.label} type="button" className="suggest-chip" title={s.attach === 'page' ? 'Attaches this page' : s.attach === 'note' ? 'Attaches this note' : s.attach === 'tasks' ? 'Attaches this list' : undefined} onClick={() => void suggest(s)}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
       {context.length > 0 && (
         <ul className="chips" aria-label="Attached to this message">
           {context.map((item, index) => (
@@ -167,20 +242,26 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
           </PopMenu>
           <PopMenu label="Model" className="pill" disabled={!configured || busy} onOpen={loadModels} title={modelName ? `Model: ${modelName}` : 'Model'} trigger={<><span className="pill-text">{modelName || 'Model'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
-              <>
-                {models.state === 'loading' && <p className="popmenu-note" role="status">Asking the server…</p>}
-                {models.state === 'failed' && <p className="popmenu-note" role="alert">{models.error}</p>}
-                {models.state === 'ready' && models.models.length === 0 && <p className="popmenu-note">The server did not list any models.</p>}
-                {models.state === 'ready' && models.models.map((name) => (
-                  <button key={name} type="button" role="menuitemradio" aria-checked={name === settings?.model} className="popmenu-item" onClick={() => void chooseModel(name, close)}>
-                    <span>{name}</span>{name === settings?.model && <span className="popmenu-hint">In use</span>}
-                  </button>
-                ))}
-                {models.state !== 'loading' && !(models.state === 'ready' && models.models.includes(settings?.model ?? '')) && settings?.model && (
-                  <button type="button" role="menuitemradio" aria-checked="true" className="popmenu-item"><span>{settings.model}</span><span className="popmenu-hint">In use</span></button>
-                )}
-                <button type="button" role="menuitem" className="popmenu-item popmenu-link" onClick={() => { close(); onOpenSettings(); }}>Model settings…</button>
-              </>
+              <div className="model-menu">
+                <input type="search" className="model-find" aria-label="Find a model" placeholder="Find a model" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />
+                <div className="model-groups">
+                  {models.state !== 'ready' && <p className="popmenu-note" role="status">Asking your providers…</p>}
+                  {models.state === 'ready' && models.catalog.groups.length === 0 && <p className="popmenu-note">Nothing is set up yet. Add a provider key, sign in to a plan, or download a model in Settings.</p>}
+                  {models.state === 'ready' && models.catalog.groups.length > 0 && shown.length === 0 && <p className="popmenu-note">No model matches “{find}”.</p>}
+                  {shown.map((group) => (
+                    <section key={`${group.kind}-${group.id}`} className="model-group" role="group" aria-label={group.name}>
+                      <header className="model-group-head"><span>{group.name}</span><span className="popmenu-hint">{group.active ? 'In use' : KIND_NOTE[group.kind]}</span></header>
+                      {group.error && <p className="popmenu-note" role="alert">{group.error}</p>}
+                      {group.models.map((model) => (
+                        <button key={model.id} type="button" role="menuitemradio" aria-checked={isCurrent(group, model)} className="popmenu-item" title={`${model.label} · ${group.name}`} onClick={() => void chooseModel(group, model, close)}>
+                          <span>{model.label}</span>{isCurrent(group, model) && <span className="popmenu-hint">In use</span>}
+                        </button>
+                      ))}
+                    </section>
+                  ))}
+                </div>
+                <button type="button" role="menuitem" className="popmenu-item popmenu-link" onClick={() => { close(); onOpenSettings(); }}>Add providers and models…</button>
+              </div>
             )}
           </PopMenu>
           <PopMenu label="Effort" className="pill" disabled={busy} title={`Effort: ${effortLabel}. How hard the model thinks.`} trigger={<><span className="pill-text">Effort{effort ? `: ${effortLabel}` : ''}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
@@ -191,7 +272,19 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
                     <span>{option.label}</span>{option.id === effort && <span className="popmenu-hint">Chosen</span>}
                   </button>
                 ))}
-                <p className="popmenu-note">How hard the model is asked to think. Only models that can reason use this.</p>
+                <p className="popmenu-note">How hard the model is asked to think. Only models that can reason use this. Off turns thinking off for models on this computer.</p>
+              </>
+            )}
+          </PopMenu>
+          <PopMenu label="Approvals" className="pill" title={`Approvals: ${approval.label}. ${approval.hint}.`} trigger={<><span className="pill-text">{approval.id === 'manual' ? 'Ask first' : approval.id === 'smart' ? 'Smart approvals' : 'No approvals'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+            {(close) => (
+              <>
+                {APPROVALS.map((option) => (
+                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === approval.id} className="popmenu-item" onClick={() => { close(); void preferences.set({ approvalMode: option.id }); }}>
+                    <span>{option.label}</span><span className="popmenu-hint">{option.hint}</span>
+                  </button>
+                ))}
+                <p className="popmenu-note">Blocked sites and actions stay blocked in every mode. Same setting as Settings › Safety.</p>
               </>
             )}
           </PopMenu>

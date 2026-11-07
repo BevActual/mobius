@@ -383,11 +383,11 @@ impl Extension for Agent {
                     self.host.set_effort(None);
                     Ok(json!({}))
                 }
-                "low" | "medium" | "high" => {
+                "none" | "low" | "medium" | "high" => {
                     self.host.set_effort(Some(&p.effort));
                     Ok(json!({}))
                 }
-                _ => Err(ExtensionError::invalid_params("effort must be low, medium, high, or empty")),
+                _ => Err(ExtensionError::invalid_params("effort must be none, low, medium, high, or empty")),
             }),
             "agent.status" => Ok(match &self.model {
                 Some(model) => json!({ "configured": true, "model": model, "max_steps": self.max_steps, "fallback_model": self.fallback.as_ref().map(|(_, name)| name), "context_tokens": self.window }),

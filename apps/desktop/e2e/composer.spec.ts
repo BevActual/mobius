@@ -48,7 +48,7 @@ const say = async (text: string) => {
 
 test('the message box has add context, model, effort, dictate and send', async () => {
   await start();
-  for (const name of ['Add context', 'Model', 'Effort', 'Dictate']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
+  for (const name of ['Add context', 'Model', 'Effort', 'Approvals', 'Dictate']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
   await expect(shell().getByRole('button', { name: 'Send' })).toBeDisabled();
   await expect(shell().getByRole('button', { name: 'Model' })).toContainText('chat-model');
   await composer().fill('hi');
@@ -84,7 +84,7 @@ test('a server that cannot list its models says so and still shows the one in us
   await shell().getByRole('button', { name: 'Model' }).click();
   await expect(menu('Model').getByRole('alert')).toContainText('could not list');
   await expect(menu('Model').getByRole('menuitemradio', { name: /chat-model/ })).toBeVisible();
-  await menu('Model').getByRole('menuitem', { name: 'Model settings…' }).click();
+  await menu('Model').getByRole('menuitem', { name: 'Add providers and models…' }).click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
 });
 
@@ -214,4 +214,51 @@ test('the speech model name can be changed in settings and is the one asked for'
   await shell().getByRole('button', { name: 'Stop dictation' }).click();
   await expect(composer()).toHaveValue('ok');
   expect(model!.audio[0]!.text).toContain('distil-whisper');
+});
+
+test('the model menu groups every provider with a key, can be searched, and switching moves the agent to that provider', async () => {
+  const openai = await startModel([says(['from openai'])], { models: ['gpt-5.5', 'gpt-5.4-mini'] });
+  try {
+    await start([says(['from the first server'])], { models: ['chat-model', 'other-model'] }, { MOBIUS_TEST_PROVIDER: `openai=${openai.url}` });
+    await shell().evaluate(() => window.mobius.providers!.setKey('openai', 'sk-composer-test-1234'));
+    await shell().getByRole('button', { name: 'Model' }).click();
+    const groups = menu('Model').getByRole('group');
+    await expect(groups).toHaveCount(2);
+    await expect(menu('Model').getByRole('group', { name: 'OpenAI' }).getByRole('menuitemradio')).toHaveText([/gpt-5.4-mini/, /gpt-5.5/]);
+    await expect(menu('Model').getByRole('group', { name: 'This server' }).getByRole('menuitemradio', { name: /chat-model/ })).toHaveAttribute('aria-checked', 'true');
+    await menu('Model').getByRole('searchbox', { name: 'Find a model' }).fill('mini');
+    await expect(menu('Model').getByRole('menuitemradio')).toHaveText([/gpt-5.4-mini/]);
+    await menu('Model').getByRole('menuitemradio', { name: /gpt-5.4-mini/ }).click();
+    await expect(shell().getByRole('button', { name: 'Model' })).toContainText('gpt-5.4-mini');
+    await say('hello');
+    await expect(log().locator('.msg.assistant')).toHaveText('from openai');
+    expect(openai.requests.at(-1)?.model).toBe('gpt-5.4-mini');
+    expect(openai.authorization.at(-1)).toBe('Bearer sk-composer-test-1234');
+    // Now the provider is the one in use, and the old server is no longer offered on its own.
+    await shell().getByRole('button', { name: 'Model' }).click();
+    await expect(menu('Model').getByRole('group', { name: 'OpenAI' })).toContainText('In use');
+    await expect(menu('Model').getByRole('group', { name: 'This server' })).toHaveCount(0);
+  } finally {
+    await openai.close();
+  }
+});
+
+test('approvals can be changed from the message box and match Settings', async () => {
+  await start();
+  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Ask first');
+  await shell().getByRole('button', { name: 'Approvals' }).click();
+  await menu('Approvals').getByRole('menuitemradio', { name: /Smart/ }).click();
+  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Smart approvals');
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('smart');
+});
+
+test('effort Off tells a model on this computer not to think', async () => {
+  await start([says(['quick'])]);
+  await shell().getByRole('button', { name: 'Effort' }).click();
+  await menu('Effort').getByRole('menuitemradio', { name: /^Off/ }).click();
+  await expect(shell().getByRole('button', { name: 'Effort' })).toContainText('Off');
+  await say('fast please');
+  await expect(log().locator('.msg.assistant')).toHaveText('quick');
+  expect(model!.requests.at(-1)).toMatchObject({ chat_template_kwargs: { enable_thinking: false } });
+  expect(model!.requests.at(-1)).not.toHaveProperty('reasoning_effort');
 });

@@ -146,6 +146,7 @@ pub struct Bridge {
     /// Tools from other programs the person set up (MCP servers).
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
+    tasks: mobius_workspace::tasks::Tasks,
     providers: crate::providers::Providers,
     /// The Claude Code CLI to use; tests set a fake one.
     claude_command: Mutex<Option<PathBuf>>,
@@ -179,6 +180,9 @@ impl Bridge {
             Arc::new(move |path: &str| {
                 if let Some(page) = path.replace('\\', "/").strip_prefix("notes/") {
                     notes_emit("mobius:notes-changed", json!({ "path": page, "by": "another app" }));
+                }
+                if let Some(list) = path.replace('\\', "/").strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")) {
+                    notes_emit("mobius:tasks-changed", json!({ "list": list, "by": "another app" }));
                 }
             }),
         );
@@ -215,6 +219,7 @@ impl Bridge {
             claude_command: Mutex::new(None),
             signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             data_dir,
             emit,
         }
@@ -268,6 +273,7 @@ impl Bridge {
             ("bookmarks", "remove") => Ok(self.with_url(arg(0), |url| lock(&self.bookmarks).remove(url), "bookmarks-changed")),
 
             ("notes", _) => Ok(self.notes_call(method, args)),
+            ("tasks", _) => Ok(self.tasks_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
             ("share", "status") => Ok(self.mcp_server.status()),
             ("share", "token") => Ok(self.mcp_server.reveal_token().map_or(Value::Null, Value::String)),
@@ -792,18 +798,28 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
         }
+        if mobius_workspace::tasks::is_task_tool(tool) {
+            let result = self.tasks.run(tool, &args).map(Value::String);
+            if result.is_ok() && tool != "tasks.list" {
+                (self.emit)("mobius:tasks-changed", json!({ "list": args.get("list").and_then(Value::as_str).unwrap_or(mobius_workspace::tasks::DEFAULT_LIST), "by": "assistant" }));
+            }
+            return result;
+        }
         if mobius_workspace::files::is_file_tool(tool) {
             let result = self.workspace.run(tool, &args).map(Value::String);
             let path = args.get("path").and_then(Value::as_str).unwrap_or("").replace('\\', "/");
-            if result.is_ok() && matches!(tool, "files.write" | "files.edit")
-                && let Some(page) = path.strip_prefix("notes/")
-            {
-                (self.emit)("mobius:notes-changed", json!({ "path": page, "by": "assistant" }));
+            if result.is_ok() && matches!(tool, "files.write" | "files.edit") {
+                if let Some(page) = path.strip_prefix("notes/") {
+                    (self.emit)("mobius:notes-changed", json!({ "path": page, "by": "assistant" }));
+                }
+                if let Some(list) = path.strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")) {
+                    (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "assistant" }));
+                }
             }
             return result;
         }
@@ -815,7 +831,7 @@ impl Bridge {
 
     /// Tells the core about the tools this application runs. Called each time the core becomes ready.
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -915,6 +931,92 @@ impl Bridge {
         self.providers.address(id)
     }
 
+    /// Everything the composer's model picker offers, grouped by where it runs: plans you are signed in to,
+    /// providers with a key, the models on this computer, and the server in use when it is none of those. Each
+    /// provider's list is asked for at the same time; one that does not answer shows its problem instead.
+    fn model_catalog(&self) -> Value {
+        let base = self.agent.base_url();
+        let (_, current_model, _) = self.agent.current_server();
+        let p = &self.providers;
+        let claude_command = lock(&self.claude_command).clone();
+        let chatgpt = lock(&self.chatgpt).clone();
+        let local_runtime = self.models.get().map(|m| m.status()).unwrap_or(Value::Null);
+        let local = self.models.get().map(|m| m.local()).unwrap_or_else(|| json!([]));
+        let keyed: Vec<(&'static str, &'static str, String, Option<String>)> = crate::providers::CATALOG
+            .iter()
+            .filter_map(|prov| {
+                let address = p.address(prov.id)?;
+                let key = p.key(prov.id);
+                let active = p.id_for_address(&base) == Some(prov.id);
+                (key.is_some() || (!prov.needs_key && active)).then_some((prov.id, prov.name, address, key))
+            })
+            .collect();
+        let (subscriptions, providers) = std::thread::scope(|scope| {
+            let subs: Vec<_> = crate::providers::SUBSCRIPTIONS
+                .iter()
+                .map(|s| {
+                    let (command, chatgpt) = (claude_command.clone(), chatgpt.clone());
+                    scope.spawn(move || {
+                        let signed_in = if s.address == crate::providers::CHATGPT_ADDRESS { chatgpt.status()["signedIn"] == true } else { mobius_claude::cli::status(command.as_deref())["signedIn"] == true };
+                        (s, signed_in)
+                    })
+                })
+                .collect();
+            let provs: Vec<_> = keyed.iter().map(|(id, name, address, key)| scope.spawn(move || (*id, *name, address.clone(), AgentService::models_at(address, key)))).collect();
+            (subs.into_iter().filter_map(|h| h.join().ok()).collect::<Vec<_>>(), provs.into_iter().filter_map(|h| h.join().ok()).collect::<Vec<_>>())
+        });
+        let mut groups = Vec::new();
+        let mut matched = false;
+        for (s, signed_in) in subscriptions {
+            let active = base.eq_ignore_ascii_case(s.address);
+            matched |= active;
+            if signed_in || active {
+                let models: Vec<Value> = crate::providers::subscription_models(s).iter().map(|(id, label)| json!({ "id": id, "label": label })).collect();
+                groups.push(json!({ "kind": "subscription", "id": s.id, "name": s.name, "active": active, "models": models, "error": if signed_in { Value::Null } else { json!("Signed out. Sign in again in Settings > Providers.") } }));
+            }
+        }
+        for (id, name, _address, listed) in providers {
+            let active = p.id_for_address(&base) == Some(id);
+            matched |= active;
+            let ok = listed.get("ok") == Some(&Value::Bool(true));
+            let models: Vec<Value> = if ok { listed["models"].as_array().cloned().unwrap_or_default().into_iter().map(|m| json!({ "id": m, "label": m })).collect() } else { Vec::new() };
+            groups.push(json!({ "kind": "provider", "id": id, "name": name, "active": active, "models": models, "error": if ok { Value::Null } else { listed.get("error").cloned().unwrap_or(Value::Null) } }));
+        }
+        let running_base = local_runtime.pointer("/runtime/baseUrl").and_then(Value::as_str).unwrap_or("");
+        let running_id = local_runtime.pointer("/runtime/modelId").and_then(Value::as_str).unwrap_or("");
+        let local_active = !running_base.is_empty() && running_base.trim_end_matches('/').eq_ignore_ascii_case(base.trim_end_matches('/'));
+        matched |= local_active;
+        let local_models: Vec<Value> = local
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|e| e.pointer("/assessment/fit").and_then(Value::as_str) != Some("too_big"))
+            .filter_map(|e| {
+                let id = e.pointer("/model/id")?.as_str()?;
+                let file = e.pointer("/model/file")?.as_str()?;
+                Some(json!({ "id": id, "label": file.trim_end_matches(".gguf"), "current": local_active && id == running_id }))
+            })
+            .collect();
+        if !local_models.is_empty() {
+            groups.push(json!({ "kind": "local", "id": "local", "name": "This computer", "active": local_active, "models": local_models, "error": null }));
+        }
+        if !matched && !base.is_empty() {
+            let listed = self.agent.models();
+            let ok = listed.get("ok") == Some(&Value::Bool(true));
+            let models: Vec<Value> = if ok { listed["models"].as_array().cloned().unwrap_or_default().into_iter().map(|m| json!({ "id": m, "label": m })).collect() } else { Vec::new() };
+            groups.push(json!({ "kind": "server", "id": "server", "name": "This server", "active": true, "models": models, "error": if ok { Value::Null } else { listed.get("error").cloned().unwrap_or(Value::Null) } }));
+        }
+        // The model in use is always shown, even when its provider cannot list its models right now.
+        for group in &mut groups {
+            if group["active"] == true && group["kind"] != "local" && !current_model.is_empty() && !group["models"].as_array().is_some_and(|m| m.iter().any(|m| m["id"] == current_model.as_str())) {
+                if let Some(list) = group["models"].as_array_mut() {
+                    list.insert(0, json!({ "id": current_model, "label": current_model }));
+                }
+            }
+        }
+        json!({ "current": current_model, "groups": groups })
+    }
+
     /// Settings > Providers. A key goes in and is never given back; it is only ever sent to its provider's address.
     fn providers_call(&self, method: &str, args: &[Value]) -> Value {
         let text = |i: usize| args.get(i).and_then(Value::as_str);
@@ -948,6 +1050,7 @@ impl Bridge {
             };
         }
         match method {
+            "catalog" => self.model_catalog(),
             "accounts" => Value::Array(crate::providers::SUBSCRIPTIONS.iter().map(|s| json!({ "id": s.id, "name": s.name, "note": s.note, "active": self.agent.base_url().eq_ignore_ascii_case(s.address), "kind": s.kind, "models": crate::providers::subscription_models(s).iter().map(|(id, label)| json!({ "id": id, "label": label })).collect::<Vec<_>>() })).collect()),
             "list" => p.list(&self.agent.base_url()),
             "setKey" => match (text(0), text(1)) {
@@ -1023,6 +1126,54 @@ impl Bridge {
                 if matches!(method, "createNotebook" | "createPage" | "save" | "remove") {
                     let path = value.get("path").cloned().unwrap_or(Value::Null);
                     (self.emit)("mobius:notes-changed", json!({ "path": path, "by": "person" }));
+                }
+                value
+            }
+            Err(message) => json!({ "ok": false, "conflict": message == "changed elsewhere", "message": message }),
+        }
+    }
+
+    /// The Tasks app. Every answer is the list asked for or `{ ok: false, message }`; a change to a task that moved or
+    /// changed meanwhile also says `conflict: true`, so the window reloads instead of changing the wrong task.
+    fn tasks_call(&self, method: &str, args: &[Value]) -> Value {
+        use mobius_workspace::tasks::Change;
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let line = |i: usize| args.get(i).and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok());
+        let tasks = &self.tasks;
+        let result = match method {
+            "lists" => tasks.lists(),
+            "read" => text(0).ok_or_else(|| "a list is needed".to_owned()).and_then(|l| tasks.read(l)),
+            "createList" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| tasks.create_list(n)),
+            "add" => match (text(0), text(1)) {
+                (Some(list), Some(words)) => tasks.add(list, words, text(2).filter(|d| !d.is_empty())),
+                _ => Err("a list and some words are needed".to_owned()),
+            },
+            "update" => match (text(0), line(1), text(2), args.get(3).and_then(Value::as_object)) {
+                (Some(list), Some(at), Some(expect), Some(change)) => {
+                    let due = match change.get("due") {
+                        None => None,
+                        Some(Value::Null) => Some(None),
+                        Some(Value::String(d)) if d.is_empty() => Some(None),
+                        Some(Value::String(d)) => Some(Some(d.clone())),
+                        Some(_) => return json!({ "ok": false, "message": "a due date is written YYYY-MM-DD" }),
+                    };
+                    let change = Change { text: change.get("text").and_then(Value::as_str).map(str::to_owned), done: change.get("done").and_then(Value::as_bool), due };
+                    tasks.update(list, at, expect, change)
+                }
+                _ => Err("that cannot be changed".to_owned()),
+            },
+            "remove" => match (text(0), line(1), text(2)) {
+                (Some(list), Some(at), Some(expect)) => tasks.remove(list, at, expect),
+                _ => Err("that cannot be removed".to_owned()),
+            },
+            "clearDone" => text(0).ok_or_else(|| "a list is needed".to_owned()).and_then(|l| tasks.clear_done(l)),
+            _ => return json!({ "ok": false, "message": "unknown" }),
+        };
+        match result {
+            Ok(value) => {
+                if method != "lists" && method != "read" {
+                    let list = value.get("list").or_else(|| value.get("name")).cloned().unwrap_or(Value::Null);
+                    (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "person" }));
                 }
                 value
             }

@@ -439,7 +439,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 10, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 13, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -455,7 +455,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update"]);
     }
 
     #[derive(Default)]
@@ -888,6 +888,34 @@ fn the_assistant_changing_a_note_tells_the_window() {
     assert!(!events.lock().unwrap().iter().any(|(name, _)| name == "mobius:notes-changed"));
 }
 
+#[test]
+fn tasks_are_real_files_the_window_and_the_agent_both_change() {
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    assert_eq!(call(&b, "tasks", "lists", json!([])), json!([{ "name": "Inbox", "open": 0, "done": 0 }]));
+    let added = call(&b, "tasks", "add", json!(["Inbox", "Call the plumber", "2026-11-12"]));
+    assert_eq!(added["tasks"][0]["due"], "2026-11-12");
+    let line = added["tasks"][0]["line"].clone();
+    let ticked = call(&b, "tasks", "update", json!(["Inbox", line, "Call the plumber", { "done": true, "due": null }]));
+    assert_eq!(ticked["tasks"][0]["done"], true);
+    assert_eq!(std::fs::read_to_string(dir.path().join("workspace/tasks/Inbox.md")).unwrap(), "# Inbox\n\n- [x] Call the plumber\n");
+    // A change to a task that is no longer what the window saw is refused, and says so.
+    let stale = call(&b, "tasks", "update", json!(["Inbox", line, "Something else", { "done": false }]));
+    assert_eq!((stale["ok"].clone(), stale["conflict"].clone()), (json!(false), json!(true)));
+    for bad in [json!(["../x", "y"]), json!([5, "y"]), json!(["Inbox", 5])] {
+        assert_eq!(call(&b, "tasks", "add", bad.clone())["ok"], false, "{bad}");
+    }
+    assert_eq!(call(&b, "tasks", "update", json!(["Inbox", line, "Call the plumber", { "due": 5 }]))["ok"], false);
+    assert!(events.lock().unwrap().iter().filter(|(name, v)| name == "mobius:tasks-changed" && v["by"] == "person").count() >= 2);
+    // The agent's tools go through the same lists, and the window hears about it.
+    events.lock().unwrap().clear();
+    b.host_request("host.tool", &json!({ "tool": "tasks.add", "arguments": { "list": "Work", "text": "Send report" } })).unwrap();
+    assert!(events.lock().unwrap().iter().any(|(name, v)| name == "mobius:tasks-changed" && v["list"] == "Work" && v["by"] == "assistant"));
+    assert_eq!(call(&b, "tasks", "read", json!(["Work"]))["tasks"][0]["text"], "Send report");
+    events.lock().unwrap().clear();
+    b.host_request("host.tool", &json!({ "tool": "tasks.list", "arguments": {} })).unwrap();
+    assert!(!events.lock().unwrap().iter().any(|(name, _)| name == "mobius:tasks-changed"), "reading changes nothing");
+}
+
 /// A provider's models endpoint that answers only to one key, and remembers what it was sent.
 fn provider_server(key: &'static str) -> (String, Arc<std::sync::Mutex<Vec<String>>>) {
     use std::io::{Read, Write};
@@ -1014,4 +1042,44 @@ fn fake_bin(package: &str, bin: &str) -> String {
     let ok = std::process::Command::new(cargo).current_dir(&root).args(["build", "-q", "-p", package, "--bin", bin]).status().is_ok_and(|s| s.success());
     assert!(ok, "could not build {bin}");
     root.join("target/debug").join(if cfg!(windows) { format!("{bin}.exe") } else { bin.to_owned() }).display().to_string()
+}
+
+#[test]
+fn the_model_picker_lists_every_provider_with_a_key_and_its_models_and_marks_the_one_in_use() {
+    let (url, _seen) = provider_server("sk-picker-test-1234");
+    let (b, _c, _events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.redirect_provider_for_tests("openai", &url);
+    b.redirect_provider_for_tests("groq", "http://127.0.0.1:9/v1");
+    b.use_claude_for_tests(std::path::Path::new("C:/no/such/claude.exe"));
+    // Nothing set up: nothing to offer.
+    assert_eq!(call(&b, "providers", "catalog", json!([]))["groups"], json!([]));
+    call(&b, "providers", "setKey", json!(["openai", "sk-picker-test-1234"]));
+    call(&b, "providers", "setKey", json!(["groq", "gsk-test-key-1234"]));
+    assert_eq!(call(&b, "providers", "use", json!(["openai", "model-b"])), json!({ "ok": true }));
+    let catalog = call(&b, "providers", "catalog", json!([]));
+    assert_eq!(catalog["current"], "model-b");
+    let groups = catalog["groups"].as_array().unwrap();
+    let openai = groups.iter().find(|g| g["id"] == "openai").unwrap();
+    assert_eq!((openai["kind"].clone(), openai["active"].clone()), (json!("provider"), json!(true)));
+    assert_eq!(openai["models"], json!([{ "id": "model-a", "label": "model-a" }, { "id": "model-b", "label": "model-b" }]));
+    // A provider that does not answer is still listed, with its problem, and is not in use.
+    let groq = groups.iter().find(|g| g["id"] == "groq").unwrap();
+    assert_eq!((groq["active"].clone(), groq["models"].clone()), (json!(false), json!([])));
+    assert!(groq["error"].is_string());
+    // Providers without a key, and plans nobody signed in to, are not offered.
+    assert!(!groups.iter().any(|g| g["id"] == "anthropic" || g["kind"] == "subscription"));
+    assert!(!catalog.to_string().contains("sk-picker") && !catalog.to_string().contains("gsk-test"));
+}
+
+#[test]
+fn a_server_that_is_no_provider_is_offered_as_this_server() {
+    let (url, _seen) = provider_server("sk-picker-test-1234");
+    let (b, _c, _events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.use_claude_for_tests(std::path::Path::new("C:/no/such/claude.exe"));
+    call(&b, "agent", "configure", json!([{ "baseUrl": url, "model": "model-a", "apiKey": "sk-picker-test-1234" }]));
+    let groups = call(&b, "providers", "catalog", json!([]))["groups"].clone();
+    assert_eq!(groups[0]["kind"], "server");
+    assert_eq!(groups[0]["active"], true);
 }

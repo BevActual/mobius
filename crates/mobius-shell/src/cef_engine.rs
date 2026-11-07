@@ -14,6 +14,10 @@ use base64::Engine as _;
 use mobius_browser::engine::{Bounds, Engine};
 use serde_json::{Value, json};
 
+/// The inner radius, in points, of the frame a page sits in (`--radius-panel` less its border); the native page window is cut to match.
+#[cfg_attr(not(windows), allow(dead_code))]
+const PAGE_RADIUS: f64 = 7.0;
+
 const CDP_TIMEOUT: Duration = Duration::from_secs(10);
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -481,8 +485,8 @@ mod chromium {
                         unsafe {
                             // On top: the interface's own view fills the window and would otherwise hide the page.
                             let _ = SetWindowPos(handle, Some(HWND_TOP), to_pixels(b.x), to_pixels(b.y), to_pixels(b.width), to_pixels(b.height), SWP_NOACTIVATE);
-                            // The page sits in a rounded frame: its own corners are cut to match (the frame's inner radius is 15 points).
-                            let radius = (15.0 * zoom * scale * 2.0).round() as i32;
+                            // The page sits in a rounded frame: its own corners are cut to match (the frame's inner radius is 7 points: `--radius-panel` less its 1-point border).
+                            let radius = (PAGE_RADIUS * zoom * scale * 2.0).round() as i32;
                             let region = CreateRoundRectRgn(0, 0, to_pixels(b.width) + 1, to_pixels(b.height) + 1, radius, radius);
                             SetWindowRgn(handle, Some(region), true);
                             let _ = ShowWindow(handle, SW_SHOW);
@@ -555,7 +559,7 @@ mod chromium {
             let to_px = |v: i32| (f64::from(v) * scale).round() as i32;
             let outer = CreateRectRgn(0, 0, client.right, client.bottom);
             // Rounded like the page itself, so the frame's own (dark) corners show instead of the window's.
-            let radius = (15.0 * scale * 2.0).round() as i32;
+            let radius = (PAGE_RADIUS * scale * 2.0).round() as i32;
             let cut = CreateRoundRectRgn(to_px(hole.x), to_px(hole.y), to_px(hole.x) + to_px(hole.width) + 1, to_px(hole.y) + to_px(hole.height) + 1, radius, radius);
             CombineRgn(Some(outer), Some(outer), Some(cut), RGN_DIFF);
             let _ = DeleteObject(HGDIOBJ(cut.0));

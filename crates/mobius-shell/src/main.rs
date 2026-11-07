@@ -247,9 +247,9 @@ fn main() {
             if test_mode {
                 bridge.enable_test_hooks();
                 // `MOBIUS_TEST_PROVIDER=openai=http://127.0.0.1:1234/v1` points one provider at a local fake server.
-                if let Ok(claude) = std::env::var("MOBIUS_TEST_CLAUDE") {
-                    bridge.use_claude_for_tests(std::path::Path::new(&claude));
-                }
+                // Tests never ask the real Claude Code on this computer: without a fake one, there is none.
+                let claude = std::env::var("MOBIUS_TEST_CLAUDE").unwrap_or_else(|_| "no-claude-in-tests".into());
+                bridge.use_claude_for_tests(std::path::Path::new(&claude));
                 if let Ok(openai) = std::env::var("MOBIUS_TEST_CHATGPT") {
                     bridge.use_chatgpt_for_tests(&openai);
                 }

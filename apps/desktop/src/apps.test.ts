@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { APPS, appName, findApp, isAvailable } from './apps';
 
 describe('the applications in the launcher', () => {
-  it('lists the Browser, the Agent and Notes as built, in that order, ahead of the unbuilt ones', () => {
-    expect(APPS.slice(0, 3).map((app) => [app.id, app.available])).toEqual([['browser', true], ['agent', true], ['notes', true]]);
-    expect(APPS.slice(3).every((app) => !app.available)).toBe(true);
+  it('lists the built apps (Browser, Agent, Notes, Tasks, Search) in that order, ahead of the unbuilt ones', () => {
+    expect(APPS.slice(0, 5).map((app) => [app.id, app.available])).toEqual([['browser', true], ['agent', true], ['notes', true], ['tasks', true], ['search', true]]);
+    expect(APPS.slice(5).every((app) => !app.available)).toBe(true);
   });
   it('has unique ids and names', () => {
     expect(new Set(APPS.map((a) => a.id)).size).toBe(APPS.length);

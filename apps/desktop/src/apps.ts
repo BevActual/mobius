@@ -1,4 +1,4 @@
-export type AppId = 'browser' | 'agent' | 'code' | 'documents' | 'notes' | 'canvas' | 'tasks' | 'review';
+export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'documents' | 'notes' | 'canvas' | 'tasks' | 'review';
 
 export interface AppInfo { id: AppId; name: string; available: boolean }
 
@@ -7,10 +7,11 @@ export const APPS: readonly AppInfo[] = [
   { id: 'browser', name: 'Browser', available: true },
   { id: 'agent', name: 'Agent', available: true },
   { id: 'notes', name: 'Notes', available: true },
+  { id: 'tasks', name: 'Tasks', available: true },
+  { id: 'search', name: 'Search', available: true },
   { id: 'code', name: 'Code', available: false },
   { id: 'documents', name: 'Documents', available: false },
   { id: 'canvas', name: 'Canvas', available: false },
-  { id: 'tasks', name: 'Tasks', available: false },
   { id: 'review', name: 'Review', available: false },
 ];
 

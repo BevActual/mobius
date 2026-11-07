@@ -19,6 +19,7 @@ import {
   type MobiusBridge,
   type ModelsEvent,
   type NotesChange,
+  type TasksChanged,
 } from '@mobius/shared';
 
 /**
@@ -146,6 +147,7 @@ export function createTauriBridge(): MobiusBridge {
       onEvent: (listener) => on<ModelsEvent>('mobius:models-event', listener),
     },
     providers: {
+      catalog: () => call('providers', 'catalog', [], () => ({ current: '', groups: [] })),
       accounts: () => call('providers', 'accounts', [], () => []),
       accountStatus: (id) => call('providers', 'accountStatus', [id], () => ({ installed: false, signedIn: false })),
       signIn: (id) => call('providers', 'signIn', [id], () => ({ ok: false as const, error: 'Sign-in is not available.' })),
@@ -163,6 +165,16 @@ export function createTauriBridge(): MobiusBridge {
       set: (change) => call('share', 'set', [change], () => ({ ok: false as const, error: 'Not available.' })),
       token: () => call('share', 'token', [], () => null),
       renewToken: () => call('share', 'renewToken', [], () => ({ ok: false as const, error: 'Not available.' })),
+    },
+    tasks: {
+      lists: () => call('tasks', 'lists', [], () => []),
+      read: (list) => call('tasks', 'read', [list], () => ({ ok: false as const, message: 'Tasks is not available.' })),
+      createList: (name) => call('tasks', 'createList', [name], () => ({ ok: false as const, message: 'Tasks is not available.' })),
+      add: (list, text, due) => call('tasks', 'add', [list, text, due ?? ''], () => ({ ok: false as const, message: 'Tasks is not available.' })),
+      update: (list, line, expect, change) => call('tasks', 'update', [list, line, expect, change], () => ({ ok: false as const, message: 'Tasks is not available.' })),
+      remove: (list, line, expect) => call('tasks', 'remove', [list, line, expect], () => ({ ok: false as const, message: 'Tasks is not available.' })),
+      clearDone: (list) => call('tasks', 'clearDone', [list], () => ({ ok: false as const, message: 'Tasks is not available.' })),
+      onChanged: (listener) => on<TasksChanged>('mobius:tasks-changed', listener),
     },
     notes: {
       list: () => call('notes', 'list', [], () => []),

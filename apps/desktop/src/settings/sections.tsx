@@ -146,7 +146,7 @@ const APPROVAL_HELP: Record<ApprovalModeChoice, string> = {
   off: 'The agent acts without asking, including running commands and deleting files. Sites and actions you have blocked stay blocked.',
 };
 const SIDEBAR_MODES: Array<{ id: SidebarMode; label: string }> = [{ id: 'attached', label: 'Attached' }, { id: 'floating', label: 'Floating' }];
-const EFFORT_OPTIONS: Array<{ id: EffortChoice; label: string }> = [{ id: '', label: 'Default' }, { id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }];
+const EFFORT_OPTIONS: Array<{ id: EffortChoice; label: string }> = [{ id: '', label: 'Default' }, { id: 'none', label: 'Off' }, { id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }];
 const TOOL_STEPS: Array<{ id: ToolSteps; label: string }> = [{ id: 'show', label: 'Show all' }, { id: 'hide-finished', label: 'Hide finished' }];
 
 export function AppearanceSection({ subpage, highlight, appearance, onAppearance }: SectionProps) {

@@ -7,6 +7,11 @@ test.beforeEach(async () => {
   fixture = await startFixture();
   mobius = await launch(fixture.origin + '/');
   await expect(shell().getByText('Core ready')).toBeVisible();
+  // These tests are about the app's own list beside the page, which the narrow rail keeps separate.
+  await shell().evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
+  await expect(shell().locator('.dock.left')).toHaveCount(1);
+  // The sidebar folds with a short animation: measure only once it has settled.
+  await expect.poll(async () => Math.round((await shell().locator('.rail').boundingBox())!.width)).toBe(52);
 });
 test.afterEach(async () => {
   await mobius?.close();
@@ -22,7 +27,8 @@ const right = (): Locator => shell().locator('.dock.right');
 const appearance = () => shell().evaluate(() => window.mobius.appearance.get());
 const setAppearance = (change: object) => shell().evaluate((c) => window.mobius.appearance.set(c), change);
 const pageVisible = async () => (await views(mobius!.app)).some((v) => v.visible);
-const leftEdge = async () => (await shell().locator('.stage').boundingBox())!.x;
+// Where the page starts, measured from the app rail (which is always there).
+const leftEdge = async () => (await shell().locator('.stage').boundingBox())!.x - (await shell().locator('.rail').boundingBox())!.width;
 const toggleTabs = () => shell().getByRole('button', { name: 'Show tabs' });
 
 test('attached is how it starts: both sidebars are part of the layout', async () => {
@@ -70,7 +76,7 @@ test('a floating list can be opened with its button, and closes on Escape, on a 
 
   await toggleTabs().click();
   await expect(tabs()).toBeVisible();
-  await shell().locator('.strip-title').click();
+  await shell().locator('.context-strip').click({ position: { x: 4, y: 4 } });
   await expect(tabs()).toHaveCount(0);
   await expect.poll(pageVisible).toBe(true);
 });
@@ -100,7 +106,8 @@ test('a floating agent panel appears from the right edge and hides again', async
   await shell().mouse.move(zone.x + 4, zone.y + 100);
   await expect(agentPanel()).toBeVisible();
   await expect.poll(pageVisible).toBe(false);
-  await shell().mouse.move(300, 400);
+  // Back over the middle of the page (the rail and the list are on the left now).
+  await shell().mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
   await expect(agentPanel()).toHaveCount(0);
   await expect.poll(pageVisible).toBe(true);
 });
@@ -112,7 +119,7 @@ test('the conversation list in the Agent app floats and resizes the same way', a
   await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toBeVisible();
   await shell().getByRole('complementary', { name: 'Conversation list' }).getByRole('button', { name: 'Float the list' }).click();
   await shell().keyboard.press('Escape');
-  await shell().locator('.strip-title').click();
+  await shell().locator('.context-strip').click({ position: { x: 4, y: 4 } });
   await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toHaveCount(0);
   await shell().getByRole('button', { name: 'Show conversations' }).click();
   await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toBeVisible();

@@ -137,6 +137,14 @@ export interface NotesChange { path: string | null; by: 'person' | 'assistant' }
 export const isNotesFailure = (value: unknown): value is NotesFailure =>
   typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === false;
 
+/** One task in a list of the Tasks app: a checkbox line in `tasks/<list>.md`. `line` is where it is in the file. */
+export interface TaskItem { line: number; text: string; done: boolean; due: string | null }
+export interface TaskList { list: string; tasks: TaskItem[]; version: string }
+export interface TaskListInfo { name: string; open: number; done: number }
+export interface TaskChange { text?: string; done?: boolean; due?: string | null }
+/** `by` says who changed it, so the window can show the agent's work without stealing focus. */
+export interface TasksChanged { list: string | null; by: 'person' | 'assistant' | 'another app' }
+
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
 export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'device'; models: Array<{ id: string; label: string }> }
 /** A device sign-in waiting for the person to enter `code` at `url`. */
@@ -248,6 +256,8 @@ export interface MobiusBridge {
   };
   /** Settings > Providers. Only the Tauri shell has it. */
   providers?: {
+    /** Everything the model picker offers, grouped by where it runs. Asks each provider for its list. */
+    catalog(): Promise<ModelCatalog>;
     /** Plans you sign in to instead of pasting a key (the Claude subscription, through Claude Code). */
     accounts(): Promise<AccountInfo[]>;
     /** Asks the service's own app; can take a second or two. */
@@ -270,6 +280,17 @@ export interface MobiusBridge {
     /** The token to paste into the other app; null while sharing is off. */
     token(): Promise<string | null>;
     renewToken(): Promise<AgentResult>;
+  };
+  /** The Tasks app. Only the Tauri shell has it. Failures are `NotesFailure`-shaped (`conflict`: the task changed elsewhere). */
+  tasks?: {
+    lists(): Promise<TaskListInfo[] | NotesFailure>;
+    read(list: string): Promise<TaskList | NotesFailure>;
+    createList(name: string): Promise<{ name: string } | NotesFailure>;
+    add(list: string, text: string, due: string | null): Promise<TaskList | NotesFailure>;
+    update(list: string, line: number, expect: string, change: TaskChange): Promise<TaskList | NotesFailure>;
+    remove(list: string, line: number, expect: string): Promise<TaskList | NotesFailure>;
+    clearDone(list: string): Promise<TaskList | NotesFailure>;
+    onChanged(listener: (change: TasksChanged) => void): () => void;
   };
   /** The Notes app. Only the Tauri shell has it. */
   notes?: {
@@ -454,6 +475,8 @@ export interface AppearanceSettings {
   resumeLast: boolean;
   /** The list on the left (tabs, or conversations): part of the window, or floating over it and hiding itself. */
   leftSidebar: SidebarMode;
+  /** The app list on the left: the full sidebar with names and the app's own list, or a narrow rail of icons. */
+  navigation: NavigationStyle;
   /** The agent panel on the right: part of the window, or floating over it and hiding itself. */
   rightSidebar: SidebarMode;
   /** How wide the left list is, in pixels. */
@@ -462,8 +485,9 @@ export interface AppearanceSettings {
   rightWidth: number;
 }
 export type SidebarMode = 'attached' | 'floating';
+export type NavigationStyle = 'sidebar' | 'rail';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 380 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -620,6 +644,18 @@ export function parseConfigureRequest(value: unknown): AgentConfigureRequest | n
   return request;
 }
 
+/** A group in the composer's model picker: a plan, a provider with a key, this computer, or the server in use. */
+export interface ModelGroup {
+  kind: 'subscription' | 'provider' | 'local' | 'server';
+  id: string;
+  name: string;
+  /** The agent is using this group now. */
+  active: boolean;
+  models: Array<{ id: string; label: string; current?: boolean }>;
+  error: string | null;
+}
+export interface ModelCatalog { current: string; groups: ModelGroup[] }
+
 /** Settings > Advanced > Other apps. */
 export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }
 
@@ -695,6 +731,7 @@ export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) 
   sidebarAtStart: (v): v is boolean => typeof v === 'boolean',
   resumeLast: (v): v is boolean => typeof v === 'boolean',
   leftSidebar: oneOf<SidebarMode>('attached', 'floating'),
+  navigation: oneOf<NavigationStyle>('sidebar', 'rail'),
   rightSidebar: oneOf<SidebarMode>('attached', 'floating'),
   leftWidth: (v): v is number => inRange(v, SIDEBAR_WIDTH.left),
   rightWidth: (v): v is number => inRange(v, SIDEBAR_WIDTH.right),
@@ -741,7 +778,8 @@ export interface PreferencesSettings {
   /** The speech-to-text model asked for when dictating, on the same server as the chat model. */
   dictationModel: string;
 }
-export type EffortChoice = '' | 'low' | 'medium' | 'high';
+/** `none` turns thinking off where the model allows it (models on this computer). */
+export type EffortChoice = '' | 'none' | 'low' | 'medium' | 'high';
 export const DEFAULT_DICTATION_MODEL = 'whisper-1';
 export type ApprovalModeChoice = 'manual' | 'smart' | 'off';
 /** The context sizes offered for local models. */
@@ -764,7 +802,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   agentPrivateUrls: isFlag,
   approvalMode: oneOf<ApprovalModeChoice>('manual', 'smart', 'off'),
   keybindings: isKeyBindings,
-  reasoningEffort: oneOf<EffortChoice>('', 'low', 'medium', 'high'),
+  reasoningEffort: oneOf<EffortChoice>('', 'none', 'low', 'medium', 'high'),
   dictationModel: (v): v is string => isModelName(v),
 };
 export function parsePreferencesPatch(value: unknown): Partial<PreferencesSettings> | null {

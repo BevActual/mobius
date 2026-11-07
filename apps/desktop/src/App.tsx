@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { MAIN_BOT_ID, actionForPress, botOfConversation, type SidebarMode } from '@mobius/shared';
 import { appName, isAvailable, type AppId } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
+import { tasksContext, type SurfaceState } from './surface';
 import { ChatPanel } from './ChatPanel';
 import { quick } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
@@ -25,8 +26,16 @@ import { SettingsPage } from './settings/SettingsPage';
 import { useCoreStatus } from './useCoreStatus';
 import { useNotes } from './useNotes';
 import { NotesSidebar } from './NotesSidebar';
+import { TasksPage, TasksSidebar } from './Tasks';
+import { APP_ICONS, Rail } from './Rail';
+import { AppHub, type HubAction } from './AppHub';
+import { smartView } from './tasks-view';
+import { SearchPage } from './SearchPage';
+import { activityOf } from './activity';
+import type { HubTarget } from './search-hub';
+import { useTasks } from './useTasks';
 import { NoteEditor } from './NoteEditor';
-import { liveTitle } from './notes-state';
+import { liveTitle, statusText } from './notes-state';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
 
@@ -34,6 +43,19 @@ const NOTICES: Record<string, string> = {
   ask: 'Set up a model in the agent panel to ask questions.',
   blocked: 'Mobius only opens web addresses (http or https).',
 };
+
+/** True while the window is narrower than `width` pixels. */
+function useNarrowWindow(width: number): boolean {
+  const query = `(max-width: ${width - 1}px)`;
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const list = window.matchMedia(query);
+    const on = () => setNarrow(list.matches);
+    list.addEventListener('change', on);
+    return () => list.removeEventListener('change', on);
+  }, [query]);
+  return narrow;
+}
 
 export function App() {
   const browser = useBrowser();
@@ -48,6 +70,7 @@ export function App() {
   const preferences = usePreferences();
   const bookmarks = useBookmarks();
   const notes = useNotes();
+  const tasks = useTasks();
   const bindings = preferences.value.keybindings;
   // Clicking a notification brings Mobius forward; show the conversation it was about.
   useEffect(() => window.mobius.app.onOpenConversation((id) => { conversation.select(id); setChatOpen(true); }), [conversation.select]);
@@ -68,12 +91,59 @@ export function App() {
   const inBrowser = app === 'browser';
   const inAgent = app === 'agent';
   const inNotes = app === 'notes';
+  const inTasks = app === 'tasks';
+  const inSearch = app === 'search';
+  // Apps the agent (or another app) changed while you were elsewhere: their rail button carries a dot until opened.
+  const [changed, setChanged] = useState<ReadonlySet<AppId>>(new Set());
+  const here = useRef(app);
+  here.current = app;
+  useEffect(() => { setChanged((s) => { if (!s.has(app)) return s; const n = new Set(s); n.delete(app); return n; }); }, [app]);
+  useEffect(() => {
+    const mark = (id: AppId) => (by: string) => { if (by !== 'person' && here.current !== id) setChanged((s) => new Set(s).add(id)); };
+    const offNotes = window.mobius.notes?.onChanged((c) => mark('notes')(c.by));
+    const offTasks = window.mobius.tasks?.onChanged((c) => mark('tasks')(c.by));
+    return () => { offNotes?.(); offTasks?.(); };
+  }, []);
+  const [searchFocus, setSearchFocus] = useState(0);
   const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
   const needsYou = conversation.list.reduce((sum, c) => sum + c.waiting, 0);
   const { settings, save: saveSettings, reload: reloadSettings } = useAgentSettings();
   const active = browser.tabs.find((tab) => tab.active);
   const saved = active !== undefined && bookmarks.some((b) => b.url === active.url);
+  const surface: SurfaceState = {
+    app,
+    hasPage: active !== undefined && /^https?:/.test(active.url),
+    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : null,
+    tasks: inTasks ? tasksContext(tasks) : null,
+  };
+  const activity = activityOf(conversation.state);
+  // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
+  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : appName(app);
+  const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
+  const tasksOpen = tasksHere.filter((t) => !t.done).length;
+  const tasksDone = tasksHere.length - tasksOpen;
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  const dueToday = smartView('today', tasks.all, new Date()).length;
+  const openTasks = tasks.lists.reduce((sum, l) => sum + l.open, 0);
+  const pages = notes.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0);
+  const hubStatus: Partial<Record<AppId, string>> = {
+    agent: activity ? activity.label : needsYou > 0 ? `${needsYou} waiting for you` : plural(conversation.list.length, 'conversation'),
+    browser: plural(browser.tabs.length, 'tab') + ' open',
+    notes: plural(pages, 'page'),
+    tasks: dueToday > 0 ? `${dueToday} due today` : openTasks > 0 ? `${openTasks} to do` : 'All done',
+    search: 'Find anything',
+  };
   const [panelOpen, setPanelOpen] = useState(true);
+  // The left panel: a narrow rail, or the full sidebar with the apps by name and the open app's own list under them.
+  // Apple: do not hide the sidebar by default. A narrow window folds it to the rail on its own, as Mail does.
+  const narrow = useNarrowWindow(980);
+  const [narrowOpen, setNarrowOpen] = useState(false);
+  useEffect(() => { if (!narrow) setNarrowOpen(false); }, [narrow]);
+  const wide = narrow ? narrowOpen : appearance.value.navigation !== 'rail';
+  const toggleWide = useCallback(() => {
+    if (narrow) setNarrowOpen((o) => !o);
+    else void appearance.set({ navigation: wide ? 'rail' : 'sidebar' });
+  }, [narrow, wide, appearance]);
   const startedUp = useRef(false);
   const [chatOpen, setChatOpen] = useState(true);
   const [focusToken, setFocusToken] = useState(0);
@@ -84,9 +154,11 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasLeft = inBrowser || inAgent || inNotes;
+  const hasAppList = inBrowser || inAgent || inNotes || inTasks;
+  // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
+  const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
-  const hasRight = inBrowser || inNotes;
+  const hasRight = inBrowser || inNotes || inTasks;
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -153,11 +225,23 @@ export function App() {
     opener.current = document.activeElement as HTMLElement | null;
     setLauncherOpen(true);
   }, []);
+  const [hubOpen, setHubOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | undefined>(undefined);
+  const [taskFocus, setTaskFocus] = useState(0);
+  const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
+  const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
   const closeLauncher = useCallback(() => {
     setLauncherOpen(false);
     queueMicrotask(() => opener.current?.focus?.());
   }, []);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+  /** Open something found in Search in the app it belongs to. */
+  const openTarget = (target: HubTarget) => {
+    if (target.app === 'agent') { conversation.select(target.conversation); openApp('agent'); }
+    else if (target.app === 'notes') { openApp('notes'); void notes.open(target.path, target.title); }
+    else if (target.app === 'tasks') { tasks.setView({ kind: 'list', name: target.list }); openApp('tasks'); }
+    else { openApp('browser'); void window.mobius.browser.open(target.url); }
+  };
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const newTab = useCallback(() => {
     void window.mobius.browser.open().then(() => address.current?.focus());
@@ -211,65 +295,16 @@ export function App() {
     if (outcome === 'navigated') { setDraft(null); address.current?.blur(); }
   };
 
-  return (
-    <div className="app" data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
-      <div className="strip" role="presentation">
-        <span className="strip-title">{inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || appName(app)) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : appName(app)}</span>
-        <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
-      </div>
-      <header className="context-strip">
-        <div className="strip-left" role="group" aria-label="Window">
-          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
-          </button>}
-        </div>
-        {inAgent && <div className="strip-middle" role="group" aria-label="Agent"><span className="context-title">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span></div>}
-        {inBrowser && <div className="strip-middle" role="group" aria-label="Browser">
-          <button type="button" className="strip-btn" aria-label="Back" disabled={!active?.canGoBack} onClick={() => active && window.mobius.browser.back(active.id)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4 6 10l6 6" /></svg>
-          </button>
-          <button type="button" className="strip-btn" aria-label="Forward" disabled={!active?.canGoForward} onClick={() => active && window.mobius.browser.forward(active.id)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" /></svg>
-          </button>
-          <button type="button" className="strip-btn" aria-label="Reload" disabled={!active} onClick={() => active && window.mobius.browser.reload(active.id)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
-          </button>
-          <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
-            <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={saved}><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
-          </button>
-          <form className="address" onSubmit={submit}>
-            <input
-              ref={address}
-              type="text"
-              aria-label="Address or question"
-              placeholder="Search, enter an address, or ask"
-              spellCheck={false}
-              autoComplete="off"
-              value={draft ?? active?.url ?? ''}
-              onChange={(event) => { setDraft(event.target.value); setNotice(''); }}
-              onFocus={(event) => event.target.select()}
-              onBlur={() => setDraft(null)}
-            />
-            {active?.loading && <span className="spinner" role="status" aria-label="Loading" />}
-          </form>
-          {notice && <span className="notice" role="status">{notice}</span>}
-          {findOpen && active && <FindBar key={active.id} tabId={active.id} focusToken={finding} onClose={() => setFindOpen(false)} />}
-        </div>}
-        <div className="strip-right" role="group" aria-label="Applications">
-          {hasRight && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={chatOpen} aria-label="Show agent" title="Show or hide the agent" onClick={() => { setChatOpen((open) => !open); setFocusToken((n) => n + 1); }}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>
-          </button>}
-          <button type="button" className="strip-btn app-button" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${appName(app)}`} onClick={openLauncher}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m12.8 7.2-1.6 4-4 1.6 1.6-4z" /></svg>
-            <span>{appName(app)}</span>
-            {needsYou > 0 && <span className="attention" role="status" aria-label={`${needsYou} waiting for you`}>{needsYou}</span>}
-            <svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
-          </button>
-        </div>
-      </header>
-      <div className="body" style={layout}>
-        {hasLeft && leftOpen && (
-          <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
+  const createActions: HubAction[] = [
+    { id: 'conversation', label: 'New conversation', app: 'agent', run: () => { closeSettings(); conversation.newConversation(); openApp('agent'); setFocusToken((n) => n + 1); } },
+    { id: 'note', label: 'New note', app: 'notes', run: () => { closeSettings(); openApp('notes'); void (async () => { const nb = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name ?? (await notes.createNotebook('Notes')); if (nb) await notes.createPage(nb); })(); } },
+    { id: 'task', label: 'New task', app: 'tasks', run: () => { closeSettings(); tasks.setView({ kind: 'list', name: 'Inbox' }); openApp('tasks'); setTaskFocus((n) => n + 1); } },
+    { id: 'tab', label: 'New tab', app: 'browser', run: () => { closeSettings(); openApp('browser'); newTab(); } },
+  ];
+  /** The one thing worth starting in the app you are in: the panel's New button changes with it. */
+  const createFor = (id: AppId): HubAction => createActions.find((a) => a.app === (id === 'search' ? 'agent' : id)) ?? createActions[0]!;
+  const appSidebar = (pinNode: ReactNode) => (
+          <>
             {inAgent ? (
               <ConversationSidebar
                 conversations={conversation.list}
@@ -299,16 +334,18 @@ export function App() {
                 }}
                 onSelect={conversation.select}
                 onDelete={conversation.remove}
-                pin={pin('left')}
+                pin={pinNode}
               />
             ) : inNotes ? (
-              <NotesSidebar notes={notes} pin={pin('left')} />
+              <NotesSidebar notes={notes} pin={pinNode} />
+            ) : inTasks ? (
+              <TasksSidebar tasks={tasks} pin={pinNode} />
             ) : (
           <aside className="side" aria-label="Browser sidebar">
             <div className="side-head">
               <span className="side-title">Tabs</span>
               <span className="side-actions">
-                {pin('left')}
+                {pinNode}
                 {window.mobius.browser.reopenClosed && (
                   <button type="button" className="strip-btn" aria-label="Reopen closed tab" title="Reopen closed tab" onClick={() => void window.mobius.browser.reopenClosed?.()}>
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 0 2-4.5M4 3v4h4" /></svg>
@@ -348,6 +385,101 @@ export function App() {
             <DownloadsList entries={downloads} />
           </aside>
             )}
+          </>
+  );
+
+  return (
+    <div className="app" data-wide={wide || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+      <Rail
+        app={app}
+        expanded={wide}
+        onToggle={toggleWide}
+        onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); openApp(id); }}
+        activity={activity}
+        changed={changed}
+        needsYou={needsYou}
+        counts={{ browser: browser.tabs.length, tasks: dueToday }}
+        create={createFor(app)}
+        onLauncher={openHub}
+        onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
+        settingsOpen={settingsOpen}
+      >
+        {wide && hasAppList && appSidebar(null)}
+      </Rail>
+      <header className="context-strip">
+        <div className="strip-left" role="group" aria-label="Window">
+          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
+          </button>}
+        </div>
+        <div className="toolbar-place" data-browser={inBrowser || undefined}>
+          <h1 className="strip-title">{place}</h1>
+          {inAgent && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
+          {inNotes && notes.page && <span className="toolbar-sub">{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></span>}
+          {inTasks && <span className="toolbar-sub">{tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`}</span>}
+        </div>
+        {inTasks && tasks.view.kind === 'list' && tasksDone > 0 && (
+          <div className="strip-middle toolbar-tools" role="group" aria-label="Tasks">
+            <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
+          </div>
+        )}
+        {inBrowser && <div className="strip-middle" role="group" aria-label="Browser">
+          <button type="button" className="strip-btn" aria-label="Back" disabled={!active?.canGoBack} onClick={() => active && window.mobius.browser.back(active.id)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4 6 10l6 6" /></svg>
+          </button>
+          <button type="button" className="strip-btn" aria-label="Forward" disabled={!active?.canGoForward} onClick={() => active && window.mobius.browser.forward(active.id)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" /></svg>
+          </button>
+          <button type="button" className="strip-btn" aria-label="Reload" disabled={!active} onClick={() => active && window.mobius.browser.reload(active.id)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
+          </button>
+          <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
+            <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={saved}><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
+          </button>
+          <form className="address" onSubmit={submit}>
+            <input
+              ref={address}
+              type="text"
+              aria-label="Address or question"
+              placeholder="Search, enter an address, or ask"
+              spellCheck={false}
+              autoComplete="off"
+              value={draft ?? active?.url ?? ''}
+              onChange={(event) => { setDraft(event.target.value); setNotice(''); }}
+              onFocus={(event) => event.target.select()}
+              onBlur={() => setDraft(null)}
+            />
+            {active?.loading && <span className="spinner" role="status" aria-label="Loading" />}
+          </form>
+          {notice && <span className="notice" role="status">{notice}</span>}
+          {findOpen && active && <FindBar key={active.id} tabId={active.id} focusToken={finding} onClose={() => setFindOpen(false)} />}
+        </div>}
+        <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
+        {hasRight && !rightOpen && (
+          <form className="ask-pill" role="search" aria-label="Ask the agent" onSubmit={(e) => {
+            e.preventDefault();
+            const field = e.currentTarget.elements.namedItem('ask') as HTMLInputElement;
+            const text = field.value.trim();
+            if (!text || !settings?.configured || conversation.state.busy) return;
+            field.value = '';
+            setChatOpen(true);
+            void conversation.send(text, []);
+          }}>
+            <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
+            <input name="ask" type="text" aria-label="Ask Mobius" placeholder={`Ask about ${inBrowser ? 'this page' : inNotes ? 'this note' : 'your tasks'}`} autoComplete="off" disabled={!settings?.configured} />
+            {activity && <span className="ask-working" role="status" aria-label="Agent activity">{activity.label}</span>}
+          </form>
+        )}
+        <div className="strip-right" role="group" aria-label="Applications">
+          {hasRight && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={chatOpen} aria-label="Show agent" title="Show or hide the agent" onClick={() => { setChatOpen((open) => !open); setFocusToken((n) => n + 1); }}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>
+          </button>}
+        </div>
+      </header>
+      <div className="body" style={layout}>
+        {hasLeft && leftOpen && (
+          <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
+            {appSidebar(pin('left'))}
             {resizer('left', 'Resize the list')}
           </div>
         )}
@@ -356,7 +488,8 @@ export function App() {
           {cover?.url && <img className="page-cover" src={cover.url} alt="" data-testid="page-cover" />}
           {settingsOpen && (
             <SettingsPage
-              onClose={closeSettings}
+              {...(settingsSection ? { initial: settingsSection } : {})}
+              onClose={() => { setSettingsSection(undefined); closeSettings(); }}
               settings={settings}
               onSaveSettings={saveSettings}
               appearance={appearance.value}
@@ -372,8 +505,21 @@ export function App() {
             />
           )}
           {inNotes && <NoteEditor notes={notes} />}
+          {inTasks && <TasksPage tasks={tasks} focusToken={taskFocus} />}
+          {inSearch && (
+            <SearchPage
+              conversations={conversation.list}
+              notebooks={notes.notebooks}
+              tasks={tasks.all}
+              focusToken={searchFocus}
+              canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
+              onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}
+              onOpen={openTarget}
+            />
+          )}
           {inAgent && (
             <ChatPanel
+              surface={surface}
               variant="full"
               state={conversation.state}
               settings={settings}
@@ -397,11 +543,12 @@ export function App() {
               onModelChanged={() => void reloadSettings()}
             />
           )}
-          <SurfaceSlot hidden={launcherOpen || settingsOpen || !inBrowser || cover !== null} />
+          <SurfaceSlot hidden={launcherOpen || hubOpen || settingsOpen || !inBrowser || cover !== null} />
         </main>
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
           <ChatPanel
+              surface={surface}
             state={conversation.state}
             settings={settings}
             coreReady={coreStatus === 'ready'}
@@ -429,6 +576,15 @@ export function App() {
         )}
         {hasRight && rightFloating && !chatOpen && <div className="hotzone right" data-testid="hotzone-right" onPointerEnter={() => { rightFromEdge.current = true; setChatOpen(true); }} />}
       </div>
+      <AppHub
+        open={hubOpen}
+        onClose={closeHub}
+        current={app}
+        onOpenApp={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); openApp(id); }}
+        onConnect={() => { setSettingsSection('advanced'); openSettings(); }}
+        status={hubStatus}
+        actions={createActions}
+      />
       <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp} />
     </div>
   );

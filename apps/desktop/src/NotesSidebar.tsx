@@ -29,7 +29,7 @@ export function NotesSidebar({ notes, pin }: { notes: NotesState; pin: ReactNode
   return (
     <aside className="side notes-side" aria-label="Notes sidebar">
       <div className="side-head">
-        <span className="side-title">Notes</span>
+        <span className="side-title">Notebooks</span>
         <span className="side-actions">
           {pin}
           <button type="button" className="strip-btn" aria-label="New notebook" title="New notebook" onClick={() => setNaming(true)}>

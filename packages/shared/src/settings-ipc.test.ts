@@ -14,7 +14,7 @@ describe('appearance changes', () => {
     }
   });
   it('has sensible defaults', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', leftWidth: 248, rightWidth: 380 });
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', leftWidth: 248, rightWidth: 380 });
   });
 });
 
@@ -72,6 +72,8 @@ describe('where the sidebars sit', () => {
   it('start attached, and each can be set to floating or back, and nothing else', () => {
     expect(DEFAULT_APPEARANCE).toMatchObject({ leftSidebar: 'attached', rightSidebar: 'attached', leftWidth: 248, rightWidth: 380 });
     expect(parseAppearancePatch({ leftSidebar: 'floating' })).toEqual({ leftSidebar: 'floating' });
+    expect(parseAppearancePatch({ navigation: 'rail' })).toEqual({ navigation: 'rail' });
+    for (const bad of ['tabs', true, null]) expect(parseAppearancePatch({ navigation: bad }), String(bad)).toBeNull();
     expect(parseAppearancePatch({ rightSidebar: 'floating', leftSidebar: 'attached' })).toEqual({ rightSidebar: 'floating', leftSidebar: 'attached' });
     for (const bad of ['hidden', 'pinned', '', 'Floating', 1, null, true]) {
       expect(parseAppearancePatch({ leftSidebar: bad }), String(bad)).toBeNull();
@@ -107,8 +109,8 @@ describe('keyboard shortcuts in preferences', () => {
 describe('effort and dictation in preferences', () => {
   it('start at the model\'s own way and a usual speech model, and accept only known values', () => {
     expect(DEFAULT_PREFERENCES).toMatchObject({ reasoningEffort: '', dictationModel: 'whisper-1' });
-    for (const effort of ['', 'low', 'medium', 'high']) expect(parsePreferencesPatch({ reasoningEffort: effort })).toEqual({ reasoningEffort: effort });
-    for (const bad of ['extreme', 'HIGH', 'none', ' low', 3, null, true]) expect(parsePreferencesPatch({ reasoningEffort: bad }), String(bad)).toBeNull();
+    for (const effort of ['', 'none', 'low', 'medium', 'high']) expect(parsePreferencesPatch({ reasoningEffort: effort })).toEqual({ reasoningEffort: effort });
+    for (const bad of ['extreme', 'HIGH', 'None', ' low', 3, null, true]) expect(parsePreferencesPatch({ reasoningEffort: bad }), String(bad)).toBeNull();
     expect(parsePreferencesPatch({ dictationModel: 'distil-whisper-large-v3-en' })).toEqual({ dictationModel: 'distil-whisper-large-v3-en' });
     for (const bad of ['', 'a\nb', 'x'.repeat(201), 5]) expect(parsePreferencesPatch({ dictationModel: bad }), String(bad)).toBeNull();
   });

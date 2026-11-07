@@ -1,0 +1,31 @@
+# Workspace layout: one adaptive surface
+
+Owner direction (2026-11-07): an app in Mobius should not feel like a window into another application. The UI
+morphs: the controls that exist change with what you are doing, inside one unified design, and the agent can be used
+while you work in any app.
+
+## The parts, the same in every app
+
+| Part | What it is | How it adapts |
+|---|---|---|
+| Sidebar (left) | The apps by name, then the open app's own list (tabs, notebooks, lists, conversations). Folds to an icon rail. | The **Create** button follows the app (New tab / New note / New task / New conversation). Counts and dots show what is waiting and what the agent changed elsewhere. A narrow window folds it to the rail on its own. |
+| Toolbar (top) | Where you are (title + one line about it), then the app's own controls, then the agent. | Browser: back, forward, address. Notes: notebook and save state. Tasks: how many to do, Clear completed. Agent: which model. |
+| Work area | The app's content as one sheet on the window. | Only the content changes between apps; headers live in the toolbar, not in each page. |
+| Agent | One conversation across all apps. | Three sizes: **Ask** in the toolbar when the panel is put away; the **panel** beside the work (the composer turns into a live status line while the agent works); the **Agent app** full size. On-canvas actions on a selection come next. |
+| App hub | Every app as a tile with a live status, ways to start something, apps still to come. | Opens from the sidebar; type to narrow it. |
+
+## Rules taken from Apple's HIG (Sidebars, Toolbars) and Microsoft's 2026 Copilot redesign
+
+- Do not hide the sidebar by default; let people hide it, and fold it when the window is narrow (macOS Mail).
+- Sidebar icons use the accent colour; at most two levels of hierarchy; nothing critical at the bottom.
+- One entry point for the agent that sits above the work and opens a side pane that works with the content, with
+  clear signals of what it is doing (M365 Copilot, May 2026). Invoking it on the content itself comes after.
+- Progressive disclosure: start clean, reveal controls in context, never every path at once.
+- Glass only on the top layer (the app hub, menus); the sidebar and toolbar are solid.
+
+## Next
+
+1. On-canvas actions: select text in a note or a page, and Ask / Rewrite / Summarise / Make a task appear there.
+2. One review and undo strip for everything the agent changed, in every app.
+3. Split view from the Agent app: something the agent opens or makes slides in beside the conversation.
+4. Let people reorder and hide apps in the sidebar (HIG: let people customise the sidebar).

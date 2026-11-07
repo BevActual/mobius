@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { liveTitle, statusText } from './notes-state';
+import { liveTitle } from './notes-state';
 import type { NotesState } from './useNotes';
 
 /** The open page. Plain Markdown, saved as you type; a page the assistant changed meanwhile is never overwritten. */
@@ -18,10 +18,6 @@ export function NoteEditor({ notes }: { notes: NotesState }) {
   const title = liveTitle(notes.text, notes.page.title || path?.split('/')[1]?.replace(/\.md$/, '') || '');
   return (
     <section className="note-editor" aria-label={`Note: ${title}`}>
-      <div className="note-bar">
-        <span className="note-where">{path?.split('/')[0]}</span>
-        <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span>
-      </div>
       {notes.status === 'conflict' && (
         <div className="note-conflict" role="alert">
           <span>The assistant changed this page while you were editing it.</span>

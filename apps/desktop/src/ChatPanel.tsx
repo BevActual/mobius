@@ -3,6 +3,8 @@ import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentS
 import { Composer } from './composer/Composer';
 import type { ConversationState, Item, ToolStatus, findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
+import type { SurfaceState } from './surface';
+import { activityOf } from './activity';
 import { SettingsForm } from './settings/ModelForm';
 
 const STATUS_TEXT: Record<ToolStatus, string> = {
@@ -132,6 +134,8 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
 }
 
 export interface ChatPanelProps {
+  /** Where the person is, for the suggestions the message box offers. */
+  surface?: SurfaceState;
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
@@ -227,15 +231,15 @@ function ConversationMenu({ conversations, active, onSelect, onNew }: { conversa
   );
 }
 
-function Shell({ variant, children }: { variant: 'panel' | 'full'; children: React.ReactNode }) {
+function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty: boolean; children: React.ReactNode }) {
   return variant === 'full' ? (
-    <section className="chat full" role="region" aria-label="Agent conversation">{children}</section>
+    <section className="chat full" role="region" aria-label="Agent conversation" data-empty={empty || undefined}>{children}</section>
   ) : (
-    <aside className="chat" aria-label="Agent">{children}</aside>
+    <aside className="chat" aria-label="Agent" data-empty={empty || undefined}>{children}</aside>
   );
 }
 
-export function ChatPanel({ state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged }: ChatPanelProps) {
+export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -286,7 +290,7 @@ export function ChatPanel({ state, settings, coreReady, onSend, onStop, onAnswer
   }, [focusToken]);
 
   return (
-    <Shell variant={variant}>
+    <Shell variant={variant} empty={state.items.length === 0}>
       <div className="chat-head">
         {needsSetup ? <span className="chat-title">Mobius</span> : variant === 'full' ? <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span> : <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} />}
         <div className="chat-head-actions">
@@ -294,9 +298,6 @@ export function ChatPanel({ state, settings, coreReady, onSend, onStop, onAnswer
           {variant === 'panel' && <button type="button" className="strip-btn" aria-label="New conversation" title="New conversation" disabled={!configured || state.items.length === 0} onClick={onNewConversation}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
           </button>}
-          <button type="button" className="strip-btn" aria-label="Settings" title="Settings (Ctrl+,)" onClick={onOpenSettings}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
-          </button>
         </div>
       </div>
       {showSettings && settings ? (
@@ -317,7 +318,10 @@ export function ChatPanel({ state, settings, coreReady, onSend, onStop, onAnswer
             }}
           >
             {state.items.length === 0 && (
-              <p className="empty">{configured ? 'Ask anything. Mobius asks before it uses a tool.' : coreReady ? 'Connecting…' : 'Starting up…'}</p>
+              <div className="empty">
+                <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
+                {configured && <p className="greeting-note">Mobius asks before it uses a tool, unless you change that below.</p>}
+              </div>
             )}
             {state.items.map((item, index) =>
               item.kind === 'user' ? (
@@ -385,6 +389,8 @@ export function ChatPanel({ state, settings, coreReady, onSend, onStop, onAnswer
             onModelChanged={onModelChanged}
             onOpenSettings={onOpenSettings}
             fieldRef={field}
+            surface={surface}
+            activity={activityOf(state)}
           />
         </>
       )}

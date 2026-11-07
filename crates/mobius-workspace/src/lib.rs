@@ -5,3 +5,4 @@
 pub mod checkpoints;
 pub mod files;
 pub mod notes;
+pub mod tasks;

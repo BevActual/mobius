@@ -29,10 +29,12 @@
   --sp-8: 32px;
 
   /* Shape. */
-  --radius-control: 8px;
-  --radius-group: 12px;
-  --radius-panel: 16px;
-  --radius-sheet: 20px;
+  /* Squarer shapes: small radii read as precise and fit edge to edge. */
+  --radius-small: 2px;
+  --radius-control: 4px;
+  --radius-group: 6px;
+  --radius-panel: 8px;
+  --radius-sheet: 10px;
   --control-h: 28px;
   --control-h-lg: 36px;
 
@@ -65,8 +67,20 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
   --dur-fast: 120ms;
   --dur-med: 200ms;
+  --dur-slow: 600ms;
 
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2365656b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  /* Each app's colour, used only for its tile in the app hub. */
+  --app-agent: linear-gradient(140deg, #7a5cff, #2f7bff);
+  --app-search: linear-gradient(140deg, #5d6b80, #39424f);
+  --app-browser: linear-gradient(140deg, #1f9bff, #0bb8a8);
+  --app-notes: linear-gradient(140deg, #ffb340, #ff8a1f);
+  --app-tasks: linear-gradient(140deg, #34c759, #0fa36b);
+  --app-code: linear-gradient(140deg, #4a4f5a, #22252b);
+  --app-documents: linear-gradient(140deg, #3d8bff, #2556d9);
+  --app-canvas: linear-gradient(140deg, #ff5fa2, #c13cff);
+  --app-review: linear-gradient(140deg, #ff7a45, #e5484d);
+  --app-connect: linear-gradient(140deg, #8e8e93, #636366);
 }
 
 @media (prefers-color-scheme: dark) {

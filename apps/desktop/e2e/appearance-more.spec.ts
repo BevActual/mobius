@@ -106,6 +106,8 @@ test('hiding finished tool steps keeps the ones that still need you', async () =
 
 test('the tab list can start closed, and the choice survives a restart', async () => {
   await start([]);
+  // The tab list beside the page belongs to the narrow rail; the full sidebar always shows it.
+  await shell().evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
   await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toBeVisible();
   await openPage('Appearance', 'Layout');
   await page().getByRole('switch', { name: 'Show the tab list at start' }).uncheck();

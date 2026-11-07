@@ -24,7 +24,7 @@ static FIELDS: [Field; 11] = [
     Field { name: "agentPrivateUrls", default: || json!(false), check: is_flag },
     Field { name: "approvalMode", default: || json!("manual"), check: |v| one_of(v, &["manual", "smart", "off"]) },
     Field { name: "keybindings", default: keys::defaults, check: keys::is_key_bindings },
-    Field { name: "reasoningEffort", default: || json!(""), check: |v| one_of(v, &["", "low", "medium", "high"]) },
+    Field { name: "reasoningEffort", default: || json!(""), check: |v| one_of(v, &["", "none", "low", "medium", "high"]) },
     Field { name: "dictationModel", default: || json!("whisper-1"), check: is_model_name },
 ];
 

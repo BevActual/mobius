@@ -737,20 +737,27 @@ fn a_reviewer_that_cannot_answer_sends_the_question_to_the_person_unchanged() {
 
 #[test]
 fn the_effort_can_be_set_and_goes_to_the_model_and_only_known_values_are_accepted() {
-    let server = fake(vec![says(&["a"], 0), says(&["b"], 0)]);
+    let server = fake(vec![says(&["a"], 0), says(&["b"], 0), says(&["c"], 0)]);
     let mut d = Daemon::start(&[]);
     configure(&mut d, &server);
     assert!(d.call(5, "agent.set_effort", json!({ "effort": "medium" })).get("error").is_none());
     d.call(2, "agent.send", json!({ "conversation": "c1", "text": "think" }));
     d.until_event("done");
     assert_eq!(server.bodies.lock().unwrap()[0]["reasoning_effort"], "medium");
-    for bad in ["extreme", "HIGH", "none", " low"] {
+    for bad in ["extreme", "HIGH", "None", " low", "minimal"] {
         assert!(d.call(6, "agent.set_effort", json!({ "effort": bad })).get("error").is_some(), "{bad}");
     }
     assert!(d.call(7, "agent.set_effort", json!({ "effort": "" })).get("error").is_none());
     d.call(8, "agent.send", json!({ "conversation": "c1", "text": "again" }));
     d.until_event("done");
     assert!(server.bodies.lock().unwrap()[1].get("reasoning_effort").is_none());
+    // Off: a model on this computer is told not to think, and no effort name is sent.
+    assert!(d.call(9, "agent.set_effort", json!({ "effort": "none" })).get("error").is_none());
+    d.call(10, "agent.send", json!({ "conversation": "c1", "text": "quick" }));
+    d.until_event("done");
+    let off = &server.bodies.lock().unwrap()[2];
+    assert_eq!(off["chat_template_kwargs"]["enable_thinking"], false);
+    assert!(off.get("reasoning_effort").is_none());
 }
 
 #[test]

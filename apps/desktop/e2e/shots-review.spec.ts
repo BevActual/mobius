@@ -11,6 +11,7 @@ const out = process.env.MOBIUS_SHOTS_DIR ?? path.resolve(import.meta.dirname, '.
 
 for (const scheme of ['light', 'dark'] as const) {
   test(`review pictures, ${scheme}`, async () => {
+    test.setTimeout(180_000);
     fs.mkdirSync(out, { recursive: true });
     const fixture = await startFixture();
     const model = await startModel([callsTool('browser-tabs'), says(['You have one tab open, the fixture home page.'])]);
@@ -33,6 +34,9 @@ for (const scheme of ['light', 'dark'] as const) {
       await address.press('Enter');
       await composer.fill('What tabs are open?');
       await composer.press('Enter');
+      await expect(shell.getByRole('status', { name: 'Agent activity' })).toBeVisible();
+      await shell.waitForTimeout(300);
+      await shot('1a-agent-waiting');
       await shell.getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
       await expect(shell.locator('.msg.assistant').last()).toContainText('one tab');
       await shell.getByRole('button', { name: /Show details of/ }).click();
@@ -44,6 +48,43 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('dialog').getByText('Agent', { exact: true }).first().click();
       await shell.waitForTimeout(400);
       await shot('3-assistant');
+      // Tasks, with a few tasks in two lists.
+      const tasksDir = path.join(userData, 'workspace', 'tasks');
+      fs.mkdirSync(tasksDir, { recursive: true });
+      const d = new Date();
+      const day = (n: number) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+      fs.writeFileSync(path.join(tasksDir, 'Inbox.md'), `# Inbox\n\n- [ ] Call the plumber (due ${day(0)})\n- [ ] Renew the passport (due ${day(-2)})\n- [ ] Book flights for the trip (due ${day(3)})\n- [ ] Read the onboarding guide\n- [x] Pay the electricity bill\n`);
+      fs.writeFileSync(path.join(tasksDir, 'Work.md'), `# Work\n\n- [ ] Send the quarterly report (due ${day(0)})\n- [ ] Review the design notes\n`);
+      await shell.keyboard.press('Control+k');
+      await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Tasks');
+      await shell.keyboard.press('Enter');
+      await shell.getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Inbox/ }).click();
+      await shell.waitForTimeout(500);
+      await shell.locator('.tasks-page .task').nth(1).hover();
+      await shot('3c-tasks');
+      await shell.getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Today/ }).click();
+      await shell.waitForTimeout(400);
+      await shot('3d-tasks-today');
+      await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Search', exact: true }).click();
+      await shell.waitForTimeout(400);
+      await shot('3e-search');
+      await shell.getByRole('searchbox', { name: 'Search everything' }).fill('the');
+      await shell.waitForTimeout(500);
+      await shot('3f-search-results');
+      await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Tasks', exact: true }).click();
+      await shell.waitForTimeout(500);
+      await shot('3g-sidebar-tasks');
+      await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Browser', exact: true }).click();
+      await shell.waitForTimeout(400);
+      await shot('3h-sidebar-browser');
+      await shell.getByRole('button', { name: 'Collapse sidebar' }).click();
+      await shell.waitForTimeout(400);
+      await shot('3i-rail-browser');
+      await shell.getByRole('button', { name: 'Expand sidebar' }).click();
+      await shell.keyboard.press('Control+k');
+      await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
+      await shell.keyboard.press('Enter');
+      await shell.waitForTimeout(300);
       await shell.getByRole('button', { name: 'Settings', exact: true }).click();
       const page = shell.getByRole('region', { name: 'Settings' });
       await shell.waitForTimeout(800);

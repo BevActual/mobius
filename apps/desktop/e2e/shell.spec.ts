@@ -28,6 +28,7 @@ test('opens one window with a single visible page glued to the slot', async () =
 
 test('the page stays glued to the slot when the window resizes and the panel toggles', async () => {
   await expectVisibleView(mobius.app);
+  await mobius.shell.evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
   await resizeWindow(mobius.app, 1000, 700);
   await mobius.shell.getByRole('button', { name: 'Show tabs' }).click();
   await expect.poll(async () => {
@@ -103,9 +104,9 @@ test('only the active tab is visible, and closing the last tab opens a fresh one
 
 test('the launcher hides the native page while open and returns focus on Escape', async () => {
   await expectVisibleView(mobius.app);
-  const opener = mobius.shell.getByRole('button', { name: /^Applications/ });
+  const opener = mobius.shell.getByRole('textbox', { name: 'Address or question' });
   await opener.focus();
-  await opener.click();
+  await mobius.shell.keyboard.press('Control+K');
   const dialog = mobius.shell.getByRole('dialog', { name: 'Launcher' });
   await expect(dialog).toBeVisible();
   await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(0);
