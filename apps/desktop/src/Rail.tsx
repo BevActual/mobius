@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { Reorder, motion } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Activity } from './activity';
 import type { AppId } from './apps';
@@ -57,7 +57,13 @@ interface Props {
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
 export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps }: Props) {
-  const listed = apps ? RAIL_APPS.filter((a) => apps.includes(a.id)).sort((a, b) => apps.indexOf(a.id) - apps.indexOf(b.id)) : RAIL_APPS;
+  // While an app is dragged the order lives here; it is saved once, when it is let go.
+  const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
+  const dragged = useRef(false);
+  const latestDrag = useRef<AppId[] | null>(null);
+  latestDrag.current = dragOrder;
+  const chosen = dragOrder ?? apps;
+  const listed = chosen ? RAIL_APPS.filter((a) => chosen.includes(a.id)).sort((a, b) => chosen.indexOf(a.id) - chosen.indexOf(b.id)) : RAIL_APPS;
   const order = listed.map((a) => a.id);
   // Right-click an app (or Shift+F10) to move or hide it: HIG asks that people can shape the sidebar.
   const [menu, setMenu] = useState<{ id: AppId; x: number; y: number } | null>(null);
@@ -90,13 +96,15 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
           {expanded && <span className="rail-label" aria-hidden="true">{create.label}</span>}
         </button>
       </div>
-      <ul role="list" className="rail-apps">
+      <Reorder.Group as="ul" axis="y" role="list" className="rail-apps" values={order} onReorder={(next: AppId[]) => { if (onApps) setDragOrder(next); }}>
         {listed.map(({ id, name }) => {
           const here = app === id && !settingsOpen;
           const working = activity !== null && (activity.app === id || (id === 'agent' && activity.app === null && app !== 'agent'));
           const waiting = id === 'agent' ? needsYou : 0;
           return (
-            <li key={id}>
+            <Reorder.Item as="li" key={id} value={id} drag={onApps ? 'y' : false} dragListener={Boolean(onApps)}
+              onDragStart={() => { dragged.current = true; }}
+              onDragEnd={() => { const next = latestDrag.current; if (next) onApps?.(next); setDragOrder(null); window.setTimeout(() => { dragged.current = false; }, 0); }}>
               <button
                 type="button"
                 className="rail-btn"
@@ -105,7 +113,7 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
                 data-working={working || undefined}
                 data-changed={(changed.has(id) && !here) || undefined}
                 title={name}
-                onClick={() => onOpen(id)}
+                onClick={() => { if (!dragged.current) onOpen(id); }}
                 onContextMenu={onApps ? (event) => { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); setMenu({ id, x: event.clientX || r.right, y: event.clientY || r.top }); } : undefined}
               >
                 {here && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
@@ -114,10 +122,10 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
                 {waiting > 0 && <span className="rail-badge" role="status" aria-label={`${waiting} waiting for you`}>{waiting}</span>}
                 {expanded && waiting === 0 && (counts[id] ?? 0) > 0 && <span className="rail-count" aria-hidden="true">{counts[id]}</span>}
               </button>
-            </li>
+            </Reorder.Item>
           );
         })}
-      </ul>
+      </Reorder.Group>
       {menu && (
         <div ref={menuRef} className="rail-menu" role="menu" aria-label={`${RAIL_APPS.find((a) => a.id === menu.id)?.name ?? ''} in the sidebar`} style={{ left: menu.x, top: menu.y }}>
           <button type="button" role="menuitem" className="popmenu-item" disabled={order.indexOf(menu.id) === 0} onClick={() => { move(menu.id, -1); setMenu(null); }}>Move up</button>
