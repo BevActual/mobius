@@ -50,7 +50,8 @@ test('split view shows two apps, follows the focused pane, swaps and closes', as
   await expect(right).toBeVisible();
   await expect(shell().getByRole('separator', { name: 'Resize the panes' })).toHaveAttribute('aria-valuenow', '50');
   // Clicking a pane makes it the one the toolbar and sidebar follow.
-  await right.locator('.pane-head').click();
+  // Its name, not the middle of the header, where (by window size) one of the app buttons can sit.
+  await right.locator('.pane-name').click();
   await expect(shell().locator('.strip-title')).toHaveText('Notes');
   await right.getByRole('button', { name: 'Swap panes' }).click();
   await expect(shell().getByRole('region', { name: 'Left pane: Notes' })).toBeVisible();
