@@ -955,3 +955,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .changed-mark { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--accent); }
 .note-row { display: flex; align-items: center; gap: 8px; }
 .list-row .changed-mark + .list-count { margin-left: 8px; }
+.selection-menu-wrap { position: relative; display: inline-flex; }
+.selection-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; display: flex; flex-direction: column; min-width: 220px; padding: 5px; border-radius: 14px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: var(--shadow-3), 0 0 0 1px var(--hairline); animation: app-in var(--dur-fast) var(--ease); }
+@supports (backdrop-filter: blur(1px)) { .selection-menu { backdrop-filter: blur(20px) saturate(1.6); } }
+.selection-menu .popmenu-item { padding: 7px 10px; border-radius: 9px; }

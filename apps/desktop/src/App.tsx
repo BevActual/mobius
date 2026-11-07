@@ -38,6 +38,7 @@ import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
+import { SelectionMenu } from './SelectionMenu';
 import { companionFor, loadShare, saveShare } from './split';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
@@ -293,7 +294,9 @@ export function App() {
   );
   // The native page is drawn above everything in the window. To draw over it, put a picture of it in its place first.
   const floatingShown = (hasLeft && leftFloating && leftOpen) || (rightFloating && rightOpen);
-  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null);
+  // The selection menu drops over the page, so the page's picture stands in for it while the menu is open.
+  const [selectionMenu, setSelectionMenu] = useState(false);
+  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu);
   const [cover, setCover] = useState<{ url: string | null } | null>(null);
   useEffect(() => {
     if (!needCover) { setCover(null); return undefined; }
@@ -483,12 +486,24 @@ export function App() {
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
   const [incoming, setIncoming] = useState<{ token: number; item: ContextItem } | null>(null);
-  /** On-canvas actions for the web: the text selected on the page joins the agent's message box. */
-  const askAboutSelection = async () => {
+  /** On-canvas actions for the web: what to do with the text selected on the page. */
+  const webSelection = async (action: 'ask' | 'summarise' | 'explain' | 'task') => {
+    setSelectionMenu(false);
     const result = await window.mobius.context.selection().catch(() => ({ ok: false as const, error: 'The selection could not be read.' }));
     if (!result.ok) { setNotice(result.error); return; }
+    const { item } = result;
+    if (action === 'task') {
+      const list = tasks.lists[0]?.name;
+      if (!list) { setNotice('Make a task list first, in Tasks.'); return; }
+      const words = item.text.replace(/\s+/g, ' ').trim().slice(0, 200);
+      const ok = await tasks.add(list, words, null);
+      setNotice(ok ? `Added to ${list}` : 'The task could not be added.');
+      return;
+    }
+    const ready = settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy;
     if (!shows('agent')) setChatOpen(true);
-    setIncoming({ token: Date.now(), item: result.item });
+    if (action === 'ask' || !ready) { setIncoming({ token: Date.now(), item }); return; }
+    void conversation.send(action === 'summarise' ? 'Summarise the attached text from this page in a few lines.' : 'Explain the attached text from this page in plain words.', [item]);
   };
   /** On-canvas actions: what to do with text selected in a note. */
   const onNoteSelection = (action: SelectionAction, text: string) => {
@@ -624,9 +639,14 @@ export function App() {
           <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
             <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={saved}><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
           </button>
-          <button type="button" className="strip-btn" data-selection-ask aria-label="Ask about the selected text" title="Ask the agent about the text selected on this page" disabled={!active || !/^https?:/.test(active.url)} onClick={() => void askAboutSelection()}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h8M4 9h5M4 13h4" /><path d="M14.5 9.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>
-          </button>
+          <div className="selection-menu-wrap">
+            <button type="button" className="strip-btn" data-selection-ask aria-haspopup="menu" aria-expanded={selectionMenu} aria-label="Selected text" title="Do something with the text selected on this page" disabled={!active || !/^https?:/.test(active.url)} onClick={() => setSelectionMenu((open) => !open)}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h8M4 9h5M4 13h4" /><path d="M14.5 9.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>
+            </button>
+            {selectionMenu && cover !== null && (
+              <SelectionMenu onClose={() => setSelectionMenu(false)} onChoose={(action) => void webSelection(action)} />
+            )}
+          </div>
           <form className="address" onSubmit={submit}>
             <input
               ref={address}

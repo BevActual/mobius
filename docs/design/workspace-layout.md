@@ -41,8 +41,8 @@ while you work in any app.
 
 - **On-canvas actions**: select text in a note and a capsule appears above it: Ask (the text joins the agent's message
   box as a Note chip), Rewrite (the agent changes it in the note), Summarise, and Make a task (added straight to the
-  first list, no agent needed). On a web page, the toolbar's selection button hands the selected text to the agent
-  as a chip (the page is a native view, so the capsule cannot float over it).
+  first list, no agent needed). On a web page, the toolbar's selection menu offers Ask, Summarise, Explain and Make a task
+  (the page is a native view, so its picture covers it while the menu is open).
 - **Review and undo**: each agent turn begins with a checkpoint. When a turn ends having changed notes, task lists or
   files, a strip above the message box says so: Review lists each change with its own Undo; Undo all puts back only
   what that turn changed, so edits made since elsewhere are kept.
@@ -52,7 +52,7 @@ while you work in any app.
 
 ## Next
 
-1. Rewrite and Summarise for a web selection, from a menu on the selection button.
+1. Save a web selection to a note, with a link back to the page.
 2. Mark what the last turn changed inside the page itself (changed lines in a note), as the sidebars do now.
 3. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
 4. Pinned favourites in the sidebar: a page, a note or a list kept one click away under the apps.
