@@ -33,7 +33,7 @@ fn appearance_refuses_every_bad_value_whole_and_changes_nothing() {
     for bad in [
         json!({ "theme": "purple" }), json!({ "zoom": 0.74 }), json!({ "zoom": 1.51 }), json!({ "zoom": "1" }), json!({ "zoom": null }),
         json!({ "chatTextScale": 0.84 }), json!({ "chatTextScale": 1.41 }), json!({ "leftWidth": 199 }), json!({ "leftWidth": 421 }),
-        json!({ "rightWidth": 299 }), json!({ "rightWidth": 641 }), json!({ "rightWidth": "400" }), json!({ "leftSidebar": "hidden" }), json!({ "navigation": "tabs" }), json!({ "navigation": true }), json!({ "sidebarApps": [] }), json!({ "sidebarApps": ["agent", "agent"] }), json!({ "sidebarApps": ["code"] }), json!({ "sidebarApps": "agent" }),
+        json!({ "rightWidth": 299 }), json!({ "rightWidth": 641 }), json!({ "rightWidth": "400" }), json!({ "leftSidebar": "hidden" }), json!({ "navigation": "tabs" }), json!({ "navigation": true }), json!({ "sidebarApps": [] }), json!({ "sidebarApps": ["agent", "agent"] }), json!({ "sidebarApps": ["code"] }), json!({ "sidebarApps": "agent" }), json!({ "favourites": [{ "kind": "page", "id": "x", "title": "x" }] }), json!({ "favourites": [{ "kind": "note", "id": "", "title": "x" }] }),
         json!({ "sidebarAtStart": "yes" }), json!({ "density": 1 }), json!([1]), json!("x"), json!(null), json!({}), json!({ "unknown": 1 }),
         json!({ "theme": "dark", "zoom": 9 }),
     ] {

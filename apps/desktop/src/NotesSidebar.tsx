@@ -4,7 +4,7 @@ import type { NotesState } from './useNotes';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
-export function NotesSidebar({ notes, pin, changed }: { notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string> }) {
+export function NotesSidebar({ notes, pin, changed, pinned, onPin }: { notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void }) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<NoteHit[] | null>(null);
   const [naming, setNaming] = useState(false);
@@ -88,6 +88,9 @@ export function NotesSidebar({ notes, pin, changed }: { notes: NotesState; pin: 
                         <span className="note-title">{pg.title}</span>
                         {changed?.has(pg.path) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Changed by the agent in its last turn" />}
                       </button>
+                      {onPin && <button type="button" className="note-delete note-pin" aria-pressed={pinned?.has(pg.path) ?? false} aria-label={pinned?.has(pg.path) ? `Unpin ${pg.title}` : `Pin ${pg.title} to the sidebar`} title={pinned?.has(pg.path) ? 'Unpin from the sidebar' : 'Pin to the sidebar'} onClick={() => onPin(pg.path, pg.title)}>
+                        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
+                      </button>}
                       {confirming === pg.path ? (
                         <button type="button" className="note-delete confirm" aria-label={`Confirm delete ${pg.title}`} onClick={() => { setConfirming(null); void notes.remove(pg.path); }} onBlur={() => setConfirming(null)}>Delete</button>
                       ) : (

@@ -48,11 +48,12 @@ while you work in any app.
   what that turn changed, so edits made since elsewhere are kept.
 - **Your sidebar**: drag an app in the sidebar to reorder it (or Alt+Up/Down on a focused app), or right-click it to move it, hide it, or edit the list. Settings ›
   Appearance › Layout has the full list with a checkbox and order buttons for each. At least one app always stays,
-  and hidden apps are still in All apps.
+  and hidden apps are still in All apps. Pin a note or a task list (the pin beside it) and it stays under the apps, up
+  to eight.
 
 ## Next
 
 1. Choose which notebook and page clippings go to.
 2. Mark what the last turn changed inside the page itself (changed lines in a note), as the sidebars do now.
 3. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
-4. Pinned favourites in the sidebar: a page, a note or a list kept one click away under the apps.
+4. Pin web pages too, and reorder pinned items by dragging.

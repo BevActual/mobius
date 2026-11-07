@@ -10,7 +10,7 @@ const SMART: { id: SmartView; name: string }[] = [
 
 /** The lists: two views across every list, then each list with how many tasks are still open. */
 /** `changed`: lists the agent's last turn changed. */
-export function TasksSidebar({ tasks, pin, changed }: { tasks: TasksState; pin: ReactNode; changed?: ReadonlySet<string> }) {
+export function TasksSidebar({ tasks, pin, changed, pinned, onPin }: { tasks: TasksState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (name: string) => void }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const now = new Date();
@@ -51,6 +51,9 @@ export function TasksSidebar({ tasks, pin, changed }: { tasks: TasksState; pin: 
                 {changed?.has(l.name) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Changed by the agent in its last turn" />}
                 <span className="list-count">{l.open || ''}</span>
               </button>
+              {onPin && <button type="button" className="list-pin" aria-pressed={pinned?.has(l.name) ?? false} aria-label={pinned?.has(l.name) ? `Unpin ${l.name}` : `Pin ${l.name} to the sidebar`} title={pinned?.has(l.name) ? 'Unpin from the sidebar' : 'Pin to the sidebar'} onClick={() => onPin(l.name)}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
+              </button>}
             </li>
           ))}
         </ul>

@@ -25,7 +25,19 @@ fn is_app_list(v: &Value) -> bool {
         })
 }
 
-static FIELDS: [Field; 15] = [
+/// A note or task list kept one click away in the sidebar.
+pub const MAX_FAVOURITES: usize = 8;
+
+fn is_favourites(v: &Value) -> bool {
+    let Some(items) = v.as_array() else { return false };
+    items.len() <= MAX_FAVOURITES
+        && items.iter().all(|item| {
+            let text = |key: &str, max: usize| item.get(key).and_then(Value::as_str).is_some_and(|s| !s.is_empty() && s.chars().count() <= max && !s.chars().any(char::is_control));
+            item.as_object().is_some_and(|o| o.len() == 3) && matches!(item.get("kind").and_then(Value::as_str), Some("note" | "list")) && text("id", 500) && text("title", 120)
+        })
+}
+
+static FIELDS: [Field; 16] = [
     Field { name: "theme", default: || json!("system"), check: |v| one_of(v, &["system", "light", "dark"]) },
     Field { name: "zoom", default: || json!(1), check: |v| in_range(v, 0.75, 1.5) },
     Field { name: "chatTextScale", default: || json!(1), check: |v| in_range(v, 0.85, 1.4) },
@@ -43,6 +55,8 @@ static FIELDS: [Field; 15] = [
     Field { name: "rightWidth", default: || json!(RIGHT_WIDTH.2), check: |v| in_range(v, RIGHT_WIDTH.0, RIGHT_WIDTH.1) },
     // Which apps the sidebar lists, in order. At least one; each once.
     Field { name: "sidebarApps", default: || json!(SIDEBAR_APPS), check: is_app_list },
+    // Notes and task lists pinned under the apps.
+    Field { name: "favourites", default: || json!([]), check: is_favourites },
 ];
 
 pub fn open(file: PathBuf) -> Settings {

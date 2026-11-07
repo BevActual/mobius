@@ -959,3 +959,25 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .selection-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; display: flex; flex-direction: column; min-width: 220px; padding: 5px; border-radius: 14px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: var(--shadow-3), 0 0 0 1px var(--hairline); animation: app-in var(--dur-fast) var(--ease); }
 @supports (backdrop-filter: blur(1px)) { .selection-menu { backdrop-filter: blur(20px) saturate(1.6); } }
 .selection-menu .popmenu-item { padding: 7px 10px; border-radius: 9px; }
+
+/* Pinned favourites under the apps. */
+.rail-pinned { padding: 6px 8px 4px; border-top: 1px solid var(--hairline); margin-top: 6px; }
+.rail-pinned-title { margin: 4px 8px 4px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); text-transform: none; letter-spacing: 0.01em; }
+.rail-pinned ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.rail-pin { display: flex; align-items: center; border-radius: var(--radius-control); }
+.rail-pin:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.rail-pin-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 8px; border-radius: var(--radius-control); text-align: left; }
+.rail-pin-open[aria-current="page"] { background: color-mix(in srgb, var(--ink) 8%, transparent); font-weight: var(--fw-medium); }
+.rail-pin-open svg { width: 18px; height: 18px; padding: 3px; border-radius: 5px; color: #fff; }
+.rail-pin-open svg[data-app="notes"] { background: var(--app-notes); }
+.rail-pin-open svg[data-app="tasks"] { background: var(--app-tasks); }
+.rail-pin-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-pin-remove { flex: none; width: 24px; height: 24px; margin-right: 3px; display: grid; place-items: center; border-radius: var(--radius-pill); color: var(--muted); opacity: 0; }
+.rail-pin:hover .rail-pin-remove, .rail-pin-remove:focus-visible { opacity: 1; }
+.rail-pin-remove svg { width: 12px; height: 12px; }
+.note-pin[aria-pressed="true"], .list-pin[aria-pressed="true"] { opacity: 1; color: var(--accent); }
+li:has(> .list-pin) { display: flex; align-items: center; border-radius: var(--radius-control); }
+li:has(> .list-pin) > .list-row { flex: 1; width: auto; min-width: 0; }
+.list-pin { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border-radius: var(--radius-pill); color: var(--muted); opacity: 0; }
+li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
+.list-pin svg, .note-pin svg { width: 13px; height: 13px; }

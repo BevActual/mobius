@@ -2,6 +2,7 @@ import { Reorder, motion } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Activity } from './activity';
 import type { AppId } from './apps';
+import type { Favourite } from '@mobius/shared';
 
 /** One icon per app, shared by the rail and the app hub. */
 export const APP_ICONS: Record<string, ReactNode> = {
@@ -50,13 +51,19 @@ interface Props {
   onApps?: (apps: AppId[]) => void;
   /** Open the settings where the list is chosen. */
   onEditApps?: () => void;
+  /** Notes and task lists pinned under the apps, in the full sidebar. */
+  favourites?: readonly Favourite[];
+  onOpenFavourite?: (favourite: Favourite) => void;
+  onUnpin?: (favourite: Favourite) => void;
+  /** The pinned item showing now, as `kind:id`. */
+  currentFavourite?: string | null;
 }
 
 /**
  * The app rail: one column that ties the apps together. The highlight slides to the app you are in, the app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps }: Props) {
+export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, currentFavourite }: Props) {
   // While an app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
   const dragged = useRef(false);
@@ -142,6 +149,24 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
           <button type="button" role="menuitem" className="popmenu-item" disabled={order.length === 1} onClick={() => { onApps?.(order.filter((id) => id !== menu.id)); setMenu(null); }}>Hide from sidebar</button>
           {onEditApps && <button type="button" role="menuitem" className="popmenu-item" onClick={() => { setMenu(null); onEditApps(); }}>Edit sidebar…</button>}
         </div>
+      )}
+      {expanded && favourites.length > 0 && (
+        <section className="rail-pinned" aria-label="Pinned">
+          <h2 className="rail-pinned-title">Pinned</h2>
+          <ul role="list">
+            {favourites.map((fav) => (
+              <li key={`${fav.kind}:${fav.id}`} className="rail-pin">
+                <button type="button" className="rail-pin-open" aria-current={currentFavourite === `${fav.kind}:${fav.id}` ? 'page' : undefined} title={fav.title} onClick={() => onOpenFavourite?.(fav)}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true" data-app={fav.kind === 'note' ? 'notes' : 'tasks'}>{APP_ICONS[fav.kind === 'note' ? 'notes' : 'tasks']}</svg>
+                  <span className="rail-pin-name">{fav.title}</span>
+                </button>
+                {onUnpin && <button type="button" className="rail-pin-remove" aria-label={`Unpin ${fav.title}`} title="Unpin" onClick={() => onUnpin(fav)}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+                </button>}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       {expanded && children && <div className="rail-app">{children}</div>}
       <div className="rail-end">

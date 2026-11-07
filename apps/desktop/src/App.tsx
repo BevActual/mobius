@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, actionForPress, botOfConversation, type ContextItem, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, botOfConversation, type ContextItem, type SidebarMode } from '@mobius/shared';
 import { appName, isAvailable, type AppId } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
 import { tasksContext, type SurfaceState } from './surface';
@@ -432,9 +432,9 @@ export function App() {
                 pin={pinNode}
               />
             ) : inNotes ? (
-              <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} />
+              <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} />
             ) : inTasks ? (
-              <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} />
+              <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} />
             ) : (
           <aside className="side" aria-label="Browser sidebar">
             <div className="side-head">
@@ -487,6 +487,21 @@ export function App() {
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
   const [incoming, setIncoming] = useState<{ token: number; item: ContextItem } | null>(null);
+  // Pinned favourites: notes and task lists one click away in the sidebar.
+  const favourites = appearance.value.favourites ?? [];
+  const pinnedNotes = useMemo(() => new Set(favourites.filter((f) => f.kind === 'note').map((f) => f.id)), [favourites]);
+  const pinnedLists = useMemo(() => new Set(favourites.filter((f) => f.kind === 'list').map((f) => f.id)), [favourites]);
+  const togglePin = (fav: Favourite) => {
+    const has = favourites.some((f) => f.kind === fav.kind && f.id === fav.id);
+    if (!has && favourites.length >= MAX_FAVOURITES) { setToast(`The sidebar holds ${MAX_FAVOURITES} pinned items. Unpin one first.`); return; }
+    void appearance.set({ favourites: has ? favourites.filter((f) => !(f.kind === fav.kind && f.id === fav.id)) : [...favourites, { ...fav, title: fav.title.slice(0, 120) || fav.id.slice(0, 120) }] });
+  };
+  const openFavourite = (fav: Favourite) => {
+    closeSettings();
+    if (fav.kind === 'note') { openApp('notes'); void notes.open(fav.id, fav.title); }
+    else { openApp('tasks'); tasks.setView({ kind: 'list', name: fav.id }); }
+  };
+  const currentFavourite = inNotes && notes.page ? `note:${notes.page.path}` : inTasks && tasks.view.kind === 'list' ? `list:${tasks.view.name}` : null;
   /** On-canvas actions for the web: what to do with the text selected on the page. */
   const webSelection = async (action: WebSelectionAction) => {
     setSelectionMenu(false);
@@ -610,6 +625,10 @@ export function App() {
         apps={appearance.value.sidebarApps}
         onApps={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
         onEditApps={() => { setSettingsSection('layout'); openSettings(); }}
+        favourites={favourites}
+        onOpenFavourite={openFavourite}
+        onUnpin={togglePin}
+        currentFavourite={settingsOpen ? null : currentFavourite}
       >
         {wide && hasAppList && appSidebar(null)}
       </Rail>

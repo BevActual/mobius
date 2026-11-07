@@ -14,7 +14,7 @@ describe('appearance changes', () => {
     }
   });
   it('has sensible defaults', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'notes', 'tasks'] });
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'notes', 'tasks'], favourites: [] });
   });
 });
 
@@ -75,6 +75,9 @@ describe('where the sidebars sit', () => {
     expect(parseAppearancePatch({ navigation: 'rail' })).toEqual({ navigation: 'rail' });
     expect(parseAppearancePatch({ sidebarApps: ['notes', 'agent'] })).toEqual({ sidebarApps: ['notes', 'agent'] });
     for (const bad of [[], ['agent', 'agent'], ['code'], 'agent']) expect(parseAppearancePatch({ sidebarApps: bad }), String(bad)).toBeNull();
+    const plan = { kind: 'note', id: 'Work/Plan.md', title: 'Plan' };
+    expect(parseAppearancePatch({ favourites: [plan] })).toEqual({ favourites: [plan] });
+    for (const bad of [[{ ...plan, kind: 'page' }], [{ ...plan, id: '' }], [{ ...plan, extra: 1 }], Array(9).fill(plan)]) expect(parseAppearancePatch({ favourites: bad })).toBeNull();
     for (const bad of ['tabs', true, null]) expect(parseAppearancePatch({ navigation: bad }), String(bad)).toBeNull();
     expect(parseAppearancePatch({ rightSidebar: 'floating', leftSidebar: 'attached' })).toEqual({ rightSidebar: 'floating', leftSidebar: 'attached' });
     for (const bad of ['hidden', 'pinned', '', 'Floating', 1, null, true]) {
