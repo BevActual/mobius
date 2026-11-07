@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
 use std::time::Duration;
 
+#[cfg(not(target_os = "linux"))]
 use base64::Engine as _;
 use mobius_browser::engine::{Bounds, Engine};
 use mobius_browser::tabs::Browser;
@@ -162,7 +163,9 @@ impl Engine for WebViewEngine {
                 later(move || {
                     #[cfg(windows)]
                     let (back, forward) = crate::cdp::history(&webview);
-                    #[cfg(not(windows))]
+                    #[cfg(target_os = "linux")]
+                    let (back, forward) = crate::linux_page::history(&webview);
+                    #[cfg(not(any(windows, target_os = "linux")))]
                     let (back, forward) = (false, false);
                     b.navigated(&id, &url, back, forward);
                     if finished {
@@ -286,6 +289,12 @@ impl Engine for WebViewEngine {
         }
     }
 
+    #[cfg(target_os = "linux")]
+    fn eval(&self, tab: &str, script: &str) -> Result<Value, String> {
+        crate::linux_page::eval(&self.page(tab).ok_or("no such tab")?, script, true)
+    }
+
+    #[cfg(not(target_os = "linux"))]
     fn eval(&self, tab: &str, script: &str) -> Result<Value, String> {
         // A world of its own sees the page's DOM but none of the page's scripts or globals.
         let frame = self.cdp(tab, "Page.getFrameTree", json!({}))?;
@@ -299,6 +308,12 @@ impl Engine for WebViewEngine {
         Ok(answer.pointer("/result/value").cloned().unwrap_or(Value::Null))
     }
 
+    #[cfg(target_os = "linux")]
+    fn picture(&self, tab: &str) -> Option<Vec<u8>> {
+        crate::linux_page::picture(&self.page(tab)?)
+    }
+
+    #[cfg(not(target_os = "linux"))]
     fn picture(&self, tab: &str) -> Option<Vec<u8>> {
         let shot = self.cdp(tab, "Page.captureScreenshot", json!({ "format": "jpeg", "quality": 70 })).ok()?;
         base64::engine::general_purpose::STANDARD.decode(shot.get("data")?.as_str()?).ok()
@@ -330,6 +345,12 @@ impl Engine for WebViewEngine {
 
 impl WebViewEngine {
     /// Runs a statement in the page itself (not the isolated world): used only for history navigation.
+    #[cfg(target_os = "linux")]
+    fn cdp_fire(&self, tab: &str, expression: &str) -> Result<Value, String> {
+        crate::linux_page::eval(&self.page(tab).ok_or("no such tab")?, expression, false)
+    }
+
+    #[cfg(not(target_os = "linux"))]
     fn cdp_fire(&self, tab: &str, expression: &str) -> Result<Value, String> {
         self.cdp(tab, "Runtime.evaluate", json!({ "expression": expression }))
     }

@@ -57,9 +57,9 @@ while you work in any app.
 The shell layers the browser's page views over the interface view. On Linux, Tauri 2 (`tauri-runtime-wry`) packs every
 child web view into the window's vertical `GtkBox`, so the page view took the whole height and the interface got one
 pixel. `crates/mobius-shell/src/linux_views.rs` moves each view into one `GtkFixed` and places it there instead, and pages
-open by navigating the web view directly, since the Chromium protocol is Windows-only. Reading a page (the agent's
-browser tools, the selection menu, the page picture used as a cover) still needs that protocol, so on Linux those
-report that pages cannot be read yet.
+open by navigating the web view directly, since the Chromium protocol is Windows-only. `linux_page.rs` does through
+WebKitGTK what that protocol does on Windows: scripts in an isolated world (the agent's browser tools, find, the
+selection menu), the page picture used as a cover under menus, and whether the page can go back or forward.
 
 ## Next
 

@@ -7,6 +7,8 @@ mod secrets;
 mod cdp;
 mod engine;
 #[cfg(target_os = "linux")]
+mod linux_page;
+#[cfg(target_os = "linux")]
 mod linux_views;
 #[cfg(all(feature = "cef", windows))]
 mod cef_engine;
