@@ -229,6 +229,14 @@ impl Engine for WebViewEngine {
     }
 
     fn navigate(&self, tab: &str, url: &str) {
+        // Without the Chromium protocol (Linux, macOS), the web view goes to the address itself.
+        #[cfg(not(windows))]
+        if let (Some(page), Ok(parsed)) = (self.page(tab), url::Url::parse(url)) {
+            if let Err(error) = page.navigate(parsed) {
+                eprintln!("[browser] could not navigate: {error}");
+            }
+            return;
+        }
         if let Err(error) = self.cdp(tab, "Page.navigate", json!({ "url": url })) {
             eprintln!("[browser] could not navigate: {error}");
         }
@@ -267,6 +275,8 @@ impl Engine for WebViewEngine {
                         size: LogicalSize::new(f64::from(b.width) * zoom, f64::from(b.height) * zoom).into(),
                     };
                     let _ = page.set_bounds(rect);
+                    #[cfg(target_os = "linux")]
+                    crate::linux_views::place(&page, f64::from(b.x) * zoom, f64::from(b.y) * zoom, f64::from(b.width) * zoom, f64::from(b.height) * zoom);
                     let _ = page.show();
                 }
                 _ => {

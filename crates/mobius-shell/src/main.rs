@@ -6,6 +6,8 @@ mod secrets;
 #[cfg(windows)]
 mod cdp;
 mod engine;
+#[cfg(target_os = "linux")]
+mod linux_views;
 #[cfg(all(feature = "cef", windows))]
 mod cef_engine;
 
@@ -329,6 +331,8 @@ fn main() {
             let scale = window.scale_factor()?;
             let size = window.inner_size()?.to_logical::<f64>(scale);
             let interface = window.add_child(WebviewBuilder::new("main", WebviewUrl::default()), LogicalPosition::new(0.0, 0.0), size)?;
+            #[cfg(target_os = "linux")]
+            linux_views::place(&interface, 0.0, 0.0, size.width, size.height);
             let web = choose_engine(&window, &data_dir);
             bridge.set_engine(web.name());
             let engine_slot: Arc<OnceLock<Arc<dyn engine::PageEngine>>> = Arc::new(OnceLock::new());
@@ -361,6 +365,8 @@ fn main() {
                 if let WindowEvent::Resized(_) = event && let (Ok(scale), Ok(size)) = (resize_window.scale_factor(), resize_window.inner_size()) {
                     let size = size.to_logical::<f64>(scale);
                     let _ = resized.set_size(LogicalSize::new(size.width, size.height));
+                    #[cfg(target_os = "linux")]
+                    linux_views::place(&resized, 0.0, 0.0, size.width, size.height);
                 }
             });
             // Zoom of the interface is applied to it, and page areas are placed in the same units.
