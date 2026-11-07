@@ -9,7 +9,8 @@ const SMART: { id: SmartView; name: string }[] = [
 ];
 
 /** The lists: two views across every list, then each list with how many tasks are still open. */
-export function TasksSidebar({ tasks, pin }: { tasks: TasksState; pin: ReactNode }) {
+/** `changed`: lists the agent's last turn changed. */
+export function TasksSidebar({ tasks, pin, changed }: { tasks: TasksState; pin: ReactNode; changed?: ReadonlySet<string> }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const now = new Date();
@@ -47,6 +48,7 @@ export function TasksSidebar({ tasks, pin }: { tasks: TasksState; pin: ReactNode
             <li key={l.name}>
               <button type="button" className="list-row" aria-current={current('list', l.name)} onClick={() => tasks.setView({ kind: 'list', name: l.name })}>
                 <span className="list-name">{l.name}</span>
+                {changed?.has(l.name) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Changed by the agent in its last turn" />}
                 <span className="list-count">{l.open || ''}</span>
               </button>
             </li>

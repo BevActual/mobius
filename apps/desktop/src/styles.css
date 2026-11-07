@@ -951,3 +951,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 /* Search filters: the chosen one carries the accent, like every other current place. */
 .search-filter[aria-checked="true"], .search-filter[aria-checked="true"]:hover { background: var(--accent); color: var(--on-accent); }
 .search-filter:not([aria-checked="true"]):hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
+/* A page or list the agent changed in its last turn. */
+.changed-mark { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--accent); }
+.note-row { display: flex; align-items: center; gap: 8px; }
+.list-row .changed-mark + .list-count { margin-left: 8px; }

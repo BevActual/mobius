@@ -3,7 +3,8 @@ import type { NoteHit } from '@mobius/shared';
 import type { NotesState } from './useNotes';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
-export function NotesSidebar({ notes, pin }: { notes: NotesState; pin: ReactNode }) {
+/** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
+export function NotesSidebar({ notes, pin, changed }: { notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string> }) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<NoteHit[] | null>(null);
   const [naming, setNaming] = useState(false);
@@ -85,6 +86,7 @@ export function NotesSidebar({ notes, pin }: { notes: NotesState; pin: ReactNode
                     <li key={pg.path} className="note-item">
                       <button type="button" className="note-row" aria-current={notes.page?.path === pg.path ? 'page' : undefined} onClick={() => void notes.open(pg.path, pg.title)}>
                         <span className="note-title">{pg.title}</span>
+                        {changed?.has(pg.path) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Changed by the agent in its last turn" />}
                       </button>
                       {confirming === pg.path ? (
                         <button type="button" className="note-delete confirm" aria-label={`Confirm delete ${pg.title}`} onClick={() => { setConfirming(null); void notes.remove(pg.path); }} onBlur={() => setConfirming(null)}>Delete</button>

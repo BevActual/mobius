@@ -52,6 +52,6 @@ while you work in any app.
 ## Next
 
 1. On-canvas actions on a web page, as notes have now.
-2. Show the review strip's changes inside each app too (a changed note marked in Notes).
+2. Mark what the last turn changed inside the page itself (changed lines in a note), as the sidebars do now.
 3. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
 4. Drag to reorder apps in the sidebar, as well as the menu.

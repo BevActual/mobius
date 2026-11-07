@@ -34,6 +34,7 @@ import { SearchPage } from './SearchPage';
 import { activityOf } from './activity';
 import type { HubTarget } from './search-hub';
 import { useTasks } from './useTasks';
+import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
@@ -195,6 +196,7 @@ export function App() {
     tasks: inTasks ? tasksContext(tasks) : null,
   };
   const activity = activityOf(conversation.state);
+  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
   // A page the agent opens while you talk to it in the Agent app shows in the browser beside the conversation.
   // Pages opened in earlier turns, or in a conversation just switched to, are already seen.
   const seenPages = useRef<{ conversation: string; calls: Set<string> } | null>(null);
@@ -426,9 +428,9 @@ export function App() {
                 pin={pinNode}
               />
             ) : inNotes ? (
-              <NotesSidebar notes={notes} pin={pinNode} />
+              <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} />
             ) : inTasks ? (
-              <TasksSidebar tasks={tasks} pin={pinNode} />
+              <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} />
             ) : (
           <aside className="side" aria-label="Browser sidebar">
             <div className="side-head">
