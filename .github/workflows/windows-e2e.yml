@@ -24,10 +24,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: npm ci
-      - name: Build the core and the shell
-        run: cargo build -p mobius-cored -p mobius-shell
+      # First: the shell builds the interface's files into itself when it is compiled.
       - name: Build the interface
         run: npm run build -w @mobius/desktop
+      - name: Build the core and the shell
+        run: cargo build -p mobius-cored -p mobius-shell
       - name: Check the shell starts and opens its debugging port
         shell: pwsh
         run: |
