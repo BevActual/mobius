@@ -143,6 +143,8 @@ pub struct Bridge {
     data_dir: PathBuf,
     /// The folder of real files the assistant's file tools work in.
     workspace: mobius_workspace::files::Workspace,
+    /// For each conversation, the checkpoint taken when its last turn began: what that turn changed, and the way back.
+    turn_marks: Mutex<std::collections::HashMap<String, String>>,
     /// Tools from other programs the person set up (MCP servers).
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
@@ -214,6 +216,7 @@ impl Bridge {
             bookmarks: Mutex::new(Bookmarks::open(data_dir.join("bookmarks.json"), Box::new(now_ms))),
             core,
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            turn_marks: Mutex::default(),
             mcp: Arc::default(),
             providers: crate::providers::Providers::new(secrets.clone()),
             claude_command: Mutex::new(None),
@@ -291,6 +294,7 @@ impl Bridge {
                 Ok(self.mcp_server.set(flag("enabled"), flag("allowChanges"), port))
             }
             ("agent", _) => self.agent_call(method, args),
+            ("changes", _) => self.changes_call(method, args),
             ("browser", _) => self.browser_call(method, args),
             ("surface", "setBounds") => {
                 if let Some(b) = self.browser.get() {
@@ -1186,6 +1190,49 @@ impl Bridge {
         self.mcp.status()
     }
 
+    /// What the last agent turn of a conversation changed in the workspace, and putting it back.
+    fn changes_call(&self, method: &str, args: &[Value]) -> Out {
+        let arg = |i: usize| args.get(i).unwrap_or(&Value::Null);
+        let Some(conversation) = arg(0).as_str().filter(|c| is_conversation_id(c)) else {
+            return Ok(failed("That conversation is not known."));
+        };
+        let mark = lock(&self.turn_marks).get(conversation).cloned();
+        let Some(mark) = mark else {
+            return Ok(match method {
+                "lastTurn" => json!({ "checkpoint": null, "files": [] }),
+                _ => failed("There is nothing to undo."),
+            });
+        };
+        let reload = |by: &str| {
+            (self.emit)("mobius:notes-changed", json!({ "path": null, "by": by }));
+            (self.emit)("mobius:tasks-changed", json!({ "list": null, "by": by }));
+        };
+        Ok(match method {
+            "lastTurn" => match self.workspace.changed_since(&mark) {
+                Ok(files) => json!({ "checkpoint": mark, "files": files }),
+                Err(e) => failed(e),
+            },
+            "undo" => match self.workspace.restore(&mark) {
+                Ok(()) => {
+                    reload("person");
+                    json!({ "ok": true })
+                }
+                Err(e) => failed(e),
+            },
+            "undoFile" => match arg(1).as_str() {
+                Some(path) => match self.workspace.restore_file(&mark, path) {
+                    Ok(()) => {
+                        reload("person");
+                        json!({ "ok": true })
+                    }
+                    Err(e) => failed(e),
+                },
+                None => failed("Which file?"),
+            },
+            _ => return Err(BridgeError::NotAvailable(format!("changes.{method}"))),
+        })
+    }
+
     fn agent_call(&self, method: &str, args: &[Value]) -> Out {
         let arg = |i: usize| args.get(i).unwrap_or(&Value::Null);
         let conversation = || arg(0).as_str().filter(|c| is_conversation_id(c));
@@ -1207,6 +1254,10 @@ impl Bridge {
                 }
                 match agent::parse_send(&request) {
                     Some(r) => {
+                        // Saved before the turn starts, so everything it changes can be reviewed and undone at once.
+                        if let Ok(Some(mark)) = self.workspace.mark("before the agent's turn") {
+                            lock(&self.turn_marks).insert(r.conversation.clone(), mark);
+                        }
                         let bot = self.bot_for(&r.conversation);
                         self.agent.send(&r, bot.as_ref().map(|b| (b.instructions.as_str(), b.model.as_str())))
                     }

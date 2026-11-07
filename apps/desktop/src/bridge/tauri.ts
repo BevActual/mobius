@@ -93,6 +93,11 @@ export function createTauriBridge(): MobiusBridge {
       quickEntryActive: () => call('window', 'quickEntryActive', [], () => false),
     },
     surface: { setBounds: (bounds) => fire('surface', 'setBounds', [bounds]) },
+    changes: {
+      lastTurn: (conversation) => call('changes', 'lastTurn', [conversation], () => ({ checkpoint: null, files: [] })),
+      undo: (conversation) => call('changes', 'undo', [conversation], () => refused),
+      undoFile: (conversation, path) => call('changes', 'undoFile', [conversation, path], () => refused),
+    },
     mini: {
       open: () => call('mini', 'open', [], () => null).then(() => undefined),
       close: () => call('mini', 'close', [], () => null).then(() => undefined),

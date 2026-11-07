@@ -905,3 +905,20 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .selection-btn:hover, .selection-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .selection-btn[data-action="ask"] { color: var(--accent); }
 .toast { position: absolute; z-index: 6; left: 50%; bottom: 20px; transform: translateX(-50%); padding: 8px 16px; border-radius: var(--radius-pill); background: var(--ink); color: var(--bg); font-size: var(--fs-sm); font-weight: var(--fw-medium); box-shadow: var(--shadow-2); animation: app-in var(--dur-med) var(--ease); }
+
+/* Review and undo: what the last turn changed, above the message box. */
+.review-strip { margin: 0 0 8px; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--field); font-size: var(--fs-sm); animation: app-in var(--dur-med) var(--ease); }
+.review-head { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.review-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+.review-strip[data-state="undone"] { padding: 8px 12px; color: var(--muted); }
+.review-summary { flex: 1; min-width: 0; font-weight: var(--fw-medium); }
+.review-btn { height: 26px; padding: 0 10px; border-radius: var(--radius-pill); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.review-btn:hover, .review-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.review-btn[data-kind="undo"] { color: var(--accent); }
+.review-list { list-style: none; margin: 4px 0 2px; padding: 4px 0 0; border-top: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 2px; }
+.review-item { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.review-kind { flex: none; padding: 1px 7px; border-radius: var(--radius-pill); background: var(--capsule); color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
+.review-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-problem { margin: 4px 0 0; color: var(--danger); }
+.chat.full .review-strip { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+.chat:not(.full) .review-strip { margin-left: 12px; margin-right: 12px; }

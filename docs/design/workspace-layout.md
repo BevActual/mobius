@@ -42,10 +42,13 @@ while you work in any app.
 - **On-canvas actions**: select text in a note and a capsule appears above it: Ask (the text joins the agent's message
   box as a Note chip), Rewrite (the agent changes it in the note), Summarise, and Make a task (added straight to the
   first list, no agent needed).
+- **Review and undo**: each agent turn begins with a checkpoint. When a turn ends having changed notes, task lists or
+  files, a strip above the message box says so: Review lists each change with its own Undo; Undo all puts back only
+  what that turn changed, so edits made since elsewhere are kept.
 
 ## Next
 
 1. On-canvas actions on a web page, as notes have now.
-2. One review and undo strip for everything the agent changed, in every app.
+2. Show the review strip's changes inside each app too (a changed note marked in Notes).
 3. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
 4. Let people reorder and hide apps in the sidebar (HIG: let people customise the sidebar).

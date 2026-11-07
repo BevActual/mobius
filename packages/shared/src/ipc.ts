@@ -176,6 +176,12 @@ export interface MobiusBridge {
   surface: {
     setBounds(bounds: Bounds | null): void;
   };
+  /** What the last agent turn of a conversation changed in the workspace (notes, tasks, files), and putting it back. */
+  changes: {
+    lastTurn(conversation: string): Promise<TurnChanges | AgentFailure>;
+    undo(conversation: string): Promise<{ ok: true } | AgentFailure>;
+    undoFile(conversation: string, path: string): Promise<{ ok: true } | AgentFailure>;
+  };
   /** Little Mobius: a small window, kept above other apps, with the conversation and nothing else. */
   mini: {
     open(): Promise<void>;
@@ -513,6 +519,10 @@ export interface AboutInfo {
 }
 
 /** What the settings panel may know. The key itself is never sent back to the renderer. */
+/** The files an agent turn changed, relative to the workspace, and the checkpoint taken before it began. */
+export interface TurnChanges { checkpoint: string | null; files: string[] }
+export interface AgentFailure { ok: false; error: string }
+
 export interface AgentSettings {
   baseUrl: string;
   model: string;

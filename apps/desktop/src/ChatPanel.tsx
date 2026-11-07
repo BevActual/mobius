@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { RichText } from './RichText';
+import { ReviewStrip } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
 import type { ConversationState, Item, ToolStatus, findToolResult } from './conversation';
@@ -382,6 +383,7 @@ export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop,
               <div className="thinking" role="status" aria-label="Mobius is working"><span /><span /><span /></div>
             )}
           </div>
+          <ReviewStrip conversation={state.conversation} busy={state.busy} />
           <Composer
             draft={draft}
             onDraft={setDraft}

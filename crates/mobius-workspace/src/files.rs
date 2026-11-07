@@ -106,6 +106,34 @@ impl Workspace {
         String::from_utf8(bytes).map_err(|_| "that file is not text (UTF-8)".to_owned())
     }
 
+    /// Saves the workspace as it is now and says which checkpoint holds it: the start of an agent's turn, so what
+    /// the turn changed can be shown and put back. Nothing new is saved when nothing changed since the last one.
+    pub fn mark(&self, reason: &str) -> Res<Option<String>> {
+        let root = self.real_root()?;
+        match self.checkpoints.snapshot(&root, reason).map_err(|e| e.to_string())? {
+            Some(checkpoint) => Ok(Some(checkpoint.id)),
+            None => Ok(self.checkpoints.list(&root, 1).map_err(|e| e.to_string())?.into_iter().next().map(|c| c.id)),
+        }
+    }
+
+    /// Files added, changed or removed since `checkpoint`.
+    pub fn changed_since(&self, checkpoint: &str) -> Res<Vec<String>> {
+        let root = self.real_root()?;
+        self.checkpoints.changed_since(&root, checkpoint).map_err(|e| e.to_string())
+    }
+
+    /// Puts the workspace back as it was at `checkpoint`; what is there now is saved first.
+    pub fn restore(&self, checkpoint: &str) -> Res<()> {
+        let root = self.real_root()?;
+        self.checkpoints.restore(&root, checkpoint).map_err(|e| e.to_string())
+    }
+
+    /// Puts one file back as it was at `checkpoint`.
+    pub fn restore_file(&self, checkpoint: &str, path: &str) -> Res<()> {
+        let root = self.real_root()?;
+        self.checkpoints.restore_file(&root, checkpoint, path).map_err(|e| e.to_string())
+    }
+
     fn checkpoint(&self, reason: &str) -> bool {
         self.real_root().ok().is_some_and(|root| self.checkpoints.snapshot(&root, reason).is_ok())
     }
@@ -247,6 +275,29 @@ mod tests {
     }
     fn call(ws: &Workspace, name: &str, args: Value) -> Res<Value> {
         ws.run(name, &args).map(|s| serde_json::from_str(&s).unwrap())
+    }
+
+    #[test]
+    fn a_turn_mark_shows_what_changed_and_puts_it_back() {
+        let root = tempfile::tempdir().unwrap();
+        let ws = Workspace::new(root.path().join("ws"), root.path().join("cp"));
+        ws.run("files.write", &json!({ "path": "keep.md", "content": "one" })).unwrap();
+        let mark = ws.mark("before the agent's turn").unwrap().expect("a mark");
+        assert!(ws.changed_since(&mark).unwrap().is_empty());
+        ws.run("files.write", &json!({ "path": "keep.md", "content": "two" })).unwrap();
+        ws.run("files.write", &json!({ "path": "new.md", "content": "new" })).unwrap();
+        let mut changed = ws.changed_since(&mark).unwrap();
+        changed.sort();
+        assert_eq!(changed, vec!["keep.md", "new.md"]);
+        ws.restore_file(&mark, "keep.md").unwrap();
+        assert_eq!(ws.changed_since(&mark).unwrap(), vec!["new.md"]);
+        // A file the turn made goes away when its change is undone.
+        ws.restore_file(&mark, "new.md").unwrap();
+        assert!(!root.path().join("ws/new.md").exists());
+        assert!(ws.changed_since(&mark).unwrap().is_empty());
+        ws.run("files.write", &json!({ "path": "keep.md", "content": "three" })).unwrap();
+        ws.restore(&mark).unwrap();
+        assert!(ws.changed_since(&mark).unwrap().is_empty());
     }
 
     #[test]

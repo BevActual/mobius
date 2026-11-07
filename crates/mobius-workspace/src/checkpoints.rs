@@ -203,7 +203,7 @@ impl Checkpoints {
         Ok(())
     }
 
-    /// Puts one file back as it was at `checkpoint` (it is recreated if it was deleted since).
+    /// Puts one file back as it was at `checkpoint`: recreated if it was deleted since, removed if it was made since.
     pub fn restore_file(&self, folder: &Path, checkpoint: &str, path: &str) -> Result<(), Error> {
         if !is_inner_path(path) {
             return Err(Error::BadInput("That path is not inside the folder.".into()));
@@ -211,6 +211,13 @@ impl Checkpoints {
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
         self.snapshot(&folder, &format!("before restoring {path}"))?;
+        if self.git(&folder, &id, &["cat-file", "-e", &format!("{target}:{path}")]).is_err() {
+            let file = folder.join(path);
+            if file.is_file() {
+                std::fs::remove_file(&file).map_err(|e| Error::Git(e.to_string()))?;
+            }
+            return Ok(());
+        }
         self.git(&folder, &id, &["checkout", &target, "--", path])?;
         Ok(())
     }
