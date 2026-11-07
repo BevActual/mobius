@@ -4,6 +4,13 @@ import { onPageChanged, type SaveStatus } from './notes-state';
 
 const SAVE_DELAY_MS = 500;
 
+/** The page last open, so Notes opens on it again (after a restart too). Per device; nothing breaks without it. */
+const LAST_KEY = 'mobius.notes.last';
+const remembered = (): string | null => { try { return window.localStorage.getItem(LAST_KEY); } catch { return null; } };
+const remember = (path: string | null) => {
+  try { if (path) window.localStorage.setItem(LAST_KEY, path); else window.localStorage.removeItem(LAST_KEY); } catch { /* Not kept. */ }
+};
+
 export interface OpenPage { path: string; title: string; base: number | null }
 
 /** The Notes app's state: the notebooks, the open page and its text, and saving as the person types. */
@@ -22,6 +29,7 @@ export function useNotes() {
   const refresh = useCallback(async () => {
     const list = await api?.list();
     if (list && !isNotesFailure(list)) setNotebooks(list);
+    return list && !isNotesFailure(list) ? list : null;
   }, [api]);
 
   const save = useCallback(async (force = false): Promise<boolean> => {
@@ -49,6 +57,7 @@ export function useNotes() {
     setText(got.content);
     setStatus('saved');
     setMessage('');
+    remember(path);
   }, [api]);
 
   const open = useCallback(async (path: string, title = '') => {
@@ -86,6 +95,7 @@ export function useNotes() {
     const made = await api?.createPage(notebook, title);
     if (!made || isNotesFailure(made)) { if (made) setMessage(made.message); return; }
     await refresh();
+    remember(made.path);
     setPage({ path: made.path, title, base: made.modified });
     setText(made.content);
     setStatus('saved');
@@ -95,6 +105,7 @@ export function useNotes() {
     const done = await api?.remove(path);
     if (done && isNotesFailure(done)) { setMessage(done.message); return; }
     if (live.current.page?.path === path) { setPage(null); setText(''); setStatus('saved'); }
+    if (remembered() === path) remember(null);
     await refresh();
   }, [api, refresh]);
 
@@ -104,7 +115,12 @@ export function useNotes() {
   }, [api]);
 
   useEffect(() => {
-    void refresh();
+    // The first list opens the page that was open last, if it is still there and nothing else was opened meanwhile.
+    void refresh().then((list) => {
+      const last = remembered();
+      const found = last ? list?.flatMap((nb) => nb.pages).find((pg) => pg.path === last) : undefined;
+      if (found && !live.current.page) void load(found.path, found.title);
+    });
     return api?.onChanged((change) => {
       void refresh();
       const { page: p, status: s } = live.current;
