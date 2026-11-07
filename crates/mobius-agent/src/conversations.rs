@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use rusqlite::{Connection, params};
 
+use crate::compaction::Compaction;
 use crate::message::Message;
 
 #[derive(Debug, thiserror::Error)]
@@ -29,6 +30,13 @@ pub struct SavedConversation {
     pub id: String,
     pub messages: Vec<Message>,
     pub updated_ms: u64,
+    /// How the conversation is shortened for the model, if it is.
+    pub compaction: Option<Compaction>,
+}
+
+/// A saved compaction is used only if it still fits the transcript it was made for.
+fn fits(compaction: Option<Compaction>, messages: &[Message]) -> Option<Compaction> {
+    compaction.filter(|c| c.covers < messages.len() && !matches!(messages[c.covers], Message::Tool { .. }) && c.summary.len() <= 64 * 1024)
 }
 
 /// Conversations are saved whole, each time a turn finishes.
@@ -37,16 +45,22 @@ pub trait ConversationStore: Send {
     fn load_all(&self, limit: usize) -> Result<Vec<SavedConversation>, StoreError>;
     fn save(&mut self, id: &str, messages: &[Message], updated_ms: u64) -> Result<(), StoreError>;
     fn delete(&mut self, id: &str) -> Result<(), StoreError>;
+    /// Remember (or forget, with `None`) how a saved conversation is shortened for the model.
+    fn save_compaction(&mut self, id: &str, compaction: Option<&Compaction>) -> Result<(), StoreError> {
+        let _ = (id, compaction);
+        Ok(())
+    }
 }
 
 #[derive(Default)]
 pub struct MemoryStore {
     rows: HashMap<String, (Vec<Message>, u64)>,
+    compactions: HashMap<String, Compaction>,
 }
 
 impl ConversationStore for MemoryStore {
     fn load_all(&self, limit: usize) -> Result<Vec<SavedConversation>, StoreError> {
-        let mut all: Vec<SavedConversation> = self.rows.iter().map(|(id, (messages, updated_ms))| SavedConversation { id: id.clone(), messages: messages.clone(), updated_ms: *updated_ms }).collect();
+        let mut all: Vec<SavedConversation> = self.rows.iter().map(|(id, (messages, updated_ms))| SavedConversation { id: id.clone(), messages: messages.clone(), updated_ms: *updated_ms, compaction: fits(self.compactions.get(id).cloned(), messages) }).collect();
         all.sort_by(|a, b| b.updated_ms.cmp(&a.updated_ms).then_with(|| a.id.cmp(&b.id)));
         all.truncate(limit);
         Ok(all)
@@ -62,11 +76,21 @@ impl ConversationStore for MemoryStore {
 
     fn delete(&mut self, id: &str) -> Result<(), StoreError> {
         self.rows.remove(id);
+        self.compactions.remove(id);
+        Ok(())
+    }
+
+    fn save_compaction(&mut self, id: &str, compaction: Option<&Compaction>) -> Result<(), StoreError> {
+        match compaction {
+            Some(c) => self.compactions.insert(id.to_owned(), c.clone()),
+            None => self.compactions.remove(id),
+        };
         Ok(())
     }
 }
 
-const SCHEMA_VERSION: i64 = 1;
+/// 1: messages. 2: adds the compaction.
+const SCHEMA_VERSION: i64 = 2;
 
 pub struct SqliteStore {
     conn: Connection,
@@ -92,10 +116,14 @@ impl SqliteStore {
                 "CREATE TABLE IF NOT EXISTS conversations (
                    id TEXT PRIMARY KEY,
                    messages TEXT NOT NULL,
-                   updated_ms INTEGER NOT NULL
+                   updated_ms INTEGER NOT NULL,
+                   compaction TEXT
                  );
                  CREATE INDEX IF NOT EXISTS conversations_updated ON conversations (updated_ms DESC);",
             )?;
+            conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+        } else if version == 1 {
+            conn.execute_batch("ALTER TABLE conversations ADD COLUMN compaction TEXT;")?;
             conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         }
         Ok(SqliteStore { conn })
@@ -104,7 +132,7 @@ impl SqliteStore {
 
 impl ConversationStore for SqliteStore {
     fn load_all(&self, limit: usize) -> Result<Vec<SavedConversation>, StoreError> {
-        let mut statement = self.conn.prepare("SELECT id, messages, updated_ms FROM conversations ORDER BY updated_ms DESC, id")?;
+        let mut statement = self.conn.prepare("SELECT id, messages, updated_ms, compaction FROM conversations ORDER BY updated_ms DESC, id")?;
         let mut rows = statement.query([])?;
         let mut found = Vec::new();
         while let Some(row) = rows.next()? {
@@ -122,7 +150,9 @@ impl ConversationStore for SqliteStore {
                 eprintln!("mobius: skipping a saved conversation with an invalid id");
                 continue;
             }
-            found.push(SavedConversation { id, messages, updated_ms: u64::try_from(updated).unwrap_or(0) });
+            let compaction: Option<String> = row.get(3)?;
+            let compaction = fits(compaction.and_then(|j| serde_json::from_str(&j).ok()), &messages);
+            found.push(SavedConversation { id, messages, updated_ms: u64::try_from(updated).unwrap_or(0), compaction });
         }
         Ok(found)
     }
@@ -142,6 +172,12 @@ impl ConversationStore for SqliteStore {
 
     fn delete(&mut self, id: &str) -> Result<(), StoreError> {
         self.conn.execute("DELETE FROM conversations WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    fn save_compaction(&mut self, id: &str, compaction: Option<&Compaction>) -> Result<(), StoreError> {
+        let json = compaction.map(serde_json::to_string).transpose().map_err(|_| StoreError::Encode)?;
+        self.conn.execute("UPDATE conversations SET compaction = ?2 WHERE id = ?1", params![id, json])?;
         Ok(())
     }
 }

@@ -67,7 +67,9 @@ export const SETTINGS: readonly SettingsSection[] = [
         row('effort', 'Effort', 'How hard the model is asked to think. Also in the message box. Only models that can reason use it.', 'reasoning', 'thinking', 'low', 'medium', 'high', 'effort'),
       ] },
       { id: 'local', label: 'This computer', rows: [
+        row('quick-setup', 'Set up a local model', 'Install the engine, pick a model that fits, download it and start it, in one step.', 'quick', 'setup', 'easy', 'automatic', 'guided', 'wizard', 'local', 'offline', 'private'),
         row('hardware', 'Your computer', 'The graphics card and memory models have to fit in.', 'gpu', 'vram', 'graphics', 'memory', 'ram', 'nvidia'),
+        row('engine', 'Engine', 'The program that runs models: llama.cpp, in the build for your graphics card.', 'llama.cpp', 'llama-server', 'cuda', 'vulkan', 'install', 'update', 'gpu', 'runtime'),
         row('running', 'Running now', 'The model Mobius is running for the agent.', 'llama', 'llama.cpp', 'stop', 'server', 'local', 'runtime'),
         row('context-size', 'Context size', 'How much text a local model keeps in view. More uses more graphics memory.', 'context length', 'context window', 'tokens', 'ctx', 'memory', 'vram'),
         row('local-models', 'On this computer', 'Models you have downloaded. Run one to use it for the agent.', 'gguf', 'run', 'files', 'offline', 'private'),
@@ -157,6 +159,10 @@ export const SETTINGS: readonly SettingsSection[] = [
     description: 'For when the defaults are not right.',
     subpages: [
       { id: 'agent', label: 'Agent', rows: [row('max-steps', 'Steps per request', 'The most model calls one request may use before it is stopped.', 'limit', 'loop', 'iterations', 'runaway')] },
+      { id: 'other-apps', label: 'Other apps', rows: [
+        row('share-mcp', 'Let other apps use Mobius', 'Agents such as Claude Code or Hermes can read the files in your workspace over MCP, on this computer only. Off until you turn it on.', 'mcp', 'server', 'claude code', 'hermes', 'share', 'expose', 'integration', 'agents', 'connect'),
+        row('share-changes', 'Let them change files', 'Other apps may also create and edit files. Each change is checkpointed, so it can be undone.', 'write', 'edit', 'mcp', 'permission'),
+      ] },
       { id: 'desktop', label: 'Desktop', rows: [row('keep-awake', 'Keep the computer awake while working', 'Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you.', 'keep awake', 'prevent sleep', 'caffeinate', 'idle', 'power', 'overnight')] },
     ],
   },

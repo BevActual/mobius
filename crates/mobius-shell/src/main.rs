@@ -181,8 +181,22 @@ fn main() {
                 if let Ok(hub) = std::env::var("MOBIUS_TEST_HUB") {
                     args.extend(["--hub".into(), hub]);
                 }
+                if let Ok(releases) = std::env::var("MOBIUS_TEST_ENGINE_RELEASES") {
+                    args.extend(["--engine-releases".into(), releases]);
+                }
                 if let Ok(llama) = std::env::var("MOBIUS_TEST_LLAMA") {
                     args.extend(["--llama-server".into(), llama]);
+                }
+                // A fake Claude Code CLI and a fake Anthropic server, so tests never touch a real subscription.
+                if let Ok(claude) = std::env::var("MOBIUS_TEST_CLAUDE") {
+                    args.extend(["--claude-command".into(), claude]);
+                }
+                if let Ok(upstream) = std::env::var("MOBIUS_TEST_CLAUDE_UPSTREAM") {
+                    args.extend(["--claude-upstream".into(), upstream]);
+                }
+                // A pretend OpenAI: its sign-in (for the host) and its ChatGPT endpoint (for the core).
+                if let Ok(openai) = std::env::var("MOBIUS_TEST_CHATGPT") {
+                    args.extend(["--chatgpt-upstream".into(), format!("{}/backend-api/codex", openai.trim_end_matches('/'))]);
                 }
             }
             let core = Arc::new(CoreProcess::start(Options {
@@ -233,6 +247,12 @@ fn main() {
             if test_mode {
                 bridge.enable_test_hooks();
                 // `MOBIUS_TEST_PROVIDER=openai=http://127.0.0.1:1234/v1` points one provider at a local fake server.
+                if let Ok(claude) = std::env::var("MOBIUS_TEST_CLAUDE") {
+                    bridge.use_claude_for_tests(std::path::Path::new(&claude));
+                }
+                if let Ok(openai) = std::env::var("MOBIUS_TEST_CHATGPT") {
+                    bridge.use_chatgpt_for_tests(&openai);
+                }
                 if let Some((id, url)) = std::env::var("MOBIUS_TEST_PROVIDER").ok().as_deref().and_then(|v| v.split_once('=')) {
                     bridge.redirect_provider_for_tests(id, url);
                 }

@@ -42,6 +42,49 @@ pub const CATALOG: &[Provider] = &[
     local("llamacpp", "llama.cpp", "http://127.0.0.1:8080/v1", "A llama-server you started on this computer. No key needed."),
 ];
 
+/// Plans you sign in to instead of pasting a key. Each runs through the service's own app on this computer.
+pub struct Subscription {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub address: &'static str,
+    pub note: &'static str,
+    /// How signing in works: `cli` (the service's own app keeps the sign-in) or `device` (a code you enter on the
+    /// service's site; Mobius keeps the token in the system secret store).
+    pub kind: &'static str,
+}
+
+pub const CLAUDE_CODE_ADDRESS: &str = "claude-code://subscription";
+
+pub const CHATGPT_ADDRESS: &str = "chatgpt://subscription";
+
+pub const SUBSCRIPTIONS: &[Subscription] = &[
+    Subscription {
+        id: "claude-code",
+        name: "Claude subscription",
+        address: CLAUDE_CODE_ADDRESS,
+        note: "Your Claude Pro or Max plan, through the Claude Code app on this computer. Each request counts against the plan's Agent SDK allowance, at the same rate as claude -p. Claude Code keeps the sign-in; Mobius never sees it.",
+        kind: "cli",
+    },
+    Subscription {
+        id: "chatgpt",
+        name: "ChatGPT subscription",
+        address: CHATGPT_ADDRESS,
+        note: "Your ChatGPT Plus, Pro or Team plan, the way the Codex app uses it. Requests count against the plan's Codex limits. You sign in on OpenAI's site with a code; the sign-in is kept in this computer's secret store and only ever sent to OpenAI.",
+        kind: "device",
+    },
+];
+
+/// Models the ChatGPT plan's Codex endpoint accepts (after Hermes Agent's list), newest first.
+pub const CHATGPT_MODELS: &[(&str, &str)] = &[("gpt-5.5", "GPT-5.5"), ("gpt-5.4", "GPT-5.4"), ("gpt-5.4-mini", "GPT-5.4 mini"), ("gpt-6-sol", "GPT-6 Sol"), ("gpt-6-luna", "GPT-6 Luna")];
+
+pub fn subscription_models(s: &Subscription) -> &'static [(&'static str, &'static str)] {
+    if s.address == CHATGPT_ADDRESS { CHATGPT_MODELS } else { mobius_claude::frames::MODELS }
+}
+
+pub fn find_subscription(id: &str) -> Option<&'static Subscription> {
+    SUBSCRIPTIONS.iter().find(|s| s.id == id)
+}
+
 pub fn find(id: &str) -> Option<&'static Provider> {
     CATALOG.iter().find(|p| p.id == id)
 }

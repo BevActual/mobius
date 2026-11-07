@@ -168,6 +168,18 @@ fn notifications_are_checked_before_the_window_sees_them() {
     let ev = |event: Value| json!({ "conversation": "c-1", "turn": 2, "event": event });
     assert!(parse_notification("agent.delta", &json!({ "conversation": "c-1", "turn": 2, "text": "hi" })).is_some());
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "done" }))).is_some());
+    assert!(parse_notification("agent.event", &ev(json!({ "kind": "compacted", "messages": 12 }))).is_some());
+    assert!(parse_notification("agent.event", &ev(json!({ "kind": "compacted" }))).is_none());
+    assert!(parse_notification("agent.event", &ev(json!({ "kind": "compacted", "messages": "12" }))).is_none());
+    assert!(parse_notification("agent.event", &ev(json!({ "kind": "todo", "items": [{ "text": "a", "status": "in_progress" }] }))).is_some());
+    assert!(parse_notification("agent.event", &ev(json!({ "kind": "question", "call_id": "q", "question": "Which?", "choices": ["A"] }))).is_some());
+    for bad in [
+        json!({ "kind": "todo", "items": [{ "text": "a", "status": "maybe" }] }), json!({ "kind": "todo" }), json!({ "kind": "todo", "items": [{ "text": "x".repeat(301), "status": "done" }] }),
+        json!({ "kind": "question", "call_id": "q", "question": "", "choices": [] }), json!({ "kind": "question", "call_id": "q", "question": "Q" }),
+        json!({ "kind": "question", "call_id": "q", "question": "Q", "choices": ["1", "2", "3", "4", "5", "6", "7"] }),
+    ] {
+        assert!(parse_notification("agent.event", &ev(bad.clone())).is_none(), "{bad}");
+    }
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "needs_approval", "request_id": 4, "call_id": "a", "tool": "t", "arguments": {}, "once_only": true }))).is_some());
     assert!(parse_notification("agent.notice", &json!({ "conversation": "c-1", "turn": 2, "kind": "fallback", "model": "m", "why": "w" })).is_some());
     for (method, params) in [

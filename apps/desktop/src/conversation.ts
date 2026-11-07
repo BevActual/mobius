@@ -1,4 +1,12 @@
-import { splitContext, type AgentNotification, type AgentWaiting, type ContextItem, type Message } from '@mobius/shared';
+import { splitContext, type AgentNotification, type AgentWaiting, type ContextItem, type Message, type TodoItem } from '@mobius/shared';
+
+/** Tools the agent answers itself: shown as a plan or a question, never as tool steps. */
+export const TODO_TOOL = 'todo.write';
+export const ASK_TOOL = 'ask.person';
+const OWN_TOOLS = new Set([TODO_TOOL, ASK_TOOL]);
+const ANSWERED = 'The person answered: ';
+
+export type QuestionStatus = 'open' | 'sending' | 'answered' | 'cancelled';
 
 export type ToolStatus = 'running' | 'waiting' | 'done' | 'failed' | 'declined' | 'cancelled';
 
@@ -8,7 +16,11 @@ export type Item =
   | { kind: 'tool'; id: string; callId: string; name: string; status: ToolStatus; requestId?: number; args?: unknown; onceOnly?: boolean }
   | { kind: 'error'; id: string; text: string }
   /** Something the person should know that is not part of the conversation itself. */
-  | { kind: 'notice'; id: string; text: string };
+  | { kind: 'notice'; id: string; text: string }
+  /** The model's plan for the task in hand; one per turn, updated in place. */
+  | { kind: 'plan'; id: string; items: TodoItem[] }
+  /** The model asked the person something. */
+  | { kind: 'question'; id: string; callId: string; question: string; choices: string[]; status: QuestionStatus; answer?: string };
 
 export interface ConversationState {
   conversation: string;
@@ -27,6 +39,9 @@ export type ConversationAction =
   | { type: 'loaded'; messages: Message[] }
   | { type: 'pending'; requests: AgentWaiting[] }
   | { type: 'answer-failed'; requestId: number }
+  | { type: 'question-open'; question: { callId: string; question: string; choices: string[] } | null }
+  | { type: 'question-answered'; callId: string; text: string }
+  | { type: 'question-failed'; callId: string }
   | { type: 'reset-busy' }
   | { type: 'rewound' }
   | { type: 'switch'; conversation: string };
@@ -47,10 +62,35 @@ const updateTool = (state: ConversationState, match: (item: Extract<Item, { kind
   return { ...state, items };
 };
 
+/** Show the plan: the plan of the current turn changes in place, a new turn starts a new one. */
+const withPlan = (state: ConversationState, items: TodoItem[]): ConversationState => {
+  const lastUser = state.items.findLastIndex((item) => item.kind === 'user');
+  const index = state.items.findLastIndex((item) => item.kind === 'plan');
+  if (index > lastUser) {
+    const next = [...state.items];
+    next[index] = { ...(next[index] as Extract<Item, { kind: 'plan' }>), items };
+    return { ...state, items: next };
+  }
+  return withItem(state, (id) => ({ kind: 'plan', id, items }));
+};
+
+const withQuestion = (state: ConversationState, q: { callId: string; question: string; choices: string[] }): ConversationState =>
+  state.items.some((item) => item.kind === 'question' && item.callId === q.callId) ? state : withItem(state, (id) => ({ kind: 'question', id, callId: q.callId, question: q.question, choices: q.choices, status: 'open' }));
+
+const updateQuestion = (state: ConversationState, callId: string, change: (item: Extract<Item, { kind: 'question' }>) => Item): ConversationState => ({
+  ...state,
+  items: state.items.map((item) => (item.kind === 'question' && item.callId === callId ? change(item) : item)),
+});
+
+const isTodo = (v: unknown): v is TodoItem => typeof v === 'object' && v !== null && typeof (v as TodoItem).text === 'string' && ['pending', 'in_progress', 'done'].includes((v as TodoItem).status);
+
 const settleStreaming = (items: Item[]): Item[] => items.map((item) => (item.kind === 'assistant' && item.streaming ? { ...item, streaming: false } : item));
 
 const cancelOpenTools = (items: Item[]): Item[] =>
-  items.map((item) => (item.kind === 'tool' && (item.status === 'running' || item.status === 'waiting') ? { ...item, status: 'cancelled' as const } : item));
+  items.map((item) =>
+    item.kind === 'tool' && (item.status === 'running' || item.status === 'waiting') ? { ...item, status: 'cancelled' as const }
+    : item.kind === 'question' && (item.status === 'open' || item.status === 'sending') ? { ...item, status: 'cancelled' as const }
+    : item);
 
 const finished = (state: ConversationState): ConversationState => ({ ...state, busy: false, turn: null, items: settleStreaming(state.items) });
 
@@ -63,7 +103,19 @@ function fromHistory(state: ConversationState, messages: Message[]): Conversatio
     }
     else if (message.role === 'assistant') {
       if (message.text) next = withItem(next, (id) => ({ kind: 'assistant', id, text: message.text, streaming: false }));
-      for (const call of message.tool_calls) next = withItem(next, (id) => ({ kind: 'tool', id, callId: call.id, name: call.name, status: 'running', args: call.arguments }));
+      for (const call of message.tool_calls) {
+        const args = call.arguments as { items?: unknown; question?: unknown; choices?: unknown } | null;
+        if (call.name === TODO_TOOL) {
+          if (Array.isArray(args?.items) && args.items.every(isTodo)) next = withPlan(next, args.items);
+        } else if (call.name === ASK_TOOL) {
+          if (typeof args?.question === 'string') next = withQuestion(next, { callId: call.id, question: args.question, choices: Array.isArray(args.choices) ? args.choices.filter((c): c is string => typeof c === 'string') : [] });
+        } else next = withItem(next, (id) => ({ kind: 'tool', id, callId: call.id, name: call.name, status: 'running', args: call.arguments }));
+      }
+    } else if (OWN_TOOLS.has(message.name)) {
+      if (message.name === ASK_TOOL) {
+        next = updateQuestion(next, message.call_id, (item) =>
+          !message.is_error && message.content.startsWith(ANSWERED) ? { ...item, status: 'answered', answer: message.content.slice(ANSWERED.length) } : { ...item, status: 'cancelled' });
+      }
     } else {
       const status: ToolStatus = !message.is_error ? 'done' : message.content.includes('declined') ? 'declined' : message.content === 'cancelled' ? 'cancelled' : 'failed';
       next = updateTool(next, (item) => item.callId === message.call_id, (item) => ({ ...item, status }));
@@ -100,6 +152,12 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         (item) => item.requestId === action.requestId && (item.status === 'running' || item.status === 'declined'),
         (item) => ({ ...item, status: 'waiting' }),
       );
+    case 'question-open':
+      return action.question ? { ...withQuestion(state, action.question), busy: true } : state;
+    case 'question-answered':
+      return updateQuestion(state, action.callId, (item) => ({ ...item, status: 'sending', answer: action.text }));
+    case 'question-failed':
+      return updateQuestion(state, action.callId, (item) => ({ ...item, status: 'open' }));
     case 'pending': {
       let next = state;
       for (const request of action.requests) {
@@ -128,7 +186,15 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         return withItem(base, (id) => ({ kind: 'assistant', id, text: notification.params.text, streaming: true }));
       }
       const event = notification.params.event;
+      if ((event.kind === 'tool_call' && OWN_TOOLS.has(event.name)) || (event.kind === 'tool_result' && event.name === TODO_TOOL)) return base;
+      if (event.kind === 'tool_result' && event.name === ASK_TOOL) {
+        return updateQuestion(base, event.call_id, (item) => (event.is_error ? { ...item, status: 'cancelled' } : { ...item, status: 'answered' }));
+      }
       switch (event.kind) {
+        case 'todo':
+          return withPlan(base, event.items);
+        case 'question':
+          return withQuestion(base, { callId: event.call_id, question: event.question, choices: event.choices });
         case 'message': {
           const last = base.items.at(-1);
           if (last?.kind === 'assistant' && last.streaming) return { ...base, items: [...base.items.slice(0, -1), { ...last, text: event.text, streaming: false }] };
@@ -152,6 +218,8 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
           const withTool = known ? base : withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: 'running' }));
           return updateTool(withTool, (item) => item.callId === event.call_id, (item) => (item.status === 'declined' ? item : { ...item, status: event.is_error ? 'failed' : 'done' }));
         }
+        case 'compacted':
+          return withItem(base, (id) => ({ kind: 'notice', id, text: 'Earlier messages were summarised to make room for the model. They are still here for you.' }));
         case 'done':
           return finished(base);
         case 'failed':

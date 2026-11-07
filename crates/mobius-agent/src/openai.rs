@@ -47,8 +47,11 @@ pub fn build_request_body(request: &ChatRequest) -> Value {
         });
     }
     let mut body = json!({ "model": request.model, "messages": messages, "stream": true });
-    if let Some(effort) = &request.effort {
+    if let Some(effort) = request.effort.as_deref().filter(|e| *e != crate::provider::NO_REASONING) {
         body["reasoning_effort"] = json!(effort);
+    }
+    if let Some(max) = request.max_tokens {
+        body["max_tokens"] = json!(max);
     }
     if !request.tools.is_empty() {
         body["tools"] = request
@@ -57,6 +60,16 @@ pub fn build_request_body(request: &ChatRequest) -> Value {
             .map(|tool| json!({ "type": "function", "function": { "name": to_wire_name(&tool.name), "description": tool.description, "parameters": tool.input_schema } }))
             .collect::<Vec<_>>()
             .into();
+    }
+    body
+}
+
+/// The body for a server on this computer (`local`) or elsewhere. Local servers (llama.cpp, vLLM) can be told not to
+/// reason through their chat template; a provider elsewhere might refuse a field it does not know.
+pub fn body_for(request: &ChatRequest, local: bool) -> Value {
+    let mut body = build_request_body(request);
+    if local && request.effort.as_deref() == Some(crate::provider::NO_REASONING) {
+        body["chat_template_kwargs"] = json!({ "enable_thinking": false });
     }
     body
 }
@@ -191,6 +204,8 @@ pub struct OpenAiProvider {
     api_key: Option<String>,
     agent: ureq::Agent,
     max_response_bytes: usize,
+    /// The server runs on this computer.
+    local: bool,
 }
 
 impl std::fmt::Debug for OpenAiProvider {
@@ -200,7 +215,8 @@ impl std::fmt::Debug for OpenAiProvider {
 }
 
 /// Where the connection goes, for deciding whether a key may travel there.
-fn check_base_url(url: &str, has_key: bool) -> Result<(), String> {
+/// Whether the server is on this computer. Returns an error for an address Mobius will not use.
+pub(crate) fn check_base_url(url: &str, has_key: bool) -> Result<bool, String> {
     let (scheme, rest) = url.split_once("://").ok_or("the URL needs a scheme such as https://")?;
     let secure = match scheme.to_ascii_lowercase().as_str() {
         "https" => true,
@@ -226,7 +242,7 @@ fn check_base_url(url: &str, has_key: bool) -> Result<(), String> {
     if has_key && !secure && !loopback {
         return Err("refusing to send a key over plain http to another machine; use https".to_owned());
     }
-    Ok(())
+    Ok(loopback)
 }
 
 impl OpenAiProvider {
@@ -234,7 +250,7 @@ impl OpenAiProvider {
     pub fn new(base_url: &str, api_key: Option<String>) -> Result<Self, String> {
         let api_key = api_key.filter(|k| !k.is_empty());
         let base_url = base_url.trim().trim_end_matches('/').to_owned();
-        check_base_url(&base_url, api_key.is_some())?;
+        let local = check_base_url(&base_url, api_key.is_some())?;
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .max_redirects(0)
             .max_redirects_will_error(false)
@@ -243,7 +259,7 @@ impl OpenAiProvider {
             .timeout_global(Some(Duration::from_secs(20 * 60)))
             .build()
             .into();
-        Ok(OpenAiProvider { base_url, api_key, agent, max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES })
+        Ok(OpenAiProvider { base_url, api_key, agent, max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES, local })
     }
 
     pub fn with_max_response_bytes(mut self, limit: usize) -> Self {
@@ -282,7 +298,7 @@ fn chunk_from_full_reply(reply: &Value) -> Result<Value, ProviderError> {
 
 impl Provider for OpenAiProvider {
     fn complete(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
-        let body = build_request_body(request).to_string();
+        let body = body_for(request, self.local).to_string();
         let mut call = self.agent.post(&format!("{}/chat/completions", self.base_url)).header("Content-Type", "application/json").header("Accept", "text/event-stream, application/json");
         if let Some(key) = &self.api_key {
             call = call.header("Authorization", &format!("Bearer {key}"));
@@ -490,6 +506,7 @@ mod tests {
             ],
             tools: vec![ToolDef { name: "demo.echo".into(), description: "Echo".into(), input_schema: json!({ "type": "object" }) }],
             effort: None,
+            max_tokens: None,
         };
         let body = build_request_body(&request);
         assert_eq!(body["model"], "m");
@@ -513,15 +530,32 @@ mod tests {
 
     #[test]
     fn with_no_tools_the_field_is_left_out() {
-        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "hi".into() }], tools: vec![], effort: None };
+        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "hi".into() }], tools: vec![], effort: None, max_tokens: None };
         let body = build_request_body(&request);
         assert!(body.get("tools").is_none());
         assert_eq!(body["messages"].as_array().unwrap().len(), 1, "an empty system prompt is not sent");
     }
 
     #[test]
+    fn a_bounded_request_says_so_and_no_reasoning_is_asked_for_only_on_this_computer() {
+        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "hi".into() }], tools: vec![], effort: None, max_tokens: None };
+        assert!(body_for(&request, true).get("max_tokens").is_none());
+        request.max_tokens = Some(900);
+        request.effort = Some(crate::provider::NO_REASONING.into());
+        let local = body_for(&request, true);
+        assert_eq!(local["max_tokens"], 900);
+        assert_eq!(local["chat_template_kwargs"], json!({ "enable_thinking": false }));
+        assert!(local.get("reasoning_effort").is_none(), "\"none\" is not an effort a provider knows");
+        let remote = body_for(&request, false);
+        assert!(remote.get("chat_template_kwargs").is_none(), "another provider could refuse a field it does not know");
+        assert!(remote.get("reasoning_effort").is_none());
+        request.effort = Some("low".into());
+        assert!(body_for(&request, true).get("chat_template_kwargs").is_none());
+    }
+
+    #[test]
     fn the_effort_is_sent_only_when_one_was_chosen() {
-        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "hi".into() }], tools: vec![], effort: None };
+        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "hi".into() }], tools: vec![], effort: None, max_tokens: None };
         assert!(build_request_body(&request).get("reasoning_effort").is_none());
         request.effort = Some("high".into());
         assert_eq!(build_request_body(&request)["reasoning_effort"], "high");

@@ -11,6 +11,19 @@ use std::time::{Duration, Instant};
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let value = |flag: &str| args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).cloned();
+    // What the real program prints for these. FAKE_LLAMA_DEVICES: one device name per `;`, empty for none.
+    if args.iter().any(|a| a == "--version") {
+        eprintln!("version: 12180 (fake)");
+        return;
+    }
+    if args.iter().any(|a| a == "--list-devices") {
+        println!("Available devices:");
+        match std::env::var("FAKE_LLAMA_DEVICES").unwrap_or_else(|_| "CUDA0: Fake GPU (12282 MiB, 11000 MiB free)".into()) {
+            d if d.is_empty() => println!("  (none)"),
+            d => d.split(';').for_each(|line| println!("  {line}")),
+        }
+        return;
+    }
     if let Ok(message) = std::env::var("FAKE_LLAMA_CRASH") {
         eprintln!("{message}");
         std::process::exit(3);

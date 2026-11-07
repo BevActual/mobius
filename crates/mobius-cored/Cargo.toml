@@ -9,11 +9,13 @@ rust-version.workspace = true
 mobius-core = { path = "../mobius-core" }
 mobius-agent = { path = "../mobius-agent" }
 mobius-runtime = { path = "../mobius-runtime" }
+mobius-claude = { path = "../mobius-claude" }
 serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
 sha2 = "0.11"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [lints]
 workspace = true

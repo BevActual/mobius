@@ -30,6 +30,7 @@ import {
   type HistoryView,
   type KeyBindings,
   type PreferencesSettings,
+  type ShareStatus,
   type ShortcutAction,
   type SidebarMode,
   type TextDirection,
@@ -646,6 +647,63 @@ export function NotificationsSection({ subpage, highlight, preferences, onPrefer
   );
 }
 
+/** Settings > Advanced > Other apps: Mobius as an MCP server for other agents. */
+function OtherApps({ subpage, highlight }: { subpage: string; highlight: string | null | undefined }) {
+  const api = window.mobius.share;
+  const [status, setStatus] = useState<ShareStatus | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const reload = useCallback(() => {
+    if (!api) return;
+    void api.status().then(setStatus);
+    void api.token().then(setToken);
+  }, [api]);
+  useEffect(reload, [reload]);
+  if (!api) return <Empty>Only the desktop app can share its tools.</Empty>;
+  const change = async (c: { enabled?: boolean; allowChanges?: boolean }) => {
+    const r = await api.set(c);
+    setProblem(r.ok ? null : r.error);
+    reload();
+  };
+  const copy = async (what: string, text: string) => {
+    await navigator.clipboard?.writeText(text);
+    setCopied(what);
+  };
+  const url = status?.url ?? '';
+  const claude = token && url ? `claude mcp add --transport http mobius ${url} --header "Authorization: Bearer ${token}"` : '';
+  const hermes = token && url ? `mcp_servers:\n  mobius:\n    url: ${url}\n    headers:\n      Authorization: Bearer ${token}` : '';
+  return (
+    <>
+      <Row path={rowPath('advanced', subpage, 'share-mcp')} title="Let other apps use Mobius" description="Agents such as Claude Code or Hermes can read the files in your workspace over MCP, on this computer only. Off until you turn it on." highlight={highlight === 'share-mcp'}>
+        <Toggle label="Let other apps use Mobius" checked={status?.enabled ?? false} onChange={(enabled) => void change({ enabled })} />
+      </Row>
+      <Row path={rowPath('advanced', subpage, 'share-changes')} title="Let them change files" description="Other apps may also create and edit files. Each change is checkpointed, so it can be undone." highlight={highlight === 'share-changes'}>
+        <Toggle label="Let them change files" checked={status?.allowChanges ?? false} onChange={(allowChanges) => void change({ allowChanges })} />
+      </Row>
+      {status?.problem && <p className="field-error" role="alert">{status.problem}</p>}
+      {problem && <p className="field-error" role="alert">{problem}</p>}
+      {status?.running && token && (
+        <section className="share-setup" aria-label="Connect an app">
+          <p className="prow-note" role="status">Listening at <code>{url}</code></p>
+          <div className="share-snippet">
+            <span className="share-label">Claude Code</span>
+            <code className="share-code" aria-label="Claude Code command">{claude}</code>
+            <button type="button" className="btn" onClick={() => void copy('claude', claude)}>{copied === 'claude' ? 'Copied' : 'Copy'}</button>
+          </div>
+          <div className="share-snippet">
+            <span className="share-label">Hermes (config.yaml)</span>
+            <code className="share-code" aria-label="Hermes settings">{hermes}</code>
+            <button type="button" className="btn" onClick={() => void copy('hermes', hermes)}>{copied === 'hermes' ? 'Copied' : 'Copy'}</button>
+          </div>
+          <p className="prow-note">The token works like a password for your files. If it got out, make a new one: apps set up with the old one stop working.</p>
+          <button type="button" className="btn" onClick={() => void api.renewToken().then(() => { setCopied(null); reload(); })}>Make a new token</button>
+        </section>
+      )}
+    </>
+  );
+}
+
 export function AdvancedSection({ subpage, highlight, settings, onSaveSettings, preferences, onPreferences }: SectionProps) {
   const [steps, setSteps] = useState(String(settings?.maxSteps ?? 25));
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
@@ -657,6 +715,7 @@ export function AdvancedSection({ subpage, highlight, settings, onSaveSettings, 
     const result = await onSaveSettings({ baseUrl: settings.baseUrl, model: settings.model, ...(settings.system ? { system: settings.system } : {}), maxSteps: number });
     setStatus(result.ok ? { ok: true, text: 'Saved' } : { ok: false, text: result.error });
   };
+  if (subpage === 'other-apps') return <OtherApps subpage={subpage} highlight={highlight} />;
   if (subpage === 'desktop') {
     return (
       <Row path={rowPath('advanced', subpage, 'keep-awake')} title="Keep the computer awake while working" description="Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you." highlight={highlight === 'keep-awake'}>

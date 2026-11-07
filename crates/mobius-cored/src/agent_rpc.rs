@@ -39,6 +39,9 @@ struct ConfigureParams {
     system: Option<String>,
     #[serde(default)]
     max_steps: Option<i64>,
+    /// The model's context window in tokens, when the caller knows it.
+    #[serde(default)]
+    context_tokens: Option<u64>,
     /// A second model to use when the first cannot answer.
     #[serde(default)]
     fallback: Option<FallbackParams>,
@@ -78,6 +81,17 @@ struct ConversationParams {
     conversation: String,
 }
 
+/// The person's answer to a question the model asked.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AnswerParams {
+    conversation: String,
+    call_id: String,
+    text: String,
+}
+
+const MAX_ANSWER_CHARS: usize = 4000;
+
 pub struct Agent {
     host: Host,
     provider: Option<Arc<dyn Provider>>,
@@ -90,6 +104,79 @@ pub struct Agent {
     /// Requests sent to the application and not yet answered: request id -> (turn, call).
     outbound: HashMap<String, (u64, String)>,
     next_outbound: u64,
+    claude: ClaudeSetup,
+    windows: KnownWindows,
+    /// The context window the current model is planned for, when known.
+    window: Option<usize>,
+}
+
+/// Context windows of servers this daemon started itself, by address (the local models' `llama-server`).
+pub type KnownWindows = std::sync::Arc<std::sync::Mutex<HashMap<String, usize>>>;
+
+const MIN_CONTEXT_TOKENS: u64 = 4_096;
+const MAX_CONTEXT_TOKENS: u64 = 10_000_000;
+
+/// The window to plan for: what the caller said, else what is known about the model, else nothing (the engine then
+/// assumes a common size and makes room when a provider refuses a request as too long).
+fn window_for(base_url: &str, model: &str, explicit: Option<u64>, known: &KnownWindows) -> Result<Option<usize>, String> {
+    if let Some(n) = explicit {
+        if !(MIN_CONTEXT_TOKENS..=MAX_CONTEXT_TOKENS).contains(&n) {
+            return Err(format!("context_tokens must be from {MIN_CONTEXT_TOKENS} to {MAX_CONTEXT_TOKENS}"));
+        }
+        return Ok(usize::try_from(n).ok());
+    }
+    if base_url.trim().eq_ignore_ascii_case(CHATGPT_ADDRESS) {
+        return Ok(Some(if model.contains("spark") { 128_000 } else { 272_000 }));
+    }
+    if base_url.trim().eq_ignore_ascii_case(CLAUDE_CODE_ADDRESS) {
+        return Ok(Some(if mobius_claude::frames::native_model(model).ends_with("[1m]") { 1_000_000 } else { 200_000 }));
+    }
+    let key = base_url.trim().trim_end_matches('/');
+    Ok(known.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(key).copied())
+}
+
+/// The address that means "Claude through the Claude Code CLI on this computer" instead of an HTTP server.
+pub const CLAUDE_CODE_ADDRESS: &str = "claude-code://subscription";
+
+/// The address that means "the ChatGPT plan's Codex endpoint, with the sign-in token as the key".
+pub const CHATGPT_ADDRESS: &str = "chatgpt://subscription";
+pub const CHATGPT_UPSTREAM: &str = "https://chatgpt.com/backend-api/codex";
+
+/// How to run the Claude Code provider. Tests point it at a fake CLI and a fake Anthropic server.
+#[derive(Debug, Clone, Default)]
+pub struct ClaudeSetup {
+    pub command: Option<std::path::PathBuf>,
+    pub upstream: Option<String>,
+    pub inert_mcp: Option<std::path::PathBuf>,
+    pub workdir: Option<std::path::PathBuf>,
+    /// Where ChatGPT sign-in requests go (`CHATGPT_UPSTREAM` except in tests).
+    pub chatgpt_upstream: Option<String>,
+}
+
+impl ClaudeSetup {
+    fn provider(&self) -> Result<mobius_claude::provider::ClaudeCodeProvider, String> {
+        let here = std::env::current_exe().ok().and_then(|p| p.parent().map(std::path::Path::to_path_buf)).unwrap_or_default();
+        let inert = self.inert_mcp.clone().unwrap_or_else(|| here.join(if cfg!(windows) { "mobius-inert-mcp.exe" } else { "mobius-inert-mcp" }));
+        let workdir = self.workdir.clone().unwrap_or_else(|| std::env::temp_dir().join("mobius-claude-work"));
+        let provider = mobius_claude::provider::ClaudeCodeProvider::new(self.command.as_deref(), inert, workdir)?;
+        match &self.upstream {
+            Some(u) => provider.with_upstream(u),
+            None => Ok(provider),
+        }
+    }
+}
+
+/// The provider for an address: the Claude Code CLI for its special address, else an OpenAI-compatible server.
+fn provider_for(base_url: &str, api_key: Option<String>, claude: &ClaudeSetup) -> Result<Arc<dyn Provider>, String> {
+    if base_url.trim().eq_ignore_ascii_case(CLAUDE_CODE_ADDRESS) {
+        return Ok(Arc::new(claude.provider()?));
+    }
+    if base_url.trim().eq_ignore_ascii_case(CHATGPT_ADDRESS) {
+        let token = api_key.ok_or("Sign in to ChatGPT first.")?;
+        let headers = mobius_agent::responses::chatgpt_headers(&token);
+        return Ok(Arc::new(mobius_agent::responses::ResponsesProvider::new(claude.chatgpt_upstream.as_deref().unwrap_or(CHATGPT_UPSTREAM), &token, headers)?));
+    }
+    Ok(Arc::new(OpenAiProvider::new(base_url, api_key)?))
 }
 
 /// More than this many tools running at once in the application means something is wrong.
@@ -106,6 +193,7 @@ fn host_error(error: &HostError) -> ExtensionError {
         HostError::TooManyConversations => "too_many_conversations",
         HostError::InvalidConversation => "invalid_conversation",
         HostError::NothingToRewind => "nothing_to_rewind",
+        HostError::NotWaiting => "not_waiting",
     };
     ExtensionError::application(kind, &error.to_string())
 }
@@ -113,7 +201,15 @@ fn host_error(error: &HostError) -> ExtensionError {
 impl Agent {
     pub fn new(inbox: SyncSender<Inbox>, store: Box<dyn ConversationStore>) -> Result<Self, mobius_core::model::ModelError> {
         let principal = Principal::new(PrincipalKind::Agent, "mobius-agent")?;
-        Ok(Agent { host: Host::with_store(principal, store, Box::new(mobius_core::core::system_clock())), provider: None, fallback: None, model: None, max_steps: DEFAULT_MAX_STEPS, inbox, queued: Vec::new(), outbound: HashMap::new(), next_outbound: 1 })
+        Ok(Agent { host: Host::with_store(principal, store, Box::new(mobius_core::core::system_clock())), provider: None, fallback: None, model: None, max_steps: DEFAULT_MAX_STEPS, inbox, queued: Vec::new(), outbound: HashMap::new(), next_outbound: 1, claude: ClaudeSetup::default(), windows: KnownWindows::default(), window: None })
+    }
+
+    pub fn set_claude(&mut self, claude: ClaudeSetup) {
+        self.claude = claude;
+    }
+
+    pub fn share_windows(&mut self, windows: KnownWindows) {
+        self.windows = windows;
     }
 
     /// Work produced while handling a request, to be carried out after its response has been written.
@@ -251,7 +347,8 @@ impl Agent {
             Some(n) if (1..=100).contains(&n) => u32::try_from(n).unwrap_or(DEFAULT_MAX_STEPS),
             Some(_) => return Err(ExtensionError::invalid_params("max_steps must be a whole number from 1 to 100")),
         };
-        let provider = OpenAiProvider::new(&params.base_url, params.api_key).map_err(ExtensionError::invalid_params)?;
+        let window = window_for(&params.base_url, model, params.context_tokens, &self.windows).map_err(ExtensionError::invalid_params)?;
+        let provider = provider_for(&params.base_url, params.api_key, &self.claude).map_err(ExtensionError::invalid_params)?;
         let fallback = match params.fallback {
             None => None,
             Some(second) => {
@@ -259,14 +356,16 @@ impl Agent {
                 if name.is_empty() || name.chars().count() > MAX_MODEL_NAME_CHARS {
                     return Err(ExtensionError::invalid_params("the fallback model must be a name of 1 to 200 characters"));
                 }
-                let backup = OpenAiProvider::new(&second.base_url, second.api_key).map_err(ExtensionError::invalid_params)?;
-                Some((Arc::new(backup) as Arc<dyn Provider>, name.to_owned()))
+                let backup = provider_for(&second.base_url, second.api_key, &self.claude).map_err(ExtensionError::invalid_params)?;
+                Some((backup, name.to_owned()))
             }
         };
-        self.provider = Some(Arc::new(provider));
+        self.provider = Some(provider);
         self.fallback = fallback;
         self.model = Some(model.to_owned());
         self.max_steps = max_steps;
+        self.window = window;
+        self.host.set_context_window(window);
         self.host.configure_with(model, system, max_steps);
         Ok(json!({}))
     }
@@ -291,7 +390,7 @@ impl Extension for Agent {
                 _ => Err(ExtensionError::invalid_params("effort must be low, medium, high, or empty")),
             }),
             "agent.status" => Ok(match &self.model {
-                Some(model) => json!({ "configured": true, "model": model, "max_steps": self.max_steps, "fallback_model": self.fallback.as_ref().map(|(_, name)| name) }),
+                Some(model) => json!({ "configured": true, "model": model, "max_steps": self.max_steps, "fallback_model": self.fallback.as_ref().map(|(_, name)| name), "context_tokens": self.window }),
                 None => json!({ "configured": false }),
             }),
             "agent.send" => params_as::<SendParams>(params).and_then(|p| {
@@ -322,7 +421,38 @@ impl Extension for Agent {
             }),
             "agent.waiting" => params_as::<ConversationParams>(params).map(|p| json!(self.host.waiting(&p.conversation))),
             "agent.history" => params_as::<ConversationParams>(params).map(|p| json!(self.host.history(&p.conversation))),
+            "agent.question" => params_as::<ConversationParams>(params).map(|p| json!(self.host.question(&p.conversation))),
+            "agent.answer" => params_as::<AnswerParams>(params).and_then(|p| {
+                if p.text.trim().is_empty() || p.text.chars().count() > MAX_ANSWER_CHARS {
+                    return Err(ExtensionError::invalid_params("the answer must be 1 to 4000 characters"));
+                }
+                let outs = self.host.answer(core, &p.conversation, &p.call_id, &p.text).map_err(|e| host_error(&e))?;
+                self.queued.extend(outs);
+                Ok(json!({}))
+            }),
             _ => return None,
         })
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod window_tests {
+    use super::*;
+
+    #[test]
+    fn the_window_comes_from_the_caller_then_the_claude_model_then_a_server_started_here() {
+        let known = KnownWindows::default();
+        known.lock().unwrap().insert("http://127.0.0.1:5000/v1".into(), 16_384);
+        assert_eq!(window_for("http://127.0.0.1:5000/v1/", "m", None, &known), Ok(Some(16_384)));
+        assert_eq!(window_for("http://127.0.0.1:5000/v1", "m", Some(8_192), &known), Ok(Some(8_192)), "the caller wins");
+        assert_eq!(window_for("http://127.0.0.1:5001/v1", "m", None, &known), Ok(None), "another server is unknown");
+        assert_eq!(window_for("https://api.example.com/v1", "m", None, &known), Ok(None));
+        assert_eq!(window_for(CLAUDE_CODE_ADDRESS, "sonnet", None, &known), Ok(Some(1_000_000)));
+        assert_eq!(window_for(CLAUDE_CODE_ADDRESS, "claude-haiku-4-5", None, &known), Ok(Some(200_000)));
+        for bad in [0, 4_095, 10_000_001] {
+            assert!(window_for("https://api.example.com/v1", "m", Some(bad), &known).is_err(), "{bad}");
+        }
+        assert!(window_for("https://api.example.com/v1", "m", Some(4_096), &known).is_ok());
     }
 }

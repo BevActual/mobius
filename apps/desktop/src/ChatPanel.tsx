@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice } from '@mobius/shared';
+import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
 import type { ConversationState, Item, ToolStatus, findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
@@ -23,6 +23,58 @@ function describeArguments(args: unknown): string {
 }
 
 type Details = { result: ReturnType<typeof findToolResult>; arguments: unknown };
+
+const STEP_STATUS: Record<TodoItem['status'], string> = { pending: 'To do', in_progress: 'Working on it', done: 'Done' };
+
+/** The model's plan for the task, as a checklist the person can follow. */
+function PlanCard({ item }: { item: Extract<Item, { kind: 'plan' }> }) {
+  const done = item.items.filter((i) => i.status === 'done').length;
+  return (
+    <section className="plan-card" aria-label="Plan">
+      <header className="plan-head"><span>Plan</span><span className="plan-count">{done} of {item.items.length} done</span></header>
+      <ol className="plan-steps">
+        {item.items.map((step, i) => (
+          <li key={i} className="plan-step" data-status={step.status} aria-label={`${step.text}: ${STEP_STATUS[step.status]}`}>
+            <span className="plan-mark" aria-hidden="true" />
+            <span className="plan-text">{step.text}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** A question the model asked: pick a choice or answer in your own words. */
+function QuestionCard({ item, onReply }: { item: Extract<Item, { kind: 'question' }>; onReply: (callId: string, text: string) => Promise<string | null> }) {
+  const [text, setText] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const open = item.status === 'open';
+  const reply = async (answer: string) => {
+    if (!answer.trim()) return;
+    setProblem(await onReply(item.callId, answer.trim()));
+  };
+  return (
+    <section className="question-card" role="group" aria-label="Mobius asks" data-status={item.status}>
+      <p className="question-text">{item.question}</p>
+      {open ? (
+        <>
+          {item.choices.length > 0 && (
+            <div className="question-choices">
+              {item.choices.map((c) => <button key={c} type="button" className="btn" onClick={() => void reply(c)}>{c}</button>)}
+            </div>
+          )}
+          <form className="question-own" onSubmit={(e) => { e.preventDefault(); void reply(text); }}>
+            <input className="input" aria-label="Your answer" placeholder={item.choices.length > 0 ? 'Or answer in your own words' : 'Your answer'} value={text} maxLength={4000} onChange={(e) => setText(e.target.value)} />
+            <button type="submit" className="btn primary" disabled={!text.trim()}>Answer</button>
+          </form>
+        </>
+      ) : (
+        <p className="question-answer" role="status">{item.status === 'cancelled' ? 'Not answered' : `You answered: ${item.answer ?? ''}`}</p>
+      )}
+      {problem && <span className="field-error" role="alert">{problem}</span>}
+    </section>
+  );
+}
 
 function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 'tool' }>; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details> }) {
   const [problem, setProblem] = useState<string | null>(null);
@@ -86,6 +138,8 @@ export interface ChatPanelProps {
   onSend: (text: string, context: ContextItem[]) => void;
   onStop: () => void;
   onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>;
+  /** Answer a question the model asked. Resolves with an explanation when it could not be sent. */
+  onReply: (callId: string, text: string) => Promise<string | null>;
   onSaveSettings: (request: AgentConfigureRequest) => Promise<AgentResult>;
   /** Text to place in the composer, for example from elsewhere in the window. Each value is used once. */
   focusToken?: number;
@@ -181,7 +235,7 @@ function Shell({ variant, children }: { variant: 'panel' | 'full'; children: Rea
   );
 }
 
-export function ChatPanel({ state, settings, coreReady, onSend, onStop, onAnswer, onSaveSettings, focusToken, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged }: ChatPanelProps) {
+export function ChatPanel({ state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -290,6 +344,10 @@ export function ChatPanel({ state, settings, coreReady, onSend, onStop, onAnswer
                     </div>
                   )}
                 </Fragment>
+              ) : item.kind === 'plan' ? (
+                <PlanCard key={item.id} item={item} />
+              ) : item.kind === 'question' ? (
+                <QuestionCard key={item.id} item={item} onReply={onReply} />
               ) : item.kind === 'notice' ? (
                 <div key={item.id} className="msg-notice" role="status">{item.text}</div>
               ) : item.kind === 'error' ? (
@@ -306,7 +364,7 @@ export function ChatPanel({ state, settings, coreReady, onSend, onStop, onAnswer
               ),
             )}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
-            {state.busy && !state.items.some((item) => item.kind === 'tool' && item.status === 'waiting') && state.items.at(-1)?.kind !== 'assistant' && (
+            {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
               <div className="thinking" role="status" aria-label="Mobius is working"><span /><span /><span /></div>
             )}
           </div>

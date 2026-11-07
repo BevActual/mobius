@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 //! Saving and loading conversations, in memory and in SQLite.
+use mobius_agent::compaction::Compaction;
 use mobius_agent::conversations::{ConversationStore, MemoryStore, SqliteStore};
 use mobius_agent::message::{Message, ToolCall};
 use serde_json::json;
@@ -29,9 +30,27 @@ fn behaves_like_a_store(store: &mut dyn ConversationStore) {
     let all = store.load_all(10).unwrap();
     assert_eq!((all[0].id.as_str(), all[0].messages.len(), all.len()), ("a", 3, 3), "saving again replaces");
 
+    // A compaction is kept with its conversation, survives saving the messages again, and can be forgotten.
+    assert!(all[0].compaction.is_none());
+    let c = Compaction { covers: 1, summary: "earlier".into(), pruned_before: 1 };
+    store.save_compaction("a", Some(&c)).unwrap();
+    store.save("a", &sample()[..3], 500).unwrap();
+    assert_eq!(store.load_all(10).unwrap()[0].compaction, Some(c.clone()));
+    // One that no longer fits the transcript (it would point at a tool result, or past the end) is not used.
+    store.save_compaction("a", Some(&Compaction { covers: 2, ..c.clone() })).unwrap();
+    assert_eq!(store.load_all(10).unwrap()[0].compaction, None);
+    store.save_compaction("a", Some(&Compaction { covers: 3, ..c.clone() })).unwrap();
+    assert_eq!(store.load_all(10).unwrap()[0].compaction, None);
+    store.save_compaction("a", None).unwrap();
+    assert_eq!(store.load_all(10).unwrap()[0].compaction, None);
+    store.save_compaction("a", Some(&c)).unwrap();
+
     store.delete("a").unwrap();
     store.delete("never-existed").unwrap();
     assert_eq!(store.load_all(10).unwrap().iter().map(|c| c.id.as_str()).collect::<Vec<_>>(), ["b", "c"]);
+    store.save("a", &sample(), 600).unwrap();
+    assert_eq!(store.load_all(10).unwrap()[0].compaction, None, "deleting forgets the compaction too");
+    store.delete("a").unwrap();
 }
 
 #[test]
@@ -89,5 +108,28 @@ fn a_database_from_a_newer_version_is_refused() {
     drop(SqliteStore::open(&path).unwrap());
     rusqlite::Connection::open(&path).unwrap().pragma_update(None, "user_version", 99).unwrap();
     assert!(SqliteStore::open(&path).is_err(), "never write into a format this build does not know");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_database_from_the_first_version_gains_compactions_and_keeps_its_conversations() {
+    let dir = std::env::temp_dir().join(format!("mobius-conv-v1-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("conversations.db");
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch("CREATE TABLE conversations (id TEXT PRIMARY KEY, messages TEXT NOT NULL, updated_ms INTEGER NOT NULL); PRAGMA user_version = 1;").unwrap();
+        conn.execute("INSERT INTO conversations (id, messages, updated_ms) VALUES ('old', ?1, 5)", [serde_json::to_string(&sample()).unwrap()]).unwrap();
+    }
+    {
+        let mut store = SqliteStore::open(&path).unwrap();
+        assert_eq!(store.load_all(10).unwrap()[0].messages, sample());
+        store.save_compaction("old", Some(&Compaction { covers: 1, summary: "s".into(), pruned_before: 0 })).unwrap();
+    }
+    let store = SqliteStore::open(&path).unwrap();
+    assert_eq!(store.load_all(10).unwrap()[0].compaction.as_ref().map(|c| c.summary.as_str()), Some("s"));
+    let version: i64 = rusqlite::Connection::open(&path).unwrap().query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+    assert_eq!(version, 2);
+    drop(store);
     std::fs::remove_dir_all(&dir).ok();
 }

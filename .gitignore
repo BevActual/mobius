@@ -7,3 +7,4 @@ playwright-report
 .DS_Store
 target
 crates/mobius-shell/gen
+target-side

@@ -263,3 +263,65 @@ describe('a second model taking over', () => {
     expect(reduce(base, { type: 'notification', notification: notice(9) })).toEqual(base);
   });
 });
+
+describe('a long conversation being summarised', () => {
+  it('adds a plain line, keeps the turn going and keeps everything already shown', () => {
+    const s = run({ type: 'sent', text: 'hi', turn: 1 }, note({ kind: 'compacted', messages: 12 }), note({ kind: 'message', text: 'answer' }));
+    expect(s.items.map((i) => (i.kind === 'notice' ? `notice:${i.text}` : i.kind))).toEqual(['user', 'notice:Earlier messages were summarised to make room for the model. They are still here for you.', 'assistant']);
+    expect(s.busy).toBe(true);
+  });
+});
+
+describe('the plan and questions', () => {
+  const plan = (items: Array<[string, 'pending' | 'in_progress' | 'done']>) => note({ kind: 'todo', items: items.map(([text, status]) => ({ text, status })) });
+
+  it('shows one plan per turn and updates it in place, without tool steps for it', () => {
+    const s = run(
+      { type: 'sent', text: 'do it', turn: 1 },
+      note({ kind: 'tool_call', call_id: 't1', name: 'todo.write' }),
+      plan([['Read', 'in_progress'], ['Write', 'pending']]),
+      note({ kind: 'tool_result', call_id: 't1', name: 'todo.write', is_error: false }),
+      plan([['Read', 'done'], ['Write', 'in_progress']]),
+    );
+    expect(kinds(s)).toEqual(['user', 'plan']);
+    expect(s.items[1]).toMatchObject({ kind: 'plan', items: [{ text: 'Read', status: 'done' }, { text: 'Write', status: 'in_progress' }] });
+    const next = [{ type: 'notification' as const, notification: { method: 'agent.event' as const, params: { conversation: 'main', turn: 1, event: { kind: 'done' as const } } } }, { type: 'sent' as const, text: 'again', turn: 2 }, note({ kind: 'todo', items: [{ text: 'New', status: 'pending' }] }, 2)].reduce(reduce, s);
+    expect(kinds(next)).toEqual(['user', 'plan', 'user', 'plan']);
+  });
+
+  it('shows a question, waits, and records the answer', () => {
+    let s = run({ type: 'sent', text: 'pick', turn: 1 }, note({ kind: 'tool_call', call_id: 'q1', name: 'ask.person' }), note({ kind: 'question', call_id: 'q1', question: 'Which?', choices: ['A', 'B'] }));
+    expect(kinds(s)).toEqual(['user', 'question']);
+    expect(s.items[1]).toMatchObject({ status: 'open', question: 'Which?', choices: ['A', 'B'] });
+    s = reduce(s, { type: 'question-answered', callId: 'q1', text: 'B' });
+    expect(s.items[1]).toMatchObject({ status: 'sending', answer: 'B' });
+    expect(reduce(s, { type: 'question-failed', callId: 'q1' }).items[1]).toMatchObject({ status: 'open' });
+    s = reduce(s, note({ kind: 'tool_result', call_id: 'q1', name: 'ask.person', is_error: false }));
+    expect(s.items[1]).toMatchObject({ status: 'answered', answer: 'B' });
+  });
+
+  it('closes an open question when the turn is stopped', () => {
+    const s = run({ type: 'sent', text: 'pick', turn: 1 }, note({ kind: 'question', call_id: 'q1', question: 'Which?', choices: [] }), note({ kind: 'cancelled' }));
+    expect(s.items[1]).toMatchObject({ kind: 'question', status: 'cancelled' });
+    expect(s.busy).toBe(false);
+  });
+
+  it('brings back the plan, the questions and their answers from the saved conversation', () => {
+    const messages: Message[] = [
+      { role: 'user', text: 'go' },
+      { role: 'assistant', text: '', tool_calls: [{ id: 't1', name: 'todo.write', arguments: { items: [{ text: 'A', status: 'done' }] } }, { id: 'q1', name: 'ask.person', arguments: { question: 'Sure?', choices: ['Yes'] } }] },
+      { role: 'tool', call_id: 't1', name: 'todo.write', content: 'Plan updated: 1 of 1 done.', is_error: false },
+      { role: 'tool', call_id: 'q1', name: 'ask.person', content: 'The person answered: Yes', is_error: false },
+    ];
+    const s = run({ type: 'loaded', messages });
+    expect(kinds(s)).toEqual(['user', 'plan', 'question']);
+    expect(s.items[2]).toMatchObject({ status: 'answered', answer: 'Yes' });
+  });
+
+  it('shows a question still open after the window comes back', () => {
+    const s = run({ type: 'loaded', messages: [{ role: 'user', text: 'go' }] }, { type: 'question-open', question: { callId: 'q9', question: 'Which?', choices: [] } });
+    expect(s.items[1]).toMatchObject({ kind: 'question', status: 'open' });
+    expect(s.busy).toBe(true);
+    expect(run({ type: 'question-open', question: null }).items).toEqual([]);
+  });
+});

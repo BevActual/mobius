@@ -89,7 +89,7 @@ fn a_plain_answer_ends_the_turn_and_the_first_request_describes_the_conversation
     assert_eq!(request.messages.len(), 3);
     assert_eq!(request.messages[2], Message::User { text: "hi".into() });
     let names: Vec<&str> = request.tools.iter().map(|t| t.name.as_str()).collect();
-    assert_eq!(names, ["demo.big", "demo.echo", "demo.fail", "demo.panic", "demo.remote"], "every registered tool is offered, in a stable order");
+    assert_eq!(names, ["demo.big", "demo.echo", "demo.fail", "demo.panic", "demo.remote", "todo.write", "ask.person"], "every registered tool is offered, in a stable order, then the engine's own");
     assert_eq!(request.tools[1].input_schema["properties"]["text"]["type"], "string");
 
     assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
@@ -566,4 +566,78 @@ fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", "S"));
+}
+
+// ---- the plan and questions for the person --------------------------------------------------------------------
+
+#[test]
+fn the_model_can_keep_a_plan_without_asking_permission_and_the_person_sees_it() {
+    let mut w = world(10);
+    w.core.set_approval_mode(ApprovalMode::Manual).unwrap();
+    let items = json!([{ "text": "Read the notes", "status": "done" }, { "text": "Write the summary", "status": "in_progress" }, { "text": "Check it", "status": "pending" }]);
+    let provider = ScriptedProvider::new(vec![calls("", vec![call("t1", "todo.write", json!({ "items": items }))]), text("Working on it.")]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "summarise my notes", 1);
+    // The plan tool is offered to the model alongside the core's tools.
+    let Step::CallModel(request) = &step else { panic!("{step:?}") };
+    assert!(request.tools.iter().any(|t| t.name == "todo.write") && request.tools.iter().any(|t| t.name == "ask.person"));
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    let events = turn.drain_events();
+    assert!(events.contains(&AgentEvent::Todo { items: vec![
+        mobius_agent::engine::TodoItem { text: "Read the notes".into(), status: "done".into() },
+        mobius_agent::engine::TodoItem { text: "Write the summary".into(), status: "in_progress".into() },
+        mobius_agent::engine::TodoItem { text: "Check it".into(), status: "pending".into() },
+    ] }), "{events:?}");
+    assert!(!events.iter().any(|e| matches!(e, AgentEvent::NeedsApproval { .. })), "keeping a plan needs no permission");
+    let (_, content, is_error) = tool_messages(&turn)[0].clone();
+    assert!(!is_error && content.contains("1 of 3 done"), "{content}");
+}
+
+#[test]
+fn a_bad_plan_is_an_error_for_the_model_not_the_person() {
+    let mut w = world(10);
+    for bad in [json!({}), json!({ "items": "x" }), json!({ "items": [{ "text": "", "status": "done" }] }), json!({ "items": [{ "text": "a", "status": "maybe" }] }), json!({ "items": (0..60).map(|i| json!({ "text": i.to_string(), "status": "pending" })).collect::<Vec<_>>() })] {
+        let provider = ScriptedProvider::new(vec![calls("", vec![call("t1", "todo.write", bad.clone())]), text("ok")]);
+        let (mut turn, step) = w.engine.start(&w.core, vec![], "go", 1);
+        assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+        assert!(tool_messages(&turn)[0].2, "{bad} must be refused");
+        assert!(!turn.drain_events().iter().any(|e| matches!(e, AgentEvent::Todo { .. })));
+    }
+}
+
+#[test]
+fn the_model_can_ask_the_person_and_the_turn_waits_for_the_answer() {
+    let mut w = world(10);
+    let provider = ScriptedProvider::new(vec![
+        calls("", vec![call("q1", "ask.person", json!({ "question": "Which file?", "choices": ["notes.md", "todo.md"] })), call("e1", "demo.echo", json!({ "text": "after" }))]),
+        text("Thanks."),
+    ]);
+    allow_always(&mut w, "demo.echo");
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "tidy a file", 1);
+    let step = drive(&mut w, &mut turn, &provider, step);
+    assert_eq!(step, Step::AwaitAnswer { call_id: "q1".into() });
+    assert_eq!(turn.asking().map(|c| c.id.as_str()), Some("q1"));
+    let events = turn.drain_events();
+    assert!(events.contains(&AgentEvent::Question { call_id: "q1".into(), question: "Which file?".into(), choices: vec!["notes.md".into(), "todo.md".into()] }), "{events:?}");
+    assert_eq!(w.runs.load(Ordering::SeqCst), 0, "the next call waits for the answer");
+    // An answer to some other question changes nothing.
+    assert_eq!(w.engine.on_answer(&mut turn, &mut w.core, "nope", "x"), Step::AwaitAnswer { call_id: "q1".into() });
+    let step = w.engine.on_answer(&mut turn, &mut w.core, "q1", "todo.md");
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(w.runs.load(Ordering::SeqCst), 1);
+    let results = tool_messages(&turn);
+    assert_eq!(results[0], ("q1".into(), "The person answered: todo.md".into(), false));
+}
+
+#[test]
+fn stopping_while_a_question_is_open_closes_it() {
+    let mut w = world(10);
+    let provider = ScriptedProvider::new(vec![calls("", vec![call("q1", "ask.person", json!({ "question": "Sure?" }))])]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "go", 1);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::AwaitAnswer { call_id: "q1".into() });
+    w.engine.cancel(&mut turn, &mut w.core);
+    assert!(turn.asking().is_none() && turn.is_finished());
+    assert_eq!(tool_messages(&turn), vec![("q1".into(), "cancelled".into(), true)]);
+    let bad = ScriptedProvider::new(vec![calls("", vec![call("q2", "ask.person", json!({ "question": "" }))]), text("ok")]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "go", 2);
+    assert_eq!(drive(&mut w, &mut turn, &bad, step), Step::Done, "a question with no words is refused, not shown");
 }

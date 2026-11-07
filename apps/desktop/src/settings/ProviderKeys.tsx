@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { ProviderInfo } from '@mobius/shared';
+import type { AccountInfo, AccountStatus, ProviderInfo } from '@mobius/shared';
 import { Empty, Row } from './primitives';
 import { settingPath } from './manifest';
 import type { SectionProps } from './sections';
@@ -23,6 +23,8 @@ function ProviderList() {
   const local = providers.filter((p) => !p.needsKey);
   return (
     <div className="providers">
+      <Accounts onChanged={reload} />
+      <h4 className="plist-head">With an API key</h4>
       <ul className="plist" role="list" aria-label="Online services">
         {hosted.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} />)}
       </ul>
@@ -98,6 +100,99 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
             ) : <input className="input" aria-label={`${p.name} model`} placeholder="Model name" value={model} onChange={(e) => setModel(e.target.value)} />}
           <button type="submit" className="btn primary" disabled={busy || model.trim() === ''}>Use this model</button>
           <button type="button" className="btn" onClick={() => { setOpen('none'); setProblem(null); }}>Cancel</button>
+        </form>
+      )}
+      {problem && <span className="field-error prow-problem" role="alert">{problem}</span>}
+    </li>
+  );
+}
+
+/** Plans you sign in to: the service's own app keeps the sign-in, Mobius only asks it whether it is signed in. */
+function Accounts({ onChanged }: { onChanged: () => void }) {
+  const api = window.mobius.providers!;
+  const [accounts, setAccounts] = useState<AccountInfo[]>([]);
+  const reload = useCallback(() => void api.accounts().then(setAccounts), [api]);
+  useEffect(() => { reload(); return api.onChanged(reload); }, [api, reload]);
+  if (accounts.length === 0) return null;
+  return (
+    <>
+      <h4 className="plist-head">With your subscription</h4>
+      <ul className="plist" role="list" aria-label="Subscriptions">
+        {accounts.map((a) => <AccountRow key={a.id} account={a} onChanged={() => { reload(); onChanged(); }} />)}
+      </ul>
+    </>
+  );
+}
+
+function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged: () => void }) {
+  const api = window.mobius.providers!;
+  const [status, setStatus] = useState<AccountStatus | null>(null);
+  const [choosing, setChoosing] = useState(false);
+  const [model, setModel] = useState(a.models[0]?.id ?? '');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const device = a.kind === 'device';
+  const check = useCallback(() => { setStatus(null); void api.accountStatus(a.id).then(setStatus); }, [api, a.id]);
+  useEffect(check, [check]);
+  // A device sign-in finishes on the service's site: keep asking quietly while a code is waiting.
+  const waiting = status?.pending ?? null;
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(() => void api.accountStatus(a.id).then(setStatus), 2000);
+    return () => clearInterval(timer);
+  }, [api, a.id, waiting]);
+  useEffect(() => api.onChanged(() => void api.accountStatus(a.id).then(setStatus)), [api, a.id]);
+  const signIn = async () => {
+    const r = await api.signIn(a.id);
+    setProblem(r.ok ? null : r.error);
+    if (r.ok && device) void api.accountStatus(a.id).then(setStatus);
+  };
+  const signOut = async () => {
+    await api.signOut(a.id);
+    setChoosing(false);
+    check();
+    onChanged();
+  };
+  const use = async () => {
+    setBusy(true);
+    const r = await api.use(a.id, model);
+    setBusy(false);
+    if (!r.ok) { setProblem(r.error); return; }
+    setProblem(null); setChoosing(false); onChanged();
+  };
+  const said = status === null ? 'Checking…' : !status.installed ? 'Claude Code is not installed' : status.signedIn ? `Signed in${status.account ? ` as ${status.account}` : ''}` : waiting ? 'Waiting for you to enter the code' : 'Not signed in';
+  return (
+    <li className="prow" aria-label={a.name} data-active={a.active || undefined}>
+      <div className="prow-main">
+        <span className="prow-name">{a.name}{a.active && <span className="prow-badge">In use</span>}</span>
+        <span className="prow-note">{a.note}</span>
+      </div>
+      <span className="prow-status" role="status" data-has-key={status?.signedIn === true}>{said}</span>
+      <span className="prow-actions">
+        {status?.installed && !status.signedIn && !waiting && <button type="button" className="btn" aria-label={`Sign in to ${a.name}`} onClick={() => void signIn()}>Sign in…</button>}
+        {waiting && <button type="button" className="btn" onClick={() => void api.cancelSignIn(a.id).then(check)}>Cancel</button>}
+        {device && status?.signedIn && <button type="button" className="btn" aria-label={`Sign out of ${a.name}`} onClick={() => void signOut()}>Sign out</button>}
+        {!device && status !== null && <button type="button" className="btn" aria-label={`Check ${a.name} again`} onClick={check}>Check again</button>}
+        {status?.signedIn && !choosing && <button type="button" className="btn" aria-label={`Use ${a.name}`} onClick={() => setChoosing(true)}>Use…</button>}
+      </span>
+      {status && !status.installed && status.hint && <span className="prow-note prow-problem">{status.hint}</span>}
+      {!device && status?.installed && !status.signedIn && <span className="prow-note prow-problem">Sign in opens Claude Code's own sign-in in a window. Come back and choose Check again when it is done.</span>}
+      {waiting && (
+        <div className="prow-form device-code" aria-label="Sign-in code">
+          <span className="prow-note">Enter this code on OpenAI's sign-in page:</span>
+          <code className="device-code-value">{waiting.code}</code>
+          <button type="button" className="btn" onClick={() => void navigator.clipboard?.writeText(waiting.code)}>Copy code</button>
+          <button type="button" className="btn primary" onClick={() => void window.mobius.browser.open(waiting.url)}>Open the sign-in page</button>
+        </div>
+      )}
+      {device && !waiting && !status?.signedIn && status?.hint && <span className="field-error prow-problem" role="alert">{status.hint}</span>}
+      {choosing && (
+        <form className="prow-form" onSubmit={(e) => { e.preventDefault(); void use(); }}>
+          <select aria-label={`${a.name} model`} value={model} onChange={(e) => setModel(e.target.value)}>
+            {a.models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select>
+          <button type="submit" className="btn primary" disabled={busy || !model}>Use this model</button>
+          <button type="button" className="btn" onClick={() => { setChoosing(false); setProblem(null); }}>Cancel</button>
         </form>
       )}
       {problem && <span className="field-error prow-problem" role="alert">{problem}</span>}

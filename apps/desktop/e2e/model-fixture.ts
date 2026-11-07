@@ -2,7 +2,10 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 /** One scripted reply from a pretend model server: chunks to stream, each followed by a pause. */
-export interface ModelReply { chunks: Array<{ data: unknown; pauseMs: number }> }
+export interface ModelReply { chunks: Array<{ data: unknown; pauseMs: number }>; status?: number; error?: string }
+
+/** The server refuses the request with this status and message, like a provider does. */
+export const refuses = (status: number, message: string): ModelReply => ({ chunks: [], status, error: message });
 
 const delta = (value: object) => ({ choices: [{ index: 0, delta: value }] });
 const finish = (reason: string) => ({ choices: [{ index: 0, delta: {}, finish_reason: reason }] });
@@ -71,6 +74,11 @@ export async function startModel(replies: ModelReply[], options: ModelOptions = 
       if (!reply) {
         res.writeHead(500, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ error: { message: 'the script has no more replies' } }));
+        return;
+      }
+      if (reply.status !== undefined) {
+        res.writeHead(reply.status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: reply.error ?? 'refused' } }));
         return;
       }
       res.writeHead(200, { 'content-type': 'text/event-stream' });

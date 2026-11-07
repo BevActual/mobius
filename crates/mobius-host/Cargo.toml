@@ -12,17 +12,16 @@ mobius-store = { path = "../mobius-store" }
 mobius-browser = { path = "../mobius-browser" }
 mobius-workspace = { path = "../mobius-workspace" }
 mobius-mcp = { path = "../mobius-mcp" }
+mobius-claude = { path = "../mobius-claude" }
+mobius-agent = { path = "../mobius-agent" }
 base64 = "0.22"
 url = "2"
 ureq.workspace = true
+getrandom = "0.3"
 
 [dev-dependencies]
 tempfile = "3"
 mobius-browser = { path = "../mobius-browser", features = ["fake"] }
-
-[[bin]]
-name = "fake-mcp-server"
-path = "../mobius-mcp/src/bin/fake_mcp_server.rs"
 
 [[bin]]
 name = "fake-core"

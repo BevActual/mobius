@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/mobius-core", "crates/mobius-cored", "crates/mobius-agent", "crates/mobius-runtime", "crates/mobius-host", "crates/mobius-store", "crates/mobius-browser", "crates/mobius-shell", "crates/mobius-workspace", "crates/mobius-mcp"]
+members = ["crates/mobius-core", "crates/mobius-cored", "crates/mobius-agent", "crates/mobius-runtime", "crates/mobius-host", "crates/mobius-store", "crates/mobius-browser", "crates/mobius-shell", "crates/mobius-workspace", "crates/mobius-mcp", "crates/mobius-claude"]
 
 [workspace.package]
 version = "0.0.0"

@@ -67,7 +67,7 @@ fn register_demo_tools(core: &mut Core) -> Result<(), mobius_core::core::CoreErr
 }
 
 fn usage() -> ExitCode {
-    eprintln!("usage: mobius-cored [--db <path>] [--conversations <path>] [--models-dir <path>]... [--download-dir <path>] [--state-dir <path>] [--hub <url>] [--llama-server <path>] [--demo-tools] [--version]");
+    eprintln!("usage: mobius-cored [--db <path>] [--conversations <path>] [--models-dir <path>]... [--download-dir <path>] [--state-dir <path>] [--hub <url>] [--engine-releases <url>] [--llama-server <path>] [--claude-command <path>] [--claude-upstream <url>] [--claude-inert-mcp <path>] [--chatgpt-upstream <url>] [--demo-tools] [--version]");
     ExitCode::from(2)
 }
 
@@ -86,6 +86,8 @@ fn main() -> ExitCode {
     let mut download_dir: Option<PathBuf> = None;
     let mut llama_server: Option<PathBuf> = None;
     let mut llama_env: Vec<(String, String)> = Vec::new();
+    let mut claude = agent_rpc::ClaudeSetup::default();
+    let mut engine_releases: Option<String> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -96,6 +98,11 @@ fn main() -> ExitCode {
             "--demo-tools" => demo_tools = true,
             "--hub" => match args.next() {
                 Some(url) => hub = url,
+                None => return usage(),
+            },
+            // Tests: a pretend GitHub. Files are then only taken from that server's /download/.
+            "--engine-releases" => match args.next() {
+                Some(url) => engine_releases = Some(url),
                 None => return usage(),
             },
             "--models-dir" => match args.next() {
@@ -117,6 +124,22 @@ fn main() -> ExitCode {
             },
             "--llama-env" => match args.next().and_then(|pair| pair.split_once('=').map(|(k, v)| (k.to_owned(), v.to_owned()))) {
                 Some(pair) => llama_env.push(pair),
+                None => return usage(),
+            },
+            "--claude-command" => match args.next() {
+                Some(path) => claude.command = Some(PathBuf::from(path)),
+                None => return usage(),
+            },
+            "--claude-upstream" => match args.next() {
+                Some(url) => claude.upstream = Some(url),
+                None => return usage(),
+            },
+            "--chatgpt-upstream" => match args.next() {
+                Some(url) => claude.chatgpt_upstream = Some(url),
+                None => return usage(),
+            },
+            "--claude-inert-mcp" => match args.next() {
+                Some(path) => claude.inert_mcp = Some(PathBuf::from(path)),
                 None => return usage(),
             },
             "--conversations" => match args.next() {
@@ -192,6 +215,9 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    // Claude Code runs in a folder of its own, never a project folder.
+    claude.workdir = state_dir.as_ref().map(|d| d.join("claude-code"));
+    agent.set_claude(claude);
 
     let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).map(PathBuf::from).unwrap_or_default();
     if default_models {
@@ -199,7 +225,18 @@ fn main() -> ExitCode {
         let cache = std::env::var_os("HF_HUB_CACHE").map(PathBuf::from).unwrap_or_else(|| std::env::var_os("HF_HOME").map(|h| PathBuf::from(h).join("hub")).unwrap_or_else(|| home.join(".cache").join("huggingface").join("hub")));
         roots.push(cache);
     }
-    let mut models = Models::new(ModelsConfig { hub, roots, llama_server, llama_env, state_dir, download_dir, home }, sender.clone());
+    let engine_dir = state_dir.as_ref().map(|d| d.join("engine"));
+    let (engine_releases, engine_prefix) = match engine_releases {
+        Some(url) => {
+            let origin = url.split('/').take(3).collect::<Vec<_>>().join("/");
+            (url, format!("{origin}/download/"))
+        }
+        None => (mobius_runtime::engine::RELEASES.to_owned(), mobius_runtime::engine::DOWNLOAD_PREFIX.to_owned()),
+    };
+    let mut models = Models::new(ModelsConfig { hub, roots, llama_server, llama_env, state_dir, download_dir, home, engine_dir, engine_releases, engine_prefix }, sender.clone());
+    let windows = agent_rpc::KnownWindows::default();
+    models.share_windows(windows.clone());
+    agent.share_windows(windows);
 
     let stdout = io::stdout();
     let mut output = stdout.lock();

@@ -138,6 +138,7 @@ fn request() -> ChatRequest {
         messages: vec![Message::User { text: "hello".into() }],
         tools: vec![ToolDef { name: "demo.echo".into(), description: "Echo".into(), input_schema: json!({ "type": "object" }) }],
         effort: None,
+        max_tokens: None,
     }
 }
 

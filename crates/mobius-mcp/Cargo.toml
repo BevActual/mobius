@@ -9,6 +9,9 @@ description = "Use tools from other programs over MCP (Model Context Protocol), 
 [dependencies]
 serde_json.workspace = true
 
+[dev-dependencies]
+ureq.workspace = true
+
 [[bin]]
 name = "fake-mcp-server"
 path = "src/bin/fake_mcp_server.rs"

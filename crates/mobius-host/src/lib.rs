@@ -2,6 +2,8 @@
 //! tested against the real daemon and a scripted stand-in.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 pub mod agent;
+pub mod chatgpt;
+pub mod mcp_server;
 pub mod awake;
 pub mod bridge;
 mod mcp;

@@ -381,6 +381,7 @@ export function App() {
               onSend={(text, items) => void conversation.send(text, items)}
               onStop={conversation.stop}
               onAnswer={conversation.answer}
+              onReply={conversation.reply}
               onSaveSettings={saveSettings}
               focusToken={focusToken}
               conversations={conversation.list}
@@ -407,6 +408,7 @@ export function App() {
             onSend={(text, items) => void conversation.send(text, items)}
             onStop={conversation.stop}
             onAnswer={conversation.answer}
+              onReply={conversation.reply}
             onSaveSettings={saveSettings}
             focusToken={focusToken}
             conversations={conversation.list}

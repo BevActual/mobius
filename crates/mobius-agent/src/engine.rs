@@ -11,6 +11,7 @@ use mobius_core::permissions::ApprovalMode;
 use serde::Serialize;
 use ts_rs::TS;
 
+use crate::compaction::{self, Budget, Compaction};
 use crate::message::{Message, ToolCall};
 use crate::provider::{ChatRequest, Completion, ProviderError, ToolDef};
 use crate::review::{Verdict, parse_verdict, review_request};
@@ -36,6 +37,8 @@ pub enum Step {
     AwaitApproval { request_id: u64 },
     /// The application has to run this tool (the core has already allowed it). Report with `on_tool_result`.
     RunTool { call_id: String, name: String, arguments: serde_json::Value },
+    /// The model asked the person something. Report the answer with `on_answer`.
+    AwaitAnswer { call_id: String },
     /// Nothing to do: the turn is waiting for a model result that has not arrived yet.
     Idle,
     Done,
@@ -59,9 +62,78 @@ pub enum AgentEvent {
         /// The answer can only be "allow once": there is no standing approval for this kind of action.
         once_only: bool,
     },
+    /// The model's plan for this task, the whole list each time it changes.
+    Todo { items: Vec<TodoItem> },
+    /// The model asks the person something and waits for the answer.
+    Question { call_id: String, question: String, choices: Vec<String> },
+    /// Earlier messages were summarised to make room in the model's window. The transcript itself is unchanged.
+    Compacted {
+        #[ts(type = "number")]
+        messages: usize,
+    },
     Done,
     Failed { message: String },
     Cancelled,
+}
+
+/// One step of the model's plan. `status` is `pending`, `in_progress` or `done`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct TodoItem {
+    pub text: String,
+    pub status: String,
+}
+
+/// The tools the engine itself answers. They change nothing outside the conversation, so they need no permission.
+pub const TODO_TOOL: &str = "todo.write";
+pub const ASK_TOOL: &str = "ask.person";
+const MAX_TODO_ITEMS: usize = 50;
+const MAX_TODO_TEXT: usize = 300;
+const MAX_QUESTION: usize = 1000;
+const MAX_CHOICES: usize = 6;
+const MAX_CHOICE: usize = 200;
+
+fn own_tools() -> Vec<ToolDef> {
+    vec![
+        ToolDef {
+            name: TODO_TOOL.into(),
+            description: "Keep a short plan for a task with several steps, so the person can follow along. Send the whole list each time; mark one step in_progress while you work on it and done when it is finished. Not for simple one-step requests.".into(),
+            input_schema: serde_json::json!({ "type": "object", "properties": { "items": { "type": "array", "maxItems": MAX_TODO_ITEMS, "items": { "type": "object", "properties": { "text": { "type": "string" }, "status": { "type": "string", "enum": ["pending", "in_progress", "done"] } }, "required": ["text", "status"] } } }, "required": ["items"] }),
+        },
+        ToolDef {
+            name: ASK_TOOL.into(),
+            description: "Ask the person a question and wait for the answer, when you cannot go on without a decision only they can make. Offer choices when there are a few clear options; they can always answer in their own words.".into(),
+            input_schema: serde_json::json!({ "type": "object", "properties": { "question": { "type": "string" }, "choices": { "type": "array", "maxItems": MAX_CHOICES, "items": { "type": "string" } } }, "required": ["question"] }),
+        },
+    ]
+}
+
+fn parse_todo(args: &serde_json::Value) -> Result<Vec<TodoItem>, String> {
+    let items = args.get("items").and_then(serde_json::Value::as_array).ok_or("items must be a list")?;
+    if items.len() > MAX_TODO_ITEMS {
+        return Err(format!("a plan has at most {MAX_TODO_ITEMS} steps"));
+    }
+    items
+        .iter()
+        .map(|item| {
+            let text = item.get("text").and_then(serde_json::Value::as_str).map(str::trim).filter(|t| !t.is_empty() && t.chars().count() <= MAX_TODO_TEXT).ok_or("each step needs text of up to 300 characters")?;
+            let status = item.get("status").and_then(serde_json::Value::as_str).filter(|s| matches!(*s, "pending" | "in_progress" | "done")).ok_or("status must be pending, in_progress or done")?;
+            Ok(TodoItem { text: text.to_owned(), status: status.to_owned() })
+        })
+        .collect()
+}
+
+fn parse_question(args: &serde_json::Value) -> Result<(String, Vec<String>), String> {
+    let question = args.get("question").and_then(serde_json::Value::as_str).map(str::trim).filter(|q| !q.is_empty() && q.chars().count() <= MAX_QUESTION).ok_or("question must be text of up to 1000 characters")?;
+    let choices = match args.get("choices") {
+        None | Some(serde_json::Value::Null) => Vec::new(),
+        Some(serde_json::Value::Array(list)) if list.len() <= MAX_CHOICES => list
+            .iter()
+            .map(|c| c.as_str().map(str::trim).filter(|c| !c.is_empty() && c.chars().count() <= MAX_CHOICE).map(str::to_owned).ok_or_else(|| "each choice must be short text".to_owned()))
+            .collect::<Result<_, _>>()?,
+        Some(_) => return Err(format!("choices must be a list of at most {MAX_CHOICES}")),
+    };
+    Ok((question.to_owned(), choices))
 }
 
 struct Parked {
@@ -93,11 +165,28 @@ pub struct Turn {
     steps: u32,
     parked: Option<Parked>,
     dispatched: Option<Dispatched>,
+    /// A question to the person, waiting for the answer.
+    asking: Option<Dispatched>,
     events: Vec<AgentEvent>,
     finished: bool,
+    compaction: Option<Compaction>,
+    /// The model is writing a summary of everything before this index, not answering.
+    summarizing: Option<usize>,
+    /// A request was refused as too long once already in this turn.
+    overflow_retried: bool,
 }
 
 impl Turn {
+    /// How the conversation is shortened for the model, if it is.
+    pub fn compaction(&self) -> Option<&Compaction> {
+        self.compaction.as_ref()
+    }
+
+    /// The model call in flight is writing a summary, so its text is not part of the answer.
+    pub fn is_summarizing(&self) -> bool {
+        self.summarizing.is_some()
+    }
+
     pub fn messages(&self) -> &[Message] {
         &self.messages
     }
@@ -129,6 +218,11 @@ impl Turn {
         self.parked.as_ref().map(|p| &p.call)
     }
 
+    /// The question the model is waiting for the person to answer, if any.
+    pub fn asking(&self) -> Option<&ToolCall> {
+        self.asking.as_ref().map(|d| &d.call)
+    }
+
     /// The call the application is running, if any.
     pub fn dispatched_call(&self) -> Option<&ToolCall> {
         self.dispatched.as_ref().map(|d| &d.call)
@@ -149,11 +243,22 @@ enum Executed {
 pub struct Engine {
     config: EngineConfig,
     effort: Option<String>,
+    budget: Budget,
 }
 
 impl Engine {
     pub fn new(config: EngineConfig) -> Self {
-        Engine { config, effort: None }
+        Engine { config, effort: None, budget: Budget::default() }
+    }
+
+    /// The model's context window in tokens, when known; otherwise a common size is assumed and a request the
+    /// provider refuses as too long makes room and is tried once more.
+    pub fn set_context_window(&mut self, tokens: Option<usize>) {
+        self.budget = tokens.map_or_else(Budget::default, Budget::with_context);
+    }
+
+    pub fn budget(&self) -> Budget {
+        self.budget
     }
 
     /// How hard the model is asked to think from now on: `low`, `medium` or `high`, or none for the model's own way.
@@ -166,9 +271,15 @@ impl Engine {
     }
 
     /// Like `start`, for a turn that uses its own instructions or model.
-    pub fn start_with(&self, core: &Core, mut history: Vec<Message>, user_text: &str, id: u64, setup: TurnSetup) -> (Turn, Step) {
+    pub fn start_with(&self, core: &Core, history: Vec<Message>, user_text: &str, id: u64, setup: TurnSetup) -> (Turn, Step) {
+        self.start_from(core, history, None, user_text, id, setup)
+    }
+
+    /// Like `start_with`, for a conversation that was already shortened for the model.
+    pub fn start_from(&self, core: &Core, mut history: Vec<Message>, compaction: Option<Compaction>, user_text: &str, id: u64, setup: TurnSetup) -> (Turn, Step) {
+        let compaction = compaction.filter(|c| c.covers < history.len() && !matches!(history[c.covers], Message::Tool { .. }));
         history.push(Message::User { text: user_text.to_owned() });
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, events: Vec::new(), finished: false };
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false };
         let step = self.next_model_call(core, &mut turn);
         (turn, step)
     }
@@ -177,7 +288,17 @@ impl Engine {
         if turn.finished {
             return Step::Done;
         }
+        if let Some(tail) = turn.summarizing.take() {
+            return self.on_summary(turn, core, tail, result);
+        }
         match result {
+            Err(error) if compaction::is_context_overflow(&error) && !turn.overflow_retried => {
+                turn.overflow_retried = true;
+                match self.make_room(core, turn, true) {
+                    Some(step) => step,
+                    None => self.fail(turn, error.to_string()),
+                }
+            }
             Err(error) => self.fail(turn, error.to_string()),
             Ok(completion) => {
                 if !completion.text.is_empty() {
@@ -209,6 +330,21 @@ impl Engine {
         };
         self.push_result(turn, &dispatched.call, content, is_error);
         self.run_calls(turn, core, dispatched.remaining, true)
+    }
+
+    /// The person answered the model's question. Ignored unless it is the question this turn is waiting on.
+    pub fn on_answer(&self, turn: &mut Turn, core: &mut Core, call_id: &str, answer: &str) -> Step {
+        if turn.finished {
+            return Step::Done;
+        }
+        match &turn.asking {
+            None => return Step::Idle,
+            Some(asking) if asking.call.id != call_id => return Step::AwaitAnswer { call_id: asking.call.id.clone() },
+            Some(_) => {}
+        }
+        let Some(asking) = turn.asking.take() else { return Step::Idle };
+        self.push_result(turn, &asking.call, truncate(format!("The person answered: {}", answer.trim())), false);
+        self.run_calls(turn, core, asking.remaining, true)
     }
 
     /// A person answered question `request_id`. Ignored unless this turn is waiting on exactly that question.
@@ -246,7 +382,7 @@ impl Engine {
         if turn.finished {
             return;
         }
-        let open: Vec<ToolCall> = match (turn.parked.take(), turn.dispatched.take()) {
+        let open: Vec<ToolCall> = match (turn.parked.take(), turn.dispatched.take().or_else(|| turn.asking.take())) {
             (Some(parked), _) => std::iter::once(parked.call).chain(parked.remaining).collect(),
             (None, Some(dispatched)) => std::iter::once(dispatched.call).chain(dispatched.remaining).collect(),
             (None, None) => Vec::new(),
@@ -262,14 +398,67 @@ impl Engine {
         if turn.steps >= self.config.max_steps {
             return self.fail(turn, format!("stopped after too many steps ({})", self.config.max_steps));
         }
+        if let Some(step) = self.make_room(core, turn, false) {
+            return step;
+        }
+        self.call_model(core, turn)
+    }
+
+    fn call_model(&self, core: &Core, turn: &mut Turn) -> Step {
         turn.steps += 1;
-        Step::CallModel(ChatRequest {
-            model: turn.setup.model.clone().unwrap_or_else(|| self.config.model.clone()),
+        Step::CallModel(self.request(core, turn))
+    }
+
+    fn model_of(&self, turn: &Turn) -> String {
+        turn.setup.model.clone().unwrap_or_else(|| self.config.model.clone())
+    }
+
+    fn request(&self, core: &Core, turn: &Turn) -> ChatRequest {
+        ChatRequest {
+            model: self.model_of(turn),
             system: turn.setup.system.clone().unwrap_or_else(|| self.config.system.clone()),
-            messages: turn.messages.clone(),
-            tools: core.tools().into_iter().map(|t| ToolDef { name: t.name, description: t.description, input_schema: t.input_schema }).collect(),
+            messages: compaction::view(&turn.messages, turn.compaction.as_ref()),
+            tools: core.tools().into_iter().map(|t| ToolDef { name: t.name, description: t.description, input_schema: t.input_schema }).chain(own_tools()).collect(),
             effort: self.effort.clone(),
-        })
+            max_tokens: None,
+        }
+    }
+
+    /// When the next request would be too big for the window: drop old tool output, and if that is not enough, ask
+    /// the model for a summary (returned as the step to take). `force` is for a request the provider already refused.
+    fn make_room(&self, core: &Core, turn: &mut Turn, force: bool) -> Option<Step> {
+        let request = self.request(core, turn);
+        let size = compaction::tokens_of(&request.system, &request.messages, &request.tools);
+        let limit = self.budget.limit();
+        if !force && size <= limit {
+            return None;
+        }
+        let current = turn.compaction.clone().unwrap_or(Compaction { covers: 0, summary: String::new(), pruned_before: 0 });
+        // After a refusal the window is smaller than assumed: keep a tail that is a part of what was refused.
+        let tail_budget = if force { self.budget.tail().min(size / 4) } else { self.budget.tail() };
+        let tail = compaction::tail_start(&turn.messages, current.covers, tail_budget)?;
+        let pruned = Compaction { pruned_before: current.pruned_before.max(tail), ..current.clone() };
+        let pruned_size = compaction::tokens_of(&request.system, &compaction::view(&turn.messages, Some(&pruned)), &request.tools);
+        if !force && pruned_size <= limit * 3 / 4 {
+            turn.compaction = Some(pruned);
+            return None;
+        }
+        turn.summarizing = Some(tail);
+        let previous = (!current.summary.is_empty()).then_some(current.summary.as_str());
+        Some(Step::CallModel(compaction::summary_request(&self.model_of(turn), previous, &turn.messages[current.covers..tail], &self.budget)))
+    }
+
+    /// The model wrote the summary (or failed to: then a plain list takes its place). Carry on with the real call.
+    fn on_summary(&self, turn: &mut Turn, core: &Core, tail: usize, result: Result<Completion, ProviderError>) -> Step {
+        let current = turn.compaction.clone().unwrap_or(Compaction { covers: 0, summary: String::new(), pruned_before: 0 });
+        let previous = (!current.summary.is_empty()).then_some(current.summary.as_str());
+        let summary = match result {
+            Ok(c) if !c.text.trim().is_empty() && c.tool_calls.is_empty() => c.text.trim().to_owned(),
+            _ => compaction::fallback_summary(previous, &turn.messages[current.covers..tail]),
+        };
+        turn.compaction = Some(Compaction { covers: tail, summary, pruned_before: current.pruned_before.max(tail) });
+        turn.events.push(AgentEvent::Compacted { messages: tail - current.covers });
+        self.call_model(core, turn)
     }
 
     fn run_calls(&self, turn: &mut Turn, core: &mut Core, mut queue: VecDeque<ToolCall>, mut announce: bool) -> Step {
@@ -278,6 +467,32 @@ impl Engine {
                 turn.events.push(AgentEvent::ToolCall { call_id: call.id.clone(), name: call.name.clone() });
             }
             announce = true;
+            if call.name == TODO_TOOL {
+                match parse_todo(&call.arguments) {
+                    Ok(items) => {
+                        let done = items.iter().filter(|i| i.status == "done").count();
+                        let summary = format!("Plan updated: {done} of {} done.", items.len());
+                        turn.events.push(AgentEvent::Todo { items });
+                        self.push_result(turn, &call, summary, false);
+                    }
+                    Err(message) => self.push_result(turn, &call, message, true),
+                }
+                continue;
+            }
+            if call.name == ASK_TOOL {
+                match parse_question(&call.arguments) {
+                    Ok((question, choices)) => {
+                        turn.events.push(AgentEvent::Question { call_id: call.id.clone(), question, choices });
+                        let call_id = call.id.clone();
+                        turn.asking = Some(Dispatched { call, remaining: queue });
+                        return Step::AwaitAnswer { call_id };
+                    }
+                    Err(message) => {
+                        self.push_result(turn, &call, message, true);
+                        continue;
+                    }
+                }
+            }
             match self.execute(core, &call) {
                 Executed::Result { content, is_error } => self.push_result(turn, &call, content, is_error),
                 Executed::Dispatch => {

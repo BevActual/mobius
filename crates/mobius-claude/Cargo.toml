@@ -1,0 +1,27 @@
+[package]
+name = "mobius-claude"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Use a Claude Pro/Max subscription through the official Claude Code CLI, with Mobius owning tools and approvals."
+license = "MIT"
+
+[dependencies]
+mobius-agent = { path = "../mobius-agent" }
+serde_json.workspace = true
+ureq.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[[bin]]
+name = "mobius-inert-mcp"
+path = "src/bin/inert_mcp.rs"
+
+[[bin]]
+name = "fake-claude"
+path = "src/bin/fake_claude.rs"
+
+[lints]
+workspace = true

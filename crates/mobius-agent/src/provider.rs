@@ -21,7 +21,13 @@ pub struct ChatRequest {
     pub tools: Vec<ToolDef>,
     /// How hard the model should think (`low`, `medium` or `high`), when the person chose. Models that do not reason ignore it.
     pub effort: Option<String>,
+    /// The most the answer may be, in tokens, when it must be bounded (a summary). Otherwise the server decides.
+    pub max_tokens: Option<u32>,
 }
+
+/// An `effort` that asks the model not to reason at all, for short mechanical work such as a summary. Sent only to a
+/// server on this computer (llama.cpp, vLLM understand it); other providers just do not get an effort.
+pub const NO_REASONING: &str = "none";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StopReason {

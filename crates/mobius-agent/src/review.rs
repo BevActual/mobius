@@ -40,7 +40,7 @@ pub fn review_request(model: &str, call: &ToolCall) -> ChatRequest {
     let text = format!(
         "A tool call was stopped for review.\n\n<call>\ntool: {name}\narguments: {arguments}\n</call>\n\nAssess the ACTUAL risk of what this call would do. Respond with exactly one word: APPROVE, DENY, or ESCALATE"
     );
-    ChatRequest { model: model.to_owned(), system: SYSTEM.to_owned(), messages: vec![Message::User { text }], tools: Vec::new(), effort: None }
+    ChatRequest { model: model.to_owned(), system: SYSTEM.to_owned(), messages: vec![Message::User { text }], tools: Vec::new(), effort: None, max_tokens: None }
 }
 
 /// The reviewer's answer as a verdict. Only the bare word counts, in any case and with trailing punctuation.

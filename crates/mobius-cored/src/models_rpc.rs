@@ -8,6 +8,7 @@ use mobius_core::core::Core;
 use mobius_core::rpc::{Extension, ExtensionError, params_as};
 use mobius_runtime::discover::discover;
 use mobius_runtime::download::{DownloadError, Options as DownloadOptions, Progress, download};
+use mobius_runtime::engine::{self, EngineError};
 use mobius_runtime::fit::assess;
 use mobius_runtime::hardware;
 use mobius_runtime::hub::{HubClient, files_of_model, safe_file_path, valid_repo_id};
@@ -34,6 +35,11 @@ pub struct ModelsConfig {
     /// Where downloaded models are kept.
     pub download_dir: Option<PathBuf>,
     pub home: PathBuf,
+    /// Where Mobius keeps the llama.cpp engine it installs.
+    pub engine_dir: Option<PathBuf>,
+    /// Where releases are listed, and the only place files may come from (tests use a local server).
+    pub engine_releases: String,
+    pub engine_prefix: String,
 }
 
 struct Active {
@@ -50,6 +56,9 @@ pub struct Models {
     /// The download in progress: its job and the switch that stops it.
     download: Option<(String, Arc<AtomicBool>)>,
     active: Option<Active>,
+    windows: crate::agent_rpc::KnownWindows,
+    /// The engine install in progress: its job and the switch that stops it.
+    engine_job: Option<(String, Arc<AtomicBool>)>,
 }
 
 #[derive(Deserialize)]
@@ -93,8 +102,13 @@ fn runtime_error(error: &RuntimeError) -> ExtensionError {
 }
 
 impl Models {
+    /// Tell the agent the context window of each server started here.
+    pub fn share_windows(&mut self, windows: crate::agent_rpc::KnownWindows) {
+        self.windows = windows;
+    }
+
     pub fn new(config: ModelsConfig, inbox: SyncSender<Inbox>) -> Self {
-        let models = Models { config, inbox, jobs_running: Arc::new(AtomicUsize::new(0)), next_job: 1, download: None, active: None };
+        let models = Models { config, inbox, jobs_running: Arc::new(AtomicUsize::new(0)), next_job: 1, download: None, active: None, windows: crate::agent_rpc::KnownWindows::default(), engine_job: None };
         // A server left over from a daemon that was killed would hold the graphics memory.
         if let Some(file) = models.pid_file() {
             reap_stale(&file, &models.program_name());
@@ -107,13 +121,86 @@ impl Models {
     }
 
     fn binary(&self) -> Option<PathBuf> {
-        match &self.config.llama_server {
-            Some(path) => path.is_file().then(|| path.clone()),
-            None => {
-                let path_dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
-                locate_binary(&default_binary_candidates(&self.config.home, std::env::var_os("MOBIUS_LLAMA_SERVER").map(PathBuf::from), &path_dirs))
-            }
+        self.binary_and_source().map(|(path, _)| path)
+    }
+
+    /// The `llama-server` to run, and why: one the person set, the engine Mobius installed, or one on PATH.
+    fn binary_and_source(&self) -> Option<(PathBuf, &'static str)> {
+        if let Some(path) = &self.config.llama_server {
+            return path.is_file().then(|| (path.clone(), "setting"));
         }
+        if let Some(path) = std::env::var_os("MOBIUS_LLAMA_SERVER").map(PathBuf::from).filter(|p| p.is_file()) {
+            return Some((path, "setting"));
+        }
+        if let Some(found) = self.config.engine_dir.as_deref().and_then(engine::installed) {
+            return Some((found.server, "mobius"));
+        }
+        let path_dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+        locate_binary(&default_binary_candidates(&self.config.home, None, &path_dirs)).map(|p| (p, "found"))
+    }
+
+    /// What the window shows about the engine: what is used, what Mobius installed, and what it would install.
+    fn engine_status(&self) -> Value {
+        let recommended = engine::pick_backend(engine::nvidia_driver());
+        let installed = self.config.engine_dir.as_deref().and_then(engine::installed);
+        let using = self.binary_and_source();
+        json!({
+            "supported": engine::platform().is_some(),
+            "recommended": { "backend": recommended, "label": recommended.label() },
+            "installed": installed.map(|i| json!({ "tag": i.tag, "backend": i.backend, "label": i.backend.label(), "devices": i.devices })),
+            "using": using.as_ref().map(|(path, source)| json!({ "path": path.to_string_lossy(), "source": source })),
+            "installing": self.engine_job.as_ref().map(|(job, _)| job),
+        })
+    }
+
+    /// Install (or update to) the newest official llama.cpp build for this computer, as a background job.
+    fn install_engine(&mut self) -> Result<Value, ExtensionError> {
+        let Some(platform) = engine::platform() else {
+            return Err(ExtensionError::application("unsupported", &EngineError::Unsupported.to_string()));
+        };
+        let Some(dir) = self.config.engine_dir.clone() else {
+            return Err(ExtensionError::application("no_folder", "there is no folder to keep the engine in"));
+        };
+        if self.engine_job.is_some() {
+            return Err(ExtensionError::application("busy", "the engine is already being installed"));
+        }
+        if self.active.is_some() {
+            return Err(ExtensionError::application("busy", "stop the model that is running first"));
+        }
+        let job = format!("j{}", self.next_job);
+        self.next_job += 1;
+        let cancel = Arc::new(AtomicBool::new(false));
+        let progress = Arc::new(Progress::default());
+        let finished = Arc::new(AtomicBool::new(false));
+        self.engine_job = Some((job.clone(), cancel.clone()));
+        {
+            let (inbox, progress, finished, job) = (self.inbox.clone(), progress.clone(), finished.clone(), job.clone());
+            std::thread::spawn(move || {
+                while !finished.load(Ordering::SeqCst) {
+                    std::thread::sleep(std::time::Duration::from_millis(400));
+                    let note = json!({ "jsonrpc": "2.0", "method": "models.progress", "params": { "job": job, "done": progress.done(), "total": progress.total() } });
+                    if finished.load(Ordering::SeqCst) || inbox.send(Inbox::Notify(note)).is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+        let (releases, prefix, inbox, id) = (self.config.engine_releases.clone(), self.config.engine_prefix.clone(), self.inbox.clone(), job.clone());
+        std::thread::spawn(move || {
+            let result = (|| -> Result<Value, EngineError> {
+                let backend = engine::pick_backend(engine::nvidia_driver());
+                let plan = engine::plan(&engine::fetch_releases(&releases)?, platform, backend, &prefix)?;
+                if let Some(current) = engine::installed(&dir).filter(|i| i.tag == plan.tag && i.backend == plan.backend).and_then(|_| engine::recheck(&dir)) {
+                    return Ok(json!({ "tag": current.tag, "backend": current.backend, "label": current.backend.label(), "devices": current.devices, "up_to_date": true }));
+                }
+                let installed = engine::install(&plan, &dir, &progress, &cancel, None)?;
+                Ok(json!({ "tag": installed.tag, "backend": installed.backend, "label": installed.backend.label(), "devices": installed.devices, "up_to_date": false }))
+            })()
+            .map_err(|e| e.to_string());
+            finished.store(true, Ordering::SeqCst);
+            inbox.send(Inbox::Job { job: id, result }).ok();
+        });
+        Ok(json!({ "job": job }))
     }
 
     fn program_name(&self) -> String {
@@ -128,6 +215,9 @@ impl Models {
     pub fn on_job(&mut self, job: &str, result: &Result<Value, String>) -> Value {
         if self.download.as_ref().is_some_and(|(id, _)| id == job) {
             self.download = None;
+        }
+        if self.engine_job.as_ref().is_some_and(|(id, _)| id == job) {
+            self.engine_job = None;
         }
         let params = match result {
             Ok(value) => json!({ "job": job, "ok": true, "result": value }),
@@ -214,8 +304,8 @@ impl Models {
 
     fn cancel(&mut self, params: Option<&Value>) -> Result<Value, ExtensionError> {
         let params: CancelParams = params_as(params)?;
-        match &self.download {
-            Some((job, cancel)) if *job == params.job => {
+        match (&self.download, &self.engine_job) {
+            (Some((job, cancel)), _) | (_, Some((job, cancel))) if *job == params.job => {
                 cancel.store(true, Ordering::SeqCst);
                 Ok(json!({}))
             }
@@ -245,6 +335,10 @@ impl Models {
         }
         let name = model.file.strip_suffix(".gguf").or_else(|| model.file.strip_suffix(".GGUF")).unwrap_or(&model.file).to_owned();
         let result = json!({ "base_url": runtime.base_url(), "model": name });
+        if let Ok(mut windows) = self.windows.lock() {
+            windows.clear();
+            windows.insert(runtime.base_url().trim_end_matches('/').to_owned(), context as usize);
+        }
         self.active = Some(Active { runtime, model_id: model.id, model: name });
         Ok(result)
     }
@@ -289,6 +383,8 @@ impl Extension for Models {
             "models.download" => self.download(params),
             "models.cancel" => self.cancel(params),
             "models.status" => Ok(self.status()),
+            "models.engine" => Ok(self.engine_status()),
+            "models.install_engine" => self.install_engine(),
             "models.start" => self.start(params),
             "models.stop" => {
                 self.stop();

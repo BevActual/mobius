@@ -137,6 +137,12 @@ export interface NotesChange { path: string | null; by: 'person' | 'assistant' }
 export const isNotesFailure = (value: unknown): value is NotesFailure =>
   typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === false;
 
+/** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
+export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'device'; models: Array<{ id: string; label: string }> }
+/** A device sign-in waiting for the person to enter `code` at `url`. */
+export interface PendingSignIn { code: string; url: string }
+export interface AccountStatus { installed: boolean; signedIn: boolean; version?: string | null; account?: string | null; hint?: string | null; active?: boolean; pending?: PendingSignIn | null }
+
 /** A model provider in Settings > Providers. The key itself is never sent to the window. */
 export interface ProviderInfo {
   id: string;
@@ -179,6 +185,9 @@ export interface MobiusBridge {
     cancel(conversation: string): Promise<void>;
     history(conversation: string): Promise<Message[]>;
     waiting(conversation: string): Promise<AgentWaiting[]>;
+    /** The question the model is waiting on in this conversation, if any. */
+    question(conversation: string): Promise<AgentQuestion | null>;
+    answer(conversation: string, callId: string, text: string): Promise<AgentResult>;
     conversations(): Promise<ConversationInfo[]>;
     deleteConversation(conversation: string): Promise<AgentResult>;
     /** Only the Tauri shell has these two: put a conversation away (or bring it back), and list the ones put away. */
@@ -219,6 +228,14 @@ export interface MobiusBridge {
     /** Run a model on this computer. `context` is one of CONTEXT_SIZES; leave it out for the default. */
     start(id: string, context?: number): Promise<ModelsResult>;
     stop(): Promise<ModelsResult>;
+    /** The engine models run on, or null when the core cannot be asked. */
+    engine(): Promise<EngineStatus | null>;
+    /** Install or update Mobius's own llama.cpp. Resolves when done; progress arrives as `engine` events. */
+    installEngine(): Promise<{ ok: true; upToDate: boolean } | { ok: false; error: string }>;
+    cancelEngine(): Promise<void>;
+    /** Whether the model run last time starts again when Mobius opens. */
+    autostart(): Promise<{ enabled: boolean; modelId: string | null }>;
+    setAutostart(on: boolean): Promise<ModelsResult>;
     onEvent(listener: (event: ModelsEvent) => void): () => void;
   };
   bookmarks: {
@@ -231,12 +248,28 @@ export interface MobiusBridge {
   };
   /** Settings > Providers. Only the Tauri shell has it. */
   providers?: {
+    /** Plans you sign in to instead of pasting a key (the Claude subscription, through Claude Code). */
+    accounts(): Promise<AccountInfo[]>;
+    /** Asks the service's own app; can take a second or two. */
+    accountStatus(id: string): Promise<AccountStatus>;
+    /** Opens the service's own sign-in, or (device sign-in) gives the code to enter. */
+    signIn(id: string): Promise<AgentResult<Partial<PendingSignIn>>>;
+    cancelSignIn(id: string): Promise<void>;
+    signOut(id: string): Promise<void>;
     list(): Promise<ProviderInfo[]>;
     setKey(id: string, key: string): Promise<{ ok: true; storage: 'keychain' | 'session' } | { ok: false; error: string }>;
     removeKey(id: string): Promise<void>;
     models(id: string): Promise<{ ok: true; models: string[] } | { ok: false; error: string }>;
     use(id: string, model: string): Promise<AgentResult>;
     onChanged(listener: () => void): () => void;
+  };
+  /** Other apps using Mobius's tools over MCP. Only the Tauri shell has it. */
+  share?: {
+    status(): Promise<ShareStatus>;
+    set(change: { enabled?: boolean; allowChanges?: boolean; port?: number }): Promise<AgentResult>;
+    /** The token to paste into the other app; null while sharing is off. */
+    token(): Promise<string | null>;
+    renewToken(): Promise<AgentResult>;
   };
   /** The Notes app. Only the Tauri shell has it. */
   notes?: {
@@ -352,7 +385,20 @@ export interface RuntimeInfo {
 }
 export interface RuntimeSnapshot { binary: string | null; runtime: RuntimeInfo | null }
 
+/** The program that runs local models (llama.cpp's llama-server). */
+export interface EngineStatus {
+  /** Mobius can install its own engine here (64-bit Windows for now). */
+  supported: boolean;
+  /** The build Mobius would install for this computer, for example "NVIDIA (CUDA 12)". */
+  recommended: string;
+  installed: { tag: string; label: string; devices: string[] } | null;
+  /** The program in use: one the person set, Mobius's own, or one found on the computer. */
+  using: { source: 'setting' | 'mobius' | 'found'; path: string } | null;
+  installing: boolean;
+}
+
 export type ModelsEvent =
+  | { kind: 'engine'; state: 'started' | 'progress' | 'finished' | 'failed'; done?: number; total?: number; error?: string }
   | { kind: 'progress'; job: string; done: number; total: number }
   | { kind: 'download'; state: 'started' | 'finished' | 'failed'; repo: string; file: string; error?: string }
   | { kind: 'runtime'; snapshot: RuntimeSnapshot };
@@ -574,6 +620,13 @@ export function parseConfigureRequest(value: unknown): AgentConfigureRequest | n
   return request;
 }
 
+/** Settings > Advanced > Other apps. */
+export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }
+
+/** A question the model put to the person. */
+export interface AgentQuestion { callId: string; question: string; choices: string[] }
+
+const TODO_STATUSES = ['pending', 'in_progress', 'done'];
 const isCount = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 
 function validEvent(event: unknown): event is AgentEvent {
@@ -584,6 +637,9 @@ function validEvent(event: unknown): event is AgentEvent {
     case 'tool_result': return isString(event.call_id) && isString(event.name) && typeof event.is_error === 'boolean';
     case 'needs_approval': return isCount(event.request_id) && isString(event.call_id) && isString(event.tool) && 'arguments' in event && (event.once_only === undefined || typeof event.once_only === 'boolean');
     case 'failed': return isString(event.message);
+    case 'compacted': return isCount(event.messages);
+    case 'todo': return Array.isArray(event.items) && event.items.length <= 50 && event.items.every((i: unknown) => isObject(i) && isString(i.text) && i.text.length <= 300 && TODO_STATUSES.includes(i.status as string));
+    case 'question': return isString(event.call_id) && isString(event.question) && event.question.length > 0 && event.question.length <= 1000 && Array.isArray(event.choices) && event.choices.length <= 6 && event.choices.every((c: unknown) => isString(c) && c.length <= 200);
     case 'done':
     case 'cancelled': return true;
     default: return false;

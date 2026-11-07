@@ -411,7 +411,7 @@ mod browser {
 
     #[test]
     fn tools_of_configured_mcp_servers_are_registered_with_the_core_and_can_be_run() {
-        let dir = dir_with_mcp(json!({ "fake": { "command": env!("CARGO_BIN_EXE_fake-mcp-server") }, "broken": { "command": "definitely-not-a-program-xyz" } }));
+        let dir = dir_with_mcp(json!({ "fake": { "command": fake_bin("mobius-mcp", "fake-mcp-server") }, "broken": { "command": "definitely-not-a-program-xyz" } }));
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
         let start = Instant::now();
@@ -961,4 +961,57 @@ fn redirecting_a_provider_needs_the_test_hooks() {
     b.redirect_provider_for_tests("openai", "http://127.0.0.1:9/v1");
     assert_eq!(call(&b, "providers", "list", json!([]))[0]["baseUrl"], "https://api.openai.com/v1");
     assert_eq!(b.provider_address("openai").as_deref(), Some("https://api.openai.com/v1"));
+}
+
+#[test]
+fn the_claude_subscription_signs_in_through_its_own_app_and_is_used_without_a_key() {
+    let (b, core, _e, _d) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.use_claude_for_tests(&fake_claude());
+    let accounts = call(&b, "providers", "accounts", json!([]));
+    assert_eq!(accounts[0]["id"], "claude-code");
+    assert!(accounts[0]["note"].as_str().unwrap().contains("allowance"));
+    assert!(accounts[0]["models"].as_array().unwrap().iter().any(|m| m["id"] == "sonnet"));
+    let status = call(&b, "providers", "accountStatus", json!(["claude-code"]));
+    assert_eq!((status["installed"].as_bool(), status["signedIn"].as_bool(), status["account"].as_str(), status["version"].as_str()), (Some(true), Some(true), Some("person@example.com"), Some("9.9.9")));
+    assert_eq!(call(&b, "providers", "signIn", json!(["claude-code"]))["ok"], true);
+    assert!(b.sign_ins_for_tests()[0].ends_with("auth login"), "{:?}", b.sign_ins_for_tests());
+    assert_eq!(call(&b, "providers", "signIn", json!(["nope"]))["ok"], false);
+    for bad in [json!(["claude-code", "gpt-4o"]), json!(["claude-code", ""]), json!(["claude-code"])] {
+        assert_eq!(call(&b, "providers", "use", bad.clone())["ok"], false, "{bad}");
+    }
+    assert_eq!(call(&b, "providers", "use", json!(["claude-code", "sonnet"]))["ok"], true);
+    let settings = call(&b, "agent", "getSettings", json!([]));
+    assert_eq!((settings["baseUrl"].as_str(), settings["model"].as_str(), settings["hasKey"].as_bool()), (Some("claude-code://subscription"), Some("sonnet"), Some(false)));
+    assert_eq!(call(&b, "providers", "accountStatus", json!(["claude-code"]))["active"], true);
+    assert!(call(&b, "agent", "models", json!([]))["models"].as_array().unwrap().contains(&json!("opus")));
+    let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
+    let configure = log.as_array().unwrap().iter().rev().find(|c| c["method"] == "agent.configure").unwrap().clone();
+    assert_eq!(configure["params"]["base_url"], "claude-code://subscription");
+    assert!(configure["params"].get("api_key").is_none_or(serde_json::Value::is_null), "no key goes with it");
+}
+
+#[test]
+fn without_the_test_hooks_a_fake_claude_cannot_be_set() {
+    let (b, _c, _e, _d) = bridge_in(tempfile::tempdir().unwrap());
+    b.use_claude_for_tests(&fake_claude());
+    let status = call(&b, "providers", "accountStatus", json!(["claude-code"]));
+    assert_ne!(status["version"], "9.9.9", "the fake was ignored");
+}
+
+/// The stand-in Claude Code CLI from mobius-claude.
+fn fake_claude() -> std::path::PathBuf {
+    std::path::PathBuf::from(fake_bin("mobius-claude", "fake-claude"))
+}
+
+/// A test program that belongs to another crate, built on first use. (Declaring it here as well would make two
+/// crates write the same file, which breaks parallel builds on Windows.)
+fn fake_bin(package: &str, bin: &str) -> String {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _held = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
+    let ok = std::process::Command::new(cargo).current_dir(&root).args(["build", "-q", "-p", package, "--bin", bin]).status().is_ok_and(|s| s.success());
+    assert!(ok, "could not build {bin}");
+    root.join("target/debug").join(if cfg!(windows) { format!("{bin}.exe") } else { bin.to_owned() }).display().to_string()
 }

@@ -147,6 +147,15 @@ pub struct Bridge {
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
     providers: crate::providers::Providers,
+    /// The Claude Code CLI to use; tests set a fake one.
+    claude_command: Mutex<Option<PathBuf>>,
+    /// Other apps using Mobius's tools over MCP.
+    mcp_server: crate::mcp_server::McpServer,
+    /// The ChatGPT sign-in; tests point it at a pretend OpenAI.
+    chatgpt: Arc<Mutex<Arc<crate::chatgpt::ChatGpt>>>,
+    secrets: Arc<dyn Secrets>,
+    /// For tests: what a sign-in would have opened, instead of opening a window.
+    signed_in_with: Mutex<Vec<String>>,
     emit: Emit,
     appearance: Mutex<Settings>,
     preferences: Mutex<Settings>,
@@ -157,7 +166,26 @@ pub struct Bridge {
 
 impl Bridge {
     pub fn new(core: Arc<CoreProcess>, data_dir: PathBuf, emit: Emit, secrets: Arc<dyn Secrets>) -> Bridge {
+        let chatgpt = Arc::new(Mutex::new(Arc::new(crate::chatgpt::ChatGpt::new(crate::chatgpt::ISSUER, secrets.clone()))));
+        let agent = AgentService::new(core.clone(), data_dir.join("agent-settings.json"), secrets.clone());
+        let source = chatgpt.clone();
+        agent.add_token_source(crate::providers::CHATGPT_ADDRESS, Arc::new(move || lock(&source).clone().access_token()));
+        let notes_emit = emit.clone();
+        let mcp_server = crate::mcp_server::McpServer::open(
+            data_dir.join("mcp-server.json"),
+            data_dir.join("workspace"),
+            data_dir.join("checkpoints"),
+            secrets.clone(),
+            Arc::new(move |path: &str| {
+                if let Some(page) = path.replace('\\', "/").strip_prefix("notes/") {
+                    notes_emit("mobius:notes-changed", json!({ "path": page, "by": "another app" }));
+                }
+            }),
+        );
         Bridge {
+            mcp_server,
+            chatgpt,
+            secrets: secrets.clone(),
             endpoints: Mutex::new(crate::endpoints::Endpoints::open(data_dir.join("endpoints.json"), secrets.clone())),
             engine: std::sync::OnceLock::new(),
             archive: Mutex::new(mobius_store::archive::Archive::open(data_dir.join("archive.json"))),
@@ -174,7 +202,7 @@ impl Bridge {
             downloads: Mutex::new(Downloads::new(data_dir.join("downloads"))),
             browser: OnceLock::new(),
             dialogs: OnceLock::new(),
-            agent: AgentService::new(core.clone(), data_dir.join("agent-settings.json"), secrets.clone()),
+            agent,
             appearance: Mutex::new(appearance::open(data_dir.join("appearance.json"))),
             preferences: Mutex::new(preferences::open(data_dir.join("preferences.json"))),
             bots: Mutex::new(Bots::open(data_dir.join("bots.json"), Box::new(now_ms))),
@@ -184,6 +212,8 @@ impl Bridge {
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             mcp: Arc::default(),
             providers: crate::providers::Providers::new(secrets.clone()),
+            claude_command: Mutex::new(None),
+            signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             data_dir,
             emit,
@@ -239,6 +269,21 @@ impl Bridge {
 
             ("notes", _) => Ok(self.notes_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
+            ("share", "status") => Ok(self.mcp_server.status()),
+            ("share", "token") => Ok(self.mcp_server.reveal_token().map_or(Value::Null, Value::String)),
+            ("share", "renewToken") => Ok(self.mcp_server.renew_token()),
+            ("share", "set") => {
+                let v = arg(0);
+                let flag = |k: &str| v.get(k).and_then(Value::as_bool);
+                let port = match v.get("port") {
+                    None | Some(Value::Null) => None,
+                    Some(p) => match p.as_u64().and_then(|p| u16::try_from(p).ok()) {
+                        Some(p) => Some(p),
+                        None => return Ok(failed("Use a port from 1024 to 65535.")),
+                    },
+                };
+                Ok(self.mcp_server.set(flag("enabled"), flag("allowChanges"), port))
+            }
             ("agent", _) => self.agent_call(method, args),
             ("browser", _) => self.browser_call(method, args),
             ("surface", "setBounds") => {
@@ -295,6 +340,8 @@ impl Bridge {
         self.agent.forget_keys();
         lock(&self.endpoints).forget_keys();
         self.providers.forget_all();
+        lock(&self.chatgpt).clone().sign_out();
+        self.mcp_server.forget();
         self.core.stop_shared();
         let mut failures = 0;
         let mut removed = 0;
@@ -346,6 +393,30 @@ impl Bridge {
         let _ = self.models.set(crate::models::Models::new(self.core.clone(), events, assistant));
     }
 
+    /// The local model last run, and whether to run it again when Mobius opens.
+    fn local_model(&self) -> Value {
+        match mobius_store::file::read_json(&self.data_dir.join("local-model.json")) {
+            Some(v @ Value::Object(_)) => v,
+            _ => json!({}),
+        }
+    }
+
+    /// Run the model from last time again, if the person asked for that.
+    fn start_local_model_again(&self) {
+        let saved = self.local_model();
+        if saved.get("startWithMobius") != Some(&Value::Bool(true)) {
+            return;
+        }
+        let (Some(models), Some(id)) = (self.models.get().cloned(), saved.get("modelId").filter(|v| v.is_string()).cloned()) else { return };
+        let context = saved.get("context").cloned().unwrap_or(Value::Null);
+        if models.status().pointer("/runtime/modelId") == Some(&id) {
+            return;
+        }
+        std::thread::spawn(move || {
+            models.start(&id, &context);
+        });
+    }
+
     fn models_call(&self, method: &str, args: &[Value]) -> Out {
         let Some(models) = self.models.get() else { return Err(BridgeError::NotAvailable("Models are not ready yet.".into())) };
         let arg = |i: usize| args.get(i).unwrap_or(&Value::Null);
@@ -359,8 +430,35 @@ impl Bridge {
                 models.cancel_download();
                 Value::Null
             }
-            "start" => models.start(arg(0), arg(1)),
+            "start" => {
+                let result = models.start(arg(0), arg(1));
+                if result.get("ok") == Some(&Value::Bool(true)) {
+                    let mut saved = self.local_model();
+                    saved["modelId"] = arg(0).clone();
+                    saved["context"] = arg(1).clone();
+                    mobius_store::file::write_json_checked(&self.data_dir.join("local-model.json"), &saved);
+                }
+                result
+            }
+            "autostart" => {
+                let saved = self.local_model();
+                json!({ "enabled": saved.get("startWithMobius") == Some(&Value::Bool(true)), "modelId": saved.get("modelId").cloned().unwrap_or(Value::Null) })
+            }
+            "setAutostart" => match arg(0).as_bool() {
+                Some(on) => {
+                    let mut saved = self.local_model();
+                    saved["startWithMobius"] = json!(on);
+                    if mobius_store::file::write_json_checked(&self.data_dir.join("local-model.json"), &saved) { json!({ "ok": true }) } else { failed("That could not be saved.") }
+                }
+                None => failed("That could not be saved."),
+            },
             "stop" => models.stop(),
+            "engine" => models.engine(),
+            "installEngine" => models.install_engine(),
+            "cancelEngine" => {
+                models.cancel_engine();
+                Value::Null
+            }
             _ => return Err(BridgeError::NotAvailable(format!("models.{method} is not available in this build yet."))),
         })
     }
@@ -730,6 +828,89 @@ impl Bridge {
         }
     }
 
+    /// Use this Claude Code CLI (a fake one in tests). Does nothing unless the test hooks are on.
+    pub fn use_claude_for_tests(&self, command: &Path) {
+        if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
+            *lock(&self.claude_command) = Some(command.to_path_buf());
+        }
+    }
+
+    /// Sign in to ChatGPT at this pretend OpenAI. Does nothing unless the test hooks are on.
+    pub fn use_chatgpt_for_tests(&self, issuer: &str) {
+        if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
+            *lock(&self.chatgpt) = Arc::new(crate::chatgpt::ChatGpt::new(issuer, self.secrets.clone()).with_poll(std::time::Duration::from_millis(200)));
+        }
+    }
+
+    fn chatgpt_call(&self, method: &str, sub: &crate::providers::Subscription, model: Option<&str>) -> Value {
+        let chatgpt = lock(&self.chatgpt).clone();
+        let active = self.agent.base_url().eq_ignore_ascii_case(sub.address);
+        match method {
+            "accountStatus" => {
+                let mut status = chatgpt.status();
+                status["active"] = json!(active);
+                status
+            }
+            "signIn" => {
+                let emit = self.emit.clone();
+                match chatgpt.start_sign_in(Arc::new(move |_| emit("mobius:providers-changed", Value::Null))) {
+                    Ok(pending) => json!({ "ok": true, "code": pending.code, "url": pending.url }),
+                    Err(e) => failed(e),
+                }
+            }
+            "cancelSignIn" => {
+                chatgpt.cancel_sign_in();
+                json!({ "ok": true })
+            }
+            "signOut" => {
+                chatgpt.sign_out();
+                if active {
+                    self.agent.mark_stopped();
+                }
+                (self.emit)("mobius:providers-changed", Value::Null);
+                json!({ "ok": true })
+            }
+            "models" => json!({ "ok": true, "models": crate::providers::CHATGPT_MODELS.iter().map(|(id, _)| *id).collect::<Vec<_>>() }),
+            "use" => {
+                let Some(model) = model.map(str::trim).filter(|m| !m.is_empty()) else { return failed("Choose a model.") };
+                if !(model.starts_with("gpt-") || model.starts_with("codex-")) || !model.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_')) {
+                    return failed("That is not a ChatGPT model.");
+                }
+                let result = self.agent.use_endpoint(sub.address, model, None);
+                (self.emit)("mobius:providers-changed", Value::Null);
+                (self.emit)("mobius:agent-settings", self.agent.settings());
+                result
+            }
+            _ => failed("unknown"),
+        }
+    }
+
+    /// What sign-ins would have opened (test hooks only).
+    pub fn sign_ins_for_tests(&self) -> Vec<String> {
+        lock(&self.signed_in_with).clone()
+    }
+
+    /// Sign in to a subscription: its own app's sign-in, in a window of its own. Mobius never handles the account.
+    fn sign_in(&self, id: &str) -> Value {
+        if crate::providers::find_subscription(id).is_none() {
+            return failed("That is not a plan Mobius can sign in to.");
+        }
+        let command = lock(&self.claude_command).clone();
+        let Some(program) = mobius_claude::cli::find(command.as_deref()) else { return failed(mobius_claude::cli::INSTALL_HINT) };
+        if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
+            lock(&self.signed_in_with).push(format!("{} auth login", program.display()));
+            return json!({ "ok": true });
+        }
+        #[cfg(windows)]
+        let started = std::process::Command::new("cmd").args(["/C", "start", "Claude Code sign-in", "cmd", "/K"]).arg(&program).args(["auth", "login"]).spawn();
+        #[cfg(not(windows))]
+        let started = std::process::Command::new(&program).args(["auth", "login"]).spawn();
+        match started {
+            Ok(_) => json!({ "ok": true }),
+            Err(e) => failed(format!("Could not open the sign-in: {e}")),
+        }
+    }
+
     pub fn provider_address(&self, id: &str) -> Option<String> {
         self.providers.address(id)
     }
@@ -739,7 +920,35 @@ impl Bridge {
         let text = |i: usize| args.get(i).and_then(Value::as_str);
         let p = &self.providers;
         let changed = || (self.emit)("mobius:providers-changed", Value::Null);
+        // Subscriptions (sign in, no key) go first.
+        if let Some(sub) = text(0).and_then(crate::providers::find_subscription) {
+            if sub.address == crate::providers::CHATGPT_ADDRESS {
+                return self.chatgpt_call(method, sub, text(1));
+            }
+            return match method {
+                "accountStatus" => {
+                    let command = lock(&self.claude_command).clone();
+                    let mut status = mobius_claude::cli::status(command.as_deref());
+                    status["active"] = json!(self.agent.base_url().eq_ignore_ascii_case(sub.address));
+                    status
+                }
+                "signIn" => self.sign_in(sub.id),
+                "models" => json!({ "ok": true, "models": mobius_claude::frames::MODELS.iter().map(|(id, _)| *id).collect::<Vec<_>>() }),
+                "use" => {
+                    let Some(model) = text(1).map(str::trim).filter(|m| !m.is_empty()) else { return failed("Choose a model.") };
+                    if !mobius_claude::frames::MODELS.iter().any(|(id, _)| *id == model) && !model.starts_with("claude-") {
+                        return failed("That is not a Claude model.");
+                    }
+                    let result = self.agent.use_endpoint(sub.address, model, None);
+                    changed();
+                    (self.emit)("mobius:agent-settings", self.agent.settings());
+                    result
+                }
+                _ => failed("unknown"),
+            };
+        }
         match method {
+            "accounts" => Value::Array(crate::providers::SUBSCRIPTIONS.iter().map(|s| json!({ "id": s.id, "name": s.name, "note": s.note, "active": self.agent.base_url().eq_ignore_ascii_case(s.address), "kind": s.kind, "models": crate::providers::subscription_models(s).iter().map(|(id, label)| json!({ "id": id, "label": label })).collect::<Vec<_>>() })).collect()),
             "list" => p.list(&self.agent.base_url()),
             "setKey" => match (text(0), text(1)) {
                 (Some(id), Some(key)) => match p.set_key(id, key) {
@@ -877,6 +1086,11 @@ impl Bridge {
             }
             "history" => conversation().map_or_else(|| json!([]), |c| self.agent.history(c)),
             "waiting" => conversation().map_or_else(|| json!([]), |c| self.agent.waiting(c)),
+            "question" => conversation().map_or(Value::Null, |c| self.agent.question(c)),
+            "answer" => match (conversation(), arg(1).as_str(), arg(2).as_str()) {
+                (Some(c), Some(call_id), Some(text)) => self.agent.answer(c, call_id, text),
+                _ => refused(),
+            },
             "conversations" => self.agent.conversations(),
             "deleteConversation" => conversation().map_or_else(refused, |c| {
                 let result = self.agent.delete_conversation(c);
@@ -944,6 +1158,7 @@ impl Bridge {
             let _ = self.core.call("agent.set_effort", json!({ "effort": prefs["reasoningEffort"] }), Duration::from_secs(5));
             self.register_tools();
             self.agent.apply();
+            self.start_local_model_again();
         } else {
             self.agent.mark_stopped();
             if let Some(m) = self.models.get() {

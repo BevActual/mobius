@@ -70,16 +70,16 @@ describe('notifications from the core', () => {
     expect(parseAgentNotification(event)).toEqual(event);
   });
   it('drops everything else', () => {
-    for (const bad of [null, 'x', {}, { method: 'core.ping', params: {} }, { method: 'agent.delta', params: { conversation: '../x', turn: 1, text: 'a' } }, { method: 'agent.delta', params: { conversation: 'main', turn: 'x', text: 'a' } }, { method: 'agent.delta', params: { conversation: 'main', turn: 1, text: 5 } }, { method: 'agent.event', params: { conversation: 'main', turn: 1, event: { kind: 'explode' } } }, { method: 'agent.event', params: { conversation: 'main', turn: 1, event: 'done' } }, { method: 'agent.event', params: { conversation: 'main', turn: 1, event: { kind: 'needs_approval', request_id: 'x', call_id: 'c', tool: 't', arguments: {} } } }]) {
+    for (const bad of [null, 'x', {}, { method: 'core.ping', params: {} }, { method: 'agent.delta', params: { conversation: '../x', turn: 1, text: 'a' } }, { method: 'agent.delta', params: { conversation: 'main', turn: 'x', text: 'a' } }, { method: 'agent.delta', params: { conversation: 'main', turn: 1, text: 5 } }, { method: 'agent.event', params: { conversation: 'main', turn: 1, event: { kind: 'explode' } } }, { method: 'agent.event', params: { conversation: 'main', turn: 1, event: 'done' } }, { method: 'agent.event', params: { conversation: 'main', turn: 1, event: { kind: 'compacted', messages: -1 } } }, { method: 'agent.event', params: { conversation: 'main', turn: 1, event: { kind: 'needs_approval', request_id: 'x', call_id: 'c', tool: 't', arguments: {} } } }]) {
       expect(parseAgentNotification(bad)).toBeNull();
     }
   });
   it('checks the fields of every event kind', () => {
     const wrap = (event: unknown) => ({ method: 'agent.event', params: { conversation: 'main', turn: 1, event } });
-    for (const ok of [{ kind: 'message', text: 'a' }, { kind: 'tool_call', call_id: 'c', name: 'n' }, { kind: 'tool_result', call_id: 'c', name: 'n', is_error: false }, { kind: 'needs_approval', request_id: 4, call_id: 'c', tool: 't', arguments: { a: 1 } }, { kind: 'done' }, { kind: 'failed', message: 'm' }, { kind: 'cancelled' }]) {
+    for (const ok of [{ kind: 'message', text: 'a' }, { kind: 'tool_call', call_id: 'c', name: 'n' }, { kind: 'tool_result', call_id: 'c', name: 'n', is_error: false }, { kind: 'needs_approval', request_id: 4, call_id: 'c', tool: 't', arguments: { a: 1 } }, { kind: 'done' }, { kind: 'failed', message: 'm' }, { kind: 'cancelled' }, { kind: 'compacted', messages: 12 }, { kind: 'todo', items: [{ text: 'a', status: 'done' }] }, { kind: 'question', call_id: 'q', question: 'Which?', choices: ['A'] }]) {
       expect(parseAgentNotification(wrap(ok))).not.toBeNull();
     }
-    for (const bad of [{ kind: 'message' }, { kind: 'tool_call', call_id: 'c' }, { kind: 'tool_result', call_id: 'c', name: 'n', is_error: 'no' }, { kind: 'failed' }]) {
+    for (const bad of [{ kind: 'message' }, { kind: 'tool_call', call_id: 'c' }, { kind: 'tool_result', call_id: 'c', name: 'n', is_error: 'no' }, { kind: 'failed' }, { kind: 'todo', items: [{ text: 'a', status: 'maybe' }] }, { kind: 'todo', items: 'x' }, { kind: 'question', call_id: 'q', question: '', choices: [] }, { kind: 'question', call_id: 'q', question: 'Q' }, { kind: 'question', call_id: 'q', question: 'Q', choices: ['1', '2', '3', '4', '5', '6', '7'] }]) {
       expect(parseAgentNotification(wrap(bad))).toBeNull();
     }
   });

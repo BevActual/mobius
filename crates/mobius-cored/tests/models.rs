@@ -264,6 +264,10 @@ fn a_model_is_started_ready_to_talk_to_and_stopped() {
     assert!(reachable(port));
     let pid_file = s.state.join("llama.pid");
     assert!(pid_file.is_file(), "the process is written down in case this daemon is killed");
+    // The assistant pointed at this server plans for the window it was started with.
+    let configured = d.call(40, "agent.configure", json!({ "base_url": base, "model": "tiny-Q4_K_M" }));
+    assert_eq!(configured["result"], json!({}), "{configured}");
+    assert_eq!(d.call(41, "agent.status", json!({}))["result"]["context_tokens"], 16_384);
 
     d.call(4, "models.stop", json!({}));
     assert!(d.call(5, "models.status", json!({}))["result"]["runtime"].is_null());
@@ -472,4 +476,75 @@ fn a_download_of_a_file_the_repository_does_not_have_fails_as_a_job() {
     assert_eq!(done["ok"], false);
     assert!(done["error"].as_str().unwrap().contains("not in"), "{done}");
     d.finish();
+}
+
+// ---- the engine ------------------------------------------------------------------------------------------------
+
+/// A pretend GitHub with one llama.cpp release; every build holds the fake llama-server.
+fn fake_github() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let program = std::fs::read(fake_llama()).unwrap();
+    let zip_of = |entries: &[(&str, &[u8])]| {
+        let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        for (name, data) in entries {
+            w.start_file(*name, zip::write::SimpleFileOptions::default()).unwrap();
+            w.write_all(data).unwrap();
+        }
+        w.finish().unwrap().into_inner()
+    };
+    let tag = "b500";
+    let mut files: Vec<(String, Vec<u8>)> = ["cpu", "vulkan", "cuda-12.4", "cuda-13.5"].iter().map(|k| (format!("llama-{tag}-bin-win-{k}-x64.zip"), zip_of(&[("llama-server.exe", &program)]))).collect();
+    files.extend(["cuda-12.4", "cuda-13.5"].iter().map(|k| (format!("cudart-llama-bin-win-{k}-x64.zip"), zip_of(&[("cudart.dll", b"rt")]))));
+    let assets: Vec<Value> = files.iter().map(|(name, data)| json!({ "name": name, "size": data.len(), "browser_download_url": format!("{origin}/download/{tag}/{name}"), "digest": format!("sha256:{}", sha(data)) })).collect();
+    let listing = json!([{ "tag_name": tag, "assets": assets }]).to_string();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut s) = stream else { break };
+            let mut buf = [0u8; 4096];
+            let n = s.read(&mut buf).unwrap_or(0);
+            let path = String::from_utf8_lossy(&buf[..n]).split_whitespace().nth(1).unwrap_or("").to_owned();
+            let body = if path == "/releases" { listing.clone().into_bytes() } else { files.iter().find(|(name, _)| path.ends_with(&format!("/{name}"))).map(|(_, d)| d.clone()).unwrap_or_default() };
+            let _ = write!(s, "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", body.len());
+            let _ = s.write_all(&body);
+        }
+    });
+    format!("{origin}/releases")
+}
+
+#[test]
+fn mobius_installs_its_own_engine_and_runs_models_with_it() {
+    let s = setup("engine");
+    let id = put_model(&s, "tiny-Q4_K_M.gguf", 1_000);
+    // No --llama-server: the daemon has to find or install one itself.
+    let args: Vec<String> = ["--hub", "http://127.0.0.1:1", "--no-default-models", "--models-dir", s.models.to_str().unwrap(), "--state-dir", s.state.to_str().unwrap(), "--engine-releases", &fake_github()].iter().map(|a| (*a).to_owned()).collect();
+    let mut d = Daemon::start(&args);
+    let before = d.call(1, "models.engine", json!({}));
+    assert!(before["result"]["installed"].is_null(), "{before}");
+    assert_eq!(before["result"]["supported"], cfg!(windows));
+    if !cfg!(windows) {
+        return d.finish();
+    }
+    let job = d.call(2, "models.install_engine", json!({}))["result"]["job"].as_str().unwrap().to_owned();
+    assert_eq!(d.call(3, "models.install_engine", json!({}))["error"]["data"]["kind"], "busy", "one install at a time");
+    let done = d.job_result(&job);
+    assert_eq!(done["ok"], true, "{done}");
+    assert_eq!(done["result"]["tag"], "b500");
+    assert_eq!(done["result"]["devices"], json!(["CUDA0: Fake GPU (12282 MiB, 11000 MiB free)"]));
+    assert_eq!(done["result"]["up_to_date"], false);
+    // Asking again finds the same build and downloads nothing.
+    let again = d.call(30, "models.install_engine", json!({}))["result"]["job"].as_str().unwrap().to_owned();
+    assert_eq!(d.job_result(&again)["result"]["up_to_date"], true);
+    let after = d.call(4, "models.engine", json!({}))["result"].clone();
+    assert_eq!(after["installed"]["tag"], "b500");
+    assert_eq!(after["installed"]["backend"], after["recommended"]["backend"], "the build chosen for this computer");
+    assert_eq!(after["using"]["source"], "mobius");
+    assert!(after["using"]["path"].as_str().unwrap().starts_with(s.state.join("engine").to_str().unwrap()));
+    // A model now runs on it.
+    d.call(5, "models.start", json!({ "id": id }));
+    assert_eq!(d.wait_status(6, "ready")["result"]["runtime"]["state"], "ready");
+    assert_eq!(d.call(7, "models.install_engine", json!({}))["error"]["data"]["kind"], "busy", "not while a model runs on it");
+    d.call(8, "models.stop", json!({}));
+    d.finish();
+    std::fs::remove_dir_all(&s.dir).ok();
 }

@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 struct Fake {
     addr: SocketAddr,
     bodies: Arc<Mutex<Vec<Value>>>,
+    heads: Arc<Mutex<Vec<String>>>,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
@@ -39,8 +40,9 @@ fn fake(replies: Vec<Vec<(Value, u64)>>) -> Fake {
     listener.set_nonblocking(true).unwrap();
     let addr = listener.local_addr().unwrap();
     let bodies = Arc::new(Mutex::new(Vec::new()));
+    let heads = Arc::new(Mutex::new(Vec::new()));
     let stop = Arc::new(AtomicBool::new(false));
-    let (bodies2, stop2) = (bodies.clone(), stop.clone());
+    let (bodies2, heads2, stop2) = (bodies.clone(), heads.clone(), stop.clone());
     let thread = std::thread::spawn(move || {
         let mut replies = replies.into_iter();
         while !stop2.load(Ordering::SeqCst) {
@@ -50,7 +52,8 @@ fn fake(replies: Vec<Vec<(Value, u64)>>) -> Fake {
             };
             stream.set_nonblocking(false).unwrap();
             stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
-            let Some(body) = read_body(&mut stream) else { continue };
+            let Some((head, body)) = read_request(&mut stream) else { continue };
+            heads2.lock().unwrap().push(head);
             bodies2.lock().unwrap().push(serde_json::from_str(&body).unwrap_or(Value::Null));
             let Some(events) = replies.next() else { continue };
             stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n").ok();
@@ -63,10 +66,11 @@ fn fake(replies: Vec<Vec<(Value, u64)>>) -> Fake {
             stream.write_all(b"data: [DONE]\n\n").ok();
         }
     });
-    Fake { addr, bodies, stop, thread: Some(thread) }
+    Fake { addr, bodies, heads, stop, thread: Some(thread) }
 }
 
-fn read_body(stream: &mut TcpStream) -> Option<String> {
+/// The request's head (lower-cased) and body.
+fn read_request(stream: &mut TcpStream) -> Option<(String, String)> {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 4096];
     let end = loop {
@@ -88,7 +92,7 @@ fn read_body(stream: &mut TcpStream) -> Option<String> {
         }
         buf.extend_from_slice(&chunk[..n]);
     }
-    Some(String::from_utf8_lossy(&buf[end..]).into_owned())
+    Some((head, String::from_utf8_lossy(&buf[end..]).into_owned()))
 }
 
 fn delta(d: Value) -> Value {
@@ -260,7 +264,7 @@ fn a_bad_setup_is_refused_and_a_key_never_comes_back() {
     let ok = d.call(3, "agent.configure", json!({ "base_url": "https://api.example.com/v1", "api_key": "sk-secret-123", "model": "m" }));
     assert!(!ok.to_string().contains("sk-secret-123"));
     let status = d.call(4, "agent.status", json!({}));
-    assert_eq!(status["result"], json!({ "configured": true, "model": "m", "max_steps": 25, "fallback_model": null }));
+    assert_eq!(status["result"], json!({ "configured": true, "model": "m", "max_steps": 25, "fallback_model": null, "context_tokens": null }));
 }
 
 #[test]
@@ -768,4 +772,110 @@ fn a_conversation_can_be_sent_with_its_own_instructions_and_model_and_bad_ones_a
         params.as_object_mut().unwrap().extend(bad.as_object().unwrap().clone());
         assert!(d.call(4, "agent.send", params).get("error").is_some(), "{bad}");
     }
+}
+
+#[test]
+fn a_long_conversation_is_summarised_through_the_real_pipe_and_the_summary_is_never_shown_as_the_answer() {
+    let server = fake(vec![says(&["ok"], 0), says(&["S-U-M"], 0), says(&["final"], 0)]);
+    let mut d = Daemon::start(&[]);
+    for bad in [100, 20_000_000] {
+        let r = d.call(1, "agent.configure", json!({ "base_url": server.url(), "model": "fake-model", "context_tokens": bad }));
+        assert_eq!(r["error"]["code"], -32602, "{bad}: {r}");
+    }
+    let r = d.call(2, "agent.configure", json!({ "base_url": server.url(), "model": "fake-model", "context_tokens": 4096 }));
+    assert_eq!(r["result"], json!({}), "{r}");
+    d.call(3, "agent.send", json!({ "conversation": "c1", "text": "hi" }));
+    d.until_event("done");
+    // About 2,250 tokens on its own: over half of the 4,096-token window.
+    d.call(4, "agent.send", json!({ "conversation": "c1", "text": format!("long {}", "x".repeat(9_000)) }));
+    let (skipped, compacted) = d.until_event("compacted");
+    assert_eq!(compacted["params"]["event"]["messages"], 2);
+    let (more, _) = d.until_event("done");
+    let shown: String = skipped.iter().chain(more.iter()).filter(|n| n["method"] == "agent.delta").map(|n| n["params"]["text"].as_str().unwrap().to_owned()).collect();
+    assert_eq!(shown, "final", "only the answer is streamed");
+    let bodies = server.bodies.lock().unwrap().clone();
+    assert_eq!(bodies.len(), 3);
+    assert!(bodies[1].get("tools").is_none_or(|t| t.as_array().is_some_and(Vec::is_empty)), "the summary call offers no tools");
+    assert!(bodies[1]["messages"].to_string().contains("checkpoint summary"));
+    assert_eq!(bodies[1]["chat_template_kwargs"], json!({ "enable_thinking": false }), "a local server is asked not to reason");
+    assert!(bodies[1]["max_tokens"].as_u64().is_some_and(|m| m <= 8_000));
+    assert!(bodies[2].get("max_tokens").is_none() && bodies[2].get("chat_template_kwargs").is_none(), "the real answer is not limited");
+    assert!(bodies[2]["messages"][1]["content"].as_str().unwrap().contains("S-U-M"));
+    let history = d.call(5, "agent.history", json!({ "conversation": "c1" }));
+    assert_eq!(history["result"].as_array().unwrap().len(), 4, "the transcript keeps every message");
+}
+
+// ---- the ChatGPT plan --------------------------------------------------------------------------------------------
+
+/// A token shaped like OpenAI's (only the middle part is read).
+fn chatgpt_token() -> String {
+    use std::fmt::Write as _;
+    let claims = json!({ "exp": 4_000_000_000u64, "https://api.openai.com/auth": { "chatgpt_account_id": "acct-42" } }).to_string();
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let mut out = String::new();
+    for chunk in claims.as_bytes().chunks(3) {
+        let n = chunk.iter().enumerate().fold(0u32, |a, (i, b)| a | (u32::from(*b) << (16 - 8 * i)));
+        for i in 0..=chunk.len() {
+            write!(out, "{}", T[((n >> (18 - 6 * i)) & 63) as usize] as char).unwrap();
+        }
+    }
+    format!("h.{out}.s")
+}
+
+#[test]
+fn the_chatgpt_plan_is_spoken_to_in_responses_with_the_sign_in_and_its_account() {
+    let server = fake(vec![
+        vec![
+            (json!({ "type": "response.output_item.done", "item": { "type": "function_call", "call_id": "call_1", "name": "clock-now", "arguments": "{}" } }), 0),
+            (json!({ "type": "response.completed", "response": { "status": "completed" } }), 0),
+        ],
+        vec![
+            (json!({ "type": "response.output_text.delta", "delta": "It is " }), 0),
+            (json!({ "type": "response.output_text.delta", "delta": "now." }), 0),
+            (json!({ "type": "response.completed", "response": { "status": "completed" } }), 0),
+        ],
+    ]);
+    let upstream = format!("http://{}/backend-api/codex", server.addr);
+    let mut d = Daemon::start(&["--chatgpt-upstream", &upstream]);
+    let without = d.call(1, "agent.configure", json!({ "base_url": "chatgpt://subscription", "model": "gpt-5.5" }));
+    assert_eq!(without["error"]["code"], -32602, "no sign-in, no ChatGPT: {without}");
+    let token = chatgpt_token();
+    let r = d.call(2, "agent.configure", json!({ "base_url": "chatgpt://subscription", "api_key": token, "model": "gpt-5.5" }));
+    assert_eq!(r["result"], json!({}), "{r}");
+    assert_eq!(d.call(3, "agent.status", json!({}))["result"]["context_tokens"], 272_000);
+    d.call(4, "agent.send", json!({ "conversation": "c1", "text": "what time is it" }));
+    d.until_event("tool_call");
+    approve_next(&mut d, "once");
+    let (_, message) = d.until_event("message");
+    assert_eq!(message["params"]["event"]["text"], "It is now.");
+    let bodies = server.bodies.lock().unwrap().clone();
+    assert_eq!(bodies[0]["store"], false);
+    assert_eq!(bodies[0]["input"][0]["content"][0]["text"], "what time is it");
+    assert_eq!(bodies[1]["input"][1]["type"], "function_call");
+    assert_eq!(bodies[1]["input"][2]["type"], "function_call_output");
+    let head = &server.heads.lock().unwrap()[0];
+    assert!(head.starts_with("post /backend-api/codex/responses "), "{head}");
+    assert!(head.contains(&format!("authorization: bearer {}", token.to_lowercase())));
+    assert!(head.contains("chatgpt-account-id: acct-42"));
+}
+
+#[test]
+fn the_model_can_ask_the_person_through_the_pipe_and_the_answer_continues_the_turn() {
+    let server = fake(vec![calls("ask-person", r#"{"question":"Which one?","choices":["A","B"]}"#), says(&["Going with B."], 0)]);
+    let mut d = Daemon::start(&[]);
+    configure(&mut d, &server);
+    d.call(2, "agent.send", json!({ "conversation": "c1", "text": "pick" }));
+    let (_, asked) = d.until_event("question");
+    assert_eq!(asked["params"]["event"], json!({ "kind": "question", "call_id": "call_1", "question": "Which one?", "choices": ["A", "B"] }));
+    // A window that opens now can still see it.
+    assert_eq!(d.call(3, "agent.question", json!({ "conversation": "c1" }))["result"], json!({ "call_id": "call_1", "question": "Which one?", "choices": ["A", "B"] }));
+    assert_eq!(d.call(4, "agent.answer", json!({ "conversation": "c1", "call_id": "other", "text": "B" }))["error"]["data"]["kind"], "not_waiting");
+    assert_eq!(d.call(5, "agent.answer", json!({ "conversation": "c1", "call_id": "call_1", "text": "  " }))["error"]["code"], -32602);
+    assert_eq!(d.call(6, "agent.answer", json!({ "conversation": "c1", "call_id": "call_1", "text": "B" }))["result"], json!({}));
+    let (_, message) = d.until_event("message");
+    assert_eq!(message["params"]["event"]["text"], "Going with B.");
+    assert!(d.call(7, "agent.question", json!({ "conversation": "c1" }))["result"].is_null());
+    let second = &server.bodies.lock().unwrap()[1];
+    let tool = second["messages"].as_array().unwrap().iter().find(|m| m["role"] == "tool").unwrap();
+    assert_eq!(tool["content"], "The person answered: B");
 }

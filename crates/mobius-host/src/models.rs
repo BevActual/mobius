@@ -97,6 +97,33 @@ fn as_runtime(v: &Value) -> Option<Map<String, Value>> {
     Some(m)
 }
 
+/// The engine status as the window sees it, or none when the core's answer is not one.
+fn as_engine(v: &Value) -> Option<Value> {
+    let text = |x: &Value, k: &str| x.get(k).and_then(Value::as_str).filter(|s| s.chars().count() <= 300).map(str::to_owned);
+    let recommended = v.get("recommended")?;
+    let installed = match v.get("installed") {
+        None | Some(Value::Null) => Value::Null,
+        Some(i) => {
+            let devices: Vec<String> = i.get("devices")?.as_array()?.iter().filter_map(|d| d.as_str().map(|s| s.chars().take(200).collect())).take(16).collect();
+            json!({ "tag": text(i, "tag")?, "label": text(i, "label")?, "devices": devices })
+        }
+    };
+    let using = match v.get("using") {
+        None | Some(Value::Null) => Value::Null,
+        Some(u) => {
+            let source = text(u, "source").filter(|s| ["setting", "mobius", "found"].contains(&s.as_str()))?;
+            json!({ "source": source, "path": text(u, "path")? })
+        }
+    };
+    Some(json!({
+        "supported": v.get("supported")?.as_bool()?,
+        "recommended": text(recommended, "label")?,
+        "installed": installed,
+        "using": using,
+        "installing": v.get("installing").is_some_and(Value::is_string),
+    }))
+}
+
 type JobResult = Result<Value, String>;
 
 #[derive(Default)]
@@ -106,6 +133,8 @@ struct State {
     download_job: Option<String>,
     /// A download has been asked for and not finished (its job may not be known yet: progress can arrive before the answer is read).
     downloading: bool,
+    engine_job: Option<String>,
+    installing_engine: bool,
     watch_token: u64,
     last_runtime: Option<Value>,
     configured_for: Option<String>,
@@ -151,14 +180,17 @@ impl Models {
             "models.progress" => {
                 let done = params.get("done").and_then(Value::as_f64);
                 let total = params.get("total").and_then(Value::as_f64);
-                let mine = {
+                let (download, engine) = {
                     let s = lock(&self.state);
-                    s.downloading && s.download_job.as_deref().is_none_or(|j| j == job)
+                    let engine = s.installing_engine && s.engine_job.as_deref().is_none_or(|j| j == job);
+                    (!engine && s.downloading && s.download_job.as_deref().is_none_or(|j| j == job), engine)
                 };
-                if mine
-                    && let (Some(done), Some(total)) = (done, total)
-                {
-                    (self.emit)(json!({ "kind": "progress", "job": job, "done": done, "total": total }));
+                if let (Some(done), Some(total)) = (done, total) {
+                    if download {
+                        (self.emit)(json!({ "kind": "progress", "job": job, "done": done, "total": total }));
+                    } else if engine {
+                        (self.emit)(json!({ "kind": "engine", "state": "progress", "done": done, "total": total }));
+                    }
                 }
                 true
             }
@@ -244,6 +276,44 @@ impl Models {
         let job = lock(&self.state).download_job.clone();
         if let Some(job) = job {
             let _ = self.call("models.cancel", json!({ "job": job })); // It may just have finished.
+        }
+    }
+
+    /// The llama.cpp engine: what is used, what Mobius installed, and what it would install. Checked field by field.
+    pub fn engine(&self) -> Value {
+        let Ok(raw) = self.call("models.engine", json!({})) else { return Value::Null };
+        as_engine(&raw).unwrap_or(Value::Null)
+    }
+
+    /// Install or update Mobius's own engine. Resolves when it is done; progress arrives as `engine` events.
+    pub fn install_engine(&self) -> Value {
+        lock(&self.state).installing_engine = true;
+        (self.emit)(json!({ "kind": "engine", "state": "started" }));
+        let outcome = self.run_job("models.install_engine", json!({}), Duration::from_secs(6 * 60 * 60), "Installing the engine took too long.", |job| {
+            lock(&self.state).engine_job = Some(job.to_owned());
+        });
+        {
+            let mut s = lock(&self.state);
+            s.engine_job = None;
+            s.installing_engine = false;
+        }
+        match outcome {
+            Ok(result) => {
+                let up_to_date = result.get("up_to_date") == Some(&Value::Bool(true));
+                (self.emit)(json!({ "kind": "engine", "state": "finished" }));
+                json!({ "ok": true, "upToDate": up_to_date })
+            }
+            Err(error) => {
+                (self.emit)(json!({ "kind": "engine", "state": "failed", "error": error }));
+                json!({ "ok": false, "error": error })
+            }
+        }
+    }
+
+    pub fn cancel_engine(&self) {
+        let job = lock(&self.state).engine_job.clone();
+        if let Some(job) = job {
+            let _ = self.call("models.cancel", json!({ "job": job }));
         }
     }
 
@@ -443,6 +513,17 @@ mod tests {
         let rec = json!({ "candidate": { "repo": "a/b", "file": "f", "quant": "Q4", "size": 1, "downloads": 1, "likes": 1 }, "assessment": a, "params_b": 1, "score": 1, "quality": 1 });
         assert!(as_recommendation(&rec));
         assert!(!as_recommendation(&json!({ "candidate": {}, "assessment": a })));
+    }
+
+    #[test]
+    fn the_engine_status_is_checked_before_the_window_sees_it() {
+        let raw = json!({ "supported": true, "recommended": { "backend": "cuda12", "label": "NVIDIA (CUDA 12)" }, "installed": { "tag": "b1", "backend": "cuda12", "label": "NVIDIA (CUDA 12)", "devices": ["CUDA0: x", 5] }, "using": { "source": "mobius", "path": "C:/d/engine/b1/llama-server.exe" }, "installing": null });
+        assert_eq!(as_engine(&raw).unwrap(), json!({ "supported": true, "recommended": "NVIDIA (CUDA 12)", "installed": { "tag": "b1", "label": "NVIDIA (CUDA 12)", "devices": ["CUDA0: x"] }, "using": { "source": "mobius", "path": "C:/d/engine/b1/llama-server.exe" }, "installing": false }));
+        let none = json!({ "supported": false, "recommended": { "label": "Vulkan" }, "installed": null, "using": null, "installing": "j3" });
+        assert_eq!(as_engine(&none).unwrap()["installing"], true);
+        for bad in [json!({}), json!({ "supported": "yes", "recommended": { "label": "x" } }), json!({ "supported": true, "recommended": { "label": "x" }, "using": { "source": "elsewhere", "path": "p" } }), json!({ "supported": true, "recommended": { "label": "x" }, "installed": { "tag": 5 } })] {
+            assert!(as_engine(&bad).is_none(), "{bad}");
+        }
     }
 
     #[test]

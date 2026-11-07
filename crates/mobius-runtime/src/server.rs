@@ -90,9 +90,6 @@ pub fn default_binary_candidates(home: &Path, from_env: Option<PathBuf>, path_di
     let name = if cfg!(windows) { "llama-server.exe" } else { "llama-server" };
     let mut list: Vec<PathBuf> = from_env.into_iter().collect();
     list.extend(path_dirs.iter().map(|d| d.join(name)));
-    let unsloth = home.join(".unsloth").join("llama.cpp");
-    list.push(unsloth.join("build").join("bin").join("Release").join(name));
-    list.push(unsloth.join("build").join("bin").join(name));
     list.push(home.join(".mobius").join("llama.cpp").join(name));
     list
 }

@@ -13,6 +13,8 @@ export interface Conversation {
   stop(): void;
   /** Resolves with an explanation when the answer could not be used, otherwise null. */
   answer(requestId: number, approve: boolean, duration: Duration): Promise<string | null>;
+  /** Answer a question the model asked. Resolves with an explanation when it could not be sent, otherwise null. */
+  reply(callId: string, text: string): Promise<string | null>;
   /** Take back the last exchange and send the same message again. */
   retry(): Promise<string | null>;
   /** Take back the last exchange and give back the message, to be changed. Resolves null when it could not be done. */
@@ -53,7 +55,7 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     () =>
       window.mobius.agent.onNotification((notification) => {
         dispatch({ type: 'notification', notification });
-        if (notification.method === 'agent.event' && ['done', 'failed', 'cancelled', 'needs_approval', 'tool_result'].includes(notification.params.event.kind)) void refresh();
+        if (notification.method === 'agent.event' && ['done', 'failed', 'cancelled', 'needs_approval', 'tool_result', 'question'].includes(notification.params.event.kind)) void refresh();
       }),
     [refresh],
   );
@@ -62,10 +64,11 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, id);
     let live = true;
-    void Promise.all([window.mobius.agent.history(id), window.mobius.agent.waiting(id), refresh()]).then(([messages, requests]) => {
+    void Promise.all([window.mobius.agent.history(id), window.mobius.agent.waiting(id), window.mobius.agent.question(id), refresh()]).then(([messages, requests, question]) => {
       if (!live) return;
       dispatch({ type: 'loaded', messages });
       dispatch({ type: 'pending', requests });
+      dispatch({ type: 'question-open', question });
     });
     return () => {
       live = false;
@@ -100,6 +103,14 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     const result = await window.mobius.agent.resolve(requestId, approve, duration);
     if (result.ok) return null;
     dispatch({ type: 'answer-failed', requestId });
+    return result.error;
+  }, []);
+
+  const reply = useCallback(async (callId: string, text: string) => {
+    dispatch({ type: 'question-answered', callId, text });
+    const result = await window.mobius.agent.answer(active.current, callId, text);
+    if (result.ok) return null;
+    dispatch({ type: 'question-failed', callId });
     return result.error;
   }, []);
 
@@ -163,5 +174,5 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     [],
   );
 
-  return { state, id, list, send, stop, answer, retry, edit, toolDetails, newConversation, startFresh, select, remove, refresh };
+  return { state, id, list, send, stop, answer, reply, retry, edit, toolDetails, newConversation, startFresh, select, remove, refresh };
 }

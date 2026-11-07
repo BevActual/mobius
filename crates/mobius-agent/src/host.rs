@@ -13,6 +13,7 @@ use serde::Serialize;
 use serde_json::Value;
 use ts_rs::TS;
 
+use crate::compaction::Compaction;
 use crate::conversations::{ConversationStore, MemoryStore, valid_conversation_id};
 use crate::engine::{Engine, EngineConfig, Step, Turn, TurnSetup};
 use crate::message::Message;
@@ -22,7 +23,9 @@ use crate::provider::{ChatRequest, Completion, ProviderError};
 pub const MAX_MESSAGE_CHARS: usize = 100_000;
 pub const MAX_CONVERSATIONS: usize = 64;
 pub const DEFAULT_MAX_STEPS: u32 = 25;
-pub const MAX_HISTORY_MESSAGES: usize = 400;
+/// The transcript limit. The model sees a shortened view once a conversation outgrows its window, so this only
+/// bounds what is kept on disk and shown.
+pub const MAX_HISTORY_MESSAGES: usize = 4000;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum HostError {
@@ -40,6 +43,8 @@ pub enum HostError {
     TooManyConversations,
     #[error("that is not a valid conversation id")]
     InvalidConversation,
+    #[error("nothing in this conversation is waiting for that answer")]
+    NotWaiting,
     #[error("there is nothing to take back")]
     NothingToRewind,
 }
@@ -55,6 +60,15 @@ pub struct Waiting {
     #[ts(type = "unknown")]
     pub arguments: Value,
     pub once_only: bool,
+}
+
+/// A question the model put to the person, still open.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct OpenQuestion {
+    pub call_id: String,
+    pub question: String,
+    pub choices: Vec<String>,
 }
 
 pub enum Out {
@@ -86,6 +100,8 @@ pub struct Host {
     store: Box<dyn ConversationStore>,
     clock: Box<dyn Fn() -> u64 + Send>,
     effort: Option<String>,
+    context_window: Option<usize>,
+    compactions: HashMap<String, Compaction>,
 }
 
 /// What the window needs to list a conversation.
@@ -146,16 +162,20 @@ impl Host {
     pub fn with_store(principal: Principal, store: Box<dyn ConversationStore>, clock: Box<dyn Fn() -> u64 + Send>) -> Self {
         let mut histories = HashMap::new();
         let mut updated = HashMap::new();
+        let mut compactions = HashMap::new();
         match store.load_all(MAX_CONVERSATIONS) {
             Ok(saved) => {
                 for conversation in saved {
                     updated.insert(conversation.id.clone(), conversation.updated_ms);
+                    if let Some(c) = conversation.compaction {
+                        compactions.insert(conversation.id.clone(), c);
+                    }
                     histories.insert(conversation.id, conversation.messages);
                 }
             }
             Err(error) => eprintln!("mobius-agent: cannot load saved conversations: {error}"),
         }
-        Host { principal, engine: None, histories, updated, active: HashMap::new(), next_turn: 1, store, clock, effort: None }
+        Host { principal, engine: None, histories, updated, active: HashMap::new(), next_turn: 1, store, clock, effort: None, context_window: None, compactions }
     }
 
     pub fn configure(&mut self, model: &str, system: &str) {
@@ -166,6 +186,7 @@ impl Host {
     pub fn configure_with(&mut self, model: &str, system: &str, max_steps: u32) {
         let mut engine = Engine::new(EngineConfig { model: model.to_owned(), system: system.to_owned(), max_steps, principal: self.principal.clone() });
         engine.set_effort(self.effort.clone());
+        engine.set_context_window(self.context_window);
         self.engine = Some(engine);
     }
 
@@ -174,6 +195,22 @@ impl Host {
         self.effort = effort.map(str::to_owned);
         if let Some(engine) = self.engine.as_mut() {
             engine.set_effort(self.effort.clone());
+        }
+    }
+
+    /// The model's context window in tokens, when known. Kept across a new setup.
+    pub fn set_context_window(&mut self, tokens: Option<usize>) {
+        self.context_window = tokens;
+        if let Some(engine) = self.engine.as_mut() {
+            engine.set_context_window(tokens);
+        }
+    }
+
+    /// How a conversation is shortened for the model, if it is.
+    pub fn compaction(&self, conversation: &str) -> Option<Compaction> {
+        match self.active.values().find(|a| a.conversation == conversation) {
+            Some(active) => active.turn.compaction().cloned(),
+            None => self.compactions.get(conversation).cloned(),
         }
     }
 
@@ -209,7 +246,8 @@ impl Host {
         }
         let turn_id = self.next_turn;
         self.next_turn += 1;
-        let (turn, step) = engine.start_with(core, history, text, turn_id, setup);
+        let compaction = self.compactions.get(conversation).cloned();
+        let (turn, step) = engine.start_from(core, history, compaction, text, turn_id, setup);
         let mut outs = Vec::new();
         self.settle(Active { conversation: conversation.to_owned(), turn, cancel: Arc::new(AtomicBool::new(false)) }, step, &mut outs);
         Ok((turn_id, outs))
@@ -217,6 +255,8 @@ impl Host {
 
     pub fn text(&mut self, turn_id: u64, text: &str) -> Vec<Out> {
         match self.active.get(&turn_id) {
+            // A summary being written is not part of the answer.
+            Some(active) if active.turn.is_summarizing() => Vec::new(),
             Some(active) => vec![notification("agent.delta", serde_json::json!({ "conversation": active.conversation, "turn": turn_id, "text": text }))],
             None => Vec::new(),
         }
@@ -254,6 +294,26 @@ impl Host {
         let mut outs = Vec::new();
         self.settle(active, step, &mut outs);
         outs
+    }
+
+    /// The person answered the model's question `call_id` in this conversation.
+    pub fn answer(&mut self, core: &mut Core, conversation: &str, call_id: &str, text: &str) -> Result<Vec<Out>, HostError> {
+        let turn_id = self.active.iter().find(|(_, a)| a.conversation == conversation && a.turn.asking().is_some_and(|c| c.id == call_id)).map(|(id, _)| *id).ok_or(HostError::NotWaiting)?;
+        let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) else { return Err(HostError::NotWaiting) };
+        let step = engine.on_answer(&mut active.turn, core, call_id, text);
+        let mut outs = Vec::new();
+        self.settle(active, step, &mut outs);
+        Ok(outs)
+    }
+
+    /// The question the model is waiting on in this conversation, so a window that opens later can show it.
+    pub fn question(&self, conversation: &str) -> Option<OpenQuestion> {
+        self.active.values().filter(|a| a.conversation == conversation).find_map(|a| {
+            let call = a.turn.asking()?;
+            let question = call.arguments.get("question")?.as_str()?.trim().to_owned();
+            let choices = call.arguments.get("choices").and_then(Value::as_array).map(|l| l.iter().filter_map(|c| c.as_str().map(|c| c.trim().to_owned())).collect()).unwrap_or_default();
+            Some(OpenQuestion { call_id: call.id.clone(), question, choices })
+        })
     }
 
     /// Look for answers to questions that turns are waiting on, and continue those turns.
@@ -323,6 +383,13 @@ impl Host {
         let at = history.iter().rposition(|m| matches!(m, Message::User { .. })).ok_or(HostError::NothingToRewind)?;
         let Message::User { text } = history[at].clone() else { return Err(HostError::NothingToRewind) };
         history.truncate(at);
+        // A summary that covers what was taken back no longer describes the conversation.
+        if self.compactions.get(conversation).is_some_and(|c| c.covers >= at) {
+            self.compactions.remove(conversation);
+            if let Err(error) = self.store.save_compaction(conversation, None) {
+                eprintln!("mobius-agent: cannot save the conversation: {error}");
+            }
+        }
         if history.is_empty() {
             self.histories.remove(conversation);
             self.updated.remove(conversation);
@@ -349,6 +416,7 @@ impl Host {
         }
         self.histories.remove(conversation);
         self.updated.remove(conversation);
+        self.compactions.remove(conversation);
         if let Err(error) = self.store.delete(conversation) {
             eprintln!("mobius-agent: cannot delete a saved conversation: {error}");
         }
@@ -379,7 +447,7 @@ impl Host {
     }
 
     fn activity(&self, conversation: &str) -> Activity {
-        if !self.waiting(conversation).is_empty() {
+        if !self.waiting(conversation).is_empty() || self.question(conversation).is_some() {
             Activity::NeedsYou
         } else if self.is_busy(conversation) {
             Activity::Working
@@ -413,14 +481,24 @@ impl Host {
                 outs.push(Out::RunTool { turn_id, call_id, name, arguments });
                 self.active.insert(turn_id, active);
             }
-            Step::AwaitApproval { .. } | Step::Idle => {
+            Step::AwaitApproval { .. } | Step::AwaitAnswer { .. } | Step::Idle => {
                 self.active.insert(turn_id, active);
             }
             Step::Done => {
                 let now = (self.clock)();
+                let compaction = active.turn.compaction().cloned();
                 let messages = active.turn.into_messages();
                 if let Err(error) = self.store.save(&active.conversation, &messages, now) {
                     eprintln!("mobius-agent: cannot save the conversation: {error}");
+                }
+                if compaction.as_ref() != self.compactions.get(&active.conversation) {
+                    if let Err(error) = self.store.save_compaction(&active.conversation, compaction.as_ref()) {
+                        eprintln!("mobius-agent: cannot save the conversation: {error}");
+                    }
+                    match compaction {
+                        Some(c) => self.compactions.insert(active.conversation.clone(), c),
+                        None => self.compactions.remove(&active.conversation),
+                    };
                 }
                 self.updated.insert(active.conversation.clone(), now);
                 self.histories.insert(active.conversation, messages);

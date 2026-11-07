@@ -33,8 +33,8 @@ pub enum DownloadError {
 /// How far a download has got. Shared with whoever is watching.
 #[derive(Debug, Default)]
 pub struct Progress {
-    done: AtomicU64,
-    total: AtomicU64,
+    pub(crate) done: AtomicU64,
+    pub(crate) total: AtomicU64,
 }
 impl Progress {
     pub fn done(&self) -> u64 {

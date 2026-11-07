@@ -159,7 +159,14 @@ pub fn parse_recording(base64_audio: &Value, mime: &Value) -> Option<(Vec<u8>, &
     (!bytes.is_empty() && bytes.len() <= MAX_RECORDING_BYTES).then_some((bytes, *kind))
 }
 
+/// Gives a sign-in's current token (refreshing it if needed); `None` when not signed in.
+pub type TokenSource = Arc<dyn Fn() -> Result<Option<String>, String> + Send + Sync>;
+
 pub struct AgentService {
+    /// Addresses whose key is a short-lived sign-in token, asked for each time the core is set up and never saved.
+    token_sources: Mutex<Vec<(String, TokenSource)>>,
+    /// When the token handed to the core runs out (seconds since 1970), if it is one.
+    token_expires: Mutex<Option<u64>>,
     core: Arc<CoreProcess>,
     settings_path: PathBuf,
     secrets: Arc<dyn Secrets>,
@@ -176,7 +183,7 @@ fn failed(message: impl Into<String>) -> Value {
 
 impl AgentService {
     pub fn new(core: Arc<CoreProcess>, settings_path: PathBuf, secrets: Arc<dyn Secrets>) -> AgentService {
-        let service = AgentService { core, settings_path, secrets, saved: Mutex::default(), configured: AtomicBool::new(false) };
+        let service = AgentService { token_sources: Mutex::default(), token_expires: Mutex::default(), core, settings_path, secrets, saved: Mutex::default(), configured: AtomicBool::new(false) };
         service.load();
         service
     }
@@ -191,7 +198,11 @@ impl AgentService {
     pub fn switch_server(&self, base_url: &str, model: &str, key: Option<String>) -> Value {
         let old = lock(&self.saved).clone();
         let next = Saved { base_url: base_url.to_owned(), model: model.to_owned(), key, persisted: false, ..old };
-        if let Err(e) = self.call("agent.configure", core_params(&next)) {
+        let params = match self.params(&next) {
+            Ok(p) => p,
+            Err(e) => return failed(e),
+        };
+        if let Err(e) = self.call("agent.configure", params) {
             return failed(Self::describe(&e));
         }
         *lock(&self.saved) = next;
@@ -239,7 +250,7 @@ impl AgentService {
         if s.base_url.is_empty() || s.model.is_empty() {
             return;
         }
-        let ok = self.call("agent.configure", core_params(&s)).is_ok();
+        let ok = self.params(&s).is_ok_and(|p| self.call("agent.configure", p).is_ok());
         self.configured.store(ok, Ordering::SeqCst);
     }
 
@@ -263,7 +274,11 @@ impl AgentService {
             persisted: false,
         });
         let next = Saved { base_url: r.base_url.clone(), model: r.model.clone(), system: r.system.clone().unwrap_or_default(), key, persisted: false, max_steps: r.max_steps.unwrap_or(old.max_steps), fallback };
-        if let Err(e) = self.call("agent.configure", core_params(&next)) {
+        let params = match self.params(&next) {
+            Ok(p) => p,
+            Err(e) => return failed(e),
+        };
+        if let Err(e) = self.call("agent.configure", params) {
             return failed(Self::describe(&e));
         }
         *lock(&self.saved) = next;
@@ -305,6 +320,32 @@ impl AgentService {
         self.apply_request(&Configure { base_url: s.base_url, model: s.model, api_key: None, clear_key: true, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true);
     }
 
+    /// The key for `address` comes from this sign-in instead of the saved key.
+    pub fn add_token_source(&self, address: &str, source: TokenSource) {
+        lock(&self.token_sources).push((address.to_owned(), source));
+    }
+
+    fn params(&self, s: &Saved) -> Result<Value, String> {
+        let mut p = core_params(s);
+        let source = lock(&self.token_sources).iter().find(|(a, _)| a.eq_ignore_ascii_case(s.base_url.trim())).map(|(_, f)| f.clone());
+        if let Some(source) = source {
+            let token = source()?.ok_or("Sign in first, in Settings > Providers.")?;
+            *lock(&self.token_expires) = mobius_agent::responses::jwt_claims(&token).and_then(|c| c.get("exp").and_then(Value::as_u64));
+            p["api_key"] = json!(token);
+        } else {
+            *lock(&self.token_expires) = None;
+        }
+        Ok(p)
+    }
+
+    /// Hand the core a fresh sign-in token when the one it has runs out within ten minutes.
+    fn refresh_token_if_needed(&self) {
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+        if lock(&self.token_expires).is_some_and(|exp| exp <= now + 600) {
+            self.apply();
+        }
+    }
+
     /// The address the agent uses now.
     pub fn base_url(&self) -> String {
         lock(&self.saved).base_url.clone()
@@ -312,6 +353,7 @@ impl AgentService {
 
     /// `bot` is the instructions and model of the bot the conversation belongs to, if it has one.
     pub fn send(&self, request: &SendRequest, bot: Option<(&str, &str)>) -> Value {
+        self.refresh_token_if_needed();
         let usual = lock(&self.saved).system.clone();
         let mut params = Map::new();
         params.insert("conversation".into(), json!(request.conversation));
@@ -386,6 +428,24 @@ impl AgentService {
                 })
                 .collect(),
         )
+    }
+
+    /// The question the model is waiting on in this conversation, if any, checked before the window sees it.
+    pub fn question(&self, conversation: &str) -> Value {
+        let Ok(row) = self.call("agent.question", json!({ "conversation": conversation })) else { return Value::Null };
+        let q = json!({ "kind": "question", "call_id": row.get("call_id").cloned().unwrap_or(Value::Null), "question": row.get("question").cloned().unwrap_or(Value::Null), "choices": row.get("choices").cloned().unwrap_or(Value::Null) });
+        if valid_event(&q) { json!({ "callId": q["call_id"], "question": q["question"], "choices": q["choices"] }) } else { Value::Null }
+    }
+
+    /// The person's answer to the model's question.
+    pub fn answer(&self, conversation: &str, call_id: &str, text: &str) -> Value {
+        if !is_conversation_id(conversation) || call_id.is_empty() || call_id.len() > 200 || text.trim().is_empty() || text.chars().count() > 4000 {
+            return failed("That answer cannot be sent.");
+        }
+        match self.call("agent.answer", json!({ "conversation": conversation, "call_id": call_id, "text": text })) {
+            Ok(_) => ok(),
+            Err(e) => failed(Self::describe(&e)),
+        }
     }
 
     pub fn resolve(&self, request_id: u64, approve: bool, duration: &str) -> Value {
@@ -476,6 +536,9 @@ impl AgentService {
             Ok(x) => x,
             Err(e) => return e,
         };
+        if base.eq_ignore_ascii_case(crate::providers::CLAUDE_CODE_ADDRESS) {
+            return json!({ "ok": true, "models": mobius_claude::frames::MODELS.iter().map(|(id, _)| *id).collect::<Vec<_>>() });
+        }
         Self::models_at(&base, &key)
     }
 
@@ -644,6 +707,14 @@ fn valid_event(e: &Value) -> bool {
         Some("tool_result") => s("call_id") && s("name") && e.get("is_error").is_some_and(Value::is_boolean),
         Some("needs_approval") => e.get("request_id").is_some_and(Value::is_u64) && s("call_id") && s("tool") && e.get("arguments").is_some() && e.get("once_only").is_none_or(Value::is_boolean),
         Some("failed") => s("message"),
+        Some("compacted") => e.get("messages").is_some_and(Value::is_u64),
+        Some("todo") => e.get("items").and_then(Value::as_array).is_some_and(|items| {
+            items.len() <= 50 && items.iter().all(|i| i.get("text").and_then(Value::as_str).is_some_and(|t| t.chars().count() <= 300) && matches!(i.get("status").and_then(Value::as_str), Some("pending" | "in_progress" | "done")))
+        }),
+        Some("question") => {
+            s("call_id") && e.get("question").and_then(Value::as_str).is_some_and(|q| !q.is_empty() && q.chars().count() <= 1000)
+                && e.get("choices").and_then(Value::as_array).is_some_and(|c| c.len() <= 6 && c.iter().all(|c| c.as_str().is_some_and(|c| c.chars().count() <= 200)))
+        }
         Some("done" | "cancelled") => true,
         _ => false,
     }

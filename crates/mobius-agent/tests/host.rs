@@ -230,7 +230,7 @@ fn only_so_many_conversations_and_so_long_a_history() {
         let (t, _) = host.send(&core, "long", "hi").unwrap();
         host.model_result(&mut core, t, text("ok"));
         turns += 1;
-        assert!(turns < 1000);
+        assert!(turns <= MAX_HISTORY_MESSAGES / 2);
     }
     assert_eq!(host.send(&core, "long", "hi").err(), Some(HostError::ConversationFull));
 }
@@ -380,6 +380,9 @@ impl ConversationStore for SharedStore {
     }
     fn delete(&mut self, id: &str) -> Result<(), StoreError> {
         self.0.lock().unwrap().delete(id)
+    }
+    fn save_compaction(&mut self, id: &str, compaction: Option<&mobius_agent::compaction::Compaction>) -> Result<(), StoreError> {
+        self.0.lock().unwrap().save_compaction(id, compaction)
     }
 }
 
@@ -685,4 +688,69 @@ fn a_conversation_can_have_its_own_setup_and_another_conversation_keeps_the_usua
     let (_, outs) = host.send(&core, "plain", "hi").unwrap();
     let (_, request) = model_call(&outs).unwrap();
     assert_eq!((request.model.as_str(), request.system.as_str()), ("test-model", "You are a test."));
+}
+
+// ---- long conversations --------------------------------------------------------------------------------------
+
+/// Fill a conversation past a 4,096-token window, then send one more message: the model is first asked for a summary.
+fn long_conversation(core: &mut Core, host: &mut Host) -> (u64, Vec<Out>) {
+    host.set_context_window(Some(4_096));
+    for i in 0..3 {
+        let (t, outs) = host.send(core, "long", &format!("question {i} {}", "q".repeat(1_000))).unwrap();
+        let (_, request) = model_call(&outs).unwrap();
+        assert!(!request.tools.is_empty(), "no summary while it still fits ({i})");
+        host.model_result(core, t, text(&format!("answer {i} {}", "a".repeat(1_000))));
+    }
+    host.send(core, "long", &format!("what next? {}", "w".repeat(3_000))).unwrap()
+}
+
+#[test]
+fn a_summary_is_never_streamed_into_the_conversation_and_is_kept_after_a_restart() {
+    let store = SharedStore::default();
+    let clock = Arc::new(Mutex::new(10));
+    let (mut core, mut host) = saved_world(store.clone(), clock.clone());
+    let (t, outs) = long_conversation(&mut core, &mut host);
+    let (_, summary_call) = model_call(&outs).unwrap();
+    assert!(summary_call.tools.is_empty(), "the first call writes the summary");
+    assert!(host.text(t, "## Goal ...").is_empty(), "summary text is not shown as the answer");
+    let outs = host.model_result(&mut core, t, text("SUMMARY OF EARLIER"));
+    assert!(notices(&outs).iter().any(|n| n["params"]["event"]["kind"] == "compacted"));
+    let (_, real) = model_call(&outs).unwrap();
+    assert!(!host.text(t, "Here").is_empty(), "the real answer streams as usual");
+    host.model_result(&mut core, t, text("Here."));
+    assert_eq!(host.history("long").len(), 8, "the transcript is whole");
+    assert!(matches!(&real.messages[0], Message::User { text } if text.contains("SUMMARY OF EARLIER")));
+    let covers = host.compaction("long").unwrap().covers;
+
+    // After a restart the next message goes out with the same summary, without asking for a new one.
+    let (mut core, mut host) = saved_world(store, clock);
+    host.set_context_window(Some(4_096));
+    assert_eq!(host.compaction("long").map(|c| c.covers), Some(covers));
+    let (_, outs) = host.send(&core, "long", "and then?").unwrap();
+    let (_, request) = model_call(&outs).unwrap();
+    assert!(!request.tools.is_empty(), "no new summary was needed");
+    assert!(matches!(&request.messages[0], Message::User { text } if text.contains("SUMMARY OF EARLIER")), "{:?}", request.messages[0]);
+    let _ = &mut core;
+}
+
+#[test]
+fn taking_back_a_message_the_summary_covers_forgets_the_summary() {
+    let (mut core, mut host) = setup();
+    let (t, _) = long_conversation(&mut core, &mut host);
+    host.model_result(&mut core, t, text("SUMMARY"));
+    host.model_result(&mut core, t, text("Here."));
+    assert!(host.compaction("long").is_some());
+    // A message after the summary's end is taken back and the summary stays.
+    let (t2, _) = host.send(&core, "long", "more").unwrap();
+    host.model_result(&mut core, t2, text("sure"));
+    assert_eq!(host.rewind("long").unwrap(), "more");
+    assert!(host.compaction("long").is_some(), "the summary does not cover it");
+    assert!(host.rewind("long").unwrap().starts_with("what next?"));
+    assert!(host.compaction("long").is_none(), "the summary covered up to that message");
+    // Deleting forgets everything.
+    let (t, _) = host.send(&core, "long", "again").unwrap();
+    host.model_result(&mut core, t, text("SUMMARY 2"));
+    host.model_result(&mut core, t, text("ok"));
+    host.delete("long").unwrap();
+    assert!(host.compaction("long").is_none());
 }

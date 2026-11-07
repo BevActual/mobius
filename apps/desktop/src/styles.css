@@ -296,6 +296,9 @@ kbd { padding: 1px 7px; border: 1px solid var(--line); border-bottom-width: 2px;
   .badge[data-tone="bad"] { color: #ff8a80; }
 }
 .running { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.engine { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); width: 100%; }
+.engine-progress { display: flex; align-items: center; gap: var(--sp-3); width: 100%; }
+.engine-progress progress { flex: 1; min-width: 120px; }
 .running-head { display: flex; align-items: center; gap: 10px; }
 .running-head strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .log { max-height: 180px; overflow: auto; margin: 6px 0 0; padding: 8px; border-radius: var(--radius-control); background: var(--panel); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -457,3 +460,35 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .prow-form .input, .prow-form select { flex: 1; min-width: 200px; }
 .prow-problem { grid-column: 1 / -1; }
 .btn.link { border-color: transparent; background: none; color: var(--accent); }
+
+/* A device sign-in code: big enough to read across to another device. */
+.device-code { align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
+.device-code-value { font: 600 1.25rem/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 0.08em; padding: var(--sp-1) var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius-control); user-select: all; }
+
+/* The model's plan: a quiet checklist inside the conversation. */
+.plan-card { border: 1px solid var(--line); border-radius: var(--radius-group); padding: var(--sp-2) var(--sp-3); display: grid; gap: var(--sp-1); }
+.plan-head { display: flex; justify-content: space-between; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+.plan-count { font-weight: var(--fw-regular); color: var(--muted); font-variant-numeric: tabular-nums; }
+.plan-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.plan-step { display: flex; align-items: baseline; gap: var(--sp-2); font-size: var(--fs-md); }
+.plan-mark { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid currentColor; opacity: 0.5; transform: translateY(1px); }
+.plan-step[data-status="in_progress"] .plan-mark { opacity: 1; border-color: var(--accent); background: radial-gradient(circle, var(--accent) 35%, transparent 40%); }
+.plan-step[data-status="done"] .plan-mark { opacity: 1; background: var(--accent); border-color: var(--accent); }
+.plan-step[data-status="done"] .plan-text { opacity: 0.6; text-decoration: line-through; text-decoration-thickness: 1px; }
+
+/* A question from the model: it waits for the person. */
+.question-card { border: 1px solid var(--accent); background: var(--wash); border-radius: var(--radius-group); padding: var(--sp-3); display: grid; gap: var(--sp-2); }
+.question-card:not([data-status="open"]) { border-color: var(--line); background: none; }
+.question-text { margin: 0; font-weight: var(--fw-medium); white-space: pre-wrap; }
+.question-choices { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.question-own { display: flex; gap: var(--sp-2); }
+.question-own .input { flex: 1; min-width: 0; }
+.question-answer { margin: 0; font-size: var(--fs-md); color: var(--muted); }
+
+/* Settings > Advanced > Other apps: what to paste into another agent. */
+.share-setup { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); }
+.share-snippet { display: grid; grid-template-columns: 1fr auto; gap: var(--sp-1) var(--sp-2); align-items: start; }
+.share-label { grid-column: 1 / -1; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.share-code { font: var(--fs-sm)/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-all; padding: var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--panel); user-select: all; }
+
+.quick-setup { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }

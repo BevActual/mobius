@@ -1,5 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { launch, startFixture, type Fixture, type Launched } from './harness';
 import { fakeLlama, patterned, startHub, type FakeHub, type FakeRepo } from './hub-fixture';
@@ -52,13 +53,13 @@ test('the page describes the computer and starts out empty', async () => {
   await expect(page().getByText(/graphics memory|processor/)).toBeVisible();
   await expect(page().getByText('Nothing is running.')).toBeVisible();
   await expect(page().getByText('No models yet.')).toBeVisible();
-  await expect(page().getByText(/was not found/)).toHaveCount(0);
+  await expect(page().getByText(/No engine yet/)).toHaveCount(0);
 });
 
 test('without llama.cpp the page says so and nothing can be run', async () => {
   await start({ llama: null });
   await openLocal();
-  await expect(page().getByText(/llama-server\) was not found/)).toBeVisible();
+  await expect(page().getByText(/No engine yet/)).toBeVisible();
 });
 
 test('suggestions come from Hugging Face, skip what is not a chat model or a helper file, and say how each would run', async () => {
@@ -175,4 +176,48 @@ test('a model downloaded earlier is still there after a restart', async () => {
   await openLocal();
   await expect(mine().getByRole('listitem')).toHaveCount(1);
   await expect(mine()).toContainText('Coder-3B-Q4_K_M');
+});
+
+test('one button installs nothing it does not need, picks a model that fits, downloads it and starts it for the agent', async () => {
+  await start();
+  await openLocal();
+  await page().getByRole('button', { name: 'Set it up for me' }).click();
+  await expect(page().getByLabel('Setup progress')).toHaveText('Ready. The agent is using it.', { timeout: 30_000 });
+  const running = page().locator('.running');
+  await expect(running).toContainText('Ready', { timeout: 30_000 });
+  await expect(running).toContainText('The agent is using this model.');
+  // Exactly one model was fetched, and it is the one running.
+  await expect(mine().getByRole('listitem')).toHaveCount(1);
+  expect(new Set(hub!.requests.filter((r) => r.includes('/resolve/')).map((r) => r.split('?')[0])).size).toBe(1);
+  await closeSettings();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('hello there');
+  await composer.press('Enter');
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('hello', { timeout: 15_000 });
+});
+
+test('a model can start again by itself when Mobius opens', async () => {
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-autostart-'));
+  try {
+    await start({ userData });
+    await openLocal();
+    await suggest();
+    await results().getByRole('button', { name: 'Download Tiny-1B-Q8_0' }).click();
+    await expect(mine().getByRole('listitem')).toHaveCount(1, { timeout: 20_000 });
+    await mine().getByRole('button', { name: 'Run Tiny-1B-Q8_0' }).click();
+    const running = () => page().getByRole('status').filter({ hasText: 'Tiny-1B-Q8_0' });
+    await expect(running()).toContainText('Ready', { timeout: 20_000 });
+    await page().getByRole('switch', { name: 'Start it when Mobius opens' }).click();
+    await expect(page().getByRole('switch', { name: 'Start it when Mobius opens' })).toBeChecked();
+    await mobius!.close({ keepUserData: true });
+    await hub!.close();
+    await start({ userData });
+    await openLocal();
+    await expect(running()).toContainText('Ready', { timeout: 30_000 });
+    await expect(page().getByRole('switch', { name: 'Start it when Mobius opens' })).toBeChecked();
+  } finally {
+    await mobius?.close();
+    mobius = undefined;
+    fs.rmSync(userData, { recursive: true, force: true });
+  }
 });

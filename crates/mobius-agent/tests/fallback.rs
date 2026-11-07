@@ -6,7 +6,7 @@ use mobius_agent::fallback::{FallbackProvider, should_fall_back};
 use mobius_agent::provider::{ChatRequest, Completion, Provider, ProviderError, ScriptedProvider, StopReason};
 
 fn request() -> ChatRequest {
-    ChatRequest { model: "first-model".into(), system: "sys".into(), messages: Vec::new(), tools: Vec::new(), effort: None }
+    ChatRequest { model: "first-model".into(), system: "sys".into(), messages: Vec::new(), tools: Vec::new(), effort: None, max_tokens: None }
 }
 
 fn ok(text: &str) -> Result<Completion, ProviderError> {
