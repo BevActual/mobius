@@ -195,6 +195,17 @@ export function App() {
     tasks: inTasks ? tasksContext(tasks) : null,
   };
   const activity = activityOf(conversation.state);
+  // A page the agent opens while you talk to it in the Agent app shows in the browser beside the conversation.
+  // Pages opened in earlier turns, or in a conversation just switched to, are already seen.
+  const seenPages = useRef<{ conversation: string; calls: Set<string> } | null>(null);
+  useEffect(() => {
+    const { conversation: id, items } = conversation.state;
+    const opened = items.flatMap((item) => (item.kind === 'tool' && item.name === 'browser.open' && item.status === 'done' ? [item.callId] : []));
+    if (seenPages.current?.conversation !== id) { seenPages.current = { conversation: id, calls: new Set(opened) }; return; }
+    const fresh = opened.filter((call) => !seenPages.current!.calls.has(call));
+    fresh.forEach((call) => seenPages.current!.calls.add(call));
+    if (fresh.length > 0) showBeside('browser');
+  }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
   const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : appName(app);
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
