@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { MAIN_BOT_ID, actionForPress, botOfConversation, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, actionForPress, botOfConversation, type ContextItem, type SidebarMode } from '@mobius/shared';
 import { appName, isAvailable, type AppId } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
 import { tasksContext, type SurfaceState } from './surface';
@@ -34,7 +34,7 @@ import { SearchPage } from './SearchPage';
 import { activityOf } from './activity';
 import type { HubTarget } from './search-hub';
 import { useTasks } from './useTasks';
-import { NoteEditor } from './NoteEditor';
+import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
 import { companionFor, loadShare, saveShare } from './split';
@@ -477,6 +477,32 @@ export function App() {
           </>
   );
 
+  // A short message about something done without the agent, such as a task made from a selection.
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
+  const [incoming, setIncoming] = useState<{ token: number; item: ContextItem } | null>(null);
+  /** On-canvas actions: what to do with text selected in a note. */
+  const onNoteSelection = (action: SelectionAction, text: string) => {
+    const page = notes.page;
+    if (!page) return;
+    const title = liveTitle(notes.text, page.title || appName('notes')).slice(0, 120) || 'Note';
+    const item: ContextItem = { kind: 'note', title, source: page.path, text: text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
+    if (action === 'task') {
+      const list = tasks.lists[0]?.name;
+      if (!list) { setToast('Make a task list first, in Tasks.'); return; }
+      const words = text.replace(/\s+/g, ' ').trim().slice(0, 200);
+      void tasks.add(list, words, null).then((ok) => setToast(ok ? `Added to ${list}` : 'The task could not be added.'));
+      return;
+    }
+    const ready = settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy;
+    if (!shows('agent')) setChatOpen(true);
+    if (action === 'ask' || !ready) { setIncoming({ token: Date.now(), item }); return; }
+    const prompt = action === 'rewrite'
+      ? `Rewrite the attached passage from my note "${title}" so it reads more clearly, keeping its meaning. Make the change in the note itself (${page.path}) and change nothing else.`
+      : `Summarise the attached passage from my note "${title}" in a few lines.`;
+    void conversation.send(prompt, [item]);
+  };
+
   /** What one pane draws for an app. Each app is on screen at most once, so its state is never split in two. */
   const paneContent = (id: AppId): ReactNode => {
     switch (id) {
@@ -488,7 +514,7 @@ export function App() {
           </>
         );
       case 'notes':
-        return <NoteEditor notes={notes} autoFocus={app === 'notes'} />;
+        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} />;
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} />;
       case 'search':
@@ -517,6 +543,7 @@ export function App() {
             onReply={conversation.reply}
             onSaveSettings={saveSettings}
             focusToken={focusToken}
+            incoming={incoming}
             conversations={conversation.list}
             activeConversation={conversation.id}
             onNewConversation={() => conversation.newConversation()}
@@ -671,6 +698,7 @@ export function App() {
               ? [<SplitDivider key="divider" share={splitDrag ?? share} onDrag={setSplitDrag} onCommit={(next) => { setShare(next); saveShare(next); }} />, pane]
               : [pane];
           })}
+          {toast && <div className="toast" role="status">{toast}</div>}
         </main>
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
@@ -685,6 +713,7 @@ export function App() {
               onReply={conversation.reply}
             onSaveSettings={saveSettings}
             focusToken={focusToken}
+            incoming={incoming}
             conversations={conversation.list}
             activeConversation={conversation.id}
             onNewConversation={() => conversation.newConversation()}

@@ -204,7 +204,7 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
         <ul className="chips" aria-label="Attached to this message">
           {context.map((item, index) => (
             <li key={`${item.kind}-${index}-${item.title}`} className="chip" data-kind={item.kind} title={item.source}>
-              <span className="chip-kind" aria-hidden="true">{item.kind === 'page' ? 'Page' : 'File'}</span>
+              <span className="chip-kind" aria-hidden="true">{item.kind === 'page' ? 'Page' : item.kind === 'note' ? 'Note' : 'File'}</span>
               <span className="chip-title">{item.title}</span>
               <button type="button" className="chip-remove" aria-label={`Remove ${item.title}`} onClick={() => onContext(context.filter((_, i) => i !== index))}>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>

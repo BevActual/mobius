@@ -895,3 +895,13 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .msg.assistant[data-streaming="true"]:not(:empty)::after { content: none; }
 .msg.assistant[data-streaming="true"] > :last-child::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: var(--muted); vertical-align: middle; animation: pulse 1.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .msg.assistant[data-streaming="true"] > :last-child::after { animation: none; } }
+
+/* On-canvas actions: a capsule over text selected in a note. The top layer, so it is the one place with glass. */
+.note-editor { position: relative; }
+.selection-bar { position: absolute; z-index: 5; display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-2); animation: app-in var(--dur-fast) var(--ease); }
+@supports (backdrop-filter: blur(1px)) { .selection-bar { backdrop-filter: blur(18px) saturate(1.6); } }
+@media (prefers-contrast: more) { .selection-bar { background: var(--panel); backdrop-filter: none; } }
+.selection-btn { height: 28px; padding: 0 12px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); white-space: nowrap; }
+.selection-btn:hover, .selection-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.selection-btn[data-action="ask"] { color: var(--accent); }
+.toast { position: absolute; z-index: 6; left: 50%; bottom: 20px; transform: translateX(-50%); padding: 8px 16px; border-radius: var(--radius-pill); background: var(--ink); color: var(--bg); font-size: var(--fs-sm); font-weight: var(--fw-medium); box-shadow: var(--shadow-2); animation: app-in var(--dur-med) var(--ease); }

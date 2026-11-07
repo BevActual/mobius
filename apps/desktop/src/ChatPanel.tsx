@@ -148,6 +148,8 @@ export interface ChatPanelProps {
   onSaveSettings: (request: AgentConfigureRequest) => Promise<AgentResult>;
   /** Text to place in the composer, for example from elsewhere in the window. Each value is used once. */
   focusToken?: number;
+  /** Material handed over from elsewhere in the window (text selected in a note): added as a chip, then the box is focused. */
+  incoming?: { token: number; item: ContextItem } | null;
   conversations: ConversationInfo[];
   activeConversation: string;
   onNewConversation: () => void;
@@ -240,7 +242,7 @@ function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty:
   );
 }
 
-export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged }: ChatPanelProps) {
+export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -290,6 +292,13 @@ export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop,
     if (focusToken) field.current?.focus();
   }, [focusToken]);
 
+  useEffect(() => {
+    if (!incoming) return;
+    const { item } = incoming;
+    setContext((items) => (items.some((i) => i.source === item.source && i.text === item.text) ? items : [...items, item].slice(-5)));
+    queueMicrotask(() => field.current?.focus());
+  }, [incoming]);
+
   return (
     <Shell variant={variant} empty={state.items.length === 0}>
       <div className="chat-head">
@@ -330,7 +339,7 @@ export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop,
                   <div className="msg user">{item.text}</div>
                   {item.attachments && item.attachments.length > 0 && (
                     <ul className="msg-chips" aria-label="Attached">
-                      {item.attachments.map((a, i) => <li key={i} className="chip" data-kind={a.kind} title={a.source}><span className="chip-kind" aria-hidden="true">{a.kind === 'page' ? 'Page' : 'File'}</span><span className="chip-title">{a.title}</span></li>)}
+                      {item.attachments.map((a, i) => <li key={i} className="chip" data-kind={a.kind} title={a.source}><span className="chip-kind" aria-hidden="true">{a.kind === 'page' ? 'Page' : a.kind === 'note' ? 'Note' : 'File'}</span><span className="chip-title">{a.title}</span></li>)}
                     </ul>
                   )}
                   {settled && index === lastUser && (

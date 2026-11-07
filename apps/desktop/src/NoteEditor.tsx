@@ -1,15 +1,42 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { liveTitle } from './notes-state';
 import type { NotesState } from './useNotes';
 
+/** What you can do with text selected in a note, right where it is. */
+export type SelectionAction = 'ask' | 'rewrite' | 'summarise' | 'task';
+const ACTIONS: { id: SelectionAction; label: string; title: string }[] = [
+  { id: 'ask', label: 'Ask', title: 'Ask the agent about this' },
+  { id: 'rewrite', label: 'Rewrite', title: 'Have the agent rewrite this in the note' },
+  { id: 'summarise', label: 'Summarise', title: 'Have the agent summarise this' },
+  { id: 'task', label: 'Make a task', title: 'Add this as a task' },
+];
+
 /** The open page. Plain Markdown, saved as you type; a page the assistant changed meanwhile is never overwritten. */
 /** `autoFocus` is off when the page opens in the pane beside the one you are working in, so typing stays where it was. */
-export function NoteEditor({ notes, autoFocus = true }: { notes: NotesState; autoFocus?: boolean }) {
+export function NoteEditor({ notes, autoFocus = true, onSelection }: { notes: NotesState; autoFocus?: boolean; onSelection?: (action: SelectionAction, text: string) => void }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const path = notes.page?.path;
   const focusOnOpen = useRef(autoFocus);
   focusOnOpen.current = autoFocus;
   useEffect(() => { if (path && focusOnOpen.current) area.current?.focus(); }, [path]);
+  // The selection bar sits just above where the pointer let go, or at the top when the selection came from the keyboard.
+  const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null);
+  const pointer = useRef<{ x: number; y: number } | null>(null);
+  const pressedAt = useRef<number | null>(null);
+  useEffect(() => setSelection(null), [path]);
+  const readSelection = () => {
+    const field = area.current;
+    const box = field?.parentElement?.getBoundingClientRect();
+    if (!field || !box || !onSelection) return;
+    const text = field.value.slice(field.selectionStart, field.selectionEnd);
+    if (text.trim().length < 2) { setSelection(null); return; }
+    const at = pointer.current;
+    // Above the higher end of the drag, so the bar never covers the first line of what was chosen.
+    const highest = at ? Math.min(at.y, pressedAt.current ?? at.y) : null;
+    const top = highest !== null ? Math.max(8, highest - box.top - 52) : 8;
+    const left = at ? Math.min(Math.max(8, at.x - box.left - 150), Math.max(8, box.width - 320)) : Math.max(8, box.width - 320);
+    setSelection({ text, top, left });
+  };
 
   if (!notes.page) {
     return (
@@ -35,7 +62,22 @@ export function NoteEditor({ notes, autoFocus = true }: { notes: NotesState; aut
         spellCheck
         value={notes.text}
         onChange={(e) => notes.edit(e.target.value)}
+        onPointerDown={(e) => { pointer.current = null; pressedAt.current = e.clientY; setSelection(null); }}
+        onPointerUp={(e) => { pointer.current = { x: e.clientX, y: e.clientY }; readSelection(); }}
+        onKeyUp={(e) => { if (e.key === 'Escape') { setSelection(null); return; } pointer.current = null; pressedAt.current = null; readSelection(); }}
+        onBlur={(e) => { if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node | null)) setSelection(null); }}
       />
+      {selection && onSelection && (
+        <div className="selection-bar" role="toolbar" aria-label="Selected text" style={{ top: selection.top, left: selection.left }}>
+          {ACTIONS.map((action) => (
+            <button key={action.id} type="button" className="selection-btn" data-action={action.id} title={action.title}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => { onSelection(action.id, selection.text); setSelection(null); }}>
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

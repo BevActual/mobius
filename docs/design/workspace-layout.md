@@ -39,9 +39,13 @@ while you work in any app.
 - **Little Mobius**: a small window, kept above other apps, with the conversation and nothing else. It opens from the
   toolbar, shares conversations with the main window, and closes with it.
 
+- **On-canvas actions**: select text in a note and a capsule appears above it: Ask (the text joins the agent's message
+  box as a Note chip), Rewrite (the agent changes it in the note), Summarise, and Make a task (added straight to the
+  first list, no agent needed).
+
 ## Next
 
-1. On-canvas actions: select text in a note or a page, and Ask / Rewrite / Summarise / Make a task appear there.
+1. On-canvas actions on a web page, as notes have now.
 2. One review and undo strip for everything the agent changed, in every app.
 3. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
 4. Let people reorder and hide apps in the sidebar (HIG: let people customise the sidebar).
