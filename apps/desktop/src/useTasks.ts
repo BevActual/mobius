@@ -6,12 +6,28 @@ export type TasksView = { kind: 'list'; name: string } | { kind: 'smart'; id: Sm
 const FRESH_MS = 4000;
 const key = (list: string, text: string) => `${list}\u0000${text}`;
 
+/** The view last open, so Tasks opens on it again (after a restart too). Per device; Today when there is none. */
+const VIEW_KEY = 'mobius.tasks.view';
+const TODAY: TasksView = { kind: 'smart', id: 'today' };
+function rememberedView(): TasksView {
+  try {
+    const v: unknown = JSON.parse(window.localStorage.getItem(VIEW_KEY) ?? 'null');
+    if (typeof v === 'object' && v !== null) {
+      const { kind, name, id } = v as Record<string, unknown>;
+      if (kind === 'list' && typeof name === 'string' && name.length > 0 && name.length <= 200) return { kind, name };
+      if (kind === 'smart' && (id === 'today' || id === 'scheduled')) return { kind, id };
+    }
+  } catch { /* Nothing kept. */ }
+  return TODAY;
+}
+
 /** The Tasks app's state: every list and its tasks, the view that is open, and changes that show at once. */
 export function useTasks() {
   const api = window.mobius.tasks;
   const [lists, setLists] = useState<TaskListInfo[]>([]);
   const [all, setAll] = useState<Record<string, TaskItem[]>>({});
-  const [view, setView] = useState<TasksView>({ kind: 'smart', id: 'today' });
+  const [view, setView] = useState<TasksView>(rememberedView);
+  useEffect(() => { try { window.localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch { /* Not kept. */ } }, [view]);
   const [message, setMessage] = useState('');
   // Tasks the agent just added or changed, marked for a moment so its work is visible without moving focus.
   const [fresh, setFresh] = useState<Set<string>>(new Set());
@@ -32,7 +48,8 @@ export function useTasks() {
   }, [api]);
 
   useEffect(() => {
-    void refresh();
+    // A remembered list that is gone (deleted, renamed) opens Today instead.
+    void refresh().then((got) => setView((v) => (v.kind === 'list' && !(v.name in got) ? TODAY : v)));
     return api?.onChanged((change) => {
       const before = live.current;
       void refresh().then((after) => {
