@@ -871,3 +871,27 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .mini { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--panel); }
 .mini > .chat { flex: 1; min-height: 0; }
 .mini-controls { display: inline-flex; align-items: center; gap: 2px; }
+
+/* Agent replies: Markdown shown as formatting, on a calm reading rhythm. */
+.msg.assistant { white-space: normal; }
+.msg.assistant > * { margin: 0 0 0.65em; }
+.msg.assistant > :last-child { margin-bottom: 0; }
+.msg.assistant :is(p, li, blockquote) { white-space: pre-wrap; }
+.msg.assistant :is(h3, h4, h5) { margin-top: 0.9em; line-height: var(--lh-tight); font-weight: var(--fw-semibold); }
+.msg.assistant h3 { font-size: 1.2em; }
+.msg.assistant h4 { font-size: 1.07em; }
+.msg.assistant h5 { font-size: 1em; }
+.msg.assistant > :first-child { margin-top: 0; }
+.msg.assistant :is(ul, ol) { padding-left: 1.4em; }
+.msg.assistant li + li { margin-top: 0.25em; }
+.msg.assistant li::marker { color: var(--muted); }
+.msg.assistant strong { font-weight: var(--fw-semibold); }
+.msg.assistant a { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 2px; cursor: pointer; }
+.msg.assistant a:hover { text-decoration-color: currentColor; }
+.msg.assistant :not(pre) > code { padding: 1px 5px; border-radius: 5px; background: var(--field); font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 0.92em; }
+.msg.assistant pre { padding: 10px 12px; border-radius: var(--radius-group); background: var(--field); overflow-x: auto; white-space: pre; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 0.9em; line-height: 1.45; }
+.msg.assistant blockquote { padding-left: 12px; border-left: 3px solid var(--line-strong); color: var(--muted); }
+.msg.assistant hr { border: 0; border-top: 1px solid var(--line); }
+.msg.assistant[data-streaming="true"]:not(:empty)::after { content: none; }
+.msg.assistant[data-streaming="true"] > :last-child::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: var(--muted); vertical-align: middle; animation: pulse 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .msg.assistant[data-streaming="true"] > :last-child::after { animation: none; } }

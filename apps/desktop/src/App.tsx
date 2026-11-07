@@ -144,15 +144,44 @@ export function App() {
   const shows = (id: AppId) => app === id || other === id;
   // Apps the agent (or another app) changed while you were elsewhere: their rail button carries a dot until opened.
   const [changed, setChanged] = useState<ReadonlySet<AppId>>(new Set());
-  const here = useRef(app);
-  here.current = app;
+  const here = useRef({ app, other, narrow });
+  here.current = { app, other, narrow };
   useEffect(() => { setChanged((s) => { if (!s.has(app)) return s; const n = new Set(s); n.delete(app); return n; }); }, [app]);
-  useEffect(() => {
-    const mark = (id: AppId) => (by: string) => { if (by !== 'person' && here.current !== id) setChanged((s) => new Set(s).add(id)); };
-    const offNotes = window.mobius.notes?.onChanged((c) => mark('notes')(c.by));
-    const offTasks = window.mobius.tasks?.onChanged((c) => mark('tasks')(c.by));
-    return () => { offNotes?.(); offTasks?.(); };
+  useEffect(() => { if (other) setChanged((s) => { if (!s.has(other)) return s; const n = new Set(s); n.delete(other); return n; }); }, [other]);
+  /**
+   * The agent made or changed something while you talk to it in the Agent app: show it in the second pane, beside the
+   * conversation, without taking focus away from it. A pane you chose for something else is never replaced.
+   */
+  const showBeside = useCallback((id: AppId): boolean => {
+    const { panes: [a, b], focused: f } = panesNow.current;
+    if (here.current.narrow) return false;
+    const focusedApp = f === 1 && b !== null ? b : a;
+    const otherApp = f === 1 ? a : b;
+    if (focusedApp !== 'agent') return false;
+    if (otherApp === id) return true;
+    if (otherApp !== null) return false;
+    setPanes([a, id]);
+    return true;
   }, []);
+  const notesNow = useRef(notes);
+  notesNow.current = notes;
+  const tasksNow = useRef(tasks);
+  tasksNow.current = tasks;
+  useEffect(() => {
+    const visible = (id: AppId) => here.current.app === id || here.current.other === id;
+    const mark = (id: AppId) => { if (!visible(id)) setChanged((s) => new Set(s).add(id)); };
+    const offNotes = window.mobius.notes?.onChanged((c) => {
+      if (c.by === 'person') return;
+      if (c.by === 'assistant' && c.path && showBeside('notes')) { void notesNow.current.open(c.path); return; }
+      mark('notes');
+    });
+    const offTasks = window.mobius.tasks?.onChanged((c) => {
+      if (c.by === 'person') return;
+      if (c.by === 'assistant' && c.list && showBeside('tasks')) { tasksNow.current.setView({ kind: 'list', name: c.list }); return; }
+      mark('tasks');
+    });
+    return () => { offNotes?.(); offTasks?.(); };
+  }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
   const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
   const needsYou = conversation.list.reduce((sum, c) => sum + c.waiting, 0);
@@ -448,7 +477,7 @@ export function App() {
           </>
         );
       case 'notes':
-        return <NoteEditor notes={notes} />;
+        return <NoteEditor notes={notes} autoFocus={app === 'notes'} />;
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} />;
       case 'search':

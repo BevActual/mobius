@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { RichText } from './RichText';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
 import type { ConversationState, Item, ToolStatus, findToolResult } from './conversation';
@@ -340,7 +341,7 @@ export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop,
                 </Fragment>
               ) : item.kind === 'assistant' ? (
                 <Fragment key={item.id}>
-                  <div className="msg assistant" data-streaming={item.streaming}>{item.text}</div>
+                  <div className="msg assistant" data-streaming={item.streaming}><RichText text={item.text} /></div>
                   {!item.streaming && item.text !== '' && (
                     <div className="msg-actions assistant">
                       <button type="button" className="msg-action" aria-label="Copy reply" onClick={() => void copy(item.id, item.text)}>{copied === item.id ? 'Copied' : 'Copy'}</button>

@@ -31,6 +31,11 @@ while you work in any app.
   its app, swap, close) outside the page view; the toolbar and sidebar follow the focused pane. Drag the divider, or
   focus it and use the arrow keys. Below 980 px the second pane folds away until the window is wide again. With the
   Agent app in a pane, the agent panel steps aside.
+- **Beside the conversation**: when the agent writes a note or changes a task list while you are in the Agent app, it
+  opens in the second pane, and typing stays in the conversation. A pane you chose for something else is never
+  replaced; that app gets its dot in the sidebar instead.
+- **Replies read as formatting**: headings, lists, quotes, code, bold and links (links open as tabs in Mobius). The
+  reply is read into plain data, never HTML, and only web and mail links are followed.
 - **Little Mobius**: a small window, kept above other apps, with the conversation and nothing else. It opens from the
   toolbar, shares conversations with the main window, and closes with it.
 
@@ -38,5 +43,5 @@ while you work in any app.
 
 1. On-canvas actions: select text in a note or a page, and Ask / Rewrite / Summarise / Make a task appear there.
 2. One review and undo strip for everything the agent changed, in every app.
-3. Split view from the Agent app: let the agent open what it made in the second pane beside the conversation.
+3. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
 4. Let people reorder and hide apps in the sidebar (HIG: let people customise the sidebar).

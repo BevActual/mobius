@@ -3,10 +3,13 @@ import { liveTitle } from './notes-state';
 import type { NotesState } from './useNotes';
 
 /** The open page. Plain Markdown, saved as you type; a page the assistant changed meanwhile is never overwritten. */
-export function NoteEditor({ notes }: { notes: NotesState }) {
+/** `autoFocus` is off when the page opens in the pane beside the one you are working in, so typing stays where it was. */
+export function NoteEditor({ notes, autoFocus = true }: { notes: NotesState; autoFocus?: boolean }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const path = notes.page?.path;
-  useEffect(() => { if (path) area.current?.focus(); }, [path]);
+  const focusOnOpen = useRef(autoFocus);
+  focusOnOpen.current = autoFocus;
+  useEffect(() => { if (path && focusOnOpen.current) area.current?.focus(); }, [path]);
 
   if (!notes.page) {
     return (
