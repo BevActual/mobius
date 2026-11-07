@@ -334,12 +334,18 @@ export function App() {
     queueMicrotask(() => opener.current?.focus?.());
   }, []);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+  /** A web page in the browser: the tab it is already open in, or a new one. */
+  const showPage = (url: string) => {
+    openApp('browser');
+    const tab = browser.tabs.find((t) => t.url === url);
+    if (tab) window.mobius.browser.activate(tab.id); else void window.mobius.browser.open(url);
+  };
   /** Open something found in Search in the app it belongs to. */
   const openTarget = (target: HubTarget) => {
     if (target.app === 'agent') { conversation.select(target.conversation); openApp('agent'); }
     else if (target.app === 'notes') { openApp('notes'); void notes.open(target.path, target.title); }
     else if (target.app === 'tasks') { tasks.setView({ kind: 'list', name: target.list }); openApp('tasks'); }
-    else { openApp('browser'); void window.mobius.browser.open(target.url); }
+    else showPage(target.url);
   };
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const newTab = useCallback(() => {
@@ -517,9 +523,7 @@ export function App() {
     else if (fav.kind === 'list') { openApp('tasks'); tasks.setView({ kind: 'list', name: fav.id }); }
     else {
       // A page already open in a tab is shown there; otherwise it opens in a new one.
-      openApp('browser');
-      const tab = browser.tabs.find((t) => t.url === fav.id);
-      if (tab) window.mobius.browser.activate(tab.id); else void window.mobius.browser.open(fav.id);
+      showPage(fav.id);
     }
   };
   const currentFavourite = inBrowser && active ? `page:${active.url}` : inNotes && notes.page ? `note:${notes.page.path}` : inTasks && tasks.view.kind === 'list' ? `list:${tasks.view.name}` : null;

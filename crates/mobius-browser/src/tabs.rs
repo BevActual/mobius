@@ -29,6 +29,8 @@ struct Tab {
     icon: Option<String>,
     icon_from: Option<String>,
     pinned: bool,
+    /// The page finished loading before it had a title: the first title it gets goes to history too.
+    untitled_visit: bool,
 }
 
 /// How many closed pages are remembered for reopening.
@@ -100,7 +102,7 @@ impl Browser {
             let mut s = lock(&self.state);
             s.counter += 1;
             let id = format!("tab-{}", s.counter);
-            s.tabs.push(Tab { id: id.clone(), url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false });
+            s.tabs.push(Tab { id: id.clone(), url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false, untitled_visit: false });
             id
         };
         self.engine.open(&id, url.unwrap_or(START_PAGE));
@@ -283,6 +285,12 @@ impl Browser {
                 // A new page has its own icon (or none): the old one goes, and the new one arrives with the page.
                 t.icon = None;
                 t.icon_from = None;
+                // And its own title, so history never files it under the page before. A jump within the page (only
+                // the part after # changes) keeps the title, since no new one will come.
+                let page = |u: &str| u.split('#').next().unwrap_or(u).to_owned();
+                if page(&t.url) != page(url) {
+                    t.title.clear();
+                }
             }
             t.url = url.to_owned();
             t.can_back = can_back;
@@ -292,6 +300,17 @@ impl Browser {
 
     pub fn titled(&self, id: &str, title: &str) {
         let title: String = title.chars().take(300).collect();
+        // Once per load: a visit kept under its address learns its title. Later changes (a count in the title) do not.
+        let revisit = {
+            let mut s = lock(&self.state);
+            s.tabs.iter_mut().find(|t| t.id == id).filter(|t| t.untitled_visit && !title.trim().is_empty()).map(|t| {
+                t.untitled_visit = false;
+                t.url.clone()
+            })
+        };
+        if let Some(url) = &revisit {
+            (self.on_visit)(url, &title);
+        }
         self.update(id, |t| t.title = title);
     }
 
@@ -302,7 +321,13 @@ impl Browser {
     /// A page finished loading.
     pub fn finished(&self, id: &str) {
         self.loading(id, false);
-        let page = lock(&self.state).tabs.iter().find(|t| t.id == id).map(|t| (t.url.clone(), t.title.clone()));
+        let page = {
+            let mut s = lock(&self.state);
+            s.tabs.iter_mut().find(|t| t.id == id).map(|t| {
+                t.untitled_visit = t.title.trim().is_empty();
+                (t.url.clone(), t.title.clone())
+            })
+        };
         if let Some((url, title)) = page {
             (self.on_visit)(&url, &title);
         }
@@ -636,6 +661,25 @@ mod tests {
         assert_eq!(visits.lock().unwrap().clone(), vec![("https://a.example/".to_owned(), "A".to_owned())]);
         b.finished("tab-9");
         assert_eq!(visits.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_title_that_comes_after_the_page_loaded_goes_to_history_once_and_never_the_last_pages_title() {
+        let (b, _, _, visits) = browser();
+        b.open(Some("https://a.example/"));
+        b.navigated("tab-1", "https://a.example/", false, false);
+        b.titled("tab-1", "A");
+        b.finished("tab-1");
+        // The next page finishes before its title arrives: it is not filed under A.
+        b.navigated("tab-1", "https://b.example/", true, false);
+        b.finished("tab-1");
+        b.titled("tab-1", "B");
+        b.titled("tab-1", "(1) B");
+        let seen = visits.lock().unwrap().clone();
+        assert_eq!(seen, vec![("https://a.example/".into(), "A".into()), ("https://b.example/".into(), String::new()), ("https://b.example/".into(), "B".into())]);
+        // A jump within the page keeps its title.
+        b.navigated("tab-1", "https://b.example/#part", true, false);
+        assert_eq!(b.state()["tabs"][0]["title"], "(1) B");
     }
 
     #[test]
