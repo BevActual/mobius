@@ -11,7 +11,7 @@ while you work in any app.
 | Sidebar (left) | The apps by name, then the open app's own list (tabs, notebooks, lists, conversations). Folds to an icon rail. | The **Create** button follows the app (New tab / New note / New task / New conversation). Counts and dots show what is waiting and what the agent changed elsewhere. A narrow window folds it to the rail on its own. |
 | Toolbar (top) | Where you are (title + one line about it), then the app's own controls, then the agent. | Browser: back, forward, address. Notes: notebook and save state. Tasks: how many to do, Clear completed. Agent: which model. |
 | Work area | The app's content as one sheet on the window. | Only the content changes between apps; headers live in the toolbar, not in each page. |
-| Agent | One conversation across all apps. | Three sizes: **Ask** in the toolbar when the panel is put away; the **panel** beside the work (the composer turns into a live status line while the agent works); the **Agent app** full size. On-canvas actions on a selection come next. |
+| Agent | One conversation across all apps. | Three sizes: **Ask** in the toolbar when the panel is put away; the **panel** beside the work (the composer turns into a live status line while the agent works); the **Agent app** full size. On-canvas actions work on text selected in a note or on a web page. |
 | App hub | Every app as a tile with a live status, ways to start something, apps still to come. | Opens from the sidebar; type to narrow it. |
 
 ## Rules taken from Apple's HIG (Sidebars, Toolbars) and Microsoft's 2026 Copilot redesign
@@ -31,8 +31,8 @@ while you work in any app.
   its app, swap, close) outside the page view; the toolbar and sidebar follow the focused pane. Drag the divider, or
   focus it and use the arrow keys. Below 980 px the second pane folds away until the window is wide again. With the
   Agent app in a pane, the agent panel steps aside.
-- **Beside the conversation**: when the agent writes a note or changes a task list while you are in the Agent app, it
-  opens in the second pane, and typing stays in the conversation. A pane you chose for something else is never
+- **Beside the conversation**: when the agent writes a note, changes a task list or opens a web page while you are in the
+  Agent app, it opens in the second pane, and typing stays in the conversation. A pane you chose for something else is never
   replaced; that app gets its dot in the sidebar instead.
 - **Replies read as formatting**: headings, lists, quotes, code, bold and links (links open as tabs in Mobius). The
   reply is read into plain data, never HTML, and only web and mail links are followed.
@@ -54,4 +54,5 @@ while you work in any app.
 
 ## Next
 
-1. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
+1. Run the end-to-end suite (including `e2e/mobius2.spec.ts`) in the Windows shell, and look over the real window, a web
+   page in a split pane, and Little Mobius.
