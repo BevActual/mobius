@@ -128,11 +128,26 @@ fn little_mobius(app: &tauri::AppHandle, method: &str) -> Result<Value, Value> {
                 let _ = mini.set_focus();
                 return Ok(Value::Null);
             }
-            tauri::WebviewWindowBuilder::new(app, MINI, WebviewUrl::default())
+            let (width, height) = (380.0, 560.0);
+            let mut builder = tauri::WebviewWindowBuilder::new(app, MINI, WebviewUrl::default())
                 .title("Little Mobius")
-                .inner_size(380.0, 560.0)
+                .inner_size(width, height)
                 .min_inner_size(320.0, 380.0)
-                .always_on_top(true)
+                .always_on_top(true);
+            // In the bottom-right corner of the screen Mobius is on, clear of the taskbar, like a chat that pops out.
+            if let Some(monitor) = app.get_window("main").and_then(|main| main.current_monitor().ok().flatten()) {
+                let scale = monitor.scale_factor();
+                let area = monitor.work_area();
+                let (left, top) = (f64::from(area.position.x) / scale, f64::from(area.position.y) / scale);
+                let (across, down) = (f64::from(area.size.width) / scale, f64::from(area.size.height) / scale);
+                const MARGIN: f64 = 24.0;
+                // A title bar and frame sit outside the inner size; leave room for them.
+                const FRAME: f64 = 40.0;
+                let x = (left + across - width - MARGIN).max(left);
+                let y = (top + down - height - FRAME - MARGIN).max(top);
+                builder = builder.position(x, y);
+            }
+            builder
                 .build()
                 .map_err(|e| fail(format!("Little Mobius could not open: {e}")))?;
             Ok(Value::Null)
