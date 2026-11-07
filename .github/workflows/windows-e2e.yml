@@ -1,0 +1,44 @@
+# The end-to-end suite drives the real app on Windows (WebView2, over CDP), so it runs on a Windows machine.
+# It only runs when started by hand (Actions › Windows end-to-end › Run workflow), because Windows minutes cost
+# double on a private repository.
+name: Windows end-to-end
+
+on:
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: 'Only these test files (for example e2e/mobius2.spec.ts); empty runs everything'
+        required: false
+        default: ''
+
+jobs:
+  e2e:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - name: Build the core and the shell
+        run: cargo build -p mobius-cored -p mobius-shell
+      - name: Build the interface
+        run: npm run build -w @mobius/desktop
+      - name: Run the end-to-end suite
+        working-directory: apps/desktop
+        env:
+          MOBIUS_SHELL: tauri
+          MOBIUS_TAURI_LOG: ${{ github.workspace }}\shell.log
+        run: npx playwright test ${{ inputs.spec }}
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: |
+            apps/desktop/test-results
+            shell.log
+          retention-days: 7
