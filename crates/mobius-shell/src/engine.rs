@@ -189,6 +189,8 @@ impl Engine for WebViewEngine {
                 }
                 NewWindowResponse::Deny
             });
+        #[cfg(target_os = "linux")]
+        let builder = match crate::web_data() { Some(dir) => builder.data_directory(dir), None => builder };
         // A page starts out of the way; `layout` places it.
         match self.window.add_child(builder, LogicalPosition::new(0.0, 0.0), LogicalSize::new(1.0, 1.0)) {
             Ok(webview) => {

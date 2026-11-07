@@ -116,6 +116,17 @@ struct Shell {
     mini_place: PathBuf,
 }
 
+/// Linux: where every web view keeps its storage (the interface's saved state, pages' cookies), inside Mobius's own
+/// data folder, so separate data folders stay separate and Remove all data takes it too. Windows keeps WebView2's
+/// folder as it was, so nobody loses their sign-ins.
+#[cfg(target_os = "linux")]
+static WEB_DATA: OnceLock<PathBuf> = OnceLock::new();
+
+#[cfg(target_os = "linux")]
+pub(crate) fn web_data() -> Option<PathBuf> {
+    WEB_DATA.get().cloned()
+}
+
 /// Little Mobius: a small window that keeps the agent at hand over other apps. It shows the same interface, which sees
 /// the window's label and draws only the conversation.
 const MINI: &str = "mini";
@@ -165,7 +176,12 @@ fn little_mobius(app: &tauri::AppHandle, method: &str, place_file: &std::path::P
             }
             let kept = kept_place(app, place_file, (320.0, 380.0));
             let (width, height) = kept.map_or((380.0, 560.0), |(_, _, w, h)| (w, h));
-            let mut builder = tauri::WebviewWindowBuilder::new(app, MINI, WebviewUrl::default())
+            let mut builder = tauri::WebviewWindowBuilder::new(app, MINI, WebviewUrl::default());
+            #[cfg(target_os = "linux")]
+            if let Some(dir) = web_data() {
+                builder = builder.data_directory(dir);
+            }
+            let mut builder = builder
                 .title("Little Mobius")
                 .inner_size(width, height)
                 .min_inner_size(320.0, 380.0)
@@ -425,7 +441,12 @@ fn main() {
             }
             let scale = window.scale_factor()?;
             let size = window.inner_size()?.to_logical::<f64>(scale);
-            let interface = window.add_child(WebviewBuilder::new("main", WebviewUrl::default()), LogicalPosition::new(0.0, 0.0), size)?;
+            #[cfg(target_os = "linux")]
+            let _ = WEB_DATA.set(data_dir.join("webview"));
+            let interface_view = WebviewBuilder::new("main", WebviewUrl::default());
+            #[cfg(target_os = "linux")]
+            let interface_view = match web_data() { Some(dir) => interface_view.data_directory(dir), None => interface_view };
+            let interface = window.add_child(interface_view, LogicalPosition::new(0.0, 0.0), size)?;
             #[cfg(target_os = "linux")]
             linux_views::place(&interface, 0.0, 0.0, size.width, size.height);
             let web = choose_engine(&window, &data_dir);
