@@ -138,6 +138,7 @@ impl Checkpoints {
 
     /// Saves the folder as it is now. `None` when nothing changed since the last checkpoint.
     pub fn snapshot(&self, folder: &Path, reason: &str) -> Result<Option<Checkpoint>, Error> {
+        let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         self.git(&folder, &id, &["add", "-A", "--", "."])?;
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
@@ -160,6 +161,7 @@ impl Checkpoints {
 
     /// Newest first, at most `limit` (never more than 500).
     pub fn list(&self, folder: &Path, limit: usize) -> Result<Vec<Checkpoint>, Error> {
+        let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         if self.tip(&folder, &id).is_none() {
             return Ok(Vec::new());
@@ -191,6 +193,7 @@ impl Checkpoints {
 
     /// Puts the whole folder back as it was at `checkpoint`. What is there now is saved first, so this can be undone too.
     pub fn restore(&self, folder: &Path, checkpoint: &str) -> Result<(), Error> {
+        let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
         let before = self.snapshot(&folder, "before restoring an earlier checkpoint")?;
@@ -209,6 +212,7 @@ impl Checkpoints {
 
     /// Puts one file back as it was at `checkpoint`: recreated if it was deleted since, removed if it was made since.
     pub fn restore_file(&self, folder: &Path, checkpoint: &str, path: &str) -> Result<(), Error> {
+        let _one = one_at_a_time();
         if !is_inner_path(path) {
             return Err(Error::BadInput("That path is not inside the folder.".into()));
         }
@@ -228,6 +232,7 @@ impl Checkpoints {
 
     /// A file's text as it was at `checkpoint`; `None` when it was not there then (or is not text).
     pub fn read_at(&self, folder: &Path, checkpoint: &str, path: &str) -> Result<Option<String>, Error> {
+        let _one = one_at_a_time();
         if !is_inner_path(path) {
             return Err(Error::BadInput("That path is not inside the folder.".into()));
         }
@@ -241,12 +246,38 @@ impl Checkpoints {
 
     /// Files that differ between `checkpoint` and the folder now: added, changed or removed since.
     pub fn changed_since(&self, folder: &Path, checkpoint: &str) -> Result<Vec<String>, Error> {
+        let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
         self.git(&folder, &id, &["add", "-A", "--", "."])?;
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
         let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &target, &tree])?;
         Ok(out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect())
+    }
+}
+
+/// Every checkpoint operation in this process runs one at a time. Notes, Tasks and the agent's file tools each have
+/// their own `Checkpoints` over the same store and index, and two git commands at once fail on git's index lock: a turn
+/// whose mark failed that way had nothing to review or undo. An operation that calls another keeps the lock it has.
+static STORE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+thread_local! { static HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+
+struct OneAtATime(Option<std::sync::MutexGuard<'static, ()>>);
+
+fn one_at_a_time() -> OneAtATime {
+    if HELD.with(std::cell::Cell::get) {
+        return OneAtATime(None);
+    }
+    let guard = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    HELD.with(|h| h.set(true));
+    OneAtATime(Some(guard))
+}
+
+impl Drop for OneAtATime {
+    fn drop(&mut self) {
+        if self.0.is_some() {
+            HELD.with(|h| h.set(false));
+        }
     }
 }
 
@@ -391,6 +422,30 @@ mod tests {
         assert!(matches!(s.cp.restore(&other, &mine.id), Err(Error::BadInput(_))), "a checkpoint of another folder is refused");
         assert!(matches!(s.cp.restore(&s.folder, &theirs.id), Err(Error::BadInput(_))));
         assert_eq!(read(&other, "d.md").as_deref(), Some("docs"));
+    }
+
+    #[test]
+    fn checkpoints_of_one_store_from_several_places_at_once_all_succeed() {
+        let s = setup();
+        write(&s.folder, "a.md", "a");
+        let store = s._root.path().join("store");
+        let workers: Vec<_> = (0..8)
+            .map(|n| {
+                let (store, folder) = (store.clone(), s.folder.clone());
+                std::thread::spawn(move || {
+                    // Each its own handle on the same store, as Notes, Tasks and the file tools have.
+                    let cp = Checkpoints::new(store);
+                    for i in 0..5 {
+                        fs::write(folder.join(format!("{n}-{i}.md")), "x").unwrap();
+                        cp.snapshot(&folder, "at once").unwrap();
+                        cp.list(&folder, 1).unwrap();
+                    }
+                })
+            })
+            .collect();
+        for w in workers {
+            w.join().expect("no snapshot failed");
+        }
     }
 
     #[test]

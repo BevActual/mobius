@@ -1288,8 +1288,13 @@ impl Bridge {
                 match agent::parse_send(&request) {
                     Some(r) => {
                         // Saved before the turn starts, so everything it changes can be reviewed and undone at once.
-                        if let Ok(Some(mark)) = self.workspace.mark("before the agent's turn") {
-                            lock(&self.turn_marks).insert(r.conversation.clone(), mark);
+                        match self.workspace.mark("before the agent's turn") {
+                            Ok(Some(mark)) => {
+                                lock(&self.turn_marks).insert(r.conversation.clone(), mark);
+                            }
+                            Ok(None) => {}
+                            // The turn still goes ahead; it just cannot be reviewed or undone as one.
+                            Err(error) => eprintln!("[changes] no mark before the turn: {error}"),
                         }
                         let bot = self.bot_for(&r.conversation);
                         self.agent.send(&r, bot.as_ref().map(|b| (b.instructions.as_str(), b.model.as_str())))
