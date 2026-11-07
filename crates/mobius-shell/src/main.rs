@@ -120,11 +120,12 @@ struct Shell {
 /// the window's label and draws only the conversation.
 const MINI: &str = "mini";
 
-/// Where Little Mobius was last put, in logical pixels, if that spot is still on one of the screens.
-fn kept_place(app: &tauri::AppHandle, file: &std::path::Path) -> Option<(f64, f64, f64, f64)> {
+/// Where a window was last put, in logical pixels, if that spot is still on one of the screens. Its size is kept
+/// within `min` and a sensible largest size.
+fn kept_place(app: &tauri::AppHandle, file: &std::path::Path, min: (f64, f64)) -> Option<(f64, f64, f64, f64)> {
     let kept = mobius_store::file::read_json(file)?;
     let get = |k: &str| kept.get(k).and_then(Value::as_f64).filter(|v| v.is_finite());
-    let (x, y, w, h) = (get("x")?, get("y")?, get("width")?.clamp(320.0, 1200.0), get("height")?.clamp(380.0, 1600.0));
+    let (x, y, w, h) = (get("x")?, get("y")?, get("width")?.clamp(min.0, 8000.0), get("height")?.clamp(min.1, 5000.0));
     // Its top-left corner must be well inside a screen, so a screen since unplugged never hides it.
     let on_screen = app.available_monitors().ok()?.iter().any(|m| {
         let scale = m.scale_factor();
@@ -134,6 +135,22 @@ fn kept_place(app: &tauri::AppHandle, file: &std::path::Path) -> Option<(f64, f6
         x >= left && y >= top && x + 80.0 <= right && y + 40.0 <= bottom
     });
     on_screen.then_some((x, y, w, h))
+}
+
+fn keep_window_place(window: &tauri::Window, file: &std::path::Path) {
+    let maximized = window.is_maximized().unwrap_or(false);
+    if maximized || window.is_minimized().unwrap_or(false) {
+        let mut kept = mobius_store::file::read_json(file).unwrap_or_else(|| serde_json::json!({}));
+        if !maximized || kept.get("maximized") == Some(&Value::Bool(true)) || !kept.is_object() {
+            return;
+        }
+        kept["maximized"] = Value::Bool(true);
+        mobius_store::file::write_json(file, &kept);
+        return;
+    }
+    let (Ok(scale), Ok(at), Ok(size)) = (window.scale_factor(), window.outer_position(), window.inner_size()) else { return };
+    let (at, size) = (at.to_logical::<f64>(scale), size.to_logical::<f64>(scale));
+    mobius_store::file::write_json(file, &serde_json::json!({ "x": at.x, "y": at.y, "width": size.width, "height": size.height, "maximized": false }));
 }
 
 fn little_mobius(app: &tauri::AppHandle, method: &str, place_file: &std::path::Path) -> Result<Value, Value> {
@@ -146,7 +163,7 @@ fn little_mobius(app: &tauri::AppHandle, method: &str, place_file: &std::path::P
                 let _ = mini.set_focus();
                 return Ok(Value::Null);
             }
-            let kept = kept_place(app, place_file);
+            let kept = kept_place(app, place_file, (320.0, 380.0));
             let (width, height) = kept.map_or((380.0, 560.0), |(_, _, w, h)| (w, h));
             let mut builder = tauri::WebviewWindowBuilder::new(app, MINI, WebviewUrl::default())
                 .title("Little Mobius")
@@ -391,7 +408,21 @@ fn main() {
                     ((size.width * 0.9).min(1440.0), (size.height * 0.85).min(900.0))
                 })
             };
-            let window = WindowBuilder::new(app, "main").title("Mobius").inner_size(width, height).min_inner_size(720.0, 480.0).center().visible(!hidden).build()?;
+            // Where the window was last put, its size, and whether it was maximised; tests always get the known size.
+            let window_file = data_dir.join("window.json");
+            let keep_window = !test_mode || std::env::var("MOBIUS_KEEP_WINDOW").is_ok_and(|v| v == "1");
+            let kept = if keep_window { kept_place(app.handle(), &window_file, (720.0, 480.0)) } else { None };
+            let maximised = keep_window && mobius_store::file::read_json(&window_file).is_some_and(|v| v["maximized"] == true);
+            let (width, height) = kept.map_or((width, height), |(_, _, w, h)| (w, h));
+            let mut builder = WindowBuilder::new(app, "main").title("Mobius").inner_size(width, height).min_inner_size(720.0, 480.0).visible(!hidden);
+            builder = match kept {
+                Some((x, y, _, _)) => builder.position(x, y),
+                None => builder.center(),
+            };
+            let window = builder.build()?;
+            if maximised {
+                let _ = window.maximize();
+            }
             let scale = window.scale_factor()?;
             let size = window.inner_size()?.to_logical::<f64>(scale);
             let interface = window.add_child(WebviewBuilder::new("main", WebviewUrl::default()), LogicalPosition::new(0.0, 0.0), size)?;
@@ -436,6 +467,11 @@ fn main() {
                 }
                 if let WindowEvent::Focused(true) = event {
                     focus_bridge.window_activated(std::time::Duration::from_secs(120));
+                }
+                // The window's place is kept as it moves and resizes; while maximised only that is noted, so the size
+                // it goes back to is the one it had.
+                if keep_window && matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
+                    keep_window_place(&resize_window, &window_file);
                 }
                 if let WindowEvent::Resized(_) = event && let (Ok(scale), Ok(size)) = (resize_window.scale_factor(), resize_window.inner_size()) {
                     let size = size.to_logical::<f64>(scale);
