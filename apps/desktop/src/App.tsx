@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, botOfConversation, type ContextItem, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type SidebarMode } from '@mobius/shared';
 import { appName, isAvailable, type AppId } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
 import { tasksContext, type SurfaceState } from './surface';
@@ -61,6 +61,9 @@ function useNarrowWindow(width: number): boolean {
   }, [query]);
   return narrow;
 }
+
+/** A button's tooltip with its shortcut after it, when it has one. */
+const withKeys = (text: string, binding: string) => (binding ? `${text} (${describeCombo(binding, window.mobius.platform)})` : text);
 
 export function App() {
   const browser = useBrowser();
@@ -341,6 +344,12 @@ export function App() {
   const newTab = useCallback(() => {
     void window.mobius.browser.open().then(() => address.current?.focus());
   }, []);
+  // The same as the toolbar's split and Little Mobius buttons, for their shortcuts.
+  const toggleSplit = useCallback(() => {
+    if (narrow) return;
+    if (split) closePane(focused === 0 ? 1 : 0); else openSplit();
+  }, [narrow, split, focused, closePane, openSplit]);
+  const toggleMini = useCallback(() => { void (miniOpen ? window.mobius.mini.close() : window.mobius.mini.open()); }, [miniOpen]);
 
   useEffect(
     () =>
@@ -351,9 +360,11 @@ export function App() {
         else if (shortcut === 'close-tab' && active) window.mobius.browser.close(active.id);
         else if (shortcut === 'settings') openSettings();
         else if (shortcut === 'find') openFind();
+        else if (shortcut === 'split-view') toggleSplit();
+        else if (shortcut === 'little-mobius') toggleMini();
         else if (shortcut === 'quick-entry') { setSettingsOpen(false); setLauncherOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); }
       }),
-    [openLauncher, openSettings, openFind, newTab, active],
+    [openLauncher, openSettings, openFind, newTab, active, toggleSplit, toggleMini],
   );
 
   // The same shortcuts when the shell itself has the keyboard (pages are handled by the main process).
@@ -366,10 +377,12 @@ export function App() {
       else if (action === 'closeTab' && active) { event.preventDefault(); window.mobius.browser.close(active.id); }
       else if (action === 'settings') { event.preventDefault(); openSettings(); }
       else if (action === 'find' && app === 'browser') { event.preventDefault(); openFind(); }
+      else if (action === 'splitView') { event.preventDefault(); toggleSplit(); }
+      else if (action === 'littleMobius') { event.preventDefault(); toggleMini(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [bindings, openLauncher, openSettings, openFind, app, newTab, active]);
+  }, [bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -729,10 +742,10 @@ export function App() {
           </form>
         )}
         <div className="strip-right" role="group" aria-label="Applications">
-          <button type="button" className="strip-btn" data-mini-toggle aria-pressed={miniOpen} aria-label={miniOpen ? 'Close Little Mobius' : 'Open Little Mobius'} title={miniOpen ? 'Close the small agent window' : 'Little Mobius: the agent in a small window above your other apps'} onClick={() => void (miniOpen ? window.mobius.mini.close() : window.mobius.mini.open())}>
+          <button type="button" className="strip-btn" data-mini-toggle aria-pressed={miniOpen} aria-label={miniOpen ? 'Close Little Mobius' : 'Open Little Mobius'} title={withKeys(miniOpen ? 'Close the small agent window' : 'Little Mobius: the agent in a small window above your other apps', bindings.littleMobius)} onClick={toggleMini}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3.5" width="14" height="13" rx="3" /><rect x="9.5" y="9.5" width="5.5" height="5" rx="1.5" /></svg>
           </button>
-          {!narrow && <button type="button" className="strip-btn" data-split-toggle aria-pressed={split} aria-label={split ? 'Close split view' : 'Split view'} title={split ? 'Show one app' : 'Show two apps side by side'} onClick={() => (split ? closePane(focused === 0 ? 1 : 0) : openSplit())}>
+          {!narrow && <button type="button" className="strip-btn" data-split-toggle aria-pressed={split} aria-label={split ? 'Close split view' : 'Split view'} title={withKeys(split ? 'Show one app' : 'Show two apps side by side', bindings.splitView)} onClick={toggleSplit}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="6.5" height="11" rx="2" /><rect x="11" y="4.5" width="6.5" height="11" rx="2" /></svg>
           </button>}
           {hasRight && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={chatOpen} aria-label="Show agent" title="Show or hide the agent" onClick={() => { setChatOpen((open) => !open); setFocusToken((n) => n + 1); }}>

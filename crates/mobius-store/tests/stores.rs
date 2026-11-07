@@ -76,6 +76,18 @@ fn preferences_check_each_choice() {
 }
 
 #[test]
+fn shortcuts_saved_before_new_ones_were_added_are_kept() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("p.json");
+    // A file from before split view and Little Mobius had shortcuts, with one key changed.
+    std::fs::write(&file, json!({ "keybindings": { "launcher": "alt+j", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "" } }).to_string()).unwrap();
+    let p = preferences::open(file);
+    assert_eq!(p.get()["keybindings"]["launcher"], "alt+j", "the chosen key stays");
+    assert_eq!(p.get()["keybindings"]["splitView"], "mod+\\");
+    assert_eq!(p.get()["keybindings"]["littleMobius"], "mod+shift+m");
+}
+
+#[test]
 fn keybindings_need_every_action_valid_and_no_two_alike() {
     let b = keys::defaults();
     assert!(keys::is_key_bindings(&b));

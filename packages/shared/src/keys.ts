@@ -6,7 +6,7 @@
  * from the character it types, so Alt on a Mac or a different keyboard layout does not change it.
  */
 
-export const SHORTCUT_ACTIONS = ['launcher', 'address', 'newTab', 'closeTab', 'settings', 'find', 'quickEntry'] as const;
+export const SHORTCUT_ACTIONS = ['launcher', 'address', 'newTab', 'closeTab', 'settings', 'find', 'splitView', 'littleMobius', 'quickEntry'] as const;
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 /** An action's binding: a combination, or '' for none. */
 export type KeyBindings = Record<ShortcutAction, string>;
@@ -19,6 +19,8 @@ export const SHORTCUT_INFO: Record<ShortcutAction, { label: string; global: bool
   closeTab: { label: 'Close the current tab', global: false },
   settings: { label: 'Open settings', global: false },
   find: { label: 'Find on the page', global: false },
+  splitView: { label: 'Show two apps side by side, or one', global: false },
+  littleMobius: { label: 'Open or close Little Mobius', global: false },
   quickEntry: { label: 'Bring Mobius up and start a message, from anywhere', global: true },
 };
 
@@ -29,6 +31,8 @@ export const DEFAULT_KEYBINDINGS: KeyBindings = {
   closeTab: 'mod+w',
   settings: 'mod+,',
   find: 'mod+f',
+  splitView: 'mod+\\',
+  littleMobius: 'mod+shift+m',
   quickEntry: '',
 };
 

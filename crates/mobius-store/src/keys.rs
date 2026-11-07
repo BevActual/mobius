@@ -1,10 +1,10 @@
 //! Keyboard shortcut bindings, checked the same way as `keys.ts` in the shared package.
 use serde_json::{Map, Value, json};
 
-pub const ACTIONS: [&str; 7] = ["launcher", "address", "newTab", "closeTab", "settings", "find", "quickEntry"];
+pub const ACTIONS: [&str; 9] = ["launcher", "address", "newTab", "closeTab", "settings", "find", "quickEntry", "splitView", "littleMobius"];
 
 pub fn defaults() -> Value {
-    json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "" })
+    json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+\\", "littleMobius": "mod+shift+m" })
 }
 
 fn is_key(k: &str) -> bool {
@@ -157,7 +157,7 @@ pub fn combo_of_windows_key(virtual_key: u32, control: bool, alt: bool, shift: b
 
 /// The window action a press triggers when it matches one of the bindings. The quick-entry binding is global and not included.
 pub fn window_action_for(bindings: &Value, combo: &str) -> Option<&'static str> {
-    const FORWARDED: [(&str, &str); 6] = [("launcher", "launcher"), ("address", "address"), ("newTab", "new-tab"), ("closeTab", "close-tab"), ("settings", "settings"), ("find", "find")];
+    const FORWARDED: [(&str, &str); 8] = [("launcher", "launcher"), ("address", "address"), ("newTab", "new-tab"), ("closeTab", "close-tab"), ("settings", "settings"), ("find", "find"), ("splitView", "split-view"), ("littleMobius", "little-mobius")];
     FORWARDED.iter().find(|(action, _)| bindings.get(*action).and_then(Value::as_str) == Some(combo)).map(|(_, shortcut)| *shortcut)
 }
 
@@ -206,7 +206,7 @@ mod press_tests {
     fn every_key_a_binding_can_name_can_be_pressed() {
         let all: Vec<String> = (0x41..=0x5Au32).chain(0x30..=0x39).chain(0x70..=0x7B).chain([0x20, 0x25, 0x26, 0x27, 0x28, 0xBC, 0xBE, 0xBF, 0xBA, 0xDE, 0xDB, 0xDD, 0xBD, 0xBB, 0xDC, 0xC0]).filter_map(|vk| combo_of_windows_key(vk, false, true, false)).collect();
         assert_eq!(all.len(), 26 + 10 + 12 + 16);
-        assert!(all.iter().all(|c| is_key_bindings(&json!({ "launcher": c, "address": "", "newTab": "", "closeTab": "", "settings": "", "find": "", "quickEntry": "" }))), "each spelling is one the settings accept");
+        assert!(all.iter().all(|c| is_key_bindings(&json!({ "launcher": c, "address": "", "newTab": "", "closeTab": "", "settings": "", "find": "", "quickEntry": "", "splitView": "", "littleMobius": "" }))), "each spelling is one the settings accept");
     }
 
     #[test]

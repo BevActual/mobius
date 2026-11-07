@@ -115,7 +115,7 @@ export const channels = {
 
 export type CoreStatus = 'starting' | 'ready' | 'restarting' | 'failed';
 
-export type Shortcut = 'launcher' | 'address' | 'new-tab' | 'close-tab' | 'settings' | 'find' | 'quick-entry';
+export type Shortcut = 'launcher' | 'address' | 'new-tab' | 'close-tab' | 'settings' | 'find' | 'split-view' | 'little-mobius' | 'quick-entry';
 
 export interface FindRequest { tabId: string; text: string; forward: boolean; again: boolean }
 /** How a search in the page is going: which match is shown, out of how many. */

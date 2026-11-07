@@ -27,7 +27,7 @@ while you work in any app.
 
 - One window. The sidebar runs edge to edge; one toolbar spans the work area; controls are capsules; indigo is the one
   accent. Glass stays on the top layer only, so Linux stays readable.
-- **Split view**: the toolbar's split button puts a second app beside the first. Each pane has a small header (choose
+- **Split view**: the toolbar's split button (or Ctrl+\\) puts a second app beside the first. Each pane has a small header (choose
   its app, swap, close) outside the page view; the toolbar and sidebar follow the focused pane. Drag the divider, or
   focus it and use the arrow keys. Below 980 px the second pane folds away until the window is wide again. With the
   Agent app in a pane, the agent panel steps aside.
@@ -36,7 +36,7 @@ while you work in any app.
   replaced; that app gets its dot in the sidebar instead.
 - **Replies read as formatting**: headings, lists, quotes, code, bold and links (links open as tabs in Mobius). The
   reply is read into plain data, never HTML, and only web and mail links are followed.
-- **Little Mobius**: a small window, kept above other apps, with the conversation and nothing else. It opens from the
+- **Little Mobius**: a small window, kept above other apps, with the conversation and nothing else. It opens (Ctrl+Shift+M) from the
   toolbar, shares conversations with the main window, and closes with it.
 
 - **On-canvas actions**: select text in a note and a capsule appears above it: Ask (the text joins the agent's message

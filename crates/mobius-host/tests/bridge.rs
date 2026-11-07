@@ -529,7 +529,7 @@ mod browser {
         assert!(!b.page_key(0x4A, true, false, false), "ctrl+j is not bound");
         assert!(!b.page_key(0x11, true, false, false), "a modifier alone");
         assert_eq!(events.lock().unwrap().clone(), vec![("mobius:shortcut".to_owned(), json!("launcher"))]);
-        call(&b, "preferences", "set", json!([{ "keybindings": { "launcher": "alt+j", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "" } }]));
+        call(&b, "preferences", "set", json!([{ "keybindings": { "launcher": "alt+j", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+\\", "littleMobius": "mod+shift+m" } }]));
         assert!(b.page_key(0x4A, false, true, false), "the new binding works");
         assert!(!b.page_key(0x4B, true, false, false), "the old one no longer does");
     }
@@ -731,7 +731,7 @@ mod browser {
     }
 
     fn defaults_keys() -> serde_json::Value {
-        json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "" })
+        json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+\\", "littleMobius": "mod+shift+m" })
     }
 
     #[test]
