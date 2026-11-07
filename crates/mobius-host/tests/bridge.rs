@@ -815,10 +815,13 @@ mod browser {
     #[test]
     fn only_a_folder_well_below_the_top_of_a_drive_may_be_emptied() {
         use mobius_host::bridge::is_safe_to_empty;
-        for unsafe_dir in ["C:/", "C:/Users", "C:/Users/me", "/", "/home", "relative/path", "C:/a/b/../.."] {
+        for unsafe_dir in ["C:/", "C:/Users", "C:/Users/me", "/", "/home", "/home/me", "relative/path", "C:/a/b/../..", "/home/me/a/../.."] {
             assert!(!is_safe_to_empty(std::path::Path::new(unsafe_dir)), "{unsafe_dir}");
         }
+        #[cfg(windows)]
         assert!(is_safe_to_empty(std::path::Path::new("C:/Users/me/AppData/Roaming/mobius")));
+        #[cfg(not(windows))]
+        assert!(is_safe_to_empty(std::path::Path::new("/home/me/.local/share/mobius")));
     }
 
     #[test]

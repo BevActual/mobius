@@ -51,10 +51,14 @@ pub fn is_checkpoint_id(v: &str) -> bool {
     (4..=40).contains(&v.len()) && v.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-/// A path inside the folder: relative, no `..`, no drive or root, no control characters.
+/// A path inside the folder: relative, no `..`, no drive or root, no control characters. Paths use `/` on every
+/// system, and a backslash or a drive letter is refused everywhere, so a path means the same on Linux as on Windows
+/// (where `..\x` and `C:/x` would leave the folder).
 pub fn is_inner_path(v: &str) -> bool {
     !v.is_empty()
         && !v.chars().any(char::is_control)
+        && !v.contains('\\')
+        && !v.split('/').next().is_some_and(|first| first.len() >= 2 && first.as_bytes()[1] == b':')
         && Path::new(v).components().all(|c| matches!(c, Component::Normal(_)))
         && !v.starts_with('-')
 }

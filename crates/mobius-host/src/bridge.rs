@@ -85,7 +85,10 @@ fn now_ms() -> i64 {
 /// A folder is only emptied when it sits well below the top of a drive or the home folder: a mistaken setting must never
 /// turn "remove my data" into "remove my documents".
 pub fn is_safe_to_empty(dir: &std::path::Path) -> bool {
-    dir.is_absolute() && dir.components().count() >= 5 && !dir.components().any(|c| matches!(c, std::path::Component::ParentDir))
+    // At least three folders below the top (C:/Users/me/x, /home/me/x): a drive letter and the root do not count,
+    // so the rule is the same on Windows and elsewhere.
+    let named = dir.components().filter(|c| matches!(c, std::path::Component::Normal(_))).count();
+    dir.is_absolute() && named >= 3 && !dir.components().any(|c| matches!(c, std::path::Component::ParentDir))
 }
 
 fn ok(extra: Value) -> Value {
