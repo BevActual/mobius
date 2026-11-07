@@ -38,7 +38,7 @@ import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
-import { SelectionMenu, type WebSelectionAction } from './SelectionMenu';
+import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { clipToNotes } from './clip';
 import { companionFor, loadShare, saveShare } from './split';
 
@@ -503,16 +503,27 @@ export function App() {
   };
   const currentFavourite = inNotes && notes.page ? `note:${notes.page.path}` : inTasks && tasks.view.kind === 'list' ? `list:${tasks.view.name}` : null;
   /** On-canvas actions for the web: what to do with the text selected on the page. */
+  // Where Save to Notes puts web text: the chosen page while it exists, otherwise Clippings.
+  const clipPages = useMemo<ClipPage[]>(() => notes.notebooks.flatMap((nb) => nb.pages.map((pg) => ({ path: pg.path, title: pg.title, notebook: nb.name }))), [notes.notebooks]);
+  const clipTarget = clipPages.find((pg) => pg.path === appearance.value.clippingsPage);
+  const clipText = async (target: string) => {
+    setSelectionMenu(false);
+    const result = await window.mobius.context.selection().catch(() => ({ ok: false as const, error: 'The selection could not be read.' }));
+    if (!result.ok) { setNotice(result.error); return; }
+    const saved = await clipToNotes(result.item, target);
+    const name = clipPages.find((pg) => pg.path === (saved.ok ? saved.path : ''))?.title ?? 'Clippings';
+    setNotice(saved.ok ? `Saved to ${name} in Notes` : saved.error);
+  };
+  const clipToPage = (path: string) => {
+    void appearance.set({ clippingsPage: path });
+    void clipText(path);
+  };
   const webSelection = async (action: WebSelectionAction) => {
+    if (action === 'clip') { await clipText(clipTarget?.path ?? ''); return; }
     setSelectionMenu(false);
     const result = await window.mobius.context.selection().catch(() => ({ ok: false as const, error: 'The selection could not be read.' }));
     if (!result.ok) { setNotice(result.error); return; }
     const { item } = result;
-    if (action === 'clip') {
-      const saved = await clipToNotes(item);
-      setNotice(saved.ok ? 'Saved to Clippings in Notes' : saved.error);
-      return;
-    }
     if (action === 'task') {
       const list = tasks.lists[0]?.name;
       if (!list) { setNotice('Make a task list first, in Tasks.'); return; }
@@ -669,7 +680,7 @@ export function App() {
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h8M4 9h5M4 13h4" /><path d="M14.5 9.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>
             </button>
             {selectionMenu && cover !== null && (
-              <SelectionMenu onClose={() => setSelectionMenu(false)} onChoose={(action) => void webSelection(action)} />
+              <SelectionMenu onClose={() => setSelectionMenu(false)} onChoose={(action) => void webSelection(action)} clipTo={clipTarget?.title ?? 'Clippings'} pages={clipPages} onClipTo={clipToPage} />
             )}
           </div>
           <form className="address" onSubmit={submit}>

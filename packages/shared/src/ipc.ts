@@ -509,6 +509,8 @@ export interface AppearanceSettings {
   sidebarApps: SidebarApp[];
   /** Notes and task lists pinned under the apps in the sidebar. */
   favourites: Favourite[];
+  /** The note page text saved from a web page goes to, by path; empty for a page called Clippings. */
+  clippingsPage: string;
 }
 /** A note (by page path) or a task list (by name), kept one click away. */
 export interface Favourite { kind: 'note' | 'list'; id: string; title: string }
@@ -525,7 +527,7 @@ export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
 export type NavigationStyle = 'sidebar' | 'rail';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 380 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [] };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -777,6 +779,7 @@ export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) 
   rightSidebar: oneOf<SidebarMode>('attached', 'floating'),
   leftWidth: (v): v is number => inRange(v, SIDEBAR_WIDTH.left),
   rightWidth: (v): v is number => inRange(v, SIDEBAR_WIDTH.right),
+  clippingsPage: (v): v is string => typeof v === 'string' && (v === '' || (v.endsWith('.md') && [...v].length <= 500 && !/[\u0000-\u001f\u007f]/.test(v))),
   favourites: (v): v is Favourite[] => Array.isArray(v) && v.length <= MAX_FAVOURITES && v.every(isFavourite),
   sidebarApps: (v): v is SidebarApp[] => Array.isArray(v) && v.length > 0 && v.length <= SIDEBAR_APPS.length && new Set(v).size === v.length && v.every((id) => (SIDEBAR_APPS as readonly unknown[]).includes(id)),
 };

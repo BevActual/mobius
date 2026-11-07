@@ -12,14 +12,16 @@ export function withClipping(page: string, item: ContextItem, when: Date = new D
   return `${page.trimEnd()}\n\n${quote}\n\n— ${source}, ${day}\n`;
 }
 
-/** Keep a selection on the Clippings page, making the page (and a notebook, if there is none) the first time. */
-export async function clipToNotes(item: ContextItem): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+/** Keep a selection on the chosen page (`target`, a page path), or on the Clippings page, making that page (and a notebook, if there is none) the first time. */
+export async function clipToNotes(item: ContextItem, target = ''): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const api = window.mobius.notes;
   if (!api) return { ok: false, error: 'Notes is not available.' };
   const listed = await api.list();
   if (isNotesFailure(listed)) return { ok: false, error: listed.message };
   const notebooks = listed;
-  let path = notebooks.flatMap((nb) => nb.pages).find((page) => page.path.endsWith(`/${CLIPPINGS}.md`))?.path;
+  const pages = notebooks.flatMap((nb) => nb.pages);
+  // A chosen page that has since been removed falls back to Clippings.
+  let path = (target && pages.find((page) => page.path === target)?.path) || pages.find((page) => page.path.endsWith(`/${CLIPPINGS}.md`))?.path;
   if (!path) {
     let notebook = notebooks[0]?.name;
     if (!notebook) {

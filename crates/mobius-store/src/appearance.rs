@@ -37,7 +37,12 @@ fn is_favourites(v: &Value) -> bool {
         })
 }
 
-static FIELDS: [Field; 16] = [
+/// The note page web clippings go to: a page path ending in .md, or empty for the Clippings page.
+fn is_clippings_page(v: &Value) -> bool {
+    v.as_str().is_some_and(|s| s.is_empty() || (s.ends_with(".md") && s.chars().count() <= 500 && !s.chars().any(char::is_control)))
+}
+
+static FIELDS: [Field; 17] = [
     Field { name: "theme", default: || json!("system"), check: |v| one_of(v, &["system", "light", "dark"]) },
     Field { name: "zoom", default: || json!(1), check: |v| in_range(v, 0.75, 1.5) },
     Field { name: "chatTextScale", default: || json!(1), check: |v| in_range(v, 0.85, 1.4) },
@@ -57,6 +62,8 @@ static FIELDS: [Field; 16] = [
     Field { name: "sidebarApps", default: || json!(SIDEBAR_APPS), check: is_app_list },
     // Notes and task lists pinned under the apps.
     Field { name: "favourites", default: || json!([]), check: is_favourites },
+    // Where text saved from a web page goes. Empty: a page called Clippings, made when first needed.
+    Field { name: "clippingsPage", default: || json!(""), check: is_clippings_page },
 ];
 
 pub fn open(file: PathBuf) -> Settings {

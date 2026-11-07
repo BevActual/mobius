@@ -41,7 +41,7 @@ while you work in any app.
 
 - **On-canvas actions**: select text in a note and a capsule appears above it: Ask (the text joins the agent's message
   box as a Note chip), Rewrite (the agent changes it in the note), Summarise, and Make a task (added straight to the
-  first list, no agent needed). On a web page, the toolbar's selection menu offers Ask, Summarise, Explain, Make a task and Save to Notes (quoted on a Clippings page, with a link back)
+  first list, no agent needed). On a web page, the toolbar's selection menu offers Ask, Summarise, Explain, Make a task and Save to Notes (quoted on a Clippings page, with a link back; "Save to another page…" picks a different page and keeps saving there)
   (the page is a native view, so its picture covers it while the menu is open).
 - **Review and undo**: each agent turn begins with a checkpoint. When a turn ends having changed notes, task lists or
   files, a strip above the message box says so: Review lists each change with its own Undo; Undo all puts back only
@@ -54,6 +54,5 @@ while you work in any app.
 
 ## Next
 
-1. Choose which notebook and page clippings go to.
-2. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
-3. Pin web pages too, and reorder pinned items by dragging.
+1. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
+2. Pin web pages too, and reorder pinned items by dragging.
