@@ -6,8 +6,17 @@ export interface DiffLine { kind: 'same' | 'added' | 'removed'; text: string }
  * past a few thousand lines each side it falls back to showing everything as replaced.
  */
 export function diffLines(before: string, after: string): DiffLine[] {
-  const a = before.split('\n');
-  const b = after.split('\n');
+  // Lines both end with are kept as they are first, so a page that grew at the end shows only the new lines,
+  // not its old last line (often blank) matched early and a copy of it "added" at the end.
+  const allA = before.split('\n');
+  const allB = after.split('\n');
+  let tail = 0;
+  while (tail < allA.length && tail < allB.length && allA[allA.length - 1 - tail] === allB[allB.length - 1 - tail]) tail++;
+  const kept = allA.slice(allA.length - tail).map((text) => ({ kind: 'same' as const, text }));
+  return [...diffBody(allA.slice(0, allA.length - tail), allB.slice(0, allB.length - tail)), ...kept];
+}
+
+function diffBody(a: string[], b: string[]): DiffLine[] {
   if (a.length * b.length > 4_000_000) return [...a.map((text) => ({ kind: 'removed' as const, text })), ...b.map((text) => ({ kind: 'added' as const, text }))];
   const table: Uint32Array[] = Array.from({ length: a.length + 1 }, () => new Uint32Array(b.length + 1));
   for (let i = a.length - 1; i >= 0; i--) {

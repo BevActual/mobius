@@ -14,6 +14,11 @@ describe('line diff', () => {
     ]);
     expect(diffCounts(lines)).toEqual({ added: 2, removed: 1 });
   });
+  it('shows lines added at the end as only those lines', () => {
+    const lines = diffLines('# Plan\n\nCall the printer.\n', '# Plan\n\nCall the printer.\n\n- Order posters\n- Proof by Thursday\n');
+    expect(diffCounts(lines)).toEqual({ added: 3, removed: 0 });
+    expect(lines.filter((l) => l.kind === 'added').map((l) => l.text)).toEqual(['', '- Order posters', '- Proof by Thursday']);
+  });
   it('treats a new page as all added', () => {
     expect(diffCounts(diffLines('', 'a\nb'))).toEqual({ added: 2, removed: 1 });
   });
