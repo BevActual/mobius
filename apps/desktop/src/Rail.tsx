@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Activity } from './activity';
 import type { AppId } from './apps';
 
@@ -44,13 +44,41 @@ interface Props {
   onLauncher: () => void;
   onSettings: () => void;
   settingsOpen: boolean;
+  /** The apps to list, in order (the person's choice). */
+  apps?: readonly AppId[];
+  /** Change which apps are listed and their order. */
+  onApps?: (apps: AppId[]) => void;
+  /** Open the settings where the list is chosen. */
+  onEditApps?: () => void;
 }
 
 /**
  * The app rail: one column that ties the apps together. The highlight slides to the app you are in, the app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen }: Props) {
+export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps }: Props) {
+  const listed = apps ? RAIL_APPS.filter((a) => apps.includes(a.id)).sort((a, b) => apps.indexOf(a.id) - apps.indexOf(b.id)) : RAIL_APPS;
+  const order = listed.map((a) => a.id);
+  // Right-click an app (or Shift+F10) to move or hide it: HIG asks that people can shape the sidebar.
+  const [menu, setMenu] = useState<{ id: AppId; x: number; y: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) return undefined;
+    menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    const away = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setMenu(null); };
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenu(null); };
+    window.addEventListener('pointerdown', away, true);
+    window.addEventListener('keydown', key);
+    return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', key); };
+  }, [menu]);
+  const move = (id: AppId, by: -1 | 1) => {
+    const at = order.indexOf(id);
+    const to = at + by;
+    if (to < 0 || to >= order.length) return;
+    const next = [...order];
+    [next[at], next[to]] = [next[to]!, next[at]!];
+    onApps?.(next);
+  };
   return (
     <nav className="rail" aria-label="Apps" data-expanded={expanded || undefined}>
       <div className="rail-top">
@@ -63,7 +91,7 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
         </button>
       </div>
       <ul role="list" className="rail-apps">
-        {RAIL_APPS.map(({ id, name }) => {
+        {listed.map(({ id, name }) => {
           const here = app === id && !settingsOpen;
           const working = activity !== null && (activity.app === id || (id === 'agent' && activity.app === null && app !== 'agent'));
           const waiting = id === 'agent' ? needsYou : 0;
@@ -78,6 +106,7 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
                 data-changed={(changed.has(id) && !here) || undefined}
                 title={name}
                 onClick={() => onOpen(id)}
+                onContextMenu={onApps ? (event) => { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); setMenu({ id, x: event.clientX || r.right, y: event.clientY || r.top }); } : undefined}
               >
                 {here && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
                 <svg viewBox="0 0 20 20" aria-hidden="true" data-app={id}>{APP_ICONS[id]}</svg>
@@ -89,6 +118,14 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
           );
         })}
       </ul>
+      {menu && (
+        <div ref={menuRef} className="rail-menu" role="menu" aria-label={`${RAIL_APPS.find((a) => a.id === menu.id)?.name ?? ''} in the sidebar`} style={{ left: menu.x, top: menu.y }}>
+          <button type="button" role="menuitem" className="popmenu-item" disabled={order.indexOf(menu.id) === 0} onClick={() => { move(menu.id, -1); setMenu(null); }}>Move up</button>
+          <button type="button" role="menuitem" className="popmenu-item" disabled={order.indexOf(menu.id) === order.length - 1} onClick={() => { move(menu.id, 1); setMenu(null); }}>Move down</button>
+          <button type="button" role="menuitem" className="popmenu-item" disabled={order.length === 1} onClick={() => { onApps?.(order.filter((id) => id !== menu.id)); setMenu(null); }}>Hide from sidebar</button>
+          {onEditApps && <button type="button" role="menuitem" className="popmenu-item" onClick={() => { setMenu(null); onEditApps(); }}>Edit sidebar…</button>}
+        </div>
+      )}
       {expanded && children && <div className="rail-app">{children}</div>}
       <div className="rail-end">
         <button type="button" className="rail-btn" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${RAIL_APPS.find((a) => a.id === app)?.name ?? app}`} title="All apps and commands (Ctrl+K)" onClick={onLauncher}>

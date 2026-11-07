@@ -315,7 +315,7 @@ export function App() {
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'advanced' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
   const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
   const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
@@ -577,6 +577,9 @@ export function App() {
         onLauncher={openHub}
         onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
         settingsOpen={settingsOpen}
+        apps={appearance.value.sidebarApps}
+        onApps={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
+        onEditApps={() => { setSettingsSection('layout'); openSettings(); }}
       >
         {wide && hasAppList && appSidebar(null)}
       </Rail>
@@ -669,7 +672,7 @@ export function App() {
         <main className="stage" data-split={split || undefined} style={split ? ({ '--split': `${(splitDrag ?? share) * 100}%` } as React.CSSProperties) : undefined}>
           {settingsOpen && (
             <SettingsPage
-              {...(settingsSection ? { initial: settingsSection } : {})}
+              {...(settingsSection === 'layout' ? { initial: 'appearance' as const, initialSubpage: 'layout' } : settingsSection ? { initial: settingsSection } : {})}
               onClose={() => { setSettingsSection(undefined); closeSettings(); }}
               settings={settings}
               onSaveSettings={saveSettings}

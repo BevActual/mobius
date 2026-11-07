@@ -3,6 +3,8 @@ import {
   type SavedServer,
   CHAT_TEXT_RANGE,
   SIDEBAR_WIDTH,
+  SIDEBAR_APPS,
+  type SidebarApp,
   DEFAULT_KEYBINDINGS,
   SHORTCUT_ACTIONS,
   isModelName,
@@ -37,6 +39,8 @@ import {
   type ThemeChoice,
   type ToolSteps,
 } from '@mobius/shared';
+import { APP_ICONS } from '../Rail';
+import { appName } from '../apps';
 import { relativeTime } from '../relative-time';
 import { describeActivity } from './activity';
 import { LocalModelsSection } from './LocalModels';
@@ -178,6 +182,9 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
   if (subpage === 'layout') {
     return (
       <>
+        <Row path={path('sidebar-apps')} title="Apps in the sidebar" description="Choose which apps the sidebar lists, and their order. The others stay in All apps." highlight={highlight === 'sidebar-apps'}>
+          <SidebarAppsEditor value={appearance.sidebarApps} onChange={(sidebarApps) => set({ sidebarApps })} />
+        </Row>
         <Row path={path('sidebar-at-start')} title="Show the tab list at start" description="Whether the browser's list of tabs is open when Mobius starts." highlight={highlight === 'sidebar-at-start'}>
           <Toggle label="Show the tab list at start" checked={appearance.sidebarAtStart} onChange={(sidebarAtStart) => set({ sidebarAtStart })} />
         </Row>
@@ -823,5 +830,46 @@ function SavedServers({ current }: { current: string }) {
       </span>
       {problem && <span className="field-error" role="alert">{problem}</span>}
     </div>
+  );
+}
+
+/** Show, hide and reorder the sidebar's apps. At least one stays, so the sidebar is never empty. */
+function SidebarAppsEditor({ value, onChange }: { value: SidebarApp[]; onChange: (apps: SidebarApp[]) => void }) {
+  const hidden = SIDEBAR_APPS.filter((id) => !value.includes(id));
+  const move = (id: SidebarApp, by: -1 | 1) => {
+    const at = value.indexOf(id);
+    const to = at + by;
+    if (at < 0 || to < 0 || to >= value.length) return;
+    const next = [...value];
+    [next[at], next[to]] = [next[to]!, next[at]!];
+    onChange(next);
+  };
+  return (
+    <ul className="sidebar-apps" aria-label="Apps in the sidebar">
+      {[...value, ...hidden].map((id) => {
+        const shown = value.includes(id);
+        const at = value.indexOf(id);
+        return (
+          <li key={id} className="sidebar-app" data-hidden={!shown || undefined}>
+            <label className="sidebar-app-show">
+              <input type="checkbox" checked={shown} disabled={shown && value.length === 1}
+                onChange={(e) => onChange(e.target.checked ? [...value, id] : value.filter((v) => v !== id))} />
+              <svg viewBox="0 0 20 20" aria-hidden="true" data-app={id}>{APP_ICONS[id]}</svg>
+              <span>{appName(id)}</span>
+            </label>
+            {shown && (
+              <span className="sidebar-app-order">
+                <button type="button" className="strip-btn" aria-label={`Move ${appName(id)} up`} disabled={at === 0} onClick={() => move(id, -1)}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 12 4-4 4 4" /></svg>
+                </button>
+                <button type="button" className="strip-btn" aria-label={`Move ${appName(id)} down`} disabled={at === value.length - 1} onClick={() => move(id, 1)}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+                </button>
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

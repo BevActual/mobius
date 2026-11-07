@@ -18,9 +18,9 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   about: AboutSection,
 };
 
-export function SettingsPage({ onClose, initial, ...rest }: Passed & { onClose: () => void; initial?: SectionId }) {
+export function SettingsPage({ onClose, initial, initialSubpage, ...rest }: Passed & { onClose: () => void; initial?: SectionId; initialSubpage?: string }) {
   const [section, setSection] = useState<SectionId>(initial ?? 'appearance');
-  const [subpage, setSubpage] = useState<string>(() => findSection(initial ?? 'appearance')?.subpages[0]?.id ?? '');
+  const [subpage, setSubpage] = useState<string>(() => initialSubpage ?? findSection(initial ?? 'appearance')?.subpages[0]?.id ?? '');
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState<string | null>(null);
   const root = useRef<HTMLElement>(null);

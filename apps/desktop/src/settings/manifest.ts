@@ -39,6 +39,7 @@ export const SETTINGS: readonly SettingsSection[] = [
         row('chat-font', 'Conversation font', 'The typeface used for messages.', 'font', 'typeface', 'serif', 'sans', 'monospace', 'mono', 'family'),
       ] },
       { id: 'layout', label: 'Layout', rows: [
+        row('sidebar-apps', 'Apps in the sidebar', 'Choose which apps the sidebar lists, and their order. The others stay in All apps.', 'sidebar', 'apps', 'reorder', 'order', 'hide', 'show', 'customise', 'customize', 'rail'),
         row('sidebar-at-start', 'Show the tab list at start', "Whether the browser's list of tabs is open when Mobius starts.", 'sidebar', 'tabs', 'startup', 'panel'),
         row('left-sidebar', 'Tab and conversation list', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'left'),
         row('right-sidebar', 'Agent panel', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'right', 'chat panel'),

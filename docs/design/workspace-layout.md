@@ -45,10 +45,13 @@ while you work in any app.
 - **Review and undo**: each agent turn begins with a checkpoint. When a turn ends having changed notes, task lists or
   files, a strip above the message box says so: Review lists each change with its own Undo; Undo all puts back only
   what that turn changed, so edits made since elsewhere are kept.
+- **Your sidebar**: right-click an app in the sidebar to move it up or down, hide it, or edit the list. Settings ›
+  Appearance › Layout has the full list with a checkbox and order buttons for each. At least one app always stays,
+  and hidden apps are still in All apps.
 
 ## Next
 
 1. On-canvas actions on a web page, as notes have now.
 2. Show the review strip's changes inside each app too (a changed note marked in Notes).
 3. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
-4. Let people reorder and hide apps in the sidebar (HIG: let people customise the sidebar).
+4. Drag to reorder apps in the sidebar, as well as the menu.

@@ -8,7 +8,24 @@ use crate::settings::{Field, Settings, in_range, is_flag, one_of};
 pub const LEFT_WIDTH: (f64, f64, f64) = (200.0, 420.0, 248.0);
 pub const RIGHT_WIDTH: (f64, f64, f64) = (300.0, 640.0, 380.0);
 
-static FIELDS: [Field; 14] = [
+/// The apps the sidebar may list. Its `sidebarApps` setting says which, in what order; the rest stay in All apps.
+pub const SIDEBAR_APPS: [&str; 5] = ["agent", "search", "browser", "notes", "tasks"];
+
+fn is_app_list(v: &Value) -> bool {
+    let Some(items) = v.as_array() else { return false };
+    let mut seen = Vec::new();
+    !items.is_empty()
+        && items.len() <= SIDEBAR_APPS.len()
+        && items.iter().all(|item| match item.as_str() {
+            Some(id) if SIDEBAR_APPS.contains(&id) && !seen.contains(&id) => {
+                seen.push(id);
+                true
+            }
+            _ => false,
+        })
+}
+
+static FIELDS: [Field; 15] = [
     Field { name: "theme", default: || json!("system"), check: |v| one_of(v, &["system", "light", "dark"]) },
     Field { name: "zoom", default: || json!(1), check: |v| in_range(v, 0.75, 1.5) },
     Field { name: "chatTextScale", default: || json!(1), check: |v| in_range(v, 0.85, 1.4) },
@@ -24,6 +41,8 @@ static FIELDS: [Field; 14] = [
     Field { name: "rightSidebar", default: || json!("attached"), check: |v| one_of(v, &["attached", "floating"]) },
     Field { name: "leftWidth", default: || json!(LEFT_WIDTH.2), check: |v| in_range(v, LEFT_WIDTH.0, LEFT_WIDTH.1) },
     Field { name: "rightWidth", default: || json!(RIGHT_WIDTH.2), check: |v| in_range(v, RIGHT_WIDTH.0, RIGHT_WIDTH.1) },
+    // Which apps the sidebar lists, in order. At least one; each once.
+    Field { name: "sidebarApps", default: || json!(SIDEBAR_APPS), check: is_app_list },
 ];
 
 pub fn open(file: PathBuf) -> Settings {
