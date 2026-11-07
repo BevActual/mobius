@@ -18,22 +18,22 @@ export function saveShare(share: number): void {
   try { window.localStorage.setItem(SHARE_KEY, String(share)); } catch { /* Not kept: the next window starts even. */ }
 }
 
-/** The two apps a split view showed, kept so the next start opens the same pair. Only real apps that can share a window. */
+/** The app (or the two apps of a split view) showing when Mobius closed, so the next start opens where you were. */
 const PANES_KEY = 'mobius.split.panes';
 const PAIRABLE: readonly AppId[] = ['browser', 'agent', 'search', 'notes', 'tasks'];
 export function loadPanes(): readonly [AppId, AppId | null] {
   try {
     const saved: unknown = JSON.parse(window.localStorage.getItem(PANES_KEY) ?? 'null');
-    if (Array.isArray(saved) && saved.length === 2 && saved[0] !== saved[1] && saved.every((id) => PAIRABLE.includes(id as AppId))) return [saved[0] as AppId, saved[1] as AppId];
-  } catch { /* Nothing kept: one app. */ }
+    const known = (id: unknown): id is AppId => PAIRABLE.includes(id as AppId);
+    if (Array.isArray(saved) && saved.length === 2 && known(saved[0])) {
+      if (saved[1] === null) return [saved[0], null];
+      if (known(saved[1]) && saved[1] !== saved[0]) return [saved[0], saved[1]];
+    }
+  } catch { /* Nothing kept: the browser, as on a first start. */ }
   return ['browser', null];
 }
-/** Kept only while split; one app clears it, so a single app always starts as before. */
 export function savePanes(panes: readonly [AppId, AppId | null]): void {
-  try {
-    if (panes[1] === null) window.localStorage.removeItem(PANES_KEY);
-    else window.localStorage.setItem(PANES_KEY, JSON.stringify(panes));
-  } catch { /* Not kept. */ }
+  try { window.localStorage.setItem(PANES_KEY, JSON.stringify(panes)); } catch { /* Not kept. */ }
 }
 
 /** The second app to show when split view opens: the browser beside anything else, notes beside the browser. */

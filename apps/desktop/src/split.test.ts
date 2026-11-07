@@ -14,19 +14,19 @@ describe('split view', () => {
   });
 });
 
-describe('the split pair across starts', () => {
+describe('where Mobius opens', () => {
   const store = new Map<string, string>();
   (globalThis as unknown as { window: unknown }).window = {
     localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k) },
   };
-  it('opens the pair that was showing', () => {
+  it('opens the app, or the pair, that was showing', () => {
     savePanes(['notes', 'browser']);
     expect(loadPanes()).toEqual(['notes', 'browser']);
+    savePanes(['tasks', null]);
+    expect(loadPanes()).toEqual(['tasks', null]);
   });
-  it('starts with one app after split view was closed, or when what was kept makes no sense', () => {
-    savePanes(['notes', null]);
-    expect(loadPanes()).toEqual(['browser', null]);
-    for (const bad of ['["notes","notes"]', '["notes","code"]', '"browser"', '{', '["agent"]']) {
+  it('starts in the browser when what was kept makes no sense', () => {
+    for (const bad of ['["notes","notes"]', '["notes","code"]', '["code",null]', '"browser"', '{', '["agent"]']) {
       store.set('mobius.split.panes', bad);
       expect(loadPanes(), bad).toEqual(['browser', null]);
     }
