@@ -114,6 +114,15 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
                 data-changed={(changed.has(id) && !here) || undefined}
                 title={name}
                 onClick={() => { if (!dragged.current) onOpen(id); }}
+                onKeyDown={onApps ? (event) => {
+                  // Alt+Up and Alt+Down move the focused app; focus stays with it.
+                  if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+                  event.preventDefault();
+                  move(id, event.key === 'ArrowUp' ? -1 : 1);
+                  const button = event.currentTarget;
+                  requestAnimationFrame(() => button.focus());
+                } : undefined}
+                aria-keyshortcuts={onApps ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
                 onContextMenu={onApps ? (event) => { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); setMenu({ id, x: event.clientX || r.right, y: event.clientY || r.top }); } : undefined}
               >
                 {here && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
