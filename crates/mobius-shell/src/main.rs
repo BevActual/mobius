@@ -127,6 +127,46 @@ pub(crate) fn web_data() -> Option<PathBuf> {
     WEB_DATA.get().cloned()
 }
 
+/// Windows: the browser arguments every web view is made with, when `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` asks for
+/// more (the end-to-end tests' debugging port). Newer WebView2 runtimes (156) take the arguments the app passes
+/// instead of that variable, so they are joined here to the ones Tauri passes by default: its features turned off
+/// (one `--disable-features`, merged) and autoplay. Every view must use the same arguments, or WebView2 refuses it.
+#[cfg(windows)]
+pub(crate) fn webview2_args() -> Option<String> {
+    let extra = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok().filter(|v| !v.trim().is_empty())?;
+    Some(joined_webview2_args(&extra))
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn joined_webview2_args(extra: &str) -> String {
+    let mut features: Vec<String> = ["msWebOOUI", "msPdfOOUI", "msSmartScreenProtection"].map(String::from).to_vec();
+    let mut rest = vec!["--autoplay-policy=no-user-gesture-required".to_owned()];
+    for arg in extra.split_whitespace() {
+        match arg.strip_prefix("--disable-features=") {
+            Some(list) => {
+                for feature in list.split(',').filter(|f| !f.is_empty()) {
+                    if !features.iter().any(|f| f == feature) {
+                        features.push(feature.to_owned());
+                    }
+                }
+            }
+            None if !rest.iter().any(|r| r == arg) => rest.push(arg.to_owned()),
+            None => {}
+        }
+    }
+    format!("--disable-features={} {}", features.join(","), rest.join(" "))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_tests_webview2_arguments_join_the_ones_tauri_passes() {
+        let joined = super::joined_webview2_args("--remote-debugging-port=9400 --disable-features=msSmartScreenProtection,msEdgeSafety --use-fake-ui-for-media-stream");
+        assert_eq!(joined, "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,msEdgeSafety --autoplay-policy=no-user-gesture-required --remote-debugging-port=9400 --use-fake-ui-for-media-stream");
+        assert_eq!(joined.matches("--disable-features").count(), 1, "one list, or WebView2 keeps only the last");
+    }
+}
+
 /// Little Mobius: a small window that keeps the agent at hand over other apps. It shows the same interface, which sees
 /// the window's label and draws only the conversation.
 const MINI: &str = "mini";
@@ -177,6 +217,10 @@ fn little_mobius(app: &tauri::AppHandle, method: &str, place_file: &std::path::P
             let kept = kept_place(app, place_file, (320.0, 380.0));
             let (width, height) = kept.map_or((380.0, 560.0), |(_, _, w, h)| (w, h));
             let mut builder = tauri::WebviewWindowBuilder::new(app, MINI, WebviewUrl::default());
+            #[cfg(windows)]
+            if let Some(args) = webview2_args() {
+                builder = builder.additional_browser_args(&args);
+            }
             #[cfg(target_os = "linux")]
             if let Some(dir) = web_data() {
                 builder = builder.data_directory(dir);
@@ -444,6 +488,8 @@ fn main() {
             #[cfg(target_os = "linux")]
             let _ = WEB_DATA.set(data_dir.join("webview"));
             let interface_view = WebviewBuilder::new("main", WebviewUrl::default());
+            #[cfg(windows)]
+            let interface_view = match webview2_args() { Some(args) => interface_view.additional_browser_args(&args), None => interface_view };
             #[cfg(target_os = "linux")]
             let interface_view = match web_data() { Some(dir) => interface_view.data_directory(dir), None => interface_view };
             let interface = window.add_child(interface_view, LogicalPosition::new(0.0, 0.0), size)?;
