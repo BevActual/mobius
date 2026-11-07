@@ -52,6 +52,13 @@ while you work in any app.
   and hidden apps are still in All apps. Pin a note or a task list (the pin beside it), or a web page (the pin in the browser toolbar), and it stays under
   the apps, up to eight; drag pinned items (or Alt+Up/Down) to reorder them. A pinned page opens in its tab if one is open.
 
+## Linux
+
+The shell layers the browser's page views over the interface view. On Linux, Tauri 2 (`tauri-runtime-wry`) packs every
+child web view into the window's vertical `GtkBox` instead of placing them, so the page view takes the whole height and
+the interface gets one pixel: the window looks blank. This happens on `main` too. Making Linux work means a
+fixed-position container for the views (a change in Tauri or a patch to it), not a change in the interface.
+
 ## Next
 
 1. Run the end-to-end suite (including `e2e/mobius2.spec.ts`) in the Windows shell, and look over the real window, a web

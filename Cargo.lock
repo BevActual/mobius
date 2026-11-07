@@ -2638,6 +2638,7 @@ dependencies = [
  "arboard",
  "base64 0.22.1",
  "cef",
+ "gtk",
  "keyring",
  "mobius-browser",
  "mobius-host",
@@ -2649,6 +2650,7 @@ dependencies = [
  "tauri-plugin-notification",
  "ureq",
  "url",
+ "webkit2gtk",
  "webview2-com",
  "windows",
 ]
