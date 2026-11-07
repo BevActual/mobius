@@ -40,7 +40,7 @@ import { liveTitle, statusText } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { clipToNotes } from './clip';
-import { companionFor, loadShare, saveShare } from './split';
+import { loadPanes, savePanes, companionFor, loadShare, saveShare } from './split';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
 
@@ -95,7 +95,8 @@ export function App() {
   // Split view: up to two apps side by side. `app` is the focused pane's app, so the toolbar and sidebar follow it.
   // A narrow window has room for one pane, so the other folds away until the window is wide again.
   const narrow = useNarrowWindow(980);
-  const [panes, setPanes] = useState<readonly [AppId, AppId | null]>(['browser', null]);
+  const [panes, setPanes] = useState<readonly [AppId, AppId | null]>(loadPanes);
+  useEffect(() => savePanes(panes), [panes]);
   const [focused, setFocused] = useState<0 | 1>(0);
   const app: AppId = (focused === 1 ? panes[1] : null) ?? panes[0];
   const split = panes[1] !== null && !narrow;
