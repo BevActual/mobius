@@ -112,13 +112,31 @@ impl Dialogs for SystemDialogs {
 
 struct Shell {
     bridge: Arc<Bridge>,
+    /// Where Little Mobius keeps its place on the screen between openings.
+    mini_place: PathBuf,
 }
 
 /// Little Mobius: a small window that keeps the agent at hand over other apps. It shows the same interface, which sees
 /// the window's label and draws only the conversation.
 const MINI: &str = "mini";
 
-fn little_mobius(app: &tauri::AppHandle, method: &str) -> Result<Value, Value> {
+/// Where Little Mobius was last put, in logical pixels, if that spot is still on one of the screens.
+fn kept_place(app: &tauri::AppHandle, file: &std::path::Path) -> Option<(f64, f64, f64, f64)> {
+    let kept = mobius_store::file::read_json(file)?;
+    let get = |k: &str| kept.get(k).and_then(Value::as_f64).filter(|v| v.is_finite());
+    let (x, y, w, h) = (get("x")?, get("y")?, get("width")?.clamp(320.0, 1200.0), get("height")?.clamp(380.0, 1600.0));
+    // Its top-left corner must be well inside a screen, so a screen since unplugged never hides it.
+    let on_screen = app.available_monitors().ok()?.iter().any(|m| {
+        let scale = m.scale_factor();
+        let area = m.work_area();
+        let (left, top) = (f64::from(area.position.x) / scale, f64::from(area.position.y) / scale);
+        let (right, bottom) = (left + f64::from(area.size.width) / scale, top + f64::from(area.size.height) / scale);
+        x >= left && y >= top && x + 80.0 <= right && y + 40.0 <= bottom
+    });
+    on_screen.then_some((x, y, w, h))
+}
+
+fn little_mobius(app: &tauri::AppHandle, method: &str, place_file: &std::path::Path) -> Result<Value, Value> {
     let fail = |message: String| serde_json::json!({ "kind": "invalid", "message": message });
     match method {
         "open" => {
@@ -128,14 +146,18 @@ fn little_mobius(app: &tauri::AppHandle, method: &str) -> Result<Value, Value> {
                 let _ = mini.set_focus();
                 return Ok(Value::Null);
             }
-            let (width, height) = (380.0, 560.0);
+            let kept = kept_place(app, place_file);
+            let (width, height) = kept.map_or((380.0, 560.0), |(_, _, w, h)| (w, h));
             let mut builder = tauri::WebviewWindowBuilder::new(app, MINI, WebviewUrl::default())
                 .title("Little Mobius")
                 .inner_size(width, height)
                 .min_inner_size(320.0, 380.0)
                 .always_on_top(true);
-            // In the bottom-right corner of the screen Mobius is on, clear of the taskbar, like a chat that pops out.
-            if let Some(monitor) = app.get_window("main").and_then(|main| main.current_monitor().ok().flatten()) {
+            // Where it was last put; the first time, the bottom-right corner of the screen Mobius is on, clear of the
+            // taskbar, like a chat that pops out.
+            if let Some((x, y, _, _)) = kept {
+                builder = builder.position(x, y);
+            } else if let Some(monitor) = app.get_window("main").and_then(|main| main.current_monitor().ok().flatten()) {
                 let scale = monitor.scale_factor();
                 let area = monitor.work_area();
                 let (left, top) = (f64::from(area.position.x) / scale, f64::from(area.position.y) / scale);
@@ -147,9 +169,17 @@ fn little_mobius(app: &tauri::AppHandle, method: &str) -> Result<Value, Value> {
                 let y = (top + down - height - FRAME - MARGIN).max(top);
                 builder = builder.position(x, y);
             }
-            builder
-                .build()
-                .map_err(|e| fail(format!("Little Mobius could not open: {e}")))?;
+            let mini = builder.build().map_err(|e| fail(format!("Little Mobius could not open: {e}")))?;
+            // Its place is kept as it is moved or resized.
+            let (placed, file) = (mini.clone(), place_file.to_path_buf());
+            mini.on_window_event(move |event| {
+                if !matches!(event, tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)) {
+                    return;
+                }
+                let (Ok(scale), Ok(at), Ok(size)) = (placed.scale_factor(), placed.outer_position(), placed.inner_size()) else { return };
+                let (at, size) = (at.to_logical::<f64>(scale), size.to_logical::<f64>(scale));
+                mobius_store::file::write_json(&file, &serde_json::json!({ "x": at.x, "y": at.y, "width": size.width, "height": size.height }));
+            });
             Ok(Value::Null)
         }
         "close" => {
@@ -180,7 +210,7 @@ async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: Strin
         if method == "setOnTop" && let Some(mini) = app.get_webview_window(MINI) {
             let _ = mini.set_always_on_top(args.first().and_then(Value::as_bool).unwrap_or(true));
         }
-        let result = little_mobius(&app, &method);
+        let result = little_mobius(&app, &method, &shell.mini_place);
         if method == "open" || method == "close" {
             let _ = app.emit("mobius:mini", app.get_webview_window(MINI).is_some() && method == "open");
         }
@@ -349,7 +379,7 @@ fn main() {
             }
             let quit_handle = handle.clone();
             bridge.set_quit(Arc::new(move || quit_handle.exit(0)));
-            app.manage(Shell { bridge: bridge.clone() });
+            app.manage(Shell { bridge: bridge.clone(), mini_place: data_dir.join("little-mobius.json") });
             let hidden = test_mode && std::env::var("MOBIUS_HIDE_WINDOW").is_ok_and(|v| v == "1");
             // The window holds the interface as one web view that fills it, and the browser's pages as more views above it.
             // Tests need one known size; a person gets a window that fits the screen they have and opens in the middle of it.
