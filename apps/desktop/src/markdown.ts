@@ -14,7 +14,8 @@ export type Inline =
 export type Block =
   | { kind: 'paragraph'; children: Inline[] }
   | { kind: 'heading'; level: 1 | 2 | 3; children: Inline[] }
-  | { kind: 'list'; ordered: boolean; start: number; items: Inline[][] }
+  /** `checks`: for a to-do list (`- [ ] item`, `- [x] item`), whether each item is done; null for a plain item. */
+  | { kind: 'list'; ordered: boolean; start: number; items: Inline[][]; checks?: (boolean | null)[] }
   | { kind: 'quote'; children: Inline[] }
   | { kind: 'code'; lang: string; text: string; open: boolean }
   | { kind: 'rule' };
@@ -103,7 +104,11 @@ export function parseMarkdown(source: string): Block[] {
         i++;
       }
       i -= 1;
-      blocks.push({ kind: 'list', ordered, start: ordered ? Number(number![1]) : 1, items: items.map(parseInline) });
+      const checks = items.map((item) => { const box = /^\[([ xX])\]\s+/.exec(item); return box ? box[1] !== ' ' : null; });
+      const texts = items.map((item, k) => (checks[k] === null ? item : item.replace(/^\[[ xX]\]\s+/, '')));
+      const list: Block = { kind: 'list', ordered, start: ordered ? Number(number![1]) : 1, items: texts.map(parseInline) };
+      if (checks.some((c) => c !== null)) list.checks = checks;
+      blocks.push(list);
       continue;
     }
     para.push(line);

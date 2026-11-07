@@ -33,8 +33,14 @@ function block(node: Block, i: number): ReactNode {
       return <Tag key={i}>{inline(node.children)}</Tag>;
     }
     case 'list': {
-      const items = node.items.map((item, j) => <li key={j}>{inline(item)}</li>);
-      return node.ordered ? <ol key={i} start={node.start === 1 ? undefined : node.start}>{items}</ol> : <ul key={i}>{items}</ul>;
+      const items = node.items.map((item, j) => {
+        const done = node.checks?.[j];
+        if (done === undefined || done === null) return <li key={j}>{inline(item)}</li>;
+        // A to-do in a reply reads as one; ticking it belongs in Tasks, so the box is for showing only.
+        return <li key={j} data-task={done ? 'done' : 'open'}><input type="checkbox" checked={done} disabled aria-label={done ? 'Done' : 'Not done'} />{' '}{inline(item)}</li>;
+      });
+      const tasks = node.checks !== undefined;
+      return node.ordered ? <ol key={i} start={node.start === 1 ? undefined : node.start}>{items}</ol> : <ul key={i} data-tasks={tasks || undefined}>{items}</ul>;
     }
     case 'quote': return <blockquote key={i}>{inline(node.children)}</blockquote>;
     case 'code': return <pre key={i} data-lang={node.lang || undefined}><code>{node.text}</code></pre>;

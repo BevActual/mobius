@@ -83,7 +83,9 @@ test('in Notes, a note suggestion attaches the open note', async () => {
   await side.getByRole('button', { name: 'Errands', exact: true }).click();
   await expect(shell().getByRole('textbox', { name: 'Page text' })).toHaveValue(/Buy stamps/);
   await suggestions().getByRole('button', { name: 'Make a to-do list' }).click();
-  await expect(log().locator('.msg.assistant')).toHaveText('- [ ] Buy stamps');
+  // The reply's to-do shows as an unticked box with its words.
+  await expect(log().locator('.msg.assistant')).toHaveText('Buy stamps');
+  await expect(log().locator('.msg.assistant').getByRole('checkbox', { name: 'Not done' })).not.toBeChecked();
   await expect(log().getByRole('list', { name: 'Attached' })).toContainText('Errands');
   expect(sent()).toContain('call the plumber');
 });

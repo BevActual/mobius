@@ -34,4 +34,12 @@ describe('agent reply markdown', () => {
     expect(nodes[1]).toMatchObject({ kind: 'link', href: 'https://example.com/a' });
     expect(nodes[2]).toEqual({ kind: 'text', text: '.' });
   });
+  it('reads to-do items as checks', () => {
+    expect(parseMarkdown('- [ ] Buy stamps\n- [x] Call the plumber\n- Plain')).toEqual([{
+      kind: 'list', ordered: false, start: 1,
+      items: [[{ kind: 'text', text: 'Buy stamps' }], [{ kind: 'text', text: 'Call the plumber' }], [{ kind: 'text', text: 'Plain' }]],
+      checks: [false, true, null],
+    }]);
+    expect(parseMarkdown('- one')[0]).not.toHaveProperty('checks');
+  });
 });
