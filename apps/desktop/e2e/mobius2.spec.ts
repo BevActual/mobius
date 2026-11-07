@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, views, type Fixture, type Launched } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 // The Mobius 2 shell: split view, on-canvas actions in notes, and review and undo of the agent's last turn.
@@ -59,6 +59,17 @@ test('split view shows two apps, follows the focused pane, swaps and closes', as
   await expect(shell().getByRole('separator', { name: 'Resize the panes' })).toHaveAttribute('aria-valuenow', '55');
   await shell().getByRole('button', { name: 'Close split view' }).click();
   await expect(shell().locator('.pane')).toHaveCount(1);
+});
+
+test('leaving the browser for another app hides the page, and coming back shows it', async () => {
+  await start();
+  const shown = async () => (await views(mobius!.app)).filter((v) => v.visible).length;
+  await expect.poll(shown).toBe(1);
+  await shell().getByRole('button', { name: 'Notes', exact: true }).click();
+  await expect(shell().locator('.note-editor')).toBeVisible();
+  await expect.poll(shown).toBe(0);
+  await shell().getByRole('button', { name: 'Browser', exact: true }).click();
+  await expect.poll(shown).toBe(1);
 });
 
 test('text selected in a note becomes a task in one click', async () => {
