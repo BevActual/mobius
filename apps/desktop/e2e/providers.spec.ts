@@ -23,7 +23,7 @@ test.afterEach(async () => {
   await provider?.close();
   first = provider = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true });
+  fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 });
 
 const KEY = 'sk-e2e-provider-12345678';

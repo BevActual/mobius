@@ -19,7 +19,7 @@ test.afterEach(async () => {
   await model?.close();
   model = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true });
+  fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 });
 
 async function start(replies: ModelReply[] = [], system = ''): Promise<void> {

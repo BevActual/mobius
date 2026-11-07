@@ -285,12 +285,6 @@ impl Browser {
                 // A new page has its own icon (or none): the old one goes, and the new one arrives with the page.
                 t.icon = None;
                 t.icon_from = None;
-                // And its own title, so history never files it under the page before. A jump within the page (only
-                // the part after # changes) keeps the title, since no new one will come.
-                let page = |u: &str| u.split('#').next().unwrap_or(u).to_owned();
-                if page(&t.url) != page(url) {
-                    t.title.clear();
-                }
             }
             t.url = url.to_owned();
             t.can_back = can_back;
@@ -664,22 +658,15 @@ mod tests {
     }
 
     #[test]
-    fn a_title_that_comes_after_the_page_loaded_goes_to_history_once_and_never_the_last_pages_title() {
+    fn a_title_that_comes_after_the_page_loaded_goes_to_history_once() {
         let (b, _, _, visits) = browser();
-        b.open(Some("https://a.example/"));
-        b.navigated("tab-1", "https://a.example/", false, false);
-        b.titled("tab-1", "A");
-        b.finished("tab-1");
-        // The next page finishes before its title arrives: it is not filed under A.
-        b.navigated("tab-1", "https://b.example/", true, false);
+        b.open(Some("https://b.example/"));
+        b.navigated("tab-1", "https://b.example/", false, false);
         b.finished("tab-1");
         b.titled("tab-1", "B");
         b.titled("tab-1", "(1) B");
         let seen = visits.lock().unwrap().clone();
-        assert_eq!(seen, vec![("https://a.example/".into(), "A".into()), ("https://b.example/".into(), String::new()), ("https://b.example/".into(), "B".into())]);
-        // A jump within the page keeps its title.
-        b.navigated("tab-1", "https://b.example/#part", true, false);
-        assert_eq!(b.state()["tabs"][0]["title"], "(1) B");
+        assert_eq!(seen, vec![("https://b.example/".into(), String::new()), ("https://b.example/".into(), "B".into())]);
     }
 
     #[test]

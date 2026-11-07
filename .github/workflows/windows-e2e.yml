@@ -27,8 +27,9 @@ jobs:
       # First: the shell builds the interface's files into itself when it is compiled.
       - name: Build the interface
         run: npm run build -w @mobius/desktop
-      - name: Build the core and the shell
-        run: cargo build -p mobius-cored -p mobius-shell
+      # Every program: the core, the shell, and the stand-ins the tests use (a fake model engine, Claude, an MCP server).
+      - name: Build the core, the shell and the test stand-ins
+        run: cargo build --workspace --bins
       - name: Check the shell starts and opens its debugging port
         shell: pwsh
         run: |

@@ -176,7 +176,8 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
         try { execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: 'ignore' }); } catch { child.kill(); }
       }
       await new Promise((resolve) => setTimeout(resolve, 400));
-      if (!closeOptions.keepUserData) fs.rmSync(userData, { recursive: true, force: true });
+      // WebView2 can hold its files for a moment after it ends: keep trying for a few seconds.
+      if (!closeOptions.keepUserData) fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
     },
   };
 }

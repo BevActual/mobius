@@ -89,7 +89,7 @@ test('the page-facing shell can read the core status but cannot call the core', 
     top: Object.keys((window as unknown as { mobius: object }).mobius).sort(),
   }));
   expect(surface.core).toEqual(['getStatus', 'onStatus']);
-  expect(surface.top).toEqual(['agent', 'app', 'appearance', 'bookmarks', 'bots', 'browser', 'context', 'core', 'downloads', 'history', 'models', 'notes', 'platform', 'preferences', 'providers', 'share', 'surface', 'tasks', 'window']);
+  expect(surface.top).toEqual(['agent', 'app', 'appearance', 'bookmarks', 'bots', 'browser', 'changes', 'context', 'core', 'downloads', 'history', 'mini', 'models', 'notes', 'platform', 'preferences', 'providers', 'share', 'surface', 'tasks', 'window']);
 });
 
 test('without a core binary the shell still works and says the core is unavailable', async () => {
@@ -125,6 +125,6 @@ test('approvals made with "always" are still there after quitting and starting t
   } finally {
     await mobius?.close();
     mobius = undefined;
-    fs.rmSync(userData, { recursive: true, force: true });
+    fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   }
 });

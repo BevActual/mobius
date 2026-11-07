@@ -21,7 +21,7 @@ test.afterEach(async () => {
   await backup?.close();
   broken = backup = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true });
+  fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 });
 
 // The first model answers every request with an error (HTTP 500); the second answers properly.

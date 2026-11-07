@@ -76,6 +76,6 @@ test('saved pages are listed in settings, can be searched and removed, and survi
   } finally {
     await mobius?.close();
     mobius = undefined;
-    fs.rmSync(userData, { recursive: true, force: true });
+    fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   }
 });

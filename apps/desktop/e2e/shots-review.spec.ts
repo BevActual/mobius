@@ -106,7 +106,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await mobius.close();
       await model.close();
       await fixture.close();
-      fs.rmSync(userData, { recursive: true, force: true });
+      fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
       fs.rmSync(dl, { recursive: true, force: true });
     }
   });

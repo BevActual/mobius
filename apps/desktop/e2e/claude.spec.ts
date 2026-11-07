@@ -27,7 +27,7 @@ test.afterEach(async () => {
   await anthropic?.close();
   first = anthropic = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true });
+  fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 });
 
 const shell = () => mobius!.shell;
