@@ -940,3 +940,14 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .sidebar-app-show svg[data-app="notes"] { background: var(--app-notes); }
 .sidebar-app-show svg[data-app="tasks"] { background: var(--app-tasks); }
 .sidebar-app-order { display: inline-flex; gap: 2px; }
+
+/* Tasks: the list lines up with the add row; checks are round, as in Reminders. */
+.tasks-page > .task-items { margin-left: auto; margin-right: auto; }
+.task-check { width: 20px; height: 20px; margin-top: 5px; border-radius: 50%; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.task-check.ghost { margin-top: 0; }
+.task-check svg { width: 11px; height: 11px; stroke-width: 2.4; }
+.task { border-radius: var(--radius-control); }
+.task[data-fresh] { background: var(--wash); }
+/* Search filters: the chosen one carries the accent, like every other current place. */
+.search-filter[aria-checked="true"], .search-filter[aria-checked="true"]:hover { background: var(--accent); color: var(--on-accent); }
+.search-filter:not([aria-checked="true"]):hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
