@@ -55,6 +55,8 @@ interface Props {
   favourites?: readonly Favourite[];
   onOpenFavourite?: (favourite: Favourite) => void;
   onUnpin?: (favourite: Favourite) => void;
+  /** Pinned items in a new order, after a drag or Alt+Up/Down. */
+  onReorderFavourites?: (next: Favourite[]) => void;
   /** The pinned item showing now, as `kind:id`. */
   currentFavourite?: string | null;
 }
@@ -63,13 +65,19 @@ interface Props {
  * The app rail: one column that ties the apps together. The highlight slides to the app you are in, the app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, currentFavourite }: Props) {
+export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite }: Props) {
   // While an app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
   const dragged = useRef(false);
   const latestDrag = useRef<AppId[] | null>(null);
   latestDrag.current = dragOrder;
   const chosen = dragOrder ?? apps;
+  // Pinned items being dragged: shown in their new order, saved when the drag ends.
+  const [pinDrag, setPinDrag] = useState<Favourite[] | null>(null);
+  const pinDragged = useRef(false);
+  const latestPinDrag = useRef<Favourite[] | null>(null);
+  latestPinDrag.current = pinDrag;
+  const pinOrder: Favourite[] = pinDrag ?? [...favourites];
   const listed = chosen ? RAIL_APPS.filter((a) => chosen.includes(a.id)).sort((a, b) => chosen.indexOf(a.id) - chosen.indexOf(b.id)) : RAIL_APPS;
   const order = listed.map((a) => a.id);
   // Right-click an app (or Shift+F10) to move or hide it: HIG asks that people can shape the sidebar.
@@ -153,19 +161,37 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
       {expanded && favourites.length > 0 && (
         <section className="rail-pinned" aria-label="Pinned">
           <h2 className="rail-pinned-title">Pinned</h2>
-          <ul role="list">
-            {favourites.map((fav) => (
-              <li key={`${fav.kind}:${fav.id}`} className="rail-pin">
-                <button type="button" className="rail-pin-open" aria-current={currentFavourite === `${fav.kind}:${fav.id}` ? 'page' : undefined} title={fav.title} onClick={() => onOpenFavourite?.(fav)}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true" data-app={fav.kind === 'note' ? 'notes' : 'tasks'}>{APP_ICONS[fav.kind === 'note' ? 'notes' : 'tasks']}</svg>
-                  <span className="rail-pin-name">{fav.title}</span>
-                </button>
-                {onUnpin && <button type="button" className="rail-pin-remove" aria-label={`Unpin ${fav.title}`} title="Unpin" onClick={() => onUnpin(fav)}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
-                </button>}
-              </li>
-            ))}
-          </ul>
+          <Reorder.Group as="ul" axis="y" role="list" values={pinOrder} onReorder={(next: Favourite[]) => { if (onReorderFavourites) setPinDrag(next); }}>
+            {pinOrder.map((fav, at) => {
+              const app = fav.kind === 'note' ? 'notes' : fav.kind === 'list' ? 'tasks' : 'browser';
+              return (
+                <Reorder.Item as="li" key={`${fav.kind}:${fav.id}`} value={fav} className="rail-pin" drag={onReorderFavourites ? 'y' : false} dragListener={Boolean(onReorderFavourites)}
+                  onDragStart={() => { pinDragged.current = true; }}
+                  onDragEnd={() => { const next = latestPinDrag.current; if (next) onReorderFavourites?.(next); setPinDrag(null); window.setTimeout(() => { pinDragged.current = false; }, 0); }}>
+                  <button type="button" className="rail-pin-open" aria-current={currentFavourite === `${fav.kind}:${fav.id}` ? 'page' : undefined} title={fav.kind === 'page' ? `${fav.title}\n${fav.id}` : fav.title}
+                    aria-keyshortcuts={onReorderFavourites ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
+                    onClick={() => { if (!pinDragged.current) onOpenFavourite?.(fav); }}
+                    onKeyDown={onReorderFavourites ? (event) => {
+                      if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+                      event.preventDefault();
+                      const to = at + (event.key === 'ArrowUp' ? -1 : 1);
+                      if (to < 0 || to >= favourites.length) return;
+                      const next = [...favourites];
+                      next.splice(to, 0, next.splice(at, 1)[0]!);
+                      onReorderFavourites(next);
+                      const button = event.currentTarget;
+                      requestAnimationFrame(() => button.focus());
+                    } : undefined}>
+                    <svg viewBox="0 0 20 20" aria-hidden="true" data-app={app}>{APP_ICONS[app]}</svg>
+                    <span className="rail-pin-name">{fav.title}</span>
+                  </button>
+                  {onUnpin && <button type="button" className="rail-pin-remove" aria-label={`Unpin ${fav.title}`} title="Unpin" onClick={() => onUnpin(fav)}>
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+                  </button>}
+                </Reorder.Item>
+              );
+            })}
+          </Reorder.Group>
         </section>
       )}
       {expanded && children && <div className="rail-app">{children}</div>}

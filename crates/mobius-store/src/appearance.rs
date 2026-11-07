@@ -25,7 +25,7 @@ fn is_app_list(v: &Value) -> bool {
         })
 }
 
-/// A note or task list kept one click away in the sidebar.
+/// A note, task list or web page kept one click away in the sidebar.
 pub const MAX_FAVOURITES: usize = 8;
 
 fn is_favourites(v: &Value) -> bool {
@@ -33,7 +33,7 @@ fn is_favourites(v: &Value) -> bool {
     items.len() <= MAX_FAVOURITES
         && items.iter().all(|item| {
             let text = |key: &str, max: usize| item.get(key).and_then(Value::as_str).is_some_and(|s| !s.is_empty() && s.chars().count() <= max && !s.chars().any(char::is_control));
-            item.as_object().is_some_and(|o| o.len() == 3) && matches!(item.get("kind").and_then(Value::as_str), Some("note" | "list")) && text("id", 500) && text("title", 120)
+            item.as_object().is_some_and(|o| o.len() == 3) && matches!(item.get("kind").and_then(Value::as_str), Some("note" | "list" | "page")) && text("id", 2000) && text("title", 120)
         })
 }
 
@@ -60,7 +60,7 @@ static FIELDS: [Field; 17] = [
     Field { name: "rightWidth", default: || json!(RIGHT_WIDTH.2), check: |v| in_range(v, RIGHT_WIDTH.0, RIGHT_WIDTH.1) },
     // Which apps the sidebar lists, in order. At least one; each once.
     Field { name: "sidebarApps", default: || json!(SIDEBAR_APPS), check: is_app_list },
-    // Notes and task lists pinned under the apps.
+    // Notes, task lists and web pages pinned under the apps, in order.
     Field { name: "favourites", default: || json!([]), check: is_favourites },
     // Where text saved from a web page goes. Empty: a page called Clippings, made when first needed.
     Field { name: "clippingsPage", default: || json!(""), check: is_clippings_page },

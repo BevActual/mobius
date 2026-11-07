@@ -507,19 +507,19 @@ export interface AppearanceSettings {
   rightWidth: number;
   /** The apps the sidebar lists, in order. The others stay in All apps. */
   sidebarApps: SidebarApp[];
-  /** Notes and task lists pinned under the apps in the sidebar. */
+  /** Notes, task lists and web pages pinned under the apps in the sidebar, in order. */
   favourites: Favourite[];
   /** The note page text saved from a web page goes to, by path; empty for a page called Clippings. */
   clippingsPage: string;
 }
-/** A note (by page path) or a task list (by name), kept one click away. */
-export interface Favourite { kind: 'note' | 'list'; id: string; title: string }
+/** A note (by page path), a task list (by name) or a web page (by address), kept one click away. */
+export interface Favourite { kind: 'note' | 'list' | 'page'; id: string; title: string }
 export const MAX_FAVOURITES = 8;
 const isFavourite = (v: unknown): v is Favourite => {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const { kind, id, title } = v as Record<string, unknown>;
   const text = (s: unknown, max: number) => typeof s === 'string' && s.length > 0 && [...s].length <= max && !/[\u0000-\u001f\u007f]/.test(s);
-  return Object.keys(v).length === 3 && (kind === 'note' || kind === 'list') && text(id, 500) && text(title, 120);
+  return Object.keys(v).length === 3 && (kind === 'note' || kind === 'list' || kind === 'page') && text(id, 2000) && text(title, 120);
 };
 /** The apps that can be kept in the sidebar. */
 export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'notes', 'tasks'] as const;

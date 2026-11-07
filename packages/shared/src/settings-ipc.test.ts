@@ -77,7 +77,9 @@ describe('where the sidebars sit', () => {
     for (const bad of [[], ['agent', 'agent'], ['code'], 'agent']) expect(parseAppearancePatch({ sidebarApps: bad }), String(bad)).toBeNull();
     const plan = { kind: 'note', id: 'Work/Plan.md', title: 'Plan' };
     expect(parseAppearancePatch({ favourites: [plan] })).toEqual({ favourites: [plan] });
-    for (const bad of [[{ ...plan, kind: 'page' }], [{ ...plan, id: '' }], [{ ...plan, extra: 1 }], Array(9).fill(plan)]) expect(parseAppearancePatch({ favourites: bad })).toBeNull();
+    const site = { kind: 'page', id: 'https://example.com/a', title: 'A site' };
+    expect(parseAppearancePatch({ favourites: [plan, site] })).toEqual({ favourites: [plan, site] });
+    for (const bad of [[{ ...plan, kind: 'site' }], [{ ...plan, id: '' }], [{ ...plan, extra: 1 }], Array(9).fill(plan)]) expect(parseAppearancePatch({ favourites: bad })).toBeNull();
     expect(parseAppearancePatch({ clippingsPage: 'Work/Reading.md' })).toEqual({ clippingsPage: 'Work/Reading.md' });
     expect(parseAppearancePatch({ clippingsPage: '' })).toEqual({ clippingsPage: '' });
     for (const bad of ['Work/Reading', 'a\nb.md', 7]) expect(parseAppearancePatch({ clippingsPage: bad })).toBeNull();

@@ -490,6 +490,7 @@ export function App() {
   // Pinned favourites: notes and task lists one click away in the sidebar.
   const favourites = appearance.value.favourites ?? [];
   const pinnedNotes = useMemo(() => new Set(favourites.filter((f) => f.kind === 'note').map((f) => f.id)), [favourites]);
+  const pagePinned = active !== undefined && favourites.some((f) => f.kind === 'page' && f.id === active.url);
   const pinnedLists = useMemo(() => new Set(favourites.filter((f) => f.kind === 'list').map((f) => f.id)), [favourites]);
   const togglePin = (fav: Favourite) => {
     const has = favourites.some((f) => f.kind === fav.kind && f.id === fav.id);
@@ -499,9 +500,15 @@ export function App() {
   const openFavourite = (fav: Favourite) => {
     closeSettings();
     if (fav.kind === 'note') { openApp('notes'); void notes.open(fav.id, fav.title); }
-    else { openApp('tasks'); tasks.setView({ kind: 'list', name: fav.id }); }
+    else if (fav.kind === 'list') { openApp('tasks'); tasks.setView({ kind: 'list', name: fav.id }); }
+    else {
+      // A page already open in a tab is shown there; otherwise it opens in a new one.
+      openApp('browser');
+      const tab = browser.tabs.find((t) => t.url === fav.id);
+      if (tab) window.mobius.browser.activate(tab.id); else void window.mobius.browser.open(fav.id);
+    }
   };
-  const currentFavourite = inNotes && notes.page ? `note:${notes.page.path}` : inTasks && tasks.view.kind === 'list' ? `list:${tasks.view.name}` : null;
+  const currentFavourite = inBrowser && active ? `page:${active.url}` : inNotes && notes.page ? `note:${notes.page.path}` : inTasks && tasks.view.kind === 'list' ? `list:${tasks.view.name}` : null;
   /** On-canvas actions for the web: what to do with the text selected on the page. */
   // Where Save to Notes puts web text: the chosen page while it exists, otherwise Clippings.
   const clipPages = useMemo<ClipPage[]>(() => notes.notebooks.flatMap((nb) => nb.pages.map((pg) => ({ path: pg.path, title: pg.title, notebook: nb.name }))), [notes.notebooks]);
@@ -639,6 +646,7 @@ export function App() {
         favourites={favourites}
         onOpenFavourite={openFavourite}
         onUnpin={togglePin}
+        onReorderFavourites={(next) => void appearance.set({ favourites: next })}
         currentFavourite={settingsOpen ? null : currentFavourite}
       >
         {wide && hasAppList && appSidebar(null)}
@@ -674,6 +682,9 @@ export function App() {
           </div>
           <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
             <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={saved}><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
+          </button>
+          <button type="button" className="strip-btn" data-page-pin aria-pressed={pagePinned} aria-label={pagePinned ? 'Unpin this page from the sidebar' : 'Pin this page to the sidebar'} title={pagePinned ? 'Unpin from the sidebar' : 'Pin to the sidebar'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => active && togglePin({ kind: 'page', id: active.url, title: active.title || active.url })}>
+            <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={pagePinned}><path d="M7.5 3.5h5l-.8 4.2 2.8 2.8H5.5l2.8-2.8zM10 10.5v6" /></svg>
           </button>
           <div className="selection-menu-wrap">
             <button type="button" className="strip-btn" data-selection-ask aria-haspopup="menu" aria-expanded={selectionMenu} aria-label="Selected text" title="Do something with the text selected on this page" disabled={!active || !/^https?:/.test(active.url)} onClick={() => setSelectionMenu((open) => !open)}>

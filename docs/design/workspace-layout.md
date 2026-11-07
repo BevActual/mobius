@@ -49,10 +49,9 @@ while you work in any app.
   changes (the page line by line: added, removed, kept, with an Undo on each change) and Undo all; changed pages and lists carry a dot in their sidebars.
 - **Your sidebar**: drag an app in the sidebar to reorder it (or Alt+Up/Down on a focused app), or right-click it to move it, hide it, or edit the list. Settings ›
   Appearance › Layout has the full list with a checkbox and order buttons for each. At least one app always stays,
-  and hidden apps are still in All apps. Pin a note or a task list (the pin beside it) and it stays under the apps, up
-  to eight.
+  and hidden apps are still in All apps. Pin a note or a task list (the pin beside it), or a web page (the pin in the browser toolbar), and it stays under
+  the apps, up to eight; drag pinned items (or Alt+Up/Down) to reorder them. A pinned page opens in its tab if one is open.
 
 ## Next
 
 1. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
-2. Pin web pages too, and reorder pinned items by dragging.
