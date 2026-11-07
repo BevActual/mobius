@@ -2644,6 +2644,7 @@ dependencies = [
  "keyring",
  "mobius-browser",
  "mobius-host",
+ "mobius-store",
  "serde_json",
  "tauri",
  "tauri-build",

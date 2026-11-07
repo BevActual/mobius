@@ -209,6 +209,23 @@ fn emit_for(handle: &tauri::AppHandle) -> mobius_browser::tabs::Notify {
     })
 }
 
+/// Passes browser updates on, and when `file` is given keeps the open tabs in it whenever they change.
+fn keep_tabs(notify: mobius_browser::tabs::Notify, file: Option<PathBuf>) -> mobius_browser::tabs::Notify {
+    let Some(file) = file else { return notify };
+    let last = Arc::new(std::sync::Mutex::new(Value::Null));
+    Arc::new(move |name, payload| {
+        if name == "mobius:browser-state" {
+            let session = mobius_browser::session::session_of(&payload);
+            let mut kept = last.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if *kept != session {
+                mobius_store::file::write_json(&file, &session);
+                *kept = session;
+            }
+        }
+        notify(name, payload);
+    })
+}
+
 /// Chromium when it was built in (feature `cef`), unless `MOBIUS_ENGINE=webview` asks for the system web view.
 fn choose_engine(window: &tauri::Window, data_dir: &std::path::Path) -> Arc<dyn engine::PageEngine> {
     #[cfg(all(feature = "cef", windows))]
@@ -356,7 +373,11 @@ fn main() {
             let _ = engine_slot.set(web.clone());
             app.manage(Engines(web.clone()));
             let visits = bridge.clone();
-            let browser = Arc::new(Browser::new(web.clone() as Arc<dyn mobius_browser::engine::Engine>, emit_for(&handle), Box::new(move |url, title| visits.record_visit(url, title))));
+            // The open tabs are kept as they change, so the next start opens them again. Tests start from a known tab.
+            let tabs_file = data_dir.join("tabs.json");
+            let restore_tabs = !test_mode || std::env::var("MOBIUS_RESTORE_TABS").is_ok_and(|v| v == "1");
+            let notify = keep_tabs(emit_for(&handle), restore_tabs.then(|| tabs_file.clone()));
+            let browser = Arc::new(Browser::new(web.clone() as Arc<dyn mobius_browser::engine::Engine>, notify, Box::new(move |url, title| visits.record_visit(url, title))));
             web.attach(&browser);
             web.attach_downloads(&bridge);
             let downloads_dir = std::env::var("MOBIUS_DOWNLOADS_DIR").ok().filter(|_| test_mode).map(PathBuf::from).or_else(|| app.path().download_dir().ok());
@@ -366,7 +387,14 @@ fn main() {
             bridge.attach(browser.clone(), Arc::new(SystemDialogs { keep_hidden: hidden, engine: engine_slot, handle: handle.clone(), window: window.clone() }));
             // The first tab: an address given for tests, or a blank page.
             let start = std::env::var("MOBIUS_START_URL").ok().filter(|_| test_mode);
-            browser.open_url(start.as_deref());
+            let reopened = if restore_tabs && start.is_none() {
+                mobius_store::file::read_json(&tabs_file).map_or(0, |kept| mobius_browser::session::restore(&browser, &kept))
+            } else {
+                0
+            };
+            if reopened == 0 {
+                browser.open_url(start.as_deref());
+            }
             // The interface follows the window's size.
             let (resized, resize_window) = (interface.clone(), window.clone());
             let focus_bridge = bridge.clone();

@@ -14,6 +14,7 @@ cef = ["dep:cef"]
 cef = { version = "156.3", optional = true }
 mobius-host = { path = "../mobius-host" }
 mobius-browser = { path = "../mobius-browser" }
+mobius-store = { path = "../mobius-store" }
 base64 = "0.22"
 ureq.workspace = true
 url = "2"
