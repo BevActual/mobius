@@ -55,9 +55,11 @@ while you work in any app.
 ## Linux
 
 The shell layers the browser's page views over the interface view. On Linux, Tauri 2 (`tauri-runtime-wry`) packs every
-child web view into the window's vertical `GtkBox` instead of placing them, so the page view takes the whole height and
-the interface gets one pixel: the window looks blank. This happens on `main` too. Making Linux work means a
-fixed-position container for the views (a change in Tauri or a patch to it), not a change in the interface.
+child web view into the window's vertical `GtkBox`, so the page view took the whole height and the interface got one
+pixel. `crates/mobius-shell/src/linux_views.rs` moves each view into one `GtkFixed` and places it there instead, and pages
+open by navigating the web view directly, since the Chromium protocol is Windows-only. Reading a page (the agent's
+browser tools, the selection menu, the page picture used as a cover) still needs that protocol, so on Linux those
+report that pages cannot be read yet.
 
 ## Next
 
