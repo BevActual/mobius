@@ -46,7 +46,7 @@ while you work in any app.
 - **Review and undo**: each agent turn begins with a checkpoint. When a turn ends having changed notes, task lists or
   files, a strip above the message box says so: Review lists each change with its own Undo; Undo all puts back only
   what that turn changed, so edits made since elsewhere are kept. A changed note says so above the page, with Show
-  changes (the page line by line: added, removed, kept) and Undo; changed pages and lists carry a dot in their sidebars.
+  changes (the page line by line: added, removed, kept, with an Undo on each change) and Undo all; changed pages and lists carry a dot in their sidebars.
 - **Your sidebar**: drag an app in the sidebar to reorder it (or Alt+Up/Down on a focused app), or right-click it to move it, hide it, or edit the list. Settings ›
   Appearance › Layout has the full list with a checkbox and order buttons for each. At least one app always stays,
   and hidden apps are still in All apps. Pin a note or a task list (the pin beside it) and it stays under the apps, up
@@ -55,6 +55,5 @@ while you work in any app.
 ## Next
 
 1. Choose which notebook and page clippings go to.
-2. Undo one change at a time inside a note's changes view, not only the whole page.
-3. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
-4. Pin web pages too, and reorder pinned items by dragging.
+2. Pages the agent opens in the browser beside the conversation, as notes and tasks are now.
+3. Pin web pages too, and reorder pinned items by dragging.

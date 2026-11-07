@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diffCounts, diffLines } from './line-diff';
+import { changeGroups, diffCounts, diffLines, undoGroup } from './line-diff';
 
 describe('line diff', () => {
   it('marks added and removed lines and keeps the rest', () => {
@@ -16,5 +16,16 @@ describe('line diff', () => {
   });
   it('treats a new page as all added', () => {
     expect(diffCounts(diffLines('', 'a\nb'))).toEqual({ added: 2, removed: 1 });
+  });
+});
+
+describe('undoing one change', () => {
+  const lines = diffLines('# Plan\n- one\n- two\n\nEnd\n', '# Plan\n- 1\n- two\n\nEnd\n- more\n');
+  it('groups neighbouring added and removed lines into one change', () => {
+    expect(changeGroups(lines)).toEqual([null, 0, 0, null, null, null, 1, null]);
+  });
+  it('puts back only the chosen change', () => {
+    expect(undoGroup(lines, 0)).toBe('# Plan\n- one\n- two\n\nEnd\n- more\n');
+    expect(undoGroup(lines, 1)).toBe('# Plan\n- 1\n- two\n\nEnd\n');
   });
 });

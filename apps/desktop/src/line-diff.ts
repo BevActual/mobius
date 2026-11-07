@@ -33,3 +33,23 @@ export const diffCounts = (lines: readonly DiffLine[]) => ({
   added: lines.filter((l) => l.kind === 'added').length,
   removed: lines.filter((l) => l.kind === 'removed').length,
 });
+
+/** Which change each line belongs to: runs of added and removed lines next to each other make one change; kept lines none. */
+export function changeGroups(lines: readonly DiffLine[]): (number | null)[] {
+  let group = -1;
+  let inChange = false;
+  return lines.map((line) => {
+    if (line.kind === 'same') { inChange = false; return null; }
+    if (!inChange) { group++; inChange = true; }
+    return group;
+  });
+}
+
+/** The text with one change put back as it was and every other change kept. */
+export function undoGroup(lines: readonly DiffLine[], group: number): string {
+  const groups = changeGroups(lines);
+  return lines
+    .filter((line, i) => line.kind === 'same' || (groups[i] === group ? line.kind === 'removed' : line.kind === 'added'))
+    .map((line) => line.text)
+    .join('\n');
+}

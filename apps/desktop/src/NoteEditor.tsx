@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { liveTitle } from './notes-state';
-import { diffCounts, diffLines, type DiffLine } from './line-diff';
+import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from './line-diff';
 import type { NotesState } from './useNotes';
 
 /** What you can do with text selected in a note, right where it is. */
@@ -28,13 +28,25 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   useEffect(() => setSelection(null), [path]);
   // What the last turn changed on this page, line by line, read only while it is shown.
   const [diff, setDiff] = useState<DiffLine[] | null>(null);
+  // The page as it was before the turn; null when the turn made the page.
+  const [before, setBefore] = useState<string | null>(null);
   const [reviewProblem, setReviewProblem] = useState<string | null>(null);
-  useEffect(() => { setDiff(null); setReviewProblem(null); }, [path, review?.conversation]);
+  useEffect(() => { setDiff(null); setBefore(null); setReviewProblem(null); }, [path, review?.conversation]);
+  const compare = (was: string | null, now: string): DiffLine[] => (was === null ? now.split('\n').map((text) => ({ kind: 'added' as const, text })) : diffLines(was, now));
   const showChanges = async () => {
     if (!review || !path) return;
     const before = await window.mobius.changes.before(review.conversation, `notes/${path}`).catch(() => null);
     if (!before || !before.ok) { setReviewProblem(before && !before.ok ? before.error : 'The earlier version could not be read.'); return; }
-    setDiff(before.text === null ? notes.text.split('\n').map((text) => ({ kind: 'added' as const, text })) : diffLines(before.text, notes.text));
+    setBefore(before.text);
+    setDiff(compare(before.text, notes.text));
+  };
+  // One change put back; the rest of the turn's changes stay. Saved like any edit of yours, so it can be typed over.
+  const undoOne = (group: number) => {
+    if (!diff) return;
+    const next = undoGroup(diff, group);
+    notes.edit(next);
+    const rest = compare(before, next);
+    setDiff(rest.some((line) => line.kind !== 'same') ? rest : null);
   };
   const undoChanges = async () => {
     if (!review || !path) return;
@@ -78,18 +90,28 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in the agent's last turn`; })() : "The agent changed this page in its last turn."}</span>
           <button type="button" className="review-btn" aria-pressed={diff !== null} onClick={() => (diff ? setDiff(null) : void showChanges())}>{diff ? 'Back to editing' : 'Show changes'}</button>
-          <button type="button" className="review-btn" data-kind="undo" onClick={() => void undoChanges()}>Undo</button>
+          <button type="button" className="review-btn" data-kind="undo" onClick={() => void undoChanges()}>{diff ? 'Undo all' : 'Undo'}</button>
           {reviewProblem && <span className="review-problem" role="alert">{reviewProblem}</span>}
         </div>
       )}
       {diff && (
         <ol className="note-diff" aria-label="Changes to this page">
-          {diff.map((line, i) => (
-            <li key={i} data-kind={line.kind}>
-              <span className="note-diff-sign" aria-hidden="true">{line.kind === 'added' ? '+' : line.kind === 'removed' ? '−' : ''}</span>
-              <span className="note-diff-text">{line.kind === 'removed' ? <del>{line.text || ' '}</del> : line.kind === 'added' ? <ins>{line.text || ' '}</ins> : (line.text || ' ')}</span>
-            </li>
-          ))}
+          {(() => {
+            const groups = changeGroups(diff);
+            return diff.map((line, i) => {
+              const group = groups[i];
+              const first = group !== null && group !== undefined && groups[i - 1] !== group;
+              return (
+                <li key={i} data-kind={line.kind} data-first={first || undefined}>
+                  <span className="note-diff-sign" aria-hidden="true">{line.kind === 'added' ? '+' : line.kind === 'removed' ? '−' : ''}</span>
+                  <span className="note-diff-text">{line.kind === 'removed' ? <del>{line.text || ' '}</del> : line.kind === 'added' ? <ins>{line.text || ' '}</ins> : (line.text || ' ')}</span>
+                  {first && (
+                    <button type="button" className="note-diff-undo" aria-label={`Undo change ${group + 1}`} title="Put this change back as it was" onClick={() => undoOne(group)}>Undo</button>
+                  )}
+                </li>
+              );
+            });
+          })()}
         </ol>
       )}
       <textarea
