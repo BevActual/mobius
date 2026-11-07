@@ -110,9 +110,63 @@ struct Shell {
     bridge: Arc<Bridge>,
 }
 
+/// Little Mobius: a small window that keeps the agent at hand over other apps. It shows the same interface, which sees
+/// the window's label and draws only the conversation.
+const MINI: &str = "mini";
+
+fn little_mobius(app: &tauri::AppHandle, method: &str) -> Result<Value, Value> {
+    let fail = |message: String| serde_json::json!({ "kind": "invalid", "message": message });
+    match method {
+        "open" => {
+            if let Some(mini) = app.get_webview_window(MINI) {
+                let _ = mini.unminimize();
+                let _ = mini.show();
+                let _ = mini.set_focus();
+                return Ok(Value::Null);
+            }
+            tauri::WebviewWindowBuilder::new(app, MINI, WebviewUrl::default())
+                .title("Little Mobius")
+                .inner_size(380.0, 560.0)
+                .min_inner_size(320.0, 380.0)
+                .always_on_top(true)
+                .build()
+                .map_err(|e| fail(format!("Little Mobius could not open: {e}")))?;
+            Ok(Value::Null)
+        }
+        "close" => {
+            if let Some(mini) = app.get_webview_window(MINI) {
+                let _ = mini.close();
+            }
+            Ok(Value::Null)
+        }
+        "isOpen" => Ok(Value::Bool(app.get_webview_window(MINI).is_some())),
+        // From Little Mobius back to the full window.
+        "showMain" => {
+            if let Some(main) = app.get_window("main") {
+                let _ = main.unminimize();
+                let _ = main.show();
+                let _ = main.set_focus();
+            }
+            Ok(Value::Null)
+        }
+        "setOnTop" => Ok(Value::Null),
+        _ => Err(serde_json::json!({ "kind": "not_available", "message": "Not a Little Mobius call." })),
+    }
+}
+
 /// The one door from the interface into Rust.
 #[tauri::command]
-async fn bridge(shell: State<'_, Shell>, namespace: String, method: String, args: Vec<Value>) -> Result<Value, Value> {
+async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: String, method: String, args: Vec<Value>) -> Result<Value, Value> {
+    if namespace == "mini" {
+        if method == "setOnTop" && let Some(mini) = app.get_webview_window(MINI) {
+            let _ = mini.set_always_on_top(args.first().and_then(Value::as_bool).unwrap_or(true));
+        }
+        let result = little_mobius(&app, &method);
+        if method == "open" || method == "close" {
+            let _ = app.emit("mobius:mini", app.get_webview_window(MINI).is_some() && method == "open");
+        }
+        return result;
+    }
     let bridge = Arc::clone(&shell.bridge);
     // Some calls wait for the core for a long time (a search, a download): they get a thread of their own.
     tauri::async_runtime::spawn_blocking(move || bridge.call(&namespace, &method, &args))
@@ -295,7 +349,12 @@ fn main() {
             // The interface follows the window's size.
             let (resized, resize_window) = (interface.clone(), window.clone());
             let focus_bridge = bridge.clone();
+            let mini_handle = handle.clone();
             window.on_window_event(move |event| {
+                // Little Mobius belongs to the main window: it goes when the main window does.
+                if let WindowEvent::Destroyed = event && let Some(mini) = mini_handle.get_webview_window(MINI) {
+                    let _ = mini.close();
+                }
                 if let WindowEvent::Focused(true) = event {
                     focus_bridge.window_activated(std::time::Duration::from_secs(120));
                 }

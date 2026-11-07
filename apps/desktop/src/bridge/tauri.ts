@@ -93,6 +93,14 @@ export function createTauriBridge(): MobiusBridge {
       quickEntryActive: () => call('window', 'quickEntryActive', [], () => false),
     },
     surface: { setBounds: (bounds) => fire('surface', 'setBounds', [bounds]) },
+    mini: {
+      open: () => call('mini', 'open', [], () => null).then(() => undefined),
+      close: () => call('mini', 'close', [], () => null).then(() => undefined),
+      isOpen: () => call('mini', 'isOpen', [], () => false),
+      showMain: () => call('mini', 'showMain', [], () => null).then(() => undefined),
+      setOnTop: (onTop) => call('mini', 'setOnTop', [onTop], () => null).then(() => undefined),
+      onChange: (listener) => on<boolean>('mobius:mini', listener, () => call('mini', 'isOpen', [], () => false)),
+    },
     core: {
       getStatus: () => call<CoreStatus>('core', 'getStatus', [], () => 'failed'),
       onStatus: (listener) => on<CoreStatus>('mobius:core-status', listener, () => call<CoreStatus>('core', 'getStatus', [], () => 'failed')),

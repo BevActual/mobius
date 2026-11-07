@@ -23,9 +23,20 @@ while you work in any app.
 - Progressive disclosure: start clean, reveal controls in context, never every path at once.
 - Glass only on the top layer (the app hub, menus); the sidebar and toolbar are solid.
 
+## Mobius 2 shell
+
+- One window. The sidebar runs edge to edge; one toolbar spans the work area; controls are capsules; indigo is the one
+  accent. Glass stays on the top layer only, so Linux stays readable.
+- **Split view**: the toolbar's split button puts a second app beside the first. Each pane has a small header (choose
+  its app, swap, close) outside the page view; the toolbar and sidebar follow the focused pane. Drag the divider, or
+  focus it and use the arrow keys. Below 980 px the second pane folds away until the window is wide again. With the
+  Agent app in a pane, the agent panel steps aside.
+- **Little Mobius**: a small window, kept above other apps, with the conversation and nothing else. It opens from the
+  toolbar, shares conversations with the main window, and closes with it.
+
 ## Next
 
 1. On-canvas actions: select text in a note or a page, and Ask / Rewrite / Summarise / Make a task appear there.
 2. One review and undo strip for everything the agent changed, in every app.
-3. Split view from the Agent app: something the agent opens or makes slides in beside the conversation.
+3. Split view from the Agent app: let the agent open what it made in the second pane beside the conversation.
 4. Let people reorder and hide apps in the sidebar (HIG: let people customise the sidebar).

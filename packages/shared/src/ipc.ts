@@ -176,6 +176,17 @@ export interface MobiusBridge {
   surface: {
     setBounds(bounds: Bounds | null): void;
   };
+  /** Little Mobius: a small window, kept above other apps, with the conversation and nothing else. */
+  mini: {
+    open(): Promise<void>;
+    close(): Promise<void>;
+    isOpen(): Promise<boolean>;
+    /** Bring the full window forward. */
+    showMain(): Promise<void>;
+    setOnTop(onTop: boolean): Promise<void>;
+    /** Says when Little Mobius opens or closes. */
+    onChange(listener: (open: boolean) => void): () => void;
+  };
   /** The renderer can see whether the core is up. It cannot call the core: only the main process can. */
   core: {
     getStatus(): Promise<CoreStatus>;

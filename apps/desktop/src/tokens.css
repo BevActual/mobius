@@ -1,7 +1,8 @@
 /*
  * Mobius design tokens. Every size, space, colour and motion value the interface uses comes from here, so the
  * applications look like one product. Grounded in Apple's Human Interface Guidelines (macOS): a 4-pt grid, a small
- * type scale, semantic colours with a dark counterpart, and quick, interruptible motion.
+ * type scale, semantic colours with a dark counterpart, and quick, interruptible motion. Mobius 2 (macOS 27 era):
+ * capsule controls, an edge-to-edge sidebar, one unified toolbar, and indigo as the single accent.
  */
 :root {
   color-scheme: light dark;
@@ -28,29 +29,36 @@
   --sp-6: 24px;
   --sp-8: 32px;
 
-  /* Shape. */
-  /* Squarer shapes: small radii read as precise and fit edge to edge. */
-  --radius-small: 2px;
-  --radius-control: 4px;
-  --radius-group: 6px;
-  --radius-panel: 8px;
-  --radius-sheet: 10px;
+  /* Shape. Mobius 2: rounded, like macOS 27. Controls are capsules; lists and cards use soft corners. */
+  --radius-small: 4px;
+  --radius-control: 8px;
+  --radius-group: 10px;
+  --radius-panel: 14px;
+  --radius-sheet: 18px;
+  --radius-pill: 999px;
   --control-h: 28px;
   --control-h-lg: 36px;
 
   /* Colour roles: surfaces, text, lines, accent, and status. */
   --bg: #ffffff;
-  --panel: #f8f8fa;
+  --panel: #fafafc;
   --chrome: #f2f2f5;
   --shell: #f5f5f7;
+  /* The sidebar runs edge to edge; the toolbar spans the work area; fields and capsules sit on them. */
+  --sidebar: #f0f0f4;
+  --toolbar: color-mix(in srgb, #fafafc 92%, transparent);
+  --field: rgba(0, 0, 0, 0.045);
+  --capsule: rgba(255, 255, 255, 0.78);
+  --hairline: rgba(0, 0, 0, 0.1);
   --ink: #1d1d1f;
   --muted: #65656b;
   --line: #e5e5e9;
   --line-strong: #c7c7cc;
   --soft: #ededf0;
-  --accent: #0066cc;
+  /* One accent, used sparingly: the primary action, the current place, the agent. */
+  --accent: #5856d6;
   --on-accent: #ffffff;
-  --wash: #eaf2fc;
+  --wash: #eeeefc;
   --danger: #c5221f;
   --danger-wash: #fce8e6;
   --success: #1e7b34;
@@ -86,17 +94,22 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #1c1c1e;
-    --panel: #242426;
+    --panel: #212124;
     --chrome: #29292c;
-    --shell: #202022;
+    --shell: #18181a;
+    --sidebar: #232326;
+    --toolbar: color-mix(in srgb, #262629 92%, transparent);
+    --field: rgba(255, 255, 255, 0.07);
+    --capsule: rgba(255, 255, 255, 0.07);
+    --hairline: rgba(255, 255, 255, 0.1);
     --ink: #f5f5f7;
     --muted: #b0b0b6;
     --line: #3a3a3e;
     --line-strong: #56565b;
     --soft: #343437;
-    --accent: #80baff;
-    --on-accent: #0b1a2b;
-    --wash: #243950;
+    --accent: #8c8aff;
+    --on-accent: #0e0d2b;
+    --wash: #2b2a4d;
     --danger: #ff8a80;
     --danger-wash: #3d1f1d;
     --success: #7bd88f;
@@ -110,10 +123,10 @@
 }
 
 @media (prefers-contrast: more) {
-  :root { --muted: #44444a; --line: #9b9ba3; --line-strong: #6e6e76; }
+  :root { --muted: #44444a; --line: #9b9ba3; --line-strong: #6e6e76; --hairline: #9b9ba3; --field: #ffffff; --capsule: #ffffff; --toolbar: #fafafc; }
 }
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
-  :root { --muted: #d0d0d6; --line: #888890; --line-strong: #a8a8b0; }
+  :root { --muted: #d0d0d6; --line: #888890; --line-strong: #a8a8b0; --hairline: #888890; --field: #2c2c30; --capsule: #2c2c30; --toolbar: #262629; }
 }
 @media (prefers-reduced-motion: reduce) {
   :root { --dur-fast: 0ms; --dur-med: 0ms; }

@@ -36,6 +36,8 @@ import type { HubTarget } from './search-hub';
 import { useTasks } from './useTasks';
 import { NoteEditor } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
+import { Pane, SplitDivider } from './SplitView';
+import { companionFor, loadShare, saveShare } from './split';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
 
@@ -84,7 +86,52 @@ export function App() {
     if (!appearance.value.resumeLast) conversation.startFresh();
   }, [appearance.loaded, appearance.value, conversation]);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [app, setApp] = useState<AppId>('browser');
+  // Split view: up to two apps side by side. `app` is the focused pane's app, so the toolbar and sidebar follow it.
+  // A narrow window has room for one pane, so the other folds away until the window is wide again.
+  const narrow = useNarrowWindow(980);
+  const [panes, setPanes] = useState<readonly [AppId, AppId | null]>(['browser', null]);
+  const [focused, setFocused] = useState<0 | 1>(0);
+  const app: AppId = (focused === 1 ? panes[1] : null) ?? panes[0];
+  const split = panes[1] !== null && !narrow;
+  const other: AppId | null = split ? (focused === 0 ? panes[1] : panes[0]) : null;
+  const panesNow = useRef({ panes, focused });
+  panesNow.current = { panes, focused };
+  /** Open an app in the focused pane. If the other pane already shows it, go there instead. */
+  const setApp = useCallback((id: AppId) => {
+    const { panes: [a, b], focused: f } = panesNow.current;
+    if (b !== null && (f === 0 ? b : a) === id) { setFocused(f === 0 ? 1 : 0); return; }
+    setPanes(f === 0 ? [id, b] : [a, id]);
+  }, []);
+  const [share, setShare] = useState(loadShare);
+  // Little Mobius: the conversation in a small window of its own, kept above other apps.
+  const [miniOpen, setMiniOpen] = useState(false);
+  useEffect(() => window.mobius.mini?.onChange(setMiniOpen), []);
+  const [splitDrag, setSplitDrag] = useState<number | null>(null);
+  const openSplit = useCallback(() => {
+    const { panes: [a], focused: f } = panesNow.current;
+    const here = f === 1 ? panesNow.current.panes[1] ?? a : a;
+    setPanes([here, companionFor(here)]);
+    setFocused(0);
+  }, []);
+  const closePane = useCallback((index: 0 | 1) => {
+    const { panes: [a, b] } = panesNow.current;
+    setPanes([index === 0 ? (b ?? a) : a, null]);
+    setFocused(0);
+  }, []);
+  const choosePane = useCallback((index: 0 | 1, id: AppId) => {
+    const { panes: [a, b] } = panesNow.current;
+    if (b === null) return;
+    // Choosing what the other pane shows swaps them, so the same app is never open twice.
+    if (index === 0) setPanes(id === b ? [b, a] : [id, b]);
+    else setPanes(id === a ? [b, a] : [a, id]);
+    setFocused(index);
+  }, []);
+  const swapPanes = useCallback(() => {
+    const { panes: [a, b], focused: f } = panesNow.current;
+    if (b === null) return;
+    setPanes([b, a]);
+    setFocused(f === 0 ? 1 : 0);
+  }, []);
   const [finding, setFinding] = useState(0);
   const [findOpen, setFindOpen] = useState(false);
   const openFind = useCallback(() => { setFindOpen(true); setFinding((n) => n + 1); }, []);
@@ -93,6 +140,8 @@ export function App() {
   const inNotes = app === 'notes';
   const inTasks = app === 'tasks';
   const inSearch = app === 'search';
+  /** Shown in either pane, focused or not. */
+  const shows = (id: AppId) => app === id || other === id;
   // Apps the agent (or another app) changed while you were elsewhere: their rail button carries a dot until opened.
   const [changed, setChanged] = useState<ReadonlySet<AppId>>(new Set());
   const here = useRef(app);
@@ -136,7 +185,6 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(true);
   // The left panel: a narrow rail, or the full sidebar with the apps by name and the open app's own list under them.
   // Apple: do not hide the sidebar by default. A narrow window folds it to the rail on its own, as Mail does.
-  const narrow = useNarrowWindow(980);
   const [narrowOpen, setNarrowOpen] = useState(false);
   useEffect(() => { if (!narrow) setNarrowOpen(false); }, [narrow]);
   const wide = narrow ? narrowOpen : appearance.value.navigation !== 'rail';
@@ -158,7 +206,8 @@ export function App() {
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
-  const hasRight = inBrowser || inNotes || inTasks;
+  // With the Agent app open in a pane, the conversation is already on screen.
+  const hasRight = (inBrowser || inNotes || inTasks) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -202,7 +251,7 @@ export function App() {
   );
   // The native page is drawn above everything in the window. To draw over it, put a picture of it in its place first.
   const floatingShown = (hasLeft && leftFloating && leftOpen) || (rightFloating && rightOpen);
-  const needCover = inBrowser && (floatingShown || drag !== null || hovering);
+  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null);
   const [cover, setCover] = useState<{ url: string | null } | null>(null);
   useEffect(() => {
     if (!needCover) { setCover(null); return undefined; }
@@ -388,6 +437,64 @@ export function App() {
           </>
   );
 
+  /** What one pane draws for an app. Each app is on screen at most once, so its state is never split in two. */
+  const paneContent = (id: AppId): ReactNode => {
+    switch (id) {
+      case 'browser':
+        return (
+          <>
+            {cover?.url && <img className="page-cover" src={cover.url} alt="" data-testid="page-cover" />}
+            <SurfaceSlot hidden={launcherOpen || hubOpen || settingsOpen || cover !== null} />
+          </>
+        );
+      case 'notes':
+        return <NoteEditor notes={notes} />;
+      case 'tasks':
+        return <TasksPage tasks={tasks} focusToken={taskFocus} />;
+      case 'search':
+        return (
+          <SearchPage
+            conversations={conversation.list}
+            notebooks={notes.notebooks}
+            tasks={tasks.all}
+            focusToken={searchFocus}
+            canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
+            onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}
+            onOpen={openTarget}
+          />
+        );
+      case 'agent':
+        return (
+          <ChatPanel
+            surface={surface}
+            variant="full"
+            state={conversation.state}
+            settings={settings}
+            coreReady={coreStatus === 'ready'}
+            onSend={(text, items) => void conversation.send(text, items)}
+            onStop={conversation.stop}
+            onAnswer={conversation.answer}
+            onReply={conversation.reply}
+            onSaveSettings={saveSettings}
+            focusToken={focusToken}
+            conversations={conversation.list}
+            activeConversation={conversation.id}
+            onNewConversation={() => conversation.newConversation()}
+            onSelectConversation={conversation.select}
+            onOpenSettings={openSettings}
+            onRetry={conversation.retry}
+            onEdit={conversation.edit}
+            onDetails={conversation.toolDetails}
+            effort={preferences.value.reasoningEffort}
+            onEffort={(reasoningEffort) => void preferences.set({ reasoningEffort })}
+            onModelChanged={() => void reloadSettings()}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="app" data-wide={wide || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
@@ -424,15 +531,17 @@ export function App() {
           </div>
         )}
         {inBrowser && <div className="strip-middle" role="group" aria-label="Browser">
-          <button type="button" className="strip-btn" aria-label="Back" disabled={!active?.canGoBack} onClick={() => active && window.mobius.browser.back(active.id)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4 6 10l6 6" /></svg>
-          </button>
-          <button type="button" className="strip-btn" aria-label="Forward" disabled={!active?.canGoForward} onClick={() => active && window.mobius.browser.forward(active.id)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" /></svg>
-          </button>
-          <button type="button" className="strip-btn" aria-label="Reload" disabled={!active} onClick={() => active && window.mobius.browser.reload(active.id)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
-          </button>
+          <div className="cap-group">
+            <button type="button" className="strip-btn" aria-label="Back" disabled={!active?.canGoBack} onClick={() => active && window.mobius.browser.back(active.id)}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4 6 10l6 6" /></svg>
+            </button>
+            <button type="button" className="strip-btn" aria-label="Forward" disabled={!active?.canGoForward} onClick={() => active && window.mobius.browser.forward(active.id)}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" /></svg>
+            </button>
+            <button type="button" className="strip-btn" aria-label="Reload" disabled={!active} onClick={() => active && window.mobius.browser.reload(active.id)}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
+            </button>
+          </div>
           <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
             <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={saved}><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
           </button>
@@ -471,6 +580,12 @@ export function App() {
           </form>
         )}
         <div className="strip-right" role="group" aria-label="Applications">
+          <button type="button" className="strip-btn" data-mini-toggle aria-pressed={miniOpen} aria-label={miniOpen ? 'Close Little Mobius' : 'Open Little Mobius'} title={miniOpen ? 'Close the small agent window' : 'Little Mobius: the agent in a small window above your other apps'} onClick={() => void (miniOpen ? window.mobius.mini.close() : window.mobius.mini.open())}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3.5" width="14" height="13" rx="3" /><rect x="9.5" y="9.5" width="5.5" height="5" rx="1.5" /></svg>
+          </button>
+          {!narrow && <button type="button" className="strip-btn" data-split-toggle aria-pressed={split} aria-label={split ? 'Close split view' : 'Split view'} title={split ? 'Show one app' : 'Show two apps side by side'} onClick={() => (split ? closePane(focused === 0 ? 1 : 0) : openSplit())}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="6.5" height="11" rx="2" /><rect x="11" y="4.5" width="6.5" height="11" rx="2" /></svg>
+          </button>}
           {hasRight && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={chatOpen} aria-label="Show agent" title="Show or hide the agent" onClick={() => { setChatOpen((open) => !open); setFocusToken((n) => n + 1); }}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>
           </button>}
@@ -484,8 +599,7 @@ export function App() {
           </div>
         )}
         {hasLeft && leftFloating && !leftOpen && <div className="hotzone left" data-testid="hotzone-left" onPointerEnter={() => { leftFromEdge.current = true; setLeftOpen(true); }} />}
-        <main className="stage">
-          {cover?.url && <img className="page-cover" src={cover.url} alt="" data-testid="page-cover" />}
+        <main className="stage" data-split={split || undefined} style={split ? ({ '--split': `${(splitDrag ?? share) * 100}%` } as React.CSSProperties) : undefined}>
           {settingsOpen && (
             <SettingsPage
               {...(settingsSection ? { initial: settingsSection } : {})}
@@ -504,46 +618,19 @@ export function App() {
               coreStatus={coreStatus}
             />
           )}
-          {inNotes && <NoteEditor notes={notes} />}
-          {inTasks && <TasksPage tasks={tasks} focusToken={taskFocus} />}
-          {inSearch && (
-            <SearchPage
-              conversations={conversation.list}
-              notebooks={notes.notebooks}
-              tasks={tasks.all}
-              focusToken={searchFocus}
-              canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
-              onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}
-              onOpen={openTarget}
-            />
-          )}
-          {inAgent && (
-            <ChatPanel
-              surface={surface}
-              variant="full"
-              state={conversation.state}
-              settings={settings}
-              coreReady={coreStatus === 'ready'}
-              onSend={(text, items) => void conversation.send(text, items)}
-              onStop={conversation.stop}
-              onAnswer={conversation.answer}
-              onReply={conversation.reply}
-              onSaveSettings={saveSettings}
-              focusToken={focusToken}
-              conversations={conversation.list}
-              activeConversation={conversation.id}
-              onNewConversation={() => conversation.newConversation()}
-              onSelectConversation={conversation.select}
-              onOpenSettings={openSettings}
-              onRetry={conversation.retry}
-              onEdit={conversation.edit}
-              onDetails={conversation.toolDetails}
-              effort={preferences.value.reasoningEffort}
-              onEffort={(reasoningEffort) => void preferences.set({ reasoningEffort })}
-              onModelChanged={() => void reloadSettings()}
-            />
-          )}
-          <SurfaceSlot hidden={launcherOpen || hubOpen || settingsOpen || !inBrowser || cover !== null} />
+          {(split ? ([0, 1] as const) : ([focused] as const)).map((index, at) => {
+            const id = split ? (panes[index] ?? app) : app;
+            const pane = (
+              <Pane key={`pane-${at}`} index={index} app={id} split={split} focused={focused === index}
+                onFocus={() => { if (split && focused !== index) setFocused(index); }}
+                onChoose={(next) => choosePane(index, next)} onSwap={swapPanes} onClose={() => closePane(index)}>
+                {paneContent(id)}
+              </Pane>
+            );
+            return at === 1
+              ? [<SplitDivider key="divider" share={splitDrag ?? share} onDrag={setSplitDrag} onCommit={(next) => { setShare(next); saveShare(next); }} />, pane]
+              : [pane];
+          })}
         </main>
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
