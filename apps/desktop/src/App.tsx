@@ -38,7 +38,8 @@ import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
-import { SelectionMenu } from './SelectionMenu';
+import { SelectionMenu, type WebSelectionAction } from './SelectionMenu';
+import { clipToNotes } from './clip';
 import { companionFor, loadShare, saveShare } from './split';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
@@ -487,11 +488,16 @@ export function App() {
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
   const [incoming, setIncoming] = useState<{ token: number; item: ContextItem } | null>(null);
   /** On-canvas actions for the web: what to do with the text selected on the page. */
-  const webSelection = async (action: 'ask' | 'summarise' | 'explain' | 'task') => {
+  const webSelection = async (action: WebSelectionAction) => {
     setSelectionMenu(false);
     const result = await window.mobius.context.selection().catch(() => ({ ok: false as const, error: 'The selection could not be read.' }));
     if (!result.ok) { setNotice(result.error); return; }
     const { item } = result;
+    if (action === 'clip') {
+      const saved = await clipToNotes(item);
+      setNotice(saved.ok ? 'Saved to Clippings in Notes' : saved.error);
+      return;
+    }
     if (action === 'task') {
       const list = tasks.lists[0]?.name;
       if (!list) { setNotice('Make a task list first, in Tasks.'); return; }

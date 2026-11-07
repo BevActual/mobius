@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
 
-export type WebSelectionAction = 'ask' | 'summarise' | 'explain' | 'task';
+export type WebSelectionAction = 'ask' | 'summarise' | 'explain' | 'task' | 'clip';
 const ITEMS: { id: WebSelectionAction; label: string; hint: string }[] = [
   { id: 'ask', label: 'Ask about it', hint: 'Add it to the message box' },
   { id: 'summarise', label: 'Summarise it', hint: 'The agent sums it up' },
   { id: 'explain', label: 'Explain it', hint: 'In plain words' },
   { id: 'task', label: 'Make it a task', hint: 'Added to your first list' },
+  { id: 'clip', label: 'Save to Notes', hint: 'On your Clippings page, with a link back' },
 ];
 
 /** What to do with the text selected on a web page. It drops over the page, which is covered by its picture meanwhile. */
