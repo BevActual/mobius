@@ -139,7 +139,9 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
     stdio: ['ignore', 'ignore', process.env.MOBIUS_TAURI_LOG ? fs.openSync(process.env.MOBIUS_TAURI_LOG, 'a') : 'ignore'],
   });
   let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | null = null;
-  for (let i = 0; i < 100 && !browser; i++) {
+  // A fresh machine (CI) starts its first web view slowly; MOBIUS_E2E_START_MS gives it longer than the usual 15 seconds.
+  const waitMs = Number(process.env.MOBIUS_E2E_START_MS) > 0 ? Number(process.env.MOBIUS_E2E_START_MS) : 15_000;
+  for (const until = Date.now() + waitMs; Date.now() < until && !browser;) {
     await new Promise((resolve) => setTimeout(resolve, 150));
     browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`).catch(() => null);
   }

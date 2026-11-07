@@ -28,10 +28,30 @@ jobs:
         run: cargo build -p mobius-cored -p mobius-shell
       - name: Build the interface
         run: npm run build -w @mobius/desktop
+      - name: Check the shell starts and opens its debugging port
+        shell: pwsh
+        run: |
+          $data = Join-Path $env:RUNNER_TEMP 'mobius-probe'
+          New-Item -ItemType Directory -Force $data | Out-Null
+          $env:MOBIUS_TEST = '1'; $env:MOBIUS_USER_DATA = $data; $env:MOBIUS_HIDE_WINDOW = '1'
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9555'
+          $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $data 'webview'
+          $p = Start-Process -FilePath target\debug\mobius-shell.exe -PassThru -RedirectStandardError (Join-Path $env:RUNNER_TEMP 'probe-err.log')
+          $start = Get-Date; $up = $false
+          while (((Get-Date) - $start).TotalSeconds -lt 120 -and -not $p.HasExited) {
+            try { Invoke-RestMethod http://127.0.0.1:9555/json/version -TimeoutSec 2 | Out-Null; $up = $true; break } catch { Start-Sleep -Milliseconds 500 }
+          }
+          $secs = [math]::Round(((Get-Date) - $start).TotalSeconds, 1)
+          Write-Host "debugging port up: $up after $secs s; shell exited: $($p.HasExited) (code $($p.ExitCode))"
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Measure-Object | ForEach-Object { Write-Host "web view processes: $($_.Count)" }
+          Get-Content (Join-Path $env:RUNNER_TEMP 'probe-err.log') -ErrorAction SilentlyContinue | Select-Object -First 40
+          if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+          Get-Process msedgewebview2, mobius-cored -ErrorAction SilentlyContinue | Stop-Process -Force
       - name: Run the end-to-end suite
         working-directory: apps/desktop
         env:
           MOBIUS_SHELL: tauri
+          MOBIUS_E2E_START_MS: '60000'
           MOBIUS_TAURI_LOG: ${{ github.workspace }}\shell.log
         run: npx playwright test ${{ inputs.spec }}
       - if: failure()
