@@ -14,8 +14,15 @@ const isChanges = (value: unknown): value is TurnChanges => typeof value === 'ob
 /** Turns whose changes were kept, so the strip does not come back for them. A few, on this computer only. */
 const KEPT_KEY = 'mobius.keptTurns';
 const MAX_KEPT = 50;
-const keptTurns = (): string[] => { try { const v: unknown = JSON.parse(window.localStorage.getItem(KEPT_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } };
-const keepTurn = (id: string) => { try { window.localStorage.setItem(KEPT_KEY, JSON.stringify([...keptTurns().filter((x) => x !== id), id].slice(-MAX_KEPT))); } catch { /* Not kept. */ } };
+export const keptTurns = (): string[] => { try { const v: unknown = JSON.parse(window.localStorage.getItem(KEPT_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } };
+/** Keep a turn's changes, wherever that was said (the strip or a note), and let every place showing them know. */
+export const keepTurn = (id: string) => {
+  try { window.localStorage.setItem(KEPT_KEY, JSON.stringify([...keptTurns().filter((x) => x !== id), id].slice(-MAX_KEPT))); } catch { /* Not kept. */ }
+  window.dispatchEvent(new CustomEvent(KEPT_EVENT, { detail: id }));
+};
+export const KEPT_EVENT = 'mobius:kept';
+/** The id a turn's changes are kept under. */
+export const turnId = (conversation: string, checkpoint: string | null) => (checkpoint ? `${conversation}:${checkpoint}` : null);
 
 /** Keep and Discard answer from anywhere in the window, except where they would change text you are typing. */
 export function reviewShortcut(event: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }, typing: boolean): 'keep' | 'discard' | null {
@@ -47,11 +54,17 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
   const load = useCallback(async () => {
     const result = await window.mobius.changes?.lastTurn(conversation).catch(() => null);
     const changes = isChanges(result) ? result : null;
-    const id = changes?.checkpoint ? `${conversation}:${changes.checkpoint}` : null;
+    const id = turnId(conversation, changes?.checkpoint ?? null);
     setTurn(id);
     setFiles(changes && !(id && keptTurns().includes(id)) ? changes.files : []);
   }, [conversation]);
   useEffect(() => { setOpen(false); setUndone(false); setProblem(null); }, [conversation]);
+  // Kept from a note's own bar: the strip goes too.
+  useEffect(() => {
+    const kept = () => void load();
+    window.addEventListener(KEPT_EVENT, kept);
+    return () => window.removeEventListener(KEPT_EVENT, kept);
+  }, [load]);
   // Read when a turn ends, and when another conversation is shown.
   useEffect(() => { if (!busy) void load(); else { setUndone(false); setProblem(null); } }, [busy, load]);
 

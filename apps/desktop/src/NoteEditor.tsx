@@ -1,3 +1,4 @@
+import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { useEffect, useRef, useState } from 'react';
 import { onCommand } from './commands';
 import { liveTitle } from './notes-state';
@@ -32,6 +33,28 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   // The page as it was before the turn; null when the turn made the page.
   const [before, setBefore] = useState<string | null>(null);
   const [reviewProblem, setReviewProblem] = useState<string | null>(null);
+  // Keep is for the whole turn, as in the strip under the conversation; a page of a kept turn shows no bar.
+  const [kept, setKept] = useState(false);
+  useEffect(() => {
+    let live = true;
+    const check = async () => {
+      if (!review) { setKept(false); return; }
+      const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
+      const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
+      if (live) setKept(id !== null && keptTurns().includes(id));
+    };
+    void check();
+    window.addEventListener(KEPT_EVENT, check);
+    return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
+  }, [review?.conversation, path]);
+  const keepChanges = async () => {
+    if (!review) return;
+    const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
+    const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
+    if (id) keepTurn(id);
+    setDiff(null);
+    setKept(true);
+  };
   useEffect(() => { setDiff(null); setBefore(null); setReviewProblem(null); }, [path, review?.conversation]);
   const compare = (was: string | null, now: string): DiffLine[] => (was === null ? now.split('\n').map((text) => ({ kind: 'added' as const, text })) : diffLines(was, now));
   const showChanges = async () => {
@@ -90,12 +113,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           <button type="button" className="btn primary" onClick={() => void notes.resolve(true)}>Keep mine</button>
         </div>
       )}
-      {review && (
+      {review && !kept && (
         <div className="note-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in the agent's last turn`; })() : "The agent changed this page in its last turn."}</span>
           <button type="button" className="review-btn" aria-pressed={diff !== null} onClick={() => (diff ? setDiff(null) : void showChanges())}>{diff ? 'Back to editing' : 'Show changes'}</button>
-          <button type="button" className="review-btn" data-kind="undo" onClick={() => void undoChanges()}>{diff ? 'Undo all' : 'Undo'}</button>
+          <button type="button" className="review-btn" title="Put this page back as it was before that turn" onClick={() => void undoChanges()}>Discard</button>
+          <button type="button" className="review-btn" data-kind="keep" title="Keep what the agent changed in that turn" onClick={() => void keepChanges()}>Keep</button>
           {reviewProblem && <span className="review-problem" role="alert">{reviewProblem}</span>}
         </div>
       )}
