@@ -64,8 +64,8 @@ The Mobius Agent design canvas (Mobius 2 boards) is the reference for what follo
 - **Welcome**: the print draws in, then how much Mobius should do (the approval setting), then the model.
 - **The Mobius panel**: "Sees:" names the apps Mobius has worked in; the conversation; proposals (dashed until kept);
   suggestions.
-- **Plan first**: a turn that only proposes steps; Start, Edit Plan, I'll Drive (the steps become a task list); while
-  it runs, Take Over and Stop.
+- **Plan first**: a turn that only proposes steps, each tagged with what your settings mean for its app (Asks first,
+  Reads freely, Acts, Off); Start, Edit Plan, I'll Drive (the steps become a task list); while it runs, Take Over and Stop.
 - **Keep or Discard**: what a turn changed waits as a dashed proposal (Cmd/Ctrl+Enter keeps, Cmd/Ctrl+Backspace
   discards), in the strip under the conversation and in a changed note's bar; kept across restarts.
 - **Approvals in plain words**, and per app (browser, notes, tasks): Off, Ask first, Read or Act. Risky actions always ask.
@@ -79,7 +79,7 @@ The Mobius Agent design canvas (Mobius 2 boards) is the reference for what follo
   models are shared. Each reply says what it was **based on**.
 
 Not built yet from the canvas: Look at this (sharing a window), Show Mobius (camera), trust marks on what
-Mobius says, labels on plan steps that will ask, and the Activity history of older turns.
+Mobius says, and a history of turns older than each conversation's last.
 
 ## Linux
 
