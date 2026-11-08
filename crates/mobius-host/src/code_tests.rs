@@ -91,6 +91,14 @@ pub fn run(dir: &Path, command: &str, timeout: Duration) -> Value {
     let started = Instant::now();
     let mut cmd = if cfg!(windows) {
         let mut c = Command::new("cmd");
+        // cmd reads its command line itself, not as C-style arguments: passed as typed, in /S /C "...", so quotes
+        // inside it reach the program as the person wrote them.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            c.raw_arg(format!("/S /C \"{command}\""));
+        }
+        #[cfg(not(windows))]
         c.arg("/C").arg(command);
         c
     } else {
