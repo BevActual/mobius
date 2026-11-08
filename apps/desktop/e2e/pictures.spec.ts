@@ -48,3 +48,24 @@ test('a picture attached to a message goes to the model beside the words, and st
   expect(content[1]!.type).toBe('image_url');
   expect(content[1]!.image_url!.url).toMatch(/^data:image\/jpeg;base64,/);
 });
+
+test('Show Mobius takes one still from the camera and attaches it; the camera is off once it is taken', async () => {
+  model = await startModel([says(['A test pattern.'])]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  const shell = mobius.shell;
+  const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
+  await expect(composer).toBeEnabled({ timeout: 15_000 });
+  await shell.getByRole('button', { name: 'Add context' }).click();
+  await shell.getByRole('menuitem', { name: /Show Mobius/ }).click();
+  const dialog = shell.getByRole('dialog', { name: 'Show Mobius' });
+  await expect(dialog.getByRole('button', { name: 'Take' })).toBeEnabled({ timeout: 10_000 });
+  await dialog.getByRole('button', { name: 'Take' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(shell.getByRole('list', { name: 'Pictures for this message' }).getByRole('img')).toHaveCount(1);
+  // The camera is turned off: nothing in the window still holds a live video track.
+  await expect.poll(() => shell.evaluate(() => [...document.querySelectorAll('video')].some((v) => (v.srcObject as MediaStream | null)?.getTracks().some((t) => t.readyState === 'live')))).toBe(false);
+  await composer.fill('What is this?');
+  await composer.press('Enter');
+  await expect(shell.getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('A test pattern.');
+  expect(((lastUser(model.requests[0]!).content as Part[])[1]!.image_url!.url)).toMatch(/^data:image\/jpeg;base64,/);
+});

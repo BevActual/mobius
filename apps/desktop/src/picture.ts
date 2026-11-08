@@ -14,6 +14,9 @@ function shrink(source: CanvasImageSource, width: number, height: number): strin
   return canvas.toDataURL('image/jpeg', 0.88);
 }
 
+/** One still of a playing video (the camera), as a small JPEG data URL. */
+export const pictureOfVideo = (video: HTMLVideoElement) => shrink(video, video.videoWidth, video.videoHeight);
+
 /** A picture file (or one pasted) as a small JPEG data URL; null when it is not a picture that opens. */
 export function pictureFromFile(file: Blob): Promise<string | null> {
   // Read as a data: address: the window's rules let pictures load from those, not from blob: ones.

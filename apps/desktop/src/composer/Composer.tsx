@@ -5,6 +5,7 @@ import { usePreferences } from '../usePreferences';
 import { filterCatalog } from './model-catalog';
 import { PopMenu } from './PopMenu';
 import type { Activity } from '../activity';
+import { CameraDialog } from './CameraDialog';
 import { MAX_PICTURES, pictureFromFile, pictureFromUrl, pictureOfWindow } from '../picture';
 import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem, type Suggestion, type SurfaceState } from '../surface';
 import { useDictation } from './useDictation';
@@ -69,6 +70,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   // Pictures for this message, for models that read them; sent with it and then cleared.
   const [pictures, setPictures] = useState<string[]>([]);
   const pictureInput = useRef<HTMLInputElement>(null);
+  const [camera, setCamera] = useState(false);
   const addPictures = async (files: readonly Blob[]) => {
     const made = (await Promise.all(files.map(pictureFromFile))).filter((p): p is string => p !== null);
     if (made.length === 0) return;
@@ -279,6 +281,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           if (files.length > 0) { event.preventDefault(); void addPictures(files); }
         }}
       />
+      {camera && <CameraDialog onClose={() => setCamera(false)} onTake={(p) => { setPictures((was) => [...was, p].slice(0, MAX_PICTURES)); queueMicrotask(() => fieldRef.current?.focus()); }} />}
       <input ref={pictureInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden aria-label="Choose pictures" onChange={(event) => { const files = [...(event.target.files ?? [])]; event.target.value = ''; void addPictures(files); }} />
       <div className="composer-bar">
         <div className="composer-tools">
@@ -296,6 +299,9 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                 </button>
                 <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); void lookAtWindow(); }}>
                   <span>Look at a window…</span><span className="popmenu-hint">One still of a window you choose, nothing more</span>
+                </button>
+                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); setCamera(true); }}>
+                  <span>Show Mobius…</span><span className="popmenu-hint">One still from the camera</span>
                 </button>
                 <p className="popmenu-note">Up to {MAX_CONTEXT_ITEMS} things, {MAX_CONTEXT_ITEM_CHARS / 1000}k characters each. The agent reads them as material, never as instructions.</p>
               </>

@@ -1727,3 +1727,13 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .picture-chip .chip-remove svg { width: 10px; height: 10px; }
 .msg-images { justify-content: flex-end; margin: 4px 0 0; }
 .msg-images img { display: block; max-width: 160px; max-height: 120px; border-radius: 10px; border: 1px solid var(--line); }
+
+/* Show Mobius: the camera, live, to take one still. */
+.cal-modal-layer:has(.camera-dialog) { display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); }
+.camera-dialog { width: min(560px, calc(100vw - 32px)); padding: var(--sp-5); border-radius: var(--radius-panel); background: var(--bg); box-shadow: var(--shadow-3); display: flex; flex-direction: column; gap: var(--sp-3); }
+.camera-dialog h2 { margin: 0; font-size: var(--fs-lg); }
+.camera-note { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.camera-view { position: relative; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: #000; display: grid; place-items: center; }
+.camera-view video { width: 100%; height: 100%; object-fit: cover; }
+.camera-problem { position: absolute; margin: 0; padding: var(--sp-4); color: #ddd; text-align: center; font-size: var(--fs-sm); }
+.camera-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); }
