@@ -4,6 +4,11 @@ import { onCommand } from './commands';
 import { liveTitle } from './notes-state';
 import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from './line-diff';
 import type { NotesState } from './useNotes';
+import { CHECKLIST, TABLE, clipBlock, insertBlock, recordingBlock } from './note-insert';
+import { useDictation } from './composer/useDictation';
+
+/** How long a recording in a note may run: ten minutes. */
+const NOTE_RECORDING_SECONDS = 600;
 
 /** What you can do with text selected in a note, right where it is. */
 export type SelectionAction = 'ask' | 'rewrite' | 'summarise' | 'task';
@@ -25,6 +30,31 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   useEffect(() => { if (path && focusOnOpen.current) area.current?.focus(); }, [path]);
   // The selection bar sits just above where the pointer let go, or at the top when the selection came from the keyboard.
   const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null);
+  // Where the cursor was last, so Insert puts things there even after its button took the focus.
+  const caret = useRef<number | null>(null);
+  useEffect(() => { caret.current = null; }, [path]);
+  const [clipping, setClipping] = useState<string | null>(null);
+  const [insertProblem, setInsertProblem] = useState<string | null>(null);
+  const recordedFor = useRef(0);
+  const put = (text: string) => {
+    const field = area.current;
+    const at = field && document.activeElement === field ? field.selectionStart : caret.current ?? notes.text.length;
+    const done = insertBlock(notes.text, at, text);
+    notes.edit(done.page);
+    caret.current = done.cursor;
+    window.requestAnimationFrame(() => { const f = area.current; if (f) { f.focus(); f.setSelectionRange(done.cursor, done.cursor); } });
+  };
+  const recording = useDictation((words) => put(recordingBlock(words, recordedFor.current)), NOTE_RECORDING_SECONDS);
+  recordedFor.current = recording.seconds;
+  const clip = async (url: string) => {
+    const address = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
+    const got = await window.mobius.reading?.fetch(address);
+    if (!got) { setInsertProblem('Clipping is not available here.'); return; }
+    if (!got.ok) { setInsertProblem(`That page could not be clipped: ${got.message}.`); return; }
+    setClipping(null);
+    setInsertProblem(null);
+    put(clipBlock(got));
+  };
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const pressedAt = useRef<number | null>(null);
   useEffect(() => setSelection(null), [path]);
@@ -144,6 +174,23 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           })()}
         </ol>
       )}
+      {diff === null && (
+        <div className="note-insert" role="toolbar" aria-label="Insert">
+          <button type="button" className="note-insert-btn" onPointerDown={(e) => e.preventDefault()} onClick={() => put(CHECKLIST)}>Checklist</button>
+          <button type="button" className="note-insert-btn" onPointerDown={(e) => e.preventDefault()} onClick={() => put(TABLE)}>Table</button>
+          <button type="button" className="note-insert-btn" data-recording={recording.state === 'recording' || undefined} disabled={recording.state === 'transcribing'} title="Record what is said and keep the words in this page" onPointerDown={(e) => e.preventDefault()} onClick={recording.toggle}>
+            {recording.state === 'recording' ? `Stop · ${Math.floor(recording.seconds / 60)}:${String(recording.seconds % 60).padStart(2, '0')}` : recording.state === 'transcribing' ? 'Writing it down…' : 'Record'}
+          </button>
+          <button type="button" className="note-insert-btn" aria-expanded={clipping !== null} onPointerDown={(e) => e.preventDefault()} onClick={() => setClipping((c) => (c === null ? '' : null))}>Clip from web</button>
+          {clipping !== null && (
+            <form className="note-clip" onSubmit={(e) => { e.preventDefault(); if (clipping.trim()) void clip(clipping); }}>
+              <input autoFocus aria-label="Address to clip" placeholder="Paste a link" value={clipping} onChange={(e) => setClipping(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setClipping(null); }} />
+              <button type="submit" className="btn" disabled={!clipping.trim()}>Clip</button>
+            </form>
+          )}
+          {(insertProblem ?? recording.problem) && <span className="review-problem" role="alert">{insertProblem ?? recording.problem}</span>}
+        </div>
+      )}
       <textarea
         hidden={diff !== null}
         ref={area}
@@ -152,6 +199,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
         spellCheck
         value={notes.text}
         onChange={(e) => notes.edit(e.target.value)}
+        onSelect={(e) => { caret.current = e.currentTarget.selectionStart; }}
         onPointerDown={(e) => { pointer.current = null; pressedAt.current = e.clientY; setSelection(null); }}
         onPointerUp={(e) => { pointer.current = { x: e.clientX, y: e.clientY }; readSelection(); }}
         onKeyUp={(e) => { if (e.key === 'Escape') { setSelection(null); return; } pointer.current = null; pressedAt.current = null; readSelection(); }}

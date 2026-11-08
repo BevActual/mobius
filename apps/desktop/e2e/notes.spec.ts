@@ -120,3 +120,27 @@ test('if the agent changes the page while the person is typing, nothing is lost 
   await expect(status()).toHaveText('Saved');
   expect(fs.readFileSync(file('Work', 'Plan.md'), 'utf8')).toBe('# Plan mine!\n');
 });
+
+test('Insert puts a checklist, a table and a clipped web page into the page where the cursor is', async () => {
+  await start();
+  await newNotebook('Trip');
+  await text().fill('# Offsite\n\nTo do:');
+  await text().press('End');
+  const insert = shell().getByRole('toolbar', { name: 'Insert' });
+  await insert.getByRole('button', { name: 'Checklist' }).click();
+  await expect(text()).toHaveValue('# Offsite\n\nTo do:\n\n- [ ] \n- [ ] \n- [ ] \n');
+  // The cursor waits in the first item.
+  await shell().keyboard.type('Book flights');
+  await expect(text()).toHaveValue('# Offsite\n\nTo do:\n\n- [ ] Book flights\n- [ ] \n- [ ] \n');
+  await text().press('Control+End');
+  await insert.getByRole('button', { name: 'Table' }).click();
+  await expect(text()).toHaveValue(/- \[ \] \n\n\| Column \| Column \|\n\| --- \| --- \|\n\|  \|  \|\n$/);
+
+  await text().press('Control+End');
+  await insert.getByRole('button', { name: 'Clip from web' }).click();
+  await insert.getByRole('textbox', { name: 'Address to clip' }).fill(`${fixture.origin}/casa-amora`);
+  await insert.getByRole('button', { name: 'Clip', exact: true }).click();
+  await expect(text()).toHaveValue(new RegExp(`> Nine rooms in Príncipe Real\\.\\n>\\n> Breakfast included\\.\\n\\n— \\[Casa Amora\\]\\(${fixture.origin.replace(/[.]/g, '\\.')}/casa-amora\\)\\n$`));
+  await expect(status()).toHaveText('Saved');
+  expect(fs.readFileSync(file('Trip', 'Untitled.md'), 'utf8')).toContain('— [Casa Amora]');
+});

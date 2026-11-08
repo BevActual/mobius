@@ -9,7 +9,7 @@ export const MAX_RECORDING_SECONDS = 120;
  * Record from the microphone and turn it into text with the server's speech model. Nothing is kept: the recording goes to the
  * model server the person chose, and only the words come back.
  */
-export function useDictation(onText: (text: string) => void): { state: DictationState; seconds: number; problem: string | null; toggle: () => void; cancel: () => void; clearProblem: () => void } {
+export function useDictation(onText: (text: string) => void, maxSeconds = MAX_RECORDING_SECONDS): { state: DictationState; seconds: number; problem: string | null; toggle: () => void; cancel: () => void; clearProblem: () => void } {
   const [state, setState] = useState<DictationState>('idle');
   const [seconds, setSeconds] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
@@ -76,7 +76,7 @@ export function useDictation(onText: (text: string) => void): { state: Dictation
       setState('recording');
       timer.current = window.setInterval(() => {
         setSeconds((s) => {
-          if (s + 1 >= MAX_RECORDING_SECONDS && recorder.current?.state === 'recording') recorder.current.stop();
+          if (s + 1 >= maxSeconds && recorder.current?.state === 'recording') recorder.current.stop();
           return s + 1;
         });
       }, 1000);
@@ -85,7 +85,7 @@ export function useDictation(onText: (text: string) => void): { state: Dictation
       setState('idle');
       setProblem('Mobius could not use the microphone. Check that one is connected and that Mobius is allowed to use it.');
     }
-  }, [finish, release]);
+  }, [finish, release, maxSeconds]);
 
   const toggle = useCallback(() => {
     if (state === 'idle') void start();

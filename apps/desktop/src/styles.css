@@ -964,6 +964,13 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 
 /* On-canvas actions: a capsule over text selected in a note. The top layer, so it is the one place with glass. */
 .note-editor { position: relative; }
+.note-insert { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; width: 100%; max-width: 760px; margin: 0 auto; padding: 8px var(--sp-8) 0; }
+.note-insert-btn { height: 26px; padding: 0 9px; border-radius: var(--radius-pill); color: var(--muted); font-size: var(--fs-sm); }
+.note-insert-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.note-insert-btn[aria-expanded="true"] { color: var(--accent); }
+.note-insert-btn[data-recording] { color: #fff; background: var(--danger); }
+.note-clip { display: flex; gap: 6px; margin-left: 6px; }
+.note-clip input { width: 240px; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--field); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
 .selection-bar { position: absolute; z-index: 5; display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-2); animation: app-in var(--dur-fast) var(--ease); }
 @supports (backdrop-filter: blur(1px)) { .selection-bar { backdrop-filter: blur(18px) saturate(1.6); } }
 @media (prefers-contrast: more) { .selection-bar { background: var(--panel); backdrop-filter: none; } }
