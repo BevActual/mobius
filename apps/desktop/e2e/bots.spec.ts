@@ -218,7 +218,7 @@ test('bots can be moved up and down, Mobius stays first, and the order is kept',
   for (const name of ['Alpha', 'Beta', 'Gamma']) await newBot(name);
   await tab('Bots').click();
   const names = async () => (await list().getByRole('list', { name: 'Bots' }).locator('.clist-title').allTextContents());
-  expect(await names()).toEqual(['Mobius', 'Alpha', 'Beta', 'Gamma']);
+  await expect.poll(names).toEqual(['Mobius', 'Alpha', 'Beta', 'Gamma']);
   await expect(list().getByRole('button', { name: 'Move Alpha up' })).toBeDisabled();
   await expect(list().getByRole('button', { name: 'Move Gamma down' })).toBeDisabled();
   await list().getByRole('button', { name: 'Move Gamma up' }).click();
