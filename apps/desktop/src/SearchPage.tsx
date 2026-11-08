@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { isNotesFailure, type BookmarkEntry, type ConversationInfo, type HistoryEntry, type MailMessage, type NoteHit, type Notebook, type TaskItem, type WorkbookInfo } from '@mobius/shared';
 import { relativeTime } from './relative-time';
-import { FILTERS, hubResults, type HubFilter, type HubKind, type HubTarget } from './search-hub';
+import { FILTERS, hubResults, type HubFilter, type HubKind, type HubSources, type HubTarget } from './search-hub';
 import { dueLabel } from './tasks-view';
 
 const KIND_ICON: Record<HubKind, ReactNode> = {
@@ -10,6 +10,7 @@ const KIND_ICON: Record<HubKind, ReactNode> = {
   task: <><rect x="4" y="4" width="12" height="12" rx="2" /><path d="m7 10 2 2 4-4" /></>,
   doc: <><path d="M5.5 3h6l3 3v11h-9z" /><path d="M11.5 3v3h3M7.5 9.5h5M7.5 12h5M7.5 14.5h3" /></>,
   sheet: <><rect x="3.5" y="4" width="13" height="12" rx="2" /><path d="M3.5 8h13M3.5 12h13M8 4v12" /></>,
+  made: <><path d="M4 16l1-4 8.5-8.5a2.1 2.1 0 0 1 3 3L8 15z" /><path d="M12 5l3 3" /></>,
   mail: <><rect x="3" y="5" width="14" height="10.5" rx="2" /><path d="m3.5 6 6.5 5 6.5-5" /></>,
   page: <><circle cx="10" cy="10" r="7" /><path d="M3 10h14M10 3c2 2.2 2 11.8 0 14M10 3c-2 2.2-2 11.8 0 14" /></>,
 };
@@ -20,6 +21,8 @@ interface Props {
   tasks: Record<string, TaskItem[]>;
   docFolders?: Notebook[];
   deckFolders?: Notebook[];
+  /** What the creative apps keep. */
+  made?: Pick<HubSources, 'designFolders' | 'songFolders' | 'albums' | 'videoProjects' | 'codeProjects'>;
   workbooks?: WorkbookInfo[];
   onOpen: (target: HubTarget) => void;
   /** Ask the agent instead of looking things up. */
@@ -29,7 +32,7 @@ interface Props {
 }
 
 /** Search: one box for everything Mobius keeps (conversations, notes, tasks and pages), or a question for the agent. */
-export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFolders, workbooks, onOpen, onAsk, canAsk, focusToken }: Props) {
+export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFolders, workbooks, made, onOpen, onAsk, canAsk, focusToken }: Props) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<HubFilter>('all');
   const [noteHits, setNoteHits] = useState<NoteHit[]>([]);
@@ -69,8 +72,8 @@ export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFo
   }, [query]);
 
   const results = useMemo(
-    () => hubResults({ conversations, noteHits, notebooks, tasks, docHits, deckHits, mail, history, bookmarks, ...(docFolders ? { docFolders } : {}), ...(deckFolders ? { deckFolders } : {}), ...(workbooks ? { workbooks } : {}) }, query, filter),
-    [conversations, noteHits, notebooks, tasks, docHits, deckHits, docFolders, deckFolders, workbooks, mail, history, bookmarks, query, filter],
+    () => hubResults({ conversations, noteHits, notebooks, tasks, docHits, deckHits, mail, history, bookmarks, ...(docFolders ? { docFolders } : {}), ...(deckFolders ? { deckFolders } : {}), ...(workbooks ? { workbooks } : {}), ...(made ?? {}) }, query, filter),
+    [conversations, noteHits, notebooks, tasks, docHits, deckHits, docFolders, deckFolders, workbooks, made, mail, history, bookmarks, query, filter],
   );
   const asking = query.trim();
 

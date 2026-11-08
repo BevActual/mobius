@@ -503,6 +503,11 @@ export function App() {
     else if (target.app === 'sheets') { openApp('sheets'); void sheets.open(target.workbook, target.sheet); }
     else if (target.app === 'mail') { openApp('mail'); mail.setView({ kind: 'box', box: target.id.split('/')[1] === 'sent' ? 'sent' : 'inbox', category: 'all' }); void mail.read(target.id); }
     else if (target.app === 'tasks') { tasks.setView({ kind: 'list', name: target.list }); openApp('tasks'); }
+    else if (target.app === 'design') { openApp('design'); void designs.open(target.path, target.title); }
+    else if (target.app === 'studio') { openApp('studio'); void songs.open(target.path, target.title); }
+    else if (target.app === 'photo') { openApp('photo'); void photos.openPhoto(target.path); }
+    else if (target.app === 'video') { openApp('video'); void video.open(target.project); }
+    else if (target.app === 'code') { openApp('code'); void code.openProject(target.project); }
     else showPage(target.url);
   };
   // However Settings closes, the next opening starts at its first page again.
@@ -996,6 +1001,7 @@ export function App() {
             docFolders={docs.notebooks}
             deckFolders={slides.notebooks}
             workbooks={sheets.workbooks}
+            made={{ designFolders: designs.notebooks, songFolders: songs.notebooks, albums: photos.albums, videoProjects: video.projects.map((p) => p.name), codeProjects: code.projects.map((p) => ({ name: p.name, modified: (p as { modified?: number }).modified ?? 0 })) }}
             focusToken={searchFocus}
             canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
             onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}

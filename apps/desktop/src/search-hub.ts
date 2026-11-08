@@ -1,7 +1,7 @@
 import type { BookmarkEntry, ConversationInfo, HistoryEntry, MailMessage, NoteHit, Notebook, TaskItem, WorkbookInfo } from '@mobius/shared';
 
 /** Everything Mobius keeps, found in one place: conversations, notes, documents and decks, sheets, mail, tasks and pages. */
-export type HubKind = 'conversation' | 'note' | 'doc' | 'sheet' | 'mail' | 'task' | 'page';
+export type HubKind = 'conversation' | 'note' | 'doc' | 'sheet' | 'made' | 'mail' | 'task' | 'page';
 export type HubFilter = 'all' | HubKind;
 export type HubTarget =
   | { app: 'agent'; conversation: string }
@@ -11,6 +11,11 @@ export type HubTarget =
   | { app: 'sheets'; workbook: string; sheet: string }
   | { app: 'mail'; id: string }
   | { app: 'tasks'; list: string }
+  | { app: 'design'; path: string; title: string }
+  | { app: 'studio'; path: string; title: string }
+  | { app: 'photo'; path: string }
+  | { app: 'video'; project: string }
+  | { app: 'code'; project: string }
   | { app: 'browser'; url: string };
 
 export interface HubResult {
@@ -33,6 +38,7 @@ export const FILTERS: { id: HubFilter; label: string }[] = [
   { id: 'note', label: 'Notes' },
   { id: 'doc', label: 'Docs' },
   { id: 'sheet', label: 'Sheets' },
+  { id: 'made', label: 'Made' },
   { id: 'mail', label: 'Mail' },
   { id: 'task', label: 'Tasks' },
   { id: 'page', label: 'Pages' },
@@ -51,6 +57,12 @@ export interface HubSources {
   deckHits?: NoteHit[];
   deckFolders?: Notebook[];
   workbooks?: WorkbookInfo[];
+  /** What the creative apps keep: designs and songs by folder, photos by album, video and code projects by name. */
+  designFolders?: Notebook[];
+  songFolders?: Notebook[];
+  albums?: { name: string; photos: { path: string; name: string; modified: number }[] }[];
+  videoProjects?: string[];
+  codeProjects?: { name: string; modified: number }[];
   /** Mail matching the query (or the latest). */
   mail?: MailMessage[];
   history: HistoryEntry[];
@@ -99,6 +111,15 @@ export function hubResults(sources: HubSources, query: string, filter: HubFilter
       if (searching && !matches(`${w.name} ${w.sheets.join(' ')}`, ws)) continue;
       out.push({ key: `s:${w.name}`, kind: 'sheet', title: w.name, where: `Sheets · ${w.sheets.length === 1 ? '1 sheet' : `${w.sheets.length} sheets`}`, when: null, target: { app: 'sheets', workbook: w.name, sheet: w.sheets[0] ?? 'Sheet 1' } });
     }
+  }
+  if (want('made')) {
+    const add = (r: HubResult, text: string) => { if (!searching || matches(text, ws)) out.push(r); };
+    for (const [app, label, folders] of [['design', 'Design', sources.designFolders], ['studio', 'Studio', sources.songFolders]] as const) {
+      for (const nb of folders ?? []) for (const p of nb.pages) add({ key: `${app}:${p.path}`, kind: 'made', title: p.title, where: `${label} › ${nb.name}`, when: p.modified, target: { app, path: p.path, title: p.title } }, `${p.title} ${nb.name}`);
+    }
+    for (const a of sources.albums ?? []) for (const p of a.photos) add({ key: `photo:${p.path}`, kind: 'made', title: p.name, where: `Photo › ${a.name}`, when: p.modified, target: { app: 'photo', path: p.path } }, `${p.name} ${a.name}`);
+    for (const v of sources.videoProjects ?? []) add({ key: `video:${v}`, kind: 'made', title: v, where: 'Video', when: null, target: { app: 'video', project: v } }, v);
+    for (const c of sources.codeProjects ?? []) add({ key: `code:${c.name}`, kind: 'made', title: c.name, where: 'Code', when: c.modified, target: { app: 'code', project: c.name } }, c.name);
   }
   if (want('mail')) {
     for (const m of sources.mail ?? []) {
