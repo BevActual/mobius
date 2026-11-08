@@ -141,3 +141,25 @@ test('Take Over stops a running plan and puts the steps left in Tasks', async ()
   await expect(tasks).not.toContainText('Find a venue');
   await expect(shell().getByRole('button', { name: 'Send', exact: true })).toBeVisible();
 });
+
+test('Mobius asks before remembering, uses what it remembers next time, and it can be forgotten in Settings', async () => {
+  await start([callsTool('memory-remember', { text: 'Prefers boutique hotels' }), says(['I will remember that.']), says(['Noted.'])]);
+  await say('I like boutique hotels');
+  const card = log().getByRole('group', { name: 'Approval needed: memory.remember' });
+  await expect(card).toContainText('Prefers boutique hotels');
+  await card.getByRole('button', { name: 'Allow once' }).click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('I will remember that.');
+  expect(fs.readFileSync(path.join(userData, 'memory.md'), 'utf8')).toContain('- Prefers boutique hotels');
+  await say('find me a hotel');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Noted.');
+  expect(JSON.stringify(model!.requests.at(-1))).toContain('Prefers boutique hotels');
+  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  const page = shell().getByRole('region', { name: 'Settings' });
+  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
+  await page.getByRole('tab', { name: 'Memory' }).click();
+  const list = page.getByRole('list', { name: 'What Mobius remembers' });
+  await expect(list).toContainText('Prefers boutique hotels');
+  await list.getByRole('button', { name: 'Forget: Prefers boutique hotels' }).click();
+  await expect(page).toContainText('Nothing yet');
+  expect(fs.readFileSync(path.join(userData, 'memory.md'), 'utf8')).not.toContain('boutique');
+});
