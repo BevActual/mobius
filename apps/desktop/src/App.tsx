@@ -49,6 +49,7 @@ import { DatabasePage, DatabaseSidebar } from './Database';
 import { useDatabases } from './useDatabases';
 import { TerminalPage, TerminalSidebar } from './Terminal';
 import { useTerminal } from './useTerminal';
+import { ReviewPage, ReviewSidebar, useReview } from './Review';
 import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
@@ -121,6 +122,7 @@ export function App() {
   const reading = useNotes('reading');
   const databases = useDatabases();
   const terminal = useTerminal();
+  const review = useReview(conversation.list, conversation.state.busy);
   const [terminalFocus, setTerminalFocus] = useState(0);
   const lastTerminal = [...terminal.entries].reverse().find((e) => e.result !== null) ?? null;
   /** New research was chosen: the Research app shows its question form. */
@@ -214,6 +216,7 @@ export function App() {
   const inReader = app === 'reader';
   const inDatabase = app === 'database';
   const inTerminal = app === 'terminal';
+  const inReview = app === 'review';
   const inPhoto = app === 'photo';
   const inStudio = app === 'studio';
   const inVideo = app === 'video';
@@ -429,6 +432,7 @@ export function App() {
     design: plural(designs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'design'),
     canvas: plural(boards.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'board'),
     database: plural(databases.list.length, 'database'),
+    review: (() => { const n = review.turns.reduce((s, t) => s + t.files.length, 0); return n ? `${plural(n, 'change')} to look at` : 'Nothing to review'; })(),
     terminal: terminal.processes.some((p) => p.running) ? `${plural(terminal.processes.filter((p) => p.running).length, 'command')} running` : 'Your workspace',
     research: plural(research.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'report'),
     reader: plural(reading.notebooks.filter((nb) => nb.name !== 'Archive').reduce((sum, nb) => sum + nb.pages.length, 0), 'article') + ' to read',
@@ -457,12 +461,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -555,6 +559,23 @@ export function App() {
     if (tab) window.mobius.browser.activate(tab.id); else void window.mobius.browser.open(url);
   };
   /** Open something found in Search in the app it belongs to. */
+  /** A file Mobius changed, opened in its app (from Review). */
+  const openChangedFile = (path: string) => {
+    const [top, ...rest] = path.split('/');
+    const inner = rest.join('/');
+    const title = (rest.at(-1) ?? '').replace(/\.(md|json|csv|sqlite)$/i, '');
+    if (top === 'notes' || top === 'docs' || top === 'slides' || top === 'designs' || top === 'boards' || top === 'research' || top === 'reading' || top === 'studio') {
+      const app = ({ notes: 'notes', docs: 'docs', slides: 'slides', designs: 'design', boards: 'canvas', research: 'research', reading: 'reader', studio: 'studio' } as const)[top];
+      openTarget({ app, path: inner, title });
+    } else if (top === 'sheets') openTarget({ app: 'sheets', workbook: rest[0] ?? '', sheet: title });
+    else if (top === 'tasks') openTarget({ app: 'tasks', list: title });
+    else if (top === 'photos') openTarget({ app: 'photo', path: inner.replace(/\.edits\.json$/i, '') });
+    else if (top === 'video') openTarget({ app: 'video', project: rest[0] ?? '' });
+    else if (top === 'databases') openTarget({ app: 'database', name: title });
+    else if (top === 'code') { openApp('code'); void code.openProject(rest[0] ?? '', rest.slice(1).join('/') || null); }
+    else if (top === 'skills') { openApp('skills'); void skills.openSkill(rest[0] ?? ''); }
+    else if (top === 'calendar') openApp('calendar');
+  };
   const openTarget = (target: HubTarget) => {
     if (target.app === 'agent') { conversation.select(target.conversation); openApp('agent'); }
     else if (target.app === 'notes') { openApp('notes'); void notes.open(target.path, target.title); }
@@ -708,6 +729,8 @@ export function App() {
               <PhotoSidebar photos={photos} pin={pinNode} changed={turnMarks.photos} />
             ) : inDesign ? (
               <DesignSidebar designs={designs} pin={pinNode} changed={turnMarks.designs} />
+            ) : inReview ? (
+              <ReviewSidebar review={review} pin={pinNode} />
             ) : inTerminal ? (
               <TerminalSidebar term={terminal} pin={pinNode} />
             ) : inDatabase ? (
@@ -1096,6 +1119,8 @@ export function App() {
         return <PhotoEditor photos={photos} review={photos.open && turnMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'design':
         return <DesignEditor designs={designs} review={designs.page && turnMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
+      case 'review':
+        return <ReviewPage review={review} onOpenFile={openChangedFile} onOpenConversation={(id) => { conversation.select(id); openApp('agent'); }} />;
       case 'terminal':
         return <TerminalPage term={terminal} focusToken={terminalFocus} />;
       case 'database':

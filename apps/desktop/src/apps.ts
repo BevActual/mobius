@@ -30,7 +30,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'code', name: 'Code', available: true, group: 'Create' },
   { id: 'terminal', name: 'Terminal', available: true, group: 'Create' },
   { id: 'canvas', name: 'Canvas', available: true, group: 'Create' },
-  { id: 'review', name: 'Review', available: false, group: 'Review' },
+  { id: 'review', name: 'Review', available: true, group: 'Review' },
 ];
 
 export const findApp = (id: string): AppInfo | undefined => APPS.find((app) => app.id === id);

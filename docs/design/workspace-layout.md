@@ -118,6 +118,9 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 - **Video** (`video/<project>/`): clips never changed, `cut.json` of shots; the viewer plays clips from the shell's
   `media` address.
 
+- **Review**: everything Mobius changed in every app, from every recent conversation, by day and turn with what was
+  asked; filtered by app; each file opens in its app or is put back as it was before its turn; and the conversations
+  waiting for the person.
 - **Earlier changes**: under the review strip, every earlier turn that changed something, with what was asked; each
   item put back as it was before its turn, asking first if it changed again since (`turn-history.json`).
 

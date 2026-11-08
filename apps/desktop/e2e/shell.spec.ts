@@ -111,8 +111,8 @@ test('the launcher hides the native page while open and returns focus on Escape'
   await expect(dialog).toBeVisible();
   await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(0);
   await expect(mobius.shell.getByRole('combobox', { name: /Find apps/ })).toBeFocused();
-  await mobius.shell.keyboard.type('review');
-  await expect(mobius.shell.getByRole('option', { name: /^Review/ }).first()).toHaveAttribute('aria-disabled', 'true');
+  await mobius.shell.keyboard.type('canvas');
+  await expect(mobius.shell.getByRole('option', { name: /^Canvas/ }).first()).toBeVisible();
   await mobius.shell.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(1);
