@@ -29,10 +29,10 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
 const find = (menus: ReturnType<typeof buildMenus>, id: string) => menus.flatMap((m) => m.items).find((i) => i.kind === 'item' && i.id === id) as Extract<ReturnType<typeof buildMenus>[number]['items'][number], { kind: 'item' }> | undefined;
 
 describe('menus', () => {
-  it('has File, Edit, View, Go and Help everywhere, and the open app its own menu before Help', () => {
-    expect(buildMenus(context('browser')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Browser', 'Help']);
-    expect(buildMenus(context('tasks')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Tasks', 'Help']);
-    expect(buildMenus(context('search')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Help']);
+  it('has File, Edit, View, Go, Window and Help everywhere, and the open app its own menu before Window', () => {
+    expect(buildMenus(context('browser')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Browser', 'Window', 'Help']);
+    expect(buildMenus(context('tasks')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Tasks', 'Window', 'Help']);
+    expect(buildMenus(context('search')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Window', 'Help']);
   });
 
   it('shows what is on and what cannot be done now, and the keys for each', () => {
@@ -48,7 +48,8 @@ describe('menus', () => {
     const c = context('agent', { agent: { busy: true } });
     c.do.agent.stop = vi.fn();
     const stop = find(buildMenus(c), 'stop')!;
-    expect(stop.disabled).toBe(false);
+    expect(stop).toMatchObject({ disabled: false, keys: 'mod+.' });
+    expect(buildMenus(c).map((m) => m.label)).toContain('Conversation');
     stop.run();
     expect(c.do.agent.stop).toHaveBeenCalledOnce();
   });

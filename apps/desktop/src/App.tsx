@@ -399,10 +399,12 @@ export function App() {
       else if (action === 'find' && app === 'browser') { event.preventDefault(); openFind(); }
       else if (action === 'splitView') { event.preventDefault(); toggleSplit(); }
       else if (action === 'littleMobius') { event.preventDefault(); toggleMini(); }
+      // Stop is fixed (Cmd-period, Ctrl-period elsewhere) unless that press was given to something else.
+      else if (action === null && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.code === 'Period' && conversation.state.busy) { event.preventDefault(); void conversation.stop(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini]);
+  }, [bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

@@ -1,7 +1,7 @@
 import type { AppId } from './apps';
 
 /**
- * Mobius's menus as plain data: File, Edit, View, Go, the open app's own menu, and Help. One definition, shown as
+ * Mobius's menus as plain data: File, Edit, View, Go, the open app's own menu, Window and Help. One definition, shown as
  * menus in the window's toolbar (Windows and Linux) and meant for the menu bar on macOS.
  */
 export type MenuItem =
@@ -54,6 +54,9 @@ export interface MenuContext {
   };
 }
 
+/** Stop is always Command-period (Control-period elsewhere), as in the design; it is not rebound. */
+export const STOP_KEYS = 'mod+.';
+
 /** The zoom steps View offers, within what appearance allows. */
 export const ZOOM_STEPS = [0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5] as const;
 /** The next step up (or down) from `zoom`, even when it sits between steps; at either end it stays. */
@@ -86,8 +89,6 @@ export function buildMenus(c: MenuContext): Menu[] {
   const view: Menu = { id: 'view', label: 'View', items: [
     item('sidebar', 'Sidebar', d.toggleSidebar, { checked: s.sidebarShown, disabled: !s.hasSidebar }),
     item('agent-panel', 'Agent panel', d.toggleAgent, { checked: s.agentShown, disabled: !s.hasAgentPanel }),
-    item('split', 'Split view', d.toggleSplit, { keys: keys.splitView, checked: s.split, disabled: !s.canSplit && !s.split }),
-    item('mini', 'Little Mobius', d.toggleMini, { keys: keys.littleMobius, checked: s.miniOpen }),
     separator,
     item('zoom-in', 'Zoom in', () => d.zoom(nextZoom(s.zoom, 1)), { disabled: s.zoom >= ZOOM_STEPS.at(-1)! }),
     item('zoom-out', 'Zoom out', () => d.zoom(nextZoom(s.zoom, -1)), { disabled: s.zoom <= ZOOM_STEPS[0] }),
@@ -99,12 +100,16 @@ export function buildMenus(c: MenuContext): Menu[] {
     item('all-apps', 'All apps…', d.allApps),
     item('launcher', 'Find apps, pages and commands…', d.launcher, { keys: keys.launcher }),
   ] };
+  const window: Menu = { id: 'window', label: 'Window', items: [
+    item('split', 'Split view', d.toggleSplit, { keys: keys.splitView, checked: s.split, disabled: !s.canSplit && !s.split }),
+    item('mini', 'Little Mobius', d.toggleMini, { keys: keys.littleMobius, checked: s.miniOpen }),
+  ] };
   const help: Menu = { id: 'help', label: 'Help', items: [
     item('shortcuts', 'Keyboard shortcuts', d.shortcuts),
     item('about', 'About Mobius', d.about),
   ] };
   const own = appMenu(c);
-  return [file, edit, view, go, ...(own ? [own] : []), help];
+  return [file, edit, view, go, ...(own ? [own] : []), window, help];
 }
 
 /** The open app's own menu: what that app does, all in one place. */
@@ -143,9 +148,9 @@ function appMenu(c: MenuContext): Menu | null {
         item('clear-done', s.tasks.done > 0 ? `Clear ${s.tasks.done} completed` : 'Clear completed', d.tasks.clearDone, { disabled: !s.tasks.inList || s.tasks.done === 0 }),
       ] };
     case 'agent':
-      return { id: 'app', label: 'Agent', items: [
+      return { id: 'app', label: 'Conversation', items: [
         item('new-conversation-here', 'New conversation', c.do.create.conversation),
-        item('stop', 'Stop', d.agent.stop, { disabled: !s.agent.busy }),
+        item('stop', 'Stop', d.agent.stop, { keys: STOP_KEYS, disabled: !s.agent.busy }),
       ] };
     default:
       return null;

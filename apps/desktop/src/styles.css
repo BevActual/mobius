@@ -144,10 +144,12 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 
 /* The Mobius mark. Turning, each ring goes round at its own pace, the inner fastest, as the whorl winds. */
 .mobius-mark { flex: none; display: block; }
-.mobius-mark .mark-ring { transform-box: view-box; transform-origin: 50% 50%; }
-.mobius-mark[data-turning] .mark-ring[data-ring="1"] { animation: mark-turn 1.6s linear infinite; }
-.mobius-mark[data-turning] .mark-ring[data-ring="2"] { animation: mark-turn 2.4s linear infinite; }
-.mobius-mark[data-turning] .mark-ring[data-ring="3"] { animation: mark-turn 3.6s linear infinite; }
+.mobius-mark .mark-ring { transform-box: view-box; transform-origin: 50% 52%; }
+.mobius-mark .mark-core { fill: var(--mark-core, currentColor); }
+.mobius-mark[data-turning] .mark-ring[data-ring="1"] { animation: mark-turn 4.8s linear infinite; }
+.mobius-mark[data-turning] .mark-ring[data-ring="2"] { animation: mark-turn 3.4s linear infinite; }
+.mobius-mark[data-turning] .mark-ring[data-ring="3"] { animation: mark-turn 2.4s linear infinite; }
+.mobius-mark[data-turning] .mark-ring[data-ring="4"] { animation: mark-turn 1.6s linear infinite; }
 @keyframes mark-turn { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .mobius-mark[data-turning] .mark-ring { animation: none; } }
 .empty-mark { color: var(--accent); margin: 0 auto 12px; }
