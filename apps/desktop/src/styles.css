@@ -702,9 +702,13 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .hub-icon[data-app="calendar"] { background: var(--app-calendar); }
 .hub-icon[data-app="code"] { background: var(--app-code); }
 .hub-icon[data-app="docs"] { background: var(--app-docs); }
+.hub-icon[data-app="sheets"] { background: var(--app-sheets); }
 .rail[data-expanded] svg[data-app="docs"] { background: var(--app-docs); }
+.rail[data-expanded] svg[data-app="sheets"] { background: var(--app-sheets); }
 .sidebar-app-show svg[data-app="docs"] { background: var(--app-docs); }
+.sidebar-app-show svg[data-app="sheets"] { background: var(--app-sheets); }
 .rail-pin-open svg[data-app="docs"] { background: var(--app-docs); }
+.rail-pin-open svg[data-app="sheets"] { background: var(--app-sheets); }
 .hub-icon[data-app="canvas"] { background: var(--app-canvas); }
 .hub-icon[data-app="review"] { background: var(--app-review); }
 .hub-icon[data-app="connect"] { background: var(--app-connect); width: 34px; height: 34px; }
@@ -1296,3 +1300,33 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .stage .doc-editor { container-type: inline-size; }
 .doc-page li p, .doc-page td p, .doc-page th p { margin: 0; }
 .doc-page ul, .doc-page ol { margin: 0 0 0.8em; padding-left: 1.4em; }
+
+/* Sheets: a grid that reads like a spreadsheet, the formula bar above it and its sheets as tabs below. */
+.stage .sheet-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.sheet-page.empty { align-items: center; justify-content: center; }
+.sheet-toolbar { flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 6px var(--sp-3); border-bottom: 1px solid var(--line); }
+.sheet-address { min-width: 56px; height: 28px; display: inline-grid; place-items: center; padding: 0 8px; border-radius: var(--radius-control); background: var(--field); font-size: var(--fs-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sheet-formula { flex: 1; min-width: 120px; height: 28px; padding: 0 10px; border-radius: var(--radius-control); background: var(--field); border: 1px solid transparent; font: inherit; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: var(--fs-sm); color: inherit; }
+.sheet-formula:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+.sheet-review { width: auto; margin: var(--sp-2) var(--sp-3) 0; max-width: none; }
+.sheet-scroll { flex: 1; min-height: 0; overflow: auto; outline: none; }
+.sheet-scroll:focus-visible td[aria-selected="true"] { outline-width: 2px; }
+.sheet-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 13px; font-variant-numeric: tabular-nums; }
+.sheet-table th { position: sticky; z-index: 1; background: var(--panel); color: var(--muted); font-weight: 500; font-size: 11px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); user-select: none; }
+.sheet-table thead th { top: 0; height: 22px; min-width: 96px; width: 96px; }
+.sheet-table tbody th { left: 0; width: 44px; min-width: 44px; text-align: right; padding-right: 8px; }
+.sheet-table thead th:first-child { left: 0; z-index: 2; width: 44px; min-width: 44px; }
+.sheet-table th[data-on] { background: var(--wash); color: var(--accent); font-weight: 600; }
+.sheet-table td { height: 24px; max-width: 96px; padding: 0 6px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: cell; position: relative; }
+.sheet-table td[data-num] { text-align: right; }
+.sheet-table td[data-error] { color: var(--danger); }
+.sheet-table td[aria-selected="true"] { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
+.sheet-table td[data-changed] { background: color-mix(in srgb, var(--accent) 7%, var(--bg)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
+.sheet-table td[data-fresh] { animation: cal-fresh 1.2s var(--ease) 2; }
+.sheet-cell-input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0 6px; border: 0; outline: 2px solid var(--accent); outline-offset: -2px; font: inherit; color: inherit; background: var(--bg); }
+.sheet-tabs { flex-shrink: 0; display: flex; align-items: center; gap: 2px; padding: 4px var(--sp-3); border-top: 1px solid var(--line); background: var(--panel); }
+.sheet-tabs .spacer { flex: 1; }
+.sheet-tab { height: 26px; padding: 0 12px; border-radius: var(--radius-control); font-size: var(--fs-sm); }
+.sheet-tab:hover { background: var(--soft); }
+.sheet-tab[aria-selected="true"] { background: var(--bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); font-weight: 600; }
+.sheet-tab-name { height: 26px; width: 120px; padding: 0 8px; border-radius: var(--radius-control); border: 1px solid var(--accent); font: inherit; font-size: var(--fs-sm); }

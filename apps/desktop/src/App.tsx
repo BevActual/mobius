@@ -33,6 +33,9 @@ import { NotesSidebar } from './NotesSidebar';
 import { TasksPage, TasksSidebar } from './Tasks';
 import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
+import { SheetGrid, SheetsSidebar } from './Sheets';
+import { useSheets } from './useSheets';
+import { sheetContext } from './sheets-view';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { APP_ICONS, Rail } from './Rail';
 import { AppHub, type HubAction } from './AppHub';
@@ -87,6 +90,7 @@ export function App() {
   const bookmarks = useBookmarks();
   const notes = useNotes();
   const docs = useNotes('docs');
+  const sheets = useSheets();
   const tasks = useTasks();
   const calendar = useCalendar();
   const [eventToken, setEventToken] = useState(0);
@@ -157,6 +161,7 @@ export function App() {
   const inAgent = app === 'agent';
   const inNotes = app === 'notes';
   const inDocs = app === 'docs';
+  const inSheets = app === 'sheets';
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
@@ -187,6 +192,8 @@ export function App() {
   notesNow.current = notes;
   const docsNow = useRef(docs);
   docsNow.current = docs;
+  const sheetsNow = useRef(sheets);
+  sheetsNow.current = sheets;
   const tasksNow = useRef(tasks);
   tasksNow.current = tasks;
   useEffect(() => {
@@ -207,12 +214,21 @@ export function App() {
       if (c.by === 'assistant' && c.path && showBeside('docs')) { void docsNow.current.open(c.path); return; }
       mark('docs');
     });
+    const offSheets = window.mobius.sheets?.onChanged((c) => {
+      if (c.by === 'person' || c.by === 'undo') return;
+      if (c.by === 'assistant' && c.workbook && showBeside('sheets')) {
+        const { workbook } = c;
+        if (sheetsNow.current.data?.workbook !== workbook) void sheetsNow.current.refresh().then((list) => { const first = list.find((w) => w.name === workbook)?.sheets[0]; if (first) void sheetsNow.current.open(workbook, first); });
+        return;
+      }
+      mark('sheets');
+    });
     const offCalendar = window.mobius.calendar?.onChanged((c) => {
       if (c.by === 'person' || c.by === 'undo') return;
       if (c.by === 'assistant' && showBeside('calendar')) return;
       mark('calendar');
     });
-    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offCalendar?.(); };
+    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offCalendar?.(); };
   }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
   const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
@@ -227,6 +243,7 @@ export function App() {
     hasPage: active !== undefined && /^https?:/.test(active.url),
     note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs' } : null,
     tasks: inTasks ? tasksContext(tasks) : null,
+    sheet: inSheets && sheets.data ? { title: `${sheets.data.workbook} › ${sheets.data.sheet}`, source: `sheets/${sheets.data.workbook}/${sheets.data.sheet}.csv`, text: sheetContext(sheets.data) } : null,
   };
   // I'll Drive: a proposed plan's steps become a task list of their own, named after the conversation, shown beside it.
   const driveTasks = useCallback(async (steps: string[]) => {
@@ -281,7 +298,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
+  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -295,6 +312,7 @@ export function App() {
     browser: plural(browser.tabs.length, 'tab') + ' open',
     notes: plural(pages, 'page'),
     docs: plural(docs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'document'),
+    sheets: plural(sheets.workbooks.length, 'workbook'),
     tasks: dueToday > 0 ? `${dueToday} due today` : openTasks > 0 ? `${openTasks} to do` : 'All done',
     calendar: eventsToday > 0 ? `${plural(eventsToday, 'event')} today` : 'Nothing today',
     search: 'Find anything',
@@ -319,12 +337,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inNotes || inDocs || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inNotes || inDocs || inSheets || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inNotes || inDocs || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inNotes || inDocs || inSheets || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -495,6 +513,7 @@ export function App() {
     { id: 'task', label: 'New task', app: 'tasks', run: () => { closeSettings(); tasks.setView({ kind: 'list', name: 'Inbox' }); openApp('tasks'); setTaskFocus((n) => n + 1); } },
     { id: 'tab', label: 'New tab', app: 'browser', run: () => { closeSettings(); openApp('browser'); newTab(); } },
     { id: 'doc', label: 'New document', app: 'docs', run: () => { closeSettings(); openApp('docs'); void (async () => { const folder = docs.page?.path.split('/')[0] ?? docs.notebooks[0]?.name ?? (await docs.createNotebook(DEFAULT_FOLDER)); if (folder) await docs.createPage(folder); })(); } },
+    { id: 'workbook', label: 'New workbook', app: 'sheets', run: () => { closeSettings(); openApp('sheets'); void sheets.createWorkbook('Workbook'); } },
     { id: 'event', label: 'New event', app: 'calendar', run: () => { closeSettings(); openApp('calendar'); setEventToken((n) => n + 1); } },
   ];
   /** The one thing worth starting in the app you are in: the panel's New button changes with it. */
@@ -535,6 +554,8 @@ export function App() {
               />
             ) : inNotes ? (
               <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} />
+            ) : inSheets ? (
+              <SheetsSidebar sheets={sheets} pin={pinNode} changed={turnMarks.sheets} />
             ) : inDocs ? (
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} />
             ) : inCalendar ? (
@@ -675,6 +696,11 @@ export function App() {
         today: () => tasks.setView({ kind: 'smart', id: 'today' }),
         scheduled: () => tasks.setView({ kind: 'smart', id: 'scheduled' }),
       },
+      sheets: {
+        newWorkbook: () => createActions.find((a) => a.id === 'workbook')!.run(),
+        newSheet: () => { if (sheets.data) void sheets.addSheet(`Sheet ${sheets.data.sheets.length + 1}`); },
+        insertRow: () => void sheets.shift('row', 0, true),
+      },
       docs: {
         newDocument: () => createActions.find((a) => a.id === 'doc')!.run(),
         newFolder: () => sendCommand('new-folder'),
@@ -797,6 +823,8 @@ export function App() {
         return <TasksPage tasks={tasks} focusToken={taskFocus} />;
       case 'docs':
         return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} busy={conversation.state.busy} />;
+      case 'sheets':
+        return <SheetGrid sheets={sheets} review={sheets.data && turnMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} />;
       case 'calendar':
         return <CalendarPage calendar={calendar} newToken={eventToken} />;
       case 'search':
@@ -883,6 +911,7 @@ export function App() {
           <h1 className="strip-title">{place}</h1>
           {inAgent && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
           {inNotes && notes.page && <span className="toolbar-sub">{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></span>}
+          {inSheets && sheets.data && <span className="toolbar-sub">{sheets.data.sheet}</span>}
           {inCalendar && <span className="toolbar-sub">{eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`}</span>}
           {inTasks && <span className="toolbar-sub">{tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`}</span>}
         </div>

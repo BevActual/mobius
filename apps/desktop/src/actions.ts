@@ -38,6 +38,13 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'tasks.list': return s('list') ? `read your ${quote(s('list'))} tasks` : 'read your task lists';
     case 'tasks.add': return s('text') ? `add ${quote(s('text'))} to ${s('list') || 'Inbox'} in Tasks` : 'add a task';
     case 'tasks.update': return s('task') || s('text') ? `change the task ${quote(s('task') || s('text'))}` : 'change a task';
+    case 'sheets.list': return 'see which workbooks there are';
+    case 'sheets.read': return s('workbook') ? `read the workbook ${quote(s('workbook'))}` : 'read a workbook';
+    case 'sheets.write': {
+      const cells = typeof a.cells === 'object' && a.cells !== null ? Object.keys(a.cells as object) : [];
+      const where = cells.length === 1 ? `cell ${cells[0]}` : cells.length > 1 ? `${cells.length} cells` : 'cells';
+      return `change ${where} in ${s('workbook') ? quote(s('workbook')) : 'a workbook'}${s('sheet') ? ` › ${s('sheet')}` : ''}`;
+    }
     case 'calendar.list': return 'read your calendar';
     case 'calendar.add': return `add ${s('title') ? quote(s('title')) : 'an event'} to ${which()}${s('start') ? ` on ${when(s('start'))}` : ''}`;
     case 'calendar.suggest': return `suggest ${s('title') ? quote(s('title')) : 'an event'} for ${which()}`;

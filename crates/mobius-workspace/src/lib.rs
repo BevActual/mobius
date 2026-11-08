@@ -5,5 +5,7 @@
 pub mod calendar;
 pub mod checkpoints;
 pub mod files;
+pub mod formula;
 pub mod notes;
+pub mod sheets;
 pub mod tasks;

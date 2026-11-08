@@ -21,6 +21,7 @@ import {
   type NotesChange,
   type TasksChanged,
   type CalendarChanged,
+  type SheetsChanged,
 } from '@mobius/shared';
 
 /**
@@ -220,6 +221,17 @@ export function createTauriBridge(): MobiusBridge {
       remove: (list, line, expect) => call('tasks', 'remove', [list, line, expect], () => ({ ok: false as const, message: 'Tasks is not available.' })),
       clearDone: (list) => call('tasks', 'clearDone', [list], () => ({ ok: false as const, message: 'Tasks is not available.' })),
       onChanged: (listener) => on<TasksChanged>('mobius:tasks-changed', listener),
+    },
+    sheets: {
+      list: () => call('sheets', 'list', [], () => []),
+      read: (workbook, sheet) => call('sheets', 'read', [workbook, sheet], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      set: (workbook, sheet, cells, version) => call('sheets', 'set', [workbook, sheet, cells, version], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      shift: (workbook, sheet, what, at, insert) => call('sheets', 'shift', [workbook, sheet, what, at, insert], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      createWorkbook: (name) => call('sheets', 'createWorkbook', [name], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      addSheet: (workbook, name) => call('sheets', 'addSheet', [workbook, name], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      renameSheet: (workbook, sheet, name) => call('sheets', 'renameSheet', [workbook, sheet, name], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      removeSheet: (workbook, sheet) => call('sheets', 'removeSheet', [workbook, sheet], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      onChanged: (listener) => on<SheetsChanged>('mobius:sheets-changed', listener),
     },
     calendar: {
       calendars: () => call('calendar', 'calendars', [], () => []),

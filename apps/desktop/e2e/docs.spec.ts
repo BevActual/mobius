@@ -40,7 +40,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 
 test('a new document is written on the page with formatting and kept as Markdown, with its outline beside it', async () => {
   await start();
-  await shell().getByRole('button', { name: 'New document' }).first().click();
+  await shell().getByRole('button', { name: 'New document', exact: true, disabled: false }).first().click();
   await expect(page()).toBeVisible();
   await expect.poll(() => fs.existsSync(file('Documents/Untitled.md'))).toBe(true);
   await page().click();
@@ -66,7 +66,7 @@ test('a writing tool asks Mobius, and its changes show as proposals that can be 
     callsTool('files-edit', { path: 'docs/Work/Offsite brief.md', old: '- Plan on the 13th', new: '- Plan on the terrace on the 13th' }),
     says(['Made it shorter.']),
   ]);
-  await shell().getByRole('tree', { name: 'Folders' }).getByRole('button', { name: 'Offsite brief' }).click();
+  await shell().getByRole('tree', { name: 'Folders' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
   await expect(page()).toContainText('We have been talking');
   await shell().getByRole('button', { name: 'Writing tools' }).click();
   const menu = shell().getByRole('menu', { name: 'Writing tools' });

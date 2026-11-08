@@ -14,7 +14,7 @@ export interface Suggestion {
   /** What is sent. */
   prompt: string;
   /** What it needs attached first. */
-  attach?: 'page' | 'note' | 'tasks';
+  attach?: 'page' | 'note' | 'tasks' | 'sheet';
 }
 
 export interface SurfaceState {
@@ -25,6 +25,8 @@ export interface SurfaceState {
   note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
+  /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
+  sheet?: { title: string; source: string; text: string } | null;
 }
 
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
@@ -59,6 +61,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'What is missing?', prompt: 'Read this document and tell me what a reader would still want to know.', attach: 'note' },
           ]
         : [{ label: 'Draft a document', prompt: 'Draft a document in my Docs about ' }];
+    case 'sheets':
+      return state.sheet
+        ? [
+            { label: 'Explain these numbers', prompt: 'Explain what this sheet works out, in plain words, and point at the cells each part comes from.', attach: 'sheet' },
+            { label: 'Check the formulas', prompt: 'Check the formulas in this sheet for mistakes, such as a range that misses a row or a total that counts something twice. Say which cells, and ask before changing anything.', attach: 'sheet' },
+            { label: 'Add a column…', prompt: 'Add a column to this sheet that works out ', attach: 'sheet' },
+          ]
+        : [{ label: 'Make a budget', prompt: 'Make a budget workbook in my Sheets for ' }];
     case 'calendar':
       return [
         { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },
@@ -94,6 +104,11 @@ export function tasksContext(tasks: Pick<TasksState, 'view' | 'all'>): { title: 
   const title = view.id === 'today' ? 'Today' : 'Scheduled';
   const lines = smartView(view.id, all, new Date()).map(({ list, task }) => `- [ ] ${task.text} (due ${task.due}, in ${list})`);
   return { title, text: `# ${title}\n${lines.join('\n')}` };
+}
+
+/** The open sheet as an attachment. */
+export function sheetItem(sheet: { title: string; source: string; text: string }): ContextItem {
+  return { kind: 'file', title: sheet.title, source: sheet.source, text: sheet.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 
 /** The open Tasks view as an attachment. */

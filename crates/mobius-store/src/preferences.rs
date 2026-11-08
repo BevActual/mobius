@@ -15,13 +15,13 @@ pub fn is_model_name(v: &Value) -> bool {
 }
 
 /// The apps whose access the person can set, and the levels: off, ask (the usual), read without asking, act without asking.
-pub const APP_ACCESS_APPS: [&str; 5] = ["browser", "notes", "docs", "tasks", "calendar"];
+pub const APP_ACCESS_APPS: [&str; 6] = ["browser", "notes", "docs", "sheets", "tasks", "calendar"];
 /// Apps added later: a setting saved before them may leave them out, and they count as `ask`.
-const LATER_APPS: [&str; 2] = ["docs", "calendar"];
+const LATER_APPS: [&str; 3] = ["docs", "sheets", "calendar"];
 pub const APP_ACCESS_LEVELS: [&str; 4] = ["off", "ask", "read", "act"];
 
 pub fn app_access_default() -> Value {
-    json!({ "browser": "ask", "notes": "ask", "docs": "ask", "tasks": "ask", "calendar": "ask" })
+    json!({ "browser": "ask", "notes": "ask", "docs": "ask", "sheets": "ask", "tasks": "ask", "calendar": "ask" })
 }
 
 /// Exactly those apps, each at one of the levels.

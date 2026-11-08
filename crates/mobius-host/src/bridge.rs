@@ -152,6 +152,7 @@ pub struct Bridge {
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
     docs: mobius_workspace::notes::Notes,
+    sheets: mobius_workspace::sheets::Sheets,
     tasks: mobius_workspace::tasks::Tasks,
     calendar: mobius_workspace::calendar::Calendar,
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
@@ -197,6 +198,9 @@ impl Bridge {
                 if let Some(doc) = path.replace('\\', "/").strip_prefix("docs/") {
                     notes_emit("mobius:docs-changed", json!({ "path": doc, "by": "another app" }));
                 }
+                if let Some(book) = path.replace('\\', "/").strip_prefix("sheets/") {
+                    notes_emit("mobius:sheets-changed", json!({ "workbook": book.split('/').next(), "by": "another app" }));
+                }
                 if let Some(list) = path.replace('\\', "/").strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")) {
                     notes_emit("mobius:tasks-changed", json!({ "list": list, "by": "another app" }));
                 }
@@ -241,6 +245,7 @@ impl Bridge {
             signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             docs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "docs"),
+            sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             calendar: {
                 let calendar = mobius_workspace::calendar::Calendar::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
@@ -343,6 +348,7 @@ impl Bridge {
 
             ("notes", _) => Ok(self.notes_call(&self.notes, "mobius:notes-changed", method, args)),
             ("docs", _) => Ok(self.notes_call(&self.docs, "mobius:docs-changed", method, args)),
+            ("sheets", _) => Ok(self.sheets_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
@@ -889,7 +895,7 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -915,6 +921,13 @@ impl Bridge {
             }
             return result;
         }
+        if mobius_workspace::sheets::is_sheet_tool(tool) {
+            let result = self.sheets.run(tool, &args).map(Value::String);
+            if result.is_ok() && tool == "sheets.write" {
+                (self.emit)("mobius:sheets-changed", json!({ "workbook": args.get("workbook").and_then(Value::as_str).map(mobius_workspace::notes::file_name_for), "by": "assistant" }));
+            }
+            return result;
+        }
         if mobius_workspace::calendar::is_calendar_tool(tool) {
             let result = self.calendar.run(tool, &args).map(Value::String);
             if result.is_ok() && tool != "calendar.list" {
@@ -931,6 +944,9 @@ impl Bridge {
                 }
                 if let Some(doc) = path.strip_prefix("docs/") {
                     (self.emit)("mobius:docs-changed", json!({ "path": doc, "by": "assistant" }));
+                }
+                if let Some(book) = path.strip_prefix("sheets/") {
+                    (self.emit)("mobius:sheets-changed", json!({ "workbook": book.split('/').next(), "by": "assistant" }));
                 }
                 if let Some(list) = path.strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")) {
                     (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "assistant" }));
@@ -1008,7 +1024,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -1364,6 +1380,59 @@ impl Bridge {
         (self.emit)("mobius:calendar-changed", json!({ "calendar": null, "by": "another app" }));
     }
 
+    /// The Sheets app. Every answer is the sheet as it is now (typed and worked out) or `{ ok: false, message }`; a
+    /// change to a sheet that changed meanwhile also says `conflict: true`, so the window reloads it.
+    fn sheets_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let num = |i: usize| args.get(i).and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok());
+        let s = &self.sheets;
+        let result = match method {
+            "list" => s.list(),
+            "read" => match (text(0), text(1)) {
+                (Some(w), Some(sh)) => s.read(w, sh),
+                _ => Err("a workbook and a sheet are needed".to_owned()),
+            },
+            "set" => match (text(0), text(1), args.get(2).and_then(Value::as_array)) {
+                (Some(w), Some(sh), Some(cells)) => {
+                    let changes: Option<Vec<(usize, usize, String)>> = cells
+                        .iter()
+                        .map(|c| Some((usize::try_from(c.get("row")?.as_u64()?).ok()?, usize::try_from(c.get("col")?.as_u64()?).ok()?, c.get("text")?.as_str()?.to_owned())))
+                        .collect();
+                    changes.ok_or_else(|| "those cells cannot be set".to_owned()).and_then(|ch| s.set_cells(w, sh, &ch, text(3)))
+                }
+                _ => Err("those cells cannot be set".to_owned()),
+            },
+            "shift" => match (text(0), text(1), text(2), num(3), args.get(4).and_then(Value::as_bool)) {
+                (Some(w), Some(sh), Some(what), Some(at), Some(insert)) => s.shift(w, sh, what, at, insert),
+                _ => Err("that cannot be done".to_owned()),
+            },
+            "createWorkbook" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| s.create_workbook(n)),
+            "addSheet" => match (text(0), text(1)) {
+                (Some(w), Some(n)) => s.add_sheet(w, n),
+                _ => Err("a workbook and a name are needed".to_owned()),
+            },
+            "renameSheet" => match (text(0), text(1), text(2)) {
+                (Some(w), Some(sh), Some(n)) => s.rename_sheet(w, sh, n),
+                _ => Err("a name is needed".to_owned()),
+            },
+            "removeSheet" => match (text(0), text(1)) {
+                (Some(w), Some(sh)) => s.remove_sheet(w, sh),
+                _ => Err("a sheet is needed".to_owned()),
+            },
+            _ => return json!({ "ok": false, "message": "unknown" }),
+        };
+        match result {
+            Ok(value) => {
+                if !matches!(method, "list" | "read") {
+                    let workbook = value.get("workbook").or_else(|| value.get("name")).cloned().unwrap_or(Value::Null);
+                    (self.emit)("mobius:sheets-changed", json!({ "workbook": workbook, "by": "person" }));
+                }
+                value
+            }
+            Err(message) => json!({ "ok": false, "conflict": message == "changed elsewhere", "message": message }),
+        }
+    }
+
     /// The Calendar app. Every answer is what was asked for or `{ ok: false, message }`.
     fn calendar_call(&self, method: &str, args: &[Value]) -> Value {
         use mobius_workspace::calendar::Draft;
@@ -1450,6 +1519,7 @@ impl Bridge {
             let list = path.and_then(|p| p.strip_prefix("tasks/")).and_then(|p| p.strip_suffix(".md"));
             (self.emit)("mobius:notes-changed", json!({ "path": note, "by": "undo" }));
             (self.emit)("mobius:docs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("docs/")), "by": "undo" }));
+            (self.emit)("mobius:sheets-changed", json!({ "workbook": path.and_then(|p| p.strip_prefix("sheets/")).and_then(|p| p.split('/').next()), "by": "undo" }));
             (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "undo" }));
             if path.is_none_or(|p| p.starts_with("calendar/")) {
                 (self.emit)("mobius:calendar-changed", json!({ "calendar": path.and_then(|p| p.strip_prefix("calendar/")).and_then(|p| p.strip_suffix(".ics")), "by": "undo" }));

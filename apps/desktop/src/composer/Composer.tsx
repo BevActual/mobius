@@ -5,7 +5,7 @@ import { usePreferences } from '../usePreferences';
 import { filterCatalog } from './model-catalog';
 import { PopMenu } from './PopMenu';
 import type { Activity } from '../activity';
-import { isStarter, noteContext, suggestionsFor, tasksItem, type Suggestion, type SurfaceState } from '../surface';
+import { isStarter, noteContext, sheetItem, suggestionsFor, tasksItem, type Suggestion, type SurfaceState } from '../surface';
 import { useDictation } from './useDictation';
 
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
@@ -144,6 +144,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     let item: ContextItem | null = null;
     if (s.attach === 'note' && surface?.note) item = noteContext(surface.note);
     if (s.attach === 'tasks' && surface?.tasks) item = tasksItem(surface.tasks);
+    if (s.attach === 'sheet' && surface?.sheet) item = sheetItem(surface.sheet);
     if (s.attach === 'page') {
       const result = await window.mobius.context.page();
       if (!result.ok) { setProblem(result.error); return; }
@@ -201,7 +202,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       {suggestions.length > 0 && (
         <div className="suggest" role="group" aria-label="Suggestions">
           {suggestions.map((s) => (
-            <button key={s.label} type="button" className="suggest-chip" title={s.attach === 'page' ? 'Attaches this page' : s.attach === 'note' ? 'Attaches this note' : s.attach === 'tasks' ? 'Attaches this list' : undefined} onClick={() => void suggest(s)}>
+            <button key={s.label} type="button" className="suggest-chip" title={s.attach === 'page' ? 'Attaches this page' : s.attach === 'note' ? 'Attaches this note' : s.attach === 'tasks' ? 'Attaches this list' : s.attach === 'sheet' ? 'Attaches this sheet' : undefined} onClick={() => void suggest(s)}>
               {s.label}
             </button>
           ))}

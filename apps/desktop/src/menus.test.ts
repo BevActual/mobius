@@ -24,6 +24,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
       notes: { newNotebook: noop, pin: noop, changes: noop },
       tasks: { newList: noop, clearDone: noop, today: noop, scheduled: noop },
       docs: { newDocument: noop, newFolder: noop },
+      sheets: { newWorkbook: noop, newSheet: noop, insertRow: noop },
       calendar: { newEvent: noop, newCalendar: noop, today: noop, mode: noop },
       agent: { stop: noop },
     },

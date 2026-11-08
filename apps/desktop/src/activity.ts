@@ -22,10 +22,12 @@ export function appOfTool(name: string, args?: unknown): AppId | null {
   if (name.startsWith('browser.')) return 'browser';
   if (name.startsWith('tasks.')) return 'tasks';
   if (name.startsWith('calendar.')) return 'calendar';
+  if (name.startsWith('sheets.')) return 'sheets';
   if (name.startsWith('files.')) {
     const path = pathOf(args);
     if (path.startsWith('notes/')) return 'notes';
     if (path.startsWith('docs/')) return 'docs';
+    if (path.startsWith('sheets/')) return 'sheets';
     if (path.startsWith('tasks/')) return 'tasks';
     if (path.startsWith('calendar/')) return 'calendar';
   }
@@ -50,6 +52,9 @@ const LABELS: Record<string, string> = {
   'calendar.add': 'Adding an event',
   'calendar.update': 'Changing an event',
   'calendar.suggest': 'Suggesting an event',
+  'sheets.list': 'Looking at your workbooks',
+  'sheets.read': 'Reading a sheet',
+  'sheets.write': 'Changing a sheet',
   'todo.write': 'Making a plan',
 };
 
