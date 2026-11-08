@@ -20,6 +20,8 @@ pub struct Notes {
     root: PathBuf,
     checkpoints: Checkpoints,
     workspace: PathBuf,
+    /// Pages are called by their file name rather than their first heading (a deck's first slide is not its name).
+    named_by_file: bool,
 }
 
 /// A name a person typed, made safe to use as one file or folder name on every system.
@@ -61,7 +63,13 @@ impl Notes {
     /// The same kind of store in another folder of the workspace: Docs keeps its documents in `docs/<folder>/<doc>.md`.
     pub fn in_folder(workspace: impl Into<PathBuf>, checkpoint_store: impl Into<PathBuf>, folder: &str) -> Notes {
         let workspace = workspace.into();
-        Notes { root: workspace.join(folder), checkpoints: Checkpoints::new(checkpoint_store), workspace }
+        Notes { root: workspace.join(folder), checkpoints: Checkpoints::new(checkpoint_store), workspace, named_by_file: false }
+    }
+
+    /// Pages called by their file names, as Slides calls its decks.
+    pub fn named_by_file(mut self) -> Notes {
+        self.named_by_file = true;
+        self
     }
 
     fn ensure(&self) -> Res<()> {
@@ -105,7 +113,8 @@ impl Notes {
                 count += 1;
                 let stem = file.trim_end_matches(".md");
                 let head: String = fs::read_to_string(entry.path()).unwrap_or_default().chars().take(4000).collect();
-                pages.push(json!({ "path": path, "title": title_of(&head, stem), "modified": modified_ms(&entry.path()) }));
+                let title = if self.named_by_file { stem.to_owned() } else { title_of(&head, stem) };
+                pages.push(json!({ "path": path, "title": title, "modified": modified_ms(&entry.path()) }));
             }
             pages.sort_by(|a, b| b["modified"].as_u64().cmp(&a["modified"].as_u64()).then(a["path"].as_str().cmp(&b["path"].as_str())));
             notebooks.push(json!({ "name": name, "pages": pages }));

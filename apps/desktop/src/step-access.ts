@@ -1,17 +1,31 @@
 import type { AppAccess, ApprovalModeChoice } from '@mobius/shared';
 
-/** The app a plan step names, if it names one: "Compare hotels in Browser", "Add a task to Inbox". */
+const NAMES: [keyof AppAccess, RegExp][] = [
+  ['docs', /\b(?:docs?|documents?)\b/g],
+  ['mail', /\b(?:mail|emails?|inbox|repl(?:y|ies))\b/g],
+  ['slides', /\b(?:slides?|decks?|presentations?)\b/g],
+  ['sheets', /\b(?:sheets?|spreadsheets?|workbooks?)\b/g],
+  ['notes', /\b(?:notes?|notebook)\b/g],
+  ['calendar', /\b(?:calendars?|events?|meetings?|appointments?|schedule (?:it|a|an|the))\b/g],
+  ['tasks', /\b(?:tasks?|to-?dos?|reminders?|checklist)\b/g],
+  ['browser', /\b(?:browser|web|websites?|sites?|pages?|tabs?|online)\b/g],
+];
+
+/**
+ * The app a plan step names, if it names one: "Compare hotels in Browser", "Add a task to Inbox". When it names more
+ * than one, the one the work happens in ("in my calendar", "to Tasks") wins, then the one named first.
+ */
 export function appOfStep(text: string): keyof AppAccess | null {
   const t = text.toLowerCase();
-  // Named apps first, so "the budget page in Notes" is Notes.
-  if (/\bdocs?\b|\bdocuments?\b/.test(t)) return 'docs';
-  if (/\bmail\b|\bemails?\b|\binbox\b|\brepl(y|ies)\b/.test(t)) return 'mail';
-  if (/\bsheets?\b|\bspreadsheets?\b|\bworkbooks?\b/.test(t)) return 'sheets';
-  if (/\bnotes?\b|\bnotebook\b/.test(t)) return 'notes';
-  if (/\bcalendars?\b|\bevents?\b|\bmeetings?\b|\bappointments?\b|\bschedule (?:it|a|an|the)\b/.test(t)) return 'calendar';
-  if (/\btasks?\b|\bto-?dos?\b|\breminders?\b|\bchecklist\b/.test(t)) return 'tasks';
-  if (/\bbrowser\b|\bweb\b|\bwebsites?\b|\bsites?\b|\bpages?\b|\btabs?\b|\bonline\b/.test(t)) return 'browser';
-  return null;
+  const found: { app: keyof AppAccess; at: number; place: boolean }[] = [];
+  for (const [app, pattern] of NAMES) {
+    for (const m of t.matchAll(pattern)) {
+      const before = t.slice(0, m.index);
+      found.push({ app, at: m.index, place: /\b(?:in|into|to|on)\s+(?:my\s+|the\s+|your\s+)?$/.test(before) });
+    }
+  }
+  found.sort((a, b) => Number(b.place) - Number(a.place) || a.at - b.at);
+  return found[0]?.app ?? null;
 }
 
 /**
@@ -21,7 +35,7 @@ export function appOfStep(text: string): keyof AppAccess | null {
 export function stepTag(text: string, access: AppAccess, mode: ApprovalModeChoice): { app: string; tag: string } | null {
   const app = appOfStep(text);
   if (!app) return null;
-  const name = app === 'browser' ? 'Browser' : app === 'notes' ? 'Notes' : app === 'docs' ? 'Docs' : app === 'mail' ? 'Mail' : app === 'sheets' ? 'Sheets' : app === 'calendar' ? 'Calendar' : 'Tasks';
+  const name = app === 'browser' ? 'Browser' : app === 'notes' ? 'Notes' : app === 'docs' ? 'Docs' : app === 'mail' ? 'Mail' : app === 'sheets' ? 'Sheets' : app === 'slides' ? 'Slides' : app === 'calendar' ? 'Calendar' : 'Tasks';
   const level = access[app] ?? 'ask';
   if (level === 'off') return { app: name, tag: 'Off' };
   if (level === 'act') return { app: name, tag: 'Acts' };

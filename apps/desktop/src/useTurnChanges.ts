@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /** What the last agent turn changed, as note page paths and task list names, so Notes and Tasks can mark them. */
-export interface TurnMarks { notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string>; sheets: ReadonlySet<string> }
-const NONE: TurnMarks = { notes: new Set(), lists: new Set(), docs: new Set(), sheets: new Set() };
+export interface TurnMarks { notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string>; sheets: ReadonlySet<string>; slides: ReadonlySet<string> }
+const NONE: TurnMarks = { notes: new Set(), lists: new Set(), docs: new Set(), sheets: new Set(), slides: new Set() };
 
 export function marksOf(files: readonly string[]): TurnMarks {
   const notes = new Set<string>();
   const lists = new Set<string>();
   const docs = new Set<string>();
   const sheets = new Set<string>();
+  const slides = new Set<string>();
   for (const file of files) {
     if (file.startsWith('notes/')) notes.add(file.slice('notes/'.length));
     else if (file.startsWith('docs/')) docs.add(file.slice('docs/'.length));
+    else if (file.startsWith('slides/')) slides.add(file.slice('slides/'.length));
     else if (file.startsWith('sheets/')) sheets.add(file.slice('sheets/'.length).split('/')[0]!);
     else if (file.startsWith('tasks/') && file.endsWith('.md')) lists.add(file.slice('tasks/'.length, -'.md'.length));
   }
-  return { notes, lists, docs, sheets };
+  return { notes, lists, docs, sheets, slides };
 }
 
 /** Read when a turn ends, when another conversation is shown, and after anything is put back. */
@@ -32,7 +34,8 @@ export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
     const offTasks = window.mobius.tasks?.onChanged(again);
     const offDocs = window.mobius.docs?.onChanged(again);
     const offSheets = window.mobius.sheets?.onChanged(again);
-    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); };
+    const offSlides = window.mobius.slides?.onChanged(again);
+    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); };
   }, [load]);
   return marks;
 }

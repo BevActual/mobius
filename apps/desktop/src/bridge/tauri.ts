@@ -287,6 +287,16 @@ export function createTauriBridge(): MobiusBridge {
       search: (query) => call('docs', 'search', [query], () => []),
       onChanged: (listener) => on<NotesChange>('mobius:docs-changed', listener),
     },
+    slides: {
+      list: () => call('slides', 'list', [], () => []),
+      read: (path) => call('slides', 'read', [path], () => ({ ok: false as const, message: 'Slides is not available.' })),
+      save: (path, content, base) => call('slides', 'save', [path, content, base], () => ({ ok: false as const, message: 'Slides is not available.' })),
+      createNotebook: (name) => call('slides', 'createNotebook', [name], () => ({ ok: false as const, message: 'Slides is not available.' })),
+      createPage: (notebook, title) => call('slides', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Slides is not available.' })),
+      remove: (path) => call('slides', 'remove', [path], () => ({ ok: false as const, message: 'Slides is not available.' })),
+      search: (query) => call('slides', 'search', [query], () => []),
+      onChanged: (listener) => on<NotesChange>('mobius:slides-changed', listener),
+    },
     bookmarks: {
       get: (query) => call('bookmarks', 'get', [query], () => []),
       toggle: () => call('bookmarks', 'toggle', [], () => false),

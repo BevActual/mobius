@@ -12,6 +12,7 @@ export function describeAction(name: string, args: unknown): string | null {
     const clean = path.replace(/\\/g, '/');
     if (clean.startsWith('notes/')) return `the note ${quote(clean.slice('notes/'.length).replace(/\.md$/i, '').replace('/', ' › '))}`;
     if (clean.startsWith('docs/')) return `the document ${quote(clean.slice('docs/'.length).replace(/\.md$/i, '').replace('/', ' › '))}`;
+    if (clean.startsWith('slides/')) return `the deck ${quote(clean.slice('slides/'.length).replace(/\.md$/i, '').replace('/', ' › '))}`;
     if (clean.startsWith('calendar/')) return `the calendar ${quote(clean.slice('calendar/'.length).replace(/\.ics$/i, ''))}`;
     if (clean.startsWith('tasks/')) return `the task list ${quote(clean.slice('tasks/'.length).replace(/\.md$/i, ''))}`;
     return clean ? `the file ${quote(clean)}` : 'a file';

@@ -28,6 +28,7 @@ export function appOfTool(name: string, args?: unknown): AppId | null {
     const path = pathOf(args);
     if (path.startsWith('notes/')) return 'notes';
     if (path.startsWith('docs/')) return 'docs';
+    if (path.startsWith('slides/')) return 'slides';
     if (path.startsWith('sheets/')) return 'sheets';
     if (path.startsWith('tasks/')) return 'tasks';
     if (path.startsWith('calendar/')) return 'calendar';

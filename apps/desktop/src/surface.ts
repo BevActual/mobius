@@ -22,7 +22,7 @@ export interface SurfaceState {
   /** A web page is showing in the browser. */
   hasPage: boolean;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
-  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' } | null;
+  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
@@ -75,6 +75,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         { label: 'Summarise my inbox', prompt: 'Summarise my inbox from today in a few short points.' },
         { label: 'Find…', prompt: 'Find the email about ' },
       ];
+    case 'slides':
+      return state.note
+        ? [
+            { label: 'Write presenter notes', prompt: 'Write short presenter notes for each slide of this deck that has none, in my voice. Change only the notes, in the deck itself.', attach: 'note' },
+            { label: 'Tighten the wording', prompt: 'Make the titles and bullets of this deck shorter and clearer, keeping what they say. Make the changes in the deck itself.', attach: 'note' },
+            { label: 'What is missing?', prompt: 'Read this deck and tell me what an audience would still want to see.', attach: 'note' },
+          ]
+        : [{ label: 'Make a deck', prompt: 'Make a deck in my Slides about ' }];
     case 'calendar':
       return [
         { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },
@@ -93,7 +101,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
 }
 
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' }): ContextItem {
+export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' }): ContextItem {
   return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 

@@ -9,7 +9,7 @@ function areaOf(capability: string, resource: string | null): string {
   if (capability.startsWith('calendar.')) return 'Calendar';
   if (capability.startsWith('sheets.')) return 'Sheets';
   if (capability.startsWith('mail.')) return 'Mail';
-  if (capability.startsWith('files.')) return resource?.startsWith('notes/') ? 'Notes' : resource?.startsWith('docs/') ? 'Docs' : resource?.startsWith('sheets/') ? 'Sheets' : resource?.startsWith('tasks/') ? 'Tasks' : resource?.startsWith('calendar/') ? 'Calendar' : 'Files';
+  if (capability.startsWith('files.')) return resource?.startsWith('notes/') ? 'Notes' : resource?.startsWith('docs/') ? 'Docs' : resource?.startsWith('slides/') ? 'Slides' : resource?.startsWith('sheets/') ? 'Sheets' : resource?.startsWith('tasks/') ? 'Tasks' : resource?.startsWith('calendar/') ? 'Calendar' : 'Files';
   if (capability.startsWith('memory.')) return 'Memory';
   if (capability.startsWith('sessions.')) return 'Past conversations';
   if (capability.startsWith('schedules.')) return 'Schedules';

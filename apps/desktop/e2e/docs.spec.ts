@@ -54,7 +54,8 @@ test('a new document is written on the page with formatting and kept as Markdown
   await shell().keyboard.press('Control+b');
   await shell().keyboard.type(' early.');
   await expect.poll(() => fs.readFileSync(file('Documents/Untitled.md'), 'utf8'), { timeout: 5000 }).toContain('## Plan\n\nBook the **terrace** early.');
-  await expect(editor().getByRole('navigation', { name: 'Outline' }).getByRole('button', { name: 'Plan' })).toBeVisible();
+  // The outline lists the headings (it folds away when the page is narrow, as it is beside the agent panel here).
+  await expect(editor().locator('.doc-outline-item', { hasText: 'Plan' })).toHaveCount(1);
   await expect(editor().getByText(/\d+ words/)).toBeVisible();
 });
 

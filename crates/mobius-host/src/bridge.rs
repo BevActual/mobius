@@ -152,6 +152,7 @@ pub struct Bridge {
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
     docs: mobius_workspace::notes::Notes,
+    slides: mobius_workspace::notes::Notes,
     sheets: mobius_workspace::sheets::Sheets,
     tasks: mobius_workspace::tasks::Tasks,
     calendar: mobius_workspace::calendar::Calendar,
@@ -198,6 +199,9 @@ impl Bridge {
                 }
                 if let Some(doc) = path.replace('\\', "/").strip_prefix("docs/") {
                     notes_emit("mobius:docs-changed", json!({ "path": doc, "by": "another app" }));
+                }
+                if let Some(deck) = path.replace('\\', "/").strip_prefix("slides/") {
+                    notes_emit("mobius:slides-changed", json!({ "path": deck, "by": "another app" }));
                 }
                 if let Some(book) = path.replace('\\', "/").strip_prefix("sheets/") {
                     notes_emit("mobius:sheets-changed", json!({ "workbook": book.split('/').next(), "by": "another app" }));
@@ -246,6 +250,7 @@ impl Bridge {
             signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             docs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "docs"),
+            slides: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "slides").named_by_file(),
             sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             calendar: {
@@ -350,6 +355,7 @@ impl Bridge {
 
             ("notes", _) => Ok(self.notes_call(&self.notes, "mobius:notes-changed", method, args)),
             ("docs", _) => Ok(self.notes_call(&self.docs, "mobius:docs-changed", method, args)),
+            ("slides", _) => Ok(self.notes_call(&self.slides, "mobius:slides-changed", method, args)),
             ("sheets", _) => Ok(self.sheets_call(method, args)),
             ("mail", _) => Ok(self.mail_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
@@ -954,6 +960,9 @@ impl Bridge {
                 }
                 if let Some(doc) = path.strip_prefix("docs/") {
                     (self.emit)("mobius:docs-changed", json!({ "path": doc, "by": "assistant" }));
+                }
+                if let Some(deck) = path.strip_prefix("slides/") {
+                    (self.emit)("mobius:slides-changed", json!({ "path": deck, "by": "assistant" }));
                 }
                 if let Some(book) = path.strip_prefix("sheets/") {
                     (self.emit)("mobius:sheets-changed", json!({ "workbook": book.split('/').next(), "by": "assistant" }));
@@ -1581,6 +1590,7 @@ impl Bridge {
             let list = path.and_then(|p| p.strip_prefix("tasks/")).and_then(|p| p.strip_suffix(".md"));
             (self.emit)("mobius:notes-changed", json!({ "path": note, "by": "undo" }));
             (self.emit)("mobius:docs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("docs/")), "by": "undo" }));
+            (self.emit)("mobius:slides-changed", json!({ "path": path.and_then(|p| p.strip_prefix("slides/")), "by": "undo" }));
             (self.emit)("mobius:sheets-changed", json!({ "workbook": path.and_then(|p| p.strip_prefix("sheets/")).and_then(|p| p.split('/').next()), "by": "undo" }));
             (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "undo" }));
             if path.is_none_or(|p| p.starts_with("calendar/")) {

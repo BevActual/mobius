@@ -26,6 +26,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
       docs: { newDocument: noop, newFolder: noop },
       sheets: { newWorkbook: noop, newSheet: noop, insertRow: noop },
       mail: { newMessage: noop, getMail: noop },
+      slides: { newDeck: noop },
       calendar: { newEvent: noop, newCalendar: noop, today: noop, mode: noop },
       agent: { stop: noop },
     },

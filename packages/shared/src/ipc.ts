@@ -436,6 +436,8 @@ export interface MobiusBridge {
   };
   /** The Docs app: documents kept like notes, as Markdown in `docs/<folder>/<doc>.md`. Only the Tauri shell has it. */
   docs?: NonNullable<MobiusBridge['notes']>;
+  /** The Slides app: decks kept like notes, as Markdown in `slides/<folder>/<deck>.md`. Only the Tauri shell has it. */
+  slides?: NonNullable<MobiusBridge['notes']>;
   /** The Notes app. Only the Tauri shell has it. */
   notes?: {
     list(): Promise<Notebook[] | NotesFailure>;
@@ -646,7 +648,7 @@ const isFavourite = (v: unknown): v is Favourite => {
   return Object.keys(v).length === 3 && (kind === 'note' || kind === 'list' || kind === 'page') && text(id, 2000) && text(title, 120);
 };
 /** The apps that can be kept in the sidebar. */
-export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'tasks', 'calendar'] as const;
+export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'] as const;
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
 export type NavigationStyle = 'sidebar' | 'rail';
@@ -957,16 +959,16 @@ export interface ScheduleDraft { title: string; prompt: string; time: string; da
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
 /** `calendar` came later: a setting saved before it leaves it out, and it counts as `ask`. */
-export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel };
-export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask' };
+export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel };
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask' };
 const ACCESS_LEVELS: readonly string[] = ['off', 'ask', 'read', 'act'];
 export function isAppAccess(v: unknown): v is AppAccess {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;
-  const apps = ['browser', 'notes', 'docs', 'sheets', 'tasks', 'calendar', 'mail'];
+  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail'];
   return Object.keys(o).every((k) => apps.includes(k))
     && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes(o[app] as string))
-    && (['docs', 'sheets', 'calendar', 'mail'] as const).every((app) => o[app] === undefined || ACCESS_LEVELS.includes(o[app] as string));
+    && (['docs', 'sheets', 'slides', 'calendar', 'mail'] as const).every((app) => o[app] === undefined || ACCESS_LEVELS.includes(o[app] as string));
 }
 /** `none` turns thinking off where the model allows it (models on this computer). */
 export type EffortChoice = '' | 'none' | 'low' | 'medium' | 'high';

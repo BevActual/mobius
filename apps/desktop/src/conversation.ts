@@ -273,7 +273,7 @@ function appOfTool(name: string, args: unknown): string | null {
   if (name.startsWith('calendar.')) return 'Calendar';
   if (name.startsWith('sheets.')) return 'Sheets';
   if (name.startsWith('mail.')) return 'Mail';
-  if (name.startsWith('files.')) return path.startsWith('notes/') ? 'Notes' : path.startsWith('docs/') ? 'Docs' : path.startsWith('sheets/') ? 'Sheets' : path.startsWith('tasks/') ? 'Tasks' : path.startsWith('calendar/') ? 'Calendar' : 'Files';
+  if (name.startsWith('files.')) return path.startsWith('notes/') ? 'Notes' : path.startsWith('docs/') ? 'Docs' : path.startsWith('slides/') ? 'Slides' : path.startsWith('sheets/') ? 'Sheets' : path.startsWith('tasks/') ? 'Tasks' : path.startsWith('calendar/') ? 'Calendar' : 'Files';
   return null;
 }
 

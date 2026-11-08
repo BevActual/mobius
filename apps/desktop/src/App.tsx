@@ -35,6 +35,7 @@ import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { SheetGrid, SheetsSidebar } from './Sheets';
 import { MailPage, MailSidebar } from './Mail';
+import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
 import { useSheets } from './useSheets';
 import { sheetContext } from './sheets-view';
@@ -92,6 +93,7 @@ export function App() {
   const bookmarks = useBookmarks();
   const notes = useNotes();
   const docs = useNotes('docs');
+  const slides = useNotes('slides');
   const sheets = useSheets();
   const mail = useMail();
   const tasks = useTasks();
@@ -164,6 +166,7 @@ export function App() {
   const inAgent = app === 'agent';
   const inNotes = app === 'notes';
   const inDocs = app === 'docs';
+  const inSlides = app === 'slides';
   const inSheets = app === 'sheets';
   const inMail = app === 'mail';
   const inTasks = app === 'tasks';
@@ -196,6 +199,8 @@ export function App() {
   notesNow.current = notes;
   const docsNow = useRef(docs);
   docsNow.current = docs;
+  const slidesNow = useRef(slides);
+  slidesNow.current = slides;
   const sheetsNow = useRef(sheets);
   sheetsNow.current = sheets;
   const tasksNow = useRef(tasks);
@@ -218,6 +223,11 @@ export function App() {
       if (c.by === 'assistant' && c.path && showBeside('docs')) { void docsNow.current.open(c.path); return; }
       mark('docs');
     });
+    const offSlides = window.mobius.slides?.onChanged((c) => {
+      if (c.by === 'person' || c.by === 'undo') return;
+      if (c.by === 'assistant' && c.path && showBeside('slides')) { void slidesNow.current.open(c.path); return; }
+      mark('slides');
+    });
     const offSheets = window.mobius.sheets?.onChanged((c) => {
       if (c.by === 'person' || c.by === 'undo') return;
       if (c.by === 'assistant' && c.workbook && showBeside('sheets')) {
@@ -236,7 +246,7 @@ export function App() {
       if (c.by === 'assistant' && showBeside('calendar')) return;
       mark('calendar');
     });
-    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offMail?.(); offCalendar?.(); };
+    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offMail?.(); offCalendar?.(); };
   }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
   const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
@@ -249,7 +259,7 @@ export function App() {
   const surface: SurfaceState = {
     app,
     hasPage: active !== undefined && /^https?:/.test(active.url),
-    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs' } : null,
+    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs' } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : null,
     tasks: inTasks ? tasksContext(tasks) : null,
     sheet: inSheets && sheets.data ? { title: `${sheets.data.workbook} › ${sheets.data.sheet}`, source: `sheets/${sheets.data.workbook}/${sheets.data.sheet}.csv`, text: sheetContext(sheets.data) } : null,
   };
@@ -306,7 +316,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
+  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -321,6 +331,7 @@ export function App() {
     notes: plural(pages, 'page'),
     docs: plural(docs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'document'),
     sheets: plural(sheets.workbooks.length, 'workbook'),
+    slides: plural(slides.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'deck'),
     mail: mail.accounts.length === 0 ? 'Add an account' : mail.counts.all > 0 ? `${mail.counts.all} unread` : 'All read',
     tasks: dueToday > 0 ? `${dueToday} due today` : openTasks > 0 ? `${openTasks} to do` : 'All done',
     calendar: eventsToday > 0 ? `${plural(eventsToday, 'event')} today` : 'Nothing today',
@@ -346,12 +357,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inMail || inNotes || inDocs || inSheets || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inMail || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inNotes || inDocs || inSheets || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -523,6 +534,7 @@ export function App() {
     { id: 'tab', label: 'New tab', app: 'browser', run: () => { closeSettings(); openApp('browser'); newTab(); } },
     { id: 'doc', label: 'New document', app: 'docs', run: () => { closeSettings(); openApp('docs'); void (async () => { const folder = docs.page?.path.split('/')[0] ?? docs.notebooks[0]?.name ?? (await docs.createNotebook(DEFAULT_FOLDER)); if (folder) await docs.createPage(folder); })(); } },
     { id: 'message', label: 'New message', app: 'mail', run: () => { closeSettings(); openApp('mail'); mail.compose(); } },
+    { id: 'deck', label: 'New deck', app: 'slides', run: () => { closeSettings(); openApp('slides'); void (async () => { const folder = slides.page?.path.split('/')[0] ?? slides.notebooks[0]?.name ?? (await slides.createNotebook('Presentations')); if (folder) await slides.createPage(folder, 'Untitled deck'); })(); } },
     { id: 'workbook', label: 'New workbook', app: 'sheets', run: () => { closeSettings(); openApp('sheets'); void sheets.createWorkbook('Workbook'); } },
     { id: 'event', label: 'New event', app: 'calendar', run: () => { closeSettings(); openApp('calendar'); setEventToken((n) => n + 1); } },
   ];
@@ -566,6 +578,8 @@ export function App() {
               <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} />
             ) : inMail ? (
               <MailSidebar mail={mail} pin={pinNode} />
+            ) : inSlides ? (
+              <SlidesSidebar slides={slides} pin={pinNode} changed={turnMarks.slides} />
             ) : inSheets ? (
               <SheetsSidebar sheets={sheets} pin={pinNode} changed={turnMarks.sheets} />
             ) : inDocs ? (
@@ -712,6 +726,9 @@ export function App() {
         newMessage: () => createActions.find((a) => a.id === 'message')!.run(),
         getMail: () => void mail.sync(),
       },
+      slides: {
+        newDeck: () => createActions.find((a) => a.id === 'deck')!.run(),
+      },
       sheets: {
         newWorkbook: () => createActions.find((a) => a.id === 'workbook')!.run(),
         newSheet: () => { if (sheets.data) void sheets.addSheet(`Sheet ${sheets.data.sheets.length + 1}`); },
@@ -801,6 +818,29 @@ export function App() {
     if (!ready) { setIncoming({ token: Date.now(), item }); return; }
     void conversation.send(prompt, [item]);
   };
+  /** Slides' Ask Mobius menu: a request about the deck; the slides it changes come back dashed to keep or discard. */
+  const onSlidesTool = (tool: SlidesTool, slide: number) => {
+    const page = slides.page;
+    if (!page) return;
+    const where = `slides/${page.path}`;
+    const item: ContextItem = { kind: 'file', title: page.title || 'Deck', source: where, text: slides.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
+    const inPlace = `Make the changes in the deck itself (${where}) with files.edit, keeping its format: slides split by a line ---, ### kicker, ## title, - bullets, Notes: then presenter notes.`;
+    if (tool === 'from-doc') {
+      if (!shows('agent')) setChatOpen(true);
+      setDraft(`Add slides to the deck "${page.title}" (${where}) made from my document `);
+      return;
+    }
+    const prompt = {
+      notes: `Write short presenter notes for each slide of the deck "${page.title}" that has none, in my voice. Change only the notes. ${inPlace}`,
+      tighten: `Make the titles and bullets of the deck "${page.title}" shorter and clearer, keeping what they say. ${inPlace}`,
+      rehearse: `Rehearse the deck "${page.title}" with me: I will say what I would say on slide ${slide + 1}; tell me what to keep, cut or add, one slide at a time. Do not change the deck.`,
+      'from-doc': '',
+    }[tool];
+    const ready = settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy;
+    if (!shows('agent')) setChatOpen(true);
+    if (!ready) { setIncoming({ token: Date.now(), item }); return; }
+    void conversation.send(prompt, [item]);
+  };
   /** Mail's "Draft a reply with Mobius": the agent reads the message and suggests a reply, which waits for the person. */
   const onDraftReply = (m: MailContent) => {
     const ready = settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy;
@@ -847,6 +887,8 @@ export function App() {
         return <TasksPage tasks={tasks} focusToken={taskFocus} />;
       case 'docs':
         return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} busy={conversation.state.busy} />;
+      case 'slides':
+        return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'sheets':

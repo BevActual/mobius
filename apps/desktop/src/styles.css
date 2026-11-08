@@ -702,15 +702,19 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .hub-icon[data-app="calendar"] { background: var(--app-calendar); }
 .hub-icon[data-app="code"] { background: var(--app-code); }
 .hub-icon[data-app="docs"] { background: var(--app-docs); }
+.hub-icon[data-app="slides"] { background: var(--app-slides); }
 .hub-icon[data-app="mail"] { background: var(--app-mail); }
 .hub-icon[data-app="sheets"] { background: var(--app-sheets); }
 .rail[data-expanded] svg[data-app="docs"] { background: var(--app-docs); }
+.rail[data-expanded] svg[data-app="slides"] { background: var(--app-slides); }
 .rail[data-expanded] svg[data-app="mail"] { background: var(--app-mail); }
 .rail[data-expanded] svg[data-app="sheets"] { background: var(--app-sheets); }
 .sidebar-app-show svg[data-app="docs"] { background: var(--app-docs); }
+.sidebar-app-show svg[data-app="slides"] { background: var(--app-slides); }
 .sidebar-app-show svg[data-app="mail"] { background: var(--app-mail); }
 .sidebar-app-show svg[data-app="sheets"] { background: var(--app-sheets); }
 .rail-pin-open svg[data-app="docs"] { background: var(--app-docs); }
+.rail-pin-open svg[data-app="slides"] { background: var(--app-slides); }
 .rail-pin-open svg[data-app="mail"] { background: var(--app-mail); }
 .rail-pin-open svg[data-app="sheets"] { background: var(--app-sheets); }
 .hub-icon[data-app="canvas"] { background: var(--app-canvas); }
@@ -1385,3 +1389,40 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .mail-account .list-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @container (max-width: 700px) { .mail-list-pane { flex-basis: 260px; } }
 .stage .mail-page { container-type: inline-size; }
+
+/* Slides: the navigator, the slide being edited at 16:9, its notes, and Play. */
+.stage .slides-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--panel); }
+.slides-page.empty { align-items: center; justify-content: center; background: var(--bg); }
+.slides-page .doc-toolbar select { height: 28px; padding: 0 24px 0 8px; border-radius: var(--radius-control); background: var(--field) var(--chevron) no-repeat right 6px center / 12px; appearance: none; border: 0; font: inherit; color: inherit; }
+.slides-play-btn { margin-left: var(--sp-2); }
+.slides-body { flex: 1; min-height: 0; display: flex; }
+.slides-nav { flex: 0 0 168px; overflow: auto; padding: var(--sp-3) var(--sp-2); display: flex; flex-direction: column; gap: var(--sp-2); border-right: 1px solid var(--line); background: var(--bg); }
+.slides-thumb { position: relative; display: flex; gap: 6px; align-items: flex-start; padding: 4px; border-radius: var(--radius-control); text-align: left; }
+.slides-thumb .slide-face { flex: 1; font-size: 4px; border-radius: 4px; box-shadow: 0 0 0 1px var(--line); }
+.slides-thumb[aria-current="true"] .slide-face { box-shadow: 0 0 0 2px var(--accent); }
+.slides-thumb[data-proposed] .slide-face { box-shadow: none; outline: 2px dashed color-mix(in srgb, var(--accent) 70%, var(--bg)); outline-offset: 1px; }
+.slides-num { width: 14px; font-size: 11px; color: var(--muted); text-align: right; padding-top: 2px; }
+.slides-main { flex: 1; min-width: 0; overflow: auto; padding: var(--sp-6); display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); container-type: inline-size; }
+.slides-canvas { width: min(100%, 960px); }
+.slides-canvas .slide-face { font-size: clamp(6px, 1.5cqi, 15px); border-radius: 10px; box-shadow: var(--shadow-2); }
+.slides-canvas[data-proposed] .slide-face { outline: 2px dashed color-mix(in srgb, var(--accent) 70%, var(--bg)); outline-offset: 3px; }
+.slide-face { aspect-ratio: 16 / 9; width: 100%; display: flex; flex-direction: column; justify-content: center; gap: 0.6em; padding: 6% 8%; box-sizing: border-box; overflow: hidden; background: #fff8f0; color: #1d1a2e; font-family: system-ui, sans-serif; }
+.slide-face[data-style="dark"] { background: #1d1a2e; color: #fff; }
+.slide-face[data-style="warm"] { background: linear-gradient(160deg, #f2c29a, #8a6e8e); color: #fff; }
+.slide-face[data-style="accent"] { background: linear-gradient(160deg, #5856d6, #2c2a6e); color: #fff; }
+.slide-kicker { font-size: 1.2em; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.75; }
+.slide-title { font-size: 3.2em; font-weight: 700; line-height: 1.1; letter-spacing: -0.01em; }
+.slide-bullets { margin: 0.4em 0 0; padding-left: 1.1em; font-size: 1.7em; line-height: 1.45; }
+.slide-text { margin: 0.4em 0 0; font-size: 1.5em; line-height: 1.45; white-space: pre-wrap; }
+.slide-face input, .slide-face textarea { width: 100%; padding: 0.1em 0.2em; margin: 0 -0.2em; border: 0; border-radius: 0.2em; background: transparent; color: inherit; font-family: inherit; resize: none; outline: none; }
+.slide-face input:hover, .slide-face textarea:hover { background: color-mix(in srgb, currentColor 6%, transparent); }
+.slide-face input:focus, .slide-face textarea:focus { background: color-mix(in srgb, currentColor 9%, transparent); }
+.slide-face textarea.slide-title { overflow: hidden; }
+.slide-face .slide-bullets-edit { font-size: 1.7em; line-height: 1.45; }
+.slides-notes { width: min(100%, 960px); display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); color: var(--muted); }
+.slides-notes textarea { padding: 8px 10px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg); font: inherit; color: var(--ink); resize: vertical; }
+.slide-play { position: fixed; inset: 0; z-index: 80; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; cursor: none; }
+.slide-play-stage { width: min(100vw, calc(100vh * 16 / 9)); }
+.slide-play-stage .slide-face { font-size: min(1.6vw, 2.85vh); }
+.slide-play-notes { position: absolute; left: 24px; right: 24px; bottom: 44px; margin: 0; padding: 12px 16px; border-radius: 10px; background: rgba(0, 0, 0, 0.7); color: #fff; font-size: 16px; }
+.slide-play-hint { position: absolute; bottom: 12px; color: rgba(255, 255, 255, 0.45); font-size: 12px; }

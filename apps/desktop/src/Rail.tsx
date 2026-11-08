@@ -14,6 +14,7 @@ export const APP_ICONS: Record<string, ReactNode> = {
   calendar: <><rect x="3.5" y="4.5" width="13" height="12" rx="2" /><path d="M3.5 8.5h13M7 3v3M13 3v3M7 11.5h2M11 11.5h2M7 14h2" /></>,
   sheets: <><rect x="3.5" y="4" width="13" height="12" rx="2" /><path d="M3.5 8h13M3.5 12h13M8 4v12" /></>,
   mail: <><rect x="3" y="5" width="14" height="10.5" rx="2" /><path d="m3.5 6 6.5 5 6.5-5" /></>,
+  slides: <><rect x="3" y="4" width="14" height="9.5" rx="1.5" /><path d="M10 13.5V16M7 16.5h6M8.5 7l3 1.8-3 1.8z" /></>,
   code: <><path d="m7 6-4 4 4 4M13 6l4 4-4 4M11 4.5l-2 11" /></>,
   docs: <><path d="M5.5 3h6l3 3v11h-9z" /><path d="M11.5 3v3h3M7.5 9.5h5M7.5 12h5M7.5 14.5h3" /></>,
   canvas: <><rect x="3.5" y="3.5" width="13" height="13" rx="2" /><path d="M6.5 13 9 9.5l2 2.5 1.5-1.8L14 13" /><circle cx="7.5" cy="7.5" r="1" /></>,
@@ -29,6 +30,7 @@ export const RAIL_APPS: { id: AppId; name: string }[] = [
   { id: 'notes', name: 'Notes' },
   { id: 'docs', name: 'Docs' },
   { id: 'sheets', name: 'Sheets' },
+  { id: 'slides', name: 'Slides' },
   { id: 'tasks', name: 'Tasks' },
   { id: 'calendar', name: 'Calendar' },
 ];
