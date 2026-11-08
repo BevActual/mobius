@@ -760,7 +760,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .rail[data-expanded] .rail-create .rail-label { font-weight: var(--fw-medium); }
 .rail-create svg { color: var(--accent); }
 .rail-app { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: var(--sp-2) calc(-1 * var(--sp-2)) 0; padding-top: var(--sp-2); border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
-.rail-app > .side { flex: 1; min-height: 0; padding: 0 var(--sp-2); }
+.rail-app > .side { flex: 1; min-height: 0; padding: 0 var(--sp-2); overflow-y: auto; }
 .rail-app .side-head { height: 26px; margin-bottom: 2px; padding-left: var(--sp-2); }
 .rail-app .side-title { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); letter-spacing: 0.02em; }
 .rail-app .side-actions .strip-btn { min-width: 24px; height: 24px; color: var(--muted); }
