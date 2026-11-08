@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /** What the last agent turn changed, as note page paths and task list names, so Notes and Tasks can mark them. */
-export interface TurnMarks { notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string>; sheets: ReadonlySet<string>; slides: ReadonlySet<string>; /** `project/path` of code files. */ code: ReadonlySet<string>; designs: ReadonlySet<string>; /** `album/photo` whose edits changed. */ photos: ReadonlySet<string>; songs: ReadonlySet<string>; /** Video projects whose cut changed. */ video: ReadonlySet<string> }
-const NONE: TurnMarks = { notes: new Set(), lists: new Set(), docs: new Set(), sheets: new Set(), slides: new Set(), code: new Set(), designs: new Set(), photos: new Set(), songs: new Set(), video: new Set() };
+export interface TurnMarks { notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string>; sheets: ReadonlySet<string>; slides: ReadonlySet<string>; /** `project/path` of code files. */ code: ReadonlySet<string>; designs: ReadonlySet<string>; /** `album/photo` whose edits changed. */ photos: ReadonlySet<string>; songs: ReadonlySet<string>; /** Video projects whose cut changed. */ video: ReadonlySet<string>; skills: ReadonlySet<string> }
+const NONE: TurnMarks = { notes: new Set(), lists: new Set(), docs: new Set(), sheets: new Set(), slides: new Set(), code: new Set(), designs: new Set(), photos: new Set(), songs: new Set(), video: new Set(), skills: new Set() };
 
 export function marksOf(files: readonly string[]): TurnMarks {
   const notes = new Set<string>();
@@ -15,11 +15,13 @@ export function marksOf(files: readonly string[]): TurnMarks {
   const photos = new Set<string>();
   const songs = new Set<string>();
   const video = new Set<string>();
+  const skills = new Set<string>();
   for (const file of files) {
     if (file.startsWith('notes/')) notes.add(file.slice('notes/'.length));
     else if (file.startsWith('docs/')) docs.add(file.slice('docs/'.length));
     else if (file.startsWith('slides/')) slides.add(file.slice('slides/'.length));
     else if (file.startsWith('sheets/')) sheets.add(file.slice('sheets/'.length).split('/')[0]!);
+    else if (file.startsWith('skills/')) skills.add(file.slice('skills/'.length).split('/')[0]!);
     else if (file.startsWith('video/')) video.add(file.slice('video/'.length).split('/')[0]!);
     else if (file.startsWith('studio/')) songs.add(file.slice('studio/'.length));
     else if (file.startsWith('photos/')) photos.add(file.slice('photos/'.length).replace(/\.edits\.json$/, ''));
@@ -27,7 +29,7 @@ export function marksOf(files: readonly string[]): TurnMarks {
     else if (file.startsWith('code/')) code.add(file.slice('code/'.length));
     else if (file.startsWith('tasks/') && file.endsWith('.md')) lists.add(file.slice('tasks/'.length, -'.md'.length));
   }
-  return { notes, lists, docs, sheets, slides, code, designs, photos, songs, video };
+  return { notes, lists, docs, sheets, slides, code, designs, photos, songs, video, skills };
 }
 
 /** Read when a turn ends, when another conversation is shown, and after anything is put back. */
@@ -50,7 +52,8 @@ export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
     const offPhotos = window.mobius.photos?.onChanged(again);
     const offSongs = window.mobius.songs?.onChanged(again);
     const offVideo = window.mobius.video?.onChanged(again);
-    return () => { offVideo?.(); offSongs?.(); offPhotos?.(); offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offCode?.(); offDesigns?.(); };
+    const offSkills = window.mobius.skills?.onChanged(again);
+    return () => { offSkills?.(); offVideo?.(); offSongs?.(); offPhotos?.(); offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offCode?.(); offDesigns?.(); };
   }, [load]);
   return marks;
 }

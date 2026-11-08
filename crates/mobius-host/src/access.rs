@@ -25,6 +25,7 @@ fn capabilities(app: &str) -> (Grants, Grants) {
         "photo" => (&[("files.read", Some("photos/*"))], &[("files.write", Some("photos/*"))]),
         "studio" => (&[("files.read", Some("studio/*"))], &[("files.write", Some("studio/*"))]),
         "video" => (&[("files.read", Some("video/*"))], &[("files.write", Some("video/*"))]),
+        "skills" => (&[("skills.read", None), ("files.read", Some("skills/*"))], &[("files.write", Some("skills/*"))]),
         "code" => (&[("files.read", Some("code/*"))], &[("files.write", Some("code/*"))]),
         "calendar" => (&[("calendar.read", None), ("files.read", Some("calendar/*"))], &[("calendar.write", None), ("files.write", Some("calendar/*"))]),
         _ => (&[], &[]),

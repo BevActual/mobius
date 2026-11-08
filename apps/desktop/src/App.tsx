@@ -45,6 +45,9 @@ import { DesignEditor, DesignSidebar } from './Design';
 import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
+import { SkillEditor, SkillsSidebar } from './Skills';
+import { useSkills } from './useSkills';
+import { expandSlash } from './skill-format';
 import { useVideo } from './useVideo';
 import { writeCut } from './cut-format';
 import { usePhotos } from './usePhotos';
@@ -109,6 +112,7 @@ export function App() {
   const photos = usePhotos();
   const songs = useNotes('songs');
   const video = useVideo();
+  const skills = useSkills();
   const sheets = useSheets();
   const code = useCode();
   const mail = useMail();
@@ -192,6 +196,7 @@ export function App() {
   const inPhoto = app === 'photo';
   const inStudio = app === 'studio';
   const inVideo = app === 'video';
+  const inSkills = app === 'skills';
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
@@ -350,7 +355,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
+  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -369,6 +374,7 @@ export function App() {
     journey: plural(journey.items.length, 'memory', 'memories'),
     code: plural(code.projects.length, 'project'),
     video: plural(video.projects.length, 'project'),
+    skills: plural(skills.list.length, 'skill'),
     studio: plural(songs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'song'),
     photo: plural(photos.albums.reduce((sum, a) => sum + a.photos.length, 0), 'photo'),
     design: plural(designs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'design'),
@@ -397,12 +403,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inPhoto || inStudio || inVideo || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inPhoto || inStudio || inVideo || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -629,6 +635,8 @@ export function App() {
               <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} />
             ) : inJourney ? (
               <JourneySidebar journey={journey} />
+            ) : inSkills ? (
+              <SkillsSidebar skills={skills} pin={pinNode} changed={turnMarks.skills} />
             ) : inVideo ? (
               <VideoSidebar video={video} pin={pinNode} changed={turnMarks.video} />
             ) : inStudio ? (
@@ -974,6 +982,8 @@ export function App() {
         return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} busy={conversation.state.busy} />;
       case 'slides':
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
+      case 'skills':
+        return <SkillEditor skills={skills} review={skills.open && turnMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} onRun={(name) => { openApp('agent'); void conversation.send(expandSlash(`/${name}`, skills.names), []); }} />;
       case 'video':
         return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
       case 'studio':
@@ -1016,7 +1026,7 @@ export function App() {
             state={conversation.state}
             settings={settings}
             coreReady={coreStatus === 'ready'}
-            onSend={(text, items, options) => void conversation.send(text, items, options)}
+            onSend={(text, items, options) => void conversation.send(expandSlash(text, skills.names), items, options)}
             onDrive={driveTasks}
             onStop={conversation.stop}
             onAnswer={conversation.answer}
@@ -1212,7 +1222,7 @@ export function App() {
             state={conversation.state}
             settings={settings}
             coreReady={coreStatus === 'ready'}
-            onSend={(text, items, options) => void conversation.send(text, items, options)}
+            onSend={(text, items, options) => void conversation.send(expandSlash(text, skills.names), items, options)}
             onDrive={driveTasks}
             onStop={conversation.stop}
             onAnswer={conversation.answer}

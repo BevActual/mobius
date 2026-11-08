@@ -10,5 +10,6 @@ pub mod formula;
 pub mod notes;
 pub mod photos;
 pub mod sheets;
+pub mod skills;
 pub mod tasks;
 pub mod video;

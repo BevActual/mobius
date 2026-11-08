@@ -216,7 +216,7 @@ test('if the core restarts, the agent is set up again by itself', async () => {
 test('a web page cannot reach the agent, and the shell cannot call the core directly', async () => {
   await start([says(['x'])]);
   const keys = await mobius!.shell.evaluate(() => Object.keys(window.mobius).sort());
-  expect(keys).toEqual(['agent', 'app', 'appearance', 'bookmarks', 'bots', 'browser', 'calendar', 'changes', 'code', 'context', 'core', 'designs', 'docs', 'downloads', 'history', 'mail', 'memory', 'menu', 'mini', 'models', 'notes', 'photos', 'platform', 'preferences', 'profiles', 'providers', 'schedules', 'share', 'sheets', 'slides', 'songs', 'surface', 'tasks', 'tray', 'video', 'window']);
+  expect(keys).toEqual(['agent', 'app', 'appearance', 'bookmarks', 'bots', 'browser', 'calendar', 'changes', 'code', 'context', 'core', 'designs', 'docs', 'downloads', 'history', 'mail', 'memory', 'menu', 'mini', 'models', 'notes', 'photos', 'platform', 'preferences', 'profiles', 'providers', 'schedules', 'share', 'sheets', 'skills', 'slides', 'songs', 'surface', 'tasks', 'tray', 'video', 'window']);
   const coreKeys = await mobius!.shell.evaluate(() => Object.keys(window.mobius.core).sort());
   expect(coreKeys).toEqual(['getStatus', 'onStatus']);
   const outcomes = await mobius!.shell.evaluate(async () => ({
@@ -332,5 +332,5 @@ test('the core still knows the browser tools after it restarts', async () => {
   await expect.poll(async () => (await coreHistory(mobius!.app)).includes('restarting'), { timeout: 15_000 }).toBe(true);
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   const tools = await coreCall<Array<{ name: string; external: boolean }>>(mobius!.app, 'tools.list');
-  expect(tools.filter((t) => t.external).map((t) => t.name)).toEqual(['browser.click', 'browser.open', 'browser.read', 'browser.tabs', 'browser.type', 'calendar.add', 'calendar.list', 'calendar.suggest', 'calendar.update', 'code.commit', 'code.push', 'code.test', 'files.edit', 'files.list', 'files.read', 'files.search', 'files.write', 'mail.draft', 'mail.read', 'mail.search', 'memory.forget', 'memory.remember', 'schedules.add', 'schedules.list', 'sheets.list', 'sheets.read', 'sheets.write', 'tasks.add', 'tasks.list', 'tasks.update']);
+  expect(tools.filter((t) => t.external).map((t) => t.name)).toEqual(['browser.click', 'browser.open', 'browser.read', 'browser.tabs', 'browser.type', 'calendar.add', 'calendar.list', 'calendar.suggest', 'calendar.update', 'code.commit', 'code.push', 'code.test', 'files.edit', 'files.list', 'files.read', 'files.search', 'files.write', 'mail.draft', 'mail.read', 'mail.search', 'memory.forget', 'memory.remember', 'schedules.add', 'schedules.list', 'sheets.list', 'sheets.read', 'sheets.write', 'skills.list', 'skills.read', 'tasks.add', 'tasks.list', 'tasks.update']);
 });

@@ -158,6 +158,7 @@ pub struct Bridge {
     designs: mobius_workspace::notes::Notes,
     songs: mobius_workspace::notes::Notes,
     photos: mobius_workspace::photos::Photos,
+    skills: mobius_workspace::skills::Skills,
     video: mobius_workspace::video::Video,
     sheets: mobius_workspace::sheets::Sheets,
     code: mobius_workspace::code::Code,
@@ -214,6 +215,9 @@ impl Bridge {
                 }
                 if let Some(song) = path.replace('\\', "/").strip_prefix("studio/") {
                     notes_emit("mobius:songs-changed", json!({ "path": song, "by": "another app" }));
+                }
+                if let Some(skill) = path.replace('\\', "/").strip_prefix("skills/").and_then(|p| p.split('/').next().map(str::to_owned)) {
+                    notes_emit("mobius:skills-changed", json!({ "name": skill, "by": "another app" }));
                 }
                 if let Some(design) = path.replace('\\', "/").strip_prefix("designs/") {
                     notes_emit("mobius:designs-changed", json!({ "path": design, "by": "another app" }));
@@ -277,6 +281,7 @@ impl Bridge {
             docs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "docs"),
             slides: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "slides").named_by_file(),
             photos: mobius_workspace::photos::Photos::new(data_dir.join("workspace")),
+            skills: mobius_workspace::skills::Skills::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             video: mobius_workspace::video::Video::new(data_dir.join("workspace")),
             songs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "studio").of_files("json", mobius_workspace::notes::song_starter),
             designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter),
@@ -404,6 +409,7 @@ impl Bridge {
             ("sheets", _) => Ok(self.sheets_call(method, args)),
             ("code", _) => Ok(self.code_call(method, args)),
             ("photos", _) => Ok(self.photos_call(method, args)),
+            ("skills", _) => Ok(self.skills_call(method, args)),
             ("video", _) => Ok(self.video_call(method, args)),
             ("mail", _) => Ok(self.mail_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
@@ -952,7 +958,7 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -963,6 +969,9 @@ impl Bridge {
                 (self.emit)("mobius:schedules-changed", Value::Null);
             }
             return result;
+        }
+        if mobius_workspace::skills::is_skill_tool(tool) {
+            return self.skills.run(tool, &args).map(Value::String);
         }
         if crate::code_git::is_git_tool(tool) {
             let project = args.get("project").and_then(Value::as_str).unwrap_or("");
@@ -1031,6 +1040,9 @@ impl Bridge {
                 if let Some(song) = path.strip_prefix("studio/") {
                     (self.emit)("mobius:songs-changed", json!({ "path": song, "by": "assistant" }));
                 }
+                if let Some(skill) = path.strip_prefix("skills/").and_then(|p| p.split('/').next()) {
+                    (self.emit)("mobius:skills-changed", json!({ "name": skill, "by": "assistant" }));
+                }
                 if let Some(design) = path.strip_prefix("designs/") {
                     (self.emit)("mobius:designs-changed", json!({ "path": design, "by": "assistant" }));
                 }
@@ -1075,7 +1087,7 @@ impl Bridge {
             Ok(None) => {}
             Err(error) => eprintln!("[changes] no mark before the scheduled request: {error}"),
         }
-        let result = self.agent.send_remembering(&request, None, &self.memory.instructions());
+        let result = self.agent.send_remembering(&request, None, &self.instructions());
         if result["ok"] == json!(true) {
             (self.emit)("mobius:schedule-ran", json!({ "id": schedule.id, "title": schedule.title, "conversation": conversation }));
             json!({ "ok": true, "conversation": conversation })
@@ -1126,7 +1138,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -1475,6 +1487,41 @@ impl Bridge {
         }
     }
 
+    /// What is added to the agent's instructions every turn: what it remembers, and the skills it may follow.
+    fn instructions(&self) -> String {
+        [self.memory.instructions(), self.skills.summary()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("\n\n")
+    }
+
+    /// The Skills app.
+    fn skills_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let s = &self.skills;
+        let result = match method {
+            "list" => s.list(),
+            "read" => text(0).ok_or_else(|| "a skill is needed".to_owned()).and_then(|n| s.read(n)),
+            "save" => match (text(0), text(1), args.get(2).unwrap_or(&Value::Null)) {
+                (Some(n), Some(t), base @ (Value::Null | Value::Number(_))) => s.save(n, t, base.as_u64()),
+                _ => Err("that cannot be saved".to_owned()),
+            },
+            "create" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| s.create(n, text(1).unwrap_or(""))),
+            "restore" => match (text(0), args.get(1).and_then(Value::as_u64).and_then(|v| u32::try_from(v).ok())) {
+                (Some(n), Some(v)) => s.restore(n, v),
+                _ => Err("a skill and a version are needed".to_owned()),
+            },
+            "remove" => text(0).ok_or_else(|| "a skill is needed".to_owned()).and_then(|n| s.remove(n)),
+            _ => return json!({ "ok": false, "message": "unknown" }),
+        };
+        match result {
+            Ok(value) => {
+                if matches!(method, "save" | "create" | "restore" | "remove") {
+                    (self.emit)("mobius:skills-changed", json!({ "name": value.get("name").or_else(|| value.get("removed")), "by": "person" }));
+                }
+                value
+            }
+            Err(message) => json!({ "ok": false, "conflict": message == "changed elsewhere", "message": message }),
+        }
+    }
+
     /// The Photo app: albums of pictures in `photos/`, each photo's edits beside it, and exports.
     fn photos_call(&self, method: &str, args: &[Value]) -> Value {
         let text = |i: usize| args.get(i).and_then(Value::as_str);
@@ -1797,6 +1844,7 @@ impl Bridge {
         (self.emit)("mobius:slides-changed", json!({ "path": path.and_then(|p| p.strip_prefix("slides/")), "by": "undo" }));
         (self.emit)("mobius:designs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("designs/")), "by": "undo" }));
         (self.emit)("mobius:songs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("studio/")), "by": "undo" }));
+        (self.emit)("mobius:skills-changed", json!({ "name": path.and_then(|p| p.strip_prefix("skills/")).and_then(|p| p.split('/').next()), "by": "undo" }));
         (self.emit)("mobius:video-changed", json!({ "project": path.and_then(|p| p.strip_prefix("video/")).and_then(|p| p.split('/').next()), "by": "undo" }));
         (self.emit)("mobius:photos-changed", json!({ "path": path.and_then(|p| p.strip_prefix("photos/")).map(|p| p.strip_suffix(mobius_workspace::photos::EDITS_SUFFIX).unwrap_or(p)), "by": "undo" }));
         (self.emit)("mobius:sheets-changed", json!({ "workbook": path.and_then(|p| p.strip_prefix("sheets/")).and_then(|p| p.split('/').next()), "by": "undo" }));
@@ -1952,7 +2000,7 @@ impl Bridge {
                             Err(error) => eprintln!("[changes] no mark before the turn: {error}"),
                         }
                         let bot = self.bot_for(&r.conversation);
-                        self.agent.send_remembering(&r, bot.as_ref().map(|b| (b.instructions.as_str(), b.model.as_str())), &self.memory.instructions())
+                        self.agent.send_remembering(&r, bot.as_ref().map(|b| (b.instructions.as_str(), b.model.as_str())), &self.instructions())
                     }
                     None => failed("That message cannot be sent."),
                 }
