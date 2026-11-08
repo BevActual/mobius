@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { MenuBar } from './MenuBar';
+import { buildMenus, type MenuContext } from './menus';
+import { sendCommand } from './commands';
 import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type SidebarMode } from '@mobius/shared';
-import { appName, isAvailable, type AppId, noteOpened } from './apps';
+import { appName, isAvailable, type AppId, noteOpened, APPS } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
 import { tasksContext, type SurfaceState } from './surface';
 import { ChatPanel } from './ChatPanel';
@@ -306,7 +309,11 @@ export function App() {
   const floatingShown = (hasLeft && leftFloating && leftOpen) || (rightFloating && rightOpen);
   // The selection menu drops over the page, so the page's picture stands in for it while the menu is open.
   const [selectionMenu, setSelectionMenu] = useState(false);
-  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu);
+  // A menu from the toolbar is open: the web page shows as a picture under it, as under the other menus.
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Below this width the menus fold into one button, so the toolbar keeps its room.
+  const compactMenus = useNarrowWindow(1200);
+  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen);
   const [cover, setCover] = useState<{ url: string | null } | null>(null);
   useEffect(() => {
     if (!needCover) { setCover(null); return undefined; }
@@ -330,7 +337,7 @@ export function App() {
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'keyboard' | 'about' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
   const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
   const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
@@ -352,7 +359,8 @@ export function App() {
     else if (target.app === 'tasks') { tasks.setView({ kind: 'list', name: target.list }); openApp('tasks'); }
     else showPage(target.url);
   };
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  // However Settings closes, the next opening starts at its first page again.
+  const closeSettings = useCallback(() => { setSettingsOpen(false); setSettingsSection(undefined); }, []);
   const newTab = useCallback(() => {
     void window.mobius.browser.open().then(() => address.current?.focus());
   }, []);
@@ -532,6 +540,70 @@ export function App() {
     }
   };
   const currentFavourite = inBrowser && active ? `page:${active.url}` : inNotes && notes.page ? `note:${notes.page.path}` : inTasks && tasks.view.kind === 'list' ? `list:${tasks.view.name}` : null;
+
+  // Everything the menus can do is already here; they gather it in one place.
+  const edit = (command: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll') => {
+    if (command === 'paste') {
+      void navigator.clipboard?.readText().then((text) => document.execCommand('insertText', false, text)).catch(() => document.execCommand('paste'));
+      return;
+    }
+    document.execCommand(command);
+  };
+  const openSettingsAt = (section: 'keyboard' | 'about') => { setSettingsSection(section); setSettingsOpen(true); };
+  const menuContext: MenuContext = {
+    app,
+    apps: APPS.filter((a) => a.available),
+    keys: bindings,
+    state: {
+      // The sidebar is the app list with the open app's own list under it; with a separate list panel (hasLeft), that panel.
+      sidebarShown: hasLeft ? leftOpen : wide, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, split, canSplit: !narrow, miniOpen,
+      zoom: appearance.value.zoom,
+      browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
+      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
+      tasks: { inList: tasks.view.kind === 'list', done: tasksDone },
+      agent: { busy: conversation.state.busy },
+    },
+    do: {
+      create: { conversation: createActions[0]!.run, note: createActions[1]!.run, task: createActions[2]!.run, tab: createActions[3]!.run },
+      closeTab: () => { if (active) window.mobius.browser.close(active.id); },
+      settings: openSettings,
+      shortcuts: () => openSettingsAt('keyboard'),
+      about: () => openSettingsAt('about'),
+      edit,
+      find: openFind,
+      toggleSidebar: () => (hasLeft ? setLeftOpen((open) => !open) : toggleWide()),
+      toggleAgent: () => setChatOpen((open) => !open),
+      toggleSplit,
+      toggleMini,
+      zoom: (zoom) => void appearance.set({ zoom }),
+      open: (id) => { closeSettings(); openApp(id); },
+      allApps: openHub,
+      launcher: openLauncher,
+      browser: {
+        back: () => { if (active) window.mobius.browser.back(active.id); },
+        forward: () => { if (active) window.mobius.browser.forward(active.id); },
+        reload: () => { if (active) window.mobius.browser.reload(active.id); },
+        address: () => { address.current?.focus(); address.current?.select(); },
+        bookmark: () => void window.mobius.bookmarks.toggle(),
+        pin: () => { if (active) togglePin({ kind: 'page', id: active.url, title: active.title || active.url }); },
+        reopen: () => void window.mobius.browser.reopenClosed?.(),
+        selection: () => setSelectionMenu(true),
+      },
+      notes: {
+        newNotebook: () => sendCommand('new-notebook'),
+        pin: () => { if (notes.page) togglePin({ kind: 'note', id: notes.page.path, title: notes.page.title || notes.page.path }); },
+        changes: () => sendCommand('show-changes'),
+      },
+      tasks: {
+        newList: () => sendCommand('new-list'),
+        clearDone: () => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); },
+        today: () => tasks.setView({ kind: 'smart', id: 'today' }),
+        scheduled: () => tasks.setView({ kind: 'smart', id: 'scheduled' }),
+      },
+      agent: { stop: conversation.stop },
+    },
+  };
+  const menus = buildMenus(menuContext);
   /** On-canvas actions for the web: what to do with the text selected on the page. */
   // Where Save to Notes puts web text: the chosen page while it exists, otherwise Clippings.
   const clipPages = useMemo<ClipPage[]>(() => notes.notebooks.flatMap((nb) => nb.pages.map((pg) => ({ path: pg.path, title: pg.title, notebook: nb.name }))), [notes.notebooks]);
@@ -679,6 +751,7 @@ export function App() {
           {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
+          <MenuBar menus={menus} compact={compactMenus} onOpenChange={setMenuOpen} />
         </div>
         <div className="toolbar-place" data-browser={inBrowser || undefined}>
           <h1 className="strip-title">{place}</h1>

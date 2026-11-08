@@ -1035,3 +1035,22 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .hub-group-name { margin: 0 8px 2px; font-size: var(--fs-xs, 11px); font-weight: 600; letter-spacing: 0.02em; color: var(--muted); }
 .hub-group .hub-grid { display: flex; gap: 2px; }
 .hub-group .hub-grid > li { width: 100px; }
+
+/* Menus in the toolbar: quiet titles that look like the rest of the toolbar until one is open. */
+.menubar { position: relative; display: flex; align-items: center; gap: 0; margin-left: 2px; -webkit-app-region: no-drag; }
+.menu-title { height: 28px; padding: 0 9px; border-radius: 8px; font-size: var(--fs-sm); color: var(--ink); }
+.menubar[data-compact] .menu-title { padding: 0 6px; }
+.menu-title:hover, .menu-title[aria-expanded="true"] { background: var(--field); }
+.menu-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 70; display: flex; width: max-content; min-width: 248px; padding: 5px; border-radius: 12px; background: color-mix(in srgb, var(--bg) 96%, transparent); box-shadow: var(--shadow-3), 0 0 0 1px var(--hairline); animation: app-in var(--dur-fast) var(--ease); }
+@supports (backdrop-filter: blur(1px)) { .menu-panel { backdrop-filter: blur(20px) saturate(1.6); } }
+.menu-names { display: flex; flex-direction: column; gap: 1px; padding-right: 5px; margin-right: 5px; border-right: 1px solid var(--hairline); }
+.menu-name { padding: 6px 12px; border-radius: 7px; text-align: left; font-size: var(--fs-sm); color: var(--ink); }
+.menu-name[aria-current] { background: var(--field); font-weight: 600; }
+.menu-items { display: flex; flex-direction: column; min-width: 236px; }
+.menu-item { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border-radius: 7px; font-size: var(--fs-sm); color: var(--ink); cursor: default; outline: none; }
+.menu-item:hover:not([aria-disabled]), .menu-item:focus-visible, .menu-item:focus:not([aria-disabled]) { background: var(--accent); color: var(--on-accent, #fff); }
+.menu-item:hover:not([aria-disabled]) .menu-keys, .menu-item:focus:not([aria-disabled]) .menu-keys { color: inherit; opacity: 0.85; }
+.menu-item[aria-disabled] { color: var(--muted); opacity: 0.6; }
+.menu-check { font-size: 12px; text-align: center; }
+.menu-keys { font: inherit; font-size: var(--fs-xs, 11px); color: var(--muted); letter-spacing: 0.02em; }
+.menu-sep { height: 1px; margin: 4px 8px; background: var(--hairline); }

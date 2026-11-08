@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { onCommand } from './commands';
 import type { TaskItem } from '@mobius/shared';
 import { DEFAULT_LIST_NAME, dueLabel, isoDay, smartView, splitDone, type SmartView } from './tasks-view';
 import type { TasksState } from './useTasks';
@@ -12,6 +13,8 @@ const SMART: { id: SmartView; name: string }[] = [
 /** `changed`: lists the agent's last turn changed. */
 export function TasksSidebar({ tasks, pin, changed, pinned, onPin }: { tasks: TasksState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (name: string) => void }) {
   const [naming, setNaming] = useState(false);
+  // The menus' New list opens the same naming field.
+  useEffect(() => onCommand('new-list', () => setNaming(true)), []);
   const [name, setName] = useState('');
   const now = new Date();
   const count = (id: SmartView) => smartView(id, tasks.all, now).length;

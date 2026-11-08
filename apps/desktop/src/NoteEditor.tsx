@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { onCommand } from './commands';
 import { liveTitle } from './notes-state';
 import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from './line-diff';
 import type { NotesState } from './useNotes';
@@ -48,6 +49,10 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const rest = compare(before, next);
     setDiff(rest.some((line) => line.kind !== 'same') ? rest : null);
   };
+  // The Notes menu's "Show what the agent changed".
+  const showLatest = useRef(showChanges);
+  showLatest.current = showChanges;
+  useEffect(() => onCommand('show-changes', () => void showLatest.current()), []);
   const undoChanges = async () => {
     if (!review || !path) return;
     const result = await window.mobius.changes.undoFile(review.conversation, `notes/${path}`).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));

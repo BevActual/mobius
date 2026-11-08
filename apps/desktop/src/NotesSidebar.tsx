@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { onCommand } from './commands';
 import type { NoteHit } from '@mobius/shared';
 import type { NotesState } from './useNotes';
 
@@ -8,6 +9,8 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin }: { notes: No
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<NoteHit[] | null>(null);
   const [naming, setNaming] = useState(false);
+  // The menus' New notebook opens the same naming field.
+  useEffect(() => onCommand('new-notebook', () => setNaming(true)), []);
   const [name, setName] = useState('');
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState<string | null>(null);
