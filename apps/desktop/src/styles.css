@@ -328,8 +328,10 @@ kbd { padding: 1px 7px; border: 1px solid var(--line); border-bottom-width: 2px;
 .side-empty { padding: 8px; font-size: var(--fs-sm); }
 .attention { min-width: 16px; height: 16px; padding: 0 5px; border-radius: var(--radius-small); background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: 600; line-height: 16px; text-align: center; }
 
-.findbar { display: flex; align-items: center; gap: 2px; margin-left: 8px; padding: 0 2px 0 8px; height: 30px; border: 1px solid var(--line); border-radius: var(--radius-group); background: var(--bg); flex: none; }
-.findbar input { width: 150px; border: 0; outline: 0; background: transparent; }
+/* The find bar gives way before the toolbar runs out of room: its field shrinks, so it never slides under the buttons on the right. */
+.findbar { display: flex; align-items: center; gap: 2px; margin-left: 8px; padding: 0 2px 0 8px; height: 30px; border: 1px solid var(--line); border-radius: var(--radius-group); background: var(--bg); flex: 0 1 auto; min-width: 0; }
+.findbar input { flex: 1 1 150px; width: 150px; min-width: 56px; border: 0; outline: 0; background: transparent; }
+.strip-middle { margin-right: 6px; }
 .findbar:focus-within { border-color: var(--accent); }
 .findbar-count { min-width: 64px; font-size: var(--fs-sm); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 .tab-icon { flex: none; width: 16px; height: 16px; border-radius: 3px; object-fit: contain; }
