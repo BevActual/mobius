@@ -130,7 +130,7 @@ test('per app: Tasks set to Act changes a list without asking, and Off stops it 
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
   await page().getByRole('radiogroup', { name: 'Tasks: what Mobius may do' }).getByRole('radio', { name: 'Act' }).check();
   await expect(page()).toContainText('Mobius reads and changes your task lists without asking.');
-  await shell().getByRole('button', { name: 'Done' }).click();
+  await page().getByRole('button', { name: 'Close settings' }).click();
   await say('remind me to water the plants');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Added.');
   await expect(card()).toHaveCount(0);
