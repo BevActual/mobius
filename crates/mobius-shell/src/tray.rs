@@ -146,7 +146,7 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
                 _ => {
                     if let Some(conversation) = id.strip_prefix("c:") {
                         show_main(app);
-                        let _ = app.emit("mobius:open-conversation", json!(conversation));
+                        let _ = app.emit("mobius:tray-conversation", json!(conversation));
                     }
                 }
             }

@@ -113,7 +113,8 @@ export function createTauriBridge(): MobiusBridge {
     },
     tray: {
       set: (shown) => call('tray', 'set', [shown], () => null).then(() => undefined),
-      onOpenConversation: (listener) => on<string>('mobius:open-conversation', listener),
+      // Its own event: the window's "open the conversation a notice was about" is a different thing.
+      onOpenConversation: (listener) => on<string>('mobius:tray-conversation', listener),
     },
     core: {
       getStatus: () => call<CoreStatus>('core', 'getStatus', [], () => 'failed'),
