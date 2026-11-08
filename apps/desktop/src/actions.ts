@@ -30,6 +30,8 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'tasks.update': return s('task') || s('text') ? `change the task ${quote(s('task') || s('text'))}` : 'change a task';
     case 'memory.remember': return s('text') ? `remember that ${quote(s('text'))}` : 'remember something about you';
     case 'memory.forget': return s('text') ? `forget ${quote(s('text'))}` : 'forget something it remembered';
+    case 'schedules.add': return s('title') ? `schedule ${quote(s('title'))} at ${s('time') || 'a time'}` : 'schedule a request';
+    case 'schedules.list': return 'see what is scheduled';
     case 'sessions.search': return s('query') ? `search your past conversations for ${quote(s('query'), 40)}` : 'search your past conversations';
     default: return null;
   }

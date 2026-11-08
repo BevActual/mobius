@@ -439,7 +439,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 15, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 17, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -461,6 +461,10 @@ mod browser {
         assert_eq!((changed["schedule"]["time"].clone(), changed["schedule"]["enabled"].clone()), (json!("09:30"), json!(false)));
         b.call("schedules", "remove", &[json!(id)]).unwrap();
         assert_eq!(b.call("schedules", "list", &[]).unwrap(), json!([]));
+        // The agent can make one too, through its tool.
+        let said = b.host_request("host.tool", &json!({ "tool": "schedules.add", "arguments": { "title": "Brief", "prompt": "Brief me", "time": "07:30", "days": [1, 3] } })).unwrap();
+        assert!(said.as_str().unwrap().starts_with("Scheduled \"Brief\""));
+        assert!(b.host_request("host.tool", &json!({ "tool": "schedules.list", "arguments": {} })).unwrap().as_str().unwrap().contains("07:30"));
     }
 
     #[test]
@@ -480,7 +484,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "memory.remember", "memory.forget"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "memory.remember", "memory.forget", "schedules.list", "schedules.add"]);
     }
 
     #[derive(Default)]

@@ -869,10 +869,17 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || crate::memory::is_memory_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
+        }
+        if crate::schedules::is_schedule_tool(tool) {
+            let result = self.schedules.run(tool, &args).map(Value::String);
+            if result.is_ok() && tool == "schedules.add" {
+                (self.emit)("mobius:schedules-changed", Value::Null);
+            }
+            return result;
         }
         if crate::memory::is_memory_tool(tool) {
             let result = self.memory.run(tool, &args).map(Value::String);
@@ -959,7 +966,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(crate::memory::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());

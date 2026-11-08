@@ -73,6 +73,26 @@ pub fn is_due<Tz: TimeZone>(schedule: &Schedule, now: &DateTime<Tz>) -> bool {
     now >= &due && schedule.last_run_ms.is_none_or(|last| last < due_ms)
 }
 
+pub fn is_schedule_tool(name: &str) -> bool {
+    matches!(name, "schedules.list" | "schedules.add")
+}
+
+pub fn tool_descriptions() -> Vec<Value> {
+    vec![
+        json!({ "name": "schedules.list", "capability": "schedules.read",
+            "description": "List the requests the person has scheduled: name, what is asked, time of day and days (1 is Monday, 7 is Sunday).",
+            "input_schema": { "type": "object", "properties": {} } }),
+        json!({ "name": "schedules.add", "capability": "schedules.write",
+            "description": "Schedule a request to Mobius at a time of day on chosen days, when the person asks for something to happen regularly (\"every weekday at 8, brief me on my tasks\"). Each run starts a new conversation with the prompt. The person may be asked first.",
+            "input_schema": { "type": "object", "properties": {
+                "title": { "type": "string", "description": "A short name, like Morning brief." },
+                "prompt": { "type": "string", "description": "What to ask Mobius each time, written as the person would." },
+                "time": { "type": "string", "description": "Local time of day, HH:MM, 24-hour." },
+                "days": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 7 }, "description": "1 is Monday, 7 is Sunday." }
+            }, "required": ["title", "prompt", "time", "days"] } }),
+    ]
+}
+
 pub struct Schedules {
     file: PathBuf,
     list: Mutex<Vec<Schedule>>,
@@ -150,6 +170,15 @@ impl Schedules {
             self.save(&list);
         }
         due
+    }
+
+    /// The agent's tools.
+    pub fn run(&self, tool: &str, args: &Value) -> Result<String, String> {
+        match tool {
+            "schedules.list" => Ok(json!(self.list().iter().map(|s| json!({ "title": s.title, "prompt": s.prompt, "time": s.time, "days": s.days, "on": s.enabled })).collect::<Vec<_>>()).to_string()),
+            "schedules.add" => self.add(args).map(|s| format!("Scheduled \"{}\" at {} on days {:?}. The person can change it in Settings › Schedules.", s.title, s.time, s.days)),
+            _ => Err("unknown tool".into()),
+        }
     }
 
     /// Marks one as run now, for "Run now".
