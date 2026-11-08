@@ -27,6 +27,9 @@ export const RAIL_APPS: { id: AppId; name: string }[] = [
 ];
 
 interface Props {
+  /** The open profile's name, when it is not Personal. */
+  profile?: string;
+  onProfiles?: () => void;
   app: AppId;
   /** The full sidebar: apps by name, the open app's own list under them. Otherwise a narrow rail of icons. */
   expanded: boolean;
@@ -65,7 +68,7 @@ interface Props {
  * The app rail: one column that ties the apps together. The highlight slides to the app you are in, the app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite }: Props) {
+export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles }: Props) {
   // While an app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
   const dragged = useRef(false);
@@ -196,6 +199,12 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
       )}
       {expanded && children && <div className="rail-app">{children}</div>}
       <div className="rail-end">
+        {profile && onProfiles && (
+          <button type="button" className="rail-btn rail-profile" aria-label={`Profile: ${profile}. Change profile`} title={`Profile: ${profile}`} onClick={onProfiles}>
+            <span className="rail-profile-badge" aria-hidden="true">{profile.slice(0, 1).toUpperCase()}</span>
+            {expanded && <span className="rail-label" aria-hidden="true">{profile}</span>}
+          </button>
+        )}
         <button type="button" className="rail-btn" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${RAIL_APPS.find((a) => a.id === app)?.name ?? app}`} title="All apps and commands (Ctrl+K)" onClick={onLauncher}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
           {expanded && <span className="rail-label" aria-hidden="true">All apps</span>}

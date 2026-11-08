@@ -241,6 +241,11 @@ export function App() {
   const workingNow = useRef<string[]>([]);
   workingNow.current = conversation.list.filter((c) => c.activity === 'working').map((c) => c.id);
   useEffect(() => window.mobius.tray?.onStopAll(() => { for (const id of workingNow.current) void window.mobius.agent.cancel(id); }), []);
+  // The open profile, shown in the sidebar when it is not Personal.
+  const [profileName, setProfileName] = useState<string | null>(null);
+  useEffect(() => {
+    void window.mobius.profiles?.list().then((p) => setProfileName(p.current === 'default' ? null : (p.list.find((x) => x.id === p.current)?.name ?? null))).catch(() => undefined);
+  }, []);
   const activity = activityOf(conversation.state);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
   // A page the agent opens while you talk to it in the Agent app shows in the browser beside the conversation.
@@ -778,6 +783,7 @@ export function App() {
   return (
     <div className="app" data-wide={wide || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
+        {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
         expanded={wide}
         onToggle={toggleWide}

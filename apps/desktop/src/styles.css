@@ -1137,3 +1137,4 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .change-row { padding-right: 4px; }
 .change-row .clist-main { flex: 1; min-width: 0; }
 .change-actions { display: flex; gap: 2px; }
+.rail-profile-badge { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: var(--fw-semibold); flex: none; }
