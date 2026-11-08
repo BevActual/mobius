@@ -90,8 +90,22 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 - **Mail** (mirrored to the data folder): app-password accounts, categories sorted here, a reader that loads nothing
   from the web, and suggested replies. Only the person sends.
 
-Not built yet from the canvas: Slides, Look at this (sharing a window), Show Mobius (camera), trust marks on what
-Mobius says, and a history of turns older than each conversation's last.
+- **Slides** (`slides/<folder>/*.md`): slides split by `---`, a navigator, Play with notes; changed slides dashed.
+- **Journey** (`memory.md`): what Mobius remembers, by kind and where it was noticed; what it would like to remember
+  waits here for Remember or Don't.
+- **Code** (`code/<project>/`): a file tree and an editor; the agent's change as removed and added lines to keep or
+  discard; tests run with a command only the person sets (`code-tests.json`, outside the workspace).
+- **Design** (`designs/<folder>/*.json`): frames of rectangles, ellipses and text on a canvas, an inspector with colour
+  styles and a contrast check; the agent's layers dashed.
+- **Photo** (`photos/<album>/`): pictures never changed; adjustment layers to all or part of each, in
+  `<photo>.edits.json`; Export writes a new picture.
+- **Studio** (`studio/<folder>/*.json`): songs as tracks of notes, a piano roll, a small synthesiser; Mobius writes
+  notes, never audio.
+- **Video** (`video/<project>/`): clips never changed, `cut.json` of shots; the viewer plays clips from the shell's
+  `media` address.
+
+Not built yet from the canvas: Look at this (sharing a window), Show Mobius (camera), and a history of turns older
+than each conversation's last.
 
 ## Linux
 
