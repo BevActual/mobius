@@ -21,7 +21,7 @@ built and tested; "partly" means a first version exists. Hermes is the reference
 | Web search and page extraction | web tools | none | gap |
 | Skills (procedures the agent keeps) | `skills_*` | none | later |
 | Subagents / delegation | `delegate_tool*.py` | none | later |
-| Scheduled jobs | `cronjob_tools.py` | none | later |
+| Scheduled jobs | `cronjob_tools.py` | Settings › Schedules: a request at a time of day on chosen days, each run a new reviewable conversation; checked every half minute by the host; a run missed while closed happens once that day | have (made by the person, not by the agent; no notification of the result beyond the usual ones) |
 | Code execution | `code_execution_tool.py` | none | later |
 | Image generation, vision, speech | yes | speech-to-text only | later |
 
