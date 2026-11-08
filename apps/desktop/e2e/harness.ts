@@ -150,7 +150,8 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
     throw new Error('the Tauri shell did not start');
   }
   const shell = await (async () => {
-    for (let i = 0; i < 100; i++) {
+    // The window's page can come a while after the debugging port opens on a slow machine: give it the same time again.
+    for (const until = Date.now() + waitMs; Date.now() < until;) {
       const found = browser!.contexts().flatMap((c) => c.pages()).find((page) => page.url().includes('tauri.localhost'));
       if (found) return found;
       await new Promise((resolve) => setTimeout(resolve, 100));
