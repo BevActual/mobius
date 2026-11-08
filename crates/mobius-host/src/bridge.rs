@@ -78,6 +78,17 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
 }
 
+/// Waits (a minute at most) until no checkpoint before a turn is still being taken.
+fn wait_for_marks(marking: &(Mutex<u32>, std::sync::Condvar)) {
+    let (count, done) = marking;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let mut n = lock(count);
+    while *n > 0 {
+        let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) else { break };
+        n = done.wait_timeout(n, left).map(|(g, _)| g).unwrap_or_else(|e| e.into_inner().0);
+    }
+}
+
 fn now_ms() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64)
 }
@@ -147,7 +158,9 @@ pub struct Bridge {
     /// The folder of real files the assistant's file tools work in.
     workspace: mobius_workspace::files::Workspace,
     /// For each conversation, the checkpoint taken when its last turn began: what that turn changed, and the way back.
-    turn_marks: Mutex<std::collections::HashMap<String, String>>,
+    turn_marks: Arc<Mutex<std::collections::HashMap<String, String>>>,
+    /// Checkpoints being taken before a turn: the turn's tools wait for them, so the model is asked at once.
+    marking: Arc<(Mutex<u32>, std::sync::Condvar)>,
     /// Every turn's checkpoints, not only the last, so older turns can be looked at and put back too.
     turn_history: Arc<crate::turn_history::TurnHistory>,
     /// Tools from other programs the person set up (MCP servers).
@@ -286,7 +299,8 @@ impl Bridge {
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
             turn_history: Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json"))),
-            turn_marks: Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default()),
+            turn_marks: Arc::new(Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default())),
+            marking: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             mcp: Arc::default(),
             providers: crate::providers::Providers::new(secrets.clone()),
             claude_command: Mutex::new(None),
@@ -981,6 +995,8 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
+        // Nothing runs before the checkpoint at the start of the turn is taken.
+        wait_for_marks(&self.marking);
         let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
@@ -1997,6 +2013,8 @@ impl Bridge {
         let Some(conversation) = arg(0).as_str().filter(|c| is_conversation_id(c)) else {
             return Ok(failed("That conversation is not known."));
         };
+        // What a turn changed is counted from its start, once that is saved.
+        wait_for_marks(&self.marking);
         if let Some(out) = self.older_turns_call(method, conversation, args) {
             return Ok(out);
         }
@@ -2070,18 +2088,30 @@ impl Bridge {
                 }
                 match agent::parse_send(&request) {
                     Some(r) => {
-                        // Saved before the turn starts, so everything it changes can be reviewed and undone at once.
-                        match self.workspace.mark("before the agent's turn") {
-                            Ok(Some(mark)) => {
-                                let mut marks = lock(&self.turn_marks);
-                                marks.insert(r.conversation.clone(), mark.clone());
-                                mobius_store::file::write_json(&self.data_dir.join("turn-marks.json"), &json!(*marks));
-                                self.turn_history.started(&r.conversation, &mark, &r.text);
+                        // Saved before the turn changes anything, so everything it changes can be reviewed and undone at
+                        // once. Taken beside the model's first answer rather than before asking it (a checkpoint is a few
+                        // runs of git, slow on some computers); the turn's tools wait for it (`host_request`).
+                        *lock(&self.marking.0) += 1;
+                        let workspace = mobius_workspace::files::Workspace::new(self.data_dir.join("workspace"), self.data_dir.join("checkpoints"));
+                        let (marks, history, marking, data_dir) = (Arc::clone(&self.turn_marks), Arc::clone(&self.turn_history), Arc::clone(&self.marking), self.data_dir.clone());
+                        let (conversation, text) = (r.conversation.clone(), r.text.clone());
+                        std::thread::spawn(move || {
+                            match workspace.mark("before the agent's turn") {
+                                Ok(Some(mark)) => {
+                                    let mut marks = lock(&marks);
+                                    marks.insert(conversation.clone(), mark.clone());
+                                    mobius_store::file::write_json(&data_dir.join("turn-marks.json"), &json!(*marks));
+                                    history.started(&conversation, &mark, &text);
+                                }
+                                Ok(None) => {}
+                                // The turn still goes ahead; it just cannot be reviewed or undone as one.
+                                Err(error) => eprintln!("[changes] no mark before the turn: {error}"),
                             }
-                            Ok(None) => {}
-                            // The turn still goes ahead; it just cannot be reviewed or undone as one.
-                            Err(error) => eprintln!("[changes] no mark before the turn: {error}"),
-                        }
+                            let (count, done) = &*marking;
+                            let mut n = lock(count);
+                            *n = n.saturating_sub(1);
+                            done.notify_all();
+                        });
                         let bot = self.bot_for(&r.conversation);
                         self.agent.send_remembering(&r, bot.as_ref().map(|b| (b.instructions.as_str(), b.model.as_str())), &self.instructions())
                     }
@@ -2204,12 +2234,13 @@ impl Bridge {
             // A turn's end is marked too, so what it changed stays apart from what came after.
             let kind = n["params"]["event"]["kind"].as_str().unwrap_or("");
             // Taken on a thread of its own: this one carries the core's messages and must not wait on the disk.
-            if let Some(conversation) = n["params"]["conversation"].as_str().filter(|_| matches!(kind, "done" | "cancelled" | "failed"))
-                && let Some(start) = self.turn_history.running_start(conversation)
-            {
-                let (history, conversation) = (self.turn_history.clone(), conversation.to_owned());
+            // After the start's checkpoint, which may still be being taken when a quick turn ends.
+            if let Some(conversation) = n["params"]["conversation"].as_str().filter(|_| matches!(kind, "done" | "cancelled" | "failed")) {
+                let (history, conversation, marking) = (self.turn_history.clone(), conversation.to_owned(), Arc::clone(&self.marking));
                 let workspace = mobius_workspace::files::Workspace::new(self.data_dir.join("workspace"), self.data_dir.join("checkpoints"));
                 std::thread::spawn(move || {
+                    wait_for_marks(&marking);
+                    let Some(start) = history.running_start(&conversation) else { return };
                     if let Ok(Some(end)) = workspace.mark("after the agent's turn") {
                         history.ended_turn(&conversation, &start, &end);
                     }
