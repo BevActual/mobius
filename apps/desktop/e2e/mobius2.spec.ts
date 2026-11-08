@@ -125,6 +125,7 @@ test('earlier turns keep what they changed, each item put back as it was before 
     callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n\n- Boat trip\n' }), says(['Added an idea.']),
   ]);
   const turn = async (ask: string, reply: string) => {
+    await expect(shell().getByRole('button', { name: 'Stop' })).toHaveCount(0);
     await composer().fill(ask);
     await composer().press('Enter');
     await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
