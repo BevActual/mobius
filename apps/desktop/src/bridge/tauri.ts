@@ -336,6 +336,16 @@ export function createTauriBridge(): MobiusBridge {
       search: (query) => call('designs', 'search', [query], () => []),
       onChanged: (listener) => on<NotesChange>('mobius:designs-changed', listener),
     },
+    songs: {
+      list: () => call('songs', 'list', [], () => []),
+      read: (path) => call('songs', 'read', [path], () => ({ ok: false as const, message: 'Studio is not available.' })),
+      save: (path, content, base) => call('songs', 'save', [path, content, base], () => ({ ok: false as const, message: 'Studio is not available.' })),
+      createNotebook: (name) => call('songs', 'createNotebook', [name], () => ({ ok: false as const, message: 'Studio is not available.' })),
+      createPage: (notebook, title) => call('songs', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Studio is not available.' })),
+      remove: (path) => call('songs', 'remove', [path], () => ({ ok: false as const, message: 'Studio is not available.' })),
+      search: (query) => call('songs', 'search', [query], () => []),
+      onChanged: (listener) => on<NotesChange>('mobius:songs-changed', listener),
+    },
     bookmarks: {
       get: (query) => call('bookmarks', 'get', [query], () => []),
       toggle: () => call('bookmarks', 'toggle', [], () => false),

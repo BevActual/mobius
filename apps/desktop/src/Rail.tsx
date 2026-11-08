@@ -16,6 +16,7 @@ export const APP_ICONS: Record<string, ReactNode> = {
   mail: <><rect x="3" y="5" width="14" height="10.5" rx="2" /><path d="m3.5 6 6.5 5 6.5-5" /></>,
   slides: <><rect x="3" y="4" width="14" height="9.5" rx="1.5" /><path d="M10 13.5V16M7 16.5h6M8.5 7l3 1.8-3 1.8z" /></>,
   journey: <><path d="M4 15.5c2-1 3-4.5 6-4.5s4 3.5 6 4.5" /><circle cx="10" cy="6.5" r="2.5" /><path d="M3.5 17h13" /></>,
+  studio: <><path d="M8 15.5V5l8-1.5V14" /><circle cx="6" cy="15.5" r="2" /><circle cx="14" cy="14" r="2" /></>,
   photo: <><rect x="3" y="4.5" width="14" height="11" rx="2" /><path d="m3.5 13.5 4-4 3 3 2-2 4 4" /><circle cx="13" cy="8" r="1.3" /></>,
   design: <><path d="M4 16l1-4 8.5-8.5a2.1 2.1 0 0 1 3 3L8 15z" /><path d="M12 5l3 3M4 16h5" /></>,
   code: <><path d="m7 6-4 4 4 4M13 6l4 4-4 4M11 4.5l-2 11" /></>,

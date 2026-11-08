@@ -22,7 +22,7 @@ export interface SurfaceState {
   /** A web page is showing in the browser. */
   hasPage: boolean;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
-  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' } | null;
+  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
@@ -96,6 +96,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'What is missing?', prompt: 'Read this deck and tell me what an audience would still want to see.', attach: 'note' },
           ]
         : [{ label: 'Make a deck', prompt: 'Make a deck in my Slides about ' }];
+    case 'studio':
+      return state.note
+        ? [
+            { label: 'Add a bass line', prompt: 'Add a bass track to this song that follows its chords and key: root notes on beat 1 and the "and" of 3, varied a little every fourth bar. Leave the other tracks as they are; give the new track a new id.', attach: 'note' },
+            { label: 'Add drums', prompt: 'Add a drums track to this song that fits its tempo: kick, snare on 2 and 4, closed hats in eighths, a small fill in the last bar. Leave the other tracks as they are.', attach: 'note' },
+            { label: 'Describe a part…', prompt: 'In this song, ', attach: 'note' },
+          ]
+        : [{ label: 'Start a song', prompt: 'Make a song in my Studio, 8 bars, with chords and a melody, that feels ' }];
     case 'photo':
       return state.photo
         ? [
@@ -139,7 +147,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
 }
 
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' }): ContextItem {
+export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' }): ContextItem {
   return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 

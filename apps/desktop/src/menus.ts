@@ -53,6 +53,7 @@ export interface MenuContext {
     notes: { newNotebook: () => void; pin: () => void; changes: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void };
+    studio: { newSong: () => void; play: () => void };
     photo: { newAlbum: () => void; export: () => void };
     design: { newDesign: () => void; newFolder: () => void };
     code: { newProject: () => void; newFile: () => void; save: () => void; runTests: () => void };
@@ -166,6 +167,11 @@ function appMenu(c: MenuContext): Menu | null {
       return { id: 'app', label: 'Mail', items: [
         item('new-message', 'New message', d.mail.newMessage),
         item('get-mail', 'Get mail', d.mail.getMail),
+      ] };
+    case 'studio':
+      return { id: 'app', label: 'Studio', items: [
+        item('new-song', 'New song', d.studio.newSong),
+        item('play-song', 'Play or stop', d.studio.play),
       ] };
     case 'photo':
       return { id: 'app', label: 'Photo', items: [

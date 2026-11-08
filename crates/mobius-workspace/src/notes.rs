@@ -58,6 +58,11 @@ pub fn design_starter(_title: &str) -> String {
     "{\n  \"version\": 1,\n  \"styles\": [],\n  \"frames\": [\n    { \"id\": \"f1\", \"name\": \"Frame 1\", \"x\": 0, \"y\": 0, \"w\": 393, \"h\": 852, \"fill\": \"#ffffff\", \"radius\": 0, \"children\": [] }\n  ]\n}\n".to_owned()
 }
 
+/// What a new song holds: tempo, key and length, and no tracks yet. See `apps/desktop/src/song-format.ts`.
+pub fn song_starter(_title: &str) -> String {
+    "{\n  \"version\": 1,\n  \"tempo\": 112,\n  \"key\": \"A minor\",\n  \"bars\": 8,\n  \"tracks\": []\n}\n".to_owned()
+}
+
 /// A notebook name or a `notebook/page.md` path, checked by shape before it touches the disk.
 fn notebook_ok(name: &str) -> bool {
     !name.is_empty() && name == file_name_for(name) && !name.starts_with('.')

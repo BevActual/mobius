@@ -703,6 +703,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .hub-icon[data-app="code"] { background: var(--app-code); }
 .hub-icon[data-app="design"] { background: var(--app-design); }
 .hub-icon[data-app="photo"] { background: var(--app-photo); }
+.hub-icon[data-app="studio"] { background: var(--app-studio); }
 .hub-icon[data-app="docs"] { background: var(--app-docs); }
 .hub-icon[data-app="journey"] { background: var(--app-journey); }
 .hub-icon[data-app="slides"] { background: var(--app-slides); }
@@ -1640,3 +1641,42 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .photo-drop-hint { margin: 0 var(--sp-3); color: var(--muted); font-size: var(--fs-xs); }
 .photo-edited { color: var(--accent); font-size: 8px; }
 .photo-side { display: flex; flex-direction: column; }
+
+/* Studio: transport, tracks laid out by bar, and the chosen track's notes as a piano roll. */
+.stage .studio-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.studio-page.empty { align-items: center; justify-content: center; padding: var(--sp-6); }
+.studio-transport { display: flex; align-items: center; gap: var(--sp-3); padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.studio-pos, .studio-num { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; font: 600 15px/1 ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.studio-pos small, .studio-num small { font: 600 9px/1 var(--font); letter-spacing: 0.06em; color: var(--muted); }
+.studio-num input, .studio-num select { width: 64px; height: 22px; border: 0; background: var(--field); border-radius: 5px; text-align: center; font: inherit; color: inherit; }
+.studio-num select { width: auto; font: 600 12px/1 var(--font); padding: 0 6px; }
+.studio-add select { height: 30px; padding: 0 26px 0 10px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg) var(--chevron) no-repeat right 8px center / 12px; appearance: none; font: inherit; color: inherit; }
+.studio-arrange { flex: 0 1 auto; max-height: 45%; min-height: 60px; overflow: auto; padding: 6px 0; }
+.studio-track { display: grid; grid-template-columns: 230px max-content; align-items: stretch; border-bottom: 1px solid var(--line); }
+.studio-track[aria-current] .studio-track-head { background: var(--wash); }
+.studio-track-head { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: 4px; padding: 0 8px; background: var(--panel); border-right: 1px solid var(--line); }
+.studio-track-head[data-proposed] { outline: 1.5px dashed var(--accent); outline-offset: -2px; }
+.studio-track-name { flex: 1; min-width: 0; height: 26px; border: 0; background: none; font: inherit; font-weight: 600; color: inherit; }
+.studio-track-head select { height: 24px; max-width: 72px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); font: inherit; font-size: var(--fs-xs); color: inherit; }
+.studio-ms { width: 22px; height: 22px; border-radius: 5px; font: 700 10px/1 var(--font); color: var(--muted); background: var(--field); }
+.studio-ms[aria-pressed="true"] { background: var(--warning); color: #fff; }
+.studio-ms[aria-label^="Solo"][aria-pressed="true"] { background: var(--accent); }
+.studio-lane-wrap { position: relative; }
+.studio-lane { position: relative; height: 44px; background: repeating-linear-gradient(90deg, transparent 0 27px, color-mix(in srgb, var(--ink) 5%, transparent) 27px 28px); }
+.studio-lane[data-proposed] { background-color: color-mix(in srgb, var(--accent) 7%, transparent); outline: 1.5px dashed var(--accent); outline-offset: -2px; }
+.studio-bar-line { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--ink) 16%, transparent); }
+.studio-mini { position: absolute; height: 5px; border-radius: 2px; background: var(--accent); }
+.studio-mini[data-instrument="bass"], .studio-note[data-instrument="bass"] { background: #30b0c7; }
+.studio-mini[data-instrument="drums"], .studio-note[data-instrument="drums"] { background: #ff9f0a; }
+.studio-mini[data-instrument="pad"], .studio-note[data-instrument="pad"] { background: #af52de; }
+.studio-mini[data-instrument="lead"], .studio-note[data-instrument="lead"] { background: #ff375f; }
+.studio-playhead { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--danger); pointer-events: none; z-index: 3; }
+.studio-review { display: flex; align-items: center; gap: 8px; margin: 6px 12px; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
+.studio-review > span:nth-child(2) { flex: 1; }
+.studio-roll { flex: 1 1 auto; min-height: 140px; overflow: auto; border-top: 1px solid var(--line); }
+.studio-roll-inner { position: relative; }
+.studio-row { position: absolute; left: 0; right: 0; display: flex; }
+.studio-row[data-shade] .studio-row-cells { background-color: color-mix(in srgb, var(--ink) 4%, transparent); }
+.studio-row-label { position: sticky; left: 0; z-index: 2; width: 64px; flex-shrink: 0; padding-right: 6px; text-align: right; font: 10px/14px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); background: var(--panel); border-right: 1px solid var(--line); }
+.studio-row-cells { position: relative; height: 100%; border-bottom: 1px solid color-mix(in srgb, var(--ink) 5%, transparent); background-image: linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ink) 18%, transparent) 1px, transparent 1px); cursor: cell; }
+.studio-note { position: absolute; top: 1px; bottom: 1px; border-radius: 3px; background: var(--accent); cursor: pointer; }
