@@ -1028,3 +1028,10 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .about-brand { display: flex; align-items: center; gap: 16px; padding: 8px 0 20px; color: var(--accent); }
 .about-name { margin: 0; font-size: var(--fs-xl, 20px); font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
 .about-line { margin: 2px 0 0; font-size: var(--fs-sm); color: var(--muted); }
+
+/* The hub's apps by what they are for: groups flow side by side, each with a quiet label and as wide as its apps. */
+.hub-groups { display: flex; flex-wrap: wrap; gap: 10px 4px; }
+.hub-group { flex: none; padding: 6px 4px 2px; border-radius: var(--radius-panel); background: color-mix(in srgb, var(--field) 55%, transparent); }
+.hub-group-name { margin: 0 8px 2px; font-size: var(--fs-xs, 11px); font-weight: 600; letter-spacing: 0.02em; color: var(--muted); }
+.hub-group .hub-grid { display: flex; gap: 2px; }
+.hub-group .hub-grid > li { width: 100px; }

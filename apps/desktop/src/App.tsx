@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type SidebarMode } from '@mobius/shared';
-import { appName, isAvailable, type AppId } from './apps';
+import { appName, isAvailable, type AppId, noteOpened } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
 import { tasksContext, type SurfaceState } from './surface';
 import { ChatPanel } from './ChatPanel';
@@ -191,6 +191,8 @@ export function App() {
   }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
   const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
+  // However an app was opened (the sidebar, the hub, a shortcut, a pinned item), it goes to the top of Recent.
+  useEffect(() => noteOpened(app), [app]);
   const needsYou = conversation.list.reduce((sum, c) => sum + c.waiting, 0);
   const { settings, save: saveSettings, reload: reloadSettings } = useAgentSettings();
   const active = browser.tabs.find((tab) => tab.active);

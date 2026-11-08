@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { APPS, type AppId } from './apps';
+import { APP_GROUPS, APPS, recentApps, type AppId, type AppInfo } from './apps';
 import { APP_ICONS } from './Rail';
 
 export interface HubAction { id: string; label: string; app: AppId; run: () => void }
@@ -47,6 +47,22 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
   const starts = actions.filter((a) => has(a.label));
   // Close the dialog first, so the focus it gives back lands before the opened thing takes it.
   const go = (run: () => void) => { dialog.current?.close(); onClose(false); run(); };
+  // Read when the hub opens: the apps used most recently, to start from.
+  const recent = open ? recentApps().map((id) => APPS.find((a) => a.id === id)).filter((a): a is AppInfo => a !== undefined) : [];
+  const appButton = (a: AppInfo) =>
+    a.available ? (
+      <button type="button" className="hub-app" aria-current={a.id === current ? 'page' : undefined} aria-label={status[a.id] ? `${a.name}, ${status[a.id]}` : a.name} onClick={() => go(() => onOpenApp(a.id))}>
+        <Tile id={a.id} />
+        <span className="hub-name">{a.name}</span>
+        {status[a.id] && <span className="hub-status">{status[a.id]}</span>}
+      </button>
+    ) : (
+      <button type="button" className="hub-app" disabled aria-label={`${a.name}, not built yet`}>
+        <Tile id={a.id} />
+        <span className="hub-name">{a.name}</span>
+        <span className="hub-status">Not built yet</span>
+      </button>
+    );
 
   return (
     <dialog ref={dialog} className="hub" aria-label="Applications" onCancel={(e) => { e.preventDefault(); onClose(); }} onClick={(e) => { if (e.target === dialog.current) onClose(); }}>
@@ -68,36 +84,32 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
           </div>
         </section>
       )}
-      {built.length > 0 && (
-        <section className="hub-section" aria-label="Apps">
-          <h2 className="hub-heading">Apps</h2>
-          <ul className="hub-grid" role="list">
-            {built.map((a) => (
-              <li key={a.id}>
-                <button type="button" className="hub-app" aria-current={a.id === current ? 'page' : undefined} aria-label={status[a.id] ? `${a.name}, ${status[a.id]}` : a.name} onClick={() => go(() => onOpenApp(a.id))}>
-                  <Tile id={a.id} />
-                  <span className="hub-name">{a.name}</span>
-                  {status[a.id] && <span className="hub-status">{status[a.id]}</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
+      {!q && recent.length > 1 && (
+        <section className="hub-section" aria-label="Recent">
+          <h2 className="hub-heading">Recent</h2>
+          <ul className="hub-grid" role="list">{recent.map((a) => <li key={a.id}>{appButton(a)}</li>)}</ul>
         </section>
       )}
-      {later.length > 0 && (
-        <section className="hub-section" aria-label="Coming later">
-          <h2 className="hub-heading">Coming later</h2>
-          <ul className="hub-grid" role="list">
-            {later.map((a) => (
-              <li key={a.id}>
-                <button type="button" className="hub-app" disabled aria-label={`${a.name}, not built yet`}>
-                  <Tile id={a.id} />
-                  <span className="hub-name">{a.name}</span>
-                  <span className="hub-status">Not built yet</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+      {(built.length > 0 || later.length > 0) && (
+        <section className="hub-section" aria-label="Apps">
+          <h2 className="hub-heading">Apps</h2>
+          {q ? (
+            // Searching: one list of what matches.
+            <ul className="hub-grid" role="list">{[...built, ...later].map((a) => <li key={a.id}>{appButton(a)}</li>)}</ul>
+          ) : (
+            // Otherwise by what each app is for; apps still to come sit in their group, dimmed. The groups flow side by
+            // side, each as wide as its apps, so a few small groups stay as compact as one grid.
+            <div className="hub-groups">{APP_GROUPS.map((group) => {
+              const members = APPS.filter((a) => a.group === group);
+              if (members.length === 0) return null;
+              return (
+                <div key={group} className="hub-group" role="group" aria-label={group}>
+                  <h3 className="hub-group-name">{group}</h3>
+                  <ul className="hub-grid" role="list">{members.map((a) => <li key={a.id}>{appButton(a)}</li>)}</ul>
+                </div>
+              );
+            })}</div>
+          )}
         </section>
       )}
       {!q && (

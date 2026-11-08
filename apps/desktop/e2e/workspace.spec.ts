@@ -121,7 +121,9 @@ test('the app hub shows every app with what is happening in it, starts new thing
   await expect(apps.getByRole('button', { name: 'Notes, 1 page' })).toBeVisible();
   await expect(apps.getByRole('button', { name: /^Tasks, 1 due today/ })).toBeVisible();
   await expect(apps.getByRole('button', { name: /^Browser, 1 tab open/ })).toHaveAttribute('aria-current', 'page');
-  await expect(hub.getByRole('region', { name: 'Coming later' }).getByRole('button', { name: 'Code, not built yet' })).toBeDisabled();
+  // Apps sit in groups by what they are for; one still to come is in its group, and cannot be opened yet.
+  await expect(apps.getByRole('group', { name: 'Write and plan' }).getByRole('button', { name: 'Notes, 1 page' })).toBeVisible();
+  await expect(apps.getByRole('group', { name: 'Create' }).getByRole('button', { name: 'Code, not built yet' })).toBeDisabled();
   // Typing narrows it; Enter opens the first app that matches.
   await hub.getByRole('searchbox', { name: 'Find apps' }).fill('tas');
   await expect(apps.getByRole('button')).toHaveCount(1);
