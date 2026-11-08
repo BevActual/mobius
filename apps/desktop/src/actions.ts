@@ -15,6 +15,7 @@ export function describeAction(name: string, args: unknown): string | null {
     if (clean.startsWith('tasks/')) return `the task list ${quote(clean.slice('tasks/'.length).replace(/\.md$/i, ''))}`;
     return clean ? `the file ${quote(clean)}` : 'a file';
   };
+  const which = () => (s('calendar') && s('calendar') !== 'Calendar' ? `the calendar ${quote(s('calendar'))}` : 'your calendar');
   const when = (text: string) => {
     const [day, time] = text.split('T');
     const date = new Date(`${day}T00:00`);
@@ -37,8 +38,8 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'tasks.add': return s('text') ? `add ${quote(s('text'))} to ${s('list') || 'Inbox'} in Tasks` : 'add a task';
     case 'tasks.update': return s('task') || s('text') ? `change the task ${quote(s('task') || s('text'))}` : 'change a task';
     case 'calendar.list': return 'read your calendar';
-    case 'calendar.add': return s('title') ? `add ${quote(s('title'))} to your calendar${s('start') ? ` on ${when(s('start'))}` : ''}` : 'add an event to your calendar';
-    case 'calendar.update': return s('title') ? `change the event ${quote(s('title'))} in your calendar` : 'change an event in your calendar';
+    case 'calendar.add': return `add ${s('title') ? quote(s('title')) : 'an event'} to ${which()}${s('start') ? ` on ${when(s('start'))}` : ''}`;
+    case 'calendar.update': return s('title') ? `change the event ${quote(s('title'))} in ${which()}` : `change an event in ${which()}`;
     case 'memory.remember': return s('text') ? `remember that ${quote(s('text'))}` : 'remember something about you';
     case 'memory.forget': return s('text') ? `forget ${quote(s('text'))}` : 'forget something it remembered';
     case 'schedules.add': return s('title') ? `schedule ${quote(s('title'))} at ${s('time') || 'a time'}` : 'schedule a request';

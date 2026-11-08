@@ -32,6 +32,14 @@ export async function startFixture(): Promise<Fixture> {
       res.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
       return;
     }
+    if ((req.url ?? '').startsWith('/holidays.ics')) {
+      // A published calendar with one all-day event today, for subscribing to.
+      const d = new Date();
+      const day = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8' });
+      res.end(`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:founders\r\nDTSTART;VALUE=DATE:${day}\r\nSUMMARY:Founders Day\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+      return;
+    }
     const attachment = /^\/(file\.txt|setup\.exe|slow\.bin)/.exec(req.url ?? '');
     if (attachment) {
       const name = attachment[1]!;

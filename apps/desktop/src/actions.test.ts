@@ -10,6 +10,7 @@ describe('actions in plain words', () => {
     expect(describeAction('calendar.add', { title: 'Dentist', start: 'nonsense' })).toBe('add “Dentist” to your calendar on nonsense');
     expect(describeAction('calendar.add', {})).toBe('add an event to your calendar');
     expect(describeAction('calendar.list', {})).toBe('read your calendar');
+    expect(describeAction('calendar.update', { calendar: 'Work (iCloud)', id: 'x' })).toBe('change an event in the calendar “Work (iCloud)”');
     expect(describeAction('memory.remember', { text: 'Prefers boutique hotels' })).toBe('remember that “Prefers boutique hotels”');
     expect(describeAction('sessions.search', { query: 'casa amora' })).toBe('search your past conversations for “casa amora”');
   });

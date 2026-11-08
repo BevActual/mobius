@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type CalendarDraft, type CalendarEvent, type NotesFailure } from '@mobius/shared';
+import { isNotesFailure, type CalendarAccount, type CalendarDraft, type CalendarEvent, type CalendarSource, type NotesFailure } from '@mobius/shared';
 import { daysFor, hiddenCalendars, isoDay, keepHidden, type CalendarMode } from './calendar-view';
 
 const MODE_KEY = 'mobius.calendar.mode';
@@ -16,6 +16,9 @@ function rememberedMode(): CalendarMode {
 export function useCalendar() {
   const api = window.mobius.calendar;
   const [calendars, setCalendars] = useState<string[]>([]);
+  const [sources, setSources] = useState<CalendarSource[]>([]);
+  const [accounts, setAccounts] = useState<CalendarAccount[]>([]);
+  const [syncing, setSyncing] = useState(false);
   const [mode, setModeState] = useState<CalendarMode>(rememberedMode);
   const setMode = useCallback((m: CalendarMode) => { setModeState(m); try { window.localStorage.setItem(MODE_KEY, m); } catch { /* Not kept. */ } }, []);
   const [anchor, setAnchor] = useState(() => new Date());
@@ -30,8 +33,10 @@ export function useCalendar() {
   const refresh = useCallback(async () => {
     if (!api) return [];
     const days = daysFor(live.current.mode, live.current.anchor);
-    const [names, got] = await Promise.all([api.calendars(), api.events(isoDay(days[0]!), isoDay(days[days.length - 1]!))]);
+    const [names, got, where, kept] = await Promise.all([api.calendars(), api.events(isoDay(days[0]!), isoDay(days[days.length - 1]!)), api.sources(), api.accounts()]);
     if (!isNotesFailure(names)) setCalendars(names);
+    if (!isNotesFailure(where)) setSources(where);
+    if (!isNotesFailure(kept)) setAccounts(kept);
     if (isNotesFailure(got)) { setMessage(got.message); return live.current.events; }
     setEvents(got);
     return got;
@@ -81,8 +86,24 @@ export function useCalendar() {
     return next;
   }), []);
 
+  /** Adds a subscription or a CalDAV account; null when it worked, otherwise what went wrong. */
+  const addAccount = useCallback(async (account: { kind: 'subscription'; name: string; link: string } | { kind: 'caldav'; name: string; server: string; username: string; password: string }): Promise<string | null> => {
+    if (!api) return 'Calendar is not available.';
+    const result = account.kind === 'subscription' ? await api.subscribe(account.name, account.link) : await api.connect(account);
+    if (isNotesFailure(result)) return result.message;
+    await refresh();
+    return null;
+  }, [api, refresh]);
+  const removeAccount = useCallback(async (id: string) => { if (api) { await api.removeAccount(id); await refresh(); } }, [api, refresh]);
+  const sync = useCallback(async (id: string | null) => {
+    if (!api) return;
+    setSyncing(true);
+    try { await api.sync(id); await refresh(); } finally { setSyncing(false); }
+  }, [api, refresh]);
+  const readOnly = useCallback((name: string) => sources.some((s) => s.name === name && s.readOnly), [sources]);
+
   const shown = events.filter((e) => !hidden.has(e.calendar));
-  return { available: api !== undefined, calendars, mode, setMode, anchor, setAnchor, events: shown, hidden, toggle, message, add, update, remove, createCalendar, fresh, refresh };
+  return { available: api !== undefined, calendars, sources, accounts, addAccount, removeAccount, sync, syncing, readOnly, mode, setMode, anchor, setAnchor, events: shown, hidden, toggle, message, add, update, remove, createCalendar, fresh, refresh };
 }
 
 export type CalendarState = ReturnType<typeof useCalendar>;

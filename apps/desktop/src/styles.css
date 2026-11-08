@@ -1210,3 +1210,15 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .cal-editor-note { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
 .cal-editor-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
 .cal-editor .cal-delete { color: var(--danger); }
+.cal-editor-fields { display: contents; border: 0; margin: 0; padding: 0; }
+.cal-editor-fields:disabled input, .cal-editor-fields:disabled textarea { color: var(--ink); opacity: 1; }
+.cal-editor-heading { margin: 0 0 var(--sp-1); font-size: var(--fs-lg); font-weight: 600; }
+.calendar-groups { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--sp-2); }
+.calendar-account-head { display: flex; align-items: center; gap: 2px; padding: var(--sp-2) var(--sp-3) 0; }
+.calendar-account-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+.calendar-account-problem { margin: 2px var(--sp-3); font-size: var(--fs-xs); color: var(--danger); }
+.cal-lock { width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.5; flex-shrink: 0; }
+.calendar-add-account { align-self: flex-start; margin: var(--sp-1) var(--sp-3); padding: 4px 6px; font-size: var(--fs-sm); color: var(--accent); border-radius: var(--radius-control); }
+.calendar-add-account:hover { background: var(--wash); }
+.calendar-row .list-name { flex: 1; }
+.cal-modal-layer { position: fixed; inset: 0; z-index: 50; }

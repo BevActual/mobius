@@ -88,7 +88,7 @@ test('a calendar file from another app shows in the week, and events are added, 
 });
 
 test('the agent adds an event from the panel beside the calendar, after asking, and it shows at once', async () => {
-  await start([callsTool('calendar-add', { title: 'Dentist', start: `${today()}T15:00`, location: 'Main St' }), says(['It is in your calendar.'])]);
+  await start([callsTool('calendar-add', { calendar: 'Calendar', title: 'Dentist', start: `${today()}T15:00`, location: 'Main St' }), says(['It is in your calendar.'])]);
   await page().getByRole('radio', { name: 'Day' }).click();
   const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
   await composer.fill('Put the dentist in for 3pm today');
@@ -101,4 +101,38 @@ test('the agent adds an event from the panel beside the calendar, after asking, 
   const written = fs.readFileSync(file('Calendar'), 'utf8');
   expect(written).toContain(`DTSTART:${ics(today())}T150000`);
   expect(written).toContain('LOCATION:Main St');
+});
+
+test('a subscribed calendar link shows beside the person\'s own, and its events can be read but not changed', async () => {
+  await start();
+  await page().getByRole('radio', { name: 'Week' }).click();
+  await shell().getByRole('button', { name: 'Add a calendar account…' }).click();
+  const dialog = shell().getByRole('dialog', { name: 'Add a calendar account' });
+  await dialog.getByRole('textbox', { name: 'Calendar link' }).fill(`${fixture.origin}/page-that-is-not-a-calendar`);
+  await dialog.getByRole('textbox', { name: 'Name' }).fill('Holidays');
+  await dialog.getByRole('button', { name: 'Subscribe' }).click();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  await dialog.getByRole('textbox', { name: 'Calendar link' }).fill(`${fixture.origin}/holidays.ics`);
+  await dialog.getByRole('button', { name: 'Subscribe' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  const group = shell().getByRole('region', { name: 'Holidays' });
+  await expect(group.getByRole('checkbox', { name: 'Holidays' })).toBeChecked();
+  await expect(group.getByRole('img', { name: 'Read only' })).toBeVisible();
+  const event = page().getByRole('button', { name: /^Founders Day, All day, Holidays/ });
+  await expect(event).toBeVisible();
+  await event.click();
+  const view = shell().getByRole('dialog', { name: 'Event' });
+  await expect(view.getByText('a subscribed calendar')).toBeVisible();
+  await expect(view.getByRole('button', { name: 'Delete' })).toHaveCount(0);
+  await expect(view.getByRole('textbox', { name: 'Title' })).toBeDisabled();
+  await view.getByRole('button', { name: 'Close' }).click();
+
+  // New events go only to calendars that can take them.
+  await page().getByRole('button', { name: 'New event' }).click();
+  await expect(shell().getByRole('dialog', { name: 'New event' }).getByRole('combobox')).toHaveCount(0);
+  await shell().getByRole('dialog', { name: 'New event' }).getByRole('button', { name: 'Cancel' }).click();
+
+  await group.getByRole('button', { name: 'Remove Holidays' }).click();
+  await expect(event).toHaveCount(0);
 });

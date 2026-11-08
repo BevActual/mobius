@@ -228,6 +228,12 @@ export function createTauriBridge(): MobiusBridge {
       add: (calendar, draft) => call('calendar', 'add', [calendar, draft], () => ({ ok: false as const, message: 'Calendar is not available.' })),
       update: (calendar, id, draft) => call('calendar', 'update', [calendar, { ...draft, id }], () => ({ ok: false as const, message: 'Calendar is not available.' })),
       remove: (calendar, id) => call('calendar', 'remove', [calendar, id], () => ({ ok: false as const, message: 'Calendar is not available.' })),
+      sources: () => call('calendar', 'sources', [], () => []),
+      accounts: () => call('calendar', 'accounts', [], () => []),
+      subscribe: (name, link) => call('calendar', 'subscribe', [name, link], () => ({ ok: false as const, message: 'Calendar is not available.' })),
+      connect: (account) => call('calendar', 'connect', [account], () => ({ ok: false as const, message: 'Calendar is not available.' })),
+      removeAccount: (id) => call('calendar', 'removeAccount', [id], () => ({ ok: false as const, message: 'Calendar is not available.' })),
+      sync: (id) => call('calendar', 'sync', [id], () => []),
       onChanged: (listener) => on<CalendarChanged>('mobius:calendar-changed', listener),
     },
     notes: {

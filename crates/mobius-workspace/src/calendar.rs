@@ -8,6 +8,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
 
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use serde_json::{Value, json};
@@ -462,10 +463,31 @@ impl Draft {
     }
 }
 
+/// A calendar kept somewhere else (a subscribed link, or a calendar on a CalDAV server) and mirrored in a file here,
+/// outside the workspace. Mobius shows it beside the person's own calendars.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mirror {
+    pub name: String,
+    pub file: PathBuf,
+    /// The account it comes from, for the window.
+    pub account: String,
+    /// Changes go to the server; a subscription is only read.
+    pub writable: bool,
+}
+
+/// Sends a change to a calendar kept elsewhere. The mirror changes only once the server has taken it.
+pub trait Remote: Send + Sync {
+    /// `parts` is everything stored under that event's id: the event, and changed copies of single times of it.
+    fn put(&self, mirror: &Mirror, uid: &str, parts: &[Event], new: bool) -> Res<()>;
+    fn delete(&self, mirror: &Mirror, uid: &str) -> Res<()>;
+}
+
 pub struct Calendar {
     root: PathBuf,
     checkpoints: Checkpoints,
     workspace: PathBuf,
+    mirrors: RwLock<Vec<Mirror>>,
+    remote: RwLock<Option<Arc<dyn Remote>>>,
 }
 
 pub fn tool_descriptions() -> Vec<Value> {
@@ -477,10 +499,10 @@ pub fn tool_descriptions() -> Vec<Value> {
         json!({ "name": "calendar.add", "capability": "calendar.write", "resource_arg": "calendar",
             "description": "Add an event to one of the person's calendars in the Calendar app. It does not invite anyone.",
             "input_schema": { "type": "object", "properties": {
-                "calendar": { "type": "string", "description": "Which calendar; Calendar (the default) if left out." },
+                "calendar": { "type": "string", "description": "Which calendar: Calendar, unless the person names another (calendar.list shows each event's)." },
                 "title": { "type": "string" }, "start": { "type": "string", "description": when },
                 "end": { "type": "string", "description": format!("{when} Leave out for an hour (or the one day).") },
-                "location": { "type": "string" }, "notes": { "type": "string" } }, "required": ["title", "start"] } }),
+                "location": { "type": "string" }, "notes": { "type": "string" } }, "required": ["calendar", "title", "start"] } }),
         json!({ "name": "calendar.update", "capability": "calendar.write", "resource_arg": "calendar",
             "description": "Change an event in the Calendar app, found by the id calendar.list gave: its title, times, place or notes.",
             "input_schema": { "type": "object", "properties": {
@@ -494,21 +516,69 @@ pub fn is_calendar_tool(name: &str) -> bool {
     tool_descriptions().iter().any(|d| d["name"] == name)
 }
 
-fn event_json(calendar: &str, e: &Event, start: When) -> Value {
+fn event_json(calendar: &str, e: &Event, start: When, read_only: bool) -> Value {
     let shift = start.moment() - e.start.moment();
     let end = e.end.shifted(shift);
     let all_day = matches!(e.start, When::Day(_));
     json!({ "id": e.uid, "calendar": calendar, "title": e.title, "start": start.show(), "end": end.show(), "allDay": all_day,
-        "location": e.location, "notes": e.notes, "repeats": e.repeat.is_some() })
+        "location": e.location, "notes": e.notes, "repeats": e.repeat.is_some(), "readOnly": read_only })
+}
+
+/// The starts a repeating event skips (`EXDATE`), and the one a changed copy of a single time replaces
+/// (`RECURRENCE-ID`): calendars from servers carry both.
+fn moments_in(e: &Event, property: &str) -> Vec<NaiveDateTime> {
+    e.extra
+        .iter()
+        .filter_map(|l| split_line(l))
+        .filter(|(name, ..)| name == property)
+        .flat_map(|(_, params, value)| value.split(',').filter_map(|v| parse_when(&params, v)).map(When::moment).collect::<Vec<_>>())
+        .collect()
 }
 
 impl Calendar {
     pub fn new(workspace: impl Into<PathBuf>, checkpoint_store: impl Into<PathBuf>) -> Calendar {
         let workspace = workspace.into();
-        Calendar { root: workspace.join(FOLDER), checkpoints: Checkpoints::new(checkpoint_store), workspace }
+        Calendar { root: workspace.join(FOLDER), checkpoints: Checkpoints::new(checkpoint_store), workspace, mirrors: RwLock::new(Vec::new()), remote: RwLock::new(None) }
+    }
+
+    /// The calendars kept elsewhere, as the accounts have them now.
+    pub fn set_mirrors(&self, mirrors: Vec<Mirror>) {
+        *self.mirrors.write().unwrap_or_else(std::sync::PoisonError::into_inner) = mirrors;
+    }
+
+    pub fn set_remote(&self, remote: Arc<dyn Remote>) {
+        *self.remote.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(remote);
+    }
+
+    fn mirror(&self, calendar: &str) -> Option<Mirror> {
+        self.mirrors.read().unwrap_or_else(std::sync::PoisonError::into_inner).iter().find(|m| m.name == calendar).cloned()
+    }
+
+    /// Every calendar with where it is kept: `{ name, account, readOnly }`, the person's own first.
+    pub fn sources(&self) -> Value {
+        let local = self.local_calendars().into_iter().map(|name| json!({ "name": name, "account": null, "readOnly": false }));
+        let mirrors = self.mirrors.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+        Value::Array(local.chain(mirrors.into_iter().map(|m| json!({ "name": m.name, "account": m.account, "readOnly": !m.writable }))).collect())
+    }
+
+    /// A change to a calendar kept elsewhere goes to its server first; a subscription is never changed.
+    fn send(&self, calendar: &str, put: Option<(&[Event], bool)>, delete: Option<&str>) -> Res<()> {
+        let Some(mirror) = self.mirror(calendar) else { return Ok(()) };
+        if !mirror.writable {
+            return Err(format!("{calendar} is a subscribed calendar: it can be read but not changed"));
+        }
+        let remote = self.remote.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone().ok_or("that calendar's account is not connected")?;
+        match (put, delete) {
+            (Some((parts, new)), _) => parts.first().map_or(Ok(()), |first| remote.put(&mirror, &first.uid, parts, new)),
+            (None, Some(uid)) => remote.delete(&mirror, uid),
+            _ => Ok(()),
+        }
     }
 
     fn file(&self, calendar: &str) -> Res<PathBuf> {
+        if let Some(mirror) = self.mirror(calendar) {
+            return Ok(mirror.file);
+        }
         if !calendar_ok(calendar) {
             return Err("that is not a calendar".into());
         }
@@ -534,7 +604,7 @@ impl Calendar {
 
     fn store(&self, calendar: &str, events: &[Event], other: &[String]) -> Res<()> {
         let file = self.file(calendar)?;
-        fs::create_dir_all(&self.root).map_err(|e| e.to_string())?;
+        fs::create_dir_all(file.parent().unwrap_or(&self.root)).map_err(|e| e.to_string())?;
         let text = write(calendar, events, other);
         let temp = file.with_extension("ics.mobius-tmp");
         fs::write(&temp, text).map_err(|e| e.to_string())?;
@@ -544,8 +614,15 @@ impl Calendar {
         })
     }
 
-    /// Every calendar by name. Calendar is always there.
+    /// Every calendar by name: the person's own (Calendar is always there), then the ones kept elsewhere.
     pub fn calendars(&self) -> Vec<String> {
+        let mut names = self.local_calendars();
+        names.extend(self.mirrors.read().unwrap_or_else(std::sync::PoisonError::into_inner).iter().map(|m| m.name.clone()));
+        names
+    }
+
+    /// The person's own calendars, in the workspace.
+    pub fn local_calendars(&self) -> Vec<String> {
         let mut names = vec![DEFAULT_CALENDAR.to_owned()];
         if let Ok(dir) = fs::read_dir(&self.root) {
             let mut found: Vec<String> = dir
@@ -579,14 +656,24 @@ impl Calendar {
         let (start, end) = (from.and_time(NaiveTime::MIN), (to + Duration::days(1)).and_time(NaiveTime::MIN));
         let mut found: Vec<(NaiveDateTime, Value)> = Vec::new();
         for calendar in self.calendars() {
-            let (events, _) = self.load(&calendar)?;
+            let read_only = self.mirror(&calendar).is_some_and(|m| !m.writable);
+            // A calendar that cannot be read (a damaged file, one too big) is left out rather than hiding the rest.
+            let Ok((events, _)) = self.load(&calendar) else { continue };
             for e in &events {
                 let length = e.end.moment() - e.start.moment();
+                // Times a repeating event skips, or that a changed copy of that one time replaces.
+                let mut skip = moments_in(e, "EXDATE");
+                if e.repeat.is_some() {
+                    skip.extend(events.iter().filter(|o| o.uid == e.uid && o.repeat.is_none()).flat_map(|o| moments_in(o, "RECURRENCE-ID")));
+                }
                 for when in occurrences(e, end) {
+                    if e.repeat.is_some() && skip.contains(&when.moment()) {
+                        continue;
+                    }
                     let (s, f) = (when.moment(), when.moment() + length);
                     // Overlaps the range; an event of no length counts at its moment.
                     if s < end && (f > start || (f == s && s >= start)) {
-                        found.push((s, event_json(&calendar, e, when)));
+                        found.push((s, event_json(&calendar, e, when, read_only)));
                     }
                 }
             }
@@ -640,20 +727,26 @@ impl Calendar {
         let (title, start, end, location, notes) = Self::checked(draft, None)?;
         let (mut events, other) = self.load(calendar)?;
         let event = Event { uid: new_uid(), title, start, end, location, notes, repeat: None, extra: Vec::new() };
+        self.send(calendar, Some((std::slice::from_ref(&event), true)), None)?;
         events.push(event.clone());
         self.store(calendar, &events, &other)?;
-        Ok(event_json(calendar, &event, event.start))
+        Ok(event_json(calendar, &event, event.start, false))
     }
 
     pub fn update(&self, calendar: &str, uid: &str, draft: &Draft) -> Res<Value> {
         let (mut events, other) = self.load(calendar)?;
-        let at = events.iter().position(|e| e.uid == uid).ok_or("that event is not in that calendar")?;
+        // The event itself, not a changed copy of one of its times.
+        let at = events.iter().position(|e| e.uid == uid && (e.repeat.is_some() || moments_in(e, "RECURRENCE-ID").is_empty())).ok_or("that event is not in that calendar")?;
         let (title, start, end, location, notes) = Self::checked(draft, Some(&events[at]))?;
-        let e = &mut events[at];
-        (e.title, e.start, e.end, e.location, e.notes) = (title, start, end, location, notes);
-        let changed = e.clone();
+        let mut changed = events[at].clone();
+        (changed.title, changed.start, changed.end, changed.location, changed.notes) = (title, start, end, location, notes);
+        let mut after = events.clone();
+        after[at] = changed.clone();
+        let parts: Vec<Event> = after.iter().filter(|e| e.uid == uid).cloned().collect();
+        self.send(calendar, Some((&parts, false)), None)?;
+        events = after;
         self.store(calendar, &events, &other)?;
-        Ok(event_json(calendar, &changed, changed.start))
+        Ok(event_json(calendar, &changed, changed.start, false))
     }
 
     pub fn remove(&self, calendar: &str, uid: &str) -> Res<Value> {
@@ -663,6 +756,7 @@ impl Calendar {
         if events.len() == before {
             return Err("that event is not in that calendar".into());
         }
+        self.send(calendar, None, Some(uid))?;
         self.store(calendar, &events, &other)?;
         Ok(json!({ "calendar": calendar, "removed": uid }))
     }
@@ -769,6 +863,62 @@ mod tests {
         assert_eq!(nov[0]["end"], "2026-11-02T09:30");
         let rent: Vec<String> = c.events("2026-01-01", "2026-12-31").unwrap().as_array().unwrap().iter().filter(|e| e["title"] == "Rent").map(|e| e["start"].as_str().unwrap().to_owned()).collect();
         assert_eq!(rent, vec!["2026-01-31", "2026-03-31", "2026-05-31"], "short months are skipped; until is kept");
+    }
+
+    #[derive(Default)]
+    struct Server(std::sync::Mutex<Vec<String>>, bool);
+    impl Remote for Server {
+        fn put(&self, mirror: &Mirror, uid: &str, parts: &[Event], new: bool) -> Res<()> {
+            if self.1 {
+                return Err("the server said no".into());
+            }
+            self.0.lock().unwrap().push(format!("put {} {uid} {} {new} {}", mirror.name, parts.len(), parts[0].title));
+            Ok(())
+        }
+        fn delete(&self, mirror: &Mirror, uid: &str) -> Res<()> {
+            self.0.lock().unwrap().push(format!("delete {} {uid}", mirror.name));
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn calendars_kept_elsewhere_show_beside_the_persons_own_and_changes_go_to_their_server_first() {
+        let (dir, c) = store();
+        let holidays = dir.path().join("mirror").join("holidays.ics");
+        let work = dir.path().join("mirror").join("work.ics");
+        std::fs::create_dir_all(holidays.parent().unwrap()).unwrap();
+        std::fs::write(&holidays, "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:h1\r\nDTSTART;VALUE=DATE:20261126\r\nSUMMARY:Thanksgiving\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n").unwrap();
+        // A weekly meeting with one time moved and one skipped, as servers keep them.
+        std::fs::write(&work, "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:w\r\nDTSTART:20261102T100000\r\nDTEND:20261102T110000\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nEXDATE:20261116T100000\r\nSUMMARY:Planning\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:w\r\nRECURRENCE-ID:20261109T100000\r\nDTSTART:20261110T150000\r\nDTEND:20261110T160000\r\nSUMMARY:Planning (moved)\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n").unwrap();
+        c.set_mirrors(vec![
+            Mirror { name: "US Holidays".into(), file: holidays, account: "US Holidays".into(), writable: false },
+            Mirror { name: "Work (iCloud)".into(), file: work.clone(), account: "iCloud".into(), writable: true },
+        ]);
+        assert_eq!(c.calendars(), vec!["Calendar", "US Holidays", "Work (iCloud)"]);
+        assert_eq!(c.sources()[1], json!({ "name": "US Holidays", "account": "US Holidays", "readOnly": true }));
+        let nov = c.events("2026-11-01", "2026-11-30").unwrap();
+        let shown: Vec<(&str, &str)> = nov.as_array().unwrap().iter().map(|e| (e["title"].as_str().unwrap(), e["start"].as_str().unwrap())).collect();
+        assert_eq!(shown, vec![("Planning", "2026-11-02T10:00"), ("Planning (moved)", "2026-11-10T15:00"), ("Planning", "2026-11-23T10:00"), ("Thanksgiving", "2026-11-26")]);
+        assert_eq!(nov[3]["readOnly"], true);
+
+        assert!(c.add("US Holidays", &draft("Mine", "2026-11-27", None)).unwrap_err().contains("subscribed"));
+        assert!(c.add("Work (iCloud)", &draft("x", "2026-11-27", None)).unwrap_err().contains("not connected"));
+        let server = Arc::new(Server::default());
+        c.set_remote(server.clone());
+        let added = c.add("Work (iCloud)", &draft("Offsite", "2026-11-27", None)).unwrap();
+        c.update("Work (iCloud)", "w", &Draft { title: Some("Weekly planning".into()), ..Draft::default() }).unwrap();
+        c.remove("Work (iCloud)", added["id"].as_str().unwrap()).unwrap();
+        let log = server.0.lock().unwrap().clone();
+        assert_eq!(log[0], format!("put Work (iCloud) {} 1 true Offsite", added["id"].as_str().unwrap()));
+        assert_eq!(log[1], "put Work (iCloud) w 2 false Weekly planning", "the moved time goes with it");
+        assert!(log[2].starts_with("delete Work (iCloud) "));
+        assert!(std::fs::read_to_string(&work).unwrap().contains("SUMMARY:Weekly planning"));
+
+        // When the server refuses, the mirror is left as it was.
+        let refusing = Arc::new(Server(std::sync::Mutex::default(), true));
+        c.set_remote(refusing);
+        assert!(c.update("Work (iCloud)", "w", &Draft { title: Some("Nope".into()), ..Draft::default() }).is_err());
+        assert!(!std::fs::read_to_string(&work).unwrap().contains("Nope"));
     }
 
     #[test]

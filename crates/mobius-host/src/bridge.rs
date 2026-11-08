@@ -153,6 +153,7 @@ pub struct Bridge {
     notes: mobius_workspace::notes::Notes,
     tasks: mobius_workspace::tasks::Tasks,
     calendar: mobius_workspace::calendar::Calendar,
+    calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
     /// What Mobius remembers about the person between conversations.
     memory: crate::memory::Memory,
     /// Requests to make at times of day.
@@ -178,6 +179,7 @@ pub struct Bridge {
 impl Bridge {
     pub fn new(core: Arc<CoreProcess>, data_dir: PathBuf, emit: Emit, secrets: Arc<dyn Secrets>) -> Bridge {
         let chatgpt = Arc::new(Mutex::new(Arc::new(crate::chatgpt::ChatGpt::new(crate::chatgpt::ISSUER, secrets.clone()))));
+        let calendar_accounts = Arc::new(crate::calendar_accounts::Accounts::new(&data_dir, secrets.clone()));
         let agent = AgentService::new(core.clone(), data_dir.join("agent-settings.json"), secrets.clone());
         let source = chatgpt.clone();
         agent.add_token_source(crate::providers::CHATGPT_ADDRESS, Arc::new(move || lock(&source).clone().access_token()));
@@ -235,7 +237,13 @@ impl Bridge {
             signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
-            calendar: mobius_workspace::calendar::Calendar::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            calendar: {
+                let calendar = mobius_workspace::calendar::Calendar::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
+                calendar.set_remote(calendar_accounts.clone());
+                calendar.set_mirrors(calendar_accounts.mirrors(&calendar.local_calendars()));
+                calendar
+            },
+            calendar_accounts,
             memory: crate::memory::Memory::new(data_dir.join("memory.md")),
             schedules: crate::schedules::Schedules::open(data_dir.join("schedules.json")),
             data_dir,
@@ -968,6 +976,18 @@ impl Bridge {
 
     /// Checks the schedules every half minute for as long as the bridge lives.
     pub fn start_schedules(self: &Arc<Self>) {
+        // Calendars kept elsewhere are read again every so often, on a thread of their own: a slow server must not
+        // hold up a scheduled request.
+        let accounts = Arc::downgrade(self);
+        std::thread::spawn(move || {
+            while let Some(bridge) = accounts.upgrade() {
+                if bridge.calendar_accounts.sync_due() {
+                    bridge.refresh_mirrors();
+                }
+                drop(bridge);
+                std::thread::sleep(Duration::from_secs(60));
+            }
+        });
         let weak = Arc::downgrade(self);
         std::thread::spawn(move || {
             while let Some(bridge) = weak.upgrade() {
@@ -1329,14 +1349,43 @@ impl Bridge {
         }
     }
 
+    /// Shows the calendars the accounts have now, and tells the window.
+    fn refresh_mirrors(&self) {
+        self.calendar.set_mirrors(self.calendar_accounts.mirrors(&self.calendar.local_calendars()));
+        (self.emit)("mobius:calendar-changed", json!({ "calendar": null, "by": "another app" }));
+    }
+
     /// The Calendar app. Every answer is what was asked for or `{ ok: false, message }`.
     fn calendar_call(&self, method: &str, args: &[Value]) -> Value {
         use mobius_workspace::calendar::Draft;
         let text = |i: usize| args.get(i).and_then(Value::as_str);
         let cal = &self.calendar;
         let draft = || Draft::from_json(args.get(1).unwrap_or(&Value::Null));
+        let accounts = &self.calendar_accounts;
+        let changed_accounts = |result: Result<Value, String>| {
+            if result.is_ok() {
+                self.refresh_mirrors();
+            }
+            result
+        };
         let result = match method {
             "calendars" => Ok(json!(cal.calendars())),
+            "sources" => Ok(cal.sources()),
+            "accounts" => Ok(accounts.list()),
+            "subscribe" => match (text(0), text(1)) {
+                (Some(name), Some(link)) => changed_accounts(accounts.subscribe(name, link)),
+                _ => Err("a name and a link are needed".to_owned()),
+            },
+            "connect" => {
+                let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str).unwrap_or("");
+                changed_accounts(accounts.connect(field("name"), field("server"), field("username"), field("password")))
+            }
+            "removeAccount" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|id| changed_accounts(accounts.remove(id))),
+            "sync" => {
+                accounts.sync(text(0));
+                self.refresh_mirrors();
+                Ok(accounts.list())
+            }
             "events" => match (text(0), text(1)) {
                 (Some(from), Some(to)) => cal.events(from, to),
                 _ => Err("two days are needed".to_owned()),
@@ -1355,7 +1404,7 @@ impl Bridge {
         };
         match result {
             Ok(value) => {
-                if !matches!(method, "calendars" | "events") {
+                if !matches!(method, "calendars" | "events" | "sources" | "accounts" | "subscribe" | "connect" | "removeAccount" | "sync") {
                     let name = value.get("calendar").or_else(|| value.get("name")).cloned().unwrap_or(Value::Null);
                     (self.emit)("mobius:calendar-changed", json!({ "calendar": name, "by": "person" }));
                 }

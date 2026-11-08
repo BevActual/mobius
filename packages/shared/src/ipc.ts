@@ -149,7 +149,11 @@ export interface TasksChanged { list: string | null; by: 'person' | 'assistant' 
 /** An event in the Calendar app, from `calendar/<calendar>.ics`. Times are local: `YYYY-MM-DD` for an all-day event,
  * `YYYY-MM-DDTHH:MM` otherwise; `end` is exclusive (an all-day event on the 12th ends on the 13th). A repeating event
  * is listed once for each time it happens, all with the same id. */
-export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean }
+export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; readOnly?: boolean }
+/** A calendar and where it is kept: the person's own (`account` null), or an account's. */
+export interface CalendarSource { name: string; account: string | null; readOnly: boolean }
+/** A calendar kept elsewhere: a subscribed link, or a CalDAV account (iCloud, Fastmail, Nextcloud). */
+export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; name: string; url: string; username: string; calendars: string[]; lastSyncMs: number; problem: string | null }
 /** What may be set on an event. An all-day `end` is the last day, included. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string }
 export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
@@ -369,6 +373,13 @@ export interface MobiusBridge {
     add(calendar: string, draft: CalendarDraft): Promise<CalendarEvent | NotesFailure>;
     update(calendar: string, id: string, draft: CalendarDraft): Promise<CalendarEvent | NotesFailure>;
     remove(calendar: string, id: string): Promise<{ calendar: string; removed: string } | NotesFailure>;
+    sources(): Promise<CalendarSource[] | NotesFailure>;
+    accounts(): Promise<CalendarAccount[] | NotesFailure>;
+    subscribe(name: string, link: string): Promise<{ id: string; name: string } | NotesFailure>;
+    connect(account: { name: string; server: string; username: string; password: string }): Promise<{ id: string; name: string; calendars: string[] } | NotesFailure>;
+    removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
+    /** Reads one account (or all of them) again now. */
+    sync(id: string | null): Promise<CalendarAccount[] | NotesFailure>;
     onChanged(listener: (change: CalendarChanged) => void): () => void;
   };
   /** The Notes app. Only the Tauri shell has it. */
