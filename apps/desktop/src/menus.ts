@@ -156,3 +156,18 @@ function appMenu(c: MenuContext): Menu | null {
       return null;
   }
 }
+
+/** The menus as plain data for the macOS menu bar: everything but what each item runs. */
+export function menusAsData(menus: Menu[]) {
+  return menus.map((m) => ({
+    id: m.id,
+    label: m.label,
+    items: m.items.map((i) => (i.kind === 'separator' ? { kind: 'separator' as const } : { kind: 'item' as const, id: i.id, label: i.label, ...(i.keys ? { keys: i.keys } : {}), ...(i.disabled ? { disabled: true } : {}), ...(i.checked !== undefined ? { checked: i.checked } : {}) })),
+  }));
+}
+
+/** The item with this id, for a choice made in the menu bar. */
+export function findItem(menus: Menu[], id: string) {
+  for (const m of menus) for (const i of m.items) if (i.kind === 'item' && i.id === id) return i;
+  return undefined;
+}

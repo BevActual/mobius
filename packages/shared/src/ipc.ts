@@ -196,6 +196,12 @@ export interface MobiusBridge {
     /** Says when Little Mobius opens or closes. */
     onChange(listener: (open: boolean) => void): () => void;
   };
+  /** The macOS menu bar, filled from the same menus the window shows in its toolbar elsewhere. */
+  menu?: {
+    set(menus: { id: string; label: string; items: ({ kind: 'item'; id: string; label: string; keys?: string; disabled?: boolean; checked?: boolean } | { kind: 'separator' })[] }[]): Promise<void>;
+    /** An item was chosen in the menu bar. */
+    onSelect(listener: (id: string) => void): () => void;
+  };
   /** The print in the menu bar or notification area. Optional: not every window or computer has one. */
   tray?: {
     set(shown: { state: 'idle' | 'working' | 'needs' | 'done'; tooltip: string; items: { id: string; title: string; status: string }[] }): Promise<void>;

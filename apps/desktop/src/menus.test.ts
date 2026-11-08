@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildMenus, nextZoom, type MenuContext } from './menus';
+import { buildMenus, findItem, menusAsData, nextZoom, type MenuContext } from './menus';
 
 const noop = () => {};
 function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = {}): MenuContext {
@@ -61,5 +61,17 @@ describe('menus', () => {
     expect(nextZoom(0.75, -1)).toBe(0.75);
     expect(nextZoom(1.05, 1)).toBe(1.1);
     expect(nextZoom(1.05, -1)).toBe(1);
+  });
+
+  it('goes to the macOS menu bar as data, and a choice there runs the same item', () => {
+    const c = context('browser', { split: true });
+    c.do.toggleSplit = vi.fn();
+    const menus = buildMenus(c);
+    const data = menusAsData(menus);
+    expect(JSON.parse(JSON.stringify(data))).toEqual(data);
+    expect(data.find((m) => m.id === 'window')!.items[0]).toEqual({ kind: 'item', id: 'split', label: 'Split view', keys: 'mod+\\', checked: true });
+    findItem(menus, 'split')!.run();
+    expect(c.do.toggleSplit).toHaveBeenCalledOnce();
+    expect(findItem(menus, 'nope')).toBeUndefined();
   });
 });

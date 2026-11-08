@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { MenuBar } from './MenuBar';
-import { buildMenus, type MenuContext } from './menus';
+import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type SidebarMode } from '@mobius/shared';
 import { appName, isAvailable, type AppId, noteOpened, APPS } from './apps';
@@ -638,6 +638,16 @@ export function App() {
     },
   };
   const menus = buildMenus(menuContext);
+  // On macOS the menus go in the system menu bar; elsewhere they are drawn in the toolbar.
+  const nativeMenus = window.mobius.platform === 'darwin' && window.mobius.menu !== undefined;
+  const menusNow = useRef(menus);
+  menusNow.current = menus;
+  const menuData = JSON.stringify(menusAsData(menus));
+  useEffect(() => { if (nativeMenus) void window.mobius.menu?.set(JSON.parse(menuData) as ReturnType<typeof menusAsData>).catch(() => undefined); }, [nativeMenus, menuData]);
+  useEffect(() => window.mobius.menu?.onSelect((id) => {
+    const item = findItem(menusNow.current, id);
+    if (item && !item.disabled) item.run();
+  }), []);
   /** On-canvas actions for the web: what to do with the text selected on the page. */
   // Where Save to Notes puts web text: the chosen page while it exists, otherwise Clippings.
   const clipPages = useMemo<ClipPage[]>(() => notes.notebooks.flatMap((nb) => nb.pages.map((pg) => ({ path: pg.path, title: pg.title, notebook: nb.name }))), [notes.notebooks]);
@@ -786,7 +796,7 @@ export function App() {
           {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
-          <MenuBar menus={menus} compact={compactMenus} onOpenChange={setMenuOpen} />
+          {!nativeMenus && <MenuBar menus={menus} compact={compactMenus} onOpenChange={setMenuOpen} />}
         </div>
         <div className="toolbar-place" data-browser={inBrowser || undefined}>
           <h1 className="strip-title">{place}</h1>
