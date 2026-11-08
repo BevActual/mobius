@@ -988,7 +988,8 @@ impl Bridge {
             return Ok(Value::String(result.to_string()));
         }
         if crate::code_processes::is_process_tool(tool) {
-            let id = args.get("id").and_then(Value::as_u64);
+            // An id as a number, or as the text of one (as a model may write it).
+            let id = args.get("id").and_then(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.trim().parse().ok())));
             let result = match tool {
                 "code.start" => {
                     let project = args.get("project").and_then(Value::as_str).unwrap_or("");
@@ -999,6 +1000,9 @@ impl Bridge {
                 _ => id.ok_or_else(|| "id must be a number".to_owned()).and_then(|i| self.processes.stop(i)),
             }?;
             (self.emit)("mobius:code-processes", json!({ "by": "assistant" }));
+            if tool == "code.start" {
+                return Ok(Value::String(format!("Started as command {}. Read what it prints with code.output and stop it with code.stop.", result["id"])));
+            }
             return Ok(Value::String(result.to_string()));
         }
         if tool == "code.run" {

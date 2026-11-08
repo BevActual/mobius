@@ -1136,3 +1136,19 @@ fn code_projects_run_only_the_test_command_the_person_chose() {
     assert_eq!(run["passed"], true);
     assert!(events.lock().unwrap().iter().any(|(name, _)| name == "mobius:code-tests"));
 }
+
+#[cfg(unix)]
+#[test]
+fn a_command_mobius_started_is_listed_read_and_stopped() {
+    let (b, _core, _events, _d) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "code", "createProject", json!(["p"]));
+    let person = call(&b, "code", "start", json!(["p", "sleep 30"]));
+    assert_eq!(person["id"], 1);
+    let started = b.host_request("host.tool", &json!({ "tool": "code.start", "arguments": { "project": "p", "command": "echo serving; sleep 30" } })).unwrap();
+    assert!(started.as_str().unwrap().starts_with("Started as command 2."), "{started}");
+    b.host_request("host.tool", &json!({ "tool": "code.stop", "arguments": { "id": "2" } })).unwrap();
+    let list = call(&b, "code", "processes", json!(["p"]));
+    assert_eq!(list[1]["running"], false, "{list}");
+    assert_eq!(list[0]["running"], true);
+    call(&b, "code", "stopProcess", json!([1]));
+}

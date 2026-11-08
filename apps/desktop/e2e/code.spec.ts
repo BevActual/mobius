@@ -172,8 +172,8 @@ test('the console runs the person\'s commands in the project, and Mobius runs on
 test('a command can keep running, its output shows as it comes, and it stops when asked', async () => {
   await start([
     callsTool('code-start', { project: 'offsite-planner', command: 'node -e "setInterval(() => console.log(\'serving\'), 200)"' }),
-    callsTool('code-output', { id: 2 }),
-    callsTool('code-stop', { id: 2 }),
+    callsTool('code-output', { id: '{{request:Started as command ([0-9]+)}}' }),
+    callsTool('code-stop', { id: '{{request:Started as command ([0-9]+)}}' }),
     says(['The server printed serving; I stopped it.']),
   ]);
   await shell().getByRole('tab', { name: 'Console' }).click();
