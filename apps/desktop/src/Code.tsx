@@ -255,12 +255,29 @@ function TestsPanel({ code }: { code: CodeState }) {
 /** Commands run in the project's folder: the person's, typed here, and Mobius's, each of which it asked to run. */
 function ConsolePanel({ code }: { code: CodeState }) {
   const [command, setCommand] = useState('');
+  const [keep, setKeep] = useState(false);
   const out = useRef<HTMLDivElement>(null);
   useEffect(() => { out.current?.scrollTo({ top: out.current.scrollHeight }); }, [code.consoleRuns]);
   const running = code.consoleRuns.some((r) => r.result === null);
-  const submit = (e: FormEvent) => { e.preventDefault(); const c = command.trim(); if (!c || running) return; setCommand(''); void code.runCommand(c); };
+  const submit = (e: FormEvent) => { e.preventDefault(); const c = command.trim(); if (!c || (running && !keep)) return; setCommand(''); void (keep ? code.startProcess(c) : code.runCommand(c)); };
+  const live = code.processes.filter((p) => p.running || Date.now() - p.started < 600_000);
   return (
     <section className="code-console" aria-label="Console">
+      {live.length > 0 && (
+        <ul className="code-procs" aria-label="Running">
+          {live.map((p) => (
+            <li key={p.id} className="code-proc" data-running={p.running || undefined}>
+              <div className="code-proc-head">
+                <span className="code-proc-dot" aria-hidden="true" />
+                <span className="code-console-cmd">{p.by === 'assistant' ? 'Mobius › ' : '› '}{p.command}</span>
+                <span className="photo-meta" role="status">{p.running ? 'Running' : p.code === null ? 'Stopped' : `Exited with ${p.code}`}</span>
+                {p.running && <button type="button" className="btn" aria-label={`Stop ${p.command}`} onClick={() => void code.stopProcess(p.id)}>Stop</button>}
+              </div>
+              <pre aria-label={`Output of ${p.command}`}>{p.output.split('\n').slice(-8).join('\n')}</pre>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="code-console-out" ref={out} role="log" aria-label="Console output">
         {code.consoleRuns.length === 0 && <p className="code-tests-note">Run a command in the project's folder, such as git status or npm install. Mobius can run one too, and asks you each time.</p>}
         {code.consoleRuns.map((r, i) => (
@@ -273,7 +290,8 @@ function ConsolePanel({ code }: { code: CodeState }) {
       <form className="code-console-form" onSubmit={submit}>
         <span aria-hidden="true">›</span>
         <input aria-label="Command" placeholder="A command to run in this project" value={command} maxLength={2000} spellCheck={false} autoCapitalize="off" onChange={(e) => setCommand(e.target.value)} />
-        <button type="submit" className="btn" disabled={running || !command.trim()}>Run</button>
+        <label className="code-keep"><input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} /> Keep running</label>
+        <button type="submit" className="btn" disabled={(running && !keep) || !command.trim()}>{keep ? 'Start' : 'Run'}</button>
       </form>
     </section>
   );

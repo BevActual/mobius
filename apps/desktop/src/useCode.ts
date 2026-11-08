@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type CodeEntry, type CodeFile, type CodeGit, type CodeTestRun } from '@mobius/shared';
+import { isNotesFailure, type CodeEntry, type CodeFile, type CodeGit, type CodeProcess, type CodeTestRun } from '@mobius/shared';
 import { parentsOf } from './code-view';
 
 const LAST_KEY = 'mobius.code.last';
@@ -28,6 +28,7 @@ export function useCode() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [tests, setTests] = useState<CodeTests>(NO_TESTS);
   const [git, setGit] = useState<CodeGit>({ repo: false });
+  const [processes, setProcesses] = useState<CodeProcess[]>([]);
   /** Commands run in this project, newest last: the person's from the console, and Mobius's when allowed. */
   const [consoleRuns, setConsoleRuns] = useState<{ command: string; result: CodeTestRun | null; by: 'person' | 'assistant' }[]>([]);
   const live = useRef({ project, open, draft });
@@ -189,6 +190,31 @@ export function useCode() {
     await loadTree(now.project);
   }, [api, loadTree]);
 
+  const loadProcesses = useCallback(async () => {
+    const now = live.current;
+    if (!api || !now.project) { setProcesses([]); return; }
+    setProcesses(await api.processes(now.project).catch(() => []));
+  }, [api]);
+  // While something runs, what it prints is read again every second.
+  const anyRunning = processes.some((p) => p.running);
+  useEffect(() => {
+    void loadProcesses();
+    const off = api?.onProcesses(() => void loadProcesses());
+    const timer = anyRunning ? window.setInterval(() => void loadProcesses(), 1000) : undefined;
+    return () => { off?.(); window.clearInterval(timer); };
+  }, [api, project, anyRunning, loadProcesses]);
+  const startProcess = useCallback(async (command: string) => {
+    const now = live.current;
+    if (!api || !now.project) return;
+    const done = await api.start(now.project, command);
+    if (isNotesFailure(done)) setMessage(done.message);
+    await loadProcesses();
+  }, [api, loadProcesses]);
+  const stopProcess = useCallback(async (id: number) => {
+    await api?.stopProcess(id);
+    await loadProcesses();
+  }, [api, loadProcesses]);
+
   const commit = useCallback(async (message: string) => {
     const now = live.current;
     if (!api || !now.project) return false;
@@ -210,7 +236,7 @@ export function useCode() {
 
   return {
     available: api !== undefined, projects, project, entries, open, draft, setDraft, dirty, message, setMessage, expanded, toggle, tests,
-    git, commit, push, consoleRuns, runCommand, refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests,
+    git, commit, push, consoleRuns, runCommand, processes, startProcess, stopProcess, refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests,
   };
 }
 export type CodeState = ReturnType<typeof useCode>;

@@ -6,6 +6,7 @@ pub mod agent;
 pub mod memory;
 pub mod code_tests;
 pub mod code_git;
+pub mod code_processes;
 pub mod web;
 pub mod turn_history;
 pub mod schedules;

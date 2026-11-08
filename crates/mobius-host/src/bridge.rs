@@ -162,6 +162,8 @@ pub struct Bridge {
     video: mobius_workspace::video::Video,
     sheets: mobius_workspace::sheets::Sheets,
     code: mobius_workspace::code::Code,
+    /// Commands left running in Code projects.
+    processes: crate::code_processes::Processes,
     /// The test command of each Code project, which only the person sets.
     code_tests: crate::code_tests::TestCommands,
     tasks: mobius_workspace::tasks::Tasks,
@@ -287,6 +289,7 @@ impl Bridge {
             designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter),
             sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
+            processes: crate::code_processes::Processes::default(),
             code_tests: crate::code_tests::TestCommands::new(data_dir.join("code-tests.json")),
             tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             calendar: {
@@ -958,7 +961,7 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -982,6 +985,20 @@ impl Bridge {
             let dir = self.code.project_dir(project)?;
             let result = if tool == "code.commit" { crate::code_git::commit(&dir, args.get("message").and_then(Value::as_str).unwrap_or("")) } else { crate::code_git::push(&dir) }?;
             (self.emit)("mobius:code-changed", json!({ "project": project, "path": null, "by": "assistant" }));
+            return Ok(Value::String(result.to_string()));
+        }
+        if crate::code_processes::is_process_tool(tool) {
+            let id = args.get("id").and_then(Value::as_u64);
+            let result = match tool {
+                "code.start" => {
+                    let project = args.get("project").and_then(Value::as_str).unwrap_or("");
+                    let dir = self.code.project_dir(project)?;
+                    self.processes.start(&dir, project, args.get("command").and_then(Value::as_str).unwrap_or(""), "assistant")
+                }
+                "code.output" => id.ok_or_else(|| "id must be a number".to_owned()).and_then(|i| self.processes.output(i)),
+                _ => id.ok_or_else(|| "id must be a number".to_owned()).and_then(|i| self.processes.stop(i)),
+            }?;
+            (self.emit)("mobius:code-processes", json!({ "by": "assistant" }));
             return Ok(Value::String(result.to_string()));
         }
         if tool == "code.run" {
@@ -1152,7 +1169,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -1615,6 +1632,12 @@ impl Bridge {
                 }),
                 _ => Err("a project and a one-line command are needed".to_owned()),
             },
+            "processes" => text(0).ok_or_else(need).map(|p| self.processes.list(p)),
+            "start" => match (text(0), text(1)) {
+                (Some(p), Some(c)) => code.project_dir(p).and_then(|dir| self.processes.start(&dir, p, c, "person")),
+                _ => Err("a project and a command are needed".to_owned()),
+            },
+            "stopProcess" => args.first().and_then(Value::as_u64).ok_or_else(|| "which one?".to_owned()).and_then(|i| self.processes.stop(i)),
             "runTests" => text(0).ok_or_else(need).and_then(|p| {
                 let dir = code.project_dir(p)?;
                 let command = self.code_tests.get(p).ok_or("Choose a test command first.")?;

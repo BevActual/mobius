@@ -85,10 +85,8 @@ impl TestCommands {
     }
 }
 
-/// The result of one run: whether it passed (exit code 0), the code, the output (stdout and stderr, in the order
-/// they came as far as two pipes allow, cut to the last 64 KB), how long it took, and whether it ran out of time.
-pub fn run(dir: &Path, command: &str, timeout: Duration) -> Value {
-    let started = Instant::now();
+/// A command line run by the system's shell in `dir`, with its output piped and no window.
+pub fn shell_command(dir: &Path, command: &str) -> Command {
     let mut cmd = if cfg!(windows) {
         let mut c = Command::new("cmd");
         // cmd reads its command line itself, not as C-style arguments: passed as typed, in /S /C "...", so quotes
@@ -112,6 +110,14 @@ pub fn run(dir: &Path, command: &str, timeout: Duration) -> Value {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // no console window
     }
+    cmd
+}
+
+/// The result of one run: whether it passed (exit code 0), the code, the output (stdout and stderr, in the order
+/// they came as far as two pipes allow, cut to the last 64 KB), how long it took, and whether it ran out of time.
+pub fn run(dir: &Path, command: &str, timeout: Duration) -> Value {
+    let started = Instant::now();
+    let mut cmd = shell_command(dir, command);
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => return json!({ "ok": false, "passed": false, "code": null, "output": format!("The test command could not start: {e}"), "seconds": 0.0, "timedOut": false }),

@@ -168,3 +168,32 @@ test('the console runs the person\'s commands in the project, and Mobius runs on
   await expect(console_.getByRole('log', { name: 'Console output' })).toContainText('Mobius › node --version');
   await expect(console_.getByRole('log', { name: 'Console output' })).toContainText(/v\d+\./);
 });
+
+test('a command can keep running, its output shows as it comes, and it stops when asked', async () => {
+  await start([
+    callsTool('code-start', { project: 'offsite-planner', command: 'node -e "setInterval(() => console.log(\'serving\'), 200)"' }),
+    callsTool('code-output', { id: 2 }),
+    callsTool('code-stop', { id: 2 }),
+    says(['The server printed serving; I stopped it.']),
+  ]);
+  await shell().getByRole('tab', { name: 'Console' }).click();
+  const console_ = shell().getByRole('region', { name: 'Console' });
+  await console_.getByRole('checkbox', { name: 'Keep running' }).check();
+  await console_.getByRole('textbox', { name: 'Command' }).fill('node -e "setInterval(() => console.log(\'tick\'), 200)"');
+  await console_.getByRole('button', { name: 'Start' }).click();
+  const running = console_.getByRole('list', { name: 'Running' });
+  await expect(running.getByRole('listitem').first()).toContainText('tick');
+  await expect(running.getByRole('listitem').first().getByRole('status')).toHaveText('Running');
+  await running.getByRole('button', { name: /^Stop / }).first().click();
+  await expect(running.getByRole('listitem').first().getByRole('status')).toHaveText('Stopped');
+
+  // Mobius starting one is asked about; reading and stopping it are not.
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Start the server and check it');
+  await composer.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: code.start' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log.locator('.msg.assistant')).toHaveText('The server printed serving; I stopped it.');
+  await expect(log.getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
+  await expect(running.getByRole('listitem').filter({ hasText: 'serving' }).getByRole('status')).toHaveText('Stopped');
+});

@@ -185,6 +185,7 @@ export interface SkillContent { name: string; text: string; modified: number; ve
 export interface CodeEntry { path: string; folder: boolean; depth: number }
 export interface CodeFile { project: string; path: string; text: string | null; why?: string; modified: number }
 export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean }
+export interface CodeProcess { id: number; command: string; by: 'person' | 'assistant'; started: number; running: boolean; code: number | null; output: string }
 export type CodeGit = { repo: false } | { repo: true; branch: string; changes: { status: string; path: string }[]; ahead: number | null };
 export interface CodeChanged { project: string | null; path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 export interface CodeTestsEvent { project: string; running: boolean; result?: CodeTestRun; command?: string; by: 'person' | 'assistant' }
@@ -484,6 +485,11 @@ export interface MobiusBridge {
     runTests(project: string): Promise<CodeTestRun | NotesFailure>;
     /** A command the person typed in the console, run in the project's folder. */
     runCommand(project: string, command: string): Promise<CodeTestRun | NotesFailure>;
+    /** Commands left running in the project (a server, a watcher), with what they printed last. */
+    processes(project: string): Promise<CodeProcess[]>;
+    start(project: string, command: string): Promise<{ id: number } | NotesFailure>;
+    stopProcess(id: number): Promise<{ id: number } | NotesFailure>;
+    onProcesses(listener: () => void): () => void;
     /** A command run in a project, by the person or (when allowed) by Mobius. */
     onConsole(listener: (event: { project: string; command: string; result: CodeTestRun; by: 'person' | 'assistant' }) => void): () => void;
     /** The project's git state, when it is a repository. */
