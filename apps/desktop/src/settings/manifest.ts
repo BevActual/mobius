@@ -99,6 +99,9 @@ export const SETTINGS: readonly SettingsSection[] = [
         row('always-allowed', 'Always allowed', 'Actions you chose to always allow. Remove one to be asked again.', 'revoke', 'permissions', 'grants', 'remove', 'allow'),
         row('each-time', 'Asked every time', 'Some actions can only ever be allowed one use at a time.', 'once', 'command', 'delete', 'secrets', 'click', 'type'),
       ] },
+      { id: 'memory', label: 'Memory', rows: [
+        row('remembered', 'What Mobius remembers', 'Short facts Mobius keeps between conversations. It asks before remembering unless you chose otherwise. Forget any of them here.', 'memory', 'remember', 'forget', 'journey', 'facts', 'personal', 'learned'),
+      ] },
       { id: 'activity', label: 'Activity', rows: [row('activity-log', 'Activity log', 'A record of what was asked, allowed and run. It never contains what was typed or read.', 'log', 'history', 'audit', 'events', 'record')] },
       { id: 'privacy', label: 'Privacy', rows: [
         row('key-storage', 'Key storage', 'Whether your API key is stored encrypted by the system or only kept until you quit.', 'keychain', 'encrypted', 'secret'),

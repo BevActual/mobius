@@ -359,19 +359,25 @@ impl AgentService {
 
     /// `bot` is the instructions and model of the bot the conversation belongs to, if it has one.
     pub fn send(&self, request: &SendRequest, bot: Option<(&str, &str)>) -> Value {
+        self.send_remembering(request, bot, "")
+    }
+
+    /// As `send`, with what Mobius remembers about the person added to the instructions (nothing when empty).
+    pub fn send_remembering(&self, request: &SendRequest, bot: Option<(&str, &str)>, remembered: &str) -> Value {
         self.refresh_token_if_needed();
         let usual = lock(&self.saved).system.clone();
         let mut params = Map::new();
         params.insert("conversation".into(), json!(request.conversation));
         params.insert("text".into(), json!(context::with_context(&request.text, &request.context)));
-        if let Some((instructions, model)) = bot {
-            if !instructions.is_empty() {
-                let joined = [usual.as_str(), instructions].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
-                params.insert("system".into(), json!(joined));
-            }
-            if !model.is_empty() {
-                params.insert("model".into(), json!(model));
-            }
+        let instructions = bot.map(|(i, _)| i).unwrap_or("");
+        if !instructions.is_empty() || !remembered.is_empty() {
+            let joined = [usual.as_str(), instructions, remembered].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
+            params.insert("system".into(), json!(joined));
+        }
+        if let Some((_, model)) = bot
+            && !model.is_empty()
+        {
+            params.insert("model".into(), json!(model));
         }
         if request.plan {
             params.insert("plan".into(), json!(true));

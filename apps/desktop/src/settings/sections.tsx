@@ -335,9 +335,49 @@ const ACCESS_APPS: ReadonlyArray<{ id: keyof AppAccess; label: string; help: Rec
   { id: 'tasks', label: 'Tasks', help: { off: 'Mobius cannot see or change your task lists.', ask: 'Mobius asks before it reads or changes your tasks.', read: 'Mobius reads your task lists without asking, and asks before changing them.', act: 'Mobius reads and changes your task lists without asking.' } },
 ];
 
+/** What Mobius remembers, each with Forget. Read again whenever it changes, by the agent or here. */
+function MemoryList() {
+  const [items, setItems] = useState<string[] | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () => void window.mobius.memory?.list().then((list) => live && setItems(list)).catch(() => live && setItems([]));
+    load();
+    const off = window.mobius.memory?.onChange(load);
+    return () => { live = false; off?.(); };
+  }, []);
+  if (!window.mobius.memory) return <p className="srow-text">Memory is not available here.</p>;
+  if (items === null) return null;
+  return (
+    <>
+      {items.length === 0 ? (
+        <p className="srow-text">Nothing yet. When Mobius learns something worth keeping, such as a preference you mention, it asks to remember it.</p>
+      ) : (
+        <ul className="memory-list" aria-label="What Mobius remembers">
+          {items.map((text) => (
+            <li key={text} className="memory-item">
+              <span className="memory-text">{text}</span>
+              <button type="button" className="btn" aria-label={`Forget: ${text}`} onClick={() => void window.mobius.memory!.forget(text).then((r) => setProblem(r.ok ? null : r.error))}>Forget</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {problem && <p className="srow-text" role="alert">{problem}</p>}
+      <p className="srow-text">Kept in memory.md in the data folder, as plain text you can edit.</p>
+    </>
+  );
+}
+
 export function SafetySection({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
   const { grants, remove } = useGrants();
   const path = (row: string) => rowPath('safety', subpage, row);
+  if (subpage === 'memory') {
+    return (
+      <Row path={path('remembered')} title="What Mobius remembers" description="Short facts Mobius keeps between conversations. It asks before remembering unless you chose otherwise. Forget any of them here." highlight={highlight === 'remembered'}>
+        <MemoryList />
+      </Row>
+    );
+  }
   if (subpage === 'activity') {
     return (
       <Row path={path('activity-log')} title="Activity log" description="A record of what was asked, allowed and run. It never contains what was typed or read." highlight={highlight === 'activity-log'}>

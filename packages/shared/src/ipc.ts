@@ -196,6 +196,13 @@ export interface MobiusBridge {
     /** Says when Little Mobius opens or closes. */
     onChange(listener: (open: boolean) => void): () => void;
   };
+  /** What Mobius remembers about the person between conversations. */
+  memory?: {
+    list(): Promise<string[]>;
+    forget(text: string): Promise<{ ok: true } | AgentFailure>;
+    /** The agent remembered or forgot something, or it was forgotten in Settings. */
+    onChange(listener: () => void): () => void;
+  };
   /** The macOS menu bar, filled from the same menus the window shows in its toolbar elsewhere. */
   menu?: {
     set(menus: { id: string; label: string; items: ({ kind: 'item'; id: string; label: string; keys?: string; disabled?: boolean; checked?: boolean } | { kind: 'separator' })[] }[]): Promise<void>;

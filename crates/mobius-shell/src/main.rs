@@ -473,8 +473,12 @@ fn main() {
             app.manage(Shell { bridge: bridge.clone(), mini_place: data_dir.join("little-mobius.json"), tray: std::sync::Mutex::new(None), menu: std::sync::Mutex::new(None) });
             // A choice in the macOS menu bar goes to the interface, which runs it.
             handle.on_menu_event(|app, event| menu::on_event(app, event.id().as_ref()));
-            // The print in the menu bar or notification area; the app keeps it, found again by its id.
-            let _ = tray::create(&handle);
+            // The print in the menu bar or notification area; the app keeps it, found again by its id. Tests start and
+            // kill the app hundreds of times, and each kill leaves a dead icon in the notification area: they go
+            // without one unless they ask for it.
+            if !test_mode || std::env::var("MOBIUS_TEST_TRAY").is_ok_and(|v| v == "1") {
+                let _ = tray::create(&handle);
+            }
             let hidden = test_mode && std::env::var("MOBIUS_HIDE_WINDOW").is_ok_and(|v| v == "1");
             // The window holds the interface as one web view that fills it, and the browser's pages as more views above it.
             // Tests need one known size; a person gets a window that fits the screen they have and opens in the middle of it.

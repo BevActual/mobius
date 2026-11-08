@@ -321,6 +321,20 @@ fn a_message_goes_to_the_core_with_its_attachments_and_a_bots_instructions_added
 }
 
 #[test]
+fn what_mobius_remembers_joins_the_instructions_after_a_bots() {
+    let s = service(true);
+    s.service.configure(&Configure { system: Some("Be brief.".into()), ..cfg("http://a/v1", "am") });
+    let req = parse_send(&json!({ "conversation": "c-1", "text": "hi" })).unwrap();
+    s.service.send_remembering(&req, None, "Remembered: likes tea.");
+    s.service.send_remembering(&req, Some(("Cite sources.", "")), "Remembered: likes tea.");
+    s.service.send_remembering(&req, None, "");
+    let sends: Vec<Value> = calls(&s.core).into_iter().filter(|c| c["method"] == "agent.send").map(|c| c["params"].clone()).collect();
+    assert_eq!(sends[0]["system"], json!("Be brief.\n\nRemembered: likes tea."));
+    assert_eq!(sends[1]["system"], json!("Be brief.\n\nCite sources.\n\nRemembered: likes tea."));
+    assert!(sends[2].get("system").is_none(), "nothing remembered leaves the usual instructions to the core");
+}
+
+#[test]
 fn what_is_shown_from_the_core_is_filtered_and_trimmed() {
     let s = service(true);
     let convs = s.service.conversations();

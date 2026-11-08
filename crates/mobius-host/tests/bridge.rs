@@ -439,7 +439,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 13, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 15, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -450,12 +450,23 @@ mod browser {
     }
 
     #[test]
+    fn what_mobius_remembers_is_added_to_every_turn_and_can_be_forgotten() {
+        let dir = tempfile::tempdir().unwrap();
+        let (b, _core, _e, _d) = bridge_in(dir);
+        assert_eq!(b.host_request("host.tool", &json!({ "tool": "memory.remember", "arguments": { "text": "Prefers boutique hotels" } })).unwrap(), json!("Remembered."));
+        assert_eq!(b.call("memory", "list", &[]).unwrap(), json!(["Prefers boutique hotels"]));
+        assert_eq!(b.call("memory", "forget", &[json!("Prefers boutique hotels")]).unwrap(), json!({ "ok": true }));
+        assert_eq!(b.call("memory", "list", &[]).unwrap(), json!([]));
+        assert_eq!(b.call("memory", "forget", &[json!("Prefers boutique hotels")]).unwrap()["ok"], json!(false));
+    }
+
+    #[test]
     fn becoming_ready_registers_the_browser_tools_with_the_core() {
         let (b, core, _e, _d) = bridge_in(tempfile::tempdir().unwrap());
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "memory.remember", "memory.forget"]);
     }
 
     #[derive(Default)]
