@@ -58,6 +58,7 @@ export interface MenuContext {
     photo: { newAlbum: () => void; export: () => void };
     design: { newDesign: () => void; newFolder: () => void };
     canvas: { newBoard: () => void; newFolder: () => void; newSticky: () => void };
+    research: { newResearch: () => void; newFolder: () => void };
     code: { newProject: () => void; newFile: () => void; save: () => void; runTests: () => void };
     sheets: { newWorkbook: () => void; newSheet: () => void; insertRow: () => void };
     mail: { newMessage: () => void; getMail: () => void };
@@ -189,6 +190,11 @@ function appMenu(c: MenuContext): Menu | null {
       return { id: 'app', label: 'Design', items: [
         item('new-design', 'New design', d.design.newDesign),
         item('new-folder', 'New folder', d.design.newFolder),
+      ] };
+    case 'research':
+      return { id: 'app', label: 'Research', items: [
+        item('new-research', 'New research', d.research.newResearch),
+        item('new-folder', 'New folder', d.research.newFolder),
       ] };
     case 'canvas':
       return { id: 'app', label: 'Canvas', items: [

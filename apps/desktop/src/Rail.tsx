@@ -23,6 +23,7 @@ export const APP_ICONS: Record<string, ReactNode> = {
   design: <><path d="M4 16l1-4 8.5-8.5a2.1 2.1 0 0 1 3 3L8 15z" /><path d="M12 5l3 3M4 16h5" /></>,
   code: <><path d="m7 6-4 4 4 4M13 6l4 4-4 4M11 4.5l-2 11" /></>,
   docs: <><path d="M5.5 3h6l3 3v11h-9z" /><path d="M11.5 3v3h3M7.5 9.5h5M7.5 12h5M7.5 14.5h3" /></>,
+  research: <><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4.5 4.5M6.5 8.5h4M8.5 6.5v4" /></>,
   canvas: <><rect x="3" y="3.5" width="6" height="6" rx="1" /><rect x="11" y="10.5" width="6" height="6" rx="1" /><path d="M9 6.5h3.5a1.5 1.5 0 0 1 1.5 1.5v2.5" /></>,
   review: <><path d="M4 10a6 6 0 1 0 12 0 6 6 0 0 0-12 0" /><path d="m7.5 10 1.8 1.8 3.4-3.6" /></>,
 };

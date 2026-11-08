@@ -13,7 +13,7 @@ export interface OpenPage { path: string; title: string; base: number | null }
  * The Notes app's state: the notebooks, the open page and its text, and saving as the person types. Docs keeps its
  * documents the same way, in folders, so it uses this too (`kind` 'docs').
  */
-export type NotesKind = 'notes' | 'docs' | 'slides' | 'designs' | 'songs' | 'boards';
+export type NotesKind = 'notes' | 'docs' | 'slides' | 'designs' | 'songs' | 'boards' | 'research';
 export function useNotes(kind: NotesKind = 'notes') {
   const api = window.mobius[kind];
   const remembered = useCallback((): string | null => { try { return window.localStorage.getItem(lastKey(kind)); } catch { return null; } }, [kind]);
@@ -94,15 +94,22 @@ export function useNotes(kind: NotesKind = 'notes') {
     return made.name;
   }, [api, refresh]);
 
-  const createPage = useCallback(async (notebook: string, title = 'Untitled') => {
+  /** Makes a page and opens it; `content`, when given, is what it holds instead of the usual start. Gives its path. */
+  const createPage = useCallback(async (notebook: string, title = 'Untitled', content?: string): Promise<string | null> => {
     if (live.current.page && live.current.status === 'unsaved') await save();
     const made = await api?.createPage(notebook, title);
-    if (!made || isNotesFailure(made)) { if (made) setMessage(made.message); return; }
+    if (!made || isNotesFailure(made)) { if (made) setMessage(made.message); return null; }
+    let { content: text, modified } = made;
+    if (content !== undefined) {
+      const written = await api!.save(made.path, content, made.modified);
+      if (!isNotesFailure(written)) { text = content; modified = written.modified; }
+    }
     await refresh();
     remember(made.path);
-    setPage({ path: made.path, title, base: made.modified });
-    setText(made.content);
+    setPage({ path: made.path, title, base: modified });
+    setText(text);
     setStatus('saved');
+    return made.path;
   }, [api, refresh, save, remember]);
 
   const remove = useCallback(async (path: string) => {

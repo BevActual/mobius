@@ -22,7 +22,7 @@ export interface SurfaceState {
   /** A web page is showing in the browser. */
   hasPage: boolean;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
-  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' } | null;
+  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
@@ -130,6 +130,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Tidy the spacing', prompt: 'Line up the layers in this design on an 8-point grid with even spacing, changing only x, y, w and h. Keep every id.', attach: 'note' },
           ]
         : [{ label: 'Sketch a screen', prompt: 'Make a design in my Design app, a phone-sized frame, for ' }];
+    case 'research':
+      return state.note
+        ? [
+            { label: 'Check the claims', prompt: 'Check the facts marked from the web in this report against their sources (web.read each source again). Mark any that do not hold up as unsure, with what the source actually says, in the report itself. Tell me what you changed.', attach: 'note' },
+            { label: 'Go deeper', prompt: 'Find three or four more sources for this report, from angles it does not cover yet, and add what they say to the report and its sources. Keep what is already there.', attach: 'note' },
+            { label: 'Turn into a doc', prompt: 'Write this report up as a short document for other people in my Docs (docs/Documents/<a short title>.md): the answer, the reasons, and the sources as links. Leave the report as it is.', attach: 'note' },
+          ]
+        : [{ label: 'Research…', prompt: 'Research on the web, and write a report with sources in my Research app: ' }];
     case 'canvas':
       return state.note
         ? [
@@ -166,7 +174,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
 }
 
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' }): ContextItem {
+export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' }): ContextItem {
   return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 

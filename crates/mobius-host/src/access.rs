@@ -22,6 +22,7 @@ fn capabilities(app: &str) -> (Grants, Grants) {
         "tasks" => (&[("tasks.read", None)], &[("tasks.write", None)]),
         "mail" => (&[("mail.read", None)], &[]),
         "design" => (&[("files.read", Some("designs/*"))], &[("files.write", Some("designs/*"))]),
+        "research" => (&[("files.read", Some("research/*"))], &[("files.write", Some("research/*"))]),
         "canvas" => (&[("files.read", Some("boards/*"))], &[("files.write", Some("boards/*"))]),
         "photo" => (&[("files.read", Some("photos/*"))], &[("files.write", Some("photos/*"))]),
         "studio" => (&[("files.read", Some("studio/*"))], &[("files.write", Some("studio/*"))]),

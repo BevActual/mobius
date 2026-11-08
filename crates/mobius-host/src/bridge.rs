@@ -157,6 +157,7 @@ pub struct Bridge {
     slides: mobius_workspace::notes::Notes,
     designs: mobius_workspace::notes::Notes,
     boards: mobius_workspace::notes::Notes,
+    research: mobius_workspace::notes::Notes,
     songs: mobius_workspace::notes::Notes,
     photos: mobius_workspace::photos::Photos,
     skills: mobius_workspace::skills::Skills,
@@ -228,6 +229,9 @@ impl Bridge {
                 if let Some(board) = path.replace('\\', "/").strip_prefix("boards/") {
                     notes_emit("mobius:boards-changed", json!({ "path": board, "by": "another app" }));
                 }
+                if let Some(report) = path.replace('\\', "/").strip_prefix("research/") {
+                    notes_emit("mobius:research-changed", json!({ "path": report, "by": "another app" }));
+                }
                 if let Some(project) = path.replace('\\', "/").strip_prefix("video/").and_then(|p| p.split('/').next().map(str::to_owned)) {
                     notes_emit("mobius:video-changed", json!({ "project": project, "by": "another app" }));
                 }
@@ -292,6 +296,7 @@ impl Bridge {
             songs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "studio").of_files("json", mobius_workspace::notes::song_starter),
             designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter),
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
+            research: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "research"),
             sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
             processes: crate::code_processes::Processes::default(),
@@ -415,6 +420,7 @@ impl Bridge {
             ("songs", _) => Ok(self.notes_call(&self.songs, "mobius:songs-changed", method, args)),
             ("designs", _) => Ok(self.notes_call(&self.designs, "mobius:designs-changed", method, args)),
             ("boards", _) => Ok(self.notes_call(&self.boards, "mobius:boards-changed", method, args)),
+            ("research", _) => Ok(self.notes_call(&self.research, "mobius:research-changed", method, args)),
             ("sheets", _) => Ok(self.sheets_call(method, args)),
             ("code", _) => Ok(self.code_call(method, args)),
             ("photos", _) => Ok(self.photos_call(method, args)),
@@ -1089,6 +1095,9 @@ impl Bridge {
                 }
                 if let Some(board) = path.strip_prefix("boards/") {
                     (self.emit)("mobius:boards-changed", json!({ "path": board, "by": "assistant" }));
+                }
+                if let Some(report) = path.strip_prefix("research/") {
+                    (self.emit)("mobius:research-changed", json!({ "path": report, "by": "assistant" }));
                 }
                 if let Some(project) = path.strip_prefix("video/").and_then(|p| p.split('/').next()) {
                     (self.emit)("mobius:video-changed", json!({ "project": project, "by": "assistant" }));
@@ -1904,6 +1913,7 @@ impl Bridge {
         (self.emit)("mobius:slides-changed", json!({ "path": path.and_then(|p| p.strip_prefix("slides/")), "by": "undo" }));
         (self.emit)("mobius:designs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("designs/")), "by": "undo" }));
         (self.emit)("mobius:boards-changed", json!({ "path": path.and_then(|p| p.strip_prefix("boards/")), "by": "undo" }));
+        (self.emit)("mobius:research-changed", json!({ "path": path.and_then(|p| p.strip_prefix("research/")), "by": "undo" }));
         (self.emit)("mobius:songs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("studio/")), "by": "undo" }));
         (self.emit)("mobius:skills-changed", json!({ "name": path.and_then(|p| p.strip_prefix("skills/")).and_then(|p| p.split('/').next()), "by": "undo" }));
         (self.emit)("mobius:video-changed", json!({ "project": path.and_then(|p| p.strip_prefix("video/")).and_then(|p| p.split('/').next()), "by": "undo" }));

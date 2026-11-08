@@ -97,6 +97,8 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
   discard; tests run with a command only the person sets (`code-tests.json`, outside the workspace).
 - **Design** (`designs/<folder>/*.json`): frames of rectangles, ellipses and text on a canvas, an inspector with colour
   styles and a contrast check; the agent's layers dashed.
+- **Research** (`research/<folder>/*.md`): a question Mobius looks into with `web.search` and `web.read`, answered as a
+  report with web facts marked and a Sources list shown beside it; follow-ups go with the report attached.
 - **Canvas** (`boards/<folder>/*.json`): a whiteboard of stickies, shapes, text, arrows joining them and pen lines,
   one item per line in the file; sorting into themes or a flowchart from Mobius shows dashed until kept.
 - **Photo** (`photos/<album>/`): pictures never changed; adjustment layers to all or part of each, in

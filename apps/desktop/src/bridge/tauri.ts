@@ -379,6 +379,16 @@ export function createTauriBridge(): MobiusBridge {
       search: (query) => call('boards', 'search', [query], () => []),
       onChanged: (listener) => on<NotesChange>('mobius:boards-changed', listener),
     },
+    research: {
+      list: () => call('research', 'list', [], () => []),
+      read: (path) => call('research', 'read', [path], () => ({ ok: false as const, message: 'Research is not available.' })),
+      save: (path, content, base) => call('research', 'save', [path, content, base], () => ({ ok: false as const, message: 'Research is not available.' })),
+      createNotebook: (name) => call('research', 'createNotebook', [name], () => ({ ok: false as const, message: 'Research is not available.' })),
+      createPage: (notebook, title) => call('research', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Research is not available.' })),
+      remove: (path) => call('research', 'remove', [path], () => ({ ok: false as const, message: 'Research is not available.' })),
+      search: (query) => call('research', 'search', [query], () => []),
+      onChanged: (listener) => on<NotesChange>('mobius:research-changed', listener),
+    },
     songs: {
       list: () => call('songs', 'list', [], () => []),
       read: (path) => call('songs', 'read', [path], () => ({ ok: false as const, message: 'Studio is not available.' })),
