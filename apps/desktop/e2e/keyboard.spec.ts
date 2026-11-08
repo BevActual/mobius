@@ -130,14 +130,14 @@ test('quick entry is off until chosen, then it is registered with the system and
   await shell().keyboard.press('Control+Alt+Space');
   await expect(keys('quickEntry')).toHaveText('Ctrl+Alt+Space');
   await expect(page().getByTestId('quick-entry-working')).toBeVisible();
-  expect(await hook((h) => h.quickEntry.active())).toBe(true);
+  await expect.poll(() => hook((h) => h.quickEntry.active())).toBe(true);
   await hook((h) => h.quickEntry.press());
   await expect(page()).toHaveCount(0);
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeFocused();
   await openKeyboard();
   await page().getByRole('button', { name: 'Clear Bring Mobius up and start a message, from anywhere' }).click();
   await expect(keys('quickEntry')).toHaveText('Not set');
-  expect(await hook((h) => h.quickEntry.active())).toBe(false);
+  await expect.poll(() => hook((h) => h.quickEntry.active())).toBe(false);
 });
 
 test('a global shortcut another program already has is reported, not hidden', async () => {
