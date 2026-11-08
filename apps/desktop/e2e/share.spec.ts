@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 
 test.skip(process.env.MOBIUS_SHELL !== 'tauri', 'Sharing tools over MCP is built in the Tauri shell');
 
@@ -18,7 +18,7 @@ test.afterEach(async () => {
   await mobius?.close();
   mobius = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  removeTestData(userData);
 });
 
 const shell = () => mobius!.shell;

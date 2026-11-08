@@ -52,7 +52,8 @@ test('a second download of the same name does not overwrite the first', async ()
 
 test('a file that could run a program is saved but cannot be opened from here', async () => {
   // Known gap: the Windows web view never reports an executable download as finished (the file is saved, the list keeps saying "downloading").
-  test.fixme(process.env.MOBIUS_ENGINE === 'webview', 'WebView2 holds executable downloads open');
+  // The system web view is the engine unless MOBIUS_ENGINE asks for Chromium (a build with the cef feature).
+  test.fixme((process.env.MOBIUS_ENGINE ?? 'webview') === 'webview', 'WebView2 holds executable downloads open');
   mobius = await launch(fixture.origin + '/', { env: { MOBIUS_DOWNLOADS_DIR: folder } });
   await go('/setup.exe');
   const item = list().getByRole('listitem').first();

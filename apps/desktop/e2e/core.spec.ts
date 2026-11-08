@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { coreCall, coreHistory, corePid, crashCore, launch, startFixture, type Fixture, type Launched } from './harness';
+import { coreCall, coreHistory, corePid, crashCore, launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -125,6 +125,6 @@ test('approvals made with "always" are still there after quitting and starting t
   } finally {
     await mobius?.close();
     mobius = undefined;
-    fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    removeTestData(userData);
   }
 });

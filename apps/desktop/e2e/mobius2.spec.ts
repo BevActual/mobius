@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, views, type Fixture, type Launched } from './harness';
+import { launch, startFixture, views, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 // The Mobius 2 shell: split view, on-canvas actions in notes, and review and undo of the agent's last turn.
@@ -22,7 +22,7 @@ test.afterEach(async () => {
   await model?.close();
   model = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  removeTestData(userData);
 });
 
 async function start(replies: ModelReply[] = []): Promise<Launched> {

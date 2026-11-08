@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -69,7 +69,7 @@ test('turning history off stops recording, and the choice and the pages survive 
   } finally {
     await mobius?.close();
     mobius = undefined;
-    fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    removeTestData(userData);
   }
 });
 

@@ -135,7 +135,7 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
   const exe = path.resolve(root, '../../target/debug', process.platform === 'win32' ? 'mobius-shell.exe' : 'mobius-shell');
   const port = 9300 + Math.floor(Math.random() * 600);
   const child = spawn(exe, [], {
-    env: { ...process.env, MOBIUS_TEST: '1', MOBIUS_USER_DATA: userData, MOBIUS_START_URL: startUrl, MOBIUS_HIDE_WINDOW: '1', WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --disable-features=msSmartScreenProtection,InsecureDownloadWarnings --safebrowsing-disable-download-protection --use-fake-device-for-media-stream --use-fake-ui-for-media-stream`, WEBVIEW2_USER_DATA_FOLDER: path.join(userData, 'webview'), ...env },
+    env: { ...process.env, MOBIUS_TEST: '1', MOBIUS_USER_DATA: userData, MOBIUS_START_URL: startUrl, MOBIUS_HIDE_WINDOW: '1', WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --disable-features=msSmartScreenProtection --safebrowsing-disable-download-protection --use-fake-device-for-media-stream --use-fake-ui-for-media-stream`, WEBVIEW2_USER_DATA_FOLDER: path.join(userData, 'webview'), ...env },
     stdio: ['ignore', 'ignore', process.env.MOBIUS_TAURI_LOG ? fs.openSync(process.env.MOBIUS_TAURI_LOG, 'a') : 'ignore'],
   });
   let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | null = null;
@@ -177,7 +177,7 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
       }
       await new Promise((resolve) => setTimeout(resolve, 400));
       // WebView2 can hold its files for a moment after it ends: keep trying for a few seconds.
-      if (!closeOptions.keepUserData) fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+      if (!closeOptions.keepUserData) removeTestData(userData);
     },
   };
 }
@@ -214,3 +214,9 @@ export const quickEntry = (app: AppHandle): { press(): Promise<void>; active(): 
 export const takeGlobalShortcut = async (app: AppHandle, accelerator: string): Promise<void> => {
   await testHook(app, 'takeShortcut', [accelerator]);
 };
+
+/** Deletes a test's data folder. WebView2 can hold its files a moment after it ends, so this keeps trying; a folder it
+ *  still holds after that is left in the temporary folder, since a leftover never makes a test fail. */
+export function removeTestData(folder: string): void {
+  try { fs.rmSync(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch { /* left behind */ }
+}

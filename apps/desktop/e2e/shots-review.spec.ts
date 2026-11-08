@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, resizeWindow, startFixture } from './harness';
+import { launch, resizeWindow, startFixture, removeTestData } from './harness';
 import { callsTool, says, startModel } from './model-fixture';
 
 // Not a test: pictures of the current app for design review. Run with MOBIUS_SHOTS=1 and MOBIUS_SHOTS_DIR=<folder>.
@@ -106,7 +106,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await mobius.close();
       await model.close();
       await fixture.close();
-      fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+      removeTestData(userData);
       fs.rmSync(dl, { recursive: true, force: true });
     }
   });

@@ -106,8 +106,8 @@ test('a floating agent panel appears from the right edge and hides again', async
   await shell().mouse.move(zone.x + 4, zone.y + 100);
   await expect(agentPanel()).toBeVisible();
   await expect.poll(pageVisible).toBe(false);
-  // Back over the middle of the page (the rail and the list are on the left now).
-  await shell().mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
+  // Back over the page, left of the panel (on a narrow window the middle of the page is under the floating panel).
+  await shell().mouse.move(stage.x + 40, stage.y + stage.height / 2);
   await expect(agentPanel()).toHaveCount(0);
   await expect.poll(pageVisible).toBe(true);
 });

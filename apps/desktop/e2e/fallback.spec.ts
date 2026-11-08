@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { says, startModel, type ModelFixture } from './model-fixture';
 
 let fixture: Fixture;
@@ -21,7 +21,7 @@ test.afterEach(async () => {
   await backup?.close();
   broken = backup = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  removeTestData(userData);
 });
 
 // The first model answers every request with an error (HTTP 500); the second answers properly.

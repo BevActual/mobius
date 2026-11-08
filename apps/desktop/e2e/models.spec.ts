@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { fakeLlama, patterned, startHub, type FakeHub, type FakeRepo } from './hub-fixture';
 
 let fixture: Fixture;
@@ -222,6 +222,6 @@ test('a model can start again by itself when Mobius opens', async () => {
   } finally {
     await mobius?.close();
     mobius = undefined;
-    fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    removeTestData(userData);
   }
 });

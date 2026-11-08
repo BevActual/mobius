@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { startModel, type ModelFixture } from './model-fixture';
 import { startAnthropic, type AnthropicFixture, type AnthropicReply } from './anthropic-fixture';
 
@@ -27,7 +27,7 @@ test.afterEach(async () => {
   await anthropic?.close();
   first = anthropic = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  removeTestData(userData);
 });
 
 const shell = () => mobius!.shell;
