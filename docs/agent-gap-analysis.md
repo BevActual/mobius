@@ -22,9 +22,9 @@ built and tested; "partly" means a first version exists. Hermes is the reference
 | Skills (procedures the agent keeps) | `skills_*` | none | later |
 | Subagents / delegation | `delegate_tool*.py` | none | later |
 | Scheduled jobs | `cronjob_tools.py` | Settings › Schedules: a request at a time of day on chosen days, each run a new reviewable conversation; checked every half minute by the host; a run missed while closed happens once that day | have (made by the person, not by the agent; no notification of the result beyond the usual ones) |
-| App tools | — | Calendar (`calendar.list/add/update`, and `calendar.suggest`, which waits for the person's Add), Sheets (`sheets.list/read/write`, formulas worked out in Rust), Mail (`mail.search/read`, and `mail.draft`, which the person sends; there is no send tool); Docs and Slides through the file tools | have |
+| App tools | — | Calendar (`calendar.list/add/update`, and `calendar.suggest`, which waits for the person's Add), Sheets (`sheets.list/read/write`, formulas worked out in Rust), Mail (`mail.search/read`, and `mail.draft`, which the person sends; there is no send tool); Docs, Slides, Design (JSON frames) and Photo (`<photo>.edits.json`) through the file tools | have |
 | Saying how sure it is | — | facts marked with where they came from (`trust:yours`, `trust:web`, `trust:unsure`) and shown as trust marks; a reply with unsure facts is not copied until they are checked | have (marks come from the model; nothing checks a mark against its source yet) |
-| Code execution | `code_execution_tool.py` | none | later |
+| Code execution | `code_execution_tool.py` | `code.test` runs a Code project's tests with the command the person chose (kept outside the workspace), and nothing else | narrower (no shell, no command of the agent's choosing) |
 | Image generation, vision, speech | yes | speech-to-text only | later |
 
 ## Order proposed
