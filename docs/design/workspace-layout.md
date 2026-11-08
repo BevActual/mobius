@@ -108,9 +108,10 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
   item put back as it was before its turn, asking first if it changed again since (`turn-history.json`).
 
 - **Pictures**: a message carries up to four pictures (chosen, pasted, or one still of a window chosen in the system's
-  picker: Look at a window), sent to models that read pictures; Photo sends the photo itself with its edits.
+  picker: Look at a window, or one still from the camera: Show Mobius), sent to models that read pictures; Photo
+  sends the photo itself with its edits.
 
-Not built yet from the canvas: Show Mobius (the phone's camera), which needs the phone app.
+Show Mobius on the phone, with the Camera Control, waits for the phone app.
 
 ## Linux
 
