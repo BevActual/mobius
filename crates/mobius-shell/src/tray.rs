@@ -90,6 +90,9 @@ fn menu<R: Runtime>(app: &AppHandle<R>, shown: &Shown) -> tauri::Result<Menu<R>>
     menu.append(&MenuItem::with_id(app, "ask", "Ask Mobius…", true, None::<&str>)?)?;
     if !shown.items.is_empty() {
         menu.append(&PredefinedMenuItem::separator(app)?)?;
+        if shown.items.iter().any(|i| i.status == "Working") {
+            menu.append(&MenuItem::with_id(app, "stop-all", "Stop All", true, None::<&str>)?)?;
+        }
         for item in &shown.items {
             let label = if item.status.is_empty() { item.title.clone() } else { format!("{} — {}", item.title, item.status) };
             menu.append(&MenuItem::with_id(app, format!("c:{}", item.id), label, true, None::<&str>)?)?;
@@ -143,6 +146,9 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
                     let _ = app.emit("mobius:shortcut", json!("quick-entry"));
                 }
                 "quit" => app.exit(0),
+                "stop-all" => {
+                    let _ = app.emit("mobius:tray-stop-all", Value::Null);
+                }
                 _ => {
                     if let Some(conversation) = id.strip_prefix("c:") {
                         show_main(app);

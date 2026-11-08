@@ -238,6 +238,9 @@ export function App() {
   useEffect(() => { void window.mobius.tray?.set(JSON.parse(trayKey) as TrayShown).catch(() => undefined); }, [trayKey]);
   const selectConversation = conversation.select;
   useEffect(() => window.mobius.tray?.onOpenConversation((id) => { openApp('agent'); selectConversation(id); }), [openApp, selectConversation]);
+  const workingNow = useRef<string[]>([]);
+  workingNow.current = conversation.list.filter((c) => c.activity === 'working').map((c) => c.id);
+  useEffect(() => window.mobius.tray?.onStopAll(() => { for (const id of workingNow.current) void window.mobius.agent.cancel(id); }), []);
   const activity = activityOf(conversation.state);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
   // A page the agent opens while you talk to it in the Agent app shows in the browser beside the conversation.
@@ -972,7 +975,7 @@ export function App() {
         actions={createActions}
       />
       <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp}
-        onAsk={(question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); }}
+        onAsk={settings?.configured ? (question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined}
         commands={launcherCommands} />
     </div>
   );
