@@ -112,6 +112,12 @@ test('a board is stickies, shapes and arrows: added, written on, moved, joined, 
   await shell().keyboard.press('Control+v');
   await expect.poll(() => saved().items.filter((x) => x.text === 'Walkable').length).toBe(2);
 
+  // Tidy up lines everything up in a grid.
+  await board().click({ position: { x: 5, y: 5 } });
+  await shell().keyboard.press('Control+a');
+  await tools().getByRole('button', { name: 'Tidy up' }).click();
+  await expect.poll(() => { const ys = saved().items.filter((x) => x.type === 'sticky' || x.type === 'shape').map((x) => x.y); return new Set(ys).size; }).toBeLessThan(3);
+
   // Written on again with a double-click.
   await board().getByLabel('Shape: Book by Friday').dblclick();
   await shell().getByRole('textbox', { name: 'Shape text' }).fill('Book by Thursday');

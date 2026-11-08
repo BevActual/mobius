@@ -55,6 +55,15 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await expect(shell.getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toContainText('breakfast included');
   expect(JSON.stringify(model.requests[0]!.messages)).toContain('Nine rooms in Príncipe Real.');
 
+  // A passage selected and highlighted is marked in the article and listed under it.
+  const passage = article.getByText('Breakfast included.');
+  await passage.selectText();
+  await passage.dispatchEvent('mouseup');
+  await article.getByRole('toolbar', { name: 'Selected text' }).getByRole('button', { name: /Highlight/ }).click();
+  await expect(article.locator('mark')).toHaveText('Breakfast included.');
+  await expect(article.getByRole('region', { name: 'Highlights' })).toContainText('1 highlight');
+  await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('==Breakfast included.==');
+
   await article.getByRole('button', { name: 'Done reading' }).click();
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'reading', 'Archive', 'Casa Amora.md'))).toBe(true);
   await expect.poll(() => fs.existsSync(file)).toBe(false);
