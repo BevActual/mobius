@@ -7,6 +7,9 @@ describe('actions in plain words', () => {
     expect(describeAction('tasks.add', { list: 'Inbox', text: 'Water the plants' })).toBe('add “Water the plants” to Inbox in Tasks');
     expect(describeAction('files.write', { path: 'notes/Work/Plan.md' })).toBe('write the note “Work › Plan”');
     expect(describeAction('files.edit', { path: 'tasks/Groceries.md' })).toBe('change the task list “Groceries”');
+    expect(describeAction('calendar.add', { title: 'Dentist', start: 'nonsense' })).toBe('add “Dentist” to your calendar on nonsense');
+    expect(describeAction('calendar.add', {})).toBe('add an event to your calendar');
+    expect(describeAction('calendar.list', {})).toBe('read your calendar');
     expect(describeAction('memory.remember', { text: 'Prefers boutique hotels' })).toBe('remember that “Prefers boutique hotels”');
     expect(describeAction('sessions.search', { query: 'casa amora' })).toBe('search your past conversations for “casa amora”');
   });

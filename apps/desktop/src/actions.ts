@@ -11,8 +11,16 @@ export function describeAction(name: string, args: unknown): string | null {
   const place = (path: string) => {
     const clean = path.replace(/\\/g, '/');
     if (clean.startsWith('notes/')) return `the note ${quote(clean.slice('notes/'.length).replace(/\.md$/i, '').replace('/', ' › '))}`;
+    if (clean.startsWith('calendar/')) return `the calendar ${quote(clean.slice('calendar/'.length).replace(/\.ics$/i, ''))}`;
     if (clean.startsWith('tasks/')) return `the task list ${quote(clean.slice('tasks/'.length).replace(/\.md$/i, ''))}`;
     return clean ? `the file ${quote(clean)}` : 'a file';
+  };
+  const when = (text: string) => {
+    const [day, time] = text.split('T');
+    const date = new Date(`${day}T00:00`);
+    if (Number.isNaN(date.getTime())) return text;
+    const shown = date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    return time ? `${shown} at ${time}` : shown;
   };
   switch (name) {
     case 'browser.open': return s('url') ? `open ${host(s('url'))} in the browser` : 'open a page in the browser';
@@ -28,6 +36,9 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'tasks.list': return s('list') ? `read your ${quote(s('list'))} tasks` : 'read your task lists';
     case 'tasks.add': return s('text') ? `add ${quote(s('text'))} to ${s('list') || 'Inbox'} in Tasks` : 'add a task';
     case 'tasks.update': return s('task') || s('text') ? `change the task ${quote(s('task') || s('text'))}` : 'change a task';
+    case 'calendar.list': return 'read your calendar';
+    case 'calendar.add': return s('title') ? `add ${quote(s('title'))} to your calendar${s('start') ? ` on ${when(s('start'))}` : ''}` : 'add an event to your calendar';
+    case 'calendar.update': return s('title') ? `change the event ${quote(s('title'))} in your calendar` : 'change an event in your calendar';
     case 'memory.remember': return s('text') ? `remember that ${quote(s('text'))}` : 'remember something about you';
     case 'memory.forget': return s('text') ? `forget ${quote(s('text'))}` : 'forget something it remembered';
     case 'schedules.add': return s('title') ? `schedule ${quote(s('title'))} at ${s('time') || 'a time'}` : 'schedule a request';

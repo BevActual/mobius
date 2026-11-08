@@ -152,6 +152,7 @@ pub struct Bridge {
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
     tasks: mobius_workspace::tasks::Tasks,
+    calendar: mobius_workspace::calendar::Calendar,
     /// What Mobius remembers about the person between conversations.
     memory: crate::memory::Memory,
     /// Requests to make at times of day.
@@ -193,6 +194,9 @@ impl Bridge {
                 if let Some(list) = path.replace('\\', "/").strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")) {
                     notes_emit("mobius:tasks-changed", json!({ "list": list, "by": "another app" }));
                 }
+                if let Some(name) = path.replace('\\', "/").strip_prefix("calendar/").and_then(|f| f.strip_suffix(".ics")) {
+                    notes_emit("mobius:calendar-changed", json!({ "calendar": name, "by": "another app" }));
+                }
             }),
         );
         Bridge {
@@ -231,6 +235,7 @@ impl Bridge {
             signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            calendar: mobius_workspace::calendar::Calendar::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             memory: crate::memory::Memory::new(data_dir.join("memory.md")),
             schedules: crate::schedules::Schedules::open(data_dir.join("schedules.json")),
             data_dir,
@@ -325,6 +330,7 @@ impl Bridge {
 
             ("notes", _) => Ok(self.notes_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
+            ("calendar", _) => Ok(self.calendar_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
             ("share", "status") => Ok(self.mcp_server.status()),
             ("share", "token") => Ok(self.mcp_server.reveal_token().map_or(Value::Null, Value::String)),
@@ -869,7 +875,7 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -892,6 +898,13 @@ impl Bridge {
             let result = self.tasks.run(tool, &args).map(Value::String);
             if result.is_ok() && tool != "tasks.list" {
                 (self.emit)("mobius:tasks-changed", json!({ "list": args.get("list").and_then(Value::as_str).unwrap_or(mobius_workspace::tasks::DEFAULT_LIST), "by": "assistant" }));
+            }
+            return result;
+        }
+        if mobius_workspace::calendar::is_calendar_tool(tool) {
+            let result = self.calendar.run(tool, &args).map(Value::String);
+            if result.is_ok() && tool != "calendar.list" {
+                (self.emit)("mobius:calendar-changed", json!({ "calendar": args.get("calendar").and_then(Value::as_str).unwrap_or(mobius_workspace::calendar::DEFAULT_CALENDAR), "by": "assistant" }));
             }
             return result;
         }
@@ -966,7 +979,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -1316,6 +1329,42 @@ impl Bridge {
         }
     }
 
+    /// The Calendar app. Every answer is what was asked for or `{ ok: false, message }`.
+    fn calendar_call(&self, method: &str, args: &[Value]) -> Value {
+        use mobius_workspace::calendar::Draft;
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let cal = &self.calendar;
+        let draft = || Draft::from_json(args.get(1).unwrap_or(&Value::Null));
+        let result = match method {
+            "calendars" => Ok(json!(cal.calendars())),
+            "events" => match (text(0), text(1)) {
+                (Some(from), Some(to)) => cal.events(from, to),
+                _ => Err("two days are needed".to_owned()),
+            },
+            "create" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| cal.create(n)),
+            "add" => text(0).ok_or_else(|| "a calendar is needed".to_owned()).and_then(|c| cal.add(c, &draft())),
+            "update" => match (text(0), args.get(1).and_then(|d| d.get("id")).and_then(Value::as_str)) {
+                (Some(c), Some(id)) => cal.update(c, id, &draft()),
+                _ => Err("that cannot be changed".to_owned()),
+            },
+            "remove" => match (text(0), text(1)) {
+                (Some(c), Some(id)) => cal.remove(c, id),
+                _ => Err("that cannot be removed".to_owned()),
+            },
+            _ => return json!({ "ok": false, "message": "unknown" }),
+        };
+        match result {
+            Ok(value) => {
+                if !matches!(method, "calendars" | "events") {
+                    let name = value.get("calendar").or_else(|| value.get("name")).cloned().unwrap_or(Value::Null);
+                    (self.emit)("mobius:calendar-changed", json!({ "calendar": name, "by": "person" }));
+                }
+                value
+            }
+            Err(message) => json!({ "ok": false, "message": message }),
+        }
+    }
+
     /// Which MCP servers are running, which failed to start and why (for the settings page).
     pub fn mcp_status(&self) -> Value {
         self.mcp.status()
@@ -1340,6 +1389,9 @@ impl Bridge {
             let list = path.and_then(|p| p.strip_prefix("tasks/")).and_then(|p| p.strip_suffix(".md"));
             (self.emit)("mobius:notes-changed", json!({ "path": note, "by": "undo" }));
             (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "undo" }));
+            if path.is_none_or(|p| p.starts_with("calendar/")) {
+                (self.emit)("mobius:calendar-changed", json!({ "calendar": path.and_then(|p| p.strip_prefix("calendar/")).and_then(|p| p.strip_suffix(".ics")), "by": "undo" }));
+            }
         };
         Ok(match method {
             "lastTurn" => match self.workspace.changed_since(&mark) {

@@ -1,0 +1,785 @@
+//! Calendar: each calendar is an iCalendar file under `<workspace>/calendar` (`Calendar.ics`, `Work.ics`), so it opens
+//! in any other calendar app and can be imported anywhere. Times are the person's local time ("floating"), the way a
+//! paper diary works; a time given in UTC is shown in local time. Parts of a file Mobius does not use (time zone
+//! definitions, alarms, properties it does not know) are kept as they are when it writes the file again.
+//!
+//! As with notes and tasks, a checkpoint is taken before the agent changes a calendar, so its changes can be kept or
+//! put back.
+use std::fs;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
+use serde_json::{Value, json};
+
+use crate::checkpoints::Checkpoints;
+use crate::notes::file_name_for;
+
+type Res<T> = Result<T, String>;
+
+pub const FOLDER: &str = "calendar";
+pub const DEFAULT_CALENDAR: &str = "Calendar";
+const MAX_TITLE: usize = 200;
+const MAX_LOCATION: usize = 200;
+const MAX_NOTES: usize = 4000;
+const MAX_FILE: usize = 4 * 1024 * 1024;
+const MAX_RANGE_DAYS: i64 = 400;
+const MAX_EXPANDED: usize = 2000;
+
+/// When an event starts or ends: a whole day, or a time of day.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum When {
+    Day(NaiveDate),
+    At(NaiveDateTime),
+}
+
+impl When {
+    /// `YYYY-MM-DD` for a day, `YYYY-MM-DDTHH:MM` for a time.
+    pub fn parse(text: &str) -> Option<When> {
+        let text = text.trim();
+        if text.len() == 10 {
+            return NaiveDate::parse_from_str(text, "%Y-%m-%d").ok().map(When::Day);
+        }
+        NaiveDateTime::parse_from_str(text, "%Y-%m-%dT%H:%M").ok().map(When::At)
+    }
+
+    pub fn show(self) -> String {
+        match self {
+            When::Day(d) => d.format("%Y-%m-%d").to_string(),
+            When::At(t) => t.format("%Y-%m-%dT%H:%M").to_string(),
+        }
+    }
+
+    /// The moment it stands for, for ordering and overlap: a day is its midnight.
+    pub fn moment(self) -> NaiveDateTime {
+        match self {
+            When::Day(d) => d.and_time(NaiveTime::MIN),
+            When::At(t) => t,
+        }
+    }
+
+    fn date(self) -> NaiveDate {
+        self.moment().date()
+    }
+
+    fn ics(self, name: &str) -> String {
+        match self {
+            When::Day(d) => format!("{name};VALUE=DATE:{}", d.format("%Y%m%d")),
+            When::At(t) => format!("{name}:{}", t.format("%Y%m%dT%H%M%S")),
+        }
+    }
+
+    fn shifted(self, by: Duration) -> When {
+        match self {
+            When::Day(d) => When::Day(d + by),
+            When::At(t) => When::At(t + by),
+        }
+    }
+}
+
+/// Repetition, as far as Mobius follows it: every N days, weeks (on some weekdays), months or years, until a date or
+/// for a number of times.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Repeat {
+    pub freq: String,
+    pub interval: u32,
+    pub count: Option<u32>,
+    pub until: Option<NaiveDate>,
+    pub by_day: Vec<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Event {
+    pub uid: String,
+    pub title: String,
+    pub start: When,
+    /// Exclusive, as in iCalendar: an all-day event on the 12th ends on the 13th.
+    pub end: When,
+    pub location: String,
+    pub notes: String,
+    pub repeat: Option<Repeat>,
+    /// Lines of the event Mobius does not use, kept as they were.
+    pub extra: Vec<String>,
+}
+
+// ---- reading and writing iCalendar ---------------------------------------------------------------------------------
+
+/// Long lines are folded onto continuation lines that start with a space or a tab.
+fn unfold(text: &str) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for raw in text.split('\n') {
+        let raw = raw.strip_suffix('\r').unwrap_or(raw);
+        if let Some(rest) = raw.strip_prefix(' ').or_else(|| raw.strip_prefix('\t'))
+            && let Some(last) = lines.last_mut()
+        {
+            last.push_str(rest);
+        } else if !raw.is_empty() {
+            lines.push(raw.to_owned());
+        }
+    }
+    lines
+}
+
+/// Lines longer than 75 bytes go onto continuation lines, never splitting a character.
+fn fold(line: &str) -> String {
+    let mut out = String::new();
+    let mut width = 0;
+    for c in line.chars() {
+        let len = c.len_utf8();
+        if width + len > 75 {
+            out.push_str("\r\n ");
+            width = 1;
+        }
+        out.push(c);
+        width += len;
+    }
+    out
+}
+
+fn unescape(text: &str) -> String {
+    let mut out = String::new();
+    let mut chars = text.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('n' | 'N') => out.push('\n'),
+                Some(other) => out.push(other),
+                None => {}
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn escape(text: &str) -> String {
+    text.replace('\\', "\\\\").replace(';', "\\;").replace(',', "\\,").replace("\r\n", "\\n").replace('\n', "\\n")
+}
+
+type Params = Vec<(String, String)>;
+
+/// A content line split into its name, its parameters and its value.
+fn split_line(line: &str) -> Option<(String, Params, String)> {
+    let colon = {
+        // The first colon outside a quoted parameter value.
+        let mut quoted = false;
+        line.char_indices().find(|(_, c)| {
+            if *c == '"' {
+                quoted = !quoted;
+            }
+            *c == ':' && !quoted
+        })?.0
+    };
+    let (head, value) = (&line[..colon], &line[colon + 1..]);
+    let mut parts = head.split(';');
+    let name = parts.next()?.to_ascii_uppercase();
+    let params = parts.filter_map(|p| p.split_once('=').map(|(k, v)| (k.to_ascii_uppercase(), v.trim_matches('"').to_owned()))).collect();
+    Some((name, params, value.to_owned()))
+}
+
+fn parse_when(params: &[(String, String)], value: &str) -> Option<When> {
+    let value = value.trim();
+    let date_only = params.iter().any(|(k, v)| k == "VALUE" && v.eq_ignore_ascii_case("DATE")) || value.len() == 8;
+    if date_only {
+        return NaiveDate::parse_from_str(&value[..8.min(value.len())], "%Y%m%d").ok().map(When::Day);
+    }
+    if let Some(utc) = value.strip_suffix('Z') {
+        let t = NaiveDateTime::parse_from_str(utc, "%Y%m%dT%H%M%S").ok()?;
+        return Some(When::At(Utc.from_utc_datetime(&t).with_timezone(&Local).naive_local()));
+    }
+    // A time with a named zone is read as written: Mobius shows calendars in the wall time they were made in.
+    NaiveDateTime::parse_from_str(value, "%Y%m%dT%H%M%S").ok().map(When::At)
+}
+
+fn parse_repeat(value: &str) -> Option<Repeat> {
+    let mut repeat = Repeat { freq: String::new(), interval: 1, count: None, until: None, by_day: Vec::new() };
+    for part in value.split(';') {
+        let (k, v) = part.split_once('=')?;
+        match k.to_ascii_uppercase().as_str() {
+            "FREQ" => repeat.freq = v.to_ascii_uppercase(),
+            "INTERVAL" => repeat.interval = v.parse().ok().filter(|n| *n >= 1)?,
+            "COUNT" => repeat.count = v.parse().ok(),
+            "UNTIL" => repeat.until = NaiveDate::parse_from_str(&v[..8.min(v.len())], "%Y%m%d").ok(),
+            "BYDAY" => {
+                repeat.by_day = v
+                    .split(',')
+                    .filter_map(|d| ["MO", "TU", "WE", "TH", "FR", "SA", "SU"].iter().position(|w| d.ends_with(w)).map(|i| i as u32))
+                    .collect();
+            }
+            _ => {}
+        }
+    }
+    ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].contains(&repeat.freq.as_str()).then_some(repeat)
+}
+
+/// The events of an iCalendar text, and everything else in it, kept to write back.
+pub fn parse(text: &str) -> (Vec<Event>, Vec<String>) {
+    let mut events = Vec::new();
+    let mut other = Vec::new();
+    let mut current: Option<Vec<String>> = None;
+    let mut depth_other = 0;
+    for line in unfold(text) {
+        let upper = line.to_ascii_uppercase();
+        if current.is_none() && depth_other == 0 && upper == "BEGIN:VEVENT" {
+            current = Some(Vec::new());
+            continue;
+        }
+        if let Some(lines) = current.as_mut() {
+            if upper == "END:VEVENT" && depth_other == 0 {
+                if let Some(event) = event_of(lines) {
+                    events.push(event);
+                }
+                current = None;
+            } else {
+                if upper.starts_with("BEGIN:") {
+                    depth_other += 1;
+                } else if upper.starts_with("END:") {
+                    depth_other -= 1;
+                }
+                lines.push(line);
+            }
+            continue;
+        }
+        if ["BEGIN:VCALENDAR", "END:VCALENDAR", "VERSION:2.0"].contains(&upper.as_str()) || upper.starts_with("PRODID:") {
+            continue;
+        }
+        other.push(line);
+    }
+    (events, other)
+}
+
+fn event_of(lines: &[String]) -> Option<Event> {
+    let mut uid = None;
+    let mut title = String::new();
+    let mut start = None;
+    let mut end = None;
+    let mut duration = None;
+    let mut location = String::new();
+    let mut notes = String::new();
+    let mut repeat = None;
+    let mut extra = Vec::new();
+    let mut nested = 0;
+    for line in lines {
+        let upper = line.to_ascii_uppercase();
+        if upper.starts_with("BEGIN:") {
+            nested += 1;
+        }
+        if nested > 0 {
+            extra.push(line.clone());
+            if upper.starts_with("END:") {
+                nested -= 1;
+            }
+            continue;
+        }
+        let Some((name, params, value)) = split_line(line) else { continue };
+        match name.as_str() {
+            "UID" => uid = Some(value.trim().to_owned()),
+            "SUMMARY" => title = unescape(&value),
+            "DTSTART" => start = parse_when(&params, &value),
+            "DTEND" => end = parse_when(&params, &value),
+            "DURATION" => duration = parse_duration(&value),
+            "LOCATION" => location = unescape(&value),
+            "DESCRIPTION" => notes = unescape(&value),
+            "RRULE" => repeat = parse_repeat(&value),
+            _ => extra.push(line.clone()),
+        }
+    }
+    let start = start?;
+    let end = end.or_else(|| duration.map(|d| start.shifted(d))).unwrap_or(match start {
+        When::Day(d) => When::Day(d + Duration::days(1)),
+        When::At(t) => When::At(t),
+    });
+    Some(Event { uid: uid.unwrap_or_else(new_uid), title: if title.trim().is_empty() { "Busy".into() } else { title }, start, end, location, notes, repeat, extra })
+}
+
+/// `PT1H30M`, `P1D`, `P2W`.
+fn parse_duration(value: &str) -> Option<Duration> {
+    let v = value.trim().trim_start_matches('+').strip_prefix('P')?;
+    let mut total = Duration::zero();
+    let mut number = String::new();
+    let mut in_time = false;
+    for c in v.chars() {
+        match c {
+            'T' => in_time = true,
+            '0'..='9' => number.push(c),
+            _ => {
+                let n: i64 = number.parse().ok()?;
+                number.clear();
+                total += match (c, in_time) {
+                    ('W', false) => Duration::weeks(n),
+                    ('D', false) => Duration::days(n),
+                    ('H', true) => Duration::hours(n),
+                    ('M', true) => Duration::minutes(n),
+                    ('S', true) => Duration::seconds(n),
+                    _ => return None,
+                };
+            }
+        }
+    }
+    Some(total)
+}
+
+pub fn write(name: &str, events: &[Event], other: &[String]) -> String {
+    let mut lines = vec!["BEGIN:VCALENDAR".to_owned(), "VERSION:2.0".to_owned(), "PRODID:-//Mobius//Calendar//EN".to_owned()];
+    if !other.iter().any(|l| l.to_ascii_uppercase().starts_with("X-WR-CALNAME")) {
+        lines.push(format!("X-WR-CALNAME:{}", escape(name)));
+    }
+    lines.extend(other.iter().cloned());
+    let stamp = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    for e in events {
+        lines.push("BEGIN:VEVENT".into());
+        lines.push(format!("UID:{}", e.uid));
+        if !e.extra.iter().any(|l| l.to_ascii_uppercase().starts_with("DTSTAMP")) {
+            lines.push(format!("DTSTAMP:{stamp}"));
+        }
+        lines.push(e.start.ics("DTSTART"));
+        lines.push(e.end.ics("DTEND"));
+        lines.push(format!("SUMMARY:{}", escape(&e.title)));
+        if !e.location.is_empty() {
+            lines.push(format!("LOCATION:{}", escape(&e.location)));
+        }
+        if !e.notes.is_empty() {
+            lines.push(format!("DESCRIPTION:{}", escape(&e.notes)));
+        }
+        if let Some(r) = &e.repeat {
+            lines.push(format!("RRULE:{}", repeat_text(r)));
+        }
+        lines.extend(e.extra.iter().cloned());
+        lines.push("END:VEVENT".into());
+    }
+    lines.push("END:VCALENDAR".into());
+    lines.iter().map(|l| fold(l)).collect::<Vec<_>>().join("\r\n") + "\r\n"
+}
+
+fn repeat_text(r: &Repeat) -> String {
+    let mut parts = vec![format!("FREQ={}", r.freq)];
+    if r.interval > 1 {
+        parts.push(format!("INTERVAL={}", r.interval));
+    }
+    if let Some(n) = r.count {
+        parts.push(format!("COUNT={n}"));
+    }
+    if let Some(u) = r.until {
+        parts.push(format!("UNTIL={}", u.format("%Y%m%d")));
+    }
+    if !r.by_day.is_empty() {
+        let days = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+        parts.push(format!("BYDAY={}", r.by_day.iter().filter_map(|d| days.get(*d as usize)).copied().collect::<Vec<_>>().join(",")));
+    }
+    parts.join(";")
+}
+
+// ---- repetition ----------------------------------------------------------------------------------------------------
+
+/// The starts of `event` that fall before `to`, from its first, at most `MAX_EXPANDED`.
+fn occurrences(event: &Event, to: NaiveDateTime) -> Vec<When> {
+    let Some(r) = &event.repeat else { return vec![event.start] };
+    let mut out = Vec::new();
+    let first = event.start;
+    let until = r.until.map(|u| u.and_time(NaiveTime::from_hms_opt(23, 59, 59).unwrap_or(NaiveTime::MIN)));
+    let fits = |w: When, n: usize| w.moment() < to && until.is_none_or(|u| w.moment() <= u) && r.count.is_none_or(|c| n < c as usize);
+    let interval = i64::from(r.interval.max(1));
+    match r.freq.as_str() {
+        "WEEKLY" if !r.by_day.is_empty() => {
+            // Week by week from the first one's Monday, on the days named.
+            let monday = first.date() - Duration::days(i64::from(first.date().weekday().num_days_from_monday()));
+            let mut week = 0;
+            'weeks: while out.len() < MAX_EXPANDED {
+                for &day in &r.by_day {
+                    let date = monday + Duration::weeks(week * interval) + Duration::days(i64::from(day));
+                    let when = first.shifted(date - first.date());
+                    if when < first {
+                        continue;
+                    }
+                    if !fits(when, out.len()) {
+                        break 'weeks;
+                    }
+                    out.push(when);
+                }
+                week += 1;
+            }
+        }
+        freq => {
+            let mut n = 0i64;
+            while out.len() < MAX_EXPANDED {
+                let when = match freq {
+                    "DAILY" => first.shifted(Duration::days(n * interval)),
+                    "WEEKLY" => first.shifted(Duration::weeks(n * interval)),
+                    "MONTHLY" | "YEARLY" => {
+                        let months = if freq == "MONTHLY" { n * interval } else { n * interval * 12 };
+                        let total = first.date().month0() as i64 + months;
+                        let year = first.date().year() + i32::try_from(total.div_euclid(12)).unwrap_or(0);
+                        match NaiveDate::from_ymd_opt(year, u32::try_from(total.rem_euclid(12)).unwrap_or(0) + 1, first.date().day()) {
+                            Some(date) => first.shifted(date - first.date()),
+                            None => {
+                                // The 31st in a short month: skipped, as calendars do.
+                                n += 1;
+                                continue;
+                            }
+                        }
+                    }
+                    _ => break,
+                };
+                if !fits(when, out.len()) {
+                    break;
+                }
+                out.push(when);
+                n += 1;
+            }
+        }
+    }
+    out
+}
+
+// ---- the store ----------------------------------------------------------------------------------------------------
+
+static NEXT: AtomicU64 = AtomicU64::new(0);
+
+fn new_uid() -> String {
+    let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
+    format!("{ms:x}-{:x}-{:x}@mobius", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed))
+}
+
+fn calendar_ok(name: &str) -> bool {
+    !name.is_empty() && name == file_name_for(name) && !name.starts_with('.')
+}
+
+/// What may be set on an event, as the window or the agent sends it.
+#[derive(Debug, Default, Clone)]
+pub struct Draft {
+    pub title: Option<String>,
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub location: Option<String>,
+    pub notes: Option<String>,
+}
+
+impl Draft {
+    pub fn from_json(v: &Value) -> Draft {
+        let s = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);
+        Draft { title: s("title"), start: s("start"), end: s("end"), location: s("location"), notes: s("notes") }
+    }
+}
+
+pub struct Calendar {
+    root: PathBuf,
+    checkpoints: Checkpoints,
+    workspace: PathBuf,
+}
+
+pub fn tool_descriptions() -> Vec<Value> {
+    let when = "A day as YYYY-MM-DD for an all-day event, or a local time as YYYY-MM-DDTHH:MM.";
+    vec![
+        json!({ "name": "calendar.list", "capability": "calendar.read",
+            "description": "Read the person's events in the Calendar app between two days (both included), from every calendar. Leave the days out for the next seven days.",
+            "input_schema": { "type": "object", "properties": { "from": { "type": "string", "description": "First day, YYYY-MM-DD." }, "to": { "type": "string", "description": "Last day, YYYY-MM-DD." } } } }),
+        json!({ "name": "calendar.add", "capability": "calendar.write", "resource_arg": "calendar",
+            "description": "Add an event to one of the person's calendars in the Calendar app. It does not invite anyone.",
+            "input_schema": { "type": "object", "properties": {
+                "calendar": { "type": "string", "description": "Which calendar; Calendar (the default) if left out." },
+                "title": { "type": "string" }, "start": { "type": "string", "description": when },
+                "end": { "type": "string", "description": format!("{when} Leave out for an hour (or the one day).") },
+                "location": { "type": "string" }, "notes": { "type": "string" } }, "required": ["title", "start"] } }),
+        json!({ "name": "calendar.update", "capability": "calendar.write", "resource_arg": "calendar",
+            "description": "Change an event in the Calendar app, found by the id calendar.list gave: its title, times, place or notes.",
+            "input_schema": { "type": "object", "properties": {
+                "calendar": { "type": "string" }, "id": { "type": "string" }, "title": { "type": "string" },
+                "start": { "type": "string", "description": when }, "end": { "type": "string", "description": when },
+                "location": { "type": "string" }, "notes": { "type": "string" } }, "required": ["calendar", "id"] } }),
+    ]
+}
+
+pub fn is_calendar_tool(name: &str) -> bool {
+    tool_descriptions().iter().any(|d| d["name"] == name)
+}
+
+fn event_json(calendar: &str, e: &Event, start: When) -> Value {
+    let shift = start.moment() - e.start.moment();
+    let end = e.end.shifted(shift);
+    let all_day = matches!(e.start, When::Day(_));
+    json!({ "id": e.uid, "calendar": calendar, "title": e.title, "start": start.show(), "end": end.show(), "allDay": all_day,
+        "location": e.location, "notes": e.notes, "repeats": e.repeat.is_some() })
+}
+
+impl Calendar {
+    pub fn new(workspace: impl Into<PathBuf>, checkpoint_store: impl Into<PathBuf>) -> Calendar {
+        let workspace = workspace.into();
+        Calendar { root: workspace.join(FOLDER), checkpoints: Checkpoints::new(checkpoint_store), workspace }
+    }
+
+    fn file(&self, calendar: &str) -> Res<PathBuf> {
+        if !calendar_ok(calendar) {
+            return Err("that is not a calendar".into());
+        }
+        let file = self.root.join(format!("{calendar}.ics"));
+        if file.exists() {
+            let real = fs::canonicalize(&file).map_err(|e| e.to_string())?;
+            let root = fs::canonicalize(&self.root).map_err(|e| e.to_string())?;
+            if real.parent() != Some(root.as_path()) {
+                return Err("that is not a calendar".into());
+            }
+        }
+        Ok(file)
+    }
+
+    fn load(&self, calendar: &str) -> Res<(Vec<Event>, Vec<String>)> {
+        let file = self.file(calendar)?;
+        match fs::read_to_string(&file) {
+            Ok(text) if text.len() <= MAX_FILE => Ok(parse(&text)),
+            Ok(_) => Err("that calendar is too big".into()),
+            Err(_) => Ok((Vec::new(), Vec::new())),
+        }
+    }
+
+    fn store(&self, calendar: &str, events: &[Event], other: &[String]) -> Res<()> {
+        let file = self.file(calendar)?;
+        fs::create_dir_all(&self.root).map_err(|e| e.to_string())?;
+        let text = write(calendar, events, other);
+        let temp = file.with_extension("ics.mobius-tmp");
+        fs::write(&temp, text).map_err(|e| e.to_string())?;
+        fs::rename(&temp, &file).map_err(|e| {
+            let _ = fs::remove_file(&temp);
+            e.to_string()
+        })
+    }
+
+    /// Every calendar by name. Calendar is always there.
+    pub fn calendars(&self) -> Vec<String> {
+        let mut names = vec![DEFAULT_CALENDAR.to_owned()];
+        if let Ok(dir) = fs::read_dir(&self.root) {
+            let mut found: Vec<String> = dir
+                .filter_map(Result::ok)
+                .filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".ics")).map(str::to_owned))
+                .filter(|n| calendar_ok(n) && n != DEFAULT_CALENDAR)
+                .collect();
+            found.sort_by_key(|n| n.to_lowercase());
+            names.extend(found);
+        }
+        names
+    }
+
+    pub fn create(&self, name: &str) -> Res<Value> {
+        let name = file_name_for(name.trim());
+        if self.calendars().iter().any(|c| c.eq_ignore_ascii_case(&name)) {
+            return Err("there is already a calendar with that name".into());
+        }
+        self.store(&name, &[], &[])?;
+        Ok(json!({ "name": name }))
+    }
+
+    /// The events between two days (both included), from every calendar, in order. Repeating events give one entry
+    /// for each time they happen.
+    pub fn events(&self, from: &str, to: &str) -> Res<Value> {
+        let from = NaiveDate::parse_from_str(from, "%Y-%m-%d").map_err(|_| "from is a day, YYYY-MM-DD")?;
+        let to = NaiveDate::parse_from_str(to, "%Y-%m-%d").map_err(|_| "to is a day, YYYY-MM-DD")?;
+        if to < from || (to - from).num_days() > MAX_RANGE_DAYS {
+            return Err(format!("a range runs forward and covers at most {MAX_RANGE_DAYS} days"));
+        }
+        let (start, end) = (from.and_time(NaiveTime::MIN), (to + Duration::days(1)).and_time(NaiveTime::MIN));
+        let mut found: Vec<(NaiveDateTime, Value)> = Vec::new();
+        for calendar in self.calendars() {
+            let (events, _) = self.load(&calendar)?;
+            for e in &events {
+                let length = e.end.moment() - e.start.moment();
+                for when in occurrences(e, end) {
+                    let (s, f) = (when.moment(), when.moment() + length);
+                    // Overlaps the range; an event of no length counts at its moment.
+                    if s < end && (f > start || (f == s && s >= start)) {
+                        found.push((s, event_json(&calendar, e, when)));
+                    }
+                }
+            }
+        }
+        found.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1["title"].as_str().cmp(&b.1["title"].as_str())));
+        Ok(Value::Array(found.into_iter().map(|(_, v)| v).collect()))
+    }
+
+    fn checked(draft: &Draft, base: Option<&Event>) -> Res<(String, When, When, String, String)> {
+        let title = draft.title.clone().or_else(|| base.map(|b| b.title.clone())).unwrap_or_default();
+        let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+        if title.is_empty() || title.chars().count() > MAX_TITLE {
+            return Err(format!("an event needs a title of up to {MAX_TITLE} characters"));
+        }
+        let start = match &draft.start {
+            Some(s) => When::parse(s).ok_or("start is YYYY-MM-DD or YYYY-MM-DDTHH:MM")?,
+            None => base.map(|b| b.start).ok_or("an event needs a start")?,
+        };
+        let end = match &draft.end {
+            Some(s) if !s.trim().is_empty() => When::parse(s).ok_or("end is YYYY-MM-DD or YYYY-MM-DDTHH:MM")?,
+            // Keeps its length when only the start moves.
+            _ => match base {
+                Some(b) if draft.start.is_some() => start.shifted(b.end.moment() - b.start.moment()),
+                Some(b) => b.end,
+                None => match start {
+                    When::Day(d) => When::Day(d + Duration::days(1)),
+                    When::At(t) => When::At(t + Duration::hours(1)),
+                },
+            },
+        };
+        // An all-day event's end day, as people say it ("the 12th to the 14th"), is included.
+        let end = match (start, end, &draft.end) {
+            (When::Day(_), When::Day(e), Some(s)) if !s.trim().is_empty() => When::Day(e + Duration::days(1)),
+            _ => end,
+        };
+        if matches!(start, When::Day(_)) != matches!(end, When::Day(_)) {
+            return Err("start and end are both days or both times".into());
+        }
+        if end.moment() < start.moment() {
+            return Err("an event ends after it starts".into());
+        }
+        let location = draft.location.clone().or_else(|| base.map(|b| b.location.clone())).unwrap_or_default().trim().to_owned();
+        let notes = draft.notes.clone().or_else(|| base.map(|b| b.notes.clone())).unwrap_or_default().trim().to_owned();
+        if location.chars().count() > MAX_LOCATION || notes.chars().count() > MAX_NOTES {
+            return Err("the place or the notes are too long".into());
+        }
+        Ok((title, start, end, location, notes))
+    }
+
+    pub fn add(&self, calendar: &str, draft: &Draft) -> Res<Value> {
+        let (title, start, end, location, notes) = Self::checked(draft, None)?;
+        let (mut events, other) = self.load(calendar)?;
+        let event = Event { uid: new_uid(), title, start, end, location, notes, repeat: None, extra: Vec::new() };
+        events.push(event.clone());
+        self.store(calendar, &events, &other)?;
+        Ok(event_json(calendar, &event, event.start))
+    }
+
+    pub fn update(&self, calendar: &str, uid: &str, draft: &Draft) -> Res<Value> {
+        let (mut events, other) = self.load(calendar)?;
+        let at = events.iter().position(|e| e.uid == uid).ok_or("that event is not in that calendar")?;
+        let (title, start, end, location, notes) = Self::checked(draft, Some(&events[at]))?;
+        let e = &mut events[at];
+        (e.title, e.start, e.end, e.location, e.notes) = (title, start, end, location, notes);
+        let changed = e.clone();
+        self.store(calendar, &events, &other)?;
+        Ok(event_json(calendar, &changed, changed.start))
+    }
+
+    pub fn remove(&self, calendar: &str, uid: &str) -> Res<Value> {
+        let (mut events, other) = self.load(calendar)?;
+        let before = events.len();
+        events.retain(|e| e.uid != uid);
+        if events.len() == before {
+            return Err("that event is not in that calendar".into());
+        }
+        self.store(calendar, &events, &other)?;
+        Ok(json!({ "calendar": calendar, "removed": uid }))
+    }
+
+    /// The agent's tools. Each change is checkpointed first, so it can be reviewed and put back.
+    pub fn run(&self, tool: &str, args: &Value) -> Res<String> {
+        let text = |k: &str| args.get(k).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty());
+        let calendar = text("calendar").unwrap_or(DEFAULT_CALENDAR);
+        let result = match tool {
+            "calendar.list" => {
+                let today = Local::now().date_naive();
+                let from = text("from").map_or_else(|| today.format("%Y-%m-%d").to_string(), str::to_owned);
+                let to = text("to").map_or_else(|| (today + Duration::days(6)).format("%Y-%m-%d").to_string(), str::to_owned);
+                self.events(&from, &to)?
+            }
+            "calendar.add" => {
+                self.checkpoint(&format!("before the agent added an event to {calendar}"));
+                self.add(calendar, &Draft::from_json(args))?
+            }
+            "calendar.update" => {
+                let uid = text("id").ok_or("id is the event's id from calendar.list")?;
+                self.checkpoint(&format!("before the agent changed an event in {calendar}"));
+                self.update(calendar, uid, &Draft::from_json(args))?
+            }
+            _ => return Err("unknown tool".into()),
+        };
+        Ok(result.to_string())
+    }
+
+    fn checkpoint(&self, why: &str) {
+        let _ = self.checkpoints.snapshot(&self.workspace, why);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn store() -> (tempfile::TempDir, Calendar) {
+        let dir = tempfile::tempdir().unwrap();
+        let c = Calendar::new(dir.path().join("workspace"), dir.path().join("checkpoints"));
+        (dir, c)
+    }
+    fn draft(title: &str, start: &str, end: Option<&str>) -> Draft {
+        Draft { title: Some(title.into()), start: Some(start.into()), end: end.map(str::to_owned), ..Draft::default() }
+    }
+
+    #[test]
+    fn events_are_added_listed_changed_and_removed() {
+        let (_d, c) = store();
+        let lunch = c.add("Calendar", &draft("Lunch with Ana", "2026-11-12T12:30", None)).unwrap();
+        assert_eq!((lunch["start"].as_str(), lunch["end"].as_str()), (Some("2026-11-12T12:30"), Some("2026-11-12T13:30")), "an hour by default");
+        let trip = c.add("Calendar", &draft("Lisbon", "2026-11-12", Some("2026-11-14"))).unwrap();
+        assert_eq!((trip["end"].as_str(), trip["allDay"].as_bool()), (Some("2026-11-15"), Some(true)), "the last day is included");
+        let week = c.events("2026-11-09", "2026-11-15").unwrap();
+        assert_eq!(week.as_array().unwrap().iter().map(|e| e["title"].as_str().unwrap()).collect::<Vec<_>>(), vec!["Lisbon", "Lunch with Ana"]);
+        assert_eq!(c.events("2026-11-14", "2026-11-14").unwrap().as_array().unwrap().len(), 1, "a trip covers its middle days");
+        let moved = c.update("Calendar", lunch["id"].as_str().unwrap(), &Draft { start: Some("2026-11-13T13:00".into()), ..Draft::default() }).unwrap();
+        assert_eq!(moved["end"], "2026-11-13T14:00", "keeps its length");
+        c.remove("Calendar", lunch["id"].as_str().unwrap()).unwrap();
+        assert_eq!(c.events("2026-11-09", "2026-11-15").unwrap().as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn bad_events_are_refused() {
+        let (_d, c) = store();
+        assert!(c.add("Calendar", &draft("", "2026-11-12", None)).is_err());
+        assert!(c.add("Calendar", &draft("x", "tomorrow", None)).is_err());
+        assert!(c.add("Calendar", &draft("x", "2026-11-12T10:00", Some("2026-11-12T09:00"))).is_err());
+        assert!(c.add("Calendar", &draft("x", "2026-11-12", Some("2026-11-12T09:00"))).is_err());
+        assert!(c.add("../x", &draft("x", "2026-11-12", None)).is_err());
+        assert!(c.events("2026-11-15", "2026-11-09").is_err());
+    }
+
+    #[test]
+    fn the_file_is_icalendar_and_what_mobius_does_not_use_is_kept() {
+        let (_d, c) = store();
+        let text = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nX-WR-CALNAME:Work\r\nBEGIN:VTIMEZONE\r\nTZID:Europe/Lisbon\r\nEND:VTIMEZONE\r\nBEGIN:VEVENT\r\nUID:abc\r\nDTSTART;TZID=Europe/Lisbon:20261112T090000\r\nDTEND;TZID=Europe/Lisbon:20261112T100000\r\nSUMMARY:Stand-up\\, team\r\nDESCRIPTION:Line one\\nline two that is long enough to be folded over more than one line when written\r\nBEGIN:VALARM\r\nTRIGGER:-PT10M\r\nEND:VALARM\r\nX-CUSTOM:keep me\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        std::fs::create_dir_all(c.root.clone()).unwrap();
+        std::fs::write(c.root.join("Work.ics"), text).unwrap();
+        assert_eq!(c.calendars(), vec!["Calendar", "Work"]);
+        let found = c.events("2026-11-12", "2026-11-12").unwrap();
+        assert_eq!(found[0]["title"], "Stand-up, team");
+        assert_eq!(found[0]["start"], "2026-11-12T09:00");
+        assert_eq!(found[0]["notes"], "Line one\nline two that is long enough to be folded over more than one line when written");
+        c.update("Work", "abc", &Draft { title: Some("Stand-up".into()), ..Draft::default() }).unwrap();
+        let written = std::fs::read_to_string(c.root.join("Work.ics")).unwrap();
+        for kept in ["TZID:Europe/Lisbon", "BEGIN:VALARM", "TRIGGER:-PT10M", "X-CUSTOM:keep me", "X-WR-CALNAME:Work"] {
+            assert!(written.contains(kept), "{kept} kept");
+        }
+        assert!(written.lines().all(|l| l.len() <= 76), "long lines are folded");
+        assert_eq!(c.events("2026-11-12", "2026-11-12").unwrap()[0]["title"], "Stand-up");
+    }
+
+    #[test]
+    fn repeating_events_show_each_time_they_happen() {
+        let (_d, c) = store();
+        let text = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:w\r\nDTSTART:20261102T090000\r\nDURATION:PT30M\r\nRRULE:FREQ=WEEKLY;BYDAY=MO,WE;COUNT=5\r\nSUMMARY:Standup\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:m\r\nDTSTART;VALUE=DATE:20260131\r\nRRULE:FREQ=MONTHLY;UNTIL=20260601\r\nSUMMARY:Rent\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        std::fs::create_dir_all(c.root.clone()).unwrap();
+        std::fs::write(c.root.join("Repeats.ics"), text).unwrap();
+        let nov = c.events("2026-11-01", "2026-11-30").unwrap();
+        let standups: Vec<&str> = nov.as_array().unwrap().iter().filter(|e| e["title"] == "Standup").map(|e| e["start"].as_str().unwrap()).collect();
+        assert_eq!(standups, vec!["2026-11-02T09:00", "2026-11-04T09:00", "2026-11-09T09:00", "2026-11-11T09:00", "2026-11-16T09:00"]);
+        assert_eq!(nov[0]["end"], "2026-11-02T09:30");
+        let rent: Vec<String> = c.events("2026-01-01", "2026-12-31").unwrap().as_array().unwrap().iter().filter(|e| e["title"] == "Rent").map(|e| e["start"].as_str().unwrap().to_owned()).collect();
+        assert_eq!(rent, vec!["2026-01-31", "2026-03-31", "2026-05-31"], "short months are skipped; until is kept");
+    }
+
+    #[test]
+    fn the_agent_adds_lists_and_changes_through_its_tools() {
+        let (_d, c) = store();
+        let added: Value = serde_json::from_str(&c.run("calendar.add", &json!({ "title": "Dentist", "start": "2026-11-20T08:00", "location": "Main St" })).unwrap()).unwrap();
+        let id = added["id"].as_str().unwrap();
+        let listed: Value = serde_json::from_str(&c.run("calendar.list", &json!({ "from": "2026-11-20", "to": "2026-11-20" })).unwrap()).unwrap();
+        assert_eq!(listed[0]["location"], "Main St");
+        c.run("calendar.update", &json!({ "calendar": "Calendar", "id": id, "start": "2026-11-21T08:00" })).unwrap();
+        assert_eq!(c.events("2026-11-21", "2026-11-21").unwrap()[0]["title"], "Dentist");
+        assert!(c.run("calendar.update", &json!({ "calendar": "Calendar", "id": "nope", "title": "x" })).is_err());
+    }
+}

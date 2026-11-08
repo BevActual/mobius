@@ -20,6 +20,7 @@ import {
   type ModelsEvent,
   type NotesChange,
   type TasksChanged,
+  type CalendarChanged,
 } from '@mobius/shared';
 
 /**
@@ -219,6 +220,15 @@ export function createTauriBridge(): MobiusBridge {
       remove: (list, line, expect) => call('tasks', 'remove', [list, line, expect], () => ({ ok: false as const, message: 'Tasks is not available.' })),
       clearDone: (list) => call('tasks', 'clearDone', [list], () => ({ ok: false as const, message: 'Tasks is not available.' })),
       onChanged: (listener) => on<TasksChanged>('mobius:tasks-changed', listener),
+    },
+    calendar: {
+      calendars: () => call('calendar', 'calendars', [], () => []),
+      events: (from, to) => call('calendar', 'events', [from, to], () => []),
+      create: (name) => call('calendar', 'create', [name], () => ({ ok: false as const, message: 'Calendar is not available.' })),
+      add: (calendar, draft) => call('calendar', 'add', [calendar, draft], () => ({ ok: false as const, message: 'Calendar is not available.' })),
+      update: (calendar, id, draft) => call('calendar', 'update', [calendar, { ...draft, id }], () => ({ ok: false as const, message: 'Calendar is not available.' })),
+      remove: (calendar, id) => call('calendar', 'remove', [calendar, id], () => ({ ok: false as const, message: 'Calendar is not available.' })),
+      onChanged: (listener) => on<CalendarChanged>('mobius:calendar-changed', listener),
     },
     notes: {
       list: () => call('notes', 'list', [], () => []),

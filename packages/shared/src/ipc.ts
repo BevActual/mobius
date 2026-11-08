@@ -146,6 +146,14 @@ export interface TaskChange { text?: string; done?: boolean; due?: string | null
 /** `by` says who changed it, so the window can show the agent's work without stealing focus. */
 export interface TasksChanged { list: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
+/** An event in the Calendar app, from `calendar/<calendar>.ics`. Times are local: `YYYY-MM-DD` for an all-day event,
+ * `YYYY-MM-DDTHH:MM` otherwise; `end` is exclusive (an all-day event on the 12th ends on the 13th). A repeating event
+ * is listed once for each time it happens, all with the same id. */
+export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean }
+/** What may be set on an event. An all-day `end` is the last day, included. */
+export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string }
+export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
 export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'device'; models: Array<{ id: string; label: string }> }
 /** A device sign-in waiting for the person to enter `code` at `url`. */
@@ -351,6 +359,17 @@ export interface MobiusBridge {
     remove(list: string, line: number, expect: string): Promise<TaskList | NotesFailure>;
     clearDone(list: string): Promise<TaskList | NotesFailure>;
     onChanged(listener: (change: TasksChanged) => void): () => void;
+  };
+  /** The Calendar app. Only the Tauri shell has it. */
+  calendar?: {
+    calendars(): Promise<string[] | NotesFailure>;
+    /** Between two days, both included. */
+    events(from: string, to: string): Promise<CalendarEvent[] | NotesFailure>;
+    create(name: string): Promise<{ name: string } | NotesFailure>;
+    add(calendar: string, draft: CalendarDraft): Promise<CalendarEvent | NotesFailure>;
+    update(calendar: string, id: string, draft: CalendarDraft): Promise<CalendarEvent | NotesFailure>;
+    remove(calendar: string, id: string): Promise<{ calendar: string; removed: string } | NotesFailure>;
+    onChanged(listener: (change: CalendarChanged) => void): () => void;
   };
   /** The Notes app. Only the Tauri shell has it. */
   notes?: {
