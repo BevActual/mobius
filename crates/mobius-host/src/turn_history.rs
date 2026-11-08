@@ -89,6 +89,21 @@ impl TurnHistory {
         self.save(&all);
     }
 
+    /// The start of the conversation's newest turn, if it is still waiting for its end.
+    pub fn running_start(&self, conversation: &str) -> Option<String> {
+        self.all.lock().ok()?.get(conversation)?.last().filter(|t| t.end.is_none()).map(|t| t.start.clone())
+    }
+
+    /// The turn of the conversation that started at `start` ended, with `end` taken. Another turn may have started
+    /// meanwhile; it is left alone.
+    pub fn ended_turn(&self, conversation: &str, start: &str, end: &str) {
+        let Ok(mut all) = self.all.lock() else { return };
+        if let Some(turn) = all.get_mut(conversation).and_then(|t| t.iter_mut().rev().find(|t| t.start == start && t.end.is_none())) {
+            turn.end = Some(end.to_owned());
+            self.save(&all);
+        }
+    }
+
     /// Whether the conversation's newest turn is still waiting for its end.
     pub fn running(&self, conversation: &str) -> bool {
         self.all

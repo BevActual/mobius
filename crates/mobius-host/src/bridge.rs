@@ -149,7 +149,7 @@ pub struct Bridge {
     /// For each conversation, the checkpoint taken when its last turn began: what that turn changed, and the way back.
     turn_marks: Mutex<std::collections::HashMap<String, String>>,
     /// Every turn's checkpoints, not only the last, so older turns can be looked at and put back too.
-    turn_history: crate::turn_history::TurnHistory,
+    turn_history: Arc<crate::turn_history::TurnHistory>,
     /// Tools from other programs the person set up (MCP servers).
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
@@ -267,7 +267,7 @@ impl Bridge {
             core,
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
-            turn_history: crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json")),
+            turn_history: Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json"))),
             turn_marks: Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default()),
             mcp: Arc::default(),
             providers: crate::providers::Providers::new(secrets.clone()),
@@ -2052,11 +2052,17 @@ impl Bridge {
         if let Some(n) = agent::parse_notification(method, params) {
             // A turn's end is marked too, so what it changed stays apart from what came after.
             let kind = n["params"]["event"]["kind"].as_str().unwrap_or("");
+            // Taken on a thread of its own: this one carries the core's messages and must not wait on the disk.
             if let Some(conversation) = n["params"]["conversation"].as_str().filter(|_| matches!(kind, "done" | "cancelled" | "failed"))
-                && self.turn_history.running(conversation)
-                && let Ok(Some(end)) = self.workspace.mark("after the agent's turn")
+                && let Some(start) = self.turn_history.running_start(conversation)
             {
-                self.turn_history.ended(conversation, &end);
+                let (history, conversation) = (self.turn_history.clone(), conversation.to_owned());
+                let workspace = mobius_workspace::files::Workspace::new(self.data_dir.join("workspace"), self.data_dir.join("checkpoints"));
+                std::thread::spawn(move || {
+                    if let Ok(Some(end)) = workspace.mark("after the agent's turn") {
+                        history.ended_turn(&conversation, &start, &end);
+                    }
+                });
             }
             (self.emit)("mobius:agent-notification", n.clone());
             if let Some(awake) = lock(&self.keep_awake).as_mut() {
