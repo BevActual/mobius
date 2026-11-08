@@ -1,0 +1,34 @@
+# Builds the shell on macOS, so code only macOS compiles (the menu bar, the tray's template icon) is checked too.
+# Nothing here runs the app: there is no end-to-end suite on macOS yet.
+name: macOS build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      # The interface is compiled into the shell, so it is built first.
+      - name: Interface
+        run: npm run build --workspace apps/desktop
+      - name: Shell and core
+        run: cargo build -p mobius-shell -p mobius-cored
+      - name: Shell tests
+        run: cargo test -p mobius-shell
