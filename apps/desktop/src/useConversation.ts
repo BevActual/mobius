@@ -46,6 +46,9 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   busy.current = state.busy;
   const active = useRef(id);
   active.current = id;
+  /** The conversation whose request is on its way to the core, and one Stop was pressed for meanwhile. */
+  const sending = useRef<string | null>(null);
+  const stopWanted = useRef<string | null>(null);
   const stateNow = useRef(state);
   stateNow.current = state;
   botRef.current = botOfConversation(id, knownBots);
@@ -96,14 +99,21 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   const send = useCallback(
     async (text: string, context: ContextItem[] = [], options: { plan?: boolean } = {}) => {
       dispatch({ type: 'sent', text, context });
-      const result = await window.mobius.agent.send(active.current, text, context, options.plan ? { plan: true } : undefined);
+      const id = active.current;
+      sending.current = id;
+      const result = await window.mobius.agent.send(id, text, context, options.plan ? { plan: true } : undefined);
+      sending.current = null;
       if (!result.ok) dispatch({ type: 'send-failed', message: result.error });
+      // Stop was pressed before the core had the request: the cancel could have arrived first and been lost.
+      else if (stopWanted.current === id) void window.mobius.agent.cancel(id);
+      stopWanted.current = null;
       void refresh();
     },
     [refresh],
   );
 
   const stop = useCallback(() => {
+    if (sending.current === active.current) stopWanted.current = active.current;
     void window.mobius.agent.cancel(active.current);
   }, []);
 
