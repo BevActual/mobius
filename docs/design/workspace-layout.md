@@ -52,6 +52,33 @@ while you work in any app.
   and hidden apps are still in All apps. Pin a note or a task list (the pin beside it), or a web page (the pin in the browser toolbar), and it stays under
   the apps, up to eight; drag pinned items (or Alt+Up/Down) to reorder them. A pinned page opens in its tab if one is open.
 
+## Following the Mobius Agent design canvas
+
+The Mobius Agent design canvas (Mobius 2 boards) is the reference for what follows. The one-window decision stands
+(option B on the canvas: one window, split view, Little Mobius).
+
+- **Mark and icon**: the whorl print from the Logo studies board, four open rings around a core, three below 32 px.
+- **Menus**: File, Edit, View, Go, the app's own menu, Window, Help, from one definition (`menus.ts`). In the toolbar on
+  Windows and Linux (one Menu button in a narrow window), in the system menu bar on macOS.
+- **Launcher**: one search for apps, pages and every menu command, with Ask Mobius first once a model is set up.
+- **Welcome**: the print draws in, then how much Mobius should do (the approval setting), then the model.
+- **The Mobius panel**: "Sees:" names the apps Mobius has worked in; the conversation; proposals (dashed until kept);
+  suggestions.
+- **Plan first**: a turn that only proposes steps; Start, Edit Plan, I'll Drive (the steps become a task list); while
+  it runs, Take Over and Stop.
+- **Keep or Discard**: what a turn changed waits as a dashed proposal (Cmd/Ctrl+Enter keeps, Cmd/Ctrl+Backspace
+  discards), in the strip under the conversation and in a changed note's bar; kept across restarts.
+- **Approvals in plain words**, and per app (browser, notes, tasks): Off, Ask first, Read or Act. Risky actions always ask.
+- **Memory** (asked first), **past conversations** the agent can search, **schedules** (Settings › Schedules, or asked
+  of the agent), and the Agent app's **Activity** tab (needs you, running, scheduled, done today).
+- **Presence on the desktop**: the print in the menu bar or notification area shows idle, working, needs you, or done
+  while away; its menu opens Mobius, asks, lists what is running, and stops it all.
+- **Privacy report**: what Mobius read and changed in each app this week, and where requests are answered.
+- **Accessibility**: glass turns solid with Reduce Transparency, Increase Contrast or forced colours.
+
+Not built yet from the canvas: Profiles, Look at this (sharing a window), Show Mobius (camera), trust marks on what
+Mobius says, labels on plan steps that will ask, and the Activity history of older turns.
+
 ## Linux
 
 The shell layers the browser's page views over the interface view. On Linux, Tauri 2 (`tauri-runtime-wry`) packs every
@@ -63,5 +90,6 @@ selection menu), the page picture used as a cover under menus, and whether the p
 
 ## Next
 
-1. Run the end-to-end suite (including `e2e/mobius2.spec.ts`) in the Windows shell, and look over the real window, a web
-   page in a split pane, and Little Mobius.
+1. Try by hand what tests cannot reach: keeping a program download in WebView2's prompt on Windows, and the menu bar and
+   tray on a Mac.
+2. The canvas items not built yet (above).
