@@ -21,10 +21,12 @@ const pathOf = (args: unknown): string => {
 export function appOfTool(name: string, args?: unknown): AppId | null {
   if (name.startsWith('browser.')) return 'browser';
   if (name.startsWith('tasks.')) return 'tasks';
+  if (name.startsWith('calendar.')) return 'calendar';
   if (name.startsWith('files.')) {
     const path = pathOf(args);
     if (path.startsWith('notes/')) return 'notes';
     if (path.startsWith('tasks/')) return 'tasks';
+    if (path.startsWith('calendar/')) return 'calendar';
   }
   return null;
 }

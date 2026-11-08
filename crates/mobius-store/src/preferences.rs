@@ -15,16 +15,24 @@ pub fn is_model_name(v: &Value) -> bool {
 }
 
 /// The apps whose access the person can set, and the levels: off, ask (the usual), read without asking, act without asking.
-pub const APP_ACCESS_APPS: [&str; 3] = ["browser", "notes", "tasks"];
+pub const APP_ACCESS_APPS: [&str; 4] = ["browser", "notes", "tasks", "calendar"];
+/// Apps added later: a setting saved before them may leave them out, and they count as `ask`.
+const LATER_APPS: [&str; 1] = ["calendar"];
 pub const APP_ACCESS_LEVELS: [&str; 4] = ["off", "ask", "read", "act"];
 
 pub fn app_access_default() -> Value {
-    json!({ "browser": "ask", "notes": "ask", "tasks": "ask" })
+    json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "calendar": "ask" })
 }
 
 /// Exactly those apps, each at one of the levels.
 pub fn is_app_access(v: &Value) -> bool {
-    v.as_object().is_some_and(|o| o.len() == APP_ACCESS_APPS.len() && APP_ACCESS_APPS.iter().all(|app| o.get(*app).and_then(Value::as_str).is_some_and(|l| APP_ACCESS_LEVELS.contains(&l))))
+    v.as_object().is_some_and(|o| {
+        o.keys().all(|k| APP_ACCESS_APPS.contains(&k.as_str()))
+            && APP_ACCESS_APPS.iter().all(|app| match o.get(*app) {
+                None => LATER_APPS.contains(app),
+                Some(level) => level.as_str().is_some_and(|l| APP_ACCESS_LEVELS.contains(&l)),
+            })
+    })
 }
 
 static FIELDS: [Field; 12] = [
@@ -53,7 +61,8 @@ mod access_tests {
     #[test]
     fn app_access_is_the_three_apps_at_known_levels() {
         assert!(is_app_access(&app_access_default()));
-        assert!(is_app_access(&json!({ "browser": "off", "notes": "read", "tasks": "act" })));
+        assert!(is_app_access(&json!({ "browser": "off", "notes": "read", "tasks": "act" })), "saved before Calendar");
+        assert!(is_app_access(&json!({ "browser": "off", "notes": "read", "tasks": "act", "calendar": "read" })));
         for bad in [json!({}), json!({ "browser": "ask", "notes": "ask" }), json!({ "browser": "ask", "notes": "ask", "tasks": "always" }), json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "mail": "ask" }), json!("ask")] {
             assert!(!is_app_access(&bad), "{bad}");
         }

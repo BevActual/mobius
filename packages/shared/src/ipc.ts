@@ -581,7 +581,7 @@ const isFavourite = (v: unknown): v is Favourite => {
   return Object.keys(v).length === 3 && (kind === 'note' || kind === 'list' || kind === 'page') && text(id, 2000) && text(title, 120);
 };
 /** The apps that can be kept in the sidebar. */
-export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'notes', 'tasks'] as const;
+export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'notes', 'tasks', 'calendar'] as const;
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
 export type NavigationStyle = 'sidebar' | 'rail';
@@ -891,13 +891,17 @@ export interface ProfilesState { current: string; list: { id: string; name: stri
 export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean }
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
-export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel>;
-export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', tasks: 'ask' };
+/** `calendar` came later: a setting saved before it leaves it out, and it counts as `ask`. */
+export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { calendar?: AccessLevel };
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', tasks: 'ask', calendar: 'ask' };
 const ACCESS_LEVELS: readonly string[] = ['off', 'ask', 'read', 'act'];
 export function isAppAccess(v: unknown): v is AppAccess {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
-  const keys = Object.keys(v);
-  return keys.length === 3 && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes((v as Record<string, unknown>)[app] as string));
+  const o = v as Record<string, unknown>;
+  const apps = ['browser', 'notes', 'tasks', 'calendar'];
+  return Object.keys(o).every((k) => apps.includes(k))
+    && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes(o[app] as string))
+    && (o.calendar === undefined || ACCESS_LEVELS.includes(o.calendar as string));
 }
 /** `none` turns thinking off where the model allows it (models on this computer). */
 export type EffortChoice = '' | 'none' | 'low' | 'medium' | 'high';

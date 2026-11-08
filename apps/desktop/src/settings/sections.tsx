@@ -360,7 +360,7 @@ const ACCESS_OPTIONS: ReadonlyArray<{ id: AccessLevel; label: string }> = [
 const ACCESS_APPS: ReadonlyArray<{ id: keyof AppAccess; label: string; help: Record<AccessLevel, string> }> = [
   { id: 'browser', label: 'Browser', help: { off: 'Mobius cannot see your tabs, read pages or open new ones.', ask: 'Mobius asks before it reads a page or opens one.', read: 'Mobius reads your tabs and pages without asking, and asks before opening one.', act: 'Mobius reads pages and opens new ones without asking. Clicking and typing still ask.' } },
   { id: 'notes', label: 'Notes', help: { off: 'Mobius cannot open or change your notes.', ask: 'Mobius asks before it opens or changes a note.', read: 'Mobius opens your notes without asking, and asks before changing one.', act: 'Mobius opens and changes your notes without asking. You can still review and undo each change.' } },
-  { id: 'tasks', label: 'Tasks', help: { off: 'Mobius cannot see or change your task lists.', ask: 'Mobius asks before it reads or changes your tasks.', read: 'Mobius reads your task lists without asking, and asks before changing them.', act: 'Mobius reads and changes your task lists without asking.' } },
+  { id: 'tasks', label: 'Tasks', help: { off: 'Mobius cannot see or change your task lists.', ask: 'Mobius asks before it reads or changes your tasks.', read: 'Mobius reads your task lists without asking, and asks before changing them.', act: 'Mobius reads and changes your task lists without asking.' } },  { id: 'calendar', label: 'Calendar', help: { off: 'Mobius cannot see or change your calendars.', ask: 'Mobius asks before it reads your calendar or adds to it.', read: 'Mobius reads your calendars without asking, and asks before adding or changing an event.', act: 'Mobius reads your calendars and adds or changes events without asking. It never invites anyone.' } },
 ];
 
 /** What Mobius remembers, each with Forget. Read again whenever it changes, by the agent or here. */
@@ -440,9 +440,9 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
           {ACCESS_APPS.map((app) => (
             <div key={app.id} className="access-row">
               <span className="access-app">{app.label}</span>
-              <Choice label={`${app.label}: what Mobius may do`} name={`access-${app.id}`} value={preferences.appAccess[app.id]} options={ACCESS_OPTIONS}
+              <Choice label={`${app.label}: what Mobius may do`} name={`access-${app.id}`} value={preferences.appAccess[app.id] ?? 'ask'} options={ACCESS_OPTIONS}
                 onChange={(level) => void onPreferences({ appAccess: { ...preferences.appAccess, [app.id]: level } })} />
-              <p className="srow-text access-help">{app.help[preferences.appAccess[app.id]]}</p>
+              <p className="srow-text access-help">{app.help[preferences.appAccess[app.id] ?? 'ask']}</p>
             </div>
           ))}
         </div>

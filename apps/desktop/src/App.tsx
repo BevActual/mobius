@@ -31,6 +31,8 @@ import { useCoreStatus } from './useCoreStatus';
 import { useNotes } from './useNotes';
 import { NotesSidebar } from './NotesSidebar';
 import { TasksPage, TasksSidebar } from './Tasks';
+import { CalendarPage, CalendarSidebar } from './Calendar';
+import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { APP_ICONS, Rail } from './Rail';
 import { AppHub, type HubAction } from './AppHub';
 import { smartView } from './tasks-view';
@@ -38,6 +40,7 @@ import { SearchPage } from './SearchPage';
 import { activityOf } from './activity';
 import type { HubTarget } from './search-hub';
 import { useTasks } from './useTasks';
+import { useCalendar } from './useCalendar';
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
@@ -83,6 +86,8 @@ export function App() {
   const bookmarks = useBookmarks();
   const notes = useNotes();
   const tasks = useTasks();
+  const calendar = useCalendar();
+  const [eventToken, setEventToken] = useState(0);
   const bindings = preferences.value.keybindings;
   // Clicking a notification brings Mobius forward; show the conversation it was about.
   useEffect(() => window.mobius.app.onOpenConversation((id) => { conversation.select(id); setChatOpen(true); }), [conversation.select]);
@@ -150,6 +155,7 @@ export function App() {
   const inAgent = app === 'agent';
   const inNotes = app === 'notes';
   const inTasks = app === 'tasks';
+  const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
   /** Shown in either pane, focused or not. */
   const shows = (id: AppId) => app === id || other === id;
@@ -191,7 +197,12 @@ export function App() {
       if (c.by === 'assistant' && c.list && showBeside('tasks')) { tasksNow.current.setView({ kind: 'list', name: c.list }); return; }
       mark('tasks');
     });
-    return () => { offNotes?.(); offTasks?.(); };
+    const offCalendar = window.mobius.calendar?.onChanged((c) => {
+      if (c.by === 'person' || c.by === 'undo') return;
+      if (c.by === 'assistant' && showBeside('calendar')) return;
+      mark('calendar');
+    });
+    return () => { offNotes?.(); offTasks?.(); offCalendar?.(); };
   }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
   const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
@@ -260,7 +271,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : appName(app);
+  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -268,11 +279,13 @@ export function App() {
   const dueToday = smartView('today', tasks.all, new Date()).length;
   const openTasks = tasks.lists.reduce((sum, l) => sum + l.open, 0);
   const pages = notes.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0);
+  const eventsToday = eventsOn(calendar.events, new Date()).length;
   const hubStatus: Partial<Record<AppId, string>> = {
     agent: activity ? activity.label : needsYou > 0 ? `${needsYou} waiting for you` : plural(conversation.list.length, 'conversation'),
     browser: plural(browser.tabs.length, 'tab') + ' open',
     notes: plural(pages, 'page'),
     tasks: dueToday > 0 ? `${dueToday} due today` : openTasks > 0 ? `${openTasks} to do` : 'All done',
+    calendar: eventsToday > 0 ? `${plural(eventsToday, 'event')} today` : 'Nothing today',
     search: 'Find anything',
   };
   const [panelOpen, setPanelOpen] = useState(true);
@@ -295,12 +308,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inNotes || inTasks;
+  const hasAppList = inBrowser || inAgent || inNotes || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inNotes || inTasks) && !shows('agent');
+  const hasRight = (inBrowser || inNotes || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -470,6 +483,7 @@ export function App() {
     { id: 'note', label: 'New note', app: 'notes', run: () => { closeSettings(); openApp('notes'); void (async () => { const nb = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name ?? (await notes.createNotebook('Notes')); if (nb) await notes.createPage(nb); })(); } },
     { id: 'task', label: 'New task', app: 'tasks', run: () => { closeSettings(); tasks.setView({ kind: 'list', name: 'Inbox' }); openApp('tasks'); setTaskFocus((n) => n + 1); } },
     { id: 'tab', label: 'New tab', app: 'browser', run: () => { closeSettings(); openApp('browser'); newTab(); } },
+    { id: 'event', label: 'New event', app: 'calendar', run: () => { closeSettings(); openApp('calendar'); setEventToken((n) => n + 1); } },
   ];
   /** The one thing worth starting in the app you are in: the panel's New button changes with it. */
   const createFor = (id: AppId): HubAction => createActions.find((a) => a.app === (id === 'search' ? 'agent' : id)) ?? createActions[0]!;
@@ -509,6 +523,8 @@ export function App() {
               />
             ) : inNotes ? (
               <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} />
+            ) : inCalendar ? (
+              <CalendarSidebar calendar={calendar} pin={pinNode} />
             ) : inTasks ? (
               <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} />
             ) : (
@@ -604,6 +620,7 @@ export function App() {
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
       tasks: { inList: tasks.view.kind === 'list', done: tasksDone },
+      calendar: { mode: calendar.mode },
       agent: { busy: conversation.state.busy },
     },
     do: {
@@ -643,6 +660,12 @@ export function App() {
         clearDone: () => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); },
         today: () => tasks.setView({ kind: 'smart', id: 'today' }),
         scheduled: () => tasks.setView({ kind: 'smart', id: 'scheduled' }),
+      },
+      calendar: {
+        newEvent: () => createActions[4]!.run(),
+        newCalendar: () => sendCommand('new-calendar'),
+        today: () => calendar.setAnchor(new Date()),
+        mode: (mode) => calendar.setMode(mode),
       },
       agent: { stop: conversation.stop },
     },
@@ -734,6 +757,8 @@ export function App() {
         return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} review={notes.page && turnMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} />;
+      case 'calendar':
+        return <CalendarPage calendar={calendar} newToken={eventToken} />;
       case 'search':
         return (
           <SearchPage
@@ -809,7 +834,7 @@ export function App() {
       </Rail>
       <header className="context-strip">
         <div className="strip-left" role="group" aria-label="Window">
-          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
+          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
           {!nativeMenus && <MenuBar menus={menus} compact={compactMenus} onOpenChange={setMenuOpen} />}
@@ -818,6 +843,7 @@ export function App() {
           <h1 className="strip-title">{place}</h1>
           {inAgent && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
           {inNotes && notes.page && <span className="toolbar-sub">{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></span>}
+          {inCalendar && <span className="toolbar-sub">{eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`}</span>}
           {inTasks && <span className="toolbar-sub">{tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`}</span>}
         </div>
         {inTasks && tasks.view.kind === 'list' && tasksDone > 0 && (

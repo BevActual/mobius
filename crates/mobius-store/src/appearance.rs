@@ -9,7 +9,7 @@ pub const LEFT_WIDTH: (f64, f64, f64) = (200.0, 420.0, 248.0);
 pub const RIGHT_WIDTH: (f64, f64, f64) = (300.0, 640.0, 380.0);
 
 /// The apps the sidebar may list. Its `sidebarApps` setting says which, in what order; the rest stay in All apps.
-pub const SIDEBAR_APPS: [&str; 5] = ["agent", "search", "browser", "notes", "tasks"];
+pub const SIDEBAR_APPS: [&str; 6] = ["agent", "search", "browser", "notes", "tasks", "calendar"];
 
 fn is_app_list(v: &Value) -> bool {
     let Some(items) = v.as_array() else { return false };

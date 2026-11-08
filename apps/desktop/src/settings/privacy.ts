@@ -6,7 +6,8 @@ export interface PrivacyRow { area: string; read: number; changed: number; block
 function areaOf(capability: string, resource: string | null): string {
   if (capability.startsWith('browser.')) return 'Browser';
   if (capability.startsWith('tasks.')) return 'Tasks';
-  if (capability.startsWith('files.')) return resource?.startsWith('notes/') ? 'Notes' : resource?.startsWith('tasks/') ? 'Tasks' : 'Files';
+  if (capability.startsWith('calendar.')) return 'Calendar';
+  if (capability.startsWith('files.')) return resource?.startsWith('notes/') ? 'Notes' : resource?.startsWith('tasks/') ? 'Tasks' : resource?.startsWith('calendar/') ? 'Calendar' : 'Files';
   if (capability.startsWith('memory.')) return 'Memory';
   if (capability.startsWith('sessions.')) return 'Past conversations';
   if (capability.startsWith('schedules.')) return 'Schedules';

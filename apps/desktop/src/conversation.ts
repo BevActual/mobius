@@ -270,7 +270,8 @@ function appOfTool(name: string, args: unknown): string | null {
   if (name.startsWith('browser.')) return 'Browser';
   if (name.startsWith('tasks.')) return 'Tasks';
   if (name.startsWith('notes.')) return 'Notes';
-  if (name.startsWith('files.')) return path.startsWith('notes/') ? 'Notes' : path.startsWith('tasks/') ? 'Tasks' : 'Files';
+  if (name.startsWith('calendar.')) return 'Calendar';
+  if (name.startsWith('files.')) return path.startsWith('notes/') ? 'Notes' : path.startsWith('tasks/') ? 'Tasks' : path.startsWith('calendar/') ? 'Calendar' : 'Files';
   return null;
 }
 

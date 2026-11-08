@@ -12,6 +12,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
       browser: { hasPage: true, canBack: false, canForward: false, bookmarked: false, pinned: false },
       notes: { hasPage: false, pinned: false, changed: false },
       tasks: { inList: false, done: 0 },
+      calendar: { mode: 'week' },
       agent: { busy: false },
       ...over,
     },
@@ -22,6 +23,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
       browser: { back: noop, forward: noop, reload: noop, address: noop, bookmark: noop, pin: noop, reopen: noop, selection: noop },
       notes: { newNotebook: noop, pin: noop, changes: noop },
       tasks: { newList: noop, clearDone: noop, today: noop, scheduled: noop },
+      calendar: { newEvent: noop, newCalendar: noop, today: noop, mode: noop },
       agent: { stop: noop },
     },
   };
@@ -32,6 +34,8 @@ describe('menus', () => {
   it('has File, Edit, View, Go, Window and Help everywhere, and the open app its own menu before Window', () => {
     expect(buildMenus(context('browser')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Browser', 'Window', 'Help']);
     expect(buildMenus(context('tasks')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Tasks', 'Window', 'Help']);
+    expect(buildMenus(context('calendar')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Calendar', 'Window', 'Help']);
+    expect(find(buildMenus(context('calendar')), 'week')).toMatchObject({ checked: true });
     expect(buildMenus(context('search')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Window', 'Help']);
   });
 
