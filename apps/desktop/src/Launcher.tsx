@@ -4,7 +4,7 @@ import { APPS, type AppId } from './apps';
 
 export interface LauncherItem {
   id: string;
-  kind: 'app' | 'tab' | 'command';
+  kind: 'ask' | 'app' | 'tab' | 'command';
   label: string;
   detail?: string;
   disabled?: boolean;
@@ -18,12 +18,19 @@ interface Props {
   onNewTab: () => void;
   onActivateTab: (id: string) => void;
   onOpenApp: (id: AppId) => void;
+  /** Hand what was typed to Mobius as a question. */
+  onAsk?: (text: string) => void;
+  /** Everything the menus can do now, to find by name. */
+  commands?: readonly { id: string; label: string; detail?: string; run: () => void }[];
 }
 
-const SECTION: Record<LauncherItem['kind'], string> = { app: 'Applications', tab: 'Open pages', command: 'Commands' };
+const SECTION: Record<LauncherItem['kind'], string> = { ask: 'Ask Mobius', app: 'Applications', tab: 'Open pages', command: 'Commands' };
 
-/** One centred surface for finding and opening things. A modal dialog, so focus is trapped and Escape closes it. */
-export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenApp }: Props) {
+/**
+ * One centred surface for finding and opening things. Typing makes it one search for apps, open pages and commands,
+ * with "Ask Mobius" always the first row. A modal dialog, so focus is trapped and Escape closes it.
+ */
+export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, commands = [] }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
@@ -45,7 +52,9 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
   const items = useMemo<LauncherItem[]>(() => {
     const q = query.trim().toLowerCase();
     const has = (text: string) => !q || text.toLowerCase().includes(q);
+    const typed = query.trim();
     const list: LauncherItem[] = [
+      ...(typed && onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, run: () => onAsk(typed) }] : []),
       ...APPS.filter((app) => has(app.name)).map<LauncherItem>((app) => ({
         id: `app-${app.id}`,
         kind: 'app',
@@ -61,12 +70,22 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
         detail: tab.url,
         run: () => onActivateTab(tab.id),
       })),
-      ...[{ id: 'new-tab', label: 'New tab', detail: 'Ctrl+T' }]
-        .filter((command) => has(command.label))
-        .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab })),
+      ...(commands.length > 0
+        ? commands.filter((command) => q && has(`${command.label} ${command.detail ?? ''}`)).slice(0, 12).map<LauncherItem>((command) => ({ id: `cmd-${command.id}`, kind: 'command', label: command.label, detail: command.detail, run: command.run }))
+        : [{ id: 'new-tab', label: 'New tab', detail: 'Ctrl+T' }]
+          .filter((command) => has(command.label))
+          .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
     return list;
-  }, [query, tabs, onNewTab, onActivateTab, onOpenApp]);
+  }, [query, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, commands]);
+
+  // Ask Mobius is always the first row, but Enter opens what was found when something was: typing "notes" and
+  // pressing Enter opens Notes. With nothing found, Enter asks.
+  useEffect(() => {
+    const found = items.findIndex((item) => item.kind !== 'ask' && !item.disabled);
+    setSelected(found > 0 ? found : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   const activate = (item: LauncherItem | undefined) => {
     if (!item || item.disabled) return;

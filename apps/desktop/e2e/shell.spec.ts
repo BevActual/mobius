@@ -129,3 +129,16 @@ test('the launcher finds an open page and activates it', async () => {
   await expect(mobius.shell.getByRole('dialog', { name: 'Launcher' })).toBeHidden();
   await expect(mobius.shell.locator('.tab[aria-current="page"] .tab-title')).toHaveText('Fixture home');
 });
+
+test('the launcher asks Mobius when nothing else matches, and finds menu commands by name', async () => {
+  await mobius.shell.keyboard.press('Control+K');
+  await mobius.shell.keyboard.type('split');
+  await expect(mobius.shell.getByRole('option').first()).toHaveText(/Ask Mobius: “split”/);
+  const split = mobius.shell.getByRole('option', { name: /^Split view/ });
+  await expect(split).toHaveAttribute('aria-selected', 'true');
+  await mobius.shell.keyboard.press('Escape');
+  await mobius.shell.keyboard.press('Control+K');
+  await mobius.shell.keyboard.type('qqqzzz');
+  await expect(mobius.shell.getByRole('option', { name: /Ask Mobius: “qqqzzz”/ })).toHaveAttribute('aria-selected', 'true');
+  await mobius.shell.keyboard.press('Escape');
+});

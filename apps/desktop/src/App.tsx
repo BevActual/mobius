@@ -638,6 +638,11 @@ export function App() {
     },
   };
   const menus = buildMenus(menuContext);
+  // The launcher finds every menu command by name. Going to apps is already there, and editing needs the place you
+  // were typing in, so those are left out.
+  const launcherCommands = menus.flatMap((m) => m.items.flatMap((i) => (i.kind === 'item' && !i.disabled && !i.id.startsWith('go-') && !['undo', 'redo', 'cut', 'copy', 'paste', 'select-all', 'launcher', 'all-apps'].includes(i.id)
+    ? [{ id: `${m.id}-${i.id}`, label: i.label.replace(/…$/, ''), detail: [m.label, i.keys ? describeCombo(i.keys, window.mobius.platform) : ''].filter(Boolean).join(' · '), run: i.run }]
+    : [])));
   // On macOS the menus go in the system menu bar; elsewhere they are drawn in the toolbar.
   const nativeMenus = window.mobius.platform === 'darwin' && window.mobius.menu !== undefined;
   const menusNow = useRef(menus);
@@ -966,7 +971,9 @@ export function App() {
         status={hubStatus}
         actions={createActions}
       />
-      <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp} />
+      <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp}
+        onAsk={(question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); }}
+        commands={launcherCommands} />
     </div>
   );
 }
