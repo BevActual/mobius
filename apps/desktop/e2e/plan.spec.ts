@@ -139,5 +139,5 @@ test('Take Over stops a running plan and puts the steps left in Tasks', async ()
   await expect(tasks).toContainText('Book the room');
   await expect(tasks).toContainText('Send the invite');
   await expect(tasks).not.toContainText('Find a venue');
-  await expect(shell().getByRole('button', { name: 'Send' })).toBeVisible();
+  await expect(shell().getByRole('button', { name: 'Send', exact: true })).toBeVisible();
 });
