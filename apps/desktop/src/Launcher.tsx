@@ -34,14 +34,15 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState(0);
+  // null: the default row (what was found, or Ask when nothing was). A number once the arrows or pointer chose.
+  const [chosen, setSelected] = useState<number | null>(null);
 
   useEffect(() => {
     const element = dialog.current;
     if (!element) return;
     if (open && !element.open) {
       setQuery('');
-      setSelected(0);
+      setSelected(null);
       element.showModal();
       input.current?.focus();
     } else if (!open && element.open) {
@@ -80,12 +81,10 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
   }, [query, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, commands]);
 
   // Ask Mobius is always the first row, but Enter opens what was found when something was: typing "notes" and
-  // pressing Enter opens Notes. With nothing found, Enter asks.
-  useEffect(() => {
-    const found = items.findIndex((item) => item.kind !== 'ask' && !item.disabled);
-    setSelected(found > 0 ? found : 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+  // pressing Enter opens Notes. With nothing found, Enter asks. Worked out as the list is drawn, so a quick Enter
+  // right after typing gets the same row.
+  const found = items.findIndex((item) => item.kind !== 'ask' && !item.disabled);
+  const selected = chosen ?? (found > 0 ? found : 0);
 
   const activate = (item: LauncherItem | undefined) => {
     if (!item || item.disabled) return;
@@ -93,7 +92,7 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
     item.run();
   };
 
-  const move = (delta: number) => setSelected((index) => (items.length ? (index + delta + items.length) % items.length : 0));
+  const move = (delta: number) => setSelected(items.length ? (selected + delta + items.length) % items.length : 0);
   const activeId = items[selected] ? `launcher-option-${items[selected]!.id}` : undefined;
   const sections = (Object.keys(SECTION) as Array<LauncherItem['kind']>).filter((kind) => items.some((item) => item.kind === kind));
 
@@ -113,7 +112,7 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
           autoComplete="off"
           spellCheck={false}
           value={query}
-          onChange={(event) => { setQuery(event.target.value); setSelected(0); }}
+          onChange={(event) => { setQuery(event.target.value); setSelected(null); }}
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
             else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
