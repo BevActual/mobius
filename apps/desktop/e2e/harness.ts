@@ -135,7 +135,7 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
   const exe = path.resolve(root, '../../target/debug', process.platform === 'win32' ? 'mobius-shell.exe' : 'mobius-shell');
   const port = 9300 + Math.floor(Math.random() * 600);
   const child = spawn(exe, [], {
-    env: { ...process.env, MOBIUS_TEST: '1', MOBIUS_USER_DATA: userData, MOBIUS_START_URL: startUrl, MOBIUS_HIDE_WINDOW: '1', WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --disable-features=msSmartScreenProtection --safebrowsing-disable-download-protection --use-fake-device-for-media-stream --use-fake-ui-for-media-stream`, WEBVIEW2_USER_DATA_FOLDER: path.join(userData, 'webview'), ...env },
+    env: { ...process.env, MOBIUS_TEST: '1', MOBIUS_USER_DATA: userData, MOBIUS_START_URL: startUrl, MOBIUS_HIDE_WINDOW: '1', WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --disable-features=msSmartScreenProtection,InsecureDownloadWarnings --safebrowsing-disable-download-protection --use-fake-device-for-media-stream --use-fake-ui-for-media-stream`, WEBVIEW2_USER_DATA_FOLDER: path.join(userData, 'webview'), ...env },
     stdio: ['ignore', 'ignore', process.env.MOBIUS_TAURI_LOG ? fs.openSync(process.env.MOBIUS_TAURI_LOG, 'a') : 'ignore'],
   });
   let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | null = null;

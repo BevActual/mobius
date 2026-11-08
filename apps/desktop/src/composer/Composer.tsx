@@ -26,6 +26,8 @@ const KIND_NOTE: Record<ModelGroup['kind'], string> = { subscription: 'Plan', pr
 type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: ModelCatalog };
 
 export interface ComposerProps {
+  /** Whether the message box takes the keyboard when it appears (not when a floating panel is only peeked at). */
+  takeFocus?: boolean;
   draft: string;
   onDraft: (text: string) => void;
   context: ContextItem[];
@@ -52,7 +54,7 @@ export interface ComposerProps {
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onModelChanged, onOpenSettings, fieldRef, surface, activity }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onModelChanged, onOpenSettings, fieldRef, surface, activity }: ComposerProps) {
   const [problem, setProblem] = useState<string | null>(null);
   const [models, setModels] = useState<ModelList>({ state: 'idle' });
   const [find, setFind] = useState('');
@@ -220,7 +222,7 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
         maxLength={MAX_TYPED_CHARS}
         value={draft}
         disabled={!canType}
-        autoFocus
+        autoFocus={takeFocus}
         placeholder={canType ? 'Message Mobius' : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={onKeyDown}

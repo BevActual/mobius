@@ -272,6 +272,9 @@ export function App() {
   const hideRight = useCallback(() => setChatOpen(false), []);
   const leftFromEdge = useRef(false);
   const rightFromEdge = useRef(false);
+  // The floating agent panel came out because the pointer reached the edge (not the toolbar button or a shortcut).
+  const [peeked, setPeeked] = useState(false);
+  useEffect(() => { if (!chatOpen) setPeeked(false); }, [chatOpen]);
   useAutoHide(leftFloating, hasLeft && leftOpen, hideLeft, leftDock, leftFromEdge);
   useAutoHide(rightFloating, rightOpen, hideRight, rightDock, rightFromEdge);
   // Switching to floating while the pointer and keyboard are elsewhere puts the sidebar away.
@@ -803,6 +806,7 @@ export function App() {
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
           <ChatPanel
+              takeFocus={!(rightFloating && peeked)}
               surface={surface}
             state={conversation.state}
             settings={settings}
@@ -830,7 +834,7 @@ export function App() {
             {resizer('right', 'Resize the agent panel')}
           </div>
         )}
-        {hasRight && rightFloating && !chatOpen && <div className="hotzone right" data-testid="hotzone-right" onPointerEnter={() => { rightFromEdge.current = true; setChatOpen(true); }} />}
+        {hasRight && rightFloating && !chatOpen && <div className="hotzone right" data-testid="hotzone-right" onPointerEnter={() => { rightFromEdge.current = true; setPeeked(true); setChatOpen(true); }} />}
       </div>
       <AppHub
         open={hubOpen}

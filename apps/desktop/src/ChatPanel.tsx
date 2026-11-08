@@ -149,6 +149,8 @@ export interface ChatPanelProps {
   onSaveSettings: (request: AgentConfigureRequest) => Promise<AgentResult>;
   /** Text to place in the composer, for example from elsewhere in the window. Each value is used once. */
   focusToken?: number;
+  /** False for a floating panel that slid in because the pointer reached the edge: it must not take the keyboard. */
+  takeFocus?: boolean;
   /** Material handed over from elsewhere in the window (text selected in a note): added as a chip, then the box is focused. */
   incoming?: { token: number; item: ContextItem } | null;
   conversations: ConversationInfo[];
@@ -243,7 +245,7 @@ function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty:
   );
 }
 
-export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -385,6 +387,7 @@ export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop,
           </div>
           <ReviewStrip conversation={state.conversation} busy={state.busy} />
           <Composer
+            takeFocus={takeFocus}
             draft={draft}
             onDraft={setDraft}
             context={context}
