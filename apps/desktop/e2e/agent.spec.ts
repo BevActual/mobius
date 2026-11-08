@@ -11,7 +11,12 @@ let mobius: Launched | undefined;
 test.beforeEach(async () => {
   fixture = await startFixture();
 });
-test.afterEach(async () => {
+test.afterEach(async ({}, testInfo) => {
+  // A rare stall on the first turn: what the core did and what the model was asked, to see where it waited.
+  if (testInfo.status !== testInfo.expectedStatus && mobius) {
+    const history = await coreHistory(mobius.app).catch((e: unknown) => [`(no history: ${String(e)})`]);
+    console.log(`[${testInfo.title}] model requests: ${model?.requests.length ?? 0}\ncore history:\n${history.join('\n')}`);
+  }
   await mobius?.close();
   mobius = undefined;
   await model?.close();
