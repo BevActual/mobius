@@ -57,7 +57,7 @@ test('a link is kept as just its words, read with Mobius, and archived when done
 
   await article.getByRole('button', { name: 'Done reading' }).click();
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'reading', 'Archive', 'Casa Amora.md'))).toBe(true);
-  expect(fs.existsSync(file)).toBe(false);
+  await expect.poll(() => fs.existsSync(file)).toBe(false);
   await expect(article.getByRole('button', { name: 'Done reading' })).toBeHidden();
 
   // A page that cannot be read says so.
