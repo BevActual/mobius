@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
 import { Welcome } from './Welcome';
+import { describeAction } from './actions';
 import { RichText } from './RichText';
 import { ReviewStrip } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
@@ -202,7 +203,7 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
       )}
       {item.status === 'waiting' && item.requestId !== undefined && (
         <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`}>
-          <p className="approval-text">Mobius wants to use <strong>{item.name}</strong>.{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
+          <p className="approval-text">{(() => { const plain = describeAction(item.name, item.args); return plain ? <>Mobius wants to {plain}. <span className="approval-tool">{item.name}</span></> : <>Mobius wants to use <strong>{item.name}</strong>.</>; })()}{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
           {shownArgs && <pre className="approval-args" tabIndex={0} aria-label="What it will use">{shownArgs}</pre>}
           <div className="approval-actions">
             <button type="button" className="btn primary" disabled={sending} onClick={() => void respond(true, 'once')}>Allow once</button>

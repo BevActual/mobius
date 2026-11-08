@@ -167,6 +167,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .tool-status { margin-left: auto; color: var(--muted); }
 .approval { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
 .approval-text { margin: 0 0 6px; }
+.approval-tool { margin-left: 4px; color: var(--muted); font: var(--fs-xs)/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .approval-args { margin: 0 0 8px; max-height: 140px; overflow: auto; padding: 8px 10px; border-radius: var(--radius-control); background: var(--bg); border: 1px solid var(--line); font: 11.5px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .approval-actions, .settings-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .btn { height: 28px; padding: 0 12px; border: 1px solid var(--line); background: var(--bg); font-weight: 500; }
