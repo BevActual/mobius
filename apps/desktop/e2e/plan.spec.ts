@@ -203,11 +203,12 @@ test('the Agent app’s Activity tab shows what finished today, and what is sche
   await expect(side.getByRole('list', { name: 'Scheduled requests' })).toContainText('Weekdays at 08:00');
 });
 
-test('profiles: Personal is there, a new one can be made from File › Profiles…, and the open one is marked', async () => {
+test('profiles: Personal is there, a new one can be made in Settings, and the open one is marked', async () => {
   await start([]);
-  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'File' }).click();
-  await shell().getByRole('menuitem', { name: 'Profiles…' }).click();
+  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
   const page = shell().getByRole('region', { name: 'Settings' });
+  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Advanced', exact: true }).click();
+  await page.getByRole('tab', { name: 'Profiles' }).click();
   const list = page.getByRole('list', { name: 'Profiles' });
   await expect(list).toContainText('PersonalOpen now');
   await page.getByRole('textbox', { name: 'Name of the new profile' }).fill('Work');
