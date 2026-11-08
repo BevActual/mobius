@@ -299,7 +299,15 @@ pub fn unpack(zip_path: &Path, into: &Path) -> Result<(), EngineError> {
     let mut total = 0u64;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|e| bad(&e.to_string()))?;
-        let relative = entry.enclosed_name().ok_or_else(|| bad("an entry points outside the engine folder"))?;
+        // Read the same way on every system: a backslash separates folders (some Windows tools write them), and a drive
+        // letter, a root or a .. that would leave the folder is refused.
+        let name = entry.name().replace('\\', "/");
+        let parts: Vec<&str> = name.split('/').filter(|p| !p.is_empty() && *p != ".").collect();
+        let leaves = name.starts_with('/') || parts.first().is_some_and(|first| first.len() >= 2 && first.as_bytes()[1] == b':') || parts.contains(&"..");
+        if leaves || parts.is_empty() || entry.enclosed_name().is_none() {
+            return Err(bad("an entry points outside the engine folder"));
+        }
+        let relative: PathBuf = parts.iter().collect();
         if entry.is_symlink() {
             return Err(bad("the archive contains a link"));
         }
@@ -543,7 +551,12 @@ mod tests {
         let into = ok.0.join("out");
         unpack(&ok.0.join("a.zip"), &into).unwrap();
         assert_eq!(fs::read(into.join("lib/ggml.dll")).unwrap(), b"yy");
-        for evil in ["../escape.txt", "/abs.txt", "C:/abs.txt"] {
+        // Folders written with backslashes are folders.
+        let windows = zip_with(&[("bin\\llama-server.exe", b"z")]);
+        let into = windows.0.join("out");
+        unpack(&windows.0.join("a.zip"), &into).unwrap();
+        assert_eq!(fs::read(into.join("bin").join("llama-server.exe")).unwrap(), b"z");
+        for evil in ["../escape.txt", "/abs.txt", "C:/abs.txt", "..\\escape.txt", "C:\\abs.txt", "bin/../../escape.txt"] {
             let bad = zip_with(&[(evil, b"x")]);
             let into = bad.0.join("out");
             assert!(matches!(unpack(&bad.0.join("a.zip"), &into), Err(EngineError::Corrupt(_))), "{evil}");
