@@ -46,7 +46,7 @@ export function MiniApp() {
         state={conversation.state}
         settings={settings}
         coreReady={coreStatus === 'ready'}
-        onSend={(text, items) => void conversation.send(text, items)}
+        onSend={(text, items, options) => void conversation.send(text, items, options)}
         onStop={conversation.stop}
         onAnswer={conversation.answer}
         onReply={conversation.reply}

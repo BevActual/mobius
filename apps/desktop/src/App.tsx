@@ -206,6 +206,18 @@ export function App() {
     note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : null,
     tasks: inTasks ? tasksContext(tasks) : null,
   };
+  // I'll Drive: a proposed plan's steps become a task list of their own, named after the conversation, shown beside it.
+  const driveTasks = useCallback(async (steps: string[]) => {
+    const title = conversation.list.find((c) => c.id === conversation.id)?.title?.trim() || 'Plan';
+    const list = await tasks.createList(title.slice(0, 60));
+    if (!list) return 'The task list could not be made.';
+    for (const step of steps) {
+      if (!(await tasks.add(list, step, null))) return 'Not every step could be added to Tasks.';
+    }
+    // Beside the conversation in the Agent app; elsewhere Tasks opens, with the agent panel still at hand.
+    if (!showBeside('tasks')) openApp('tasks');
+    return null;
+  }, [conversation.list, conversation.id, tasks, showBeside, openApp]);
   const activity = activityOf(conversation.state);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
   // A page the agent opens while you talk to it in the Agent app shows in the browser beside the conversation.
@@ -697,7 +709,8 @@ export function App() {
             state={conversation.state}
             settings={settings}
             coreReady={coreStatus === 'ready'}
-            onSend={(text, items) => void conversation.send(text, items)}
+            onSend={(text, items, options) => void conversation.send(text, items, options)}
+            onDrive={driveTasks}
             onStop={conversation.stop}
             onAnswer={conversation.answer}
             onReply={conversation.reply}
@@ -888,7 +901,8 @@ export function App() {
             state={conversation.state}
             settings={settings}
             coreReady={coreStatus === 'ready'}
-            onSend={(text, items) => void conversation.send(text, items)}
+            onSend={(text, items, options) => void conversation.send(text, items, options)}
+            onDrive={driveTasks}
             onStop={conversation.stop}
             onAnswer={conversation.answer}
               onReply={conversation.reply}

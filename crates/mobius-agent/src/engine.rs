@@ -151,12 +151,18 @@ struct Dispatched {
     remaining: VecDeque<ToolCall>,
 }
 
-/// What one turn does differently from the usual setup: the instructions and model of the bot it belongs to.
+/// What one turn does differently from the usual setup: the instructions and model of the bot it belongs to, and
+/// whether it only proposes a plan.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TurnSetup {
     pub system: Option<String>,
     pub model: Option<String>,
+    /// Plan first: the model may only write a plan and ask questions. Nothing else runs until the person starts it.
+    pub plan_only: bool,
 }
+
+/// Added to the instructions of a plan-only turn.
+pub const PLAN_ONLY_INSTRUCTIONS: &str = "The person asked to see your plan before you do anything. Do not do the task yet: you can only write the plan and ask questions in this turn. Write the steps with the todo.write tool, all pending, in the order you would do them, each a short sentence that says what you will do and in which app. Ask with ask.person only if you cannot plan without an answer. Then say in one or two sentences what the plan does and that nothing will happen until they start it.";
 
 pub struct Turn {
     pub id: u64,
@@ -414,11 +420,18 @@ impl Engine {
     }
 
     fn request(&self, core: &Core, turn: &Turn) -> ChatRequest {
+        let system = turn.setup.system.clone().unwrap_or_else(|| self.config.system.clone());
+        // A plan-only turn offers the model nothing but its own tools.
+        let (system, outside) = if turn.setup.plan_only {
+            ([system.as_str(), PLAN_ONLY_INSTRUCTIONS].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n"), Vec::new())
+        } else {
+            (system, core.tools())
+        };
         ChatRequest {
             model: self.model_of(turn),
-            system: turn.setup.system.clone().unwrap_or_else(|| self.config.system.clone()),
+            system,
             messages: compaction::view(&turn.messages, turn.compaction.as_ref()),
-            tools: core.tools().into_iter().map(|t| ToolDef { name: t.name, description: t.description, input_schema: t.input_schema }).chain(own_tools()).collect(),
+            tools: outside.into_iter().map(|t| ToolDef { name: t.name, description: t.description, input_schema: t.input_schema }).chain(own_tools()).collect(),
             effort: self.effort.clone(),
             max_tokens: None,
         }
@@ -492,6 +505,11 @@ impl Engine {
                         continue;
                     }
                 }
+            }
+            if turn.setup.plan_only {
+                // Whatever the model asks for, nothing outside the conversation runs before the person starts the plan.
+                self.push_result(turn, &call, "Not yet: this turn only plans. Write the plan with todo.write; the person starts it.".to_owned(), true);
+                continue;
             }
             match self.execute(core, &call) {
                 Executed::Result { content, is_error } => self.push_result(turn, &call, content, is_error),

@@ -492,6 +492,16 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .plan-step[data-status="in_progress"] .plan-mark { opacity: 1; border-color: var(--accent); background: radial-gradient(circle, var(--accent) 35%, transparent 40%); }
 .plan-step[data-status="done"] .plan-mark { opacity: 1; background: var(--accent); border-color: var(--accent); }
 .plan-step[data-status="done"] .plan-text { opacity: 0.6; text-decoration: line-through; text-decoration-thickness: 1px; }
+/* A proposed plan (Plan first): numbered steps, then Start, Edit Plan or I'll Drive. */
+.plan-card[data-proposal] { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.plan-num { flex: none; min-width: 18px; height: 18px; border-radius: 50%; background: var(--soft); color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.plan-edit .plan-step { align-items: center; }
+.plan-input { flex: 1; min-width: 0; height: var(--control-h); padding: 0 var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); }
+.plan-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.plan-foot { display: grid; gap: var(--sp-2); margin-top: var(--sp-1); padding-top: var(--sp-2); border-top: 1px solid var(--line); }
+.plan-note { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+.plan-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); }
+.pill[aria-pressed="true"] { background: var(--wash); color: var(--accent); }
 
 /* A question from the model: it waits for the person. */
 .question-card { border: 1px solid var(--accent); background: var(--wash); border-radius: var(--radius-group); padding: var(--sp-3); display: grid; gap: var(--sp-2); }

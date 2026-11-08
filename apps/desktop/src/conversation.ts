@@ -250,3 +250,16 @@ export function findToolArguments(messages: Message[], callId: string): unknown 
   }
   return undefined;
 }
+
+/**
+ * Where a plan waits for the person, or -1: the last plan of an ended turn whose steps are all still to do, with
+ * nothing asked since. That is what Plan first leaves behind (a plan-only turn cannot start a step).
+ */
+export function proposedPlan(state: ConversationState): number {
+  if (state.busy) return -1;
+  const at = state.items.findLastIndex((item) => item.kind === 'plan');
+  if (at < 0) return -1;
+  const plan = state.items[at] as Extract<Item, { kind: 'plan' }>;
+  if (plan.items.length === 0 || plan.items.some((step) => step.status !== 'pending')) return -1;
+  return state.items.slice(at + 1).some((item) => item.kind === 'user') ? -1 : at;
+}

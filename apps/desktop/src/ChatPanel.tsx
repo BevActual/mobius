@@ -4,7 +4,7 @@ import { RichText } from './RichText';
 import { ReviewStrip } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
-import type { ConversationState, Item, ToolStatus, findToolResult } from './conversation';
+import { proposedPlan, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import type { SurfaceState } from './surface';
 import { activityOf } from './activity';
@@ -31,20 +31,88 @@ type Details = { result: ReturnType<typeof findToolResult>; arguments: unknown }
 
 const STEP_STATUS: Record<TodoItem['status'], string> = { pending: 'To do', in_progress: 'Working on it', done: 'Done' };
 
-/** The model's plan for the task, as a checklist the person can follow. */
-function PlanCard({ item }: { item: Extract<Item, { kind: 'plan' }> }) {
+/** What starting a plan says to the agent: the plan as it stands, so steps you changed are the ones done. */
+export function startMessage(steps: string[], edited: boolean): string {
+  return edited ? `Go ahead with this plan, as I changed it:\n${steps.map((t, i) => `${i + 1}. ${t}`).join('\n')}` : 'Go ahead with the plan.';
+}
+
+/**
+ * The model's plan for the task, as a checklist the person can follow. A proposed plan (asked for with Plan first, so
+ * every step is still to do and the turn has ended) waits for you: Start it, change the steps first, or do it yourself.
+ */
+function PlanCard({ item, proposal, busy, onStart, onDrive, onStop }: {
+  item: Extract<Item, { kind: 'plan' }>;
+  proposal: boolean;
+  busy: boolean;
+  onStart: (text: string) => void;
+  onDrive?: (steps: string[]) => Promise<string | null>;
+  onStop: () => void;
+}) {
+  const [draft, setEditing] = useState<string[] | null>(null);
+  // Changing the steps only makes sense while the plan waits for you.
+  const editing = proposal ? draft : null;
+  const [problem, setProblem] = useState<string | null>(null);
+  const [driving, setDriving] = useState(false);
   const done = item.items.filter((i) => i.status === 'done').length;
+  const at = item.items.findIndex((i) => i.status === 'in_progress');
+  const working = busy && at >= 0;
+  const steps = item.items.map((i) => i.text);
+  const kept = (editing ?? steps).map((t) => t.trim()).filter(Boolean);
+  const edited = editing !== null && kept.join('\n') !== steps.join('\n');
+  const title = proposal ? 'Plan' : working ? 'Working' : 'Plan';
+  const meta = proposal ? `${item.items.length} ${item.items.length === 1 ? 'step' : 'steps'}` : working ? `Step ${at + 1} of ${item.items.length}` : `${done} of ${item.items.length} done`;
+  const drive = async () => {
+    setDriving(true);
+    if (onDrive) setProblem(await onDrive(kept));
+    setDriving(false);
+  };
   return (
-    <section className="plan-card" aria-label="Plan">
-      <header className="plan-head"><span>Plan</span><span className="plan-count">{done} of {item.items.length} done</span></header>
-      <ol className="plan-steps">
-        {item.items.map((step, i) => (
-          <li key={i} className="plan-step" data-status={step.status} aria-label={`${step.text}: ${STEP_STATUS[step.status]}`}>
-            <span className="plan-mark" aria-hidden="true" />
-            <span className="plan-text">{step.text}</span>
-          </li>
-        ))}
-      </ol>
+    <section className="plan-card" aria-label="Plan" data-proposal={proposal || undefined}>
+      <header className="plan-head"><span>{title}</span><span className="plan-count">{meta}</span></header>
+      {editing ? (
+        <ol className="plan-steps plan-edit">
+          {editing.map((text, i) => (
+            <li key={i} className="plan-step">
+              <span className="plan-num" aria-hidden="true">{i + 1}</span>
+              <input className="plan-input" value={text} aria-label={`Step ${i + 1}`} autoFocus={i === 0}
+                onChange={(e) => setEditing((list) => list && list.map((t, k) => (k === i ? e.target.value : t)))}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setEditing((list) => list && [...list.slice(0, i + 1), '', ...list.slice(i + 1)]); } }} />
+              <button type="button" className="msg-action" aria-label={`Remove step ${i + 1}`} onClick={() => setEditing((list) => list && list.filter((_, k) => k !== i))}>Remove</button>
+            </li>
+          ))}
+          <li><button type="button" className="msg-action" onClick={() => setEditing((list) => list && [...list, ''])}>Add a step</button></li>
+        </ol>
+      ) : (
+        <ol className="plan-steps">
+          {item.items.map((step, i) => (
+            <li key={i} className="plan-step" data-status={step.status} aria-label={`${step.text}: ${STEP_STATUS[step.status]}`}>
+              {proposal ? <span className="plan-num" aria-hidden="true">{i + 1}</span> : <span className="plan-mark" aria-hidden="true" />}
+              <span className="plan-text">{step.text}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {proposal && (
+        <footer className="plan-foot">
+          <p className="plan-note">Nothing happens until you start it. You can change any step, or do it yourself.</p>
+          {problem && <p className="plan-note" role="alert">{problem}</p>}
+          <div className="plan-actions">
+            {editing ? (
+              <button type="button" className="btn" onClick={() => setEditing(null)}>Cancel</button>
+            ) : (
+              <button type="button" className="btn" onClick={() => setEditing(steps)}>Edit Plan</button>
+            )}
+            {onDrive && <button type="button" className="btn" disabled={driving || kept.length === 0} title="Put the steps in Tasks, to do them yourself" onClick={() => void drive()}>I’ll Drive</button>}
+            <button type="button" className="btn primary" disabled={kept.length === 0} onClick={() => onStart(startMessage(kept, edited))}>Start</button>
+          </div>
+        </footer>
+      )}
+      {working && (
+        <footer className="plan-foot">
+          <p className="plan-note">Stop anytime: finished steps stay.</p>
+          <div className="plan-actions"><button type="button" className="btn" onClick={onStop}>Stop</button></div>
+        </footer>
+      )}
     </section>
   );
 }
@@ -142,7 +210,7 @@ export interface ChatPanelProps {
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[]) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean }) => void;
   onStop: () => void;
   onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent. */
@@ -170,6 +238,8 @@ export interface ChatPanelProps {
   onEffort: (effort: EffortChoice) => void;
   /** The model on the server was changed from the composer. */
   onModelChanged: () => void;
+  /** Put a proposed plan's steps in Tasks, to do them yourself. Resolves with a reason when it could not be done. */
+  onDrive?: (steps: string[]) => Promise<string | null>;
   onRetry: () => Promise<string | null>;
   /** Take back the last exchange and hand back the message so it can be changed. */
   onEdit: () => Promise<{ text: string } | { error: string }>;
@@ -246,13 +316,14 @@ function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty:
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged, onDrive }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const lastUser = state.items.findLastIndex((item) => item.kind === 'user');
   const lastAssistant = state.items.findLastIndex((item) => item.kind === 'assistant');
+  const proposalAt = proposedPlan(state);
   const settled = !state.busy;
   const copy = async (id: string, text: string) => {
     try {
@@ -364,7 +435,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                   )}
                 </Fragment>
               ) : item.kind === 'plan' ? (
-                <PlanCard key={item.id} item={item} />
+                <PlanCard key={item.id} item={item} busy={state.busy} proposal={index === proposalAt} onStart={(text) => onSend(text, [])} onDrive={onDrive} onStop={onStop} />
               ) : item.kind === 'question' ? (
                 <QuestionCard key={item.id} item={item} onReply={onReply} />
               ) : item.kind === 'notice' ? (
@@ -401,7 +472,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
             settings={settings}
             effort={effort}
             onEffort={onEffort}
-            onSend={(text, items) => { onSend(text, items); setDraft(''); setContext([]); }}
+            onSend={(text, items, options) => { onSend(text, items, options); setDraft(''); setContext([]); }}
             onStop={onStop}
             onModelChanged={onModelChanged}
             onOpenSettings={onOpenSettings}

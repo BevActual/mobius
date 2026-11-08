@@ -78,3 +78,50 @@ test('a question can be answered in your own words, and is still there when the 
   await expect(log().locator('.msg.assistant').last()).toHaveText('Done.');
   expect(JSON.stringify(model!.requests[1]!.messages)).toContain('The person answered: Garden plans');
 });
+
+const toolNames = (request: Record<string, unknown> | undefined): string[] =>
+  ((request?.tools as Array<{ function?: { name?: string }; name?: string }> | undefined) ?? []).map((t) => t.function?.name ?? t.name ?? '');
+
+test('with Plan first, the assistant only proposes steps, and starts them when you say, as you changed them', async () => {
+  await start([
+    callsTool('todo-write', { items: [{ text: 'Read the notes', status: 'pending' }, { text: 'Write the summary in Notes', status: 'pending' }] }),
+    says(['Here is the plan. Nothing happens until you start it.']),
+    says(['Done.']),
+  ]);
+  const planFirst = shell().getByRole('button', { name: 'Plan first' });
+  await planFirst.click();
+  await expect(planFirst).toHaveAttribute('aria-pressed', 'true');
+  await say('summarise my notes');
+  const plan = log().getByRole('region', { name: 'Plan' });
+  await expect(plan).toContainText('2 steps');
+  await expect(plan).toContainText('Nothing happens until you start it');
+  // The model was offered nothing but the plan and questions.
+  expect(toolNames(model!.requests[0]).sort()).toEqual(['ask-person', 'todo-write']);
+  await plan.getByRole('button', { name: 'Edit Plan' }).click();
+  await plan.getByRole('textbox', { name: 'Step 2' }).fill('Write a three-line summary in Notes');
+  await plan.getByRole('button', { name: 'Start' }).click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Done.');
+  const sent = JSON.stringify(model!.requests[2]!.messages);
+  expect(sent).toContain('Go ahead with this plan, as I changed it');
+  expect(sent).toContain('2. Write a three-line summary in Notes');
+  expect(toolNames(model!.requests[2]).length).toBeGreaterThan(2);
+  // Once started, the plan no longer waits for you.
+  await expect(plan.getByRole('button', { name: 'Start' })).toHaveCount(0);
+  // The choice is kept.
+  await expect(planFirst).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('I’ll Drive puts a proposed plan in Tasks, for you to do yourself', async () => {
+  await start([
+    callsTool('todo-write', { items: [{ text: 'Book the room', status: 'pending' }, { text: 'Send the invite', status: 'pending' }] }),
+    says(['Here is the plan.']),
+  ]);
+  await shell().getByRole('button', { name: 'Plan first' }).click();
+  await say('plan the offsite');
+  const plan = log().getByRole('region', { name: 'Plan' });
+  await plan.getByRole('button', { name: 'I’ll Drive' }).click();
+  const tasks = shell().getByRole('list', { name: 'To do' });
+  await expect(tasks).toContainText('Book the room');
+  await expect(tasks).toContainText('Send the invite');
+  expect(model!.requests).toHaveLength(2);
+});

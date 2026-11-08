@@ -131,11 +131,14 @@ fn a_message_is_checked_for_its_conversation_text_and_attachments() {
         json!({ "conversation": "c-1", "text": "hi", "context": [item(20_000), item(20_000), item(20_000), item(1)] }),
         json!({ "conversation": "c-1", "text": "hi", "context": [{ "kind": "video", "title": "T", "source": "s", "text": "t" }] }),
         json!({ "conversation": "c-1", "text": "hi", "context": [{ "kind": "file", "title": "", "source": "s", "text": "t" }] }),
+        json!({ "conversation": "c-1", "text": "hi", "plan": "yes" }),
     ] {
         assert!(parse_send(&bad).is_none(), "{bad}");
     }
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "x".repeat(32_000) })).is_some());
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "context": [item(20_000), item(20_000), item(20_000)] })).is_some());
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "plan": true })).unwrap().plan);
+    assert!(!parse_send(&json!({ "conversation": "c-1", "text": "hi" })).unwrap().plan);
 }
 
 #[test]
@@ -305,6 +308,11 @@ fn a_message_goes_to_the_core_with_its_attachments_and_a_bots_instructions_added
     assert!(sends[0]["text"].as_str().unwrap().contains("<attached kind=\"page\""));
     assert!(sends[1].get("system").is_none() && sends[1]["model"] == json!("small"));
     assert!(sends[2].get("system").is_none() && sends[2].get("model").is_none());
+    assert!(sends.iter().all(|p| p.get("plan").is_none()), "a plan is only asked for when wanted");
+    let plan = parse_send(&json!({ "conversation": "c-abc123-x", "text": "plan it", "plan": true })).unwrap();
+    s.service.send(&plan, None);
+    let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
+    assert_eq!(last["params"]["plan"], json!(true));
     let bare = service(true);
     bare.service.configure(&cfg("http://a/v1", "am"));
     bare.service.send(&req, Some(("Only me.", "")));

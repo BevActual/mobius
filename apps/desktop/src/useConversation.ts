@@ -9,7 +9,8 @@ export interface Conversation {
   state: ConversationState;
   id: string;
   list: ConversationInfo[];
-  send(text: string, context?: ContextItem[]): Promise<void>;
+  /** `plan` asks for a plan only: the agent proposes steps and nothing runs until they are started. */
+  send(text: string, context?: ContextItem[], options?: { plan?: boolean }): Promise<void>;
   stop(): void;
   /** Resolves with an explanation when the answer could not be used, otherwise null. */
   answer(requestId: number, approve: boolean, duration: Duration): Promise<string | null>;
@@ -84,9 +85,9 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   }, [coreStatus]);
 
   const send = useCallback(
-    async (text: string, context: ContextItem[] = []) => {
+    async (text: string, context: ContextItem[] = [], options: { plan?: boolean } = {}) => {
       dispatch({ type: 'sent', text, context });
-      const result = await window.mobius.agent.send(active.current, text, context);
+      const result = await window.mobius.agent.send(active.current, text, context, options.plan ? { plan: true } : undefined);
       if (!result.ok) dispatch({ type: 'send-failed', message: result.error });
       void refresh();
     },

@@ -22,6 +22,7 @@ const APPROVALS: Array<{ id: ApprovalModeChoice; label: string; hint: string }> 
   { id: 'off', label: 'Off', hint: 'Act without asking' },
 ];
 
+const PLAN_FIRST_KEY = 'mobius.planFirst';
 const KIND_NOTE: Record<ModelGroup['kind'], string> = { subscription: 'Plan', provider: 'Key', local: 'On this computer', server: 'Server' };
 
 type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: ModelCatalog };
@@ -40,7 +41,7 @@ export interface ComposerProps {
   settings: AgentSettings | null;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
-  onSend: (text: string, context: ContextItem[]) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean }) => void;
   onStop: () => void;
   /** The model on the server was changed from here. */
   onModelChanged: () => void;
@@ -56,6 +57,9 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
 export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onModelChanged, onOpenSettings, fieldRef, surface, activity }: ComposerProps) {
+  // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
+  const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
+  const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
   const [problem, setProblem] = useState<string | null>(null);
   const [models, setModels] = useState<ModelList>({ state: 'idle' });
   const [find, setFind] = useState('');
@@ -90,7 +94,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     event?.preventDefault();
     if (!canSend) return;
     setProblem(null);
-    onSend(draft, context);
+    onSend(draft, context, planFirst ? { plan: true } : undefined);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -279,6 +283,10 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               </>
             )}
           </PopMenu>
+          <button type="button" className="pill" aria-pressed={planFirst} data-on={planFirst || undefined} disabled={busy} onClick={togglePlanFirst}
+            title={planFirst ? 'Plan first is on: Mobius shows its steps, and nothing happens until you start them.' : 'Plan first: see the steps before Mobius does anything.'}>
+            <span className="pill-text">Plan first</span>
+          </button>
           <PopMenu label="Approvals" className="pill" title={`Approvals: ${approval.label}. ${approval.hint}.`} trigger={<><span className="pill-text">{approval.id === 'manual' ? 'Ask first' : approval.id === 'smart' ? 'Smart approvals' : 'No approvals'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <>

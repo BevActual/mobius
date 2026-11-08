@@ -545,7 +545,7 @@ fn the_chosen_effort_goes_to_the_model_but_never_to_the_reviewer() {
 #[test]
 fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_model() {
     let mut w = smart_world();
-    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()) };
+    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
     assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", "You are the research bot."));
@@ -560,10 +560,10 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
 #[test]
 fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()) });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", "You are a test."));
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", "S"));
 }
@@ -590,6 +590,32 @@ fn the_model_can_keep_a_plan_without_asking_permission_and_the_person_sees_it() 
     assert!(!events.iter().any(|e| matches!(e, AgentEvent::NeedsApproval { .. })), "keeping a plan needs no permission");
     let (_, content, is_error) = tool_messages(&turn)[0].clone();
     assert!(!is_error && content.contains("1 of 3 done"), "{content}");
+}
+
+#[test]
+fn a_plan_only_turn_offers_only_the_plan_and_questions_and_runs_nothing_else() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    let items = json!([{ "text": "Read the notes", "status": "pending" }, { "text": "Write the summary in Notes", "status": "pending" }]);
+    let provider = ScriptedProvider::new(vec![
+        calls("", vec![call("e1", "demo.echo", json!({ "text": "sneaky" })), call("t1", "todo.write", json!({ "items": items }))]),
+        text("Here is the plan. Nothing happens until you start it."),
+    ]);
+    let setup = TurnSetup { plan_only: true, ..TurnSetup::default() };
+    let (mut turn, step) = w.engine.start_with(&w.core, vec![], "summarise my notes", 1, setup);
+    let Step::CallModel(request) = &step else { panic!("{step:?}") };
+    let names: Vec<&str> = request.tools.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names, vec!["todo.write", "ask.person"]);
+    assert!(request.system.starts_with("You are a test.") && request.system.contains("before you do anything"), "{}", request.system);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(w.runs.load(Ordering::SeqCst), 0, "a tool the model was not offered still does not run");
+    let results = tool_messages(&turn);
+    assert!(results[0].2 && results[0].1.contains("only plans"), "{results:?}");
+    assert!(turn.drain_events().iter().any(|e| matches!(e, AgentEvent::Todo { items } if items.len() == 2)));
+    // The next turn is the usual one again.
+    let (_t, usual) = w.engine.start(&w.core, vec![], "start", 2);
+    let Step::CallModel(r) = &usual else { panic!("{usual:?}") };
+    assert!(r.tools.iter().any(|t| t.name == "demo.echo") && r.system == "You are a test.");
 }
 
 #[test]

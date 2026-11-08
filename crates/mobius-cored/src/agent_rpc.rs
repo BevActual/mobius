@@ -73,6 +73,9 @@ struct SendParams {
     /// A model name to use for this conversation instead of the usual one.
     #[serde(default)]
     model: Option<String>,
+    /// Plan first: the turn only proposes a plan, and nothing else runs.
+    #[serde(default)]
+    plan: bool,
 }
 
 #[derive(Deserialize)]
@@ -400,7 +403,7 @@ impl Extension for Agent {
                 if p.model.as_ref().is_some_and(|m| m.trim().is_empty() || m.chars().count() > MAX_MODEL_NAME_CHARS) {
                     return Err(ExtensionError::invalid_params("the model must be a name of 1 to 200 characters"));
                 }
-                let setup = TurnSetup { system: p.system.clone().filter(|s| !s.trim().is_empty()), model: p.model.clone() };
+                let setup = TurnSetup { system: p.system.clone().filter(|s| !s.trim().is_empty()), model: p.model.clone(), plan_only: p.plan };
                 let (turn, outs) = self.host.send_with(core, &p.conversation, &p.text, setup).map_err(|e| host_error(&e))?;
                 self.queued.extend(outs);
                 Ok(json!({ "turn": turn }))

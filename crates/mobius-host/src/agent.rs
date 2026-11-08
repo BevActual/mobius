@@ -136,6 +136,8 @@ pub struct SendRequest {
     pub conversation: String,
     pub text: String,
     pub context: Vec<context::Item>,
+    /// Plan first: the agent only proposes a plan this turn.
+    pub plan: bool,
 }
 
 pub fn parse_send(v: &Value) -> Option<SendRequest> {
@@ -145,7 +147,11 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
         None => Vec::new(),
         Some(c) => context::parse_list(c)?,
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context })
+    let plan = match v.get("plan") {
+        None | Some(Value::Null) => false,
+        Some(p) => p.as_bool()?,
+    };
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan })
 }
 
 const AUDIO_TYPES: [&str; 5] = ["audio/webm", "audio/ogg", "audio/mp4", "audio/wav", "audio/mpeg"];
@@ -366,6 +372,9 @@ impl AgentService {
             if !model.is_empty() {
                 params.insert("model".into(), json!(model));
             }
+        }
+        if request.plan {
+            params.insert("plan".into(), json!(true));
         }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),

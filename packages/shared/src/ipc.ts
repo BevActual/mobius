@@ -203,7 +203,8 @@ export interface MobiusBridge {
   };
   /** The conversation with Mobius. The main process holds the connection to the core and to the model; the renderer only asks. */
   agent: {
-    send(conversation: string, text: string, context?: ContextItem[]): Promise<AgentResult<{ turn: number }>>;
+    /** `plan` asks the agent for a plan only: it proposes the steps and does nothing until the person starts it. */
+    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean }): Promise<AgentResult<{ turn: number }>>;
     /** The models the server offers, for the switcher. */
     models(): Promise<AgentResult<{ models: string[] }>>;
     /** Use another model on the same server, with everything else as it was. */

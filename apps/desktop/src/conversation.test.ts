@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent, Message } from '@mobius/shared';
-import { MAX_RESULT_SHOWN, findToolArguments, findToolResult, initialConversation, reduce, type ConversationState } from './conversation';
+import { MAX_RESULT_SHOWN, findToolArguments, findToolResult, initialConversation, proposedPlan, reduce, type ConversationState } from './conversation';
 
 const note = (event: AgentEvent, turn = 1) => ({ type: 'notification' as const, notification: { method: 'agent.event' as const, params: { conversation: 'main', turn, event } } });
 const delta = (text: string, turn = 1) => ({ type: 'notification' as const, notification: { method: 'agent.delta' as const, params: { conversation: 'main', turn, text } } });
@@ -323,5 +323,19 @@ describe('the plan and questions', () => {
     expect(s.items[1]).toMatchObject({ kind: 'question', status: 'open' });
     expect(s.busy).toBe(true);
     expect(run({ type: 'question-open', question: null }).items).toEqual([]);
+  });
+});
+
+describe('a proposed plan', () => {
+  const plan = (statuses: ('pending' | 'in_progress' | 'done')[]) => ({ kind: 'plan' as const, id: 'p', items: statuses.map((status, i) => ({ text: `step ${i}`, status })) });
+  const state = (items: ConversationState['items'], busy = false): ConversationState => ({ ...initialConversation('c'), items, busy });
+  it('waits for the person when the turn ended with every step still to do', () => {
+    const user = { kind: 'user' as const, id: 'u', text: 'plan it' };
+    const reply = { kind: 'assistant' as const, id: 'a', text: 'Here is the plan.', streaming: false };
+    expect(proposedPlan(state([user, plan(['pending', 'pending']), reply]))).toBe(1);
+    expect(proposedPlan(state([user, plan(['pending', 'pending']), reply], true))).toBe(-1);
+    expect(proposedPlan(state([user, plan(['done', 'pending'])]))).toBe(-1);
+    expect(proposedPlan(state([user, plan(['pending']), { ...user, id: 'u2', text: 'Go ahead with the plan.' }]))).toBe(-1);
+    expect(proposedPlan(state([user, reply]))).toBe(-1);
   });
 });

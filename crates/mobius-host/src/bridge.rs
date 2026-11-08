@@ -1285,6 +1285,10 @@ impl Bridge {
                 if !arg(2).is_null() {
                     request["context"] = arg(2).clone();
                 }
+                // The fourth argument is options: { plan: true } asks for a plan only.
+                if let Some(plan) = arg(3).get("plan") {
+                    request["plan"] = plan.clone();
+                }
                 match agent::parse_send(&request) {
                     Some(r) => {
                         // Saved before the turn starts, so everything it changes can be reviewed and undone at once.
