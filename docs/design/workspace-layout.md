@@ -107,8 +107,10 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 - **Earlier changes**: under the review strip, every earlier turn that changed something, with what was asked; each
   item put back as it was before its turn, asking first if it changed again since (`turn-history.json`).
 
-Not built yet from the canvas: Look at this (sharing a window) and Show Mobius (camera). Both need a model that reads
-pictures; the context Mobius sends today is text.
+- **Pictures**: a message carries up to four pictures (chosen, pasted, or one still of a window chosen in the system's
+  picker: Look at a window), sent to models that read pictures; Photo sends the photo itself with its edits.
+
+Not built yet from the canvas: Show Mobius (the phone's camera), which needs the phone app.
 
 ## Linux
 
