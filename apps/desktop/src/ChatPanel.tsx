@@ -62,6 +62,13 @@ function PlanCard({ item, proposal, busy, onStart, onDrive, onStop }: {
   const edited = editing !== null && kept.join('\n') !== steps.join('\n');
   const title = proposal ? 'Plan' : working ? 'Working' : 'Plan';
   const meta = proposal ? `${item.items.length} ${item.items.length === 1 ? 'step' : 'steps'}` : working ? `Step ${at + 1} of ${item.items.length}` : `${done} of ${item.items.length} done`;
+  // The steps not yet done, including the one in hand, become yours.
+  const takeOver = async () => {
+    onStop();
+    setDriving(true);
+    if (onDrive) setProblem(await onDrive(item.items.filter((i) => i.status !== 'done').map((i) => i.text)));
+    setDriving(false);
+  };
   const drive = async () => {
     setDriving(true);
     if (onDrive) setProblem(await onDrive(kept));
@@ -110,8 +117,12 @@ function PlanCard({ item, proposal, busy, onStart, onDrive, onStop }: {
       )}
       {working && (
         <footer className="plan-foot">
-          <p className="plan-note">Stop anytime: finished steps stay.</p>
-          <div className="plan-actions"><button type="button" className="btn" onClick={onStop}>Stop</button></div>
+          <p className="plan-note">Stop anytime: finished steps stay. Take Over stops Mobius and puts the steps left in Tasks for you.</p>
+          {problem && <p className="plan-note" role="alert">{problem}</p>}
+          <div className="plan-actions">
+            {onDrive && <button type="button" className="btn" disabled={driving} onClick={() => void takeOver()}>Take Over</button>}
+            <button type="button" className="btn primary" aria-label="Stop the plan" onClick={onStop}>Stop</button>
+          </div>
         </footer>
       )}
     </section>

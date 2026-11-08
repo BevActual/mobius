@@ -125,3 +125,19 @@ test('I’ll Drive puts a proposed plan in Tasks, for you to do yourself', async
   await expect(tasks).toContainText('Send the invite');
   expect(model!.requests).toHaveLength(2);
 });
+
+test('Take Over stops a running plan and puts the steps left in Tasks', async () => {
+  await start([
+    callsTool('todo-write', { items: [{ text: 'Find a venue', status: 'done' }, { text: 'Book the room', status: 'in_progress' }, { text: 'Send the invite', status: 'pending' }] }),
+    says(['Working on the booking now', ' and then', ' the invite', ' after that.'], 1500),
+  ]);
+  await say('plan the offsite');
+  const plan = log().getByRole('region', { name: 'Plan' });
+  await expect(plan).toContainText('Step 2 of 3');
+  await plan.getByRole('button', { name: 'Take Over' }).click();
+  const tasks = shell().getByRole('list', { name: 'To do' });
+  await expect(tasks).toContainText('Book the room');
+  await expect(tasks).toContainText('Send the invite');
+  await expect(tasks).not.toContainText('Find a venue');
+  await expect(shell().getByRole('button', { name: 'Send' })).toBeVisible();
+});
