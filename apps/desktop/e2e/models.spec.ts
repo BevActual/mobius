@@ -26,11 +26,15 @@ const repos = (): FakeRepo[] => [
   { id: 'other/Coder-3B-GGUF', downloads: 300, files: [{ path: 'Coder-3B-Q4_K_M.gguf', bytes: patterned(400_000) }] },
 ];
 
+/** The same computer on every machine: a graphics card with 8 GB, and 32 GB memory. What fits depends on it. */
+const GB = 1e9;
+const PRETEND_COMPUTER = JSON.stringify({ gpu_name: 'Test GPU', vram_total: 8 * GB, vram_free: 7 * GB, ram_total: 32 * GB, ram_free: 24 * GB });
+
 async function start(options: { slowMs?: number; down?: number; llama?: string | null; userData?: string; repoList?: FakeRepo[] } = {}): Promise<Launched> {
   hub = await startHub(options.repoList ?? repos(), { ...(options.slowMs ? { slowMs: options.slowMs } : {}), ...(options.down ? { down: options.down } : {}) });
   const llama = options.llama === undefined ? fakeLlama() : options.llama;
   mobius = await launch(fixture.origin + '/', {
-    env: { MOBIUS_TEST_HUB: hub.url, ...(llama ? { MOBIUS_TEST_LLAMA: llama } : { MOBIUS_TEST_LLAMA: 'C:/no/such/llama-server.exe' }) },
+    env: { MOBIUS_TEST_HUB: hub.url, MOBIUS_TEST_HARDWARE: PRETEND_COMPUTER, ...(llama ? { MOBIUS_TEST_LLAMA: llama } : { MOBIUS_TEST_LLAMA: 'C:/no/such/llama-server.exe' }) },
     ...(options.userData ? { userData: options.userData } : {}),
   });
   return mobius;
@@ -50,7 +54,7 @@ const suggest = () => page().getByRole('button', { name: 'Suggest for this compu
 test('the page describes the computer and starts out empty', async () => {
   await start();
   await openLocal();
-  await expect(page().getByText(/graphics memory|processor/)).toBeVisible();
+  await expect(page().getByText('Test GPU, 8.0 GB graphics memory (7.0 GB free). 32.0 GB memory (24.0 GB free).')).toBeVisible();
   await expect(page().getByText('Nothing is running.')).toBeVisible();
   await expect(page().getByText('No models yet.')).toBeVisible();
   await expect(page().getByText(/No engine yet/)).toHaveCount(0);

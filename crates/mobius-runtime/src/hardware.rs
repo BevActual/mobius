@@ -34,6 +34,9 @@ fn read_gpu() -> Option<GpuInfo> {
 
 /// Looks at this computer now. Free memory changes, so ask again before relying on it.
 pub fn detect() -> Hardware {
+    if let Some(pretend) = pretend_hardware() {
+        return pretend;
+    }
     let mut system = sysinfo::System::new();
     system.refresh_memory();
     let gpu = read_gpu();
@@ -44,4 +47,13 @@ pub fn detect() -> Hardware {
         ram_total: system.total_memory(),
         ram_free: system.available_memory(),
     }
+}
+
+/// For tests only (`MOBIUS_TEST=1`): `MOBIUS_TEST_HARDWARE` describes a computer as JSON (the fields of `Hardware`), so
+/// what models fit does not depend on the machine the tests run on.
+fn pretend_hardware() -> Option<Hardware> {
+    if std::env::var("MOBIUS_TEST").ok().as_deref() != Some("1") {
+        return None;
+    }
+    serde_json::from_str(&std::env::var("MOBIUS_TEST_HARDWARE").ok()?).ok()
 }
