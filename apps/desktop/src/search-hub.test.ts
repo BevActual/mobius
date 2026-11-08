@@ -32,4 +32,23 @@ describe('one place to find everything', () => {
     expect(hubResults(sources(), 'trip', 'conversation')[0]!.target).toEqual({ app: 'agent', conversation: 'a' });
     expect(hubResults(sources(), 'nothing like this', 'all')).toEqual([]);
   });
+
+  it('finds documents, decks, workbooks and mail too, each opening in its app', () => {
+    const more: HubSources = {
+      ...sources(),
+      docHits: [{ path: 'Work/Brief.md', title: 'Offsite brief', notebook: 'Work', line: '' }],
+      deckHits: [{ path: 'Presentations/Kickoff.md', title: 'Offsite kickoff', notebook: 'Presentations', line: '' }],
+      workbooks: [{ name: 'Offsite budget', sheets: ['Budget', 'People'] }],
+      mail: [{ id: 'abcd1234/inbox/7', account: 'abcd1234', box: 'inbox', uid: 7, from: { name: 'Rui', email: 'rui@example.com' }, to: [], cc: [], subject: 'Offsite terrace', dateMs: 5, seen: true, flagged: false, preview: '', category: 'primary', attachments: [] }],
+    };
+    const found = hubResults(more, 'offsite', 'all');
+    expect(found.filter((r) => r.kind !== 'conversation' && r.kind !== 'note' && r.kind !== 'page' && r.kind !== 'task').map((r) => r.target)).toEqual(expect.arrayContaining([
+      { app: 'docs', path: 'Work/Brief.md', title: 'Offsite brief' },
+      { app: 'slides', path: 'Presentations/Kickoff.md', title: 'Offsite kickoff' },
+      { app: 'sheets', workbook: 'Offsite budget', sheet: 'Budget' },
+      { app: 'mail', id: 'abcd1234/inbox/7' },
+    ]));
+    expect(hubResults(more, 'offsite', 'sheet').map((r) => r.title)).toEqual(['Offsite budget']);
+    expect(hubResults(more, 'offsite', 'mail')[0]!.where).toBe('Mail · Rui');
+  });
 });

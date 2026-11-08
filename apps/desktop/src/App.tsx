@@ -458,6 +458,10 @@ export function App() {
   const openTarget = (target: HubTarget) => {
     if (target.app === 'agent') { conversation.select(target.conversation); openApp('agent'); }
     else if (target.app === 'notes') { openApp('notes'); void notes.open(target.path, target.title); }
+    else if (target.app === 'docs') { openApp('docs'); void docs.open(target.path, target.title); }
+    else if (target.app === 'slides') { openApp('slides'); void slides.open(target.path, target.title); }
+    else if (target.app === 'sheets') { openApp('sheets'); void sheets.open(target.workbook, target.sheet); }
+    else if (target.app === 'mail') { openApp('mail'); mail.setView({ kind: 'box', box: target.id.split('/')[1] === 'sent' ? 'sent' : 'inbox', category: 'all' }); void mail.read(target.id); }
     else if (target.app === 'tasks') { tasks.setView({ kind: 'list', name: target.list }); openApp('tasks'); }
     else showPage(target.url);
   };
@@ -901,6 +905,9 @@ export function App() {
             conversations={conversation.list}
             notebooks={notes.notebooks}
             tasks={tasks.all}
+            docFolders={docs.notebooks}
+            deckFolders={slides.notebooks}
+            workbooks={sheets.workbooks}
             focusToken={searchFocus}
             canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
             onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}

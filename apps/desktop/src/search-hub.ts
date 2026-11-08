@@ -1,11 +1,15 @@
-import type { BookmarkEntry, ConversationInfo, HistoryEntry, NoteHit, Notebook, TaskItem } from '@mobius/shared';
+import type { BookmarkEntry, ConversationInfo, HistoryEntry, MailMessage, NoteHit, Notebook, TaskItem, WorkbookInfo } from '@mobius/shared';
 
-/** Everything Mobius keeps, found in one place: conversations, notes, tasks and pages. */
-export type HubKind = 'conversation' | 'note' | 'task' | 'page';
+/** Everything Mobius keeps, found in one place: conversations, notes, documents and decks, sheets, mail, tasks and pages. */
+export type HubKind = 'conversation' | 'note' | 'doc' | 'sheet' | 'mail' | 'task' | 'page';
 export type HubFilter = 'all' | HubKind;
 export type HubTarget =
   | { app: 'agent'; conversation: string }
   | { app: 'notes'; path: string; title: string }
+  | { app: 'docs'; path: string; title: string }
+  | { app: 'slides'; path: string; title: string }
+  | { app: 'sheets'; workbook: string; sheet: string }
+  | { app: 'mail'; id: string }
   | { app: 'tasks'; list: string }
   | { app: 'browser'; url: string };
 
@@ -27,6 +31,9 @@ export const FILTERS: { id: HubFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'conversation', label: 'Conversations' },
   { id: 'note', label: 'Notes' },
+  { id: 'doc', label: 'Docs' },
+  { id: 'sheet', label: 'Sheets' },
+  { id: 'mail', label: 'Mail' },
   { id: 'task', label: 'Tasks' },
   { id: 'page', label: 'Pages' },
 ];
@@ -38,6 +45,14 @@ export interface HubSources {
   /** Every notebook with its pages, for recent activity. */
   notebooks: Notebook[];
   tasks: Record<string, TaskItem[]>;
+  /** Docs and Slides: search hits for the query, and their folders for recent activity. */
+  docHits?: NoteHit[];
+  docFolders?: Notebook[];
+  deckHits?: NoteHit[];
+  deckFolders?: Notebook[];
+  workbooks?: WorkbookInfo[];
+  /** Mail matching the query (or the latest). */
+  mail?: MailMessage[];
   history: HistoryEntry[];
   bookmarks: BookmarkEntry[];
 }
@@ -68,6 +83,27 @@ export function hubResults(sources: HubSources, query: string, filter: HubFilter
       for (const h of sources.noteHits) out.push({ key: `n:${h.path}`, kind: 'note', title: h.title, where: `Notes › ${h.notebook}`, when: modifiedOf(sources.notebooks, h.path), target: { app: 'notes', path: h.path, title: h.title } });
     } else {
       for (const nb of sources.notebooks) for (const p of nb.pages) out.push({ key: `n:${p.path}`, kind: 'note', title: p.title, where: `Notes › ${nb.name}`, when: p.modified, target: { app: 'notes', path: p.path, title: p.title } });
+    }
+  }
+  if (want('doc')) {
+    for (const [app, label, hits, folders] of [['docs', 'Docs', sources.docHits, sources.docFolders], ['slides', 'Slides', sources.deckHits, sources.deckFolders]] as const) {
+      if (searching) {
+        for (const h of hits ?? []) out.push({ key: `${app}:${h.path}`, kind: 'doc', title: h.title, where: `${label} › ${h.notebook}`, when: modifiedOf(folders ?? [], h.path), target: { app, path: h.path, title: h.title } });
+      } else {
+        for (const nb of folders ?? []) for (const p of nb.pages) out.push({ key: `${app}:${p.path}`, kind: 'doc', title: p.title, where: `${label} › ${nb.name}`, when: p.modified, target: { app, path: p.path, title: p.title } });
+      }
+    }
+  }
+  if (want('sheet')) {
+    for (const w of sources.workbooks ?? []) {
+      if (searching && !matches(`${w.name} ${w.sheets.join(' ')}`, ws)) continue;
+      out.push({ key: `s:${w.name}`, kind: 'sheet', title: w.name, where: `Sheets · ${w.sheets.length === 1 ? '1 sheet' : `${w.sheets.length} sheets`}`, when: null, target: { app: 'sheets', workbook: w.name, sheet: w.sheets[0] ?? 'Sheet 1' } });
+    }
+  }
+  if (want('mail')) {
+    for (const m of sources.mail ?? []) {
+      const who = m.box === 'sent' ? `To ${m.to.map((p) => p.name || p.email).join(', ')}` : (m.from.name || m.from.email);
+      out.push({ key: `m:${m.id}`, kind: 'mail', title: m.subject || '(no subject)', where: `Mail · ${who}`, when: m.dateMs || null, target: { app: 'mail', id: m.id } });
     }
   }
   if (want('task') && (searching || filter === 'task')) {
