@@ -1,0 +1,37 @@
+# The quick checks, on every push and pull request: types, the TypeScript tests and every Rust test. Linux, so it is
+# fast; the end-to-end suite on Windows is in windows-e2e.yml.
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+# A newer push to the same branch replaces a run still going.
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # What the Tauri shell builds against on Linux (WebKitGTK), and the system keyring.
+      - name: Install the system libraries
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libdbus-1-dev libssl-dev pkg-config
+      - run: npm ci
+      - name: Types
+        run: npm run typecheck
+      - name: TypeScript tests
+        run: npm test --workspaces --if-present
+      - name: Rust tests
+        run: cargo test --workspace
+      - name: Generated types match the Rust ones
+        run: npm run check:types

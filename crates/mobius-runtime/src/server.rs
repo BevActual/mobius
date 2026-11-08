@@ -260,8 +260,15 @@ pub fn reap_stale(file: &Path, program_name: &str) -> bool {
     let pid = sysinfo::Pid::from_u32(pid);
     let mut system = sysinfo::System::new();
     system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+    // Only the server Mobius started, never another program that has since been given the same number. Its name is
+    // checked, and also its program file: Linux keeps only the first 15 characters of a process's name.
+    let wanted = program_name.to_ascii_lowercase();
+    let is_ours = |process: &sysinfo::Process| {
+        process.name().to_string_lossy().to_ascii_lowercase().contains(&wanted)
+            || process.exe().and_then(|exe| exe.file_name()).is_some_and(|file| file.to_string_lossy().to_ascii_lowercase().contains(&wanted))
+    };
     let stopped = match system.process(pid) {
-        Some(process) if process.name().to_string_lossy().to_ascii_lowercase().contains(&program_name.to_ascii_lowercase()) => process.kill(),
+        Some(process) if is_ours(process) => process.kill(),
         _ => false,
     };
     if stopped || system.process(pid).is_none() {

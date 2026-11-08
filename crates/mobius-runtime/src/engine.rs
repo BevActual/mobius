@@ -329,6 +329,17 @@ pub fn unpack(zip_path: &Path, into: &Path) -> Result<(), EngineError> {
         if copied != size {
             return Err(bad("an entry is not the size it says"));
         }
+        // Linux and macOS: a program must be marked runnable. The archive's own marks are kept, and the server always
+        // is, so a build packed without them still runs. Nothing gets more than its owner may write.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut mode = entry.unix_mode().unwrap_or(0o644) & 0o755;
+            if path.file_name().is_some_and(|f| f == server_name()) {
+                mode |= 0o755;
+            }
+            fs::set_permissions(&path, fs::Permissions::from_mode(mode | 0o600)).map_err(|e| io(&e))?;
+        }
     }
     Ok(())
 }

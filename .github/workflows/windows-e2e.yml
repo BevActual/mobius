@@ -1,15 +1,22 @@
-# The end-to-end suite drives the real app on Windows (WebView2, over CDP), so it runs on a Windows machine.
-# It only runs when started by hand (Actions › Windows end-to-end › Run workflow), because Windows minutes cost
-# double on a private repository.
+# The end-to-end suite drives the real app on Windows (WebView2, over CDP), so it runs on a Windows machine: on pull
+# requests and pushes to main, and by hand (Actions › Windows end-to-end › Run workflow) for one branch or a few files.
 name: Windows end-to-end
 
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       spec:
         description: 'Only these test files (for example e2e/mobius2.spec.ts); empty runs everything'
         required: false
         default: ''
+
+# A newer push to the same branch replaces a run still going.
+concurrency:
+  group: windows-e2e-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   e2e:

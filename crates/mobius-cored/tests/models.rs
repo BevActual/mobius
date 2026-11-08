@@ -87,7 +87,13 @@ struct Daemon {
 }
 impl Daemon {
     fn start(args: &[String]) -> Daemon {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_mobius-cored")).args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().unwrap();
+        // The same computer on every machine (a graphics card with 24 GB, 64 GB memory), so what fits does not depend
+        // on where the tests run.
+        let mut child = Command::new(env!("CARGO_BIN_EXE_mobius-cored"))
+            .args(args)
+            .env("MOBIUS_TEST", "1")
+            .env("MOBIUS_TEST_HARDWARE", r#"{"gpu_name":"Test GPU","vram_total":24000000000,"vram_free":22000000000,"ram_total":64000000000,"ram_free":48000000000}"#)
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().unwrap();
         let stdin = child.stdin.take();
         let stdout = child.stdout.take().unwrap();
         let (sender, lines) = mpsc::channel();

@@ -31,4 +31,9 @@ npm run check:types         # fail if the generated types are stale
 npm run typecheck
 ```
 
+On GitHub, **Checks** (`.github/workflows/ci.yml`) runs the types, the TypeScript tests and every Rust test on Linux for
+every push and pull request. **Windows end-to-end** (`.github/workflows/windows-e2e.yml`) runs the Playwright suite
+against the real app on Windows for pull requests and pushes to `main`, and by hand for a branch or a few test files.
+
+
 `npm run app -- --webview` uses the system web view instead of Chromium.
