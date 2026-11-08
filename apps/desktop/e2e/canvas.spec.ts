@@ -101,6 +101,11 @@ test('a board is stickies, shapes and arrows: added, written on, moved, joined, 
   await expect.poll(() => saved().items.find((x) => x.id === 's2')?.color).toBe('blue');
   await shell().keyboard.press('Delete');
   await expect.poll(() => saved().items.map((x) => x.id)).toEqual(['s1', 'b1', 's3']);
+  // Undo puts it back with its arrow; redo takes it away again.
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().items.map((x) => x.id)).toEqual(['s1', 's2', 'b1', 's3', 'a1']);
+  await shell().keyboard.press('Control+Shift+z');
+  await expect.poll(() => saved().items.map((x) => x.id)).toEqual(['s1', 'b1', 's3']);
 
   // Written on again with a double-click.
   await board().getByLabel('Shape: Book by Friday').dblclick();

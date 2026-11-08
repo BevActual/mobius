@@ -811,6 +811,9 @@ export function App() {
       void navigator.clipboard?.readText().then((text) => document.execCommand('insertText', false, text)).catch(() => document.execCommand('paste'));
       return;
     }
+    // Canvas and Design keep their own history: what the menu's Undo means there, outside a text field.
+    const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement || (document.activeElement as HTMLElement | null)?.isContentEditable;
+    if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign) && !typing) { sendCommand(command); return; }
     document.execCommand(command);
   };
   const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles') => { setSettingsSection(section); setSettingsOpen(true); };

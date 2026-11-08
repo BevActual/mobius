@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { onCommand } from './commands';
 import { NotesSidebar, type SidebarWords } from './NotesSidebar';
 import { useFileReview } from './useFileReview';
+import { useUndo } from './useUndo';
 import {
   BOARD_COLORS, COLOR_NAMES, arrowEnds, boardBounds, boundsOf, changedItems, freshItemId, isBoxed, itemsIn, moveItem, parseBoard, placeNew, removeItems, removedItems, thinPoints, writeBoard,
   type Board, type BoardColor, type BoardItem, type Boxed, type Rect, type ShapeKind,
@@ -67,12 +68,23 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
   const changed = useMemo(() => (board && beforeBoard !== undefined ? changedItems(beforeBoard, board) : new Set<string>()), [board, beforeBoard]);
   const removed = useMemo(() => (board && beforeBoard !== undefined ? removedItems(beforeBoard, board) : []), [board, beforeBoard]);
 
+  const history = useUndo(boards.page?.path ?? null, boards.text, boards.edit);
   const change = useCallback((fn: (b: Board) => void) => {
     if (!board) return;
     const next = structuredClone(board);
     fn(next);
-    boards.edit(writeBoard(next));
-  }, [board, boards]);
+    const text = writeBoard(next);
+    history.record(boards.text, text);
+    boards.edit(text);
+  }, [board, boards, history]);
+  // Undo and redo from the keyboard or the Edit menu.
+  const historyNow = useRef(history);
+  historyNow.current = history;
+  useEffect(() => {
+    const offUndo = onCommand('undo', () => { if (historyNow.current.undo()) setSelected([]); });
+    const offRedo = onCommand('redo', () => { if (historyNow.current.redo()) setSelected([]); });
+    return () => { offUndo(); offRedo(); };
+  }, []);
 
   /** A point on the screen as a point on the board. */
   const toBoard = useCallback((clientX: number, clientY: number) => {
@@ -212,6 +224,12 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (!t?.closest('.canvas-page')) return;
       const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
+        e.preventDefault();
+        const again = e.key.toLowerCase() === 'y' || e.shiftKey;
+        if (again ? history.redo() : history.undo()) setSelected([]);
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'a' && board) { e.preventDefault(); setSelected(board.items.map((x) => x.id)); return; }
       if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicate(); return; }
       if (!mod && !e.altKey) {
@@ -230,7 +248,7 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, remove, nudge, duplicate, board]);
+  }, [selected, remove, nudge, duplicate, board, history]);
 
   if (!boards.page) return <section className="canvas-page empty" aria-label="Canvas"><p className="note-empty">Choose a board on the left, or make a new one.</p></section>;
   if (!board) {

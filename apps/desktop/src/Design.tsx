@@ -3,6 +3,8 @@ import { NotesSidebar, type SidebarWords } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { changedIds, contrast, freshId, nextFramePlace, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
 import type { NotesState } from './useNotes';
+import { onCommand } from './commands';
+import { useUndo } from './useUndo';
 
 export const DESIGN_WORDS: SidebarWords = { app: 'Design', group: 'folder', groups: 'Folders', item: 'design', items: 'designs', about: 'Designs are kept as JSON files in your workspace, frames and their layers, so the agent can read and change them too.', defaultGroup: 'Designs' };
 
@@ -102,12 +104,23 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const { before, keep, discard } = useDesignReview(review, file, designs.page?.base);
   const changed = useMemo(() => (doc && before !== undefined ? changedIds(before, doc) : new Set<string>()), [doc, before]);
 
+  const history = useUndo(designs.page?.path ?? null, designs.text, designs.edit);
   const change = useCallback((fn: (d: DesignDoc) => void) => {
     if (!doc) return;
     const next = structuredClone(doc);
     fn(next);
-    designs.edit(writeDesign(next));
-  }, [doc, designs]);
+    const text = writeDesign(next);
+    history.record(designs.text, text);
+    designs.edit(text);
+  }, [doc, designs, history]);
+  // Undo and redo from the Edit menu.
+  const historyNow = useRef(history);
+  historyNow.current = history;
+  useEffect(() => {
+    const offUndo = onCommand('undo', () => void historyNow.current.undo());
+    const offRedo = onCommand('redo', () => void historyNow.current.redo());
+    return () => { offUndo(); offRedo(); };
+  }, []);
 
   const fit = useCallback(() => {
     if (!doc || !view.current || doc.frames.length === 0) return;
@@ -182,8 +195,14 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (!selected || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable))) return;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (!t?.closest('.design-page')) return;
+      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
+        e.preventDefault();
+        if (e.key.toLowerCase() === 'y' || e.shiftKey) history.redo(); else history.undo();
+        return;
+      }
+      if (!selected) return;
       const step = e.shiftKey ? 10 : 1;
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); remove(); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-step, 0); }
@@ -194,7 +213,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, remove, nudge]);
+  }, [selected, remove, nudge, history]);
 
   if (!designs.page) return <section className="design-page empty" aria-label="Design"><p className="note-empty">Choose a design on the left, or make a new one.</p></section>;
   if (!doc) {
