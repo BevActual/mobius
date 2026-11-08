@@ -139,11 +139,20 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .msg.error { align-self: stretch; padding: 8px 12px; border-radius: var(--radius-group); background: color-mix(in srgb, #d93025 12%, var(--bg)); color: #b3261e; font-size: var(--fs-md); }
 @media (prefers-color-scheme: dark) { .msg.error { color: #ff8a80; } }
 @keyframes pulse { 50% { opacity: 0.25; } }
-.thinking { display: flex; gap: 4px; padding: 6px 6px; }
-.thinking span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: pulse 1.2s ease-in-out infinite; }
-.thinking span:nth-child(2) { animation-delay: 0.2s; }
-.thinking span:nth-child(3) { animation-delay: 0.4s; }
-@media (prefers-reduced-motion: reduce) { .thinking span, .msg.assistant[data-streaming="true"]::after { animation: none; } }
+.thinking { display: flex; padding: 6px 4px; color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .msg.assistant[data-streaming="true"]::after { animation: none; } }
+
+/* The Mobius mark. Turning, each ring goes round at its own pace, the inner fastest, as the whorl winds. */
+.mobius-mark { flex: none; display: block; }
+.mobius-mark .mark-ring { transform-box: view-box; transform-origin: 50% 50%; }
+.mobius-mark[data-turning] .mark-ring[data-ring="1"] { animation: mark-turn 1.6s linear infinite; }
+.mobius-mark[data-turning] .mark-ring[data-ring="2"] { animation: mark-turn 2.4s linear infinite; }
+.mobius-mark[data-turning] .mark-ring[data-ring="3"] { animation: mark-turn 3.6s linear infinite; }
+@keyframes mark-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mobius-mark[data-turning] .mark-ring { animation: none; } }
+.empty-mark { color: var(--accent); margin: 0 auto 12px; }
+.chat-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); }
+.chat-brand .chat-title { color: var(--ink); }
 
 .tool { align-self: stretch; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-group); background: var(--panel); font-size: var(--fs-md); }
 .tool-line { display: flex; align-items: center; gap: 8px; min-height: 22px; }
@@ -597,6 +606,9 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .working-dot { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
 .working-dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid var(--accent); animation: working-ring 1.4s var(--ease) infinite; }
 .composer[data-working="you"] .working-dot, .composer[data-working="you"] .working-dot::after { background: var(--warning); border-color: var(--warning); }
+/* While the agent works its mark turns in the status line; waiting for you, it stands still in the warning colour. */
+.working-mark { color: var(--accent); }
+.composer[data-working="you"] .working-mark { color: var(--warning); }
 .composer[data-working="you"] .working-dot::after { background: none; }
 .composer[data-working="you"] .working-label { animation: label-in var(--dur-med) var(--ease); background: none; -webkit-text-fill-color: currentColor; }
 .working-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink);
@@ -1011,3 +1023,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .note-diff-undo:hover, .note-diff-undo:focus-visible { opacity: 1; border-color: var(--accent); }
 .selection-pages { display: flex; flex-direction: column; max-height: 260px; overflow: auto; }
 .selection-menu .selection-back { color: var(--muted); }
+
+/* About: the mark and the name, above the facts. */
+.about-brand { display: flex; align-items: center; gap: 16px; padding: 8px 0 20px; color: var(--accent); }
+.about-name { margin: 0; font-size: var(--fs-xl, 20px); font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
+.about-line { margin: 2px 0 0; font-size: var(--fs-sm); color: var(--muted); }

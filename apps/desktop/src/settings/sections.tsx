@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { MobiusMark } from '../MobiusMark';
 import {
   type SavedServer,
   CHAT_TEXT_RANGE,
@@ -758,6 +759,13 @@ export function AboutSection({ subpage, highlight, coreStatus }: SectionProps) {
   const STATUS: Record<CoreStatus, string> = { starting: 'Starting', ready: 'Running', restarting: 'Restarting', failed: 'Not running' };
   return (
     <>
+      <div className="about-brand">
+        <MobiusMark size={56} label="Mobius" />
+        <div>
+          <p className="about-name">Mobius</p>
+          <p className="about-line">{about?.app ? `Version ${about.app}` : 'An agent and the apps it works in.'}</p>
+        </div>
+      </div>
       <Row path={rowPath('about', subpage, 'versions')} title="Versions" description="Mobius, its core, and the parts it runs on." highlight={highlight === 'versions'}>
         <table className="stable" aria-label="Versions">
           <tbody>

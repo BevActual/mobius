@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
+import { MobiusMark } from '../MobiusMark';
 import { MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ApprovalModeChoice, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
 import { usePreferences } from '../usePreferences';
 import { filterCatalog } from './model-catalog';
@@ -183,7 +184,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     <form className="composer" onSubmit={submit} onKeyDown={onFormKeyDown} data-listening={listening || undefined} data-working={activity ? (activity.needsYou ? 'you' : 'agent') : undefined}>
       {activity && (
         <div className="working" role="status" aria-label="Agent activity" aria-live="polite">
-          <span className="working-dot" aria-hidden="true" />
+          <MobiusMark size={16} turning={!activity.needsYou} className="working-mark" />
           <span className="working-label" key={activity.label}>{activity.label}</span>
           {activity.step && (
             <span className="working-step" aria-label={`Step ${Math.min(activity.step.done + 1, activity.step.total)} of ${activity.step.total}`}>

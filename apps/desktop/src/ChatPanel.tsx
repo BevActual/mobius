@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { MobiusMark } from './MobiusMark';
 import { RichText } from './RichText';
 import { ReviewStrip } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
@@ -305,7 +306,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   return (
     <Shell variant={variant} empty={state.items.length === 0}>
       <div className="chat-head">
-        {needsSetup ? <span className="chat-title">Mobius</span> : variant === 'full' ? <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span> : <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} />}
+        {needsSetup ? <span className="chat-brand"><MobiusMark size={20} /><span className="chat-title">Mobius</span></span> : variant === 'full' ? <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span> : <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} />}
         <div className="chat-head-actions">
           {pin}
           {variant === 'panel' && <button type="button" className="strip-btn" aria-label="New conversation" title="New conversation" disabled={!configured || state.items.length === 0} onClick={onNewConversation}>
@@ -332,6 +333,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
           >
             {state.items.length === 0 && (
               <div className="empty">
+                <MobiusMark size={44} turning={!configured} className="empty-mark" />
                 <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
                 {configured && <p className="greeting-note">Mobius asks before it uses a tool, unless you change that below.</p>}
               </div>
@@ -382,7 +384,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
             )}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
-              <div className="thinking" role="status" aria-label="Mobius is working"><span /><span /><span /></div>
+              <div className="thinking" role="status" aria-label="Mobius is working"><MobiusMark size={22} turning /></div>
             )}
           </div>
           <ReviewStrip conversation={state.conversation} busy={state.busy} />
