@@ -303,7 +303,8 @@ fn a_message_goes_to_the_core_with_its_attachments_and_a_bots_instructions_added
     s.service.send(&req, Some(("", "small")));
     s.service.send(&req, None);
     let sends: Vec<Value> = calls(&s.core).into_iter().filter(|c| c["method"] == "agent.send").map(|c| c["params"].clone()).collect();
-    assert_eq!(sends[0]["system"], json!("Be brief.\n\nCite sources."));
+    // The core adds a turn's own instructions to the usual ones ("Be brief."), which it already has.
+    assert_eq!(sends[0]["system"], json!("Cite sources."));
     assert_eq!(sends[0]["model"], json!("big-model"));
     assert!(sends[0]["text"].as_str().unwrap().contains("<attached kind=\"page\""));
     assert!(sends[1].get("system").is_none() && sends[1]["model"] == json!("small"));
@@ -329,8 +330,8 @@ fn what_mobius_remembers_joins_the_instructions_after_a_bots() {
     s.service.send_remembering(&req, Some(("Cite sources.", "")), "Remembered: likes tea.");
     s.service.send_remembering(&req, None, "");
     let sends: Vec<Value> = calls(&s.core).into_iter().filter(|c| c["method"] == "agent.send").map(|c| c["params"].clone()).collect();
-    assert_eq!(sends[0]["system"], json!("Be brief.\n\nRemembered: likes tea."));
-    assert_eq!(sends[1]["system"], json!("Be brief.\n\nCite sources.\n\nRemembered: likes tea."));
+    assert_eq!(sends[0]["system"], json!("Remembered: likes tea."));
+    assert_eq!(sends[1]["system"], json!("Cite sources.\n\nRemembered: likes tea."));
     assert!(sends[2].get("system").is_none(), "nothing remembered leaves the usual instructions to the core");
 }
 

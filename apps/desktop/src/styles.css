@@ -1426,3 +1426,15 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .slide-play-stage .slide-face { font-size: min(1.6vw, 2.85vh); }
 .slide-play-notes { position: absolute; left: 24px; right: 24px; bottom: 44px; margin: 0; padding: 12px 16px; border-radius: 10px; background: rgba(0, 0, 0, 0.7); color: #fff; font-size: 16px; }
 .slide-play-hint { position: absolute; bottom: 12px; color: rgba(255, 255, 255, 0.45); font-size: 12px; }
+
+/* Trust marks: each fact says where it came from; only the shaky ones ask for attention. */
+.claim-wrap { position: relative; }
+.claim { display: inline; padding: 0 1px; border-radius: 3px; font: inherit; color: inherit; text-decoration-line: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; cursor: pointer; }
+.claim[data-tier="yours"], .claim[data-tier="checked"] { text-decoration-color: #34c759; }
+.claim[data-tier="web"] { text-decoration-color: #0a84ff; }
+.claim[data-tier="unsure"] { text-decoration-style: dotted; text-decoration-color: #ff9f0a; background: rgba(255, 159, 10, 0.14); font-style: italic; }
+.claim:hover, .claim[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.claim-card { position: absolute; left: 0; top: calc(100% + 4px); z-index: 4; width: max-content; max-width: 280px; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: var(--radius-group); background: var(--bg); box-shadow: var(--shadow-2); font-size: var(--fs-sm); font-style: normal; white-space: normal; }
+.claim-card .claim-note { color: var(--muted); font-size: var(--fs-xs); }
+.claim-card .btn { align-self: flex-start; }
+.msg-gate { font-size: var(--fs-xs); color: #b36b00; }

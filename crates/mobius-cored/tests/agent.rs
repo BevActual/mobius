@@ -770,7 +770,8 @@ fn a_conversation_can_be_sent_with_its_own_instructions_and_model_and_bad_ones_a
     d.until_event("done");
     let first = server.bodies.lock().unwrap()[0].clone();
     assert_eq!(first["model"], "research-model");
-    assert_eq!(first["messages"][0]["content"], "You are the research bot.");
+    let system = first["messages"][0]["content"].as_str().unwrap();
+    assert!(system.starts_with("You are Mobius") && system.contains("trust:unsure") && system.ends_with("\n\nYou are the research bot."), "added to the usual instructions, not in place of them: {system}");
     d.call(3, "agent.send", json!({ "conversation": "plain", "text": "hi" }));
     d.until_event("done");
     assert_eq!(server.bodies.lock().unwrap()[1]["model"], "fake-model");

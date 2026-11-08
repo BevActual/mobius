@@ -4,7 +4,8 @@ import { Welcome } from './Welcome';
 import { describeAction } from './actions';
 import { stepTag } from './step-access';
 import { usePreferences } from './usePreferences';
-import { RichText } from './RichText';
+import { ClaimChecks, RichText } from './RichText';
+import { unsureClaims, withoutMarks } from './markdown';
 import { ReviewStrip } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
@@ -338,6 +339,8 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  // Not-sure facts the person checked, per reply: a reply with unchecked ones is not copied out of Mobius.
+  const [checkedClaims, setCheckedClaims] = useState<Record<string, ReadonlySet<string>>>({});
   const lastUser = state.items.findLastIndex((item) => item.kind === 'user');
   const lastAssistant = state.items.findLastIndex((item) => item.kind === 'assistant');
   const proposalAt = proposedPlan(state);
@@ -450,11 +453,18 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                 </Fragment>
               ) : item.kind === 'assistant' ? (
                 <Fragment key={item.id}>
-                  <div className="msg assistant" data-streaming={item.streaming}><RichText text={item.text} /></div>
+                  <ClaimChecks.Provider value={{ checked: checkedClaims[item.id] ?? new Set(), check: (key) => setCheckedClaims((cur) => ({ ...cur, [item.id]: new Set([...(cur[item.id] ?? []), key]) })) }}>
+                    <div className="msg assistant" data-streaming={item.streaming}><RichText text={item.text} /></div>
+                  </ClaimChecks.Provider>
                   {!item.streaming && item.text !== '' && (() => { const from = replySources(state.items, index); return from.length > 0 ? <p className="msg-sources" title="The apps Mobius used for this reply">Based on {from.join(' · ')}</p> : null; })()}
                   {!item.streaming && item.text !== '' && (
                     <div className="msg-actions assistant">
-                      <button type="button" className="msg-action" aria-label="Copy reply" onClick={() => void copy(item.id, item.text)}>{copied === item.id ? 'Copied' : 'Copy'}</button>
+                      {(() => {
+                        const left = unsureClaims(item.text).filter((k) => !(checkedClaims[item.id]?.has(k) ?? false)).length;
+                        return left > 0
+                          ? <span className="msg-gate" title="Click each one marked Not sure to see why, and say when you have checked it">{left === 1 ? 'Check 1 unsure fact before copying' : `Check ${left} unsure facts before copying`}</span>
+                          : <button type="button" className="msg-action" aria-label="Copy reply" onClick={() => void copy(item.id, withoutMarks(item.text))}>{copied === item.id ? 'Copied' : 'Copy'}</button>;
+                      })()}
                       {settled && index === lastAssistant && <button type="button" className="msg-action" aria-label="Try again" onClick={() => void retry()}>Try again</button>}
                     </div>
                   )}

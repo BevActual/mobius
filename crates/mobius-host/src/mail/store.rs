@@ -180,6 +180,30 @@ fn people(list: Option<&mail_parser::Address<'_>>) -> Vec<Person> {
     list.map(|a| a.iter().map(|x| person(Some(x))).collect()).unwrap_or_default()
 }
 
+/// A fact the agent marked with where it came from (`[8 people](trust:yours "Calendar")`) is for the person reading
+/// its reply, not for an email: the words stay and the mark goes.
+pub fn without_marks(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(open) = rest.find('[') {
+        let after = &rest[open + 1..];
+        let found = after.find("](trust:").and_then(|close| after[close..].find(')').map(|end| (close, close + end)));
+        match found {
+            Some((close, end)) if !after[..close].contains(['[', '\n']) => {
+                out.push_str(&rest[..open]);
+                out.push_str(&after[..close]);
+                rest = &after[end + 1..];
+            }
+            _ => {
+                out.push_str(&rest[..=open]);
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// A short line from the text, for the list.
 fn preview_of(text: &str) -> String {
     let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('>') && !l.starts_with("On ") || l.len() > 80).collect();
@@ -541,7 +565,7 @@ impl Mail {
         let existing = s("id").and_then(|id| saved.drafts.iter().position(|d| d.id == id));
         let to = s("to").or_else(|| original.as_ref().map(|m| if m.mailbox == "sent" { m.to.first().map(|p| p.email.clone()).unwrap_or_default() } else { m.from.email.clone() })).unwrap_or_default();
         let subject = s("subject").or_else(|| original.as_ref().map(|m| if m.subject.to_lowercase().starts_with("re:") { m.subject.clone() } else { format!("Re: {}", m.subject) })).unwrap_or_default();
-        let body = s("body").unwrap_or_default();
+        let body = without_marks(&s("body").unwrap_or_default());
         if body.len() > 200_000 || subject.len() > 1000 || to.len() > 2000 {
             return Err("That draft is too long.".into());
         }
@@ -677,6 +701,12 @@ mod tests {
     const RUI: &[u8] = b"From: Rui Almeida <rui@example.com>\r\nTo: Ana <ana@example.com>\r\nSubject: Terrace + lunch for the 13th\r\nMessage-ID: <t1@example.com>\r\nDate: Sun, 08 Nov 2026 09:02:00 +0000\r\n\r\nHi!\r\n\r\nI can hold the terrace for eight on the 13th.\r\n\r\nObrigado,\r\nRui\r\n";
     const RECEIPT: &[u8] = b"From: TAP <noreply@flytap.com>\r\nSubject: Your booking LX7Q2M\r\nDate: Thu, 05 Nov 2026 18:10:00 +0000\r\nContent-Type: text/html\r\n\r\n<html><head><style>p{}</style></head><body><p>Your booking is confirmed.</p><p>SFO &rarr; LIS</p></body></html>\r\n";
     const NEWS: &[u8] = b"From: Design Weekly <hello@design.example>\r\nSubject: Issue 212\r\nList-Unsubscribe: <mailto:u@design.example>\r\nDate: Wed, 04 Nov 2026 07:00:00 +0000\r\n\r\nThis week: glass.\r\n";
+
+    #[test]
+    fn drafts_keep_the_words_of_marked_facts_without_the_marks() {
+        assert_eq!(without_marks("We are [8 people](trust:yours \"Calendar\") arriving [around 12:30](trust:unsure). See [the site](https://x.example)."), "We are 8 people arriving around 12:30. See [the site](https://x.example).");
+        assert_eq!(without_marks("a [b c"), "a [b c");
+    }
 
     #[test]
     fn mail_is_sorted_here_by_what_it_says() {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseInline, parseMarkdown, plainText, safeHref } from './markdown';
+import { claimKey, parseInline, parseMarkdown, plainText, safeHref, unsureClaims, withoutMarks } from './markdown';
 
 describe('agent reply markdown', () => {
   it('reads bold, italic, code and links', () => {
@@ -41,5 +41,15 @@ describe('agent reply markdown', () => {
       checks: [false, true, null],
     }]);
     expect(parseMarkdown('- one')[0]).not.toHaveProperty('checks');
+  });
+
+  it('reads facts marked with where they came from, and takes the marks out for copying', () => {
+    const md = 'Confirming [8 people](trust:yours "Calendar · Offsite crew") arriving [around 12:30](trust:unsure "two flights unknown") on [Thursday](trust:web).';
+    const inl = parseInline(md);
+    expect(inl[1]).toEqual({ kind: 'claim', tier: 'yours', source: 'Calendar · Offsite crew', children: [{ kind: 'text', text: '8 people' }] });
+    expect(inl[3]).toMatchObject({ kind: 'claim', tier: 'unsure', source: 'two flights unknown' });
+    expect(inl[5]).toMatchObject({ kind: 'claim', tier: 'web', source: '' });
+    expect(withoutMarks(md)).toBe('Confirming 8 people arriving around 12:30 on Thursday.');
+    expect(unsureClaims(md)).toEqual([claimKey('around 12:30', 'two flights unknown')]);
   });
 });

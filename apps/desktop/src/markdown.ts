@@ -9,7 +9,9 @@ export type Inline =
   | { kind: 'strong'; children: Inline[] }
   | { kind: 'em'; children: Inline[] }
   | { kind: 'code'; text: string }
-  | { kind: 'link'; href: string; children: Inline[] };
+  | { kind: 'link'; href: string; children: Inline[] }
+  /** A fact marked with where it came from: `[8 people](trust:yours "Calendar · Offsite crew")`. */
+  | { kind: 'claim'; tier: 'yours' | 'web' | 'unsure'; source: string; children: Inline[] };
 
 export type Block =
   | { kind: 'paragraph'; children: Inline[] }
@@ -40,6 +42,8 @@ export function parseInline(source: string): Inline[] {
     // A lone `_` inside a word (snake_case) is not emphasis.
     const em = /^(\*|_)(?=\S)([\s\S]*?\S)\1(?![\w*])/.exec(rest);
     if (em && !(em[1] === '_' && /\w$/.test(text))) { flush(); out.push({ kind: 'em', children: parseInline(em[2]!) }); i += em[0].length; continue; }
+    const claim = /^\[([^\]\n]+)\]\(trust:(yours|web|unsure)(?:\s+"([^"\n]*)")?\)/.exec(rest);
+    if (claim) { flush(); out.push({ kind: 'claim', tier: claim[2] as 'yours' | 'web' | 'unsure', source: claim[3] ?? '', children: parseInline(claim[1]!) }); i += claim[0].length; continue; }
     const link = /^\[([^\]\n]+)\]\(([^)\s]+)\)/.exec(rest);
     if (link) {
       const href = safeHref(link[2]!);
@@ -121,3 +125,10 @@ export function parseMarkdown(source: string): Block[] {
 export function plainText(nodes: Inline[]): string {
   return nodes.map((n) => (n.kind === 'text' || n.kind === 'code' ? n.text : plainText(n.children))).join('');
 }
+
+const CLAIM = /\[([^\]\n]+)\]\(trust:(yours|web|unsure)(?:\s+"([^"\n]*)")?\)/g;
+/** A reply's Markdown with its trust marks taken out, for copying: claims keep their words and lose their marks. */
+export const withoutMarks = (markdown: string) => markdown.replace(CLAIM, '$1');
+/** The facts a reply marks as not sure, each by its words and why: these are checked before the reply leaves Mobius. */
+export const unsureClaims = (markdown: string): string[] => [...markdown.matchAll(CLAIM)].filter((m) => m[2] === 'unsure').map((m) => claimKey(m[1]!, m[3] ?? ''));
+export const claimKey = (words: string, source: string) => `${words}\u0000${source}`;

@@ -365,13 +365,13 @@ impl AgentService {
     /// As `send`, with what Mobius remembers about the person added to the instructions (nothing when empty).
     pub fn send_remembering(&self, request: &SendRequest, bot: Option<(&str, &str)>, remembered: &str) -> Value {
         self.refresh_token_if_needed();
-        let usual = lock(&self.saved).system.clone();
         let mut params = Map::new();
         params.insert("conversation".into(), json!(request.conversation));
         params.insert("text".into(), json!(context::with_context(&request.text, &request.context)));
         let instructions = bot.map(|(i, _)| i).unwrap_or("");
         if !instructions.is_empty() || !remembered.is_empty() {
-            let joined = [usual.as_str(), instructions, remembered].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
+            // Added to the usual instructions by the core, never in place of them.
+            let joined = [instructions, remembered].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
             params.insert("system".into(), json!(joined));
         }
         if let Some((_, model)) = bot
