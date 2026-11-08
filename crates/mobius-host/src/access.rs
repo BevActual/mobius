@@ -29,6 +29,10 @@ pub fn rules(access: &Value) -> Value {
             Some(r) => json!({ "capability": capability, "resource": r, "effect": effect }),
             None => json!({ "capability": capability, "effect": effect }),
         };
+        // A suggestion changes nothing until the person adds it, so it needs no asking; with the app off, it is blocked.
+        if app == "calendar" {
+            out.push(json!({ "capability": "calendar.suggest", "effect": if level == "off" { "deny" } else { "allow" } }));
+        }
         match level {
             "off" => out.extend(read.iter().chain(write).map(|c| rule(c, "deny"))),
             "read" => out.extend(read.iter().map(|c| rule(c, "allow"))),
@@ -45,7 +49,7 @@ mod tests {
 
     #[test]
     fn each_level_becomes_the_rules_it_says() {
-        assert_eq!(rules(&mobius_store::preferences::app_access_default()), json!({ "rules": [] }));
+        assert_eq!(rules(&mobius_store::preferences::app_access_default()), json!({ "rules": [{ "capability": "calendar.suggest", "effect": "allow" }] }));
         let r = rules(&json!({ "browser": "read", "notes": "act", "tasks": "off" }));
         assert_eq!(r["rules"], json!([
             { "capability": "browser.list", "effect": "allow" },
@@ -54,6 +58,9 @@ mod tests {
             { "capability": "files.write", "resource": "notes/*", "effect": "allow" },
             { "capability": "tasks.read", "effect": "deny" },
             { "capability": "tasks.write", "effect": "deny" },
+            { "capability": "calendar.suggest", "effect": "allow" },
         ]));
+        let off = rules(&json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "calendar": "off" }));
+        assert_eq!(off["rules"][0], json!({ "capability": "calendar.suggest", "effect": "deny" }));
     }
 }

@@ -51,6 +51,12 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         { label: 'Break down a task', prompt: 'Take the biggest task here and break it into a few small steps. Add the steps as tasks in the same list and tell me what you added.', attach: 'tasks' },
         { label: 'Find tasks in my notes', prompt: 'Read my notes and add the actions you find as tasks in my Inbox. Tell me what you added.' },
       ];
+    case 'calendar':
+      return [
+        { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },
+        { label: 'Find time for…', prompt: 'Find a free hour in my calendar this week for ' },
+        { label: 'Plan my week', prompt: 'Look at my calendar and my tasks and suggest when to do the most important tasks this week.' },
+      ];
     case 'agent':
       return [
         { label: 'Plan my week', prompt: 'Help me plan my week. Ask me what matters most first.' },

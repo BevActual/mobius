@@ -39,6 +39,7 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'tasks.update': return s('task') || s('text') ? `change the task ${quote(s('task') || s('text'))}` : 'change a task';
     case 'calendar.list': return 'read your calendar';
     case 'calendar.add': return `add ${s('title') ? quote(s('title')) : 'an event'} to ${which()}${s('start') ? ` on ${when(s('start'))}` : ''}`;
+    case 'calendar.suggest': return `suggest ${s('title') ? quote(s('title')) : 'an event'} for ${which()}`;
     case 'calendar.update': return s('title') ? `change the event ${quote(s('title'))} in ${which()}` : `change an event in ${which()}`;
     case 'memory.remember': return s('text') ? `remember that ${quote(s('text'))}` : 'remember something about you';
     case 'memory.forget': return s('text') ? `forget ${quote(s('text'))}` : 'forget something it remembered';

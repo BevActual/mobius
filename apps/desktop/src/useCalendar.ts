@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type CalendarAccount, type CalendarDraft, type CalendarEvent, type CalendarSource, type NotesFailure } from '@mobius/shared';
+import { isNotesFailure, type CalendarAccount, type CalendarDraft, type CalendarEvent, type CalendarSource, type CalendarSuggestion, type NotesFailure } from '@mobius/shared';
 import { daysFor, hiddenCalendars, isoDay, keepHidden, type CalendarMode } from './calendar-view';
 
 const MODE_KEY = 'mobius.calendar.mode';
@@ -19,6 +19,7 @@ export function useCalendar() {
   const [sources, setSources] = useState<CalendarSource[]>([]);
   const [accounts, setAccounts] = useState<CalendarAccount[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
   const [mode, setModeState] = useState<CalendarMode>(rememberedMode);
   const setMode = useCallback((m: CalendarMode) => { setModeState(m); try { window.localStorage.setItem(MODE_KEY, m); } catch { /* Not kept. */ } }, []);
   const [anchor, setAnchor] = useState(() => new Date());
@@ -33,7 +34,8 @@ export function useCalendar() {
   const refresh = useCallback(async () => {
     if (!api) return [];
     const days = daysFor(live.current.mode, live.current.anchor);
-    const [names, got, where, kept] = await Promise.all([api.calendars(), api.events(isoDay(days[0]!), isoDay(days[days.length - 1]!)), api.sources(), api.accounts()]);
+    const [names, got, where, kept, waiting] = await Promise.all([api.calendars(), api.events(isoDay(days[0]!), isoDay(days[days.length - 1]!)), api.sources(), api.accounts(), api.suggestions()]);
+    if (!isNotesFailure(waiting)) setSuggestions(waiting);
     if (!isNotesFailure(names)) setCalendars(names);
     if (!isNotesFailure(where)) setSources(where);
     if (!isNotesFailure(kept)) setAccounts(kept);
@@ -100,10 +102,15 @@ export function useCalendar() {
     setSyncing(true);
     try { await api.sync(id); await refresh(); } finally { setSyncing(false); }
   }, [api, refresh]);
+  const accept = useCallback(async (id: string) => settle(await api?.accept(id)), [api, settle]);
+  const decline = useCallback(async (id: string) => {
+    setSuggestions((cur) => cur.filter((s) => s.id !== id));
+    return settle(await api?.decline(id));
+  }, [api, settle]);
   const readOnly = useCallback((name: string) => sources.some((s) => s.name === name && s.readOnly), [sources]);
 
   const shown = events.filter((e) => !hidden.has(e.calendar));
-  return { available: api !== undefined, calendars, sources, accounts, addAccount, removeAccount, sync, syncing, readOnly, mode, setMode, anchor, setAnchor, events: shown, hidden, toggle, message, add, update, remove, createCalendar, fresh, refresh };
+  return { available: api !== undefined, calendars, sources, accounts, suggestions, accept, decline, addAccount, removeAccount, sync, syncing, readOnly, mode, setMode, anchor, setAnchor, events: shown, hidden, toggle, message, add, update, remove, createCalendar, fresh, refresh };
 }
 
 export type CalendarState = ReturnType<typeof useCalendar>;

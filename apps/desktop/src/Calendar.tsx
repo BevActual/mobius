@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { CalendarDraft, CalendarEvent } from '@mobius/shared';
+import type { CalendarDraft, CalendarEvent, CalendarSuggestion } from '@mobius/shared';
 import { onCommand } from './commands';
 import { addDays, allDayOn, calendarColor, clock, daysFor, eventsOn, isoDay, isoTime, localDate, placeDay, sameDay, step, type CalendarMode } from './calendar-view';
 import type { CalendarState } from './useCalendar';
@@ -145,18 +145,31 @@ export function CalendarSidebar({ calendar, pin }: { calendar: CalendarState; pi
 /** What the editor opens with: an event to change, or the start of a new one. */
 type Editing = { event: CalendarEvent } | { start: string; allDay: boolean };
 
-function EventBlock({ calendar, event, style, onOpen, compact }: { calendar: CalendarState; event: CalendarEvent; style?: React.CSSProperties; onOpen: (e: CalendarEvent) => void; compact?: boolean }) {
+/** An event on screen; a suggestion from Mobius carries what it suggests, and is drawn dashed until answered. */
+type Shown = CalendarEvent & { suggestion?: CalendarSuggestion };
+
+/** A suggestion placed like an event. Its all-day end is the last day; an event's is the day after. */
+function asShown(s: CalendarSuggestion): Shown {
+  const end = s.allDay ? isoDay(addDays(localDate(s.end), 1)) : s.end;
+  return { id: `suggested:${s.id}`, calendar: s.calendar, title: s.title, start: s.start, end, allDay: s.allDay, location: s.location, notes: s.notes, repeats: false, suggestion: s };
+}
+
+/** Everything to draw: the events, then Mobius's suggestions. */
+const onScreen = (calendar: CalendarState): Shown[] => [...calendar.events, ...calendar.suggestions.filter((s) => !calendar.hidden.has(s.calendar)).map(asShown)];
+
+function EventBlock({ calendar, event, style, onOpen, compact }: { calendar: CalendarState; event: Shown; style?: React.CSSProperties; onOpen: (e: Shown) => void; compact?: boolean }) {
   const color = calendarColor(calendar.calendars, event.calendar);
   const when = event.allDay ? 'All day' : `${clock(event.start)}–${clock(event.end)}`;
   return (
     <button
       type="button"
       className="cal-event"
+      data-suggested={event.suggestion ? true : undefined}
       data-all-day={event.allDay || undefined}
       data-fresh={calendar.fresh.has(event.id) || undefined}
       data-compact={compact || undefined}
       style={{ ...style, ['--event' as string]: color }}
-      aria-label={`${event.title}, ${when}${event.location ? `, ${event.location}` : ''}, ${event.calendar}`}
+      aria-label={`${event.suggestion ? 'Suggested: ' : ''}${event.title}, ${when}${event.location ? `, ${event.location}` : ''}, ${event.calendar}`}
       title={`${event.title}\n${when}${event.location ? `\n${event.location}` : ''}`}
       onClick={(e) => { e.stopPropagation(); onOpen(event); }}
     >
@@ -166,14 +179,15 @@ function EventBlock({ calendar, event, style, onOpen, compact }: { calendar: Cal
   );
 }
 
-function TimeGrid({ calendar, days, onNew, onOpen }: { calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: CalendarEvent) => void }) {
+function TimeGrid({ calendar, days, onNew, onOpen }: { calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: Shown) => void }) {
+  const shown = onScreen(calendar);
   const scroller = useRef<HTMLDivElement>(null);
   // Opens on the working day, not at midnight.
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = 8 * HOUR_PX - 8; }, []);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(t); }, []);
   const columns = { gridTemplateColumns: `52px repeat(${days.length}, minmax(0, 1fr))` };
-  const allDay = days.map((d) => allDayOn(calendar.events, d));
+  const allDay = days.map((d) => allDayOn(shown, d));
   const slotAt = (day: Date, y: number) => {
     const minutes = Math.max(0, Math.min(23 * 60 + 30, Math.floor(y / HOUR_PX * 2) * 30));
     return isoTime(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes));
@@ -212,7 +226,7 @@ function TimeGrid({ calendar, days, onNew, onOpen }: { calendar: CalendarState; 
               style={{ backgroundSize: `100% ${HOUR_PX}px` }}
               onDoubleClick={(e) => onNew({ start: slotAt(d, e.clientY - e.currentTarget.getBoundingClientRect().top), allDay: false })}
             >
-              {placeDay(calendar.events, d).map((p) => (
+              {placeDay(shown, d).map((p) => (
                 <EventBlock
                   key={`${p.event.id}:${p.event.start}`}
                   calendar={calendar}
@@ -231,7 +245,8 @@ function TimeGrid({ calendar, days, onNew, onOpen }: { calendar: CalendarState; 
   );
 }
 
-function MonthGrid({ calendar, days, onNew, onOpen }: { calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: CalendarEvent) => void }) {
+function MonthGrid({ calendar, days, onNew, onOpen }: { calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: Shown) => void }) {
+  const shown = onScreen(calendar);
   const today = new Date();
   const month = calendar.anchor.getMonth();
   return (
@@ -241,7 +256,7 @@ function MonthGrid({ calendar, days, onNew, onOpen }: { calendar: CalendarState;
       </div>
       <div className="cal-month-grid" style={{ gridTemplateRows: `repeat(${days.length / 7}, minmax(0, 1fr))` }}>
         {days.map((d) => {
-          const on = eventsOn(calendar.events, d);
+          const on = eventsOn(shown, d);
           return (
             <div key={isoDay(d)} className="cal-month-cell" role="group" aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} data-outside={d.getMonth() !== month || undefined} data-today={sameDay(d, today) || undefined} onDoubleClick={() => onNew({ start: `${isoDay(d)}T09:00`, allDay: false })}>
               <span className="cal-month-day">{d.getDate()}</span>
@@ -336,9 +351,54 @@ function EventEditor({ calendar, editing, onClose }: { calendar: CalendarState; 
   );
 }
 
+/** "Prep slides · Thu 12 Nov, 10:00" for a suggestion card. */
+function suggestedWhen(s: CalendarSuggestion): string {
+  const day = (text: string) => localDate(text).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  if (s.allDay) return s.end && s.end !== s.start ? `${day(s.start)} – ${day(s.end)}` : day(s.start);
+  return `${day(s.start)}, ${clock(s.start)}–${clock(s.end)}`;
+}
+
+/** What Mobius suggests, as on the design: each with why, and Decline or Add. Nothing is added until Add. */
+function Suggestions({ calendar, focus }: { calendar: CalendarState; focus: string | null }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const cards = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focus) cards.current?.querySelector<HTMLElement>(`[data-suggestion="${CSS.escape(focus)}"] button.primary`)?.focus();
+  }, [focus]);
+  if (calendar.suggestions.length === 0) return null;
+  const answer = async (id: string, add: boolean) => {
+    setBusy(id);
+    await (add ? calendar.accept(id) : calendar.decline(id));
+    setBusy(null);
+  };
+  return (
+    <section className="cal-suggestions" aria-label="Suggested by Mobius">
+      <div className="cal-suggestions-head">
+        <span>Suggested by Mobius</span>
+        <span className="cal-suggestions-note">Nothing is added until you choose Add. Mobius never invites anyone.</span>
+      </div>
+      <div className="cal-suggestion-list" ref={cards}>
+        {calendar.suggestions.map((s) => (
+          <article key={s.id} className="cal-suggestion" data-suggestion={s.id} aria-label={s.title} data-focus={focus === s.id || undefined}>
+            <div className="cal-suggestion-top"><b>{s.title}</b><span>{suggestedWhen(s)}</span></div>
+            <p>{s.why}</p>
+            <div className="cal-suggestion-actions">
+              <button type="button" className="btn" disabled={busy === s.id} onClick={() => void answer(s.id, false)}>Decline</button>
+              <button type="button" className="btn primary" disabled={busy === s.id} onClick={() => void answer(s.id, true)}>Add</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** The Calendar app: a day, a week or a month, events to open and change, and new ones on a double-click. */
 export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarState; newToken?: number }) {
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [focus, setFocus] = useState<string | null>(null);
+  // A suggestion in the grid opens nothing to edit: it points at its card, where it is added or declined.
+  const open = (event: Shown) => { if (event.suggestion) setFocus(event.suggestion.id); else setEditing({ event }); };
   const days = daysFor(calendar.mode, calendar.anchor);
   const fresh = () => { const n = new Date(); n.setMinutes(0, 0, 0); n.setHours(n.getHours() + 1); return isoTime(n); };
   useEffect(() => { if (newToken) setEditing({ start: sameDay(calendar.anchor, new Date()) ? fresh() : `${isoDay(calendar.anchor)}T09:00`, allDay: false }); }, [newToken]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -359,9 +419,10 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
         <button type="button" className="btn primary" onClick={() => setEditing({ start: sameDay(calendar.anchor, new Date()) ? fresh() : `${isoDay(calendar.anchor)}T09:00`, allDay: false })}>New event</button>
       </header>
       {calendar.message && !editing && <p className="tasks-message" role="alert">{calendar.message}</p>}
+      <Suggestions calendar={calendar} focus={focus} />
       {calendar.mode === 'month'
-        ? <MonthGrid calendar={calendar} days={days} onNew={setEditing} onOpen={(event) => setEditing({ event })} />
-        : <TimeGrid calendar={calendar} days={days} onNew={setEditing} onOpen={(event) => setEditing({ event })} />}
+        ? <MonthGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} />
+        : <TimeGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} />}
       {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} />}
     </section>
   );

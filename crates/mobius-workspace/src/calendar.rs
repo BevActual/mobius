@@ -26,6 +26,11 @@ const MAX_NOTES: usize = 4000;
 const MAX_FILE: usize = 4 * 1024 * 1024;
 const MAX_RANGE_DAYS: i64 = 400;
 const MAX_EXPANDED: usize = 2000;
+const MAX_SUGGESTIONS: usize = 50;
+const MAX_WHY: usize = 300;
+/// Events the agent suggests, waiting for the person to add or decline them. In the calendar folder, so they are
+/// checkpointed with it, but hidden from the list of calendars.
+const SUGGESTIONS: &str = ".suggestions.json";
 
 /// When an event starts or ends: a whole day, or a time of day.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -503,6 +508,14 @@ pub fn tool_descriptions() -> Vec<Value> {
                 "title": { "type": "string" }, "start": { "type": "string", "description": when },
                 "end": { "type": "string", "description": format!("{when} Leave out for an hour (or the one day).") },
                 "location": { "type": "string" }, "notes": { "type": "string" } }, "required": ["calendar", "title", "start"] } }),
+        json!({ "name": "calendar.suggest", "capability": "calendar.suggest",
+            "description": "Suggest an event for the person to add to their calendar or decline, with why. Use this, not calendar.add, for anything they did not ask for outright: a reminder before a deadline, time to prepare, a free hour for a task. It shows dashed in their calendar and nothing is added until they choose Add. Never suggest inviting anyone.",
+            "input_schema": { "type": "object", "properties": {
+                "calendar": { "type": "string", "description": "Which calendar it would go in: Calendar unless the person uses another for this." },
+                "title": { "type": "string" }, "start": { "type": "string", "description": when },
+                "end": { "type": "string", "description": format!("{when} Leave out for an hour (or the one day).") },
+                "location": { "type": "string" }, "notes": { "type": "string" },
+                "why": { "type": "string", "description": "One short sentence the person reads: why this, and why then." } }, "required": ["title", "start", "why"] } }),
         json!({ "name": "calendar.update", "capability": "calendar.write", "resource_arg": "calendar",
             "description": "Change an event in the Calendar app, found by the id calendar.list gave: its title, times, place or notes.",
             "input_schema": { "type": "object", "properties": {
@@ -776,6 +789,10 @@ impl Calendar {
                 self.checkpoint(&format!("before the agent added an event to {calendar}"));
                 self.add(calendar, &Draft::from_json(args))?
             }
+            "calendar.suggest" => {
+                self.checkpoint(&format!("before the agent suggested an event for {calendar}"));
+                self.suggest(calendar, &Draft::from_json(args), text("why").unwrap_or(""))?
+            }
             "calendar.update" => {
                 let uid = text("id").ok_or("id is the event's id from calendar.list")?;
                 self.checkpoint(&format!("before the agent changed an event in {calendar}"));
@@ -784,6 +801,73 @@ impl Calendar {
             _ => return Err("unknown tool".into()),
         };
         Ok(result.to_string())
+    }
+
+    fn suggestions_file(&self) -> PathBuf {
+        self.root.join(SUGGESTIONS)
+    }
+
+    fn read_suggestions(&self) -> Vec<Value> {
+        fs::read_to_string(self.suggestions_file()).ok().and_then(|t| serde_json::from_str::<Vec<Value>>(&t).ok()).unwrap_or_default()
+    }
+
+    fn write_suggestions(&self, list: &[Value]) -> Res<()> {
+        fs::create_dir_all(&self.root).map_err(|e| e.to_string())?;
+        fs::write(self.suggestions_file(), Value::Array(list.to_vec()).to_string()).map_err(|e| e.to_string())
+    }
+
+    /// What the agent suggested and the person has not answered yet, soonest first.
+    pub fn suggestions(&self) -> Value {
+        let mut list = self.read_suggestions();
+        list.sort_by(|a, b| a["start"].as_str().cmp(&b["start"].as_str()));
+        Value::Array(list)
+    }
+
+    /// Keeps a suggestion for the person to answer. It is checked as an event would be, so Add cannot fail on it later.
+    pub fn suggest(&self, calendar: &str, draft: &Draft, why: &str) -> Res<Value> {
+        let (title, start, end, location, notes) = Self::checked(draft, None)?;
+        if !self.calendars().iter().any(|c| c == calendar) || self.mirror(calendar).is_some_and(|m| !m.writable) {
+            return Err(format!("{calendar} is not a calendar that can take events"));
+        }
+        let why = why.split_whitespace().collect::<Vec<_>>().join(" ");
+        if why.is_empty() || why.chars().count() > MAX_WHY {
+            return Err(format!("a suggestion says why, in up to {MAX_WHY} characters"));
+        }
+        let mut list = self.read_suggestions();
+        if list.len() >= MAX_SUGGESTIONS {
+            return Err("there are already many suggestions waiting; let the person answer those first".into());
+        }
+        // An all-day end is kept as the person would say it, as when the event is added.
+        let shown_end = match end {
+            When::Day(d) => When::Day(d - Duration::days(1)),
+            at @ When::At(_) => at,
+        };
+        let item = json!({ "id": new_uid(), "calendar": calendar, "title": title, "start": start.show(), "end": shown_end.show(),
+            "allDay": matches!(start, When::Day(_)), "location": location, "notes": notes, "why": why });
+        list.push(item.clone());
+        self.write_suggestions(&list)?;
+        Ok(item)
+    }
+
+    fn take_suggestion(&self, id: &str) -> Res<Value> {
+        let mut list = self.read_suggestions();
+        let at = list.iter().position(|s| s["id"] == id).ok_or("that suggestion is gone")?;
+        let item = list.remove(at);
+        self.write_suggestions(&list)?;
+        Ok(item)
+    }
+
+    /// The person chose Add: the suggestion becomes an event in its calendar.
+    pub fn accept(&self, id: &str) -> Res<Value> {
+        let item = self.read_suggestions().into_iter().find(|s| s["id"] == id).ok_or("that suggestion is gone")?;
+        let calendar = item["calendar"].as_str().unwrap_or(DEFAULT_CALENDAR).to_owned();
+        let added = self.add(&calendar, &Draft::from_json(&item))?;
+        self.take_suggestion(id)?;
+        Ok(added)
+    }
+
+    pub fn decline(&self, id: &str) -> Res<Value> {
+        self.take_suggestion(id).map(|item| json!({ "calendar": item["calendar"], "declined": id }))
     }
 
     fn checkpoint(&self, why: &str) {
@@ -919,6 +1003,29 @@ mod tests {
         c.set_remote(refusing);
         assert!(c.update("Work (iCloud)", "w", &Draft { title: Some("Nope".into()), ..Draft::default() }).is_err());
         assert!(!std::fs::read_to_string(&work).unwrap().contains("Nope"));
+    }
+
+    #[test]
+    fn suggestions_wait_for_the_person_and_become_events_only_when_added() {
+        let (_d, c) = store();
+        let s: Value = serde_json::from_str(&c.run("calendar.suggest", &json!({ "title": "Prep slides", "start": "2026-11-12T10:00", "why": "First free hour before the kickoff." })).unwrap()).unwrap();
+        assert_eq!((s["end"].as_str(), s["calendar"].as_str()), (Some("2026-11-12T11:00"), Some("Calendar")));
+        assert_eq!(c.events("2026-11-12", "2026-11-12").unwrap(), json!([]), "nothing is added yet");
+        assert_eq!(c.calendars(), vec!["Calendar"], "the waiting list is not a calendar");
+        let trip = c.suggest("Calendar", &draft("Lisbon", "2026-11-13", Some("2026-11-14")), "Flights are booked.").unwrap();
+        assert_eq!(trip["end"], "2026-11-14", "the last day, as people say it");
+        assert!(c.suggest("Calendar", &draft("x", "2026-11-12", None), "").is_err(), "it says why");
+        assert!(c.suggest("Nope", &draft("x", "2026-11-12", None), "why").is_err());
+        assert_eq!(c.suggestions().as_array().unwrap().len(), 2);
+
+        let added = c.accept(s["id"].as_str().unwrap()).unwrap();
+        assert_eq!(added["title"], "Prep slides");
+        assert_eq!(c.accept(trip["id"].as_str().unwrap()).unwrap()["end"], "2026-11-15");
+        assert_eq!(c.events("2026-11-12", "2026-11-14").unwrap().as_array().unwrap().len(), 2);
+        let again = c.suggest("Calendar", &draft("Gym", "2026-11-12T18:00", None), "You said twice a week.").unwrap();
+        c.decline(again["id"].as_str().unwrap()).unwrap();
+        assert_eq!(c.suggestions(), json!([]));
+        assert!(c.accept(again["id"].as_str().unwrap()).is_err());
     }
 
     #[test]

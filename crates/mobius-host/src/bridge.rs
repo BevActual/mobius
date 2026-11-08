@@ -1371,6 +1371,9 @@ impl Bridge {
         let result = match method {
             "calendars" => Ok(json!(cal.calendars())),
             "sources" => Ok(cal.sources()),
+            "suggestions" => Ok(cal.suggestions()),
+            "accept" => text(0).ok_or_else(|| "a suggestion is needed".to_owned()).and_then(|id| cal.accept(id)),
+            "decline" => text(0).ok_or_else(|| "a suggestion is needed".to_owned()).and_then(|id| cal.decline(id)),
             "accounts" => Ok(accounts.list()),
             "subscribe" => match (text(0), text(1)) {
                 (Some(name), Some(link)) => changed_accounts(accounts.subscribe(name, link)),
@@ -1404,7 +1407,7 @@ impl Bridge {
         };
         match result {
             Ok(value) => {
-                if !matches!(method, "calendars" | "events" | "sources" | "accounts" | "subscribe" | "connect" | "removeAccount" | "sync") {
+                if !matches!(method, "calendars" | "events" | "sources" | "suggestions" | "accounts" | "subscribe" | "connect" | "removeAccount" | "sync") {
                     let name = value.get("calendar").or_else(|| value.get("name")).cloned().unwrap_or(Value::Null);
                     (self.emit)("mobius:calendar-changed", json!({ "calendar": name, "by": "person" }));
                 }

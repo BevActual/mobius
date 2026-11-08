@@ -48,6 +48,7 @@ const LABELS: Record<string, string> = {
   'calendar.list': 'Reading your calendar',
   'calendar.add': 'Adding an event',
   'calendar.update': 'Changing an event',
+  'calendar.suggest': 'Suggesting an event',
   'todo.write': 'Making a plan',
 };
 

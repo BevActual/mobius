@@ -1222,3 +1222,16 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .calendar-add-account:hover { background: var(--wash); }
 .calendar-row .list-name { flex: 1; }
 .cal-modal-layer { position: fixed; inset: 0; z-index: 50; }
+.cal-event[data-suggested] { background: color-mix(in srgb, var(--accent) 7%, var(--bg)); border: 1.5px dashed color-mix(in srgb, var(--accent) 70%, var(--bg)); color: var(--accent); }
+.cal-event[data-suggested] span { color: color-mix(in srgb, var(--accent) 70%, var(--muted)); }
+.cal-suggestions { flex-shrink: 0; padding: var(--sp-2) var(--sp-4) var(--sp-3); border-bottom: 1px solid var(--line); background: var(--panel); }
+.cal-suggestions-head { display: flex; align-items: baseline; gap: var(--sp-3); margin-bottom: var(--sp-2); font-weight: 600; }
+.cal-suggestions-note { font-weight: 400; font-size: var(--fs-xs); color: var(--muted); }
+.cal-suggestion-list { display: flex; gap: var(--sp-2); overflow-x: auto; padding-bottom: 2px; }
+.cal-suggestion { flex: 0 0 260px; display: flex; flex-direction: column; gap: 4px; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-group); border: 1px dashed color-mix(in srgb, var(--accent) 60%, var(--bg)); background: color-mix(in srgb, var(--accent) 5%, var(--bg)); }
+.cal-suggestion[data-focus] { box-shadow: 0 0 0 2px var(--accent); }
+.cal-suggestion-top { display: flex; gap: var(--sp-2); align-items: baseline; }
+.cal-suggestion-top b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.cal-suggestion-top span { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+.cal-suggestion p { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+.cal-suggestion-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }

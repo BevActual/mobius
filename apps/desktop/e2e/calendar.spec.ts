@@ -136,3 +136,29 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await group.getByRole('button', { name: 'Remove Holidays' }).click();
   await expect(event).toHaveCount(0);
 });
+
+test('the agent suggests an event without asking, and it is added only when the person chooses Add', async () => {
+  await start([
+    callsTool('calendar-suggest', { title: 'Prep slides', start: `${today()}T10:00`, why: 'Your first free hour before the kickoff.' }),
+    callsTool('calendar-suggest', { title: 'Gym', start: `${today()}T18:00`, why: 'You said twice a week.' }),
+    says(['I suggested two things.']),
+  ]);
+  await page().getByRole('radio', { name: 'Day' }).click();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Find me time to prep the slides');
+  await composer.press('Enter');
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('I suggested two things.');
+  await expect(shell().getByRole('log', { name: 'Conversation' }).getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
+
+  const box = page().getByRole('region', { name: 'Suggested by Mobius' });
+  await expect(box.getByRole('article', { name: 'Prep slides' })).toContainText('Your first free hour before the kickoff.');
+  await expect(page().getByRole('button', { name: /^Suggested: Prep slides, 10:00–11:00/ })).toBeVisible();
+  expect(fs.existsSync(file('Calendar')) ? fs.readFileSync(file('Calendar'), 'utf8') : '').not.toContain('Prep slides');
+
+  await box.getByRole('article', { name: 'Gym' }).getByRole('button', { name: 'Decline' }).click();
+  await box.getByRole('article', { name: 'Prep slides' }).getByRole('button', { name: 'Add' }).click();
+  await expect(box).toHaveCount(0);
+  await expect(page().getByRole('button', { name: /^Prep slides, 10:00–11:00, Calendar/ })).toBeVisible();
+  await expect(page().getByRole('button', { name: /Gym/ })).toHaveCount(0);
+  expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('SUMMARY:Prep slides');
+});
