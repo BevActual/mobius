@@ -4,6 +4,7 @@
 pub mod access;
 pub mod agent;
 pub mod memory;
+pub mod code_tests;
 pub mod schedules;
 pub mod calendar_accounts;
 pub mod mail;

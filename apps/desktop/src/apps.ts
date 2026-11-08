@@ -19,7 +19,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'tasks', name: 'Tasks', available: true, group: 'Write and plan' },
   { id: 'calendar', name: 'Calendar', available: true, group: 'Write and plan' },
   { id: 'search', name: 'Search', available: true, group: 'Browse and find' },
-  { id: 'code', name: 'Code', available: false, group: 'Create' },
+  { id: 'code', name: 'Code', available: true, group: 'Create' },
   { id: 'canvas', name: 'Canvas', available: false, group: 'Create' },
   { id: 'review', name: 'Review', available: false, group: 'Review' },
 ];

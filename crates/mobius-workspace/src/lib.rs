@@ -4,6 +4,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 pub mod calendar;
 pub mod checkpoints;
+pub mod code;
 pub mod files;
 pub mod formula;
 pub mod notes;

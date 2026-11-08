@@ -439,7 +439,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 27, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 28, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -484,7 +484,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test"]);
     }
 
     #[derive(Default)]
@@ -1114,4 +1114,25 @@ fn a_server_that_is_no_provider_is_offered_as_this_server() {
     let groups = call(&b, "providers", "catalog", json!([]))["groups"].clone();
     assert_eq!(groups[0]["kind"], "server");
     assert_eq!(groups[0]["active"], true);
+}
+
+#[test]
+fn code_projects_run_only_the_test_command_the_person_chose() {
+    let (b, _core, events, _d) = bridge_in(tempfile::tempdir().unwrap());
+    assert_eq!(call(&b, "code", "createProject", json!(["planner"]))["name"], "planner");
+    let saved = call(&b, "code", "save", json!(["planner", "src/budget.ts", "export const a = 1;\n", null]));
+    assert!(saved["modified"].is_number());
+    let tree = call(&b, "code", "tree", json!(["planner"]));
+    assert_eq!(tree["entries"].as_array().unwrap().len(), 3);
+    assert_eq!(call(&b, "code", "save", json!(["planner", "../x", "y", null]))["ok"], false);
+    // No command yet: the agent cannot run anything, and cannot choose one.
+    assert!(b.host_request("host.tool", &json!({ "tool": "code.test", "arguments": { "project": "planner" } })).unwrap_err().contains("No test command"));
+    assert_eq!(call(&b, "code", "testCommand", json!(["planner"]))["command"], serde_json::Value::Null);
+    let check = if cfg!(windows) { "findstr a src\\budget.ts" } else { "grep a src/budget.ts" };
+    assert_eq!(call(&b, "code", "setTestCommand", json!(["planner", check]))["ok"], true);
+    let text = b.host_request("host.tool", &json!({ "tool": "code.test", "arguments": { "project": "planner" } })).unwrap();
+    assert!(text.as_str().unwrap().starts_with("Tests for planner passed"), "{text}");
+    let run = call(&b, "code", "runTests", json!(["planner"]));
+    assert_eq!(run["passed"], true);
+    assert!(events.lock().unwrap().iter().any(|(name, _)| name == "mobius:code-tests"));
 }

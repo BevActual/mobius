@@ -12,7 +12,7 @@ describe('apps', () => {
       localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) },
     };
     expect(recentApps()).toEqual([]);
-    for (const id of ['browser', 'notes', 'tasks', 'notes', 'code', 'agent', 'search'] as const) noteOpened(id);
+    for (const id of ['browser', 'notes', 'tasks', 'notes', 'canvas', 'agent', 'search'] as const) noteOpened(id);
     expect(recentApps()).toEqual(['search', 'agent', 'notes', 'tasks']);
     expect(recentApps(10)).toEqual(['search', 'agent', 'notes', 'tasks', 'browser']);
     store.set('mobius.apps.recent', '{not json');

@@ -154,6 +154,9 @@ pub struct Bridge {
     docs: mobius_workspace::notes::Notes,
     slides: mobius_workspace::notes::Notes,
     sheets: mobius_workspace::sheets::Sheets,
+    code: mobius_workspace::code::Code,
+    /// The test command of each Code project, which only the person sets.
+    code_tests: crate::code_tests::TestCommands,
     tasks: mobius_workspace::tasks::Tasks,
     calendar: mobius_workspace::calendar::Calendar,
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
@@ -209,6 +212,9 @@ impl Bridge {
                 if let Some(list) = path.replace('\\', "/").strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")) {
                     notes_emit("mobius:tasks-changed", json!({ "list": list, "by": "another app" }));
                 }
+                if let Some((project, file)) = path.replace('\\', "/").strip_prefix("code/").and_then(|p| p.split_once('/').map(|(a, b)| (a.to_owned(), b.to_owned()))) {
+                    notes_emit("mobius:code-changed", json!({ "project": project, "path": file, "by": "another app" }));
+                }
                 if let Some(name) = path.replace('\\', "/").strip_prefix("calendar/").and_then(|f| f.strip_suffix(".ics")) {
                     notes_emit("mobius:calendar-changed", json!({ "calendar": name, "by": "another app" }));
                 }
@@ -252,6 +258,8 @@ impl Bridge {
             docs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "docs"),
             slides: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "slides").named_by_file(),
             sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
+            code_tests: crate::code_tests::TestCommands::new(data_dir.join("code-tests.json")),
             tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             calendar: {
                 let calendar = mobius_workspace::calendar::Calendar::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
@@ -369,6 +377,7 @@ impl Bridge {
             ("docs", _) => Ok(self.notes_call(&self.docs, "mobius:docs-changed", method, args)),
             ("slides", _) => Ok(self.notes_call(&self.slides, "mobius:slides-changed", method, args)),
             ("sheets", _) => Ok(self.sheets_call(method, args)),
+            ("code", _) => Ok(self.code_call(method, args)),
             ("mail", _) => Ok(self.mail_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
@@ -916,7 +925,7 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -927,6 +936,15 @@ impl Bridge {
                 (self.emit)("mobius:schedules-changed", Value::Null);
             }
             return result;
+        }
+        if crate::code_tests::is_code_tool(tool) {
+            let project = args.get("project").and_then(Value::as_str).unwrap_or("");
+            let dir = self.code.project_dir(project)?;
+            let command = self.code_tests.get(project).ok_or("No test command is set for this project. Ask the person to choose one in Code, under Tests.")?;
+            (self.emit)("mobius:code-tests", json!({ "project": project, "running": true, "by": "assistant" }));
+            let result = crate::code_tests::run(&dir, &command, crate::code_tests::TIMEOUT);
+            (self.emit)("mobius:code-tests", json!({ "project": project, "running": false, "result": result, "command": command, "by": "assistant" }));
+            return Ok(Value::String(crate::code_tests::tool_text(project, &result)));
         }
         if crate::memory::is_memory_tool(tool) {
             let result = self.memory.run(tool, &args).map(Value::String);
@@ -978,6 +996,9 @@ impl Bridge {
                 }
                 if let Some(book) = path.strip_prefix("sheets/") {
                     (self.emit)("mobius:sheets-changed", json!({ "workbook": book.split('/').next(), "by": "assistant" }));
+                }
+                if let Some((project, file)) = path.strip_prefix("code/").and_then(|p| p.split_once('/')) {
+                    (self.emit)("mobius:code-changed", json!({ "project": project, "path": file, "by": "assistant" }));
                 }
                 if let Some(list) = path.strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")) {
                     (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "assistant" }));
@@ -1058,7 +1079,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -1360,6 +1381,56 @@ impl Bridge {
         }
     }
 
+    /// The Code app: projects in `code/`, their files, and the person's test command for each.
+    fn code_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let code = &self.code;
+        let need = || "a project and a file are needed".to_owned();
+        let result = match method {
+            "projects" => code.projects(),
+            "createProject" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| code.create_project(n)),
+            "tree" => text(0).ok_or_else(need).and_then(|p| code.tree(p)),
+            "read" => match (text(0), text(1)) {
+                (Some(p), Some(f)) => code.read(p, f),
+                _ => Err(need()),
+            },
+            "save" => match (text(0), text(1), text(2), args.get(3).unwrap_or(&Value::Null)) {
+                (Some(p), Some(f), Some(t), base @ (Value::Null | Value::Number(_))) => code.save(p, f, t, base.as_u64()),
+                _ => Err("that cannot be saved".to_owned()),
+            },
+            "createFile" => match (text(0), text(1)) {
+                (Some(p), Some(f)) => code.create_file(p, f),
+                _ => Err(need()),
+            },
+            "removeFile" => match (text(0), text(1)) {
+                (Some(p), Some(f)) => code.remove_file(p, f),
+                _ => Err(need()),
+            },
+            "testCommand" => text(0).ok_or_else(need).and_then(|p| code.project_dir(p).map(|dir| json!({ "command": self.code_tests.get(p), "suggested": crate::code_tests::suggested_command(&dir) }))),
+            "setTestCommand" => match (text(0), text(1)) {
+                (Some(p), Some(c)) => code.project_dir(p).and_then(|_| self.code_tests.set(p, c)).map(|()| json!({ "ok": true })),
+                _ => Err("a project and a command are needed".to_owned()),
+            },
+            "runTests" => text(0).ok_or_else(need).and_then(|p| {
+                let dir = code.project_dir(p)?;
+                let command = self.code_tests.get(p).ok_or("Choose a test command first.")?;
+                let result = crate::code_tests::run(&dir, &command, crate::code_tests::TIMEOUT);
+                (self.emit)("mobius:code-tests", json!({ "project": p, "running": false, "result": result, "command": command, "by": "person" }));
+                Ok(result)
+            }),
+            _ => return json!({ "ok": false, "message": "unknown" }),
+        };
+        match result {
+            Ok(value) => {
+                if matches!(method, "createProject" | "save" | "createFile" | "removeFile") {
+                    (self.emit)("mobius:code-changed", json!({ "project": value.get("project").or_else(|| value.get("name")), "path": value.get("path"), "by": "person" }));
+                }
+                value
+            }
+            Err(message) => json!({ "ok": false, "conflict": message == "changed elsewhere", "message": message }),
+        }
+    }
+
     /// The Tasks app. Every answer is the list asked for or `{ ok: false, message }`; a change to a task that moved or
     /// changed meanwhile also says `conflict: true`, so the window reloads instead of changing the wrong task.
     fn tasks_call(&self, method: &str, args: &[Value]) -> Value {
@@ -1605,6 +1676,10 @@ impl Bridge {
             (self.emit)("mobius:slides-changed", json!({ "path": path.and_then(|p| p.strip_prefix("slides/")), "by": "undo" }));
             (self.emit)("mobius:sheets-changed", json!({ "workbook": path.and_then(|p| p.strip_prefix("sheets/")).and_then(|p| p.split('/').next()), "by": "undo" }));
             (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "undo" }));
+            if path.is_none_or(|p| p.starts_with("code/")) {
+                let inner = path.and_then(|p| p.strip_prefix("code/")).and_then(|p| p.split_once('/'));
+                (self.emit)("mobius:code-changed", json!({ "project": inner.map(|i| i.0), "path": inner.map(|i| i.1), "by": "undo" }));
+            }
             if path.is_none_or(|p| p.starts_with("calendar/")) {
                 (self.emit)("mobius:calendar-changed", json!({ "calendar": path.and_then(|p| p.strip_prefix("calendar/")).and_then(|p| p.strip_suffix(".ics")), "by": "undo" }));
             }

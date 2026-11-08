@@ -168,6 +168,12 @@ export interface MailCounts { primary: number; transactions: number; updates: nu
 export interface SheetData { workbook: string; sheet: string; sheets: string[]; cells: string[][]; values: string[][]; version: string }
 export interface WorkbookInfo { name: string; sheets: string[] }
 export interface SheetsChanged { workbook: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+/** A Code project's file or folder, as a path inside the project, folders first. */
+export interface CodeEntry { path: string; folder: boolean; depth: number }
+export interface CodeFile { project: string; path: string; text: string | null; why?: string; modified: number }
+export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean }
+export interface CodeChanged { project: string | null; path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+export interface CodeTestsEvent { project: string; running: boolean; result?: CodeTestRun; command?: string; by: 'person' | 'assistant' }
 export interface CellChange { row: number; col: number; text: string }
 /** An event the agent suggests, waiting for the person to Add or Decline. All-day `end` is the last day, included. */
 export interface CalendarSuggestion { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; why: string }
@@ -441,6 +447,22 @@ export interface MobiusBridge {
     renameSheet(workbook: string, sheet: string, name: string): Promise<{ workbook: string; sheet: string } | NotesFailure>;
     removeSheet(workbook: string, sheet: string): Promise<{ workbook: string; removed: string } | NotesFailure>;
     onChanged(listener: (change: SheetsChanged) => void): () => void;
+  };
+  /** The Code app: projects are folders in `code/`; the test command of each is the person's. Only the Tauri shell has it. */
+  code?: {
+    projects(): Promise<{ name: string; modified: number }[] | NotesFailure>;
+    createProject(name: string): Promise<{ name: string } | NotesFailure>;
+    tree(project: string): Promise<{ project: string; entries: CodeEntry[]; truncated: boolean } | NotesFailure>;
+    read(project: string, path: string): Promise<CodeFile | NotesFailure>;
+    /** Refused with `conflict` when the file changed since `base`. */
+    save(project: string, path: string, text: string, base: number | null): Promise<{ project: string; path: string; modified: number } | NotesFailure>;
+    createFile(project: string, path: string): Promise<{ project: string; path: string; modified: number } | NotesFailure>;
+    removeFile(project: string, path: string): Promise<{ project: string; path: string } | NotesFailure>;
+    testCommand(project: string): Promise<{ command: string | null; suggested: string | null } | NotesFailure>;
+    setTestCommand(project: string, command: string): Promise<{ ok: true } | NotesFailure>;
+    runTests(project: string): Promise<CodeTestRun | NotesFailure>;
+    onChanged(listener: (change: CodeChanged) => void): () => void;
+    onTests(listener: (event: CodeTestsEvent) => void): () => void;
   };
   /** The Docs app: documents kept like notes, as Markdown in `docs/<folder>/<doc>.md`. Only the Tauri shell has it. */
   docs?: NonNullable<MobiusBridge['notes']>;
@@ -967,13 +989,13 @@ export interface ScheduleDraft { title: string; prompt: string; time: string; da
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
 /** `calendar` came later: a setting saved before it leaves it out, and it counts as `ask`. */
-export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel };
-export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask' };
+export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; code?: AccessLevel };
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', code: 'ask' };
 const ACCESS_LEVELS: readonly string[] = ['off', 'ask', 'read', 'act'];
 export function isAppAccess(v: unknown): v is AppAccess {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;
-  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail'];
+  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'code'];
   return Object.keys(o).every((k) => apps.includes(k))
     && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes(o[app] as string))
     && (['docs', 'sheets', 'slides', 'calendar', 'mail'] as const).every((app) => o[app] === undefined || ACCESS_LEVELS.includes(o[app] as string));

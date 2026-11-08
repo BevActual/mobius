@@ -22,6 +22,8 @@ import {
   type TasksChanged,
   type CalendarChanged,
   type SheetsChanged,
+  type CodeChanged,
+  type CodeTestsEvent,
 } from '@mobius/shared';
 
 /**
@@ -240,6 +242,20 @@ export function createTauriBridge(): MobiusBridge {
       deleteDraft: (id) => call('mail', 'deleteDraft', [id], () => ({ ok: false as const, message: 'Mail is not available.' })),
       send: (id) => call('mail', 'send', [id], () => ({ ok: false as const, message: 'Mail is not available.' })),
       onChanged: (listener) => on<{ by: string }>('mobius:mail-changed', listener),
+    },
+    code: {
+      projects: () => call('code', 'projects', [], () => []),
+      createProject: (name) => call('code', 'createProject', [name], () => ({ ok: false as const, message: 'Code is not available.' })),
+      tree: (project) => call('code', 'tree', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
+      read: (project, path) => call('code', 'read', [project, path], () => ({ ok: false as const, message: 'Code is not available.' })),
+      save: (project, path, text, base) => call('code', 'save', [project, path, text, base], () => ({ ok: false as const, message: 'Code is not available.' })),
+      createFile: (project, path) => call('code', 'createFile', [project, path], () => ({ ok: false as const, message: 'Code is not available.' })),
+      removeFile: (project, path) => call('code', 'removeFile', [project, path], () => ({ ok: false as const, message: 'Code is not available.' })),
+      testCommand: (project) => call('code', 'testCommand', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
+      setTestCommand: (project, command) => call('code', 'setTestCommand', [project, command], () => ({ ok: false as const, message: 'Code is not available.' })),
+      runTests: (project) => call('code', 'runTests', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
+      onChanged: (listener) => on<CodeChanged>('mobius:code-changed', listener),
+      onTests: (listener) => on<CodeTestsEvent>('mobius:code-tests', listener),
     },
     sheets: {
       list: () => call('sheets', 'list', [], () => []),

@@ -53,6 +53,7 @@ export interface MenuContext {
     notes: { newNotebook: () => void; pin: () => void; changes: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void };
+    code: { newProject: () => void; newFile: () => void; save: () => void; runTests: () => void };
     sheets: { newWorkbook: () => void; newSheet: () => void; insertRow: () => void };
     mail: { newMessage: () => void; getMail: () => void };
     slides: { newDeck: () => void };
@@ -163,6 +164,14 @@ function appMenu(c: MenuContext): Menu | null {
       return { id: 'app', label: 'Mail', items: [
         item('new-message', 'New message', d.mail.newMessage),
         item('get-mail', 'Get mail', d.mail.getMail),
+      ] };
+    case 'code':
+      return { id: 'app', label: 'Code', items: [
+        item('new-project', 'New project', d.code.newProject),
+        item('new-file', 'New file', d.code.newFile),
+        separator,
+        item('save-file', 'Save', d.code.save),
+        item('run-tests', 'Run tests', d.code.runTests),
       ] };
     case 'sheets':
       return { id: 'app', label: 'Sheets', items: [
