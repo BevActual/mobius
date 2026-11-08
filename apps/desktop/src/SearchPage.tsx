@@ -22,7 +22,7 @@ interface Props {
   docFolders?: Notebook[];
   deckFolders?: Notebook[];
   /** What the creative apps keep. */
-  made?: Pick<HubSources, 'designFolders' | 'boardFolders' | 'researchFolders' | 'readingFolders' | 'songFolders' | 'albums' | 'videoProjects' | 'codeProjects'>;
+  made?: Pick<HubSources, 'designFolders' | 'boardFolders' | 'researchFolders' | 'readingFolders' | 'databases' | 'songFolders' | 'albums' | 'videoProjects' | 'codeProjects'>;
   workbooks?: WorkbookInfo[];
   onOpen: (target: HubTarget) => void;
   /** Ask the agent instead of looking things up. */

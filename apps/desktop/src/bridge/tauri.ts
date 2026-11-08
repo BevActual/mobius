@@ -19,6 +19,7 @@ import {
   type MobiusBridge,
   type ModelsEvent,
   type NotesChange,
+  type DbChange,
   type TasksChanged,
   type CalendarChanged,
   type SheetsChanged,
@@ -388,6 +389,14 @@ export function createTauriBridge(): MobiusBridge {
       remove: (path) => call('research', 'remove', [path], () => ({ ok: false as const, message: 'Research is not available.' })),
       search: (query) => call('research', 'search', [query], () => []),
       onChanged: (listener) => on<NotesChange>('mobius:research-changed', listener),
+    },
+    databases: {
+      list: () => call('databases', 'list', [], () => []),
+      create: (name) => call('databases', 'create', [name], () => ({ ok: false as const, message: 'Database is not available.' })),
+      remove: (name) => call('databases', 'remove', [name], () => ({ ok: false as const, message: 'Database is not available.' })),
+      importCsv: (name, table, csv) => call('databases', 'importCsv', [name, table, csv], () => ({ ok: false as const, message: 'Database is not available.' })),
+      query: (name, sql) => call('databases', 'query', [name, sql], () => ({ ok: false as const, message: 'Database is not available.' })),
+      onChanged: (listener) => on<DbChange>('mobius:databases-changed', listener),
     },
     reading: {
       list: () => call('reading', 'list', [], () => []),

@@ -183,6 +183,13 @@ export interface TurnRecord { start: string; ended: boolean; when: number; ask: 
 export interface SkillInfo { name: string; description: string; modified: number; version: number }
 export interface SkillContent { name: string; text: string; modified: number; version: number; versions: { version: number; modified: number; description: string }[] }
 export interface CodeEntry { path: string; folder: boolean; depth: number }
+/** The Database app: SQLite files in `databases/`, their tables, and what a query gave. */
+export interface DbColumn { name: string; type: string }
+export interface DbTable { name: string; columns: DbColumn[]; rows: number }
+export interface DbInfo { name: string; modified: number; tables: DbTable[] }
+export type DbCell = string | number | null;
+export type DbResult = { ok: true; columns: string[]; rows: DbCell[][]; changed: number; truncated: boolean; ms: number } | NotesFailure;
+export interface DbChange { name: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 export interface CodeFile { project: string; path: string; text: string | null; why?: string; modified: number }
 export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean }
 export interface CodeProcess { id: number; command: string; by: 'person' | 'assistant'; started: number; running: boolean; code: number | null; output: string }
@@ -549,6 +556,16 @@ export interface MobiusBridge {
   /** The Research app: reports kept like documents, as Markdown in `research/<folder>/<report>.md`. Only the Tauri shell has it. */
   research?: NonNullable<MobiusBridge['notes']>;
   /** The Reader app: articles kept to read later, as Markdown in `reading/<folder>/<article>.md`, and fetching one. */
+  databases?: {
+    list(): Promise<DbInfo[]>;
+    create(name: string): Promise<{ ok: true; name: string } | NotesFailure>;
+    remove(name: string): Promise<{ ok: true } | NotesFailure>;
+    /** A CSV as a new table; the first row names the columns. */
+    importCsv(name: string, table: string, csv: string): Promise<{ ok: true; table: string; columns: string[]; rows: number } | NotesFailure>;
+    /** One statement, which may change the database; at most 1000 rows come back. */
+    query(name: string, sql: string): Promise<DbResult>;
+    onChanged(listener: (change: DbChange) => void): () => void;
+  };
   reading?: NonNullable<MobiusBridge['notes']> & { fetch(url: string): Promise<{ ok: true; url: string; title: string; text: string } | { ok: false; message: string }> };
   /** The Notes app. Only the Tauri shell has it. */
   notes?: {
@@ -1071,13 +1088,13 @@ export interface ScheduleDraft { title: string; prompt: string; time: string; da
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
 /** `calendar` came later: a setting saved before it leaves it out, and it counts as `ask`. */
-export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; research?: AccessLevel; reader?: AccessLevel; code?: AccessLevel; design?: AccessLevel; canvas?: AccessLevel; photo?: AccessLevel; studio?: AccessLevel; video?: AccessLevel; skills?: AccessLevel };
-export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', research: 'ask', reader: 'ask', code: 'ask', design: 'ask', canvas: 'ask', photo: 'ask', studio: 'ask', video: 'ask', skills: 'ask' };
+export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; research?: AccessLevel; reader?: AccessLevel; code?: AccessLevel; database?: AccessLevel; design?: AccessLevel; canvas?: AccessLevel; photo?: AccessLevel; studio?: AccessLevel; video?: AccessLevel; skills?: AccessLevel };
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', research: 'ask', reader: 'ask', code: 'ask', database: 'ask', design: 'ask', canvas: 'ask', photo: 'ask', studio: 'ask', video: 'ask', skills: 'ask' };
 const ACCESS_LEVELS: readonly string[] = ['off', 'ask', 'read', 'act'];
 export function isAppAccess(v: unknown): v is AppAccess {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;
-  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'research', 'reader', 'code', 'design', 'canvas', 'photo', 'studio', 'video', 'skills'];
+  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'research', 'reader', 'code', 'database', 'design', 'canvas', 'photo', 'studio', 'video', 'skills'];
   return Object.keys(o).every((k) => apps.includes(k))
     && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes(o[app] as string))
     && (['docs', 'sheets', 'slides', 'calendar', 'mail'] as const).every((app) => o[app] === undefined || ACCESS_LEVELS.includes(o[app] as string));

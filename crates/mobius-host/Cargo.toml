@@ -17,6 +17,7 @@ mobius-agent = { path = "../mobius-agent" }
 base64 = "0.22"
 url = "2"
 ureq.workspace = true
+rusqlite = { workspace = true, features = ["limits", "hooks"] }
 getrandom = "0.3"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }

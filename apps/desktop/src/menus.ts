@@ -60,6 +60,7 @@ export interface MenuContext {
     canvas: { newBoard: () => void; newFolder: () => void; newSticky: () => void };
     research: { newResearch: () => void; newFolder: () => void };
     reader: { newList: () => void };
+    database: { newDatabase: () => void; importCsv: () => void };
     code: { newProject: () => void; newFile: () => void; save: () => void; runTests: () => void };
     sheets: { newWorkbook: () => void; newSheet: () => void; insertRow: () => void };
     mail: { newMessage: () => void; getMail: () => void };
@@ -192,6 +193,11 @@ function appMenu(c: MenuContext): Menu | null {
       return { id: 'app', label: 'Design', items: [
         item('new-design', 'New design', d.design.newDesign),
         item('new-folder', 'New folder', d.design.newFolder),
+      ] };
+    case 'database':
+      return { id: 'app', label: 'Database', items: [
+        item('new-database', 'New database', d.database.newDatabase),
+        item('import-csv', 'Import a CSV file…', d.database.importCsv),
       ] };
     case 'reader':
       return { id: 'app', label: 'Reader', items: [

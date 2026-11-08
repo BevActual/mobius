@@ -2683,6 +2683,7 @@ dependencies = [
  "mobius-mcp",
  "mobius-store",
  "mobius-workspace",
+ "rusqlite",
  "rustls",
  "serde",
  "serde_json",

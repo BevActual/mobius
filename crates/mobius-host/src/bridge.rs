@@ -172,6 +172,7 @@ pub struct Bridge {
     boards: mobius_workspace::notes::Notes,
     research: mobius_workspace::notes::Notes,
     reading: mobius_workspace::notes::Notes,
+    databases: crate::database::Databases,
     songs: mobius_workspace::notes::Notes,
     photos: mobius_workspace::photos::Photos,
     skills: mobius_workspace::skills::Skills,
@@ -249,6 +250,9 @@ impl Bridge {
                 if let Some(article) = path.replace('\\', "/").strip_prefix("reading/") {
                     notes_emit("mobius:reading-changed", json!({ "path": article, "by": "another app" }));
                 }
+                if let Some(db) = path.replace('\\', "/").strip_prefix("databases/").and_then(|p| p.split(".sqlite").next().map(str::to_owned)) {
+                    notes_emit("mobius:databases-changed", json!({ "name": db, "by": "another app" }));
+                }
                 if let Some(project) = path.replace('\\', "/").strip_prefix("video/").and_then(|p| p.split('/').next().map(str::to_owned)) {
                     notes_emit("mobius:video-changed", json!({ "project": project, "by": "another app" }));
                 }
@@ -316,6 +320,7 @@ impl Bridge {
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
             research: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "research"),
             reading: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "reading"),
+            databases: crate::database::Databases::new(&data_dir.join("workspace")),
             sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
             processes: crate::code_processes::Processes::default(),
@@ -443,6 +448,7 @@ impl Bridge {
             // Reader keeps pages the person chose to read later; fetching one is their request, not the agent's.
             ("reading", "fetch") => Ok(crate::web::fetch_article(arg(0).as_str().unwrap_or("")).unwrap_or_else(|e| json!({ "ok": false, "message": e }))),
             ("reading", _) => Ok(self.notes_call(&self.reading, "mobius:reading-changed", method, args)),
+            ("databases", _) => Ok(self.databases_call(method, args)),
             ("sheets", _) => Ok(self.sheets_call(method, args)),
             ("code", _) => Ok(self.code_call(method, args)),
             ("photos", _) => Ok(self.photos_call(method, args)),
@@ -997,7 +1003,7 @@ impl Bridge {
         }
         // Nothing runs before the checkpoint at the start of the turn is taken.
         wait_for_marks(&self.marking);
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -1008,6 +1014,13 @@ impl Bridge {
                 (self.emit)("mobius:schedules-changed", Value::Null);
             }
             return result;
+        }
+        if crate::database::is_db_tool(tool) {
+            let result = self.databases.run(tool, &args);
+            if result.is_ok() && tool == "db.execute" {
+                (self.emit)("mobius:databases-changed", json!({ "name": args.get("database"), "by": "assistant" }));
+            }
+            return result.map(Value::String);
         }
         if crate::web::is_web_tool(tool) {
             let allow_private = self.preference("agentPrivateUrls") == Value::Bool(true);
@@ -1218,7 +1231,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -1942,6 +1955,7 @@ impl Bridge {
         (self.emit)("mobius:boards-changed", json!({ "path": path.and_then(|p| p.strip_prefix("boards/")), "by": "undo" }));
         (self.emit)("mobius:research-changed", json!({ "path": path.and_then(|p| p.strip_prefix("research/")), "by": "undo" }));
         (self.emit)("mobius:reading-changed", json!({ "path": path.and_then(|p| p.strip_prefix("reading/")), "by": "undo" }));
+        (self.emit)("mobius:databases-changed", json!({ "name": path.and_then(|p| p.strip_prefix("databases/")).and_then(|p| p.strip_suffix(".sqlite")), "by": "undo" }));
         (self.emit)("mobius:songs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("studio/")), "by": "undo" }));
         (self.emit)("mobius:skills-changed", json!({ "name": path.and_then(|p| p.strip_prefix("skills/")).and_then(|p| p.split('/').next()), "by": "undo" }));
         (self.emit)("mobius:video-changed", json!({ "project": path.and_then(|p| p.strip_prefix("video/")).and_then(|p| p.split('/').next()), "by": "undo" }));
@@ -2006,6 +2020,28 @@ impl Bridge {
             },
             _ => return None,
         })
+    }
+
+    /// The Database app: databases in `databases/`, their tables, and the person's queries.
+    fn databases_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str).unwrap_or("");
+        let failed = |e: String| json!({ "ok": false, "message": e });
+        let changed = |name: &str| (self.emit)("mobius:databases-changed", json!({ "name": name, "by": "person" }));
+        match method {
+            "list" => self.databases.list(),
+            "tables" => self.databases.tables(text(0)).map(Value::Array).unwrap_or_else(failed),
+            "create" => self.databases.create(text(0)).inspect(|_| changed(text(0).trim())).unwrap_or_else(failed),
+            "remove" => self.databases.remove(text(0)).inspect(|_| changed(text(0))).unwrap_or_else(failed),
+            "importCsv" => self.databases.import_csv(text(0), text(1), text(2)).inspect(|_| changed(text(0))).unwrap_or_else(failed),
+            "query" => {
+                let result = crate::database::person_query(&self.databases, text(0), text(1));
+                if result["ok"] == true && (result["changed"].as_u64().unwrap_or(0) > 0 || result["columns"].as_array().is_some_and(Vec::is_empty)) {
+                    changed(text(0));
+                }
+                result
+            }
+            _ => failed("unknown call".into()),
+        }
     }
 
     fn changes_call(&self, method: &str, args: &[Value]) -> Out {

@@ -101,6 +101,8 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
   report with web facts marked and a Sources list shown beside it; follow-ups go with the report attached.
 - **Reader** (`reading/<list>/*.md`): pages saved to read later as just their words (from a link, the open tab or
   the Browser menu), with where each came from, text size and typeface, and Done reading moving it to Archive.
+- **Database** (`databases/<name>.sqlite`): CSV files imported as tables, any SQL statement of the person's with the
+  rows in a grid; Mobius reads with `db.query` on a read-only connection and changes data only with `db.execute`.
 - **Canvas** (`boards/<folder>/*.json`): a whiteboard of stickies, shapes, text, arrows joining them and pen lines,
   one item per line in the file; sorting into themes or a flowchart from Mobius shows dashed until kept.
 - **Photo** (`photos/<album>/`): pictures never changed; adjustment layers to all or part of each, in

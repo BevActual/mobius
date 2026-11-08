@@ -22,7 +22,7 @@ export interface SurfaceState {
   /** A web page is showing in the browser. */
   hasPage: boolean;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
-  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' } | null;
+  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
@@ -130,6 +130,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Tidy the spacing', prompt: 'Line up the layers in this design on an 8-point grid with even spacing, changing only x, y, w and h. Keep every id.', attach: 'note' },
           ]
         : [{ label: 'Sketch a screen', prompt: 'Make a design in my Design app, a phone-sized frame, for ' }];
+    case 'database':
+      return state.note
+        ? [
+            { label: 'Describe the data', prompt: 'Look at the attached database with db.query (a few rows of each table, counts, ranges) and describe what it holds in a short paragraph per table. Change nothing.', attach: 'note' },
+            { label: 'Find problems', prompt: 'Check the attached database for problems with db.query: empty values, duplicates, values that look wrong or out of range. List what you find with the query that shows it. Change nothing.', attach: 'note' },
+            { label: 'Ask about it…', prompt: 'Using db.query on the attached database, ', attach: 'note' },
+          ]
+        : [{ label: 'Make a database', prompt: 'Make a small SQLite database in my Database app (db.execute: CREATE TABLE and INSERT) for ' }];
     case 'reader':
       return state.note
         ? [
@@ -181,8 +189,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
   }
 }
 
+/** A database as the agent sees it attached: where it is and its tables with their columns. */
+export function databaseOutline(name: string, tables: { name: string; rows: number; columns: { name: string; type: string }[] }[]): string {
+  const lines = tables.map((t) => `- ${t.name} (${t.rows} rows): ${t.columns.map((c) => `${c.name}${c.type ? ` ${c.type}` : ''}`).join(', ')}`);
+  return `The SQLite database "${name}" (databases/${name}.sqlite), read with db.query and changed with db.execute.\nTables:\n${lines.join('\n') || '(none yet)'}`;
+}
+
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' }): ContextItem {
+export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' }): ContextItem {
   return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 

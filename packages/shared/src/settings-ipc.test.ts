@@ -136,7 +136,7 @@ describe('approval mode', () => {
 
 describe('preferences changes', () => {
   it('start with alerts on, sounds on and nothing kept awake', () => {
-    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'manual', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', appAccess: { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', research: 'ask', reader: 'ask', code: 'ask', design: 'ask', canvas: 'ask', photo: 'ask', studio: 'ask', video: 'ask', skills: 'ask' } });
+    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'manual', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', appAccess: { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', research: 'ask', reader: 'ask', code: 'ask', database: 'ask', design: 'ask', canvas: 'ask', photo: 'ask', studio: 'ask', video: 'ask', skills: 'ask' } });
   });
   it('ask in every app until the person chooses otherwise, and accept only the apps it knows at known levels (Calendar may be missing from older settings)', () => {
     expect(parsePreferencesPatch({ appAccess: { browser: 'read', notes: 'act', tasks: 'off' } })).toEqual({ appAccess: { browser: 'read', notes: 'act', tasks: 'off' } });

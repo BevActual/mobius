@@ -15,6 +15,7 @@ export type HubTarget =
   | { app: 'canvas'; path: string; title: string }
   | { app: 'research'; path: string; title: string }
   | { app: 'reader'; path: string; title: string }
+  | { app: 'database'; name: string }
   | { app: 'studio'; path: string; title: string }
   | { app: 'photo'; path: string }
   | { app: 'video'; project: string }
@@ -65,6 +66,7 @@ export interface HubSources {
   boardFolders?: Notebook[];
   researchFolders?: Notebook[];
   readingFolders?: Notebook[];
+  databases?: { name: string; modified: number }[];
   songFolders?: Notebook[];
   albums?: { name: string; photos: { path: string; name: string; modified: number }[] }[];
   videoProjects?: string[];
@@ -125,6 +127,7 @@ export function hubResults(sources: HubSources, query: string, filter: HubFilter
     }
     for (const a of sources.albums ?? []) for (const p of a.photos) add({ key: `photo:${p.path}`, kind: 'made', title: p.name, where: `Photo › ${a.name}`, when: p.modified, target: { app: 'photo', path: p.path } }, `${p.name} ${a.name}`);
     for (const v of sources.videoProjects ?? []) add({ key: `video:${v}`, kind: 'made', title: v, where: 'Video', when: null, target: { app: 'video', project: v } }, v);
+    for (const d of sources.databases ?? []) add({ key: `database:${d.name}`, kind: 'made', title: d.name, where: 'Database', when: d.modified, target: { app: 'database', name: d.name } }, d.name);
     for (const c of sources.codeProjects ?? []) add({ key: `code:${c.name}`, kind: 'made', title: c.name, where: 'Code', when: c.modified, target: { app: 'code', project: c.name } }, c.name);
   }
   if (want('mail')) {
