@@ -38,6 +38,8 @@ pub fn decide_notice(notification: &Value, prefs: &Value, focused: bool) -> Opti
             let tool = event.get("tool").and_then(Value::as_str)?;
             Some(Notice { kind: "needs-you", title: "Mobius needs you".into(), body: format!("It is waiting to use {tool}."), conversation, silent })
         }
+        // A question waits for you as an approval does. Only that there is one is said, never the question itself.
+        "question" if flag(prefs, "notifyNeedsYou") => Some(Notice { kind: "needs-you", title: "Mobius needs you".into(), body: "It has a question for you.".into(), conversation, silent }),
         "done" if flag(prefs, "notifyFinished") => Some(Notice { kind: "finished", title: "Mobius finished".into(), body: "Your request is done.".into(), conversation, silent }),
         "failed" if flag(prefs, "notifyFinished") => {
             Some(Notice { kind: "finished", title: "Mobius stopped".into(), body: "Something went wrong. Open Mobius to see what.".into(), conversation, silent })
@@ -85,6 +87,16 @@ mod tests {
         let n = decide_notice(&event("needs_approval", json!({ "tool": "browser.tabs", "arguments": { "secret": "x" }, "request_id": 1, "call_id": "k" })), &prefs(), false).unwrap();
         assert_eq!((n.kind, n.title.as_str(), n.body.as_str(), n.conversation.as_deref(), n.silent), ("needs-you", "Mobius needs you", "It is waiting to use browser.tabs.", Some("c-main-abc"), false));
         assert!(!n.to_json().to_string().contains("secret"));
+    }
+
+    #[test]
+    fn a_question_is_told_as_needing_you_without_the_question() {
+        let n = decide_notice(&event("question", json!({ "call_id": "q", "question": "Book the Casa Amora for $5,420?", "choices": [] })), &prefs(), false).unwrap();
+        assert_eq!((n.kind, n.title.as_str(), n.body.as_str()), ("needs-you", "Mobius needs you", "It has a question for you."));
+        assert!(!n.to_json().to_string().contains("Casa"));
+        let mut off = prefs();
+        off["notifyNeedsYou"] = json!(false);
+        assert_eq!(decide_notice(&event("question", json!({ "call_id": "q", "question": "?", "choices": [] })), &off, false), None);
     }
 
     #[test]
