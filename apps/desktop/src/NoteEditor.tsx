@@ -46,7 +46,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     void check();
     window.addEventListener(KEPT_EVENT, check);
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
-  }, [review?.conversation, path]);
+    // Checked again when the page changes: a new turn's change is not kept yet.
+  }, [review?.conversation, path, notes.page?.base]); // eslint-disable-line react-hooks/exhaustive-deps
   const keepChanges = async () => {
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);

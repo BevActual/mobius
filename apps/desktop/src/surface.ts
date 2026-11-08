@@ -22,7 +22,7 @@ export interface SurfaceState {
   /** A web page is showing in the browser. */
   hasPage: boolean;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
-  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' } | null;
+  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
@@ -94,6 +94,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'What is missing?', prompt: 'Read this deck and tell me what an audience would still want to see.', attach: 'note' },
           ]
         : [{ label: 'Make a deck', prompt: 'Make a deck in my Slides about ' }];
+    case 'design':
+      return state.note
+        ? [
+            { label: 'Make a dark version', prompt: 'Add a new frame to this design, to the right of the others, that is a dark mode version of the first frame. Use the colour styles already in the design where they fit, add any new colours as styles, and check that text contrast passes AA. Keep the ids of what you leave alone; give new layers new ids.', attach: 'note' },
+            { label: 'Check contrast', prompt: 'Check the contrast of every text layer in this design against what is behind it, and list any below AA (4.5:1) with a colour that would pass. Change nothing yet.', attach: 'note' },
+            { label: 'Tidy the spacing', prompt: 'Line up the layers in this design on an 8-point grid with even spacing, changing only x, y, w and h. Keep every id.', attach: 'note' },
+          ]
+        : [{ label: 'Sketch a screen', prompt: 'Make a design in my Design app, a phone-sized frame, for ' }];
     case 'code':
       return state.code
         ? [
@@ -121,7 +129,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
 }
 
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' }): ContextItem {
+export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' }): ContextItem {
   return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 

@@ -84,7 +84,8 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     void check();
     window.addEventListener(KEPT_EVENT, check);
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
-  }, [review?.conversation, file]);
+    // Checked again when the sheet changes: a new turn's change is not kept yet.
+  }, [review?.conversation, file, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let live = true;
     if (!review || kept || !file || !data) { setChanged(new Set()); return; }

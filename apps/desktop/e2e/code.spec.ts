@@ -81,7 +81,7 @@ test('a project is real files: typed and saved, and its tests run with the comma
   // A new file, in the folder of the open one.
   await shell().getByRole('button', { name: 'New file' }).click();
   await shell().getByRole('textbox', { name: 'File name' }).fill('src/types.js');
-  await shell().getByRole('button', { name: 'Create' }).click();
+  await shell().getByRole('textbox', { name: 'File name' }).press('Enter');
   await expect(files().getByRole('treeitem', { name: 'src/types.js' })).toHaveAttribute('aria-selected', 'true');
   expect(fs.existsSync(path.join(project, 'src', 'types.js'))).toBe(true);
 });

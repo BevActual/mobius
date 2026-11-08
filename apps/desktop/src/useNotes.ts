@@ -5,7 +5,7 @@ import { onPageChanged, type SaveStatus } from './notes-state';
 const SAVE_DELAY_MS = 500;
 
 /** The page last open, so Notes (or Docs) opens on it again (after a restart too). Per device; nothing breaks without it. */
-const lastKey = (kind: 'notes' | 'docs' | 'slides') => `mobius.${kind}.last`;
+const lastKey = (kind: NotesKind) => `mobius.${kind}.last`;
 
 export interface OpenPage { path: string; title: string; base: number | null }
 
@@ -13,7 +13,8 @@ export interface OpenPage { path: string; title: string; base: number | null }
  * The Notes app's state: the notebooks, the open page and its text, and saving as the person types. Docs keeps its
  * documents the same way, in folders, so it uses this too (`kind` 'docs').
  */
-export function useNotes(kind: 'notes' | 'docs' | 'slides' = 'notes') {
+export type NotesKind = 'notes' | 'docs' | 'slides' | 'designs';
+export function useNotes(kind: NotesKind = 'notes') {
   const api = window.mobius[kind];
   const remembered = useCallback((): string | null => { try { return window.localStorage.getItem(lastKey(kind)); } catch { return null; } }, [kind]);
   const remember = useCallback((path: string | null) => {

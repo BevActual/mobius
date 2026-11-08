@@ -233,7 +233,8 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
     void check();
     window.addEventListener(KEPT_EVENT, check);
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
-  }, [review?.conversation, file]);
+    // Checked again when the file changes: a new turn's change is not kept yet.
+  }, [review?.conversation, file, code.open?.modified]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let live = true;
     if (!review || kept || !file) { setBefore(undefined); return; }

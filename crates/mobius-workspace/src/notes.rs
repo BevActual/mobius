@@ -22,6 +22,14 @@ pub struct Notes {
     workspace: PathBuf,
     /// Pages are called by their file name rather than their first heading (a deck's first slide is not its name).
     named_by_file: bool,
+    /// The pages' file extension, `md` unless another kind of file is kept this way (designs are `json`).
+    ext: &'static str,
+    /// What a new page holds, from its title.
+    starter: fn(&str) -> String,
+}
+
+fn markdown_starter(title: &str) -> String {
+    format!("# {title}\n\n")
 }
 
 /// A name a person typed, made safe to use as one file or folder name on every system.
@@ -45,13 +53,18 @@ fn modified_ms(path: &Path) -> u64 {
     fs::metadata(path).and_then(|m| m.modified()).ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
+/// What a new design holds: one empty phone-sized frame. See `apps/desktop/src/design-format.ts` for the format.
+pub fn design_starter(_title: &str) -> String {
+    "{\n  \"version\": 1,\n  \"styles\": [],\n  \"frames\": [\n    { \"id\": \"f1\", \"name\": \"Frame 1\", \"x\": 0, \"y\": 0, \"w\": 393, \"h\": 852, \"fill\": \"#ffffff\", \"radius\": 0, \"children\": [] }\n  ]\n}\n".to_owned()
+}
+
 /// A notebook name or a `notebook/page.md` path, checked by shape before it touches the disk.
 fn notebook_ok(name: &str) -> bool {
     !name.is_empty() && name == file_name_for(name) && !name.starts_with('.')
 }
-fn page_ok(path: &str) -> Option<(&str, &str)> {
+fn page_ok<'a>(path: &'a str, ext: &str) -> Option<(&'a str, &'a str)> {
     let (notebook, file) = path.split_once('/')?;
-    let stem = file.strip_suffix(".md")?;
+    let stem = file.strip_suffix(ext)?.strip_suffix('.')?;
     (notebook_ok(notebook) && !stem.is_empty() && stem == file_name_for(stem) && !file.contains('/')).then_some((notebook, file))
 }
 
@@ -63,11 +76,19 @@ impl Notes {
     /// The same kind of store in another folder of the workspace: Docs keeps its documents in `docs/<folder>/<doc>.md`.
     pub fn in_folder(workspace: impl Into<PathBuf>, checkpoint_store: impl Into<PathBuf>, folder: &str) -> Notes {
         let workspace = workspace.into();
-        Notes { root: workspace.join(folder), checkpoints: Checkpoints::new(checkpoint_store), workspace, named_by_file: false }
+        Notes { root: workspace.join(folder), checkpoints: Checkpoints::new(checkpoint_store), workspace, named_by_file: false, ext: "md", starter: markdown_starter }
     }
 
     /// Pages called by their file names, as Slides calls its decks.
     pub fn named_by_file(mut self) -> Notes {
+        self.named_by_file = true;
+        self
+    }
+
+    /// Pages that are another kind of file, such as designs kept as JSON, each new one holding `starter(title)`.
+    pub fn of_files(mut self, ext: &'static str, starter: fn(&str) -> String) -> Notes {
+        self.ext = ext;
+        self.starter = starter;
         self.named_by_file = true;
         self
     }
@@ -78,7 +99,7 @@ impl Notes {
 
     /// The real path of a page, refusing anything that is not a plain `notebook/page.md` inside the notes folder.
     fn page(&self, path: &str) -> Res<PathBuf> {
-        page_ok(path).ok_or("that is not a page")?;
+        page_ok(path, self.ext).ok_or("that is not a page")?;
         let full = self.root.join(path);
         let parent = full.parent().ok_or("that is not a page")?;
         if parent.exists() {
@@ -107,11 +128,11 @@ impl Notes {
             for entry in fs::read_dir(dir.path()).map_err(|e| e.to_string())?.filter_map(Result::ok) {
                 let file = entry.file_name().to_string_lossy().into_owned();
                 let path = format!("{name}/{file}");
-                if !entry.file_type().is_ok_and(|t| t.is_file()) || page_ok(&path).is_none() || count >= MAX_PAGES {
+                if !entry.file_type().is_ok_and(|t| t.is_file()) || page_ok(&path, self.ext).is_none() || count >= MAX_PAGES {
                     continue;
                 }
                 count += 1;
-                let stem = file.trim_end_matches(".md");
+                let stem = file.strip_suffix(self.ext).and_then(|f| f.strip_suffix('.')).unwrap_or(&file);
                 let head: String = fs::read_to_string(entry.path()).unwrap_or_default().chars().take(4000).collect();
                 let title = if self.named_by_file { stem.to_owned() } else { title_of(&head, stem) };
                 pages.push(json!({ "path": path, "title": title, "modified": modified_ms(&entry.path()) }));
@@ -172,14 +193,15 @@ impl Notes {
             return Err("that notebook is not there".into());
         }
         let stem = file_name_for(title);
-        let mut path = format!("{notebook}/{stem}.md");
+        let ext = self.ext;
+        let mut path = format!("{notebook}/{stem}.{ext}");
         let mut n = 2;
         while self.root.join(&path).exists() {
-            path = format!("{notebook}/{stem} {n}.md");
+            path = format!("{notebook}/{stem} {n}.{ext}");
             n += 1;
         }
         let shown = if title.trim().is_empty() { "Untitled" } else { title.trim() };
-        let content = format!("# {shown}\n\n");
+        let content = (self.starter)(shown);
         let file = self.page(&path)?;
         fs::OpenOptions::new().write(true).create_new(true).open(&file).and_then(|mut f| std::io::Write::write_all(&mut f, content.as_bytes())).map_err(|e| e.to_string())?;
         Ok(json!({ "path": path, "content": content, "modified": modified_ms(&file) }))
@@ -353,5 +375,20 @@ mod tests {
         assert_eq!(hits[1]["line"], "buy oat milk");
         assert_eq!(n.search("oat milk").unwrap().as_array().unwrap().len(), 1);
         assert_eq!(n.search("   ").unwrap(), json!([]));
+    }
+
+    #[test]
+    fn other_kinds_of_file_are_kept_the_same_way() {
+        let dir = TempDir::new().unwrap();
+        let designs = Notes::in_folder(dir.path().join("work"), dir.path().join("store"), "designs").of_files("json", design_starter);
+        designs.create_notebook("Trip app").unwrap();
+        let made = designs.create_page("Trip app", "Home").unwrap();
+        assert_eq!(made["path"], "Trip app/Home.json");
+        assert!(made["content"].as_str().unwrap().contains("\"frames\""));
+        std::fs::write(dir.path().join("work/designs/Trip app/notes.md"), "# not a design").unwrap();
+        let list = designs.list().unwrap();
+        assert_eq!(list[0]["pages"].as_array().unwrap().len(), 1);
+        assert_eq!(list[0]["pages"][0]["title"], "Home");
+        assert!(designs.read("Trip app/notes.md").is_err());
     }
 }

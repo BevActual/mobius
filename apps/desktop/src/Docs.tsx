@@ -211,7 +211,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
     void check();
     window.addEventListener(KEPT_EVENT, check);
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
-  }, [review?.conversation, path]);
+    // Checked again when the page changes: a new turn's change is not kept yet.
+  }, [review?.conversation, path, docs.page?.base]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setDiff(null); setBefore(null); setProblem(null); }, [path, review?.conversation]);
   const compare = (was: string | null, now: string): DiffLine[] => (was === null ? now.split('\n').map((text) => ({ kind: 'added' as const, text })) : diffLines(was, now));
   // Proposals show on their own once the agent has changed the open document.

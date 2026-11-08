@@ -107,7 +107,8 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
     void check();
     window.addEventListener(KEPT_EVENT, check);
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
-  }, [review?.conversation, path]);
+    // Checked again when the page changes: a new turn's change is not kept yet.
+  }, [review?.conversation, path, deck.page?.base]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let live = true;
     if (!review || kept || !path) { setChanged(new Set()); return; }
