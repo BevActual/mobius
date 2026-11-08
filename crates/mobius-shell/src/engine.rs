@@ -23,6 +23,25 @@ fn later(work: impl FnOnce() + Send + 'static) {
     std::thread::spawn(work);
 }
 
+type Job = Box<dyn FnOnce() + Send>;
+
+/// Like `later`, but jobs run one after another in the order they were given, on one thread. A page's events (it
+/// started loading, it finished, its title) must land in order: on threads of their own, "finished" could be applied
+/// before "started", and the tab stayed loading, so the agent's browser.open waited out its whole time.
+fn in_order(work: impl FnOnce() + Send + 'static) {
+    static QUEUE: OnceLock<Mutex<std::sync::mpsc::Sender<Job>>> = OnceLock::new();
+    let queue = QUEUE.get_or_init(|| {
+        let (send, receive) = std::sync::mpsc::channel::<Job>();
+        std::thread::spawn(move || {
+            for job in receive {
+                job();
+            }
+        });
+        Mutex::new(send)
+    });
+    let _ = lock(queue).send(Box::new(work));
+}
+
 pub struct WebViewEngine {
     window: Window<Wry>,
     browser: Arc<OnceLock<Weak<Browser>>>,
@@ -150,7 +169,7 @@ impl Engine for WebViewEngine {
                 let allowed = weak_browser(&nav_slot).is_none_or(|b| b.allows_navigation(target.as_str()));
                 if allowed && let Some(b) = weak_browser(&nav_slot) {
                     let (id, url) = (nav_id.clone(), target.to_string());
-                    later(move || {
+                    in_order(move || {
                         b.navigated(&id, &url, false, false);
                         b.loading(&id, true);
                     });
@@ -160,7 +179,7 @@ impl Engine for WebViewEngine {
             .on_page_load(move |webview, payload| {
                 let Some(b) = weak_browser(&load_slot) else { return };
                 let (id, url, finished) = (load_id.clone(), payload.url().to_string(), payload.event() == PageLoadEvent::Finished);
-                later(move || {
+                in_order(move || {
                     #[cfg(windows)]
                     let (back, forward) = crate::cdp::history(&webview);
                     #[cfg(target_os = "linux")]
@@ -170,7 +189,8 @@ impl Engine for WebViewEngine {
                     b.navigated(&id, &url, back, forward);
                     if finished {
                         b.finished(&id);
-                        fetch_icon(&b, &id, &url);
+                        // Reading the page and fetching its icon can take a while: not in the queue.
+                        later(move || fetch_icon(&b, &id, &url));
                     } else {
                         b.loading(&id, true);
                     }
@@ -179,13 +199,13 @@ impl Engine for WebViewEngine {
             .on_document_title_changed(move |_, title| {
                 if let Some(b) = weak_browser(&title_slot) {
                     let id = title_id.clone();
-                    later(move || b.titled(&id, &title));
+                    in_order(move || b.titled(&id, &title));
                 }
             })
             .on_new_window(move |target, _| {
                 if let Some(b) = weak_browser(&window_slot) {
                     let target = target.to_string();
-                    later(move || b.new_window(&target));
+                    in_order(move || b.new_window(&target));
                 }
                 NewWindowResponse::Deny
             });
