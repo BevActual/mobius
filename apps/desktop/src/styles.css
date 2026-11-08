@@ -2132,3 +2132,15 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .code-proc[data-running] .code-proc-dot { background: var(--success); }
 .code-proc pre { margin: 4px 0 0; max-height: 7.5em; overflow: auto; white-space: pre-wrap; color: var(--muted); font: inherit; }
 .code-keep { display: flex; align-items: center; gap: 4px; font: var(--fs-xs) var(--font); color: var(--muted); white-space: nowrap; }
+
+/* A new tab's start page: favourites, the sites visited most, and the reading list. */
+.stage .start-page { position: absolute; inset: 0; z-index: 1; overflow-y: auto; background: var(--bg); }
+.start-inner { width: min(760px, calc(100% - 48px)); margin: 8vh auto 48px; display: flex; flex-direction: column; gap: var(--sp-5); }
+.start-hint, .start-empty { margin: 0; color: var(--muted); text-align: center; }
+.start-heading { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
+.start-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--sp-2); }
+.start-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border-radius: 12px; color: inherit; }
+.start-tile-mark { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 12px; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); font-size: 22px; font-weight: 600; color: var(--ink); }
+.start-tile-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); }
+.start-reading { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.start-reading button { width: 100%; padding: 8px 10px; border-radius: 8px; text-align: left; color: inherit; }

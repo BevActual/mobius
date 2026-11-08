@@ -50,6 +50,7 @@ import { useDatabases } from './useDatabases';
 import { TerminalPage, TerminalSidebar } from './Terminal';
 import { useTerminal } from './useTerminal';
 import { ReviewPage, ReviewSidebar, useReview } from './Review';
+import { StartPage } from './StartPage';
 import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
@@ -342,6 +343,8 @@ export function App() {
   const needsYou = conversation.list.reduce((sum, c) => sum + c.waiting, 0);
   const { settings, save: saveSettings, reload: reloadSettings } = useAgentSettings();
   const active = browser.tabs.find((tab) => tab.active);
+  // The start page's own title says it is there even where its loading never reports done (WebKitGTK).
+  const onStartPage = active !== undefined && active.url === '' && (!active.loading || active.title === 'New tab');
   const saved = active !== undefined && bookmarks.some((b) => b.url === active.url);
   const surface: SurfaceState = {
     app,
@@ -1098,7 +1101,9 @@ export function App() {
         return (
           <>
             {cover?.url && <img className="page-cover" src={cover.url} alt="" data-testid="page-cover" />}
-            <SurfaceSlot hidden={launcherOpen || hubOpen || settingsOpen || cover !== null} />
+            {/* A new tab shows Mobius's own start page; the page view is hidden until an address is opened. */}
+            {onStartPage && <StartPage onOpen={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); }} onRead={(path, title) => { openApp('reader'); void reading.open(path, title); }} />}
+            <SurfaceSlot hidden={launcherOpen || hubOpen || settingsOpen || cover !== null || onStartPage} />
           </>
         );
       case 'notes':

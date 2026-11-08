@@ -90,16 +90,23 @@ test('window.open becomes a new tab for web addresses only, and pages cannot nav
   expect((await views(mobius.app)).find((v) => v.id === first!.id)!.url).toBe(fixture.origin + '/');
 });
 
-test('only the active tab is visible, and closing the last tab opens a fresh one', async () => {
+test('a new tab shows the start page instead of a page view, and closing the last tab opens a fresh one', async () => {
   await mobius.shell.getByRole('button', { name: 'New tab' }).click();
   await expect(tabTitles()).toHaveCount(2);
-  expect((await views(mobius.app)).filter((v) => v.visible)).toHaveLength(1);
-  await mobius.shell.getByRole('button', { name: 'Close Fixture home' }).click();
+  // Mobius draws the start page itself: no page view shows, so nothing of it reaches a web page.
+  const start = mobius.shell.getByRole('region', { name: 'New tab' });
+  await expect(start).toBeVisible();
+  await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(0);
+  // The site visited before is offered, and opens in this tab.
+  const host = new URL(fixture.origin).hostname;
+  await start.getByRole('region', { name: 'Frequently visited' }).getByRole('button', { name: host }).click();
+  await expect(start).toBeHidden();
+  await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(1);
+  await mobius.shell.getByRole('button', { name: 'Close Fixture home' }).first().click();
   await expect(tabTitles()).toHaveCount(1);
   await mobius.shell.getByRole('button', { name: /^Close / }).click();
   await expect(tabTitles()).toHaveCount(1);
-  // The page is placed again a moment after the list changes, so look until it is there.
-  await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(1);
+  await expect(mobius.shell.getByRole('region', { name: 'New tab' })).toBeVisible();
 });
 
 test('the launcher hides the native page while open and returns focus on Escape', async () => {

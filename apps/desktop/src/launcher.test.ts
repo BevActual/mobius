@@ -9,3 +9,11 @@ describe('launcher', () => {
     expect(rankApps([{ id: 'browser', name: 'Browser' }, { id: 'reader', name: 'Reader' }] as const, 'r', []).map((a) => a.id)).toEqual(['reader', 'browser']);
   });
 });
+
+import { frequentSites } from './StartPage';
+describe('start page', () => {
+  it('offers the sites visited most, once each', () => {
+    const h = (url: string) => ({ url, title: url, at: 0 });
+    expect(frequentSites([h('https://a.example/1'), h('https://www.b.example/'), h('https://a.example/2'), h('mobius:x')] as never).map((s) => s.site)).toEqual(['a.example', 'b.example']);
+  });
+});
