@@ -231,5 +231,5 @@ test('bots can be moved up and down, Mobius stays first, and the order is kept',
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openApp('Agent');
   await tab('Bots').click();
-  expect(await names()).toEqual(['Mobius', 'Gamma', 'Alpha', 'Beta']);
+  await expect.poll(names).toEqual(['Mobius', 'Gamma', 'Alpha', 'Beta']);
 });
