@@ -58,6 +58,22 @@ fn read_bounded_line(reader: &mut impl BufRead) -> io::Result<Line> {
     }
 }
 
+/// Searching past conversations. It reads the saved conversations on its own connection, so it never waits on a turn.
+fn register_session_search(core: &mut Core, path: PathBuf) -> Result<(), mobius_core::core::CoreError> {
+    let spec = ToolSpec::new(
+        "sessions.search",
+        "Search the person's past conversations with Mobius for words that were said in them (not tool output). Returns the matching conversations, newest first, each with a short snippet. Use it when they refer to something discussed before.",
+        "sessions.read",
+    )?
+    .with_input_schema(json!({ "type": "object", "properties": { "query": { "type": "string", "description": "Words to look for; every word must appear." } }, "required": ["query"] }));
+    core.register_tool(spec, Box::new(move |args| {
+        let query = args.get("query").and_then(serde_json::Value::as_str).ok_or("query is required")?;
+        let store = SqliteStore::open(&path).map_err(|e| format!("past conversations cannot be read: {e}"))?;
+        let all = store.load_all(500).map_err(|e| format!("past conversations cannot be read: {e}"))?;
+        Ok(mobius_agent::sessions::search(&all, query, None))
+    }))
+}
+
 fn register_demo_tools(core: &mut Core) -> Result<(), mobius_core::core::CoreError> {
     let spec = |name: &str, description: &str, capability: &str| ToolSpec::new(name, description, capability);
     core.register_tool(spec("demo.echo", "Returns its arguments.", "demo.echo")?, Box::new(|args| Ok(json!({ "echo": args.clone() }))))?;
@@ -168,6 +184,11 @@ fn main() -> ExitCode {
     if let Err(error) = register_builtin_tools(&mut core) {
         eprintln!("mobius-cored: cannot register built-in tools: {error}");
         return ExitCode::from(1);
+    }
+    if let Some(path) = &conversations
+        && let Err(error) = register_session_search(&mut core, path.clone())
+    {
+        eprintln!("mobius-cored: cannot register session search: {error}");
     }
     if demo_tools && let Err(error) = register_demo_tools(&mut core) {
         eprintln!("mobius-cored: cannot register demo tools: {error}");

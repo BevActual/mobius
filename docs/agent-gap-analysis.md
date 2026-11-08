@@ -17,7 +17,7 @@ built and tested; "partly" means a first version exists. Hermes is the reference
 | Todo / plan list | `todo_tool.py` | `todo.write`, answered by the engine (no approval), shown as a Plan card | have |
 | Clarify (ask the person a question) | `clarify_tool.py` | `ask.person` with up to 6 choices or free text; the turn waits, the question survives a window reload | have (no timeout) |
 | Persistent memory | `memory_tool.py` | `memory.remember` / `memory.forget` (capability `memory.write`, so asked first by default), kept in `memory.md` in the data folder and added to every turn's instructions; Settings › Safety › Memory lists it with Forget | have (one list, no user/agent split) |
-| Search past sessions | `session_search_tool.py` | none | gap |
+| Search past sessions | `session_search_tool.py` | `sessions.search` (capability `sessions.read`): every word must have been said by the person or Mobius (not tool output, not attachments); newest first with a snippet | have |
 | Web search and page extraction | web tools | none | gap |
 | Skills (procedures the agent keeps) | `skills_*` | none | later |
 | Subagents / delegation | `delegate_tool*.py` | none | later |
@@ -30,5 +30,5 @@ built and tested; "partly" means a first version exists. Hermes is the reference
 1. Tool registry as the single surface, with an MCP client behind it (everything below registers there).
 2. File tools over workspaces, wired to checkpoints, gated by the approval modes. First user: Notes.
 3. ~~Context compression~~, ~~todo and clarify~~ (done).
-4. ~~Memory~~ (done), session search. Web search and extract.
+4. ~~Memory~~, ~~session search~~ (done). Web search and extract.
 5. Terminal, then skills, subagents and scheduled jobs.
