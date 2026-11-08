@@ -78,7 +78,19 @@ The Mobius Agent design canvas (Mobius 2 boards) is the reference for what follo
 - **Profiles**: separate sets of data (Personal, Work…), switched in Settings › Advanced › Profiles or File › Profiles…;
   models are shared. Each reply says what it was **based on**.
 
-Not built yet from the canvas: Look at this (sharing a window), Show Mobius (camera), trust marks on what
+The apps on the canvas, each keeping its data as ordinary files other apps can open, with the agent beside it:
+
+- **Calendar** (`calendar/*.ics`): day, week and month; subscribed links and CalDAV accounts (iCloud, Fastmail,
+  Nextcloud) beside the person's own calendars; Mobius's suggestions dashed with Decline and Add. Google and Microsoft
+  sign-in need app registrations (`docs/calendar-sign-in.md`).
+- **Docs** (`docs/<folder>/*.md`): a page with formatting, an outline, writing tools, and the agent's changes as
+  proposals in the page.
+- **Sheets** (`sheets/<workbook>/*.csv`): formulas worked out in Rust for the window and the agent alike; cells the
+  agent changed are marked until kept or discarded.
+- **Mail** (mirrored to the data folder): app-password accounts, categories sorted here, a reader that loads nothing
+  from the web, and suggested replies. Only the person sends.
+
+Not built yet from the canvas: Slides, Look at this (sharing a window), Show Mobius (camera), trust marks on what
 Mobius says, and a history of turns older than each conversation's last.
 
 ## Linux
