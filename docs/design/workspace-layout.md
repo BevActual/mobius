@@ -104,8 +104,11 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 - **Video** (`video/<project>/`): clips never changed, `cut.json` of shots; the viewer plays clips from the shell's
   `media` address.
 
-Not built yet from the canvas: Look at this (sharing a window), Show Mobius (camera), and a history of turns older
-than each conversation's last.
+- **Earlier changes**: under the review strip, every earlier turn that changed something, with what was asked; each
+  item put back as it was before its turn, asking first if it changed again since (`turn-history.json`).
+
+Not built yet from the canvas: Look at this (sharing a window) and Show Mobius (camera). Both need a model that reads
+pictures; the context Mobius sends today is text.
 
 ## Linux
 
