@@ -40,8 +40,13 @@ const list = (): Locator => shell().getByRole('complementary', { name: 'Conversa
 const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
 const say = async (text: string) => {
   await expect(shell().getByRole('button', { name: 'Stop' })).toHaveCount(0);
-  await composer().fill(text);
-  await composer().press('Enter');
+  // A bot's new session can open just after the text is typed and start with an empty box: type it again then.
+  await expect(async () => {
+    if ((await log().locator('.msg.user').filter({ hasText: text }).count()) > 0) return;
+    await composer().fill(text);
+    await composer().press('Enter');
+    await expect(log().locator('.msg.user').filter({ hasText: text })).toHaveCount(1, { timeout: 2000 });
+  }).toPass({ timeout: 15_000 });
 };
 const tab = (name: string) => list().getByRole('tab', { name });
 async function newBot(name: string, instructions = '', modelName = ''): Promise<void> {
