@@ -122,6 +122,12 @@ impl Workspace {
         self.checkpoints.changed_since(&root, checkpoint).map_err(|e| e.to_string())
     }
 
+    /// Files that differ between two checkpoints: what one turn changed, from its start to its end.
+    pub fn changed_between(&self, from: &str, to: &str) -> Res<Vec<String>> {
+        let root = self.real_root()?;
+        self.checkpoints.changed_between(&root, from, to).map_err(|e| e.to_string())
+    }
+
     /// A file's text as it was at `checkpoint`, or `None` when it was not there.
     pub fn read_at(&self, checkpoint: &str, path: &str) -> Res<Option<String>> {
         let root = self.real_root()?;

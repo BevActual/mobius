@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TurnChanges } from '@mobius/shared';
+import type { TurnChanges, TurnRecord } from '@mobius/shared';
 
 /** How a workspace path reads to a person: notes and task lists by name, other files by their path. */
 export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' | 'Tasks' | 'Calendar' | 'Code' | 'Design' | 'Photo' | 'Song' | 'Cut' | 'File'; name: string } {
@@ -143,6 +143,85 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
             );
           })}
         </ul>
+      )}
+      {problem && <p className="review-problem" role="alert">{problem}</p>}
+    </section>
+  );
+}
+
+const when = (ms: number) => {
+  const d = new Date(ms);
+  const today = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return d.toDateString() === today.toDateString() ? time : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+};
+
+/**
+ * Every earlier turn of the conversation that changed something, newest first: what was asked, what it changed, and
+ * each item put back as it was before that turn. Something changed again since asks once more before it is put back.
+ */
+export function TurnHistory({ conversation, busy }: { conversation: string; busy: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [turns, setTurns] = useState<TurnRecord[]>([]);
+  const [asking, setAsking] = useState<{ start: string; path: string; why: string } | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const result = await window.mobius.changes?.turns?.(conversation).catch(() => null);
+    setTurns(result && result.ok ? result.turns.filter((t) => t.files.length > 0) : []);
+  }, [conversation]);
+  useEffect(() => { setOpen(false); setAsking(null); setProblem(null); }, [conversation]);
+  useEffect(() => { if (!busy) void load(); }, [busy, load]);
+  // The newest turn is the one the review strip shows; this lists the ones before it.
+  const older = turns.slice(1);
+  if (busy || older.length === 0) return null;
+  const undo = async (start: string, path: string, force = false) => {
+    setProblem(null);
+    const result = await window.mobius.changes.undoTurnFile(conversation, start, path, force).catch(() => ({ ok: false as const, error: 'That could not be put back.' }));
+    if (!result.ok) {
+      if ('later' in result && result.later) setAsking({ start, path, why: result.error });
+      else setProblem(result.error);
+      return;
+    }
+    setAsking(null);
+    await load();
+  };
+  return (
+    <section className="turn-history" aria-label="Earlier changes">
+      <button type="button" className="review-btn turn-history-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {open ? 'Hide earlier changes' : `Earlier changes · ${older.length === 1 ? '1 turn' : `${older.length} turns`}`}
+      </button>
+      {open && (
+        <ol className="turn-history-list">
+          {older.map((t) => (
+            <li key={`${t.start}-${t.when}`} className="turn-history-turn" aria-label={`Turn at ${when(t.when)}`}>
+              <div className="turn-history-head">
+                <span className="turn-history-ask">{t.ask ? `“${t.ask}”` : 'A turn'}</span>
+                <span className="turn-history-when">{when(t.when)}</span>
+              </div>
+              <ul className="review-list">
+                {t.files.map((path) => {
+                  const { kind, name } = describeChange(path);
+                  const here = asking?.start === t.start && asking.path === path;
+                  return (
+                    <li key={path} className="review-item">
+                      <span className="review-kind">{kind}</span>
+                      <span className="review-name" title={path}>{name}</span>
+                      {here ? (
+                        <>
+                          <span className="turn-history-warn" role="alert">{asking.why}</span>
+                          <button type="button" className="review-btn" onClick={() => setAsking(null)}>Leave it</button>
+                          <button type="button" className="review-btn" data-kind="keep" onClick={() => void undo(t.start, path, true)}>Put back anyway</button>
+                        </>
+                      ) : (
+                        <button type="button" className="review-btn" aria-label={`Put back ${name} as it was before this turn`} onClick={() => void undo(t.start, path)}>Put back</button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </li>
+          ))}
+        </ol>
       )}
       {problem && <p className="review-problem" role="alert">{problem}</p>}
     </section>

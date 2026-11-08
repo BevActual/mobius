@@ -177,6 +177,8 @@ export interface PhotosChanged { path: string | null; by: 'person' | 'assistant'
 /** A Video project: its clips (footage, never changed) and whether it has a cut yet. */
 export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio' }[]; hasCut: boolean }
 export interface VideoChanged { project: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+/** One agent turn: the checkpoint before it, whether its end was marked, when, what was asked, and what it changed. */
+export interface TurnRecord { start: string; ended: boolean; when: number; ask: string; files: string[] }
 export interface CodeEntry { path: string; folder: boolean; depth: number }
 export interface CodeFile { project: string; path: string; text: string | null; why?: string; modified: number }
 export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean }
@@ -231,6 +233,12 @@ export interface MobiusBridge {
     undoFile(conversation: string, path: string): Promise<{ ok: true } | AgentFailure>;
     /** A file as it was before the last turn: `text` is null when the turn made it. */
     before(conversation: string, path: string): Promise<{ ok: true; text: string | null } | AgentFailure>;
+    /** Every turn of the conversation, newest first, with what each changed between its start and its end. */
+    turns(conversation: string): Promise<{ ok: true; turns: TurnRecord[] } | AgentFailure>;
+    /** A file as it was before one turn (`start` names it); `text` is null when that turn made it. */
+    turnBefore(conversation: string, start: string, path: string): Promise<{ ok: true; text: string | null } | AgentFailure>;
+    /** Puts one file back as it was before one turn. Refused with `later` when it changed again after that turn, unless `force`. */
+    undoTurnFile(conversation: string, start: string, path: string, force?: boolean): Promise<{ ok: true } | (AgentFailure & { later?: boolean })>;
   };
   /** Little Mobius: a small window, kept above other apps, with the conversation and nothing else. */
   mini: {

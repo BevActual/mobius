@@ -148,6 +148,8 @@ pub struct Bridge {
     workspace: mobius_workspace::files::Workspace,
     /// For each conversation, the checkpoint taken when its last turn began: what that turn changed, and the way back.
     turn_marks: Mutex<std::collections::HashMap<String, String>>,
+    /// Every turn's checkpoints, not only the last, so older turns can be looked at and put back too.
+    turn_history: crate::turn_history::TurnHistory,
     /// Tools from other programs the person set up (MCP servers).
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
@@ -265,6 +267,7 @@ impl Bridge {
             core,
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
+            turn_history: crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json")),
             turn_marks: Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default()),
             mcp: Arc::default(),
             providers: crate::providers::Providers::new(secrets.clone()),
@@ -1058,8 +1061,9 @@ impl Bridge {
         match self.workspace.mark("before a scheduled request") {
             Ok(Some(mark)) => {
                 let mut marks = lock(&self.turn_marks);
-                marks.insert(conversation.clone(), mark);
+                marks.insert(conversation.clone(), mark.clone());
                 mobius_store::file::write_json(&self.data_dir.join("turn-marks.json"), &json!(*marks));
+                self.turn_history.started(&conversation, &mark, &schedule.prompt);
             }
             Ok(None) => {}
             Err(error) => eprintln!("[changes] no mark before the scheduled request: {error}"),
@@ -1768,38 +1772,93 @@ impl Bridge {
     }
 
     /// What the last agent turn of a conversation changed in the workspace, and putting it back.
+    /// Open pages and lists reload with what was put back; `undo` adds no new marks.
+    fn reload_after_undo(&self, path: Option<&str>) {
+        let note = path.and_then(|p| p.strip_prefix("notes/"));
+        let list = path.and_then(|p| p.strip_prefix("tasks/")).and_then(|p| p.strip_suffix(".md"));
+        (self.emit)("mobius:notes-changed", json!({ "path": note, "by": "undo" }));
+        (self.emit)("mobius:docs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("docs/")), "by": "undo" }));
+        (self.emit)("mobius:slides-changed", json!({ "path": path.and_then(|p| p.strip_prefix("slides/")), "by": "undo" }));
+        (self.emit)("mobius:designs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("designs/")), "by": "undo" }));
+        (self.emit)("mobius:songs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("studio/")), "by": "undo" }));
+        (self.emit)("mobius:video-changed", json!({ "project": path.and_then(|p| p.strip_prefix("video/")).and_then(|p| p.split('/').next()), "by": "undo" }));
+        (self.emit)("mobius:photos-changed", json!({ "path": path.and_then(|p| p.strip_prefix("photos/")).map(|p| p.strip_suffix(mobius_workspace::photos::EDITS_SUFFIX).unwrap_or(p)), "by": "undo" }));
+        (self.emit)("mobius:sheets-changed", json!({ "workbook": path.and_then(|p| p.strip_prefix("sheets/")).and_then(|p| p.split('/').next()), "by": "undo" }));
+        (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "undo" }));
+        if path.is_none_or(|p| p.starts_with("code/")) {
+            let inner = path.and_then(|p| p.strip_prefix("code/")).and_then(|p| p.split_once('/'));
+            (self.emit)("mobius:code-changed", json!({ "project": inner.map(|i| i.0), "path": inner.map(|i| i.1), "by": "undo" }));
+        }
+        if path.is_none_or(|p| p.starts_with("calendar/")) {
+            (self.emit)("mobius:calendar-changed", json!({ "calendar": path.and_then(|p| p.strip_prefix("calendar/")).and_then(|p| p.strip_suffix(".ics")), "by": "undo" }));
+        }
+    }
+
+    /// Every turn of a conversation, newest first, with what each changed; a file as it was before one; and one file
+    /// put back as it was before one, which says so first if it changed again since that turn ended.
+    fn older_turns_call(&self, method: &str, conversation: &str, args: &[Value]) -> Option<Value> {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let turn = || text(1).and_then(|start| self.turn_history.find(conversation, start));
+        Some(match method {
+            "turns" => {
+                let turns: Vec<Value> = self
+                    .turn_history
+                    .turns(conversation)
+                    .into_iter()
+                    .filter_map(|t| {
+                        let files = match &t.end {
+                            Some(end) => self.workspace.changed_between(&t.start, end),
+                            None => self.workspace.changed_since(&t.start),
+                        }
+                        .ok()?;
+                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": files }))
+                    })
+                    .collect();
+                json!({ "ok": true, "turns": turns })
+            }
+            "turnBefore" => match (turn(), text(2)) {
+                (Some(t), Some(path)) => match self.workspace.read_at(&t.start, path) {
+                    Ok(text) => json!({ "ok": true, "text": text }),
+                    Err(e) => failed(e),
+                },
+                _ => failed("That turn is not known."),
+            },
+            "undoTurnFile" => match (turn(), text(2)) {
+                (Some(t), Some(path)) => {
+                    let force = args.get(3).and_then(Value::as_bool) == Some(true);
+                    let later = t.end.as_deref().and_then(|end| self.workspace.changed_since(end).ok()).is_some_and(|f| f.iter().any(|p| p == path));
+                    if later && !force {
+                        json!({ "ok": false, "later": true, "error": "This changed again after that turn. Putting it back would lose those changes too." })
+                    } else {
+                        match self.workspace.restore_file(&t.start, path) {
+                            Ok(()) => {
+                                self.reload_after_undo(Some(path));
+                                json!({ "ok": true })
+                            }
+                            Err(e) => failed(e),
+                        }
+                    }
+                }
+                _ => failed("That turn is not known."),
+            },
+            _ => return None,
+        })
+    }
+
     fn changes_call(&self, method: &str, args: &[Value]) -> Out {
         let arg = |i: usize| args.get(i).unwrap_or(&Value::Null);
         let Some(conversation) = arg(0).as_str().filter(|c| is_conversation_id(c)) else {
             return Ok(failed("That conversation is not known."));
         };
+        if let Some(out) = self.older_turns_call(method, conversation, args) {
+            return Ok(out);
+        }
         let mark = lock(&self.turn_marks).get(conversation).cloned();
         let Some(mark) = mark else {
             return Ok(match method {
                 "lastTurn" => json!({ "checkpoint": null, "files": [] }),
                 _ => failed("There is nothing to undo."),
             });
-        };
-        // Open pages and lists reload with what was put back; `undo` adds no new marks.
-        let reload = |path: Option<&str>| {
-            let note = path.and_then(|p| p.strip_prefix("notes/"));
-            let list = path.and_then(|p| p.strip_prefix("tasks/")).and_then(|p| p.strip_suffix(".md"));
-            (self.emit)("mobius:notes-changed", json!({ "path": note, "by": "undo" }));
-            (self.emit)("mobius:docs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("docs/")), "by": "undo" }));
-            (self.emit)("mobius:slides-changed", json!({ "path": path.and_then(|p| p.strip_prefix("slides/")), "by": "undo" }));
-            (self.emit)("mobius:designs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("designs/")), "by": "undo" }));
-            (self.emit)("mobius:songs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("studio/")), "by": "undo" }));
-            (self.emit)("mobius:video-changed", json!({ "project": path.and_then(|p| p.strip_prefix("video/")).and_then(|p| p.split('/').next()), "by": "undo" }));
-            (self.emit)("mobius:photos-changed", json!({ "path": path.and_then(|p| p.strip_prefix("photos/")).map(|p| p.strip_suffix(mobius_workspace::photos::EDITS_SUFFIX).unwrap_or(p)), "by": "undo" }));
-            (self.emit)("mobius:sheets-changed", json!({ "workbook": path.and_then(|p| p.strip_prefix("sheets/")).and_then(|p| p.split('/').next()), "by": "undo" }));
-            (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "undo" }));
-            if path.is_none_or(|p| p.starts_with("code/")) {
-                let inner = path.and_then(|p| p.strip_prefix("code/")).and_then(|p| p.split_once('/'));
-                (self.emit)("mobius:code-changed", json!({ "project": inner.map(|i| i.0), "path": inner.map(|i| i.1), "by": "undo" }));
-            }
-            if path.is_none_or(|p| p.starts_with("calendar/")) {
-                (self.emit)("mobius:calendar-changed", json!({ "calendar": path.and_then(|p| p.strip_prefix("calendar/")).and_then(|p| p.strip_suffix(".ics")), "by": "undo" }));
-            }
         };
         Ok(match method {
             "lastTurn" => match self.workspace.changed_since(&mark) {
@@ -1808,7 +1867,7 @@ impl Bridge {
             },
             "undo" => match self.workspace.restore(&mark) {
                 Ok(()) => {
-                    reload(None);
+                    self.reload_after_undo(None);
                     json!({ "ok": true })
                 }
                 Err(e) => failed(e),
@@ -1824,7 +1883,7 @@ impl Bridge {
             "undoFile" => match arg(1).as_str() {
                 Some(path) => match self.workspace.restore_file(&mark, path) {
                     Ok(()) => {
-                        reload(Some(path));
+                        self.reload_after_undo(Some(path));
                         json!({ "ok": true })
                     }
                     Err(e) => failed(e),
@@ -1864,8 +1923,9 @@ impl Bridge {
                         match self.workspace.mark("before the agent's turn") {
                             Ok(Some(mark)) => {
                                 let mut marks = lock(&self.turn_marks);
-                                marks.insert(r.conversation.clone(), mark);
+                                marks.insert(r.conversation.clone(), mark.clone());
                                 mobius_store::file::write_json(&self.data_dir.join("turn-marks.json"), &json!(*marks));
+                                self.turn_history.started(&r.conversation, &mark, &r.text);
                             }
                             Ok(None) => {}
                             // The turn still goes ahead; it just cannot be reviewed or undone as one.
@@ -1990,6 +2050,14 @@ impl Bridge {
             return;
         }
         if let Some(n) = agent::parse_notification(method, params) {
+            // A turn's end is marked too, so what it changed stays apart from what came after.
+            let kind = n["params"]["event"]["kind"].as_str().unwrap_or("");
+            if let Some(conversation) = n["params"]["conversation"].as_str().filter(|_| matches!(kind, "done" | "cancelled" | "failed"))
+                && self.turn_history.running(conversation)
+                && let Ok(Some(end)) = self.workspace.mark("after the agent's turn")
+            {
+                self.turn_history.ended(conversation, &end);
+            }
             (self.emit)("mobius:agent-notification", n.clone());
             if let Some(awake) = lock(&self.keep_awake).as_mut() {
                 awake.note(&n);

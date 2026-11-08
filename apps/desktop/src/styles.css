@@ -1706,3 +1706,14 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .video-clip { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; font-size: var(--fs-sm); }
 .video-clip-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .video-clip-len { color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+
+/* Earlier turns' changes, under the review strip. */
+.turn-history { margin: 4px 0 0; }
+.turn-history-toggle { color: var(--muted); }
+.turn-history-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.turn-history-turn { padding: 8px 10px; border-radius: var(--radius-panel); background: var(--panel); border: 1px solid var(--line); }
+.turn-history-head { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-sm); }
+.turn-history-ask { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.turn-history-when { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
+.turn-history-warn { flex-basis: 100%; color: var(--warning); font-size: var(--fs-xs); }
+.turn-history .review-item { flex-wrap: wrap; }

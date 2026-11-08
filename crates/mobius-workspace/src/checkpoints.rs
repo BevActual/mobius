@@ -245,6 +245,16 @@ impl Checkpoints {
     }
 
     /// Files that differ between `checkpoint` and the folder now: added, changed or removed since.
+    /// Files that differ between two checkpoints.
+    pub fn changed_between(&self, folder: &Path, from: &str, to: &str) -> Result<Vec<String>, Error> {
+        let _one = one_at_a_time();
+        let (folder, id) = self.prepare(folder)?;
+        let a = self.known(&folder, &id, from)?;
+        let b = self.known(&folder, &id, to)?;
+        let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &a, &b])?;
+        Ok(out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect())
+    }
+
     pub fn changed_since(&self, folder: &Path, checkpoint: &str) -> Result<Vec<String>, Error> {
         let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;

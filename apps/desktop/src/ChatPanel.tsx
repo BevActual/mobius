@@ -6,7 +6,7 @@ import { stepTag } from './step-access';
 import { usePreferences } from './usePreferences';
 import { ClaimChecks, RichText } from './RichText';
 import { unsureClaims, withoutMarks } from './markdown';
-import { ReviewStrip } from './ReviewStrip';
+import { ReviewStrip, TurnHistory } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
 import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
@@ -494,6 +494,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
             )}
           </div>
           <ReviewStrip conversation={state.conversation} busy={state.busy} />
+          <TurnHistory conversation={state.conversation} busy={state.busy} />
           <Composer
             takeFocus={takeFocus}
             draft={draft}

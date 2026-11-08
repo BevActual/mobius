@@ -116,6 +116,44 @@ test('what the last turn changed can be reviewed and undone', async () => {
   expect(fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
 });
 
+test('earlier turns keep what they changed, each item put back as it was before its turn', async () => {
+  fs.mkdirSync(workspace('notes', 'Work'), { recursive: true });
+  fs.writeFileSync(workspace('notes', 'Work', 'Plan.md'), '# Plan\n');
+  await start([
+    callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.']),
+    callsTool('files-write', { path: 'notes/Work/Plan.md', content: '# Plan\n\n- Venue\n' }), says(['Added the venue.']),
+    callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n\n- Boat trip\n' }), says(['Added an idea.']),
+  ]);
+  const turn = async (ask: string, reply: string) => {
+    await composer().fill(ask);
+    await composer().press('Enter');
+    await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
+    await expect(log().locator('.msg.assistant').last()).toHaveText(reply);
+  };
+  await turn('make an ideas page', 'Made it.');
+  await turn('add the venue to the plan', 'Added the venue.');
+  const earlier = shell().getByRole('region', { name: 'Earlier changes' });
+  await earlier.getByRole('button', { name: 'Earlier changes · 1 turn' }).click();
+  await expect(earlier.getByRole('listitem').first()).toContainText('“make an ideas page”');
+  await turn('add a boat trip idea', 'Added an idea.');
+  await expect(earlier.getByRole('button', { name: /Earlier changes · 2 turns|Hide earlier changes/ })).toBeVisible();
+  if (await earlier.getByRole('button', { name: /^Earlier changes/ }).isVisible()) await earlier.getByRole('button', { name: /^Earlier changes/ }).click();
+
+  // The plan, changed only in the second turn, goes back as it was before it; the others are left.
+  const second = earlier.getByRole('listitem', { name: /^Turn at/ }).filter({ hasText: 'add the venue to the plan' });
+  await second.getByRole('button', { name: 'Put back Work / Plan as it was before this turn' }).click();
+  await expect.poll(() => fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
+  expect(fs.readFileSync(workspace('notes', 'Work', 'Ideas.md'), 'utf8')).toContain('Boat trip');
+
+  // The ideas page changed again in the last turn, so putting back the first turn's change asks first.
+  const first = earlier.getByRole('listitem', { name: /^Turn at/ }).filter({ hasText: 'make an ideas page' });
+  await first.getByRole('button', { name: 'Put back Work / Ideas as it was before this turn' }).click();
+  await expect(first.getByRole('alert')).toContainText('changed again after that turn');
+  expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(true);
+  await first.getByRole('button', { name: 'Put back anyway' }).click();
+  await expect.poll(() => fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(false);
+});
+
 test('Keep accepts the last turn’s changes from the keyboard, and the strip stays away for that turn', async () => {
   await start([callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.'])]);
   await composer().fill('make an ideas page');
