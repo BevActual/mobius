@@ -3,6 +3,7 @@
 //! `bridge`, which `mobius_host::Bridge` validates. Nothing else is reachable from the page.
 mod awake;
 mod secrets;
+mod tray;
 #[cfg(windows)]
 mod cdp;
 mod engine;
@@ -114,6 +115,8 @@ struct Shell {
     bridge: Arc<Bridge>,
     /// Where Little Mobius keeps its place on the screen between openings.
     mini_place: PathBuf,
+    /// What the tray shows now, so a change only redraws what changed.
+    tray: std::sync::Mutex<Option<tray::Shown>>,
 }
 
 /// Linux: where every web view keeps its storage (the interface's saved state, pages' cookies), inside Mobius's own
@@ -283,6 +286,10 @@ fn little_mobius(app: &tauri::AppHandle, method: &str, place_file: &std::path::P
 /// The one door from the interface into Rust.
 #[tauri::command]
 async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: String, method: String, args: Vec<Value>) -> Result<Value, Value> {
+    if namespace == "tray" && method == "set" {
+        let mut before = shell.tray.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        return tray::set(&app, &mut before, &args);
+    }
     if namespace == "mini" {
         if method == "setOnTop" && let Some(mini) = app.get_webview_window(MINI) {
             let _ = mini.set_always_on_top(args.first().and_then(Value::as_bool).unwrap_or(true));
@@ -456,7 +463,9 @@ fn main() {
             }
             let quit_handle = handle.clone();
             bridge.set_quit(Arc::new(move || quit_handle.exit(0)));
-            app.manage(Shell { bridge: bridge.clone(), mini_place: data_dir.join("little-mobius.json") });
+            app.manage(Shell { bridge: bridge.clone(), mini_place: data_dir.join("little-mobius.json"), tray: std::sync::Mutex::new(None) });
+            // The print in the menu bar or notification area; the app keeps it, found again by its id.
+            let _ = tray::create(&handle);
             let hidden = test_mode && std::env::var("MOBIUS_HIDE_WINDOW").is_ok_and(|v| v == "1");
             // The window holds the interface as one web view that fills it, and the browser's pages as more views above it.
             // Tests need one known size; a person gets a window that fits the screen they have and opens in the middle of it.

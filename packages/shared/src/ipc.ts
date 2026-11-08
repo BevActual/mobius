@@ -196,6 +196,12 @@ export interface MobiusBridge {
     /** Says when Little Mobius opens or closes. */
     onChange(listener: (open: boolean) => void): () => void;
   };
+  /** The print in the menu bar or notification area. Optional: not every window or computer has one. */
+  tray?: {
+    set(shown: { state: 'idle' | 'working' | 'needs' | 'done'; tooltip: string; items: { id: string; title: string; status: string }[] }): Promise<void>;
+    /** A conversation was chosen from the tray's menu. */
+    onOpenConversation(listener: (conversation: string) => void): () => void;
+  };
   /** The renderer can see whether the core is up. It cannot call the core: only the main process can. */
   core: {
     getStatus(): Promise<CoreStatus>;

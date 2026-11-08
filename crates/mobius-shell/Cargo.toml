@@ -20,7 +20,7 @@ ureq.workspace = true
 url = "2"
 serde_json.workspace = true
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
-tauri = { version = "2", features = ["unstable", "webview-data-url"] }
+tauri = { version = "2", features = ["unstable", "webview-data-url", "tray-icon", "image-png"] }
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
 arboard = "3"
@@ -36,6 +36,8 @@ gtk = "0.18"
 webkit2gtk = { version = "2.0", features = ["v2_40"] }
 javascriptcore-rs = "1.1"
 cairo-rs = { version = "0.18", features = ["png"] }
+# Looking for the AppIndicator library before the tray uses it (see src/tray.rs).
+libloading = "0.7"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

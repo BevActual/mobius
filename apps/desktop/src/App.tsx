@@ -6,6 +6,7 @@ import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, ac
 import { appName, isAvailable, type AppId, noteOpened, APPS } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
 import { tasksContext, type SurfaceState } from './surface';
+import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
 import { quick } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
@@ -218,6 +219,25 @@ export function App() {
     if (!showBeside('tasks')) openApp('tasks');
     return null;
   }, [conversation.list, conversation.id, tasks, showBeside, openApp]);
+  // The print in the menu bar or notification area follows what the agent is doing, even with the window away.
+  // "Done" shows when work ended while the window was in the background, until you come back to it.
+  const [finishedAway, setFinishedAway] = useState(false);
+  const wasWorking = useRef(false);
+  useEffect(() => {
+    const working = conversation.list.some((c) => c.activity !== 'idle');
+    if (wasWorking.current && !working && !document.hasFocus()) setFinishedAway(true);
+    wasWorking.current = working;
+  }, [conversation.list]);
+  useEffect(() => {
+    const back = () => setFinishedAway(false);
+    window.addEventListener('focus', back);
+    return () => window.removeEventListener('focus', back);
+  }, []);
+  const trayNow = trayShown(conversation.list, finishedAway);
+  const trayKey = JSON.stringify(trayNow);
+  useEffect(() => { void window.mobius.tray?.set(JSON.parse(trayKey) as TrayShown).catch(() => undefined); }, [trayKey]);
+  const selectConversation = conversation.select;
+  useEffect(() => window.mobius.tray?.onOpenConversation((id) => { openApp('agent'); selectConversation(id); }), [openApp, selectConversation]);
   const activity = activityOf(conversation.state);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
   // A page the agent opens while you talk to it in the Agent app shows in the browser beside the conversation.
