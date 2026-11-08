@@ -6,6 +6,7 @@ pub mod agent;
 pub mod memory;
 pub mod schedules;
 pub mod calendar_accounts;
+pub mod mail;
 pub mod chatgpt;
 pub mod mcp_server;
 pub mod awake;
