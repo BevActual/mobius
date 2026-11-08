@@ -13,6 +13,8 @@ concurrency:
 
 jobs:
   checks:
+    # A pull request from a branch here is already checked by its push; one from a fork is checked here.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
