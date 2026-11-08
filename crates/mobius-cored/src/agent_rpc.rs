@@ -72,6 +72,9 @@ struct EffortParams {
 struct SendParams {
     conversation: String,
     text: String,
+    /// Pictures attached to the message, as `data:` URLs.
+    #[serde(default)]
+    images: Vec<String>,
     /// Instructions to use for this conversation instead of the usual ones.
     #[serde(default)]
     system: Option<String>,
@@ -414,7 +417,10 @@ impl Extension for Agent {
                 }
                 // A turn's own instructions add to the usual ones; they never replace them (and the safety rules in them).
                 let system = p.system.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(|extra| format!("{}\n\n{extra}", self.base_system));
-                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan };
+                if p.images.len() > mobius_agent::engine::MAX_IMAGES || !p.images.iter().all(|u| mobius_agent::engine::image_ok(u)) {
+                    return Err(ExtensionError::invalid_params("pictures are at most four PNG, JPEG, WebP or GIF data URLs"));
+                }
+                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, images: p.images.clone() };
                 let (turn, outs) = self.host.send_with(core, &p.conversation, &p.text, setup).map_err(|e| host_error(&e))?;
                 self.queued.extend(outs);
                 Ok(json!({ "turn": turn }))

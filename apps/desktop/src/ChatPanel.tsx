@@ -228,7 +228,7 @@ export interface ChatPanelProps {
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
   onStop: () => void;
   onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent. */
@@ -440,6 +440,11 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
               item.kind === 'user' ? (
                 <Fragment key={item.id}>
                   <div className="msg user">{item.text}</div>
+                  {item.images && item.images.length > 0 && (
+                    <ul className="msg-images" aria-label="Pictures attached">
+                      {item.images.map((src, i) => <li key={i}><img src={src} alt={`Picture ${i + 1}`} /></li>)}
+                    </ul>
+                  )}
                   {item.attachments && item.attachments.length > 0 && (
                     <ul className="msg-chips" aria-label="Attached">
                       {item.attachments.map((a, i) => <li key={i} className="chip" data-kind={a.kind} title={a.source}><span className="chip-kind" aria-hidden="true">{a.kind === 'page' ? 'Page' : a.kind === 'note' ? 'Note' : 'File'}</span><span className="chip-title">{a.title}</span></li>)}

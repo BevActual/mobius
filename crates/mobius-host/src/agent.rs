@@ -138,6 +138,14 @@ pub struct SendRequest {
     pub context: Vec<context::Item>,
     /// Plan first: the agent only proposes a plan this turn.
     pub plan: bool,
+    /// Pictures attached to the message, as `data:` URLs: at most four, each a PNG, JPEG, WebP or GIF of a few MB.
+    pub images: Vec<String>,
+}
+
+pub const MAX_IMAGES: usize = 4;
+const MAX_IMAGE_CHARS: usize = 7_000_000;
+fn image_ok(url: &str) -> bool {
+    url.len() <= MAX_IMAGE_CHARS && ["data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,", "data:image/gif;base64,"].iter().any(|p| url.starts_with(p)) && url.split_once(";base64,").is_some_and(|(_, d)| d.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'=')))
 }
 
 pub fn parse_send(v: &Value) -> Option<SendRequest> {
@@ -151,7 +159,14 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
         None | Some(Value::Null) => false,
         Some(p) => p.as_bool()?,
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan })
+    let images = match v.get("images") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(list) => {
+            let list = list.as_array().filter(|l| l.len() <= MAX_IMAGES)?;
+            list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
+        }
+    };
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, images })
 }
 
 const AUDIO_TYPES: [&str; 5] = ["audio/webm", "audio/ogg", "audio/mp4", "audio/wav", "audio/mpeg"];
@@ -381,6 +396,9 @@ impl AgentService {
         }
         if request.plan {
             params.insert("plan".into(), json!(true));
+        }
+        if !request.images.is_empty() {
+            params.insert("images".into(), json!(request.images));
         }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),

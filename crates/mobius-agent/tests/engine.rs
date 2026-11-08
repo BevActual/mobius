@@ -81,13 +81,13 @@ fn tool_messages(turn: &Turn) -> Vec<(String, String, bool)> {
 fn a_plain_answer_ends_the_turn_and_the_first_request_describes_the_conversation() {
     let mut w = world(10);
     let provider = ScriptedProvider::new(vec![text("Hello there.")]);
-    let (mut turn, step) = w.engine.start(&w.core, vec![Message::User { text: "earlier".into() }, Message::Assistant { text: "ok".into(), tool_calls: vec![] }], "hi", 7);
+    let (mut turn, step) = w.engine.start(&w.core, vec![Message::user("earlier"), Message::Assistant { text: "ok".into(), tool_calls: vec![] }], "hi", 7);
     assert_eq!(turn.id, 7);
     let request: ChatRequest = match &step { Step::CallModel(r) => r.clone(), other => panic!("{other:?}") };
     assert_eq!(request.model, "test-model");
     assert_eq!(request.system, "You are a test.");
     assert_eq!(request.messages.len(), 3);
-    assert_eq!(request.messages[2], Message::User { text: "hi".into() });
+    assert_eq!(request.messages[2], Message::user("hi"));
     let names: Vec<&str> = request.tools.iter().map(|t| t.name.as_str()).collect();
     assert_eq!(names, ["demo.big", "demo.echo", "demo.fail", "demo.panic", "demo.remote", "todo.write", "ask.person"], "every registered tool is offered, in a stable order, then the engine's own");
     assert_eq!(request.tools[1].input_schema["properties"]["text"]["type"], "string");
@@ -423,7 +423,7 @@ fn in_smart_mode_a_question_goes_to_the_reviewer_first_and_the_person_is_not_ask
     let (mut turn, step) = w.engine.start(&w.core, vec![], "go", 1);
     let (request_id, request) = reach_review(&mut w, &mut turn, step);
     assert!(request.tools.is_empty());
-    assert!(matches!(&request.messages[0], Message::User { text } if text.contains("demo.echo") && text.contains("hi")));
+    assert!(matches!(&request.messages[0], Message::User { text, .. } if text.contains("demo.echo") && text.contains("hi")));
     assert!(turn.is_reviewing());
     assert_eq!(turn.parked_request(), Some(request_id));
     assert!(!turn.drain_events().iter().any(|e| matches!(e, AgentEvent::NeedsApproval { .. })), "nobody is asked while the reviewer looks");
@@ -545,7 +545,7 @@ fn the_chosen_effort_goes_to_the_model_but_never_to_the_reviewer() {
 #[test]
 fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_model() {
     let mut w = smart_world();
-    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false };
+    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, images: vec![] };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
     assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", "You are the research bot."));
@@ -560,10 +560,10 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
 #[test]
 fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, images: vec![] });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", "You are a test."));
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, images: vec![] });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", "S"));
 }

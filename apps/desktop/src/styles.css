@@ -1717,3 +1717,13 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .turn-history-when { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
 .turn-history-warn { flex-basis: 100%; color: var(--warning); font-size: var(--fs-xs); }
 .turn-history .review-item { flex-wrap: wrap; }
+
+/* Pictures attached to a message, before it is sent and in the conversation. */
+.picture-chips, .msg-images { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.picture-chips { padding: 8px 10px 0; }
+.picture-chip { position: relative; }
+.picture-chip img { display: block; width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.picture-chip .chip-remove { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; }
+.picture-chip .chip-remove svg { width: 10px; height: 10px; }
+.msg-images { justify-content: flex-end; margin: 4px 0 0; }
+.msg-images img { display: block; max-width: 160px; max-height: 120px; border-radius: 10px; border: 1px solid var(--line); }

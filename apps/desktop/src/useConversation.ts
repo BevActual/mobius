@@ -10,7 +10,7 @@ export interface Conversation {
   id: string;
   list: ConversationInfo[];
   /** `plan` asks for a plan only: the agent proposes steps and nothing runs until they are started. */
-  send(text: string, context?: ContextItem[], options?: { plan?: boolean }): Promise<void>;
+  send(text: string, context?: ContextItem[], options?: { plan?: boolean; images?: string[] }): Promise<void>;
   stop(): void;
   /** Resolves with an explanation when the answer could not be used, otherwise null. */
   answer(requestId: number, approve: boolean, duration: Duration): Promise<string | null>;
@@ -97,11 +97,13 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   }, [coreStatus]);
 
   const send = useCallback(
-    async (text: string, context: ContextItem[] = [], options: { plan?: boolean } = {}) => {
-      dispatch({ type: 'sent', text, context });
+    async (text: string, context: ContextItem[] = [], options: { plan?: boolean; images?: string[] } = {}) => {
+      const images = options.images ?? [];
+      dispatch({ type: 'sent', text, context, images });
       const id = active.current;
       sending.current = id;
-      const result = await window.mobius.agent.send(id, text, context, options.plan ? { plan: true } : undefined);
+      const extra = { ...(options.plan ? { plan: true } : {}), ...(images.length > 0 ? { images } : {}) };
+      const result = await window.mobius.agent.send(id, text, context, Object.keys(extra).length > 0 ? extra : undefined);
       sending.current = null;
       if (!result.ok) dispatch({ type: 'send-failed', message: result.error });
       // Stop was pressed before the core had the request: the cancel could have arrived first and been lost.

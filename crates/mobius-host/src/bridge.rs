@@ -1917,6 +1917,10 @@ impl Bridge {
                 if let Some(plan) = arg(3).get("plan") {
                     request["plan"] = plan.clone();
                 }
+                // and { images: [data URLs] } attaches pictures, for models that read them.
+                if let Some(images) = arg(3).get("images") {
+                    request["images"] = images.clone();
+                }
                 match agent::parse_send(&request) {
                     Some(r) => {
                         // Saved before the turn starts, so everything it changes can be reviewed and undone at once.

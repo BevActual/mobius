@@ -30,7 +30,7 @@ export interface SurfaceState {
   /** The Video project open: its clips with their lengths, and its cut. */
   cut?: { title: string; source: string; text: string } | null;
   /** The photo open in Photo: described in words, with its edits file. */
-  photo?: { title: string; source: string; text: string } | null;
+  photo?: { title: string; source: string; text: string; /** The picture as shown, to send to models that read pictures. */ picture?: string } | null;
   /** The file open in Code, with the last test output if it failed. */
   code?: { title: string; source: string; text: string; failing: boolean } | null;
   /** The email open in Mail, if any. */

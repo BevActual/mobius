@@ -72,7 +72,7 @@ fn a_message_starts_a_turn_and_the_answer_is_announced_and_remembered() {
     let (turn_id, outs) = host.send(&core, "c1", "hello").unwrap();
     let (called_turn, request) = model_call(&outs).expect("a model call");
     assert_eq!(called_turn, turn_id);
-    assert_eq!(request.messages, [Message::User { text: "hello".into() }]);
+    assert_eq!(request.messages, [Message::user("hello")]);
     assert!(host.is_busy("c1"));
 
     let outs = host.model_result(&mut core, turn_id, text("Hi!"));
@@ -80,7 +80,7 @@ fn a_message_starts_a_turn_and_the_answer_is_announced_and_remembered() {
     assert_eq!(n[0], json!({ "jsonrpc": "2.0", "method": "agent.event", "params": { "conversation": "c1", "turn": turn_id, "event": { "kind": "message", "text": "Hi!" } } }));
     assert_eq!(kinds(&outs), ["message", "done"]);
     assert!(!host.is_busy("c1"));
-    assert_eq!(host.history("c1"), [Message::User { text: "hello".into() }, Message::Assistant { text: "Hi!".into(), tool_calls: vec![] }]);
+    assert_eq!(host.history("c1"), [Message::user("hello"), Message::Assistant { text: "Hi!".into(), tool_calls: vec![] }]);
 
     let (_, outs) = host.send(&core, "c1", "again").unwrap();
     assert_eq!(model_call(&outs).unwrap().1.messages.len(), 3, "the next turn sees the earlier ones");
@@ -93,7 +93,7 @@ fn conversations_are_independent_and_one_turn_runs_per_conversation() {
     assert_eq!(host.send(&core, "a", "two").err(), Some(HostError::Busy));
     let (_, outs) = host.send(&core, "b", "other").unwrap();
     assert_eq!(model_call(&outs).unwrap().1.messages.len(), 1);
-    assert_eq!(host.history("a"), [Message::User { text: "one".into() }], "a turn in progress is already part of the history");
+    assert_eq!(host.history("a"), [Message::user("one")], "a turn in progress is already part of the history");
 }
 
 #[test]
@@ -294,7 +294,7 @@ fn the_last_waiter_cancelling_withdraws_the_question() {
 fn the_history_includes_the_turn_in_progress_and_the_parked_call_can_be_found() {
     let (mut core, mut host) = setup();
     let (turn_id, _) = host.send(&core, "c1", "use it").unwrap();
-    assert_eq!(host.history("c1"), [Message::User { text: "use it".into() }]);
+    assert_eq!(host.history("c1"), [Message::user("use it")]);
     assert!(host.waiting("c1").is_empty());
 
     let outs = host.model_result(&mut core, turn_id, tool("call1", json!({ "text": "hi" })));
@@ -504,7 +504,7 @@ fn a_new_host_loads_only_as_many_conversations_as_may_be_open() {
     {
         let mut raw = store.clone();
         for i in 0..80u64 {
-            raw.save(&format!("c{i}"), &[Message::User { text: format!("m{i}") }], i).unwrap();
+            raw.save(&format!("c{i}"), &[Message::user(format!("m{i}"))], i).unwrap();
         }
     }
     let (_, host) = saved_world(store, Arc::new(Mutex::new(0)));
@@ -682,7 +682,7 @@ fn the_effort_survives_a_new_setup_and_reaches_every_model_call() {
 #[test]
 fn a_conversation_can_have_its_own_setup_and_another_conversation_keeps_the_usual_one() {
     let (core, mut host) = setup();
-    let (_, outs) = host.send_with(&core, "bot-a", "hi", TurnSetup { system: Some("Be the bot.".into()), model: Some("bot-model".into()), plan_only: false }).unwrap();
+    let (_, outs) = host.send_with(&core, "bot-a", "hi", TurnSetup { system: Some("Be the bot.".into()), model: Some("bot-model".into()), plan_only: false, images: vec![] }).unwrap();
     let (_, request) = model_call(&outs).unwrap();
     assert_eq!((request.model.as_str(), request.system.as_str()), ("bot-model", "Be the bot."));
     let (_, outs) = host.send(&core, "plain", "hi").unwrap();
@@ -719,7 +719,7 @@ fn a_summary_is_never_streamed_into_the_conversation_and_is_kept_after_a_restart
     assert!(!host.text(t, "Here").is_empty(), "the real answer streams as usual");
     host.model_result(&mut core, t, text("Here."));
     assert_eq!(host.history("long").len(), 8, "the transcript is whole");
-    assert!(matches!(&real.messages[0], Message::User { text } if text.contains("SUMMARY OF EARLIER")));
+    assert!(matches!(&real.messages[0], Message::User { text, .. } if text.contains("SUMMARY OF EARLIER")));
     let covers = host.compaction("long").unwrap().covers;
 
     // After a restart the next message goes out with the same summary, without asking for a new one.
@@ -729,7 +729,7 @@ fn a_summary_is_never_streamed_into_the_conversation_and_is_kept_after_a_restart
     let (_, outs) = host.send(&core, "long", "and then?").unwrap();
     let (_, request) = model_call(&outs).unwrap();
     assert!(!request.tools.is_empty(), "no new summary was needed");
-    assert!(matches!(&request.messages[0], Message::User { text } if text.contains("SUMMARY OF EARLIER")), "{:?}", request.messages[0]);
+    assert!(matches!(&request.messages[0], Message::User { text, .. } if text.contains("SUMMARY OF EARLIER")), "{:?}", request.messages[0]);
     let _ = &mut core;
 }
 

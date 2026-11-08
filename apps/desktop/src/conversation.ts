@@ -11,7 +11,7 @@ export type QuestionStatus = 'open' | 'sending' | 'answered' | 'cancelled';
 export type ToolStatus = 'running' | 'waiting' | 'done' | 'failed' | 'declined' | 'cancelled';
 
 export type Item =
-  | { kind: 'user'; id: string; text: string; attachments?: ContextItem[] }
+  | { kind: 'user'; id: string; text: string; attachments?: ContextItem[]; images?: string[] }
   | { kind: 'assistant'; id: string; text: string; streaming: boolean }
   | { kind: 'tool'; id: string; callId: string; name: string; status: ToolStatus; requestId?: number; args?: unknown; onceOnly?: boolean }
   | { kind: 'error'; id: string; text: string }
@@ -32,7 +32,7 @@ export interface ConversationState {
 }
 
 export type ConversationAction =
-  | { type: 'sent'; text: string; context?: ContextItem[]; turn?: number }
+  | { type: 'sent'; text: string; context?: ContextItem[]; turn?: number; images?: string[] }
   | { type: 'send-failed'; message: string }
   | { type: 'notification'; notification: AgentNotification }
   | { type: 'answered'; requestId: number; approve: boolean }
@@ -99,7 +99,7 @@ function fromHistory(state: ConversationState, messages: Message[]): Conversatio
   for (const message of messages) {
     if (message.role === 'user') {
       const parts = splitContext(message.text);
-      next = withItem(next, (id) => ({ kind: 'user', id, text: parts.text, ...(parts.items.length > 0 ? { attachments: parts.items } : {}) }));
+      next = withItem(next, (id) => ({ kind: 'user', id, text: parts.text, ...(parts.items.length > 0 ? { attachments: parts.items } : {}), ...(message.images && message.images.length > 0 ? { images: message.images } : {}) }));
     }
     else if (message.role === 'assistant') {
       if (message.text) next = withItem(next, (id) => ({ kind: 'assistant', id, text: message.text, streaming: false }));
@@ -131,7 +131,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
       return at < 0 ? state : { ...state, items: state.items.slice(0, at), busy: false, turn: null };
     }
     case 'sent':
-      return { ...withItem(state, (id) => ({ kind: 'user', id, text: action.text, ...(action.context && action.context.length > 0 ? { attachments: action.context } : {}) })), busy: true, turn: action.turn ?? null };
+      return { ...withItem(state, (id) => ({ kind: 'user', id, text: action.text, ...(action.context && action.context.length > 0 ? { attachments: action.context } : {}), ...(action.images && action.images.length > 0 ? { images: action.images } : {}) })), busy: true, turn: action.turn ?? null };
     case 'send-failed':
       return finished(withItem(state, (id) => ({ kind: 'error', id, text: action.message })));
     case 'answered':

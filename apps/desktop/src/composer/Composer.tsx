@@ -5,6 +5,7 @@ import { usePreferences } from '../usePreferences';
 import { filterCatalog } from './model-catalog';
 import { PopMenu } from './PopMenu';
 import type { Activity } from '../activity';
+import { MAX_PICTURES, pictureFromFile, pictureFromUrl, pictureOfWindow } from '../picture';
 import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem, type Suggestion, type SurfaceState } from '../surface';
 import { useDictation } from './useDictation';
 
@@ -41,7 +42,7 @@ export interface ComposerProps {
   settings: AgentSettings | null;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
   onStop: () => void;
   /** The model on the server was changed from here. */
   onModelChanged: () => void;
@@ -65,6 +66,25 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const [find, setFind] = useState('');
   const preferences = usePreferences();
   const [adding, setAdding] = useState(false);
+  // Pictures for this message, for models that read them; sent with it and then cleared.
+  const [pictures, setPictures] = useState<string[]>([]);
+  const pictureInput = useRef<HTMLInputElement>(null);
+  const addPictures = async (files: readonly Blob[]) => {
+    const made = (await Promise.all(files.map(pictureFromFile))).filter((p): p is string => p !== null);
+    if (made.length === 0) return;
+    setPictures((was) => {
+      const next = [...was, ...made];
+      if (next.length > MAX_PICTURES) setProblem(`You can attach up to ${MAX_PICTURES} pictures to one message.`);
+      return next.slice(0, MAX_PICTURES);
+    });
+  };
+  const lookAtWindow = async () => {
+    setProblem(null);
+    const result = await pictureOfWindow();
+    if (!result.ok) { setProblem(result.error); return; }
+    setPictures((was) => [...was, result.picture].slice(0, MAX_PICTURES));
+    queueMicrotask(() => fieldRef.current?.focus());
+  };
   const latest = useRef(draft);
   latest.current = draft;
 
@@ -94,7 +114,9 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     event?.preventDefault();
     if (!canSend) return;
     setProblem(null);
-    onSend(draft, context, planFirst ? { plan: true } : undefined);
+    const options = { ...(planFirst ? { plan: true } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
+    onSend(draft, context, Object.keys(options).length > 0 ? options : undefined);
+    setPictures([]);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -155,7 +177,11 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       item = result.item;
     }
     const items = item ? [...context, item].slice(0, MAX_CONTEXT_ITEMS) : context;
-    onSend(s.prompt, items);
+    // A photo goes as the picture itself too, for models that read pictures.
+    const photo = s.attach === 'photo' && surface?.photo?.picture ? await pictureFromUrl(surface.photo.picture) : null;
+    const images = [...pictures, ...(photo ? [photo] : [])].slice(0, MAX_PICTURES);
+    onSend(s.prompt, items, images.length > 0 ? { images } : undefined);
+    setPictures([]);
   };
 
   const loadModels = () => {
@@ -212,6 +238,18 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           ))}
         </div>
       )}
+      {pictures.length > 0 && (
+        <ul className="picture-chips" aria-label="Pictures for this message">
+          {pictures.map((src, index) => (
+            <li key={index} className="picture-chip">
+              <img src={src} alt={`Picture ${index + 1}`} />
+              <button type="button" className="chip-remove" aria-label={`Remove picture ${index + 1}`} onClick={() => setPictures((was) => was.filter((_, i) => i !== index))}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {context.length > 0 && (
         <ul className="chips" aria-label="Attached to this message">
           {context.map((item, index) => (
@@ -236,7 +274,12 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
         placeholder={canType ? 'Message Mobius' : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={onKeyDown}
+        onPaste={(event) => {
+          const files = [...event.clipboardData.items].filter((i) => i.kind === 'file' && i.type.startsWith('image/')).map((i) => i.getAsFile()).filter((f): f is File => f !== null);
+          if (files.length > 0) { event.preventDefault(); void addPictures(files); }
+        }}
       />
+      <input ref={pictureInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden aria-label="Choose pictures" onChange={(event) => { const files = [...(event.target.files ?? [])]; event.target.value = ''; void addPictures(files); }} />
       <div className="composer-bar">
         <div className="composer-tools">
           <PopMenu label="Add context" className="round ghost" disabled={!canType || adding} trigger={<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>}>
@@ -247,6 +290,12 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                 </button>
                 <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); void attach('file'); }}>
                   <span>A file…</span><span className="popmenu-hint">A text file from this computer</span>
+                </button>
+                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); pictureInput.current?.click(); }}>
+                  <span>A picture…</span><span className="popmenu-hint">For models that read pictures; you can paste one too</span>
+                </button>
+                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); void lookAtWindow(); }}>
+                  <span>Look at a window…</span><span className="popmenu-hint">One still of a window you choose, nothing more</span>
                 </button>
                 <p className="popmenu-note">Up to {MAX_CONTEXT_ITEMS} things, {MAX_CONTEXT_ITEM_CHARS / 1000}k characters each. The agent reads them as material, never as instructions.</p>
               </>

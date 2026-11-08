@@ -66,7 +66,11 @@ pub fn build_body(request: &ChatRequest) -> Value {
     let mut input = Vec::new();
     for message in &request.messages {
         match message {
-            Message::User { text } => input.push(json!({ "type": "message", "role": "user", "content": [{ "type": "input_text", "text": text }] })),
+            Message::User { text, images } => {
+                let mut content = vec![json!({ "type": "input_text", "text": text })];
+                content.extend(images.iter().map(|url| json!({ "type": "input_image", "image_url": url })));
+                input.push(json!({ "type": "message", "role": "user", "content": content }));
+            }
             Message::Assistant { text, tool_calls } => {
                 if !text.is_empty() {
                     input.push(json!({ "type": "message", "role": "assistant", "content": [{ "type": "output_text", "text": text }] }));
@@ -270,7 +274,7 @@ mod tests {
             model: "gpt-5.5".into(),
             system: "You are Mobius.".into(),
             messages: vec![
-                Message::User { text: "read it".into() },
+                Message::user("read it"),
                 Message::Assistant { text: "Reading.".into(), tool_calls: vec![ToolCall { id: "c1".into(), name: "files.read".into(), arguments: json!({ "path": "a" }) }] },
                 Message::Tool { call_id: "c1".into(), name: "files.read".into(), content: "nope".into(), is_error: true },
             ],
@@ -360,4 +364,13 @@ mod tests {
         assert!(!format!("{p:?}").contains("SECRET"));
         assert_eq!(p.url, "https://chatgpt.com/backend-api/codex/responses");
     }
+
+    #[test]
+    fn pictures_go_as_input_images() {
+        let mut r = request();
+        r.messages = vec![Message::User { text: "look".into(), images: vec!["data:image/jpeg;base64,AAAA".into()] }];
+        let body = build_body(&r);
+        assert_eq!(body["input"][0]["content"][1], json!({ "type": "input_image", "image_url": "data:image/jpeg;base64,AAAA" }));
+    }
+
 }

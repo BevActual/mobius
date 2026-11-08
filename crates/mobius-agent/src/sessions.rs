@@ -11,7 +11,7 @@ const SNIPPET: usize = 160;
 /// The text someone said: a person's words without what they attached, or Mobius's reply.
 fn said(message: &Message) -> Option<(&'static str, String)> {
     match message {
-        Message::User { text } => Some(("person", text.split("<attached").next().unwrap_or("").trim().to_owned())),
+        Message::User { text, .. } => Some(("person", text.split("<attached").next().unwrap_or("").trim().to_owned())),
         Message::Assistant { text, .. } if !text.trim().is_empty() => Some(("mobius", text.trim().to_owned())),
         _ => None,
     }
@@ -69,7 +69,7 @@ mod tests {
         SavedConversation { id: id.into(), messages, updated_ms, compaction: None }
     }
     fn user(t: &str) -> Message {
-        Message::User { text: t.into() }
+        Message::user(t)
     }
     fn reply(t: &str) -> Message {
         Message::Assistant { text: t.into(), tool_calls: vec![] }

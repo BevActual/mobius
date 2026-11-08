@@ -135,7 +135,7 @@ fn request() -> ChatRequest {
     ChatRequest {
         model: "test-model".into(),
         system: "be brief".into(),
-        messages: vec![Message::User { text: "hello".into() }],
+        messages: vec![Message::user("hello")],
         tools: vec![ToolDef { name: "demo.echo".into(), description: "Echo".into(), input_schema: json!({ "type": "object" }) }],
         effort: None,
         max_tokens: None,

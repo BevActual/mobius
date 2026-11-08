@@ -151,6 +151,16 @@ struct Dispatched {
     remaining: VecDeque<ToolCall>,
 }
 
+/// The pictures of a turn that are acceptable: a few `data:` URLs of common picture types, none too big.
+pub const MAX_IMAGES: usize = 4;
+pub const MAX_IMAGE_CHARS: usize = 7_000_000;
+pub fn image_ok(url: &str) -> bool {
+    url.len() <= MAX_IMAGE_CHARS && ["data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,", "data:image/gif;base64,"].iter().any(|p| url.starts_with(p))
+}
+fn turn_images(setup: &TurnSetup) -> Vec<String> {
+    setup.images.iter().filter(|u| image_ok(u)).take(MAX_IMAGES).cloned().collect()
+}
+
 /// What one turn does differently from the usual setup: the instructions and model of the bot it belongs to, and
 /// whether it only proposes a plan.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -159,6 +169,8 @@ pub struct TurnSetup {
     pub model: Option<String>,
     /// Plan first: the model may only write a plan and ask questions. Nothing else runs until the person starts it.
     pub plan_only: bool,
+    /// Pictures the person attached to this message, as `data:` URLs.
+    pub images: Vec<String>,
 }
 
 /// Added to the instructions of a plan-only turn.
@@ -284,7 +296,7 @@ impl Engine {
     /// Like `start_with`, for a conversation that was already shortened for the model.
     pub fn start_from(&self, core: &Core, mut history: Vec<Message>, compaction: Option<Compaction>, user_text: &str, id: u64, setup: TurnSetup) -> (Turn, Step) {
         let compaction = compaction.filter(|c| c.covers < history.len() && !matches!(history[c.covers], Message::Tool { .. }));
-        history.push(Message::User { text: user_text.to_owned() });
+        history.push(Message::User { text: user_text.to_owned(), images: turn_images(&setup) });
         let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false };
         let step = self.next_model_call(core, &mut turn);
         (turn, step)

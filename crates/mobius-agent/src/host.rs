@@ -134,7 +134,7 @@ const MAX_TITLE_CHARS: usize = 60;
 
 fn title_of(messages: &[Message]) -> String {
     let first = messages.iter().find_map(|m| match m {
-        Message::User { text } => text.trim().lines().next().map(str::trim).filter(|line| !line.is_empty()),
+        Message::User { text, .. } => text.trim().lines().next().map(str::trim).filter(|line| !line.is_empty()),
         _ => None,
     });
     match first {
@@ -381,7 +381,7 @@ impl Host {
         }
         let history = self.histories.get_mut(conversation).ok_or(HostError::NothingToRewind)?;
         let at = history.iter().rposition(|m| matches!(m, Message::User { .. })).ok_or(HostError::NothingToRewind)?;
-        let Message::User { text } = history[at].clone() else { return Err(HostError::NothingToRewind) };
+        let Message::User { text, .. } = history[at].clone() else { return Err(HostError::NothingToRewind) };
         history.truncate(at);
         // A summary that covers what was taken back no longer describes the conversation.
         if self.compactions.get(conversation).is_some_and(|c| c.covers >= at) {
