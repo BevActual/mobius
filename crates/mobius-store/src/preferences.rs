@@ -15,13 +15,13 @@ pub fn is_model_name(v: &Value) -> bool {
 }
 
 /// The apps whose access the person can set, and the levels: off, ask (the usual), read without asking, act without asking.
-pub const APP_ACCESS_APPS: [&str; 12] = ["browser", "notes", "docs", "sheets", "slides", "tasks", "calendar", "mail", "code", "design", "photo", "studio"];
+pub const APP_ACCESS_APPS: [&str; 13] = ["browser", "notes", "docs", "sheets", "slides", "tasks", "calendar", "mail", "code", "design", "photo", "studio", "video"];
 /// Apps added later: a setting saved before them may leave them out, and they count as `ask`.
-const LATER_APPS: [&str; 9] = ["docs", "sheets", "slides", "calendar", "mail", "code", "design", "photo", "studio"];
+const LATER_APPS: [&str; 10] = ["docs", "sheets", "slides", "calendar", "mail", "code", "design", "photo", "studio", "video"];
 pub const APP_ACCESS_LEVELS: [&str; 4] = ["off", "ask", "read", "act"];
 
 pub fn app_access_default() -> Value {
-    json!({ "browser": "ask", "notes": "ask", "docs": "ask", "sheets": "ask", "slides": "ask", "tasks": "ask", "calendar": "ask", "mail": "ask", "code": "ask", "design": "ask", "photo": "ask", "studio": "ask" })
+    json!({ "browser": "ask", "notes": "ask", "docs": "ask", "sheets": "ask", "slides": "ask", "tasks": "ask", "calendar": "ask", "mail": "ask", "code": "ask", "design": "ask", "photo": "ask", "studio": "ask", "video": "ask" })
 }
 
 /// Exactly those apps, each at one of the levels.

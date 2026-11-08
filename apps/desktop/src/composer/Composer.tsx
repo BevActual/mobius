@@ -147,6 +147,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     if (s.attach === 'sheet' && surface?.sheet) item = sheetItem(surface.sheet);
     if (s.attach === 'code' && surface?.code) item = sheetItem(surface.code);
     if (s.attach === 'photo' && surface?.photo) item = sheetItem(surface.photo);
+    if (s.attach === 'cut' && surface?.cut) item = sheetItem(surface.cut);
     if (s.attach === 'mail' && surface?.mail) item = mailItem(surface.mail);
     if (s.attach === 'page') {
       const result = await window.mobius.context.page();
@@ -205,7 +206,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       {suggestions.length > 0 && (
         <div className="suggest" role="group" aria-label="Suggestions">
           {suggestions.map((s) => (
-            <button key={s.label} type="button" className="suggest-chip" title={s.attach === 'page' ? 'Attaches this page' : s.attach === 'note' ? 'Attaches this note' : s.attach === 'tasks' ? 'Attaches this list' : s.attach === 'sheet' ? 'Attaches this sheet' : s.attach === 'mail' ? 'Attaches this email' : s.attach === 'code' ? 'Attaches this file' : s.attach === 'photo' ? 'Attaches this photo, described, and its edits' : undefined} onClick={() => void suggest(s)}>
+            <button key={s.label} type="button" className="suggest-chip" title={s.attach === 'page' ? 'Attaches this page' : s.attach === 'note' ? 'Attaches this note' : s.attach === 'tasks' ? 'Attaches this list' : s.attach === 'sheet' ? 'Attaches this sheet' : s.attach === 'mail' ? 'Attaches this email' : s.attach === 'code' ? 'Attaches this file' : s.attach === 'photo' ? 'Attaches this photo, described, and its edits' : s.attach === 'cut' ? 'Attaches the clips and the cut' : undefined} onClick={() => void suggest(s)}>
               {s.label}
             </button>
           ))}

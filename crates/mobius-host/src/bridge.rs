@@ -156,6 +156,7 @@ pub struct Bridge {
     designs: mobius_workspace::notes::Notes,
     songs: mobius_workspace::notes::Notes,
     photos: mobius_workspace::photos::Photos,
+    video: mobius_workspace::video::Video,
     sheets: mobius_workspace::sheets::Sheets,
     code: mobius_workspace::code::Code,
     /// The test command of each Code project, which only the person sets.
@@ -215,6 +216,9 @@ impl Bridge {
                 if let Some(design) = path.replace('\\', "/").strip_prefix("designs/") {
                     notes_emit("mobius:designs-changed", json!({ "path": design, "by": "another app" }));
                 }
+                if let Some(project) = path.replace('\\', "/").strip_prefix("video/").and_then(|p| p.split('/').next().map(str::to_owned)) {
+                    notes_emit("mobius:video-changed", json!({ "project": project, "by": "another app" }));
+                }
                 if let Some(photo) = path.replace('\\', "/").strip_prefix("photos/") {
                     notes_emit("mobius:photos-changed", json!({ "path": photo.strip_suffix(mobius_workspace::photos::EDITS_SUFFIX).unwrap_or(photo), "by": "another app" }));
                 }
@@ -270,6 +274,7 @@ impl Bridge {
             docs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "docs"),
             slides: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "slides").named_by_file(),
             photos: mobius_workspace::photos::Photos::new(data_dir.join("workspace")),
+            video: mobius_workspace::video::Video::new(data_dir.join("workspace")),
             songs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "studio").of_files("json", mobius_workspace::notes::song_starter),
             designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter),
             sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
@@ -396,6 +401,7 @@ impl Bridge {
             ("sheets", _) => Ok(self.sheets_call(method, args)),
             ("code", _) => Ok(self.code_call(method, args)),
             ("photos", _) => Ok(self.photos_call(method, args)),
+            ("video", _) => Ok(self.video_call(method, args)),
             ("mail", _) => Ok(self.mail_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
@@ -1018,6 +1024,9 @@ impl Bridge {
                 if let Some(design) = path.strip_prefix("designs/") {
                     (self.emit)("mobius:designs-changed", json!({ "path": design, "by": "assistant" }));
                 }
+                if let Some(project) = path.strip_prefix("video/").and_then(|p| p.split('/').next()) {
+                    (self.emit)("mobius:video-changed", json!({ "project": project, "by": "assistant" }));
+                }
                 if let Some(photo) = path.strip_prefix("photos/") {
                     (self.emit)("mobius:photos-changed", json!({ "path": photo.strip_suffix(mobius_workspace::photos::EDITS_SUFFIX).unwrap_or(photo), "by": "assistant" }));
                 }
@@ -1408,6 +1417,50 @@ impl Bridge {
         }
     }
 
+    /// A Video clip for the window's player (the shell serves it at its `media` address).
+    /// The part of it the player asked for (`Range`), where that part starts, the file's length and its media type.
+    pub fn media_part(&self, project: &str, clip: &str, range: Option<&str>) -> Result<(Vec<u8>, u64, u64, &'static str), String> {
+        let file = self.video.clip_path(project, clip)?;
+        let (bytes, start, len) = mobius_workspace::video::read_range(&file, range)?;
+        Ok((bytes, start, len, mobius_workspace::video::media_type(clip).unwrap_or("application/octet-stream")))
+    }
+
+    /// The Video app: projects of clips in `video/`, and each project's cut.
+    fn video_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let v = &self.video;
+        let need = || "a project is needed".to_owned();
+        let result = match method {
+            "projects" => v.projects(),
+            "createProject" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| v.create_project(n)),
+            "readCut" => text(0).ok_or_else(need).and_then(|p| v.read_cut(p)),
+            "saveCut" => match (text(0), text(1), args.get(2).unwrap_or(&Value::Null)) {
+                (Some(p), Some(t), base @ (Value::Null | Value::Number(_))) => v.save_cut(p, t, base.as_u64()),
+                _ => Err("that cut cannot be saved".to_owned()),
+            },
+            "addClip" => match (text(0), text(1), text(2)) {
+                (Some(p), Some(n), Some(d)) => v.add_clip(p, n, d),
+                _ => Err("a project, a name and a clip are needed".to_owned()),
+            },
+            "showFolder" => text(0).ok_or_else(need).and_then(|p| v.folder(p)).map(|dir| {
+                if let Some(d) = self.dialogs.get() {
+                    d.open_path(&dir);
+                }
+                json!({ "ok": true })
+            }),
+            _ => return json!({ "ok": false, "message": "unknown" }),
+        };
+        match result {
+            Ok(value) => {
+                if matches!(method, "createProject" | "saveCut" | "addClip") {
+                    (self.emit)("mobius:video-changed", json!({ "project": value.get("project").or_else(|| value.get("name")), "by": "person" }));
+                }
+                value
+            }
+            Err(message) => json!({ "ok": false, "conflict": message == "changed elsewhere", "message": message }),
+        }
+    }
+
     /// The Photo app: albums of pictures in `photos/`, each photo's edits beside it, and exports.
     fn photos_call(&self, method: &str, args: &[Value]) -> Value {
         let text = |i: usize| args.get(i).and_then(Value::as_str);
@@ -1736,6 +1789,7 @@ impl Bridge {
             (self.emit)("mobius:slides-changed", json!({ "path": path.and_then(|p| p.strip_prefix("slides/")), "by": "undo" }));
             (self.emit)("mobius:designs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("designs/")), "by": "undo" }));
             (self.emit)("mobius:songs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("studio/")), "by": "undo" }));
+            (self.emit)("mobius:video-changed", json!({ "project": path.and_then(|p| p.strip_prefix("video/")).and_then(|p| p.split('/').next()), "by": "undo" }));
             (self.emit)("mobius:photos-changed", json!({ "path": path.and_then(|p| p.strip_prefix("photos/")).map(|p| p.strip_suffix(mobius_workspace::photos::EDITS_SUFFIX).unwrap_or(p)), "by": "undo" }));
             (self.emit)("mobius:sheets-changed", json!({ "workbook": path.and_then(|p| p.strip_prefix("sheets/")).and_then(|p| p.split('/').next()), "by": "undo" }));
             (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "undo" }));

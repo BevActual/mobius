@@ -113,6 +113,50 @@ impl Dialogs for SystemDialogs {
     }
 }
 
+/// One answer of the `media` address: `/<project>/<clip>`, with the part of the file the Range header asks for.
+fn media_response(bridge: Option<&Bridge>, request: &tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<u8>> {
+    use tauri::http::{Response, StatusCode, header};
+    let fail = |status: StatusCode| Response::builder().status(status).body(Vec::new()).unwrap_or_default();
+    let Some(bridge) = bridge else { return fail(StatusCode::SERVICE_UNAVAILABLE) };
+    let path = request.uri().path().trim_start_matches('/');
+    let decode = |s: &str| percent_decode(s);
+    let Some((project, clip)) = path.split_once('/').map(|(p, c)| (decode(p), decode(c))) else { return fail(StatusCode::NOT_FOUND) };
+    let range = request.headers().get(header::RANGE).and_then(|v| v.to_str().ok());
+    match bridge.media_part(&project, &clip, range) {
+        Ok((bytes, start, len, kind)) => {
+            let end = start + bytes.len() as u64;
+            Response::builder()
+                .status(if range.is_some() { StatusCode::PARTIAL_CONTENT } else { StatusCode::OK })
+                .header(header::CONTENT_TYPE, kind)
+                .header(header::ACCEPT_RANGES, "bytes")
+                .header(header::CONTENT_RANGE, format!("bytes {start}-{}/{len}", end.saturating_sub(1)))
+                .header(header::CONTENT_LENGTH, bytes.len())
+                .body(bytes)
+                .unwrap_or_default()
+        }
+        Err(e) if e.contains("not there") || e.contains("not a clip") => fail(StatusCode::NOT_FOUND),
+        Err(_) => fail(StatusCode::RANGE_NOT_SATISFIABLE),
+    }
+}
+
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%'
+            && let Some(b) = s.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok())
+        {
+            out.push(b);
+            i += 3;
+            continue;
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 struct Shell {
     bridge: Arc<Bridge>,
     /// Where Little Mobius keeps its place on the screen between openings.
@@ -402,6 +446,11 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![bridge])
+        // Video clips for the window's player, streamed in parts as it asks: only clips in a Video project.
+        .register_asynchronous_uri_scheme_protocol("media", |ctx, request, responder| {
+            let shell = ctx.app_handle().try_state::<Shell>().map(|s| s.bridge.clone());
+            std::thread::spawn(move || responder.respond(media_response(shell.as_deref(), &request)));
+        })
         .setup(|app| {
             let test_mode = std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1");
             let base_dir = match std::env::var("MOBIUS_USER_DATA") {

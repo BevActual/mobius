@@ -174,6 +174,9 @@ export interface PhotoInfo { path: string; name: string; modified: number; edite
 export interface PhotoAlbum { name: string; photos: PhotoInfo[] }
 export interface PhotoContent { path: string; dataUrl: string; edits: string | null; modified: number; editsModified: number | null }
 export interface PhotosChanged { path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+/** A Video project: its clips (footage, never changed) and whether it has a cut yet. */
+export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio' }[]; hasCut: boolean }
+export interface VideoChanged { project: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 export interface CodeEntry { path: string; folder: boolean; depth: number }
 export interface CodeFile { project: string; path: string; text: string | null; why?: string; modified: number }
 export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean }
@@ -473,6 +476,17 @@ export interface MobiusBridge {
   docs?: NonNullable<MobiusBridge['notes']>;
   /** The Slides app: decks kept like notes, as Markdown in `slides/<folder>/<deck>.md`. Only the Tauri shell has it. */
   slides?: NonNullable<MobiusBridge['notes']>;
+  /** The Video app: projects in `video/`, each with its clips and `cut.json`. Only the Tauri shell has it. */
+  video?: {
+    projects(): Promise<VideoProject[] | NotesFailure>;
+    createProject(name: string): Promise<{ name: string } | NotesFailure>;
+    readCut(project: string): Promise<{ project: string; text: string | null; modified: number | null } | NotesFailure>;
+    /** Refused with `conflict` when the cut changed since `base` (null: there was none). */
+    saveCut(project: string, text: string, base: number | null): Promise<{ project: string; modified: number } | NotesFailure>;
+    addClip(project: string, name: string, data: string): Promise<{ project: string; clip: string } | NotesFailure>;
+    showFolder(project: string): Promise<{ ok: true } | NotesFailure>;
+    onChanged(listener: (change: VideoChanged) => void): () => void;
+  };
   /** The Photo app: albums in `photos/`, each photo's edits beside it as `<photo>.edits.json`. Only the Tauri shell has it. */
   photos?: {
     albums(): Promise<PhotoAlbum[] | NotesFailure>;
@@ -1011,13 +1025,13 @@ export interface ScheduleDraft { title: string; prompt: string; time: string; da
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
 /** `calendar` came later: a setting saved before it leaves it out, and it counts as `ask`. */
-export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; code?: AccessLevel; design?: AccessLevel; photo?: AccessLevel; studio?: AccessLevel };
-export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', code: 'ask', design: 'ask', photo: 'ask', studio: 'ask' };
+export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; code?: AccessLevel; design?: AccessLevel; photo?: AccessLevel; studio?: AccessLevel; video?: AccessLevel };
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', code: 'ask', design: 'ask', photo: 'ask', studio: 'ask', video: 'ask' };
 const ACCESS_LEVELS: readonly string[] = ['off', 'ask', 'read', 'act'];
 export function isAppAccess(v: unknown): v is AppAccess {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;
-  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'code', 'design', 'photo', 'studio'];
+  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'code', 'design', 'photo', 'studio', 'video'];
   return Object.keys(o).every((k) => apps.includes(k))
     && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes(o[app] as string))
     && (['docs', 'sheets', 'slides', 'calendar', 'mail'] as const).every((app) => o[app] === undefined || ACCESS_LEVELS.includes(o[app] as string));

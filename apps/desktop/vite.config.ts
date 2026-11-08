@@ -8,7 +8,7 @@ const productionCsp = (connect = "'self'"): Plugin => ({
   transformIndexHtml: (html) =>
     html.replace(
       '<!--csp-->',
-      `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ${connect}; object-src 'none'; base-uri 'none'; form-action 'none'" />`,
+      `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' media: http://media.localhost; connect-src ${connect}; object-src 'none'; base-uri 'none'; form-action 'none'" />`,
     ),
 });
 

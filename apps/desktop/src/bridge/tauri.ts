@@ -24,6 +24,7 @@ import {
   type SheetsChanged,
   type CodeChanged,
   type PhotosChanged,
+  type VideoChanged,
   type CodeTestsEvent,
 } from '@mobius/shared';
 
@@ -243,6 +244,15 @@ export function createTauriBridge(): MobiusBridge {
       deleteDraft: (id) => call('mail', 'deleteDraft', [id], () => ({ ok: false as const, message: 'Mail is not available.' })),
       send: (id) => call('mail', 'send', [id], () => ({ ok: false as const, message: 'Mail is not available.' })),
       onChanged: (listener) => on<{ by: string }>('mobius:mail-changed', listener),
+    },
+    video: {
+      projects: () => call('video', 'projects', [], () => []),
+      createProject: (name) => call('video', 'createProject', [name], () => ({ ok: false as const, message: 'Video is not available.' })),
+      readCut: (project) => call('video', 'readCut', [project], () => ({ ok: false as const, message: 'Video is not available.' })),
+      saveCut: (project, text, base) => call('video', 'saveCut', [project, text, base], () => ({ ok: false as const, message: 'Video is not available.' })),
+      addClip: (project, name, data) => call('video', 'addClip', [project, name, data], () => ({ ok: false as const, message: 'Video is not available.' })),
+      showFolder: (project) => call('video', 'showFolder', [project], () => ({ ok: false as const, message: 'Video is not available.' })),
+      onChanged: (listener) => on<VideoChanged>('mobius:video-changed', listener),
     },
     photos: {
       albums: () => call('photos', 'albums', [], () => []),

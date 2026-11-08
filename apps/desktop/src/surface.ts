@@ -14,7 +14,7 @@ export interface Suggestion {
   /** What is sent. */
   prompt: string;
   /** What it needs attached first. */
-  attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail' | 'code' | 'photo';
+  attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail' | 'code' | 'photo' | 'cut';
 }
 
 export interface SurfaceState {
@@ -27,6 +27,8 @@ export interface SurfaceState {
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
   sheet?: { title: string; source: string; text: string } | null;
+  /** The Video project open: its clips with their lengths, and its cut. */
+  cut?: { title: string; source: string; text: string } | null;
   /** The photo open in Photo: described in words, with its edits file. */
   photo?: { title: string; source: string; text: string } | null;
   /** The file open in Code, with the last test output if it failed. */
@@ -96,6 +98,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'What is missing?', prompt: 'Read this deck and tell me what an audience would still want to see.', attach: 'note' },
           ]
         : [{ label: 'Make a deck', prompt: 'Make a deck in my Slides about ' }];
+    case 'video':
+      return state.cut
+        ? [
+            { label: 'Make a rough cut', prompt: 'Make a rough cut of about 45 seconds from these clips in cut.json: upbeat, varied shots of 3 to 6 seconds, ending on the last clip. Use only the clips listed, within their lengths. Say which shots you used.', attach: 'cut' },
+            { label: 'Tighten it', prompt: 'Make this cut shorter by trimming the slow starts and ends of shots, keeping their order. Change only in and out times in cut.json.', attach: 'cut' },
+            { label: 'Add titles', prompt: 'Add a short title to the first and last shots of this cut in cut.json, from the project name.', attach: 'cut' },
+          ]
+        : [];
     case 'studio':
       return state.note
         ? [

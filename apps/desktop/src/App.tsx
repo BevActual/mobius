@@ -44,6 +44,9 @@ import { CodeEditor, CodeSidebar } from './Code';
 import { DesignEditor, DesignSidebar } from './Design';
 import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar } from './Studio';
+import { VideoEditor, VideoSidebar } from './Video';
+import { useVideo } from './useVideo';
+import { writeCut } from './cut-format';
 import { usePhotos } from './usePhotos';
 import { editsPathFor } from './photo-edit';
 import { sheetContext } from './sheets-view';
@@ -105,6 +108,7 @@ export function App() {
   const designs = useNotes('designs');
   const photos = usePhotos();
   const songs = useNotes('songs');
+  const video = useVideo();
   const sheets = useSheets();
   const code = useCode();
   const mail = useMail();
@@ -187,6 +191,7 @@ export function App() {
   const inDesign = app === 'design';
   const inPhoto = app === 'photo';
   const inStudio = app === 'studio';
+  const inVideo = app === 'video';
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
@@ -287,6 +292,7 @@ export function App() {
     note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs' } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : null,
     tasks: inTasks ? tasksContext(tasks) : null,
     mail: inMail && mail.open ? { id: mail.open.id, title: `Email: ${mail.open.subject || '(no subject)'}`, text: `From: ${mail.open.from.name} <${mail.open.from.email}>\nSubject: ${mail.open.subject}\nDate: ${mail.open.dateMs ? new Date(mail.open.dateMs).toString() : ''}\n\n${mail.open.text}` } : null,
+    cut: inVideo && video.project ? { title: `Video: ${video.project}`, source: `video/${video.project}/cut.json`, text: `Clips in video/${video.project}/ (never change them):\n${video.clips.map((c) => `- ${c.name}${c.kind === 'audio' ? ' (sound)' : ''}: ${video.lengthOf(c.name) ?? '?'} s`).join('\n') || '(none yet)'}\n\nThe cut, video/${video.project}/cut.json:\n${writeCut(video.cut)}` } : null,
     photo: inPhoto && photos.open ? { title: `Photo: ${photos.open.path}`, source: `photos/${editsPathFor(photos.open.path)}`, text: `The photo: ${photos.described}\nYou cannot see it; change only its edits file, photos/${editsPathFor(photos.open.path)}, keeping the format below.\n\n${JSON.stringify(photos.edits, null, 1)}` } : null,
     code: inCode && code.open && code.project && code.open.text !== null ? { title: `${code.project} › ${code.open.path}`, source: `code/${code.project}/${code.open.path}`, text: `${code.draft}${code.tests.last && !code.tests.last.passed ? `\n\n--- Last test run (${code.tests.command ?? ''}) failed:\n${code.tests.last.output.slice(-4000)}` : ''}`, failing: code.tests.last !== null && !code.tests.last.passed } : null,
     sheet: inSheets && sheets.data ? { title: `${sheets.data.workbook} › ${sheets.data.sheet}`, source: `sheets/${sheets.data.workbook}/${sheets.data.sheet}.csv`, text: sheetContext(sheets.data) } : null,
@@ -344,7 +350,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inStudio && songs.page ? songs.page.title : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
+  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -362,6 +368,7 @@ export function App() {
     slides: plural(slides.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'deck'),
     journey: plural(journey.items.length, 'memory', 'memories'),
     code: plural(code.projects.length, 'project'),
+    video: plural(video.projects.length, 'project'),
     studio: plural(songs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'song'),
     photo: plural(photos.albums.reduce((sum, a) => sum + a.photos.length, 0), 'photo'),
     design: plural(designs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'design'),
@@ -390,12 +397,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inPhoto || inStudio || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inPhoto || inStudio || inVideo || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inPhoto || inStudio || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inPhoto || inStudio || inVideo || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -617,6 +624,8 @@ export function App() {
               <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} />
             ) : inJourney ? (
               <JourneySidebar journey={journey} />
+            ) : inVideo ? (
+              <VideoSidebar video={video} pin={pinNode} changed={turnMarks.video} />
             ) : inStudio ? (
               <StudioSidebar songs={songs} pin={pinNode} changed={turnMarks.songs} />
             ) : inPhoto ? (
@@ -777,6 +786,10 @@ export function App() {
       },
       slides: {
         newDeck: () => createActions.find((a) => a.id === 'deck')!.run(),
+      },
+      video: {
+        newProject: () => void video.createProject('Project'),
+        showFolder: () => void video.showFolder(),
       },
       studio: {
         newSong: () => createActions.find((a) => a.id === 'song')!.run(),
@@ -956,6 +969,8 @@ export function App() {
         return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} busy={conversation.state.busy} />;
       case 'slides':
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
+      case 'video':
+        return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
       case 'studio':
         return <StudioEditor songs={songs} review={songs.page && turnMarks.songs.has(songs.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'photo':
