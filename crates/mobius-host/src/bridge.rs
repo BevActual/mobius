@@ -219,7 +219,8 @@ impl Bridge {
             bookmarks: Mutex::new(Bookmarks::open(data_dir.join("bookmarks.json"), Box::new(now_ms))),
             core,
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
-            turn_marks: Mutex::default(),
+            // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
+            turn_marks: Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default()),
             mcp: Arc::default(),
             providers: crate::providers::Providers::new(secrets.clone()),
             claude_command: Mutex::new(None),
@@ -1294,7 +1295,9 @@ impl Bridge {
                         // Saved before the turn starts, so everything it changes can be reviewed and undone at once.
                         match self.workspace.mark("before the agent's turn") {
                             Ok(Some(mark)) => {
-                                lock(&self.turn_marks).insert(r.conversation.clone(), mark);
+                                let mut marks = lock(&self.turn_marks);
+                                marks.insert(r.conversation.clone(), mark);
+                                mobius_store::file::write_json(&self.data_dir.join("turn-marks.json"), &json!(*marks));
                             }
                             Ok(None) => {}
                             // The turn still goes ahead; it just cannot be reviewed or undone as one.
