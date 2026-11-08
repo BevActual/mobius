@@ -263,3 +263,27 @@ export function proposedPlan(state: ConversationState): number {
   if (plan.items.length === 0 || plan.items.some((step) => step.status !== 'pending')) return -1;
   return state.items.slice(at + 1).some((item) => item.kind === 'user') ? -1 : at;
 }
+
+/** Which app a tool works in, for saying what Mobius has seen. Files under notes/ and tasks/ belong to those apps. */
+function appOfTool(name: string, args: unknown): string | null {
+  const path = typeof args === 'object' && args !== null && typeof (args as { path?: unknown }).path === 'string' ? (args as { path: string }).path : '';
+  if (name.startsWith('browser.')) return 'Browser';
+  if (name.startsWith('tasks.')) return 'Tasks';
+  if (name.startsWith('notes.')) return 'Notes';
+  if (name.startsWith('files.')) return path.startsWith('notes/') ? 'Notes' : path.startsWith('tasks/') ? 'Tasks' : 'Files';
+  return null;
+}
+
+/**
+ * The apps Mobius has read from or worked in during this conversation, in the order it first did: what you attached
+ * (a page, a note, a file) and the tools it used that ran. Shown as "Sees:" so it is never a surprise.
+ */
+export function appsSeen(state: ConversationState): string[] {
+  const seen: string[] = [];
+  const add = (app: string | null) => { if (app && !seen.includes(app)) seen.push(app); };
+  for (const item of state.items) {
+    if (item.kind === 'user') for (const a of item.attachments ?? []) add(a.kind === 'page' ? 'Browser' : a.kind === 'note' ? 'Notes' : 'Files');
+    if (item.kind === 'tool' && (item.status === 'done' || item.status === 'running' || item.status === 'failed')) add(appOfTool(item.name, item.args));
+  }
+  return seen;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent, Message } from '@mobius/shared';
-import { MAX_RESULT_SHOWN, findToolArguments, findToolResult, initialConversation, proposedPlan, reduce, type ConversationState } from './conversation';
+import { MAX_RESULT_SHOWN, findToolArguments, findToolResult, appsSeen, initialConversation, proposedPlan, reduce, type ConversationState } from './conversation';
 
 const note = (event: AgentEvent, turn = 1) => ({ type: 'notification' as const, notification: { method: 'agent.event' as const, params: { conversation: 'main', turn, event } } });
 const delta = (text: string, turn = 1) => ({ type: 'notification' as const, notification: { method: 'agent.delta' as const, params: { conversation: 'main', turn, text } } });
@@ -337,5 +337,21 @@ describe('a proposed plan', () => {
     expect(proposedPlan(state([user, plan(['done', 'pending'])]))).toBe(-1);
     expect(proposedPlan(state([user, plan(['pending']), { ...user, id: 'u2', text: 'Go ahead with the plan.' }]))).toBe(-1);
     expect(proposedPlan(state([user, reply]))).toBe(-1);
+  });
+});
+
+describe('what Mobius sees', () => {
+  it('names the apps it read from or worked in, in order, and not what you declined', () => {
+    const tool = (name: string, status: 'done' | 'declined' | 'running', args?: unknown) => ({ kind: 'tool' as const, id: name + status, callId: name, name, status, args });
+    const state: ConversationState = { ...initialConversation('c'), items: [
+      { kind: 'user', id: 'u', text: 'tidy', attachments: [{ kind: 'note', title: 'Plan', source: 'notes/Plan.md', text: 'x' }] },
+      tool('browser.read', 'done'),
+      tool('files.write', 'done', { path: 'tasks/Inbox.md' }),
+      tool('files.read', 'done', { path: 'notes/Plan.md' }),
+      tool('browser.open', 'declined'),
+      tool('demo.echo', 'done'),
+    ] };
+    expect(appsSeen(state)).toEqual(['Notes', 'Browser', 'Tasks']);
+    expect(appsSeen(initialConversation('c'))).toEqual([]);
   });
 });

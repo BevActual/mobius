@@ -5,7 +5,7 @@ import { RichText } from './RichText';
 import { ReviewStrip } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
-import { proposedPlan, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
+import { appsSeen, proposedPlan, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import type { SurfaceState } from './surface';
 import { activityOf } from './activity';
@@ -325,6 +325,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   const lastUser = state.items.findLastIndex((item) => item.kind === 'user');
   const lastAssistant = state.items.findLastIndex((item) => item.kind === 'assistant');
   const proposalAt = proposedPlan(state);
+  const seen = appsSeen(state);
   const settled = !state.busy;
   const copy = async (id: string, text: string) => {
     try {
@@ -386,6 +387,11 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
           </button>}
         </div>
       </div>
+      {!showSettings && seen.length > 0 && (
+        <p className="chat-sees" title="What Mobius has read from or worked in during this conversation">
+          <span className="chat-sees-label">Sees:</span> {seen.join(' · ')}
+        </p>
+      )}
       {showSettings && settings ? (
         <div className="chat-scroll">
           <Welcome />
