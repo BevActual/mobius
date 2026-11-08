@@ -252,9 +252,40 @@ function TestsPanel({ code }: { code: CodeState }) {
   );
 }
 
+/** Commands run in the project's folder: the person's, typed here, and Mobius's, each of which it asked to run. */
+function ConsolePanel({ code }: { code: CodeState }) {
+  const [command, setCommand] = useState('');
+  const out = useRef<HTMLDivElement>(null);
+  useEffect(() => { out.current?.scrollTo({ top: out.current.scrollHeight }); }, [code.consoleRuns]);
+  const running = code.consoleRuns.some((r) => r.result === null);
+  const submit = (e: FormEvent) => { e.preventDefault(); const c = command.trim(); if (!c || running) return; setCommand(''); void code.runCommand(c); };
+  return (
+    <section className="code-console" aria-label="Console">
+      <div className="code-console-out" ref={out} role="log" aria-label="Console output">
+        {code.consoleRuns.length === 0 && <p className="code-tests-note">Run a command in the project's folder, such as git status or npm install. Mobius can run one too, and asks you each time.</p>}
+        {code.consoleRuns.map((r, i) => (
+          <div key={i} className="code-console-run" data-by={r.by}>
+            <div className="code-console-cmd"><span aria-hidden="true">{r.by === 'assistant' ? 'Mobius ›' : '›'}</span> {r.command}</div>
+            {r.result === null ? <div className="code-tests-note" role="status">Running…</div> : <pre>{r.result.output || (r.result.passed ? '(no output)' : `exited with ${r.result.code ?? 'no code'}`)}</pre>}
+          </div>
+        ))}
+      </div>
+      <form className="code-console-form" onSubmit={submit}>
+        <span aria-hidden="true">›</span>
+        <input aria-label="Command" placeholder="A command to run in this project" value={command} maxLength={2000} spellCheck={false} autoCapitalize="off" onChange={(e) => setCommand(e.target.value)} />
+        <button type="submit" className="btn" disabled={running || !command.trim()}>Run</button>
+      </form>
+    </section>
+  );
+}
+
 /** The open file: as Mobius changed it (to keep or discard) or as you type it, and the project's tests below. */
 export function CodeEditor({ code, review }: { code: CodeState; review?: { conversation: string } | null }) {
   const file = code.open && code.project ? `code/${code.project}/${code.open.path}` : null;
+  const [bottom, setBottom] = useState<'tests' | 'console'>('tests');
+  // A command Mobius runs shows where it can be seen.
+  const runs = code.consoleRuns.length;
+  useEffect(() => { if (runs > 0 && code.consoleRuns[runs - 1]?.by === 'assistant') setBottom('console'); }, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
   const [kept, setKept] = useState(false);
   const [before, setBefore] = useState<string | null | undefined>(undefined);
   useEffect(() => {
@@ -334,7 +365,13 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
           <p className="note-empty">Choose a file on the left.</p>
         )}
       </div>
-      <TestsPanel code={code} />
+      <div className="code-bottom">
+        <div className="code-bottom-tabs" role="tablist" aria-label="Below the file">
+          <button type="button" role="tab" aria-selected={bottom === 'tests'} onClick={() => setBottom('tests')}>Tests</button>
+          <button type="button" role="tab" aria-selected={bottom === 'console'} onClick={() => setBottom('console')}>Console</button>
+        </div>
+        {bottom === 'tests' ? <TestsPanel code={code} /> : <ConsolePanel code={code} />}
+      </div>
     </section>
   );
 }

@@ -15,13 +15,20 @@ const MAX_COMMAND: usize = 500;
 pub const TIMEOUT: Duration = Duration::from_secs(180);
 
 pub fn is_code_tool(name: &str) -> bool {
-    name == "code.test"
+    matches!(name, "code.test" | "code.run")
 }
+
+/// How long a command the agent or the person runs in a project may take.
+pub const COMMAND_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub fn tool_descriptions() -> Vec<Value> {
     vec![json!({ "name": "code.test", "capability": "code.test", "resource_arg": "project",
         "description": "Run a Code project's tests, with the test command the person chose for it, and get the output. Projects are folders in code/ in the workspace; change their files with files.edit. You cannot choose or change the command.",
-        "input_schema": { "type": "object", "properties": { "project": { "type": "string", "description": "The project's folder name in code/." } }, "required": ["project"] } })]
+        "input_schema": { "type": "object", "properties": { "project": { "type": "string", "description": "The project's folder name in code/." } }, "required": ["project"] } }),
+        // Running a command is the core's floor capability: the person is asked every time, whatever the settings.
+        json!({ "name": "code.run", "capability": "process.exec", "resource_arg": "command",
+        "description": "Run one shell command in a Code project's folder (for example to build it, install what it needs, or look at it with git) and get its output. The person is asked every time and sees the command. It stops after five minutes. Prefer code.test to run the tests.",
+        "input_schema": { "type": "object", "properties": { "project": { "type": "string" }, "command": { "type": "string", "description": "One line, as you would type it in a terminal." } }, "required": ["project", "command"] } })]
 }
 
 /// What a test command is usually, from the files a project has. Only a suggestion: the person saves it.

@@ -28,6 +28,8 @@ export function useCode() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [tests, setTests] = useState<CodeTests>(NO_TESTS);
   const [git, setGit] = useState<CodeGit>({ repo: false });
+  /** Commands run in this project, newest last: the person's from the console, and Mobius's when allowed. */
+  const [consoleRuns, setConsoleRuns] = useState<{ command: string; result: CodeTestRun | null; by: 'person' | 'assistant' }[]>([]);
   const live = useRef({ project, open, draft });
   live.current = { project, open, draft };
   const dirty = open !== null && open.text !== null && draft !== open.text;
@@ -67,6 +69,7 @@ export function useCode() {
     setOpen(null);
     setDraft('');
     setTests(NO_TESTS);
+    setConsoleRuns([]);
     setExpanded(new Set());
     keep({ project: name, path });
     await Promise.all([loadTree(name), loadTests(name)]);
@@ -95,7 +98,11 @@ export function useCode() {
       if (event.project !== live.current.project) return;
       setTests((was) => ({ ...was, running: event.running, last: event.result ?? was.last, by: event.by, command: event.command ?? was.command }));
     });
-    return () => { offChanged?.(); offTests?.(); };
+    const offConsole = api?.onConsole((event) => {
+      if (event.project !== live.current.project || event.by === 'person') return;
+      setConsoleRuns((was) => [...was, { command: event.command, result: event.result, by: event.by }].slice(-20));
+    });
+    return () => { offChanged?.(); offTests?.(); offConsole?.(); };
   }, [api]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = useCallback(async () => {
@@ -172,6 +179,16 @@ export function useCode() {
     setTests((was) => ({ ...was, running: false, last: result, by: 'person' }));
   }, [api]);
 
+  const runCommand = useCallback(async (command: string) => {
+    const now = live.current;
+    if (!api || !now.project || !command.trim()) return;
+    setConsoleRuns((was) => [...was, { command, result: null, by: 'person' as const }].slice(-20));
+    const result = await api.runCommand(now.project, command);
+    const done = isNotesFailure(result) ? { ok: true as const, passed: false, code: null, output: result.message, seconds: 0, timedOut: false } : result;
+    setConsoleRuns((was) => { const next = [...was]; const at = next.map((r) => r.result === null && r.command === command).lastIndexOf(true); if (at >= 0) next[at] = { command, result: done, by: 'person' }; return next; });
+    await loadTree(now.project);
+  }, [api, loadTree]);
+
   const commit = useCallback(async (message: string) => {
     const now = live.current;
     if (!api || !now.project) return false;
@@ -193,7 +210,7 @@ export function useCode() {
 
   return {
     available: api !== undefined, projects, project, entries, open, draft, setDraft, dirty, message, setMessage, expanded, toggle, tests,
-    git, commit, push, refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests,
+    git, commit, push, consoleRuns, runCommand, refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests,
   };
 }
 export type CodeState = ReturnType<typeof useCode>;

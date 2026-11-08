@@ -482,6 +482,10 @@ export interface MobiusBridge {
     testCommand(project: string): Promise<{ command: string | null; suggested: string | null } | NotesFailure>;
     setTestCommand(project: string, command: string): Promise<{ ok: true } | NotesFailure>;
     runTests(project: string): Promise<CodeTestRun | NotesFailure>;
+    /** A command the person typed in the console, run in the project's folder. */
+    runCommand(project: string, command: string): Promise<CodeTestRun | NotesFailure>;
+    /** A command run in a project, by the person or (when allowed) by Mobius. */
+    onConsole(listener: (event: { project: string; command: string; result: CodeTestRun; by: 'person' | 'assistant' }) => void): () => void;
     /** The project's git state, when it is a repository. */
     git(project: string): Promise<CodeGit | NotesFailure>;
     commit(project: string, message: string): Promise<{ ok: true; commit: string } | NotesFailure>;

@@ -150,3 +150,21 @@ test('a project that is a git repository is committed from Code, and Mobius comm
   expect(git('log', '--format=%s')).toBe('Split cents exactly\nStart the offsite planner');
   await expect(bar.getByRole('status')).toHaveText('Nothing to commit');
 });
+
+test('the console runs the person\'s commands in the project, and Mobius runs one only when asked each time', async () => {
+  await start([callsTool('code-run', { project: 'offsite-planner', command: 'node --version' }), says(['Node is installed.'])]);
+  await shell().getByRole('tab', { name: 'Console' }).click();
+  const console_ = shell().getByRole('region', { name: 'Console' });
+  await console_.getByRole('textbox', { name: 'Command' }).fill('node -e "console.log(require(\'fs\').readdirSync(\'src\').join())"');
+  await console_.getByRole('button', { name: 'Run' }).click();
+  await expect(console_.getByRole('log', { name: 'Console output' })).toContainText('budget.js');
+
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Which Node is this?');
+  await composer.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: code.run' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log.locator('.msg.assistant')).toHaveText('Node is installed.');
+  await expect(console_.getByRole('log', { name: 'Console output' })).toContainText('Mobius › node --version');
+  await expect(console_.getByRole('log', { name: 'Console output' })).toContainText(/v\d+\./);
+});

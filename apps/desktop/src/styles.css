@@ -1778,3 +1778,15 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .skill-install-steps { margin: 0; padding-left: 20px; font-size: var(--fs-sm); }
 .skill-install-tools { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .skill-install-tools code { padding: 2px 6px; border-radius: 4px; background: var(--field); font-size: 12px; }
+.code-bottom { flex-shrink: 0; max-height: 42%; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--bg); }
+.code-bottom .code-tests { border-top: 0; max-height: none; flex: 1; min-height: 0; }
+.code-bottom-tabs { display: flex; gap: 2px; padding: 4px 8px 0; }
+.code-bottom-tabs button { padding: 4px 10px; border-radius: 6px; font-size: var(--fs-sm); color: var(--muted); }
+.code-bottom-tabs button[aria-selected="true"] { background: var(--field); color: var(--ink); font-weight: 600; }
+.code-console { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.code-console-out { flex: 1; min-height: 60px; overflow: auto; padding: 4px 12px; font: 11.5px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+.code-console-cmd { font-weight: 600; margin-top: 6px; }
+.code-console-run[data-by="assistant"] .code-console-cmd { color: var(--accent); }
+.code-console-run pre { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; color: var(--muted); }
+.code-console-form { display: flex; align-items: center; gap: 6px; padding: 6px 12px 8px; font: 12.5px ui-monospace, Menlo, Consolas, monospace; }
+.code-console-form input { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg); color: inherit; font: inherit; }
