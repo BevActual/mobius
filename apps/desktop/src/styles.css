@@ -727,6 +727,8 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .rail-pin-open svg[data-app="mail"] { background: var(--app-mail); }
 .rail-pin-open svg[data-app="sheets"] { background: var(--app-sheets); }
 .hub-icon[data-app="canvas"] { background: var(--app-canvas); }
+.hub-more { margin: 4px 0 0 4px; padding: 4px 8px; border-radius: var(--radius-pill); color: var(--accent); font-size: var(--fs-sm); }
+.hub-more:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .hub-icon[data-app="research"] { background: var(--app-research); }
 .hub-icon[data-app="reader"] { background: var(--app-reader); }
 .hub-icon[data-app="database"] { background: var(--app-database); }

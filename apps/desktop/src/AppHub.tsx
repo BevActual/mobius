@@ -28,6 +28,9 @@ const Tile = ({ id, children }: { id: string; children?: ReactNode }) => (
  * The application hub: every Mobius app as a tile with what is happening in it, ways to start something new, and
  * the apps still to come. Opens from the rail; type to narrow it, Enter opens the first match, Escape closes.
  */
+/** What the hub offers to start before more is asked for. */
+const FEATURED = ['conversation', 'note', 'task', 'tab', 'doc', 'message', 'research', 'event'];
+
 export function AppHub({ open, onClose, current, onOpenApp, actions, status, onConnect }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -45,6 +48,10 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
   const built = APPS.filter((a) => a.available && has(a.name, status[a.id] ?? ''));
   const later = APPS.filter((a) => !a.available && has(a.name));
   const starts = actions.filter((a) => has(a.label));
+  // Eight to start from; the rest when asked for, or found by typing.
+  const [allStarts, setAllStarts] = useState(false);
+  useEffect(() => { if (!open) setAllStarts(false); }, [open]);
+  const shownStarts = q || allStarts ? starts : starts.filter((a) => FEATURED.includes(a.id));
   // Close the dialog first, so the focus it gives back lands before the opened thing takes it.
   const go = (run: () => void) => { dialog.current?.close(); onClose(false); run(); };
   // Read when the hub opens: the apps used most recently, to start from.
@@ -75,13 +82,14 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
         <section className="hub-section" aria-label="Start something">
           <h2 className="hub-heading">Start</h2>
           <div className="hub-starts">
-            {starts.map((a) => (
+            {shownStarts.map((a) => (
               <button key={a.id} type="button" className="hub-start" onClick={() => go(a.run)}>
                 <Tile id={a.app}><span className="hub-plus" /></Tile>
                 <span>{a.label}</span>
               </button>
             ))}
           </div>
+          {!q && starts.length > shownStarts.length && <button type="button" className="hub-more" onClick={() => setAllStarts(true)}>{`${starts.length - shownStarts.length} more…`}</button>}
         </section>
       )}
       {!q && recent.length > 1 && (
