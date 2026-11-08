@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BrowserTabState } from '@mobius/shared';
-import { APPS, type AppId } from './apps';
+import { APPS, recentApps, type AppId } from './apps';
+import { APP_ICONS } from './Rail';
 
 export interface LauncherItem {
   id: string;
@@ -8,6 +9,8 @@ export interface LauncherItem {
   label: string;
   detail?: string;
   disabled?: boolean;
+  /** The app whose icon the row shows. */
+  app?: AppId;
   run: () => void;
 }
 
@@ -30,6 +33,12 @@ const SECTION: Record<LauncherItem['kind'], string> = { ask: 'Ask Mobius', app: 
  * One centred surface for finding and opening things. Typing makes it one search for apps, open pages and commands,
  * with "Ask Mobius" always the first row. A modal dialog, so focus is trapped and Escape closes it.
  */
+/** Apps in the order to offer them: recent first when nothing is typed, else names starting with the words first. */
+export function rankApps<T extends { id: AppId; name: string }>(apps: readonly T[], q: string, recent: readonly AppId[] = recentApps(6)): T[] {
+  const score = (a: T) => (q ? (a.name.toLowerCase().startsWith(q) ? 0 : 1) : (recent.includes(a.id) ? recent.indexOf(a.id) - 100 : 0));
+  return apps.map((a, i) => ({ a, i, s: score(a) })).sort((x, y) => x.s - y.s || x.i - y.i).map((x) => x.a);
+}
+
 export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, commands = [] }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -56,9 +65,12 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
     const typed = query.trim();
     const list: LauncherItem[] = [
       ...(typed && onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, run: () => onAsk(typed) }] : []),
-      ...APPS.filter((app) => has(app.name)).map<LauncherItem>((app) => ({
+      // As in Spotlight and Raycast: with nothing typed the apps used last come first; typing puts names that start
+      // with it before names that only contain it.
+      ...rankApps(APPS.filter((app) => has(app.name)), q).map<LauncherItem>((app) => ({
         id: `app-${app.id}`,
         kind: 'app',
+        app: app.id,
         label: app.name,
         detail: app.available ? undefined : 'Not built yet',
         disabled: !app.available,
@@ -137,6 +149,9 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
                 onPointerMove={() => setSelected(index)}
                 onClick={() => activate(item)}
               >
+                <span className="launcher-icon" data-kind={item.kind} aria-hidden="true">
+                  {item.app ? <svg viewBox="0 0 20 20" data-app={item.app}>{APP_ICONS[item.app]}</svg> : item.kind === 'ask' ? <svg viewBox="0 0 20 20" data-app="agent">{APP_ICONS.agent}</svg> : item.kind === 'tab' ? <svg viewBox="0 0 20 20" data-app="browser">{APP_ICONS.browser}</svg> : <svg viewBox="0 0 20 20"><path d="M6 7l-3 3 3 3M9 14h8" /></svg>}
+                </span>
                 <span className="launcher-label">{item.label}</span>
                 {item.detail && <span className="launcher-detail">{item.detail}</span>}
               </div>
@@ -145,6 +160,7 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
         ))}
         {items.length === 0 && <div className="launcher-empty" role="status">No results for “{query.trim()}”.</div>}
       </div>
+      <div className="launcher-foot" aria-hidden="true"><span><kbd>↵</kbd> Open</span><span><kbd>↑</kbd><kbd>↓</kbd> Move</span><span><kbd>Esc</kbd> Close</span></div>
     </dialog>
   );
 }

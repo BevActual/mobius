@@ -114,7 +114,35 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .launcher-search kbd { font: 11px/1 var(--font); color: var(--muted); border: 1px solid var(--line); border-radius: var(--radius-small); padding: 3px 6px; }
 .launcher-list { overflow-y: auto; padding: 8px 10px 10px; }
 .launcher-heading { padding: 8px 8px 6px; font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; color: var(--muted); }
-.launcher-option { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 38px; padding: 9px 10px; border-radius: var(--radius-group); cursor: default; }
+.launcher-option { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 10px; border-radius: var(--radius-group); cursor: default; }
+.launcher-label { flex: 1; min-width: 0; }
+.launcher-icon svg { display: block; width: 24px; height: 24px; padding: 4px; border-radius: 6px; background: var(--muted); color: #fff; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.launcher-icon[data-kind="command"] svg { background: var(--field); color: var(--muted); }
+.launcher-icon svg[data-app="agent"] { background: var(--app-agent); }
+.launcher-icon svg[data-app="search"] { background: var(--app-search); }
+.launcher-icon svg[data-app="browser"] { background: var(--app-browser); }
+.launcher-icon svg[data-app="mail"] { background: var(--app-mail); }
+.launcher-icon svg[data-app="journey"] { background: var(--app-journey); }
+.launcher-icon svg[data-app="skills"] { background: var(--app-skills); }
+.launcher-icon svg[data-app="notes"] { background: var(--app-notes); }
+.launcher-icon svg[data-app="docs"] { background: var(--app-docs); }
+.launcher-icon svg[data-app="sheets"] { background: var(--app-sheets); }
+.launcher-icon svg[data-app="slides"] { background: var(--app-slides); }
+.launcher-icon svg[data-app="tasks"] { background: var(--app-tasks); }
+.launcher-icon svg[data-app="calendar"] { background: var(--app-calendar); }
+.launcher-icon svg[data-app="code"] { background: var(--app-code); }
+.launcher-icon svg[data-app="design"] { background: var(--app-design); }
+.launcher-icon svg[data-app="canvas"] { background: var(--app-canvas); }
+.launcher-icon svg[data-app="research"] { background: var(--app-research); }
+.launcher-icon svg[data-app="reader"] { background: var(--app-reader); }
+.launcher-icon svg[data-app="database"] { background: var(--app-database); }
+.launcher-icon svg[data-app="terminal"] { background: var(--app-terminal); }
+.launcher-icon svg[data-app="photo"] { background: var(--app-photo); }
+.launcher-icon svg[data-app="studio"] { background: var(--app-studio); }
+.launcher-icon svg[data-app="video"] { background: var(--app-video); }
+.launcher-icon svg[data-app="review"] { background: var(--app-review); }
+.launcher-foot { display: flex; gap: 16px; padding: 8px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: var(--fs-xs); flex: none; }
+.launcher-foot kbd { font: 10px/1 var(--font); border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; margin-right: 3px; }
 .launcher-option[aria-selected="true"] { background: var(--soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
 .launcher-option[aria-disabled="true"] { opacity: 0.55; }
 .launcher-label { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
