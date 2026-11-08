@@ -2595,6 +2595,7 @@ name = "mobius-host"
 version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "getrandom 0.3.4",
  "mobius-agent",
  "mobius-browser",
