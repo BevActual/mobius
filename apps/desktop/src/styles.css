@@ -1138,3 +1138,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .change-row .clist-main { flex: 1; min-width: 0; }
 .change-actions { display: flex; gap: 2px; }
 .rail-profile-badge { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: var(--fw-semibold); flex: none; }
+.plan-tag { flex: none; margin-left: auto; padding: 0 6px; border-radius: var(--radius-pill); font-size: var(--fs-xs); color: var(--muted); background: var(--field); white-space: nowrap; }
+.plan-tag[data-tag="ask"] { color: var(--warning); background: var(--warning-wash); }
+.plan-tag[data-tag="off"] { color: var(--danger); background: var(--danger-wash); }

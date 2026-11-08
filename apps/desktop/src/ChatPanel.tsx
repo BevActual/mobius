@@ -2,6 +2,8 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEv
 import { MobiusMark } from './MobiusMark';
 import { Welcome } from './Welcome';
 import { describeAction } from './actions';
+import { stepTag } from './step-access';
+import { usePreferences } from './usePreferences';
 import { RichText } from './RichText';
 import { ReviewStrip } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
@@ -50,6 +52,7 @@ function PlanCard({ item, proposal, busy, onStart, onDrive, onStop }: {
   onDrive?: (steps: string[]) => Promise<string | null>;
   onStop: () => void;
 }) {
+  const preferences = usePreferences();
   const [draft, setEditing] = useState<string[] | null>(null);
   // Changing the steps only makes sense while the plan waits for you.
   const editing = proposal ? draft : null;
@@ -97,6 +100,7 @@ function PlanCard({ item, proposal, busy, onStart, onDrive, onStop }: {
             <li key={i} className="plan-step" data-status={step.status} aria-label={`${step.text}: ${STEP_STATUS[step.status]}`}>
               {proposal ? <span className="plan-num" aria-hidden="true">{i + 1}</span> : <span className="plan-mark" aria-hidden="true" />}
               <span className="plan-text">{step.text}</span>
+              {proposal && (() => { const t = stepTag(step.text, preferences.value.appAccess, preferences.value.approvalMode); return t ? <span className="plan-tag" data-tag={t.tag.startsWith('Asks') ? 'ask' : t.tag === 'Off' ? 'off' : 'act'} title={`${t.app}: ${t.tag.toLowerCase()}, from Settings › Safety. Clicking, typing and deleting always ask.`}>{t.tag}</span> : null; })()}
             </li>
           ))}
         </ol>
