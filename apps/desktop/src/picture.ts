@@ -16,13 +16,13 @@ function shrink(source: CanvasImageSource, width: number, height: number): strin
 
 /** A picture file (or one pasted) as a small JPEG data URL; null when it is not a picture that opens. */
 export function pictureFromFile(file: Blob): Promise<string | null> {
+  // Read as a data: address: the window's rules let pictures load from those, not from blob: ones.
   return new Promise((resolve) => {
     if (!/^image\//.test(file.type)) { resolve(null); return; }
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => { resolve(shrink(img, img.naturalWidth, img.naturalHeight)); URL.revokeObjectURL(url); };
-    img.onerror = () => { resolve(null); URL.revokeObjectURL(url); };
-    img.src = url;
+    const reader = new FileReader();
+    reader.onload = () => void pictureFromUrl(String(reader.result)).then(resolve);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
   });
 }
 
