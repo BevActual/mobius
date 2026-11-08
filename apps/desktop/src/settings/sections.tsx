@@ -46,6 +46,7 @@ import { APP_ICONS } from '../Rail';
 import { appName } from '../apps';
 import { relativeTime } from '../relative-time';
 import { describeActivity } from './activity';
+import { privacyReport, whereItRuns } from './privacy';
 import { LocalModelsSection } from './LocalModels';
 import { SettingsForm } from './ModelForm';
 import { Empty, Row } from './primitives';
@@ -323,6 +324,32 @@ function ActivityList() {
   );
 }
 
+/** Settings › Safety › Privacy: the last seven days, read from the activity log. Nothing here leaves this computer. */
+function PrivacyReport({ baseUrl }: { baseUrl: string }) {
+  const load = useCallback(() => window.mobius.agent.activity(200), []);
+  const { value, loaded } = useLoaded<ActivityEntry[]>(load, []);
+  const rows = privacyReport(value, Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const times = (n: number) => (n === 0 ? '—' : n === 1 ? 'once' : `${n} times`);
+  return (
+    <>
+      <p className="srow-text">Requests are answered by: <strong>{whereItRuns(baseUrl)}</strong>.</p>
+      {loaded && rows.length === 0 ? (
+        <p className="srow-text">Mobius has not read or changed anything in the last seven days.</p>
+      ) : (
+        <table className="stable privacy-table" aria-label="Privacy report">
+          <thead><tr><th scope="col">App</th><th scope="col">Read</th><th scope="col">Changed</th><th scope="col">Blocked</th></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.area}><th scope="row">{r.area}</th><td>{times(r.read)}</td><td>{times(r.changed)}</td><td>{times(r.blocked)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="srow-text">From the activity log on this computer. Change what Mobius may do in each app under Approvals.</p>
+    </>
+  );
+}
+
 const ACCESS_OPTIONS: ReadonlyArray<{ id: AccessLevel; label: string }> = [
   { id: 'off', label: 'Off' },
   { id: 'ask', label: 'Ask first' },
@@ -389,6 +416,9 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
     const storage = settings?.hasKey ? (settings.keyStorage === 'keychain' ? 'Your API key is stored encrypted by your system.' : 'Your API key is kept only until you quit Mobius.') : 'No API key is saved.';
     return (
       <>
+        <Row path={path('privacy-report')} title="Privacy report" description="What Mobius read and changed in the last seven days, by app, and where your requests are answered." highlight={highlight === 'privacy-report'}>
+          <PrivacyReport baseUrl={settings?.baseUrl ?? ''} />
+        </Row>
         <Row path={path('key-storage')} title="Key storage" description="Whether your API key is stored encrypted by the system or only kept until you quit." highlight={highlight === 'key-storage'}>
           <p className="srow-text">{storage}</p>
         </Row>

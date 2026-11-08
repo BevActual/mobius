@@ -104,6 +104,7 @@ export const SETTINGS: readonly SettingsSection[] = [
       ] },
       { id: 'activity', label: 'Activity', rows: [row('activity-log', 'Activity log', 'A record of what was asked, allowed and run. It never contains what was typed or read.', 'log', 'history', 'audit', 'events', 'record')] },
       { id: 'privacy', label: 'Privacy', rows: [
+        row('privacy-report', 'Privacy report', 'What Mobius read and changed in the last seven days, by app, and where your requests are answered.', 'privacy', 'report', 'what was read', 'data', 'local', 'on device', 'where'),
         row('key-storage', 'Key storage', 'Whether your API key is stored encrypted by the system or only kept until you quit.', 'keychain', 'encrypted', 'secret'),
         row('web-content', 'Web content', 'Text from web pages is treated as untrusted and never as instructions.', 'prompt injection', 'untrusted', 'pages'),
       ] },

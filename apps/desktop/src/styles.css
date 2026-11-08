@@ -1129,3 +1129,5 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .scheduled-item:hover { background: var(--soft); }
 .scheduled-item[data-off] { opacity: 0.6; }
 .scheduled-when { color: var(--muted); font-size: var(--fs-xs); }
+.privacy-table th[scope="col"] { width: auto; font-weight: var(--fw-semibold); color: var(--muted); }
+.privacy-table td { font-variant-numeric: tabular-nums; }
