@@ -202,3 +202,19 @@ test('the Agent app’s Activity tab shows what finished today, and what is sche
   await expect(side.getByRole('list', { name: 'Done today' })).toContainText('tidy my inbox');
   await expect(side.getByRole('list', { name: 'Scheduled requests' })).toContainText('Weekdays at 08:00');
 });
+
+test('profiles: Personal is there, a new one can be made from File › Profiles…, and the open one is marked', async () => {
+  await start([]);
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'File' }).click();
+  await shell().getByRole('menuitem', { name: 'Profiles…' }).click();
+  const page = shell().getByRole('region', { name: 'Settings' });
+  const list = page.getByRole('list', { name: 'Profiles' });
+  await expect(list).toContainText('PersonalOpen now');
+  await page.getByRole('textbox', { name: 'Name of the new profile' }).fill('Work');
+  await page.getByRole('button', { name: 'New profile' }).click();
+  await expect(list.getByRole('listitem')).toHaveCount(2);
+  await expect(list.getByRole('listitem').nth(1)).toContainText('Work');
+  const saved = JSON.parse(fs.readFileSync(path.join(userData, 'profiles.json'), 'utf8')) as { current: string; list: { name: string }[] };
+  expect(saved.current).toBe('default');
+  expect(saved.list.map((p) => p.name)).toEqual(['Personal', 'Work']);
+});

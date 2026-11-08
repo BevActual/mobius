@@ -372,7 +372,7 @@ export function App() {
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'keyboard' | 'about' | 'schedules' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
   const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
   const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
@@ -587,7 +587,7 @@ export function App() {
     }
     document.execCommand(command);
   };
-  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules') => { setSettingsSection(section); setSettingsOpen(true); };
+  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
     apps: APPS.filter((a) => a.available),
@@ -606,6 +606,7 @@ export function App() {
       closeTab: () => { if (active) window.mobius.browser.close(active.id); },
       settings: openSettings,
       shortcuts: () => openSettingsAt('keyboard'),
+      profiles: () => openSettingsAt('profiles'),
       about: () => openSettingsAt('about'),
       edit,
       find: openFind,
@@ -901,7 +902,7 @@ export function App() {
         <main className="stage" data-split={split || undefined} data-edge-left={(hasLeft && leftFloating && !leftOpen) || undefined} data-edge-right={(hasRight && rightFloating && !chatOpen) || undefined} style={split ? ({ '--split': `${(splitDrag ?? share) * 100}%` } as React.CSSProperties) : undefined}>
           {settingsOpen && (
             <SettingsPage
-              {...(settingsSection === 'layout' ? { initial: 'appearance' as const, initialSubpage: 'layout' } : settingsSection ? { initial: settingsSection } : {})}
+              {...(settingsSection === 'layout' ? { initial: 'appearance' as const, initialSubpage: 'layout' } : settingsSection === 'profiles' ? { initial: 'advanced' as const, initialSubpage: 'profiles' } : settingsSection ? { initial: settingsSection } : {})}
               onClose={() => { setSettingsSection(undefined); closeSettings(); }}
               settings={settings}
               onSaveSettings={saveSettings}

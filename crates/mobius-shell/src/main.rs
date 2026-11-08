@@ -5,6 +5,7 @@ mod awake;
 mod secrets;
 mod tray;
 mod menu;
+mod profiles;
 #[cfg(windows)]
 mod cdp;
 mod engine;
@@ -120,6 +121,8 @@ struct Shell {
     tray: std::sync::Mutex<Option<tray::Shown>>,
     /// The menus in the macOS menu bar now.
     menu: std::sync::Mutex<Option<Vec<menu::Spec>>>,
+    /// The data folder every profile lives in.
+    profiles_base: PathBuf,
 }
 
 /// Linux: where every web view keeps its storage (the interface's saved state, pages' cookies), inside Mobius's own
@@ -289,6 +292,30 @@ fn little_mobius(app: &tauri::AppHandle, method: &str, place_file: &std::path::P
 /// The one door from the interface into Rust.
 #[tauri::command]
 async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: String, method: String, args: Vec<Value>) -> Result<Value, Value> {
+    if namespace == "profiles" {
+        let base = &shell.profiles_base;
+        let mut profiles = profiles::Profiles::read(base);
+        let name = args.get(1).and_then(Value::as_str).unwrap_or("");
+        let id = args.first().and_then(Value::as_str).unwrap_or("");
+        let changed = match method.as_str() {
+            "list" => return Ok(profiles.to_json()),
+            "create" => profiles.create(args.first().and_then(Value::as_str).unwrap_or("")).map(|_| ()),
+            "rename" => profiles.rename(id, name),
+            "remove" => profiles.remove(id),
+            "switch" => profiles.switch(id),
+            _ => return Err(serde_json::json!({ "kind": "not_available", "message": "Not a profiles call." })),
+        };
+        return Ok(match changed.and_then(|()| profiles.write(base)) {
+            Ok(()) => {
+                if method == "switch" {
+                    // A different profile is a different set of data: Mobius starts again with it.
+                    app.request_restart();
+                }
+                serde_json::json!({ "ok": true, "profiles": profiles.to_json() })
+            }
+            Err(error) => serde_json::json!({ "ok": false, "error": error }),
+        });
+    }
     if namespace == "menu" && method == "set" {
         let mut before = shell.menu.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         return menu::set(&app, &mut before, &args);
@@ -377,16 +404,20 @@ fn main() {
         .invoke_handler(tauri::generate_handler![bridge])
         .setup(|app| {
             let test_mode = std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1");
-            let data_dir = match std::env::var("MOBIUS_USER_DATA") {
+            let base_dir = match std::env::var("MOBIUS_USER_DATA") {
                 Ok(dir) if test_mode => PathBuf::from(dir),
                 _ => app.path().app_data_dir()?,
             };
+            std::fs::create_dir_all(&base_dir)?;
+            // The open profile's own folder. Models and the local engine are shared by every profile: they are large,
+            // and the same on one computer.
+            let data_dir = profiles::Profiles::read(&base_dir).folder(&base_dir);
             std::fs::create_dir_all(&data_dir)?;
             let handle = app.handle().clone();
             let slot: Arc<OnceLock<Arc<Bridge>>> = Arc::new(OnceLock::new());
             let (status_slot, note_slot, request_slot) = (slot.clone(), slot.clone(), slot.clone());
             let mut args = vec!["--db".into(), data_dir.join("core.db").display().to_string(), "--conversations".into(), data_dir.join("conversations.db").display().to_string()];
-            args.extend(["--models-dir".into(), data_dir.join("models").display().to_string(), "--download-dir".into(), data_dir.join("models").display().to_string(), "--state-dir".into(), data_dir.display().to_string()]);
+            args.extend(["--models-dir".into(), base_dir.join("models").display().to_string(), "--download-dir".into(), base_dir.join("models").display().to_string(), "--state-dir".into(), base_dir.display().to_string()]);
             if test_mode {
                 args.extend(["--demo-tools".into(), "--no-default-models".into()]);
                 if let Ok(hub) = std::env::var("MOBIUS_TEST_HUB") {
@@ -471,7 +502,7 @@ fn main() {
             }
             let quit_handle = handle.clone();
             bridge.set_quit(Arc::new(move || quit_handle.exit(0)));
-            app.manage(Shell { bridge: bridge.clone(), mini_place: data_dir.join("little-mobius.json"), tray: std::sync::Mutex::new(None), menu: std::sync::Mutex::new(None) });
+            app.manage(Shell { bridge: bridge.clone(), mini_place: data_dir.join("little-mobius.json"), tray: std::sync::Mutex::new(None), menu: std::sync::Mutex::new(None), profiles_base: base_dir.clone() });
             // A choice in the macOS menu bar goes to the interface, which runs it.
             handle.on_menu_event(|app, event| menu::on_event(app, event.id().as_ref()));
             // The print in the menu bar or notification area; the app keeps it, found again by its id. Tests start and

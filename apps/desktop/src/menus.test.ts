@@ -17,7 +17,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
     },
     do: {
       create: { conversation: noop, tab: noop, note: noop, task: noop },
-      closeTab: noop, settings: noop, shortcuts: noop, about: noop, edit: noop, find: noop, toggleSidebar: noop, toggleAgent: noop,
+      closeTab: noop, settings: noop, shortcuts: noop, profiles: noop, about: noop, edit: noop, find: noop, toggleSidebar: noop, toggleAgent: noop,
       toggleSplit: noop, toggleMini: noop, zoom: noop, open: noop, allApps: noop, launcher: noop,
       browser: { back: noop, forward: noop, reload: noop, address: noop, bookmark: noop, pin: noop, reopen: noop, selection: noop },
       notes: { newNotebook: noop, pin: noop, changes: noop },

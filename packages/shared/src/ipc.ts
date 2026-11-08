@@ -196,6 +196,14 @@ export interface MobiusBridge {
     /** Says when Little Mobius opens or closes. */
     onChange(listener: (open: boolean) => void): () => void;
   };
+  /** Separate sets of data (Personal, Work…). Switching starts Mobius again with the other one. */
+  profiles?: {
+    list(): Promise<ProfilesState>;
+    create(name: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
+    rename(id: string, name: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
+    remove(id: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
+    switch(id: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
+  };
   /** Requests to make at a time of day, on chosen days. Each run is a new conversation. */
   schedules?: {
     list(): Promise<ScheduleInfo[]>;
@@ -859,6 +867,7 @@ export interface PreferencesSettings {
   /** How much the agent may do in each app without asking: off, ask (the usual), read, or act. Risky actions still ask. */
   appAccess: AppAccess;
 }
+export interface ProfilesState { current: string; list: { id: string; name: string }[] }
 /** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
 export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean }
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }

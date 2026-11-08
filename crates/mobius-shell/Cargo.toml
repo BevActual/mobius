@@ -25,6 +25,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
 arboard = "3"
 tauri-plugin-dialog = "2"
+getrandom = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
@@ -38,6 +39,9 @@ javascriptcore-rs = "1.1"
 cairo-rs = { version = "0.18", features = ["png"] }
 # Looking for the AppIndicator library before the tray uses it (see src/tray.rs).
 libloading = "0.7"
+
+[dev-dependencies]
+tempfile = "3"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

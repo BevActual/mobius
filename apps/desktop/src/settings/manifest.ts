@@ -179,6 +179,7 @@ export const SETTINGS: readonly SettingsSection[] = [
         row('share-mcp', 'Let other apps use Mobius', 'Agents such as Claude Code or Hermes can read the files in your workspace over MCP, on this computer only. Off until you turn it on.', 'mcp', 'server', 'claude code', 'hermes', 'share', 'expose', 'integration', 'agents', 'connect'),
         row('share-changes', 'Let them change files', 'Other apps may also create and edit files. Each change is checkpointed, so it can be undone.', 'write', 'edit', 'mcp', 'permission'),
       ] },
+      { id: 'profiles', label: 'Profiles', rows: [row('profiles', 'Profiles', 'Keep parts of your life apart: each profile has its own conversations, notes, tasks, memory, schedules and settings. Downloaded models are shared.', 'profile', 'work', 'personal', 'client', 'switch', 'space', 'account', 'separate')] },
       { id: 'desktop', label: 'Desktop', rows: [row('keep-awake', 'Keep the computer awake while working', 'Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you.', 'keep awake', 'prevent sleep', 'caffeinate', 'idle', 'power', 'overnight')] },
     ],
   },

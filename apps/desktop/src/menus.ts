@@ -36,6 +36,7 @@ export interface MenuContext {
     closeTab: () => void;
     settings: () => void;
     shortcuts: () => void;
+    profiles: () => void;
     about: () => void;
     edit: (command: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll') => void;
     find: () => void;
@@ -73,6 +74,7 @@ export function buildMenus(c: MenuContext): Menu[] {
     separator,
     item('close-tab', 'Close tab', d.closeTab, { keys: keys.closeTab, disabled: c.app !== 'browser' || !s.browser.hasPage }),
     separator,
+    item('profiles', 'Profiles…', d.profiles),
     item('settings', 'Settings…', d.settings, { keys: keys.settings }),
   ] };
   const edit: Menu = { id: 'edit', label: 'Edit', items: [

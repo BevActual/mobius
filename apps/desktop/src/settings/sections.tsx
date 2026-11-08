@@ -47,6 +47,7 @@ import { appName } from '../apps';
 import { relativeTime } from '../relative-time';
 import { describeActivity } from './activity';
 import { privacyReport, whereItRuns } from './privacy';
+import { ProfilesPane } from './Profiles';
 import { LocalModelsSection } from './LocalModels';
 import { SettingsForm } from './ModelForm';
 import { Empty, Row } from './primitives';
@@ -823,6 +824,7 @@ export function AdvancedSection({ subpage, highlight, settings, onSaveSettings, 
     setStatus(result.ok ? { ok: true, text: 'Saved' } : { ok: false, text: result.error });
   };
   if (subpage === 'other-apps') return <OtherApps subpage={subpage} highlight={highlight} />;
+  if (subpage === 'profiles') return <ProfilesPane subpage={subpage} highlight={highlight} />;
   if (subpage === 'desktop') {
     return (
       <Row path={rowPath('advanced', subpage, 'keep-awake')} title="Keep the computer awake while working" description="Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you." highlight={highlight === 'keep-awake'}>
