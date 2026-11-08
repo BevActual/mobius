@@ -949,7 +949,10 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .review-summary { flex: 1; min-width: 0; font-weight: var(--fw-medium); }
 .review-btn { height: 26px; padding: 0 10px; border-radius: var(--radius-pill); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .review-btn:hover, .review-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.review-btn[data-kind="undo"] { color: var(--accent); }
+.review-btn[data-kind="keep"] { background: var(--accent); color: var(--on-accent); }
+.review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: color-mix(in srgb, var(--accent) 88%, #000); }
+/* A proposal: dashed until you keep or discard it. */
+.review-strip:not([data-state]) { background: transparent; border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .review-list { list-style: none; margin: 4px 0 2px; padding: 4px 0 0; border-top: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 2px; }
 .review-item { display: flex; align-items: center; gap: 8px; min-height: 28px; }
 .review-kind { flex: none; padding: 1px 7px; border-radius: var(--radius-pill); background: var(--capsule); color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }

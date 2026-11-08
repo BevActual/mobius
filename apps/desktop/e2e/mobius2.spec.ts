@@ -110,8 +110,26 @@ test('what the last turn changed can be reviewed and undone', async () => {
   await expect(strip).toContainText('Changed 1 item');
   await strip.getByRole('button', { name: 'Review' }).click();
   await expect(strip).toContainText('Work / Ideas');
-  await strip.getByRole('button', { name: 'Undo all' }).click();
+  await strip.getByRole('button', { name: 'Discard' }).click();
   await expect(shell().getByText('Put back as it was before that turn.')).toBeVisible();
   expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(false);
   expect(fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
+});
+
+test('Keep accepts the last turn’s changes from the keyboard, and the strip stays away for that turn', async () => {
+  await start([callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.'])]);
+  await composer().fill('make an ideas page');
+  await composer().press('Enter');
+  await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
+  const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
+  await expect(strip.getByRole('button', { name: 'Keep' })).toBeVisible();
+  // The message box is empty, so the keys are free to answer the proposal.
+  await composer().press('ControlOrMeta+Enter');
+  await expect(strip).toHaveCount(0);
+  expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(true);
+  await shell().reload();
+  await expect(composer()).toBeEnabled({ timeout: 15_000 });
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
+  await expect(strip).toHaveCount(0);
 });
