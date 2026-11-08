@@ -1425,7 +1425,10 @@ impl Bridge {
     /// The part of it the player asked for (`Range`), where that part starts, the file's length and its media type.
     pub fn media_part(&self, project: &str, clip: &str, range: Option<&str>) -> Result<(Vec<u8>, u64, u64, &'static str), String> {
         let file = self.video.clip_path(project, clip)?;
-        let (bytes, start, len) = mobius_workspace::video::read_range(&file, range)?;
+        let (bytes, start, len) = match range {
+            Some(r) => mobius_workspace::video::read_range(&file, Some(r))?,
+            None => mobius_workspace::video::read_whole(&file)?,
+        };
         Ok((bytes, start, len, mobius_workspace::video::media_type(clip).unwrap_or("application/octet-stream")))
     }
 

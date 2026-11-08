@@ -121,6 +121,7 @@ fn media_response(bridge: Option<&Bridge>, request: &tauri::http::Request<Vec<u8
     let path = request.uri().path().trim_start_matches('/');
     let decode = |s: &str| percent_decode(s);
     let Some((project, clip)) = path.split_once('/').map(|(p, c)| (decode(p), decode(c))) else { return fail(StatusCode::NOT_FOUND) };
+    // Without a range, the whole clip (the window on Linux reads it once to play from memory).
     let range = request.headers().get(header::RANGE).and_then(|v| v.to_str().ok());
     match bridge.media_part(&project, &clip, range) {
         Ok((bytes, start, len, kind)) => {
@@ -129,6 +130,8 @@ fn media_response(bridge: Option<&Bridge>, request: &tauri::http::Request<Vec<u8
                 .status(if range.is_some() { StatusCode::PARTIAL_CONTENT } else { StatusCode::OK })
                 .header(header::CONTENT_TYPE, kind)
                 .header(header::ACCEPT_RANGES, "bytes")
+                // The window reads clips across addresses on Linux (to play them from memory); only its own page may.
+                .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, own_origin(request))
                 .header(header::CONTENT_RANGE, format!("bytes {start}-{}/{len}", end.saturating_sub(1)))
                 .header(header::CONTENT_LENGTH, bytes.len())
                 .body(bytes)
@@ -136,6 +139,15 @@ fn media_response(bridge: Option<&Bridge>, request: &tauri::http::Request<Vec<u8
         }
         Err(e) if e.contains("not there") || e.contains("not a clip") => fail(StatusCode::NOT_FOUND),
         Err(_) => fail(StatusCode::RANGE_NOT_SATISFIABLE),
+    }
+}
+
+/// The interface page's own origin, if the request came from it, else nothing another page could use.
+fn own_origin(request: &tauri::http::Request<Vec<u8>>) -> &'static str {
+    match request.headers().get(tauri::http::header::ORIGIN).and_then(|v| v.to_str().ok()) {
+        Some("tauri://localhost") => "tauri://localhost",
+        Some("http://tauri.localhost") => "http://tauri.localhost",
+        _ => "null",
     }
 }
 

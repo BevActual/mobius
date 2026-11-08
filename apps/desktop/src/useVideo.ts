@@ -20,6 +20,19 @@ export function useVideo() {
   live.current = { project, cut, base, saved };
   const timer = useRef<number | undefined>(undefined);
   const url = useCallback((clip: string) => (project ? mediaUrl(project, clip, window.mobius.platform) : ''), [project]);
+  // Linux's player does not read the media address itself, so there the clip is read through it once and played
+  // from memory. Elsewhere the player reads it directly, in parts.
+  const blobs = useRef(new Map<string, Promise<string>>());
+  const playable = useCallback((clip: string): Promise<string> => {
+    const direct = url(clip);
+    if (window.mobius.platform !== 'linux' || !direct) return Promise.resolve(direct);
+    let got = blobs.current.get(direct);
+    if (!got) {
+      got = fetch(direct).then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status))))).then((b) => URL.createObjectURL(b)).catch(() => direct);
+      blobs.current.set(direct, got);
+    }
+    return got;
+  }, [url]);
 
   const refresh = useCallback(async () => {
     const list = await api?.projects();
@@ -54,7 +67,7 @@ export function useVideo() {
       el.preload = 'metadata';
       el.onloadedmetadata = () => { setLengths((was) => ({ ...was, [key]: Math.round(el.duration * 100) / 100 })); el.removeAttribute('src'); };
       el.onerror = () => setLengths((was) => ({ ...was, [key]: 0 }));
-      el.src = url(c.name);
+      void playable(c.name).then((src) => { el.src = src; });
     }
   }, [project, clips.map((c) => c.name).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -116,6 +129,6 @@ export function useVideo() {
   }, [api, refresh]);
 
   const lengthOf = useCallback((clip: string) => (project ? lengths[`${project}/${clip}`] : undefined), [project, lengths]);
-  return { available: api !== undefined, projects, project, clips, cut, base, change, saved, message, setMessage, open, refresh, reload: () => (project ? loadCut(project) : Promise.resolve()), createProject, addFiles, url, lengthOf, showFolder: () => (project ? api?.showFolder(project) : undefined) };
+  return { available: api !== undefined, projects, project, clips, cut, base, change, saved, message, setMessage, open, refresh, reload: () => (project ? loadCut(project) : Promise.resolve()), createProject, addFiles, url, playable, lengthOf, showFolder: () => (project ? api?.showFolder(project) : undefined) };
 }
 export type VideoState = ReturnType<typeof useVideo>;

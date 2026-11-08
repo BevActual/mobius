@@ -159,6 +159,16 @@ impl Video {
     }
 }
 
+/// A whole media file, for a player that cannot ask for parts; refused past 512 MB.
+pub fn read_whole(file: &Path) -> Res<(Vec<u8>, u64, u64)> {
+    let len = fs::metadata(file).map_err(|e| e.to_string())?.len();
+    if len > 512 * 1024 * 1024 {
+        return Err("that clip is too big to play here".into());
+    }
+    let bytes = fs::read(file).map_err(|e| e.to_string())?;
+    Ok((bytes, 0, len))
+}
+
 /// Part of a media file, as a player asks for it with `Range: bytes=start-end`: the bytes, where they start, and
 /// the file's whole length. Without a range, the start of the file.
 pub fn read_range(file: &Path, range: Option<&str>) -> Res<(Vec<u8>, u64, u64)> {

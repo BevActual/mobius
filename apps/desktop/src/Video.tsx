@@ -90,10 +90,12 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
     const s = cut.shots[i];
     if (!el || !s) return;
     setIndex(i);
-    const src = video.url(s.clip);
-    if (el.getAttribute('src') !== src) el.setAttribute('src', src);
-    const go = () => { el.currentTime = clipTime; if (play) void el.play().catch(() => setPlaying(false)); };
-    if (el.readyState >= 1 && el.getAttribute('src') === src) go(); else el.addEventListener('loadedmetadata', go, { once: true });
+    void video.playable(s.clip).then((src) => {
+      const go = () => { el.currentTime = clipTime; if (play) void el.play().catch(() => setPlaying(false)); };
+      if (el.getAttribute('src') === src && el.readyState >= 1) { go(); return; }
+      if (el.getAttribute('src') !== src) el.setAttribute('src', src);
+      el.addEventListener('loadedmetadata', go, { once: true });
+    });
   };
   useEffect(() => { setIndex(0); setT(0); setPlaying(false); player.current?.pause(); if (cut.shots[0]) cue(0, cut.shots[0].in, false); }, [video.project]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!playing && cut.shots.length > 0) { const at = locate(cut, t); if (at) cue(at.index, at.clipTime, false); } }, [cut]); // eslint-disable-line react-hooks/exhaustive-deps
