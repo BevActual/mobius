@@ -84,3 +84,17 @@ test('/name asks for a skill, Mobius is told what skills there are, and its impr
   await expect.poll(() => fs.readFileSync(file('compare-stays'), 'utf8')).toBe(SKILL);
   await expect(review).toBeHidden();
 });
+
+test('a skill someone shared shows what it is for and what it can touch before it is added', async () => {
+  await start();
+  const shared = '---\nname: Compare Stays\ndescription: When choosing where to stay, compare places side by side\nallowed-tools: browser.read sheets.write\n---\n\n1. Read each place\n2. Put them in a table in Sheets\n';
+  await shell().getByLabel('Choose a SKILL.md').setInputFiles({ name: 'SKILL.md', mimeType: 'text/markdown', buffer: Buffer.from(shared) });
+  const dialog = shell().getByRole('dialog', { name: 'Install a skill' });
+  await expect(dialog.getByRole('heading')).toHaveText('Install /Compare Stays?');
+  await expect(dialog.getByRole('group', { name: 'What it can touch' })).toContainText('browser.read');
+  await expect(dialog.getByRole('group', { name: 'What it can touch' })).toContainText('sheets.write');
+  await dialog.getByRole('button', { name: 'Install' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(shell().getByRole('region', { name: 'Skills' }).getByRole('heading', { name: '/compare-stays' })).toBeVisible();
+  expect(fs.readFileSync(file('compare-stays'), 'utf8')).toContain('name: compare-stays\ndescription: When choosing where to stay');
+});

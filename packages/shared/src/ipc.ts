@@ -511,6 +511,8 @@ export interface MobiusBridge {
     /** Keeps the version it replaces. Refused with `conflict` when it changed since `base`. */
     save(name: string, text: string, base: number | null): Promise<{ name: string; modified: number } | NotesFailure>;
     create(title: string, description: string): Promise<{ name: string; text: string; modified: number } | NotesFailure>;
+    /** Adds a skill someone shared, from its SKILL.md text. */
+    install(text: string): Promise<{ name: string; text: string; modified: number } | NotesFailure>;
     restore(name: string, version: number): Promise<{ name: string; modified: number } | NotesFailure>;
     remove(name: string): Promise<{ removed: string } | NotesFailure>;
     onChanged(listener: (change: { name: string | null; by: string }) => void): () => void;

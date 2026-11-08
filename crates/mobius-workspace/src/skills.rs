@@ -168,6 +168,35 @@ impl Skills {
         Ok(json!({ "name": name, "text": text, "modified": modified_ms(&dir.join(FILE)) }))
     }
 
+    /// Adds a skill someone shared: a SKILL.md as text. Its name comes from its front matter (made safe, and made
+    /// unique if one by that name is here); nothing in it runs until Mobius is asked for it.
+    pub fn install(&self, text: &str) -> Res<Value> {
+        if text.len() > MAX_SKILL {
+            return Err("that skill is too long".into());
+        }
+        let text = text.replace("\r\n", "\n");
+        let Some(rest) = text.strip_prefix("---\n") else { return Err("That is not a skill: a SKILL.md starts with its name and description between lines of ---.".into()) };
+        let end = rest.find("\n---").ok_or("That is not a skill: its front matter does not end.")?;
+        let front = &rest[..end];
+        let named = front.lines().find_map(|l| l.trim().strip_prefix("name:")).map(|n| n.trim().trim_matches('"').to_owned()).filter(|n| !n.is_empty()).ok_or("That skill has no name.")?;
+        if description_of(&text).is_empty() {
+            return Err("That skill does not say when it runs (its description).".into());
+        }
+        let base = name_for(&named);
+        let mut name = base.clone();
+        let mut n = 2;
+        while self.root.join(&name).exists() {
+            name = format!("{base}-{n}");
+            n += 1;
+        }
+        let front: Vec<String> = front.lines().map(|l| if l.trim_start().starts_with("name:") { format!("name: {name}") } else { l.to_owned() }).collect();
+        let text = format!("---\n{}{}", front.join("\n"), &rest[end..]);
+        let dir = self.dir(&name)?;
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        fs::write(dir.join(FILE), &text).map_err(|e| e.to_string())?;
+        Ok(json!({ "name": name, "text": text, "modified": modified_ms(&dir.join(FILE)) }))
+    }
+
     /// Puts an earlier version back as the skill (the one it replaces is kept too).
     pub fn restore(&self, name: &str, version: u32) -> Res<Value> {
         let dir = self.dir(name)?;
@@ -246,6 +275,13 @@ mod tests {
         assert!(s.run("skills.read", &json!({ "name": "compare-stays" })).unwrap().contains("List the hotels"));
         assert!(s.read("../x").is_err());
         assert!(s.save("compare-stays", "x", Some(1)).is_err());
+        s.remove("compare-stays-2").unwrap();
+        let shared = "---\nname: Compare Stays\ndescription: Compare places\nallowed-tools: browser.read sheets.write\n---\n\n1. Look\n";
+        let got = s.install(shared).unwrap();
+        assert_eq!(got["name"], "compare-stays-2");
+        assert!(got["text"].as_str().unwrap().starts_with("---\nname: compare-stays-2\ndescription: Compare places\nallowed-tools"));
+        assert!(s.install("1. no front matter").is_err());
+        assert!(s.install("---\nname: x\n---\n1. a").is_err(), "a skill must say when it runs");
         s.remove("compare-stays-2").unwrap();
         assert_eq!(s.list().unwrap().as_array().unwrap().len(), 1);
     }

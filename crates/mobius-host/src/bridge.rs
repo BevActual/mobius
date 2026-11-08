@@ -1504,6 +1504,7 @@ impl Bridge {
                 _ => Err("that cannot be saved".to_owned()),
             },
             "create" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| s.create(n, text(1).unwrap_or(""))),
+            "install" => text(0).ok_or_else(|| "a skill is needed".to_owned()).and_then(|t| s.install(t)),
             "restore" => match (text(0), args.get(1).and_then(Value::as_u64).and_then(|v| u32::try_from(v).ok())) {
                 (Some(n), Some(v)) => s.restore(n, v),
                 _ => Err("a skill and a version are needed".to_owned()),
@@ -1513,7 +1514,7 @@ impl Bridge {
         };
         match result {
             Ok(value) => {
-                if matches!(method, "save" | "create" | "restore" | "remove") {
+                if matches!(method, "save" | "create" | "install" | "restore" | "remove") {
                     (self.emit)("mobius:skills-changed", json!({ "name": value.get("name").or_else(|| value.get("removed")), "by": "person" }));
                 }
                 value

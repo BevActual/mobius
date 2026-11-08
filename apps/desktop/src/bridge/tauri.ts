@@ -262,6 +262,7 @@ export function createTauriBridge(): MobiusBridge {
       read: (name) => call('skills', 'read', [name], () => ({ ok: false as const, message: 'Skills is not available.' })),
       save: (name, text, base) => call('skills', 'save', [name, text, base], () => ({ ok: false as const, message: 'Skills is not available.' })),
       create: (title, description) => call('skills', 'create', [title, description], () => ({ ok: false as const, message: 'Skills is not available.' })),
+      install: (text) => call('skills', 'install', [text], () => ({ ok: false as const, message: 'Skills is not available.' })),
       restore: (name, version) => call('skills', 'restore', [name, version], () => ({ ok: false as const, message: 'Skills is not available.' })),
       remove: (name) => call('skills', 'remove', [name], () => ({ ok: false as const, message: 'Skills is not available.' })),
       onChanged: (listener) => on<{ name: string | null; by: string }>('mobius:skills-changed', listener),

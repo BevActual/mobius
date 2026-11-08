@@ -1,4 +1,5 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { lineDiff } from './code-view';
 import { parseSkill, writeSkill, type Skill } from './skill-format';
 import { useFileReview } from './useFileReview';
@@ -10,6 +11,8 @@ export function SkillsSidebar({ skills, pin, changed }: { skills: SkillsState; p
   const [name, setName] = useState('');
   const [about, setAbout] = useState('');
   const submit = async (e: FormEvent) => { e.preventDefault(); if (await skills.create(name.trim() || 'New skill', about)) { setNaming(false); setName(''); setAbout(''); } };
+  const picker = useRef<HTMLInputElement>(null);
+  const [shared, setShared] = useState<string | null>(null);
   return (
     <aside className="side skills-side" aria-label="Skills sidebar">
       <div className="side-head">
@@ -34,6 +37,11 @@ export function SkillsSidebar({ skills, pin, changed }: { skills: SkillsState; p
           <button type="button" className="btn primary" onClick={() => setNaming(true)}>New skill</button>
         </div>
       )}
+      <div className="skill-install-row">
+        <button type="button" className="btn" onClick={() => picker.current?.click()}>Install a skill…</button>
+        <input ref={picker} type="file" accept=".md,text/markdown,text/plain" hidden aria-label="Choose a SKILL.md" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void f.text().then(setShared); }} />
+      </div>
+      {shared !== null && <InstallDialog text={shared} skills={skills} onClose={() => setShared(null)} />}
       <nav className="task-lists" aria-label="Skills">
         <ul role="list">
           {skills.list.map((s) => (
@@ -48,6 +56,47 @@ export function SkillsSidebar({ skills, pin, changed }: { skills: SkillsState; p
         </ul>
       </nav>
     </aside>
+  );
+}
+
+/**
+ * A skill someone shared, before it is added: what it is for, its steps, and what it says it will use. Nothing in it
+ * runs until Mobius is asked for it, and each tool still asks as your settings say.
+ */
+function InstallDialog({ text, skills, onClose }: { text: string; skills: SkillsState; onClose: () => void }) {
+  const skill = parseSkill(text);
+  const tools = skill.extra.find((l) => /^allowed-tools:/.test(l))?.replace(/^allowed-tools:\s*/, '').split(/[\s,]+/).filter(Boolean) ?? [];
+  const valid = text.startsWith('---') && skill.name !== '' && skill.description !== '';
+  const [problem, setProblem] = useState<string | null>(null);
+  const install = async () => {
+    const made = await window.mobius.skills?.install(text);
+    if (!made || 'ok' in made) { setProblem(made && 'message' in made ? made.message : 'That skill could not be added.'); return; }
+    await skills.openSkill(made.name);
+    onClose();
+  };
+  return createPortal(
+    <div className="cal-modal-layer skill-install-layer" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="camera-dialog" role="dialog" aria-modal="true" aria-label="Install a skill">
+        <h2>{valid ? `Install /${skill.name}?` : 'This is not a skill'}</h2>
+        {valid ? (
+          <>
+            <p className="camera-note">{skill.description}</p>
+            <div className="skill-field"><span>Steps</span><ol className="skill-install-steps">{skill.steps.map((s, i) => <li key={i}>{s}</li>)}</ol></div>
+            <div className="skill-field" role="group" aria-label="What it can touch">
+              <span>What it can touch</span>
+              {tools.length > 0 ? <ul className="skill-install-tools">{tools.map((t) => <li key={t}><code>{t}</code></li>)}</ul> : <p className="camera-note">It does not say. Mobius can use only what your settings allow, and asks first where they say so.</p>}
+            </div>
+            <p className="camera-note">Nothing runs when you install it: Mobius follows it only when asked, and every tool still goes through your approvals.</p>
+          </>
+        ) : <p className="camera-note">A SKILL.md starts with its name and when it runs, between lines of ---, then its steps.</p>}
+        {problem && <p className="tasks-message" role="alert">{problem}</p>}
+        <div className="camera-actions">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          {valid && <button type="button" className="btn primary" onClick={() => void install()}>Install</button>}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
