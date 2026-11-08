@@ -1583,7 +1583,7 @@ impl Bridge {
 
     /// What is added to the agent's instructions every turn: what it remembers, and the skills it may follow.
     fn instructions(&self) -> String {
-        [self.memory.instructions(), self.skills.summary()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("\n\n")
+        [self.memory.instructions(), self.skills.summary(), crate::workspace_guide::GUIDE.to_owned()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("\n\n")
     }
 
     /// The Skills app.

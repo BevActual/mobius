@@ -10,6 +10,7 @@ pub mod code_processes;
 pub mod web;
 pub mod database;
 pub mod terminal;
+pub mod workspace_guide;
 pub mod turn_history;
 pub mod schedules;
 pub mod calendar_accounts;
