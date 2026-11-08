@@ -75,8 +75,10 @@ The Mobius Agent design canvas (Mobius 2 boards) is the reference for what follo
   while away; its menu opens Mobius, asks, lists what is running, and stops it all.
 - **Privacy report**: what Mobius read and changed in each app this week, and where requests are answered.
 - **Accessibility**: glass turns solid with Reduce Transparency, Increase Contrast or forced colours.
+- **Profiles**: separate sets of data (Personal, Work…), switched in Settings › Advanced › Profiles or File › Profiles…;
+  models are shared. Each reply says what it was **based on**.
 
-Not built yet from the canvas: Profiles, Look at this (sharing a window), Show Mobius (camera), trust marks on what
+Not built yet from the canvas: Look at this (sharing a window), Show Mobius (camera), trust marks on what
 Mobius says, labels on plan steps that will ask, and the Activity history of older turns.
 
 ## Linux
