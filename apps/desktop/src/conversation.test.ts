@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent, Message } from '@mobius/shared';
-import { MAX_RESULT_SHOWN, findToolArguments, findToolResult, appsSeen, initialConversation, proposedPlan, reduce, type ConversationState } from './conversation';
+import { MAX_RESULT_SHOWN, findToolArguments, findToolResult, appsSeen, initialConversation, replySources, proposedPlan, reduce, type ConversationState } from './conversation';
 
 const note = (event: AgentEvent, turn = 1) => ({ type: 'notification' as const, notification: { method: 'agent.event' as const, params: { conversation: 'main', turn, event } } });
 const delta = (text: string, turn = 1) => ({ type: 'notification' as const, notification: { method: 'agent.delta' as const, params: { conversation: 'main', turn, text } } });
@@ -353,5 +353,21 @@ describe('what Mobius sees', () => {
     ] };
     expect(appsSeen(state)).toEqual(['Notes', 'Browser', 'Tasks']);
     expect(appsSeen(initialConversation('c'))).toEqual([]);
+  });
+});
+
+describe('where a reply came from', () => {
+  it('names the apps used in that turn only', () => {
+    const items: ConversationState['items'] = [
+      { kind: 'user', id: 'u1', text: 'one' },
+      { kind: 'tool', id: 't1', callId: 'a', name: 'tasks.list', status: 'done' },
+      { kind: 'assistant', id: 'a1', text: 'r1', streaming: false },
+      { kind: 'user', id: 'u2', text: 'two', attachments: [{ kind: 'page', title: 'P', source: 'https://a', text: 'x' }] },
+      { kind: 'tool', id: 't2', callId: 'b', name: 'files.read', status: 'done', args: { path: 'notes/Plan.md' } },
+      { kind: 'assistant', id: 'a2', text: 'r2', streaming: false },
+    ];
+    expect(replySources(items, 2)).toEqual(['Tasks']);
+    expect(replySources(items, 5)).toEqual(['Browser', 'Notes']);
+    expect(replySources(items, 0)).toEqual([]);
   });
 });

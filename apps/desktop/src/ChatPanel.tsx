@@ -6,7 +6,7 @@ import { RichText } from './RichText';
 import { ReviewStrip } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
-import { appsSeen, proposedPlan, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
+import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import type { SurfaceState } from './surface';
 import { activityOf } from './activity';
@@ -447,6 +447,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
               ) : item.kind === 'assistant' ? (
                 <Fragment key={item.id}>
                   <div className="msg assistant" data-streaming={item.streaming}><RichText text={item.text} /></div>
+                  {!item.streaming && item.text !== '' && (() => { const from = replySources(state.items, index); return from.length > 0 ? <p className="msg-sources" title="The apps Mobius used for this reply">Based on {from.join(' · ')}</p> : null; })()}
                   {!item.streaming && item.text !== '' && (
                     <div className="msg-actions assistant">
                       <button type="button" className="msg-action" aria-label="Copy reply" onClick={() => void copy(item.id, item.text)}>{copied === item.id ? 'Copied' : 'Copy'}</button>

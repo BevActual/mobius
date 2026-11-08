@@ -1131,3 +1131,4 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .scheduled-when { color: var(--muted); font-size: var(--fs-xs); }
 .privacy-table th[scope="col"] { width: auto; font-weight: var(--fw-semibold); color: var(--muted); }
 .privacy-table td { font-variant-numeric: tabular-nums; }
+.msg-sources { margin: -2px 0 0; color: var(--muted); font-size: var(--fs-xs); }

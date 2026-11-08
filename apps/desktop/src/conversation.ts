@@ -287,3 +287,13 @@ export function appsSeen(state: ConversationState): string[] {
   }
   return seen;
 }
+
+/**
+ * Where a reply came from: the apps whose tools ran in the same turn, before it, plus what was attached to the
+ * request. Shown under the reply ("Based on Browser · Notes"), so you can tell what it rests on.
+ */
+export function replySources(items: readonly Item[], index: number): string[] {
+  const start = items.slice(0, index).findLastIndex((item) => item.kind === 'user');
+  if (start < 0) return [];
+  return appsSeen({ ...initialConversation(''), items: items.slice(start, index) });
+}

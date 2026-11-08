@@ -101,6 +101,7 @@ test('while the agent works the composer says what it is doing, the app it works
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Added.');
   // The panel says which apps Mobius has worked in during this conversation.
   await expect(shell().locator('.chat-sees')).toHaveText('Sees: Tasks');
+  await expect(shell().locator('.msg-sources').last()).toHaveText('Based on Tasks');
   await expect(activity).toHaveCount(0);
   await expect(railButton('Tasks')).not.toHaveAttribute('data-working');
   // The agent changed Tasks while you were in the Browser: a dot until you look.
