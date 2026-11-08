@@ -188,3 +188,17 @@ test('a schedule is made in Settings, kept, and Run now starts it as a conversat
   await expect(log().locator('.msg.user')).toHaveText('What should I do first today?');
   expect(JSON.stringify(model!.requests[0])).toContain('What should I do first today?');
 });
+
+test('the Agent app’s Activity tab shows what finished today, and what is scheduled', async () => {
+  await start([says(['Done.'])]);
+  await say('tidy my inbox');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Done.');
+  await shell().evaluate(() => window.mobius.schedules!.add({ title: 'Morning brief', prompt: 'Brief me', time: '08:00', days: [1, 2, 3, 4, 5], enabled: true }));
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
+  await shell().keyboard.press('Enter');
+  const side = shell().getByRole('complementary', { name: 'Conversation list' });
+  await side.getByRole('tab', { name: 'Activity' }).click();
+  await expect(side.getByRole('list', { name: 'Done today' })).toContainText('tidy my inbox');
+  await expect(side.getByRole('list', { name: 'Scheduled requests' })).toContainText('Weekdays at 08:00');
+});
