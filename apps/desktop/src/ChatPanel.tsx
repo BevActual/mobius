@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
+import { Welcome } from './Welcome';
 import { RichText } from './RichText';
 import { ReviewStrip } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
@@ -387,6 +388,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
       </div>
       {showSettings && settings ? (
         <div className="chat-scroll">
+          <Welcome />
           <SettingsForm key={`${settings.baseUrl}|${settings.model}`} settings={settings} onSave={onSaveSettings} />
         </div>
       ) : (

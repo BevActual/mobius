@@ -148,6 +148,17 @@ test('reloading the window brings the conversation back, including a question st
   await expect(log().locator('.msg.user')).toHaveText('time please');
 });
 
+test('a new person is welcomed, and chooses how much Mobius does before choosing a model', async () => {
+  mobius = await launch(fixture.origin + '/');
+  await expect(mobius.shell.getByRole('heading', { name: 'Hello.' })).toBeVisible({ timeout: 15_000 });
+  const levels = mobius.shell.getByRole('radiogroup', { name: 'How much should Mobius do?' });
+  await expect(levels.getByRole('radio', { name: /^Ask first/ })).toHaveAttribute('aria-checked', 'true');
+  await levels.getByRole('radio', { name: /^Smart approvals/ }).click();
+  await expect(levels.getByRole('radio', { name: /^Smart approvals/ })).toHaveAttribute('aria-checked', 'true');
+  expect((await mobius.shell.evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('smart');
+  await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toBeVisible();
+});
+
 test('settings: the model can be set up from the panel, survives a restart, and the key stays out of sight', async () => {
   model = await startModel([says(['Configured.']), says(['Still configured.'])]);
   mobius = await launch(fixture.origin + '/');

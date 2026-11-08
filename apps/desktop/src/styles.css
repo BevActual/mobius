@@ -1069,3 +1069,25 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .menu-check { font-size: 12px; text-align: center; }
 .menu-keys { font: inherit; font-size: var(--fs-xs, 11px); color: var(--muted); letter-spacing: 0.02em; }
 .menu-sep { height: 1px; margin: 4px 8px; background: var(--hairline); }
+
+/* First run: hello, how much Mobius should do, then the model. */
+.welcome { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-6) 0 var(--sp-2); text-align: center; }
+.welcome-mark { color: var(--accent); margin-bottom: var(--sp-2); }
+.welcome-ring { stroke-dasharray: 100; stroke-dashoffset: 100; animation: welcome-draw 1.4s cubic-bezier(.6, 0, .2, 1) forwards; }
+.welcome-core { opacity: 0; animation: welcome-light .5s ease 1.3s forwards; }
+@keyframes welcome-draw { to { stroke-dashoffset: 0; } }
+@keyframes welcome-light { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .welcome-ring { animation: none; stroke-dashoffset: 0; } .welcome-core { animation: none; opacity: 1; } }
+.welcome-title { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.04em; }
+.welcome-lede { margin: 0; max-width: 34ch; color: var(--muted); font-size: var(--fs-lg); }
+.welcome-levels { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; max-width: 420px; margin-top: var(--sp-4); text-align: left; }
+.welcome-h { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+.welcome-next { width: 100%; max-width: 420px; margin: var(--sp-4) auto 0; text-align: left; }
+.welcome-level { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--bg); text-align: left; cursor: pointer; }
+.welcome-level:hover { border-color: var(--line-strong); }
+.welcome-level[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.welcome-dot { flex: none; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.welcome-level[aria-checked="true"] .welcome-dot { box-shadow: inset 0 0 0 5px var(--accent); }
+.welcome-level-text { display: flex; flex-direction: column; gap: 2px; }
+.welcome-level-text span { color: var(--muted); font-size: var(--fs-sm); }
+.welcome-note { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
