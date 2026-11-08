@@ -30,6 +30,9 @@ describe('decks', () => {
     expect(parseDeck(writeDeck(slides))).toEqual(slides);
     expect(writeDeck(slides)).toContain('<!-- style: warm -->\n### Offsite 2027\n## Lisbon, together\n\nNotes:\nWelcome everyone, 30 seconds.\n\n---\n\n### Why');
     expect(parseDeck('')).toHaveLength(1);
+    const withBlank = writeDeck([...slides, { style: 'light', kicker: '', title: '', bullets: [], text: '', notes: '' }]);
+    expect(withBlank.endsWith('---\n\n<!-- slide -->\n')).toBe(true);
+    expect(parseDeck(withBlank)).toHaveLength(3);
   });
   it('find the slides a turn added or changed', () => {
     const before = parseDeck(DECK);

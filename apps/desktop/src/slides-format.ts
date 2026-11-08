@@ -27,6 +27,8 @@ export function parseSlide(chunk: string): Slide {
   for (const raw of chunk.split('\n')) {
     const line = raw.trimEnd();
     if (inNotes) { notes.push(line); continue; }
+    // An empty slide is written as this, so it is not lost between two lines of ---.
+    if (/^<!--\s*slide\s*-->$/.test(line.trim())) continue;
     const style = /^<!--\s*style:\s*(\w+)\s*-->$/.exec(line.trim());
     if (style) { if ((SLIDE_STYLES as string[]).includes(style[1]!)) slide.style = style[1] as SlideStyle; continue; }
     if (/^notes:\s*/i.test(line.trim())) { inNotes = true; const rest = line.trim().replace(/^notes:\s*/i, ''); if (rest) notes.push(rest); continue; }
@@ -61,7 +63,7 @@ export function writeSlide(slide: Slide): string {
   for (const b of slide.bullets) if (b.trim()) lines.push(`- ${b.trim()}`);
   if (slide.text.trim()) lines.push('', slide.text.trim());
   if (slide.notes.trim()) lines.push('', 'Notes:', slide.notes.trim());
-  return lines.join('\n');
+  return lines.length > 0 ? lines.join('\n') : '<!-- slide -->';
 }
 
 export const writeDeck = (slides: readonly Slide[]) => `${slides.map(writeSlide).join('\n\n---\n\n')}\n`;
