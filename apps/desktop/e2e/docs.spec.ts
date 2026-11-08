@@ -40,7 +40,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 
 test('a new document is written on the page with formatting and kept as Markdown, with its outline beside it', async () => {
   await start();
-  await shell().getByRole('button', { name: 'New document', exact: true, disabled: false }).first().click();
+  await shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('button', { name: 'New document', exact: true }).click();
   await expect(page()).toBeVisible();
   await expect.poll(() => fs.existsSync(file('Documents/Untitled.md'))).toBe(true);
   await page().click();

@@ -15,13 +15,13 @@ pub fn is_model_name(v: &Value) -> bool {
 }
 
 /// The apps whose access the person can set, and the levels: off, ask (the usual), read without asking, act without asking.
-pub const APP_ACCESS_APPS: [&str; 6] = ["browser", "notes", "docs", "sheets", "tasks", "calendar"];
+pub const APP_ACCESS_APPS: [&str; 7] = ["browser", "notes", "docs", "sheets", "tasks", "calendar", "mail"];
 /// Apps added later: a setting saved before them may leave them out, and they count as `ask`.
-const LATER_APPS: [&str; 3] = ["docs", "sheets", "calendar"];
+const LATER_APPS: [&str; 4] = ["docs", "sheets", "calendar", "mail"];
 pub const APP_ACCESS_LEVELS: [&str; 4] = ["off", "ask", "read", "act"];
 
 pub fn app_access_default() -> Value {
-    json!({ "browser": "ask", "notes": "ask", "docs": "ask", "sheets": "ask", "tasks": "ask", "calendar": "ask" })
+    json!({ "browser": "ask", "notes": "ask", "docs": "ask", "sheets": "ask", "tasks": "ask", "calendar": "ask", "mail": "ask" })
 }
 
 /// Exactly those apps, each at one of the levels.
@@ -59,11 +59,11 @@ mod access_tests {
     use super::*;
 
     #[test]
-    fn app_access_is_the_three_apps_at_known_levels() {
+    fn app_access_is_the_known_apps_at_known_levels() {
         assert!(is_app_access(&app_access_default()));
         assert!(is_app_access(&json!({ "browser": "off", "notes": "read", "tasks": "act" })), "saved before Calendar");
         assert!(is_app_access(&json!({ "browser": "off", "notes": "read", "tasks": "act", "calendar": "read" })));
-        for bad in [json!({}), json!({ "browser": "ask", "notes": "ask" }), json!({ "browser": "ask", "notes": "ask", "tasks": "always" }), json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "mail": "ask" }), json!("ask")] {
+        for bad in [json!({}), json!({ "browser": "ask", "notes": "ask" }), json!({ "browser": "ask", "notes": "ask", "tasks": "always" }), json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "fax": "ask" }), json!("ask")] {
             assert!(!is_app_access(&bad), "{bad}");
         }
     }

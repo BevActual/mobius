@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
@@ -11,7 +12,7 @@ import { NotesSidebar, type SidebarWords } from './NotesSidebar';
 import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
 
-export const DOCS_WORDS: SidebarWords = { app: 'Docs', group: 'folder', groups: 'Folders', item: 'document', items: 'documents', about: 'Documents are kept as Markdown files in your workspace, so other apps and the agent can open them too.' };
+export const DOCS_WORDS: SidebarWords = { app: 'Docs', group: 'folder', groups: 'Folders', item: 'document', items: 'documents', about: 'Documents are kept as Markdown files in your workspace, so other apps and the agent can open them too.', defaultGroup: 'Documents' };
 export const DEFAULT_FOLDER = 'Documents';
 
 export function DocsSidebar(props: { docs: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void }) {
@@ -58,6 +59,13 @@ function Toolbar({ editor, onTool, busy }: { editor: Editor; onTool?: (tool: Wri
     }),
   });
   const [toolsOpen, setToolsOpen] = useState(false);
+  const toolsButton = useRef<HTMLButtonElement>(null);
+  // The menu floats above everything, placed under its button and kept inside the window.
+  const menuAt = () => {
+    const r = toolsButton.current?.getBoundingClientRect();
+    if (!r) return { top: 0, left: 0 };
+    return { top: r.bottom + 6, left: Math.max(8, Math.min(r.right - 230, window.innerWidth - 238)) };
+  };
   const setStyle = (id: string) => {
     const chain = editor.chain().focus();
     if (id === 'p') chain.setParagraph().run();
@@ -105,14 +113,18 @@ function Toolbar({ editor, onTool, busy }: { editor: Editor; onTool?: (tool: Wri
       <span className="spacer" />
       {onTool && (
         <div className="doc-writing">
-          <button type="button" className="doc-tool text mobius" aria-haspopup="menu" aria-expanded={toolsOpen} disabled={busy} onClick={() => setToolsOpen((o) => !o)}>Writing tools</button>
-          {toolsOpen && (
-            <div className="doc-writing-menu" role="menu" aria-label="Writing tools" onKeyDown={(e) => { if (e.key === 'Escape') setToolsOpen(false); }}>
+          <button ref={toolsButton} type="button" className="doc-tool text mobius" aria-haspopup="menu" aria-expanded={toolsOpen} disabled={busy} onClick={() => setToolsOpen((o) => !o)}>Writing tools</button>
+          {toolsOpen && createPortal(
+            <>
+            <div className="doc-writing-scrim" onMouseDown={() => setToolsOpen(false)} />
+            <div className="doc-writing-menu" role="menu" aria-label="Writing tools" style={menuAt()} onKeyDown={(e) => { if (e.key === 'Escape') setToolsOpen(false); }}>
               <p className="doc-writing-sees">Sees: {state.empty ? 'the whole document' : 'the selected text'}</p>
               {WRITING_TOOLS.map((t) => (
                 <button key={t.id} type="button" role="menuitem" onClick={() => { setToolsOpen(false); onTool(t.id, t.id === 'summarise' ? null : selectedText()); }}>{t.label}</button>
               ))}
             </div>
+            </>,
+            document.body,
           )}
         </div>
       )}

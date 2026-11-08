@@ -135,6 +135,11 @@ pub struct Mail {
     connector: Connector,
 }
 
+/// The end-to-end tests run their mail servers on this computer without TLS; nothing else ever connects in the clear.
+fn test_server(host: &str) -> bool {
+    std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1") && host == "127.0.0.1"
+}
+
 fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
@@ -224,7 +229,9 @@ pub fn html_text(html: &str) -> String {
 /// The parts of a message the window shows: who, when, the text (and the HTML, which the window shows sandboxed).
 pub fn read_message(raw: &[u8]) -> Value {
     let Some(m) = MessageParser::default().parse(raw) else { return json!({ "text": String::from_utf8_lossy(raw) }) };
-    let html = m.body_html(0).map(|h| h.into_owned());
+    // Only a real HTML part: for a plain message the parser makes HTML out of the text, which adds nothing.
+    let has_html = m.parts.iter().any(|p| p.is_content_type("text", "html"));
+    let html = if has_html { m.body_html(0).map(|h| h.into_owned()) } else { None };
     let text = m.body_text(0).map(|t| t.into_owned()).filter(|t| !t.trim().is_empty()).or_else(|| html.as_deref().map(html_text)).unwrap_or_default();
     json!({
         "from": person(m.from().and_then(|a| a.first())), "to": people(m.to()), "cc": people(m.cc()),
@@ -236,7 +243,7 @@ pub fn read_message(raw: &[u8]) -> Value {
 
 impl Mail {
     pub fn new(data_dir: &Path, secrets: Arc<dyn Secrets>) -> Mail {
-        Mail::with_connector(data_dir, secrets, Box::new(Imap::connect))
+        Mail::with_connector(data_dir, secrets, Box::new(|host, port| if test_server(host) { TcpStream::connect((host, port)).map_err(|e| e.to_string()).and_then(|s| Imap::over(Box::new(s))) } else { Imap::connect(host, port) }))
     }
 
     pub fn with_connector(data_dir: &Path, secrets: Arc<dyn Secrets>, connector: Connector) -> Mail {
@@ -594,7 +601,9 @@ impl Mail {
             builder = builder.in_reply_to(id.clone()).references(o.references.iter().map(|r| format!("<{}>", r.trim_matches(['<', '>']))).chain([id]).collect::<Vec<_>>().join(" "));
         }
         let message = builder.header(ContentType::TEXT_PLAIN).body(draft.body.clone()).map_err(|e| e.to_string())?;
-        let transport = if account.smtp_port == 465 {
+        let transport = if test_server(&account.smtp_host) {
+            Ok(lettre::SmtpTransport::builder_dangerous(&account.smtp_host))
+        } else if account.smtp_port == 465 {
             lettre::SmtpTransport::relay(&account.smtp_host)
         } else {
             lettre::SmtpTransport::starttls_relay(&account.smtp_host)

@@ -156,6 +156,7 @@ pub struct Bridge {
     tasks: mobius_workspace::tasks::Tasks,
     calendar: mobius_workspace::calendar::Calendar,
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
+    mail: Arc<crate::mail::store::Mail>,
     /// What Mobius remembers about the person between conversations.
     memory: crate::memory::Memory,
     /// Requests to make at times of day.
@@ -254,6 +255,7 @@ impl Bridge {
                 calendar
             },
             calendar_accounts,
+            mail: Arc::new(crate::mail::store::Mail::new(&data_dir, secrets.clone())),
             memory: crate::memory::Memory::new(data_dir.join("memory.md")),
             schedules: crate::schedules::Schedules::open(data_dir.join("schedules.json")),
             data_dir,
@@ -349,6 +351,7 @@ impl Bridge {
             ("notes", _) => Ok(self.notes_call(&self.notes, "mobius:notes-changed", method, args)),
             ("docs", _) => Ok(self.notes_call(&self.docs, "mobius:docs-changed", method, args)),
             ("sheets", _) => Ok(self.sheets_call(method, args)),
+            ("mail", _) => Ok(self.mail_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
@@ -895,7 +898,7 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -918,6 +921,13 @@ impl Bridge {
             let result = self.tasks.run(tool, &args).map(Value::String);
             if result.is_ok() && tool != "tasks.list" {
                 (self.emit)("mobius:tasks-changed", json!({ "list": args.get("list").and_then(Value::as_str).unwrap_or(mobius_workspace::tasks::DEFAULT_LIST), "by": "assistant" }));
+            }
+            return result;
+        }
+        if crate::mail::store::is_mail_tool(tool) {
+            let result = self.mail.run(tool, &args).map(Value::String);
+            if result.is_ok() && tool == "mail.draft" {
+                (self.emit)("mobius:mail-changed", json!({ "by": "assistant" }));
             }
             return result;
         }
@@ -1009,6 +1019,9 @@ impl Bridge {
                 if bridge.calendar_accounts.sync_due() {
                     bridge.refresh_mirrors();
                 }
+                if bridge.mail.sync_due() {
+                    (bridge.emit)("mobius:mail-changed", json!({ "by": "another app" }));
+                }
                 drop(bridge);
                 std::thread::sleep(Duration::from_secs(60));
             }
@@ -1024,7 +1037,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -1378,6 +1391,55 @@ impl Bridge {
     fn refresh_mirrors(&self) {
         self.calendar.set_mirrors(self.calendar_accounts.mirrors(&self.calendar.local_calendars()));
         (self.emit)("mobius:calendar-changed", json!({ "calendar": null, "by": "another app" }));
+    }
+
+    /// The Mail app. Every answer is what was asked for or `{ ok: false, message }`. Sending is here, for the person's
+    /// Send button; the agent has no tool for it.
+    fn mail_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let m = &self.mail;
+        let result = match method {
+            "accounts" => Ok(m.accounts()),
+            "connect" => {
+                let a = args.first().cloned().unwrap_or(Value::Null);
+                let s = |k: &str| a.get(k).and_then(Value::as_str).unwrap_or("").to_owned();
+                let port = |k: &str| a.get(k).and_then(Value::as_u64).and_then(|p| u16::try_from(p).ok());
+                let (ih, sh) = (s("imapHost"), s("smtpHost"));
+                let imap = port("imapPort").filter(|_| !ih.is_empty()).map(|p| (ih.as_str(), p));
+                let smtp = port("smtpPort").filter(|_| !sh.is_empty()).map(|p| (sh.as_str(), p));
+                m.connect(&s("preset"), &s("email"), &s("password"), imap, smtp)
+            }
+            "removeAccount" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|id| m.remove(id)),
+            "sync" => {
+                m.sync(text(0));
+                Ok(m.accounts())
+            }
+            "list" => Ok(m.list(text(0).unwrap_or("inbox"), text(1).unwrap_or("all"), text(2).unwrap_or(""), 300)),
+            "counts" => Ok(m.counts()),
+            "read" => text(0).ok_or_else(|| "a message is needed".to_owned()).and_then(|id| m.read(id, true)),
+            "flag" => match (text(0), text(1), args.get(2).and_then(Value::as_bool)) {
+                (Some(id), Some(which), Some(on)) => m.flag(id, which, on),
+                _ => Err("that cannot be done".to_owned()),
+            },
+            "sort" => match (text(0), text(1)) {
+                (Some(id), Some(c)) => m.sort(id, c),
+                _ => Err("that cannot be done".to_owned()),
+            },
+            "drafts" => Ok(m.drafts()),
+            "saveDraft" => m.save_draft(args.first().unwrap_or(&Value::Null), "you"),
+            "deleteDraft" => text(0).ok_or_else(|| "a draft is needed".to_owned()).and_then(|id| m.delete_draft(id)),
+            "send" => text(0).ok_or_else(|| "a draft is needed".to_owned()).and_then(|id| m.send(id)),
+            _ => return json!({ "ok": false, "message": "unknown" }),
+        };
+        match result {
+            Ok(value) => {
+                if !matches!(method, "accounts" | "list" | "counts" | "drafts" | "read") {
+                    (self.emit)("mobius:mail-changed", json!({ "by": "person" }));
+                }
+                value
+            }
+            Err(message) => json!({ "ok": false, "message": message }),
+        }
     }
 
     /// The Sheets app. Every answer is the sheet as it is now (typed and worked out) or `{ ok: false, message }`; a

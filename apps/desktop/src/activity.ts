@@ -23,6 +23,7 @@ export function appOfTool(name: string, args?: unknown): AppId | null {
   if (name.startsWith('tasks.')) return 'tasks';
   if (name.startsWith('calendar.')) return 'calendar';
   if (name.startsWith('sheets.')) return 'sheets';
+  if (name.startsWith('mail.')) return 'mail';
   if (name.startsWith('files.')) {
     const path = pathOf(args);
     if (path.startsWith('notes/')) return 'notes';
@@ -55,6 +56,9 @@ const LABELS: Record<string, string> = {
   'sheets.list': 'Looking at your workbooks',
   'sheets.read': 'Reading a sheet',
   'sheets.write': 'Changing a sheet',
+  'mail.search': 'Looking through your mail',
+  'mail.read': 'Reading an email',
+  'mail.draft': 'Drafting a reply',
   'todo.write': 'Making a plan',
 };
 

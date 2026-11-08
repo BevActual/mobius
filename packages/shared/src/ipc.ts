@@ -150,6 +150,17 @@ export interface TasksChanged { list: string | null; by: 'person' | 'assistant' 
  * `YYYY-MM-DDTHH:MM` otherwise; `end` is exclusive (an all-day event on the 12th ends on the 13th). A repeating event
  * is listed once for each time it happens, all with the same id. */
 export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; readOnly?: boolean }
+/** Someone in an email's From, To or Cc. */
+export interface MailPerson { name: string; email: string }
+/** A message in the Mail app's list. `box` is inbox or sent; `category` is sorted on this computer. */
+export interface MailMessage { id: string; account: string; box: 'inbox' | 'sent'; uid: number; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; seen: boolean; flagged: boolean; preview: string; category: MailCategory; attachments: string[] }
+export type MailCategory = 'primary' | 'transactions' | 'updates';
+/** A whole message: its text, and its HTML (shown sandboxed, without loading anything from the web). */
+export interface MailContent { id: string; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; text: string; html: string | null; attachments: string[]; category?: MailCategory }
+/** A draft: the person's, or one Mobius suggested (`by` mobius), which waits as a suggestion until opened. */
+export interface MailDraft { id: string; account: string; to: string; cc: string; subject: string; body: string; replyTo: string | null; by: 'you' | 'mobius'; why: string; updatedMs: number }
+export interface MailAccount { id: string; name: string; email: string; lastSyncMs: number; problem: string | null }
+export interface MailCounts { primary: number; transactions: number; updates: number; all: number; drafts: number; suggested: number }
 /** A sheet in the Sheets app: each cell as typed (`cells`, a formula starts with =) and as worked out (`values`). */
 export interface SheetData { workbook: string; sheet: string; sheets: string[]; cells: string[][]; values: string[][]; version: string }
 export interface WorkbookInfo { name: string; sheets: string[] }
@@ -392,6 +403,24 @@ export interface MobiusBridge {
     sync(id: string | null): Promise<CalendarAccount[] | NotesFailure>;
     onChanged(listener: (change: CalendarChanged) => void): () => void;
   };
+  /** The Mail app. Only the person sends: `send` is for the Send button, and the agent has no way to send. */
+  mail?: {
+    accounts(): Promise<MailAccount[] | NotesFailure>;
+    /** `preset` is icloud, fastmail, gmail, yahoo or other (then the servers are given). */
+    connect(account: { preset: string; email: string; password: string; imapHost?: string; imapPort?: number; smtpHost?: string; smtpPort?: number }): Promise<{ id: string; email: string } | NotesFailure>;
+    removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
+    sync(id: string | null): Promise<MailAccount[] | NotesFailure>;
+    list(box: 'inbox' | 'sent' | 'all', category: MailCategory | 'all', query: string): Promise<MailMessage[] | NotesFailure>;
+    counts(): Promise<MailCounts | NotesFailure>;
+    read(id: string): Promise<MailContent | NotesFailure>;
+    flag(id: string, which: 'seen' | 'flagged', on: boolean): Promise<{ ok: true } | NotesFailure>;
+    sort(id: string, category: MailCategory): Promise<{ ok: true } | NotesFailure>;
+    drafts(): Promise<MailDraft[] | NotesFailure>;
+    saveDraft(draft: Partial<MailDraft>): Promise<MailDraft | NotesFailure>;
+    deleteDraft(id: string): Promise<{ ok: true } | NotesFailure>;
+    send(id: string): Promise<{ ok: true } | NotesFailure>;
+    onChanged(listener: (change: { by: string }) => void): () => void;
+  };
   /** The Sheets app: workbooks of CSV sheets in `sheets/<workbook>/`. Only the Tauri shell has it. */
   sheets?: {
     list(): Promise<WorkbookInfo[] | NotesFailure>;
@@ -617,7 +646,7 @@ const isFavourite = (v: unknown): v is Favourite => {
   return Object.keys(v).length === 3 && (kind === 'note' || kind === 'list' || kind === 'page') && text(id, 2000) && text(title, 120);
 };
 /** The apps that can be kept in the sidebar. */
-export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'notes', 'docs', 'sheets', 'tasks', 'calendar'] as const;
+export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'tasks', 'calendar'] as const;
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
 export type NavigationStyle = 'sidebar' | 'rail';
@@ -928,16 +957,16 @@ export interface ScheduleDraft { title: string; prompt: string; time: string; da
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
 /** `calendar` came later: a setting saved before it leaves it out, and it counts as `ask`. */
-export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; calendar?: AccessLevel };
-export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', tasks: 'ask', calendar: 'ask' };
+export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel };
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask' };
 const ACCESS_LEVELS: readonly string[] = ['off', 'ask', 'read', 'act'];
 export function isAppAccess(v: unknown): v is AppAccess {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;
-  const apps = ['browser', 'notes', 'docs', 'sheets', 'tasks', 'calendar'];
+  const apps = ['browser', 'notes', 'docs', 'sheets', 'tasks', 'calendar', 'mail'];
   return Object.keys(o).every((k) => apps.includes(k))
     && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes(o[app] as string))
-    && (['docs', 'sheets', 'calendar'] as const).every((app) => o[app] === undefined || ACCESS_LEVELS.includes(o[app] as string));
+    && (['docs', 'sheets', 'calendar', 'mail'] as const).every((app) => o[app] === undefined || ACCESS_LEVELS.includes(o[app] as string));
 }
 /** `none` turns thinking off where the model allows it (models on this computer). */
 export type EffortChoice = '' | 'none' | 'low' | 'medium' | 'high';

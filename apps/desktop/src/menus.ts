@@ -54,6 +54,7 @@ export interface MenuContext {
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void };
     sheets: { newWorkbook: () => void; newSheet: () => void; insertRow: () => void };
+    mail: { newMessage: () => void; getMail: () => void };
     calendar: { newEvent: () => void; newCalendar: () => void; today: () => void; mode: (mode: 'day' | 'week' | 'month') => void };
     agent: { stop: () => void };
   };
@@ -152,6 +153,11 @@ function appMenu(c: MenuContext): Menu | null {
         item('scheduled', 'Scheduled', d.tasks.scheduled),
         separator,
         item('clear-done', s.tasks.done > 0 ? `Clear ${s.tasks.done} completed` : 'Clear completed', d.tasks.clearDone, { disabled: !s.tasks.inList || s.tasks.done === 0 }),
+      ] };
+    case 'mail':
+      return { id: 'app', label: 'Mail', items: [
+        item('new-message', 'New message', d.mail.newMessage),
+        item('get-mail', 'Get mail', d.mail.getMail),
       ] };
     case 'sheets':
       return { id: 'app', label: 'Sheets', items: [

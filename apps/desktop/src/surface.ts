@@ -69,6 +69,12 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Add a column…', prompt: 'Add a column to this sheet that works out ', attach: 'sheet' },
           ]
         : [{ label: 'Make a budget', prompt: 'Make a budget workbook in my Sheets for ' }];
+    case 'mail':
+      return [
+        { label: 'What needs me?', prompt: 'Look through my mail from the last few days and tell me what needs a reply or an action from me, newest first. Say which message each comes from.' },
+        { label: 'Summarise my inbox', prompt: 'Summarise my inbox from today in a few short points.' },
+        { label: 'Find…', prompt: 'Find the email about ' },
+      ];
     case 'calendar':
       return [
         { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },

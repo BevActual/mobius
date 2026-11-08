@@ -38,6 +38,9 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'tasks.list': return s('list') ? `read your ${quote(s('list'))} tasks` : 'read your task lists';
     case 'tasks.add': return s('text') ? `add ${quote(s('text'))} to ${s('list') || 'Inbox'} in Tasks` : 'add a task';
     case 'tasks.update': return s('task') || s('text') ? `change the task ${quote(s('task') || s('text'))}` : 'change a task';
+    case 'mail.search': return s('query') ? `search your mail for ${quote(s('query'), 40)}` : 'look through your mail';
+    case 'mail.read': return 'read an email';
+    case 'mail.draft': return s('to') ? `draft an email to ${s('to')}` : 'draft a reply for you to send';
     case 'sheets.list': return 'see which workbooks there are';
     case 'sheets.read': return s('workbook') ? `read the workbook ${quote(s('workbook'))}` : 'read a workbook';
     case 'sheets.write': {

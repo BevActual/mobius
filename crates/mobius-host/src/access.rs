@@ -16,6 +16,7 @@ fn capabilities(app: &str) -> (&'static [(&'static str, Option<&'static str>)], 
         "docs" => (&[("files.read", Some("docs/*"))], &[("files.write", Some("docs/*"))]),
         "sheets" => (&[("sheets.read", None), ("files.read", Some("sheets/*"))], &[("sheets.write", None), ("files.write", Some("sheets/*"))]),
         "tasks" => (&[("tasks.read", None)], &[("tasks.write", None)]),
+        "mail" => (&[("mail.read", None)], &[]),
         "calendar" => (&[("calendar.read", None), ("files.read", Some("calendar/*"))], &[("calendar.write", None), ("files.write", Some("calendar/*"))]),
         _ => (&[], &[]),
     }
@@ -31,9 +32,15 @@ pub fn rules(access: &Value) -> Value {
             Some(r) => json!({ "capability": capability, "resource": r, "effect": effect }),
             None => json!({ "capability": capability, "effect": effect }),
         };
-        // A suggestion changes nothing until the person adds it, so it needs no asking; with the app off, it is blocked.
-        if app == "calendar" {
-            out.push(json!({ "capability": "calendar.suggest", "effect": if level == "off" { "deny" } else { "allow" } }));
+        // A suggestion changes nothing until the person takes it (adds the event, sends the draft), so it needs no
+        // asking; with the app off, it is blocked.
+        let suggest = match app {
+            "calendar" => Some("calendar.suggest"),
+            "mail" => Some("mail.draft"),
+            _ => None,
+        };
+        if let Some(capability) = suggest {
+            out.push(json!({ "capability": capability, "effect": if level == "off" { "deny" } else { "allow" } }));
         }
         match level {
             "off" => out.extend(read.iter().chain(write).map(|c| rule(c, "deny"))),
@@ -51,7 +58,7 @@ mod tests {
 
     #[test]
     fn each_level_becomes_the_rules_it_says() {
-        assert_eq!(rules(&mobius_store::preferences::app_access_default()), json!({ "rules": [{ "capability": "calendar.suggest", "effect": "allow" }] }));
+        assert_eq!(rules(&mobius_store::preferences::app_access_default()), json!({ "rules": [{ "capability": "calendar.suggest", "effect": "allow" }, { "capability": "mail.draft", "effect": "allow" }] }));
         let r = rules(&json!({ "browser": "read", "notes": "act", "tasks": "off" }));
         assert_eq!(r["rules"], json!([
             { "capability": "browser.list", "effect": "allow" },
@@ -61,6 +68,7 @@ mod tests {
             { "capability": "tasks.read", "effect": "deny" },
             { "capability": "tasks.write", "effect": "deny" },
             { "capability": "calendar.suggest", "effect": "allow" },
+            { "capability": "mail.draft", "effect": "allow" },
         ]));
         let off = rules(&json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "calendar": "off" }));
         assert_eq!(off["rules"][0], json!({ "capability": "calendar.suggest", "effect": "deny" }));

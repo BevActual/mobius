@@ -6,7 +6,7 @@ import type { NotesState } from './useNotes';
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
 /** The words for Notes; Docs passes its own, since it keeps documents in folders the same way. */
-export interface SidebarWords { app: string; group: string; groups: string; item: string; items: string; about: string }
+export interface SidebarWords { app: string; group: string; groups: string; item: string; items: string; about: string; /** Made when something is created before any group exists. */ defaultGroup?: string }
 export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'page', items: 'pages', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.' };
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
@@ -44,7 +44,10 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
           <button type="button" className="strip-btn" aria-label={`New ${words.group}`} title={`New ${words.group}`} onClick={() => setNaming(true)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5zM8 3v14" /><path d="M11 8v4M9 10h4" /></svg>
           </button>
-          <button type="button" className="strip-btn" aria-label={`New ${words.item}`} title={`New ${words.item}`} disabled={!openNotebook} onClick={() => openNotebook && void notes.createPage(openNotebook)}>
+          <button type="button" className="strip-btn" aria-label={`New ${words.item}`} title={`New ${words.item}`} disabled={!openNotebook && !words.defaultGroup} onClick={() => {
+            if (openNotebook) void notes.createPage(openNotebook);
+            else if (words.defaultGroup) void notes.createNotebook(words.defaultGroup).then((made) => { if (made) void notes.createPage(made); });
+          }}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
           </button>
         </span>

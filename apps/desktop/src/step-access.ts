@@ -5,6 +5,7 @@ export function appOfStep(text: string): keyof AppAccess | null {
   const t = text.toLowerCase();
   // Named apps first, so "the budget page in Notes" is Notes.
   if (/\bdocs?\b|\bdocuments?\b/.test(t)) return 'docs';
+  if (/\bmail\b|\bemails?\b|\binbox\b|\brepl(y|ies)\b/.test(t)) return 'mail';
   if (/\bsheets?\b|\bspreadsheets?\b|\bworkbooks?\b/.test(t)) return 'sheets';
   if (/\bnotes?\b|\bnotebook\b/.test(t)) return 'notes';
   if (/\bcalendars?\b|\bevents?\b|\bmeetings?\b|\bappointments?\b|\bschedule (?:it|a|an|the)\b/.test(t)) return 'calendar';
@@ -20,7 +21,7 @@ export function appOfStep(text: string): keyof AppAccess | null {
 export function stepTag(text: string, access: AppAccess, mode: ApprovalModeChoice): { app: string; tag: string } | null {
   const app = appOfStep(text);
   if (!app) return null;
-  const name = app === 'browser' ? 'Browser' : app === 'notes' ? 'Notes' : app === 'docs' ? 'Docs' : app === 'sheets' ? 'Sheets' : app === 'calendar' ? 'Calendar' : 'Tasks';
+  const name = app === 'browser' ? 'Browser' : app === 'notes' ? 'Notes' : app === 'docs' ? 'Docs' : app === 'mail' ? 'Mail' : app === 'sheets' ? 'Sheets' : app === 'calendar' ? 'Calendar' : 'Tasks';
   const level = access[app] ?? 'ask';
   if (level === 'off') return { app: name, tag: 'Off' };
   if (level === 'act') return { app: name, tag: 'Acts' };

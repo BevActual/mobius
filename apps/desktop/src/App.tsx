@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { MenuBar } from './MenuBar';
 import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type MailContent, type SidebarMode } from '@mobius/shared';
 import { appName, isAvailable, type AppId, noteOpened, APPS } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
 import { tasksContext, type SurfaceState } from './surface';
@@ -34,6 +34,8 @@ import { TasksPage, TasksSidebar } from './Tasks';
 import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { SheetGrid, SheetsSidebar } from './Sheets';
+import { MailPage, MailSidebar } from './Mail';
+import { useMail } from './useMail';
 import { useSheets } from './useSheets';
 import { sheetContext } from './sheets-view';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
@@ -91,6 +93,7 @@ export function App() {
   const notes = useNotes();
   const docs = useNotes('docs');
   const sheets = useSheets();
+  const mail = useMail();
   const tasks = useTasks();
   const calendar = useCalendar();
   const [eventToken, setEventToken] = useState(0);
@@ -162,6 +165,7 @@ export function App() {
   const inNotes = app === 'notes';
   const inDocs = app === 'docs';
   const inSheets = app === 'sheets';
+  const inMail = app === 'mail';
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
@@ -223,12 +227,16 @@ export function App() {
       }
       mark('sheets');
     });
+    const offMail = window.mobius.mail?.onChanged((c) => {
+      if (c.by === 'assistant') { if (!showBeside('mail')) mark('mail'); return; }
+      if (c.by === 'another app') mark('mail');
+    });
     const offCalendar = window.mobius.calendar?.onChanged((c) => {
       if (c.by === 'person' || c.by === 'undo') return;
       if (c.by === 'assistant' && showBeside('calendar')) return;
       mark('calendar');
     });
-    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offCalendar?.(); };
+    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offMail?.(); offCalendar?.(); };
   }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
   const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
@@ -298,7 +306,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
+  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -313,6 +321,7 @@ export function App() {
     notes: plural(pages, 'page'),
     docs: plural(docs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'document'),
     sheets: plural(sheets.workbooks.length, 'workbook'),
+    mail: mail.accounts.length === 0 ? 'Add an account' : mail.counts.all > 0 ? `${mail.counts.all} unread` : 'All read',
     tasks: dueToday > 0 ? `${dueToday} due today` : openTasks > 0 ? `${openTasks} to do` : 'All done',
     calendar: eventsToday > 0 ? `${plural(eventsToday, 'event')} today` : 'Nothing today',
     search: 'Find anything',
@@ -337,12 +346,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inNotes || inDocs || inSheets || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inMail || inNotes || inDocs || inSheets || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inNotes || inDocs || inSheets || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inNotes || inDocs || inSheets || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -513,6 +522,7 @@ export function App() {
     { id: 'task', label: 'New task', app: 'tasks', run: () => { closeSettings(); tasks.setView({ kind: 'list', name: 'Inbox' }); openApp('tasks'); setTaskFocus((n) => n + 1); } },
     { id: 'tab', label: 'New tab', app: 'browser', run: () => { closeSettings(); openApp('browser'); newTab(); } },
     { id: 'doc', label: 'New document', app: 'docs', run: () => { closeSettings(); openApp('docs'); void (async () => { const folder = docs.page?.path.split('/')[0] ?? docs.notebooks[0]?.name ?? (await docs.createNotebook(DEFAULT_FOLDER)); if (folder) await docs.createPage(folder); })(); } },
+    { id: 'message', label: 'New message', app: 'mail', run: () => { closeSettings(); openApp('mail'); mail.compose(); } },
     { id: 'workbook', label: 'New workbook', app: 'sheets', run: () => { closeSettings(); openApp('sheets'); void sheets.createWorkbook('Workbook'); } },
     { id: 'event', label: 'New event', app: 'calendar', run: () => { closeSettings(); openApp('calendar'); setEventToken((n) => n + 1); } },
   ];
@@ -554,6 +564,8 @@ export function App() {
               />
             ) : inNotes ? (
               <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} />
+            ) : inMail ? (
+              <MailSidebar mail={mail} pin={pinNode} />
             ) : inSheets ? (
               <SheetsSidebar sheets={sheets} pin={pinNode} changed={turnMarks.sheets} />
             ) : inDocs ? (
@@ -696,6 +708,10 @@ export function App() {
         today: () => tasks.setView({ kind: 'smart', id: 'today' }),
         scheduled: () => tasks.setView({ kind: 'smart', id: 'scheduled' }),
       },
+      mail: {
+        newMessage: () => createActions.find((a) => a.id === 'message')!.run(),
+        getMail: () => void mail.sync(),
+      },
       sheets: {
         newWorkbook: () => createActions.find((a) => a.id === 'workbook')!.run(),
         newSheet: () => { if (sheets.data) void sheets.addSheet(`Sheet ${sheets.data.sheets.length + 1}`); },
@@ -785,6 +801,14 @@ export function App() {
     if (!ready) { setIncoming({ token: Date.now(), item }); return; }
     void conversation.send(prompt, [item]);
   };
+  /** Mail's "Draft a reply with Mobius": the agent reads the message and suggests a reply, which waits for the person. */
+  const onDraftReply = (m: MailContent) => {
+    const ready = settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy;
+    if (!shows('agent')) setChatOpen(true);
+    const prompt = `Read the email "${m.subject}" (mail.read with id ${m.id}) and suggest a short reply with mail.draft (replyTo: ${m.id}), in my voice. Look at my calendar first if it is about a time. Do not send anything.`;
+    if (!ready) { setDraft(prompt); return; }
+    void conversation.send(prompt, []);
+  };
   /** On-canvas actions: what to do with text selected in a note. */
   const onNoteSelection = (action: SelectionAction, text: string) => {
     const page = notes.page;
@@ -823,6 +847,8 @@ export function App() {
         return <TasksPage tasks={tasks} focusToken={taskFocus} />;
       case 'docs':
         return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} busy={conversation.state.busy} />;
+      case 'mail':
+        return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && turnMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} />;
       case 'calendar':
@@ -911,6 +937,7 @@ export function App() {
           <h1 className="strip-title">{place}</h1>
           {inAgent && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
           {inNotes && notes.page && <span className="toolbar-sub">{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></span>}
+          {inMail && <span className="toolbar-sub">{mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`}</span>}
           {inSheets && sheets.data && <span className="toolbar-sub">{sheets.data.sheet}</span>}
           {inCalendar && <span className="toolbar-sub">{eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`}</span>}
           {inTasks && <span className="toolbar-sub">{tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`}</span>}
