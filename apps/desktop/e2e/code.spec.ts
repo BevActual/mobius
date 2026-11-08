@@ -183,6 +183,7 @@ test('a command can keep running, its output shows as it comes, and it stops whe
   await console_.getByRole('button', { name: 'Start' }).click();
   const running = console_.getByRole('list', { name: 'Running' });
   await expect(running.getByRole('listitem').first()).toContainText('tick');
+  await expect(running.getByRole('listitem')).toHaveCount(1);
   await expect(running.getByRole('listitem').first().getByRole('status')).toHaveText('Running');
   await running.getByRole('button', { name: /^Stop / }).first().click();
   await expect(running.getByRole('listitem').first().getByRole('status')).toHaveText('Stopped');
@@ -196,4 +197,5 @@ test('a command can keep running, its output shows as it comes, and it stops whe
   await expect(log.locator('.msg.assistant')).toHaveText('The server printed serving; I stopped it.');
   await expect(log.getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
   await expect(running.getByRole('listitem').filter({ hasText: 'serving' }).getByRole('status')).toHaveText('Stopped');
+  await expect(running.getByRole('listitem')).toHaveCount(2);
 });
