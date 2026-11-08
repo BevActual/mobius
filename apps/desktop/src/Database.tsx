@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { showCell, tableQuery, toCsv } from './db-view';
+import { isNotesFailure, type WorkbookInfo } from '@mobius/shared';
+import { sheetToCsv, showCell, tableQuery, toCsv } from './db-view';
 import type { DatabasesState } from './useDatabases';
 
 /** The databases, the open one's tables, and making or importing one. */
@@ -10,6 +11,18 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
   const [name, setName] = useState('');
   const file = useRef<HTMLInputElement>(null);
   useEffect(() => onCommand('new-database', () => setNaming(true)), []);
+  // Import from Sheets: the workbooks and their sheets to choose from.
+  const [books, setBooks] = useState<WorkbookInfo[] | null>(null);
+  const pickSheet = async () => {
+    const got = await window.mobius.sheets?.list();
+    setBooks(got && !isNotesFailure(got) ? got : []);
+  };
+  const importSheet = async (workbook: string, sheet: string) => {
+    setBooks(null);
+    const got = await window.mobius.sheets?.read(workbook, sheet);
+    if (!got || isNotesFailure(got)) { db.setMessage(got ? got.message : 'Sheets is not available.'); return; }
+    await db.importFile(new File([sheetToCsv(got.values)], `${sheet}.csv`, { type: 'text/csv' }));
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (await db.create(name)) { setNaming(false); setName(''); }
@@ -23,12 +36,25 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
           <button type="button" className="strip-btn" aria-label="Import a CSV file" title="Import a CSV file as a table" onClick={() => file.current?.click()}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9M6.5 8.5 10 12l3.5-3.5M4 14v2.5h12V14" /></svg>
           </button>
+          <button type="button" className="strip-btn" aria-label="Import a sheet" title="Import a sheet from Sheets as a table" aria-expanded={books !== null} onClick={() => (books ? setBooks(null) : void pickSheet())}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4" width="13" height="12" rx="2" /><path d="M3.5 8h13M3.5 12h13M8 4v12" /></svg>
+          </button>
           <button type="button" className="strip-btn" aria-label="New database" title="New database" onClick={() => setNaming(true)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
           </button>
         </span>
       </div>
       <input ref={file} type="file" accept=".csv,text/csv" hidden aria-label="CSV file" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void db.importFile(f); }} />
+      {books !== null && (
+        <div className="db-pick" role="group" aria-label="Import a sheet">
+          {books.length === 0 && <p className="design-hint">No workbooks in Sheets yet.</p>}
+          {books.flatMap((b) => b.sheets.map((s) => (
+            <button key={`${b.name}/${s}`} type="button" className="db-table" onClick={() => void importSheet(b.name, s)}>
+              <span>{b.name} › {s}</span>
+            </button>
+          )))}
+        </div>
+      )}
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
           <input autoFocus aria-label="Database name" placeholder="Database name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />

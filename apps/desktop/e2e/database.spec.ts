@@ -78,3 +78,21 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await sql.press('Control+Enter');
   await expect(grid.getByRole('row', { name: /Memmo/ })).toContainText('260');
 });
+
+test('a sheet from Sheets becomes a table, with its worked-out values', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'sheets', 'Budget'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'sheets', 'Budget', 'Costs.csv'), 'Item,Cost\nHotel,1200\nFlights,800\nTotal,=SUM(B2:B3)\n');
+  model = await startModel([]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  const shell = mobius.shell;
+  await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Database');
+  await shell.keyboard.press('Enter');
+  const side = shell.getByRole('complementary', { name: 'Database sidebar' });
+  await side.getByRole('button', { name: 'Import a sheet' }).click();
+  await side.getByRole('group', { name: 'Import a sheet' }).getByRole('button', { name: 'Budget › Costs' }).click();
+  const grid = shell.getByRole('region', { name: 'Database' }).getByRole('table', { name: 'Rows' });
+  await expect(grid.getByRole('row', { name: /Total/ })).toContainText('2000');
+  await expect(shell.getByRole('list', { name: 'Tables in Data' })).toContainText('Costs');
+});

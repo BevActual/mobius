@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { databaseNameFor, isReading, quoteIdent, showCell, tableNameFor, tableQuery, toCsv } from './db-view';
+import { sheetToCsv, databaseNameFor, isReading, quoteIdent, showCell, tableNameFor, tableQuery, toCsv } from './db-view';
 
 describe('database view', () => {
   it('quotes names and opens a table with its first rows', () => {
@@ -13,6 +13,11 @@ describe('database view', () => {
     expect(showCell(42)).toBe('42');
     expect(showCell('x'.repeat(400)).length).toBe(301);
     expect(toCsv(['a', 'b'], [[1, 'x, y'], [null, 'say "hi"']])).toBe('a,b\n1,"x, y"\n,"say ""hi"""');
+  });
+
+  it('turns a sheet into CSV, leaving out the empty edges', () => {
+    expect(sheetToCsv([['Name', 'Rooms', ''], ['Casa', '9', ''], ['', '', ''], ['', '', '']])).toBe('Name,Rooms\nCasa,9');
+    expect(sheetToCsv([['', 'b'], ['1', '2']])).toBe('column_1,b\n1,2');
   });
 
   it('makes names from files and typing, and knows a statement that only reads', () => {

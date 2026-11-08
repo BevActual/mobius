@@ -22,6 +22,15 @@ export function toCsv(columns: string[], rows: DbCell[][]): string {
   return [columns.map(field).join(','), ...rows.map((r) => r.map(field).join(','))].join('\n');
 }
 
+/** A sheet's worked-out values as CSV for a table: the rows and columns that hold something, the first row as names. */
+export function sheetToCsv(values: string[][]): string {
+  const rows = values.map((r) => r.map((v) => v ?? ''));
+  let height = rows.length;
+  while (height > 0 && rows[height - 1]!.every((v) => v.trim() === '')) height--;
+  const width = Math.max(0, ...rows.slice(0, height).map((r) => { let w = r.length; while (w > 0 && r[w - 1]!.trim() === '') w--; return w; }));
+  return toCsv(rows[0]?.slice(0, width).map((v, i) => v || `column_${i + 1}`) ?? [], rows.slice(1, height).map((r) => Array.from({ length: width }, (_, i) => r[i] ?? '')));
+}
+
 /** A table name from a file's name: without its extension, only the letters, digits and gaps a name needs. */
 export function tableNameFor(file: string): string {
   const base = file.replace(/\.[^.]+$/, '').replace(/[^\p{L}\p{N} _-]+/gu, ' ').trim().replace(/\s+/g, '_').slice(0, 60);
