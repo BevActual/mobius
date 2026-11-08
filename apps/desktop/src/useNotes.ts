@@ -13,7 +13,7 @@ export interface OpenPage { path: string; title: string; base: number | null }
  * The Notes app's state: the notebooks, the open page and its text, and saving as the person types. Docs keeps its
  * documents the same way, in folders, so it uses this too (`kind` 'docs').
  */
-export type NotesKind = 'notes' | 'docs' | 'slides' | 'designs' | 'songs' | 'boards' | 'research';
+export type NotesKind = 'notes' | 'docs' | 'slides' | 'designs' | 'songs' | 'boards' | 'research' | 'reading';
 export function useNotes(kind: NotesKind = 'notes') {
   const api = window.mobius[kind];
   const remembered = useCallback((): string | null => { try { return window.localStorage.getItem(lastKey(kind)); } catch { return null; } }, [kind]);

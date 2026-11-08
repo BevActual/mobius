@@ -44,6 +44,7 @@ import { CodeEditor, CodeSidebar } from './Code';
 import { DesignEditor, DesignSidebar } from './Design';
 import { CanvasBoard, CanvasSidebar } from './Canvas';
 import { ResearchPage, ResearchSidebar } from './Research';
+import { ReaderPage, ReaderSidebar, saveToReader } from './Reader';
 import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
@@ -113,6 +114,7 @@ export function App() {
   const designs = useNotes('designs');
   const boards = useNotes('boards');
   const research = useNotes('research');
+  const reading = useNotes('reading');
   /** New research was chosen: the Research app shows its question form. */
   const [askingResearch, setAskingResearch] = useState(false);
   const photos = usePhotos();
@@ -201,6 +203,7 @@ export function App() {
   const inDesign = app === 'design';
   const inCanvas = app === 'canvas';
   const inResearch = app === 'research';
+  const inReader = app === 'reader';
   const inPhoto = app === 'photo';
   const inStudio = app === 'studio';
   const inVideo = app === 'video';
@@ -245,6 +248,8 @@ export function App() {
   boardsNow.current = boards;
   const researchNow = useRef(research);
   researchNow.current = research;
+  const readingNow = useRef(reading);
+  readingNow.current = reading;
   const tasksNow = useRef(tasks);
   tasksNow.current = tasks;
   useEffect(() => {
@@ -275,6 +280,11 @@ export function App() {
       if (c.by === 'assistant' && c.path && showBeside('research')) { void researchNow.current.open(c.path); return; }
       mark('research');
     });
+    const offReading = window.mobius.reading?.onChanged((c) => {
+      if (c.by === 'person' || c.by === 'undo') return;
+      if (c.by === 'assistant' && c.path && showBeside('reader')) { void readingNow.current.open(c.path); return; }
+      mark('reader');
+    });
     const offDocs = window.mobius.docs?.onChanged((c) => {
       if (c.by === 'person' || c.by === 'undo') return;
       if (c.by === 'assistant' && c.path && showBeside('docs')) { void docsNow.current.open(c.path); return; }
@@ -303,7 +313,7 @@ export function App() {
       if (c.by === 'assistant' && showBeside('calendar')) return;
       mark('calendar');
     });
-    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offMail?.(); offCalendar?.(); offDesigns?.(); offBoards?.(); offResearch?.(); };
+    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offMail?.(); offCalendar?.(); offDesigns?.(); offBoards?.(); offResearch?.(); offReading?.(); };
   }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
   const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
@@ -316,7 +326,7 @@ export function App() {
   const surface: SurfaceState = {
     app,
     hasPage: active !== undefined && /^https?:/.test(active.url),
-    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs' } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : inCanvas && boards.page ? { path: boards.page.path, title: boards.page.title, text: boards.text, folder: 'boards' } : inResearch && research.page && !askingResearch ? { path: research.page.path, title: liveTitle(research.text, research.page.title), text: research.text, folder: 'research' } : null,
+    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs' } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : inCanvas && boards.page ? { path: boards.page.path, title: boards.page.title, text: boards.text, folder: 'boards' } : inResearch && research.page && !askingResearch ? { path: research.page.path, title: liveTitle(research.text, research.page.title), text: research.text, folder: 'research' } : inReader && reading.page ? { path: reading.page.path, title: reading.page.title, text: reading.text, folder: 'reading' } : null,
     tasks: inTasks ? tasksContext(tasks) : null,
     mail: inMail && mail.open ? { id: mail.open.id, title: `Email: ${mail.open.subject || '(no subject)'}`, text: `From: ${mail.open.from.name} <${mail.open.from.email}>\nSubject: ${mail.open.subject}\nDate: ${mail.open.dateMs ? new Date(mail.open.dateMs).toString() : ''}\n\n${mail.open.text}` } : null,
     cut: inVideo && video.project ? { title: `Video: ${video.project}`, source: `video/${video.project}/cut.json`, text: `Clips in video/${video.project}/ (never change them):\n${video.clips.map((c) => `- ${c.name}${c.kind === 'audio' ? ' (sound)' : ''}: ${video.lengthOf(c.name) ?? '?'} s`).join('\n') || '(none yet)'}\n\nThe cut, video/${video.project}/cut.json:\n${writeCut(video.cut)}` } : null,
@@ -377,7 +387,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
+  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -402,6 +412,7 @@ export function App() {
     design: plural(designs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'design'),
     canvas: plural(boards.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'board'),
     research: plural(research.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'report'),
+    reader: plural(reading.notebooks.filter((nb) => nb.name !== 'Archive').reduce((sum, nb) => sum + nb.pages.length, 0), 'article') + ' to read',
     mail: mail.accounts.length === 0 ? 'Add an account' : mail.counts.all > 0 ? `${mail.counts.all} unread` : 'All read',
     tasks: dueToday > 0 ? `${dueToday} due today` : openTasks > 0 ? `${openTasks} to do` : 'All done',
     calendar: eventsToday > 0 ? `${plural(eventsToday, 'event')} today` : 'Nothing today',
@@ -427,12 +438,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -535,6 +546,7 @@ export function App() {
     else if (target.app === 'tasks') { tasks.setView({ kind: 'list', name: target.list }); openApp('tasks'); }
     else if (target.app === 'design') { openApp('design'); void designs.open(target.path, target.title); }
     else if (target.app === 'canvas') { openApp('canvas'); void boards.open(target.path, target.title); }
+    else if (target.app === 'reader') { openApp('reader'); void reading.open(target.path, target.title); }
     else if (target.app === 'research') { setAskingResearch(false); openApp('research'); void research.open(target.path, target.title); }
     else if (target.app === 'studio') { openApp('studio'); void songs.open(target.path, target.title); }
     else if (target.app === 'photo') { openApp('photo'); void photos.openPhoto(target.path); }
@@ -618,6 +630,7 @@ export function App() {
     { id: 'deck', label: 'New deck', app: 'slides', run: () => { closeSettings(); openApp('slides'); void (async () => { const folder = slides.page?.path.split('/')[0] ?? slides.notebooks[0]?.name ?? (await slides.createNotebook('Presentations')); if (folder) await slides.createPage(folder, 'Untitled deck'); })(); } },
     { id: 'design', label: 'New design', app: 'design', run: () => { closeSettings(); openApp('design'); void (async () => { const folder = designs.page?.path.split('/')[0] ?? designs.notebooks[0]?.name ?? (await designs.createNotebook('Designs')); if (folder) await designs.createPage(folder, 'Untitled design'); })(); } },
     { id: 'board', label: 'New board', app: 'canvas', run: () => { closeSettings(); openApp('canvas'); void (async () => { const folder = boards.page?.path.split('/')[0] ?? boards.notebooks[0]?.name ?? (await boards.createNotebook('Boards')); if (folder) await boards.createPage(folder, 'Untitled board'); })(); } },
+    { id: 'article', label: 'Save a link', app: 'reader', run: () => { closeSettings(); openApp('reader'); window.setTimeout(() => sendCommand('save-link'), 0); } },
     { id: 'research', label: 'New research', app: 'research', run: () => { closeSettings(); openApp('research'); setAskingResearch(true); } },
     { id: 'song', label: 'New song', app: 'studio', run: () => { closeSettings(); openApp('studio'); void (async () => { const folder = songs.page?.path.split('/')[0] ?? songs.notebooks[0]?.name ?? (await songs.createNotebook('Songs')); if (folder) await songs.createPage(folder, 'Untitled song'); })(); } },
     { id: 'workbook', label: 'New workbook', app: 'sheets', run: () => { closeSettings(); openApp('sheets'); void sheets.createWorkbook('Workbook'); } },
@@ -673,6 +686,8 @@ export function App() {
               <PhotoSidebar photos={photos} pin={pinNode} changed={turnMarks.photos} />
             ) : inDesign ? (
               <DesignSidebar designs={designs} pin={pinNode} changed={turnMarks.designs} />
+            ) : inReader ? (
+              <ReaderSidebar reading={reading} pin={pinNode} changed={turnMarks.reading} />
             ) : inResearch ? (
               <ResearchSidebar research={research} pin={pinNode} changed={turnMarks.research} />
             ) : inCanvas ? (
@@ -813,6 +828,10 @@ export function App() {
         pin: () => { if (active) togglePin({ kind: 'page', id: active.url, title: active.title || active.url }); },
         reopen: () => void window.mobius.browser.reopenClosed?.(),
         selection: () => setSelectionMenu(true),
+        saveToReader: () => { if (active) void saveToReader(reading, active.url).then((done) => setToast(done.ok ? 'Saved to Reader' : done.message)); },
+      },
+      reader: {
+        newList: () => sendCommand('new-folder'),
       },
       notes: {
         newNotebook: () => sendCommand('new-notebook'),
@@ -1041,6 +1060,8 @@ export function App() {
         return <PhotoEditor photos={photos} review={photos.open && turnMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'design':
         return <DesignEditor designs={designs} review={designs.page && turnMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
+      case 'reader':
+        return <ReaderPage reading={reading} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && turnMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'research':
         return <ResearchPage research={research} busy={conversation.state.busy} asking={askingResearch} onAskDone={() => setAskingResearch(false)} onAsk={onResearch} review={research.page && turnMarks.research.has(research.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'canvas':
@@ -1064,7 +1085,7 @@ export function App() {
             docFolders={docs.notebooks}
             deckFolders={slides.notebooks}
             workbooks={sheets.workbooks}
-            made={{ designFolders: designs.notebooks, boardFolders: boards.notebooks, researchFolders: research.notebooks, songFolders: songs.notebooks, albums: photos.albums, videoProjects: video.projects.map((p) => p.name), codeProjects: code.projects.map((p) => ({ name: p.name, modified: (p as { modified?: number }).modified ?? 0 })) }}
+            made={{ designFolders: designs.notebooks, boardFolders: boards.notebooks, researchFolders: research.notebooks, readingFolders: reading.notebooks, songFolders: songs.notebooks, albums: photos.albums, videoProjects: video.projects.map((p) => p.name), codeProjects: code.projects.map((p) => ({ name: p.name, modified: (p as { modified?: number }).modified ?? 0 })) }}
             focusToken={searchFocus}
             canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
             onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}

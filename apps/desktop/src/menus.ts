@@ -49,7 +49,7 @@ export interface MenuContext {
     open: (app: AppId) => void;
     allApps: () => void;
     launcher: () => void;
-    browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; selection: () => void };
+    browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; selection: () => void; saveToReader: () => void };
     notes: { newNotebook: () => void; pin: () => void; changes: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void };
@@ -59,6 +59,7 @@ export interface MenuContext {
     design: { newDesign: () => void; newFolder: () => void };
     canvas: { newBoard: () => void; newFolder: () => void; newSticky: () => void };
     research: { newResearch: () => void; newFolder: () => void };
+    reader: { newList: () => void };
     code: { newProject: () => void; newFile: () => void; save: () => void; runTests: () => void };
     sheets: { newWorkbook: () => void; newSheet: () => void; insertRow: () => void };
     mail: { newMessage: () => void; getMail: () => void };
@@ -143,6 +144,7 @@ function appMenu(c: MenuContext): Menu | null {
         item('reopen', 'Reopen closed tab', d.browser.reopen),
         separator,
         item('selection', 'Selected text…', d.browser.selection, { disabled: !s.browser.hasPage }),
+        item('save-to-reader', 'Save page to Reader', d.browser.saveToReader, { disabled: !s.browser.hasPage }),
       ] };
     case 'notes':
       return { id: 'app', label: 'Notes', items: [
@@ -190,6 +192,10 @@ function appMenu(c: MenuContext): Menu | null {
       return { id: 'app', label: 'Design', items: [
         item('new-design', 'New design', d.design.newDesign),
         item('new-folder', 'New folder', d.design.newFolder),
+      ] };
+    case 'reader':
+      return { id: 'app', label: 'Reader', items: [
+        item('new-list', 'New list', d.reader.newList),
       ] };
     case 'research':
       return { id: 'app', label: 'Research', items: [

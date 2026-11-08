@@ -389,6 +389,17 @@ export function createTauriBridge(): MobiusBridge {
       search: (query) => call('research', 'search', [query], () => []),
       onChanged: (listener) => on<NotesChange>('mobius:research-changed', listener),
     },
+    reading: {
+      list: () => call('reading', 'list', [], () => []),
+      read: (path) => call('reading', 'read', [path], () => ({ ok: false as const, message: 'Reader is not available.' })),
+      save: (path, content, base) => call('reading', 'save', [path, content, base], () => ({ ok: false as const, message: 'Reader is not available.' })),
+      createNotebook: (name) => call('reading', 'createNotebook', [name], () => ({ ok: false as const, message: 'Reader is not available.' })),
+      createPage: (notebook, title) => call('reading', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Reader is not available.' })),
+      remove: (path) => call('reading', 'remove', [path], () => ({ ok: false as const, message: 'Reader is not available.' })),
+      search: (query) => call('reading', 'search', [query], () => []),
+      fetch: (url) => call('reading', 'fetch', [url], () => ({ ok: false as const, message: 'Reader is not available.' })),
+      onChanged: (listener) => on<NotesChange>('mobius:reading-changed', listener),
+    },
     songs: {
       list: () => call('songs', 'list', [], () => []),
       read: (path) => call('songs', 'read', [path], () => ({ ok: false as const, message: 'Studio is not available.' })),

@@ -1,4 +1,4 @@
-export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo' | 'studio' | 'video' | 'skills' | 'docs' | 'sheets' | 'slides' | 'mail' | 'journey' | 'notes' | 'canvas' | 'research' | 'tasks' | 'calendar' | 'review';
+export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo' | 'studio' | 'video' | 'skills' | 'docs' | 'sheets' | 'slides' | 'mail' | 'journey' | 'notes' | 'canvas' | 'research' | 'reader' | 'tasks' | 'calendar' | 'review';
 
 /** What an app is for. The hub groups apps this way, so however many there are, they read as a few clear groups. */
 export type AppGroup = 'Assistant' | 'Browse and find' | 'Write and plan' | 'Create' | 'Review';
@@ -21,6 +21,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'calendar', name: 'Calendar', available: true, group: 'Write and plan' },
   { id: 'search', name: 'Search', available: true, group: 'Browse and find' },
   { id: 'research', name: 'Research', available: true, group: 'Browse and find' },
+  { id: 'reader', name: 'Reader', available: true, group: 'Browse and find' },
   { id: 'design', name: 'Design', available: true, group: 'Create' },
   { id: 'photo', name: 'Photo', available: true, group: 'Create' },
   { id: 'studio', name: 'Studio', available: true, group: 'Create' },

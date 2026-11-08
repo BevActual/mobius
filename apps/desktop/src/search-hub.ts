@@ -14,6 +14,7 @@ export type HubTarget =
   | { app: 'design'; path: string; title: string }
   | { app: 'canvas'; path: string; title: string }
   | { app: 'research'; path: string; title: string }
+  | { app: 'reader'; path: string; title: string }
   | { app: 'studio'; path: string; title: string }
   | { app: 'photo'; path: string }
   | { app: 'video'; project: string }
@@ -63,6 +64,7 @@ export interface HubSources {
   designFolders?: Notebook[];
   boardFolders?: Notebook[];
   researchFolders?: Notebook[];
+  readingFolders?: Notebook[];
   songFolders?: Notebook[];
   albums?: { name: string; photos: { path: string; name: string; modified: number }[] }[];
   videoProjects?: string[];
@@ -118,7 +120,7 @@ export function hubResults(sources: HubSources, query: string, filter: HubFilter
   }
   if (want('made')) {
     const add = (r: HubResult, text: string) => { if (!searching || matches(text, ws)) out.push(r); };
-    for (const [app, label, folders] of [['design', 'Design', sources.designFolders], ['canvas', 'Canvas', sources.boardFolders], ['research', 'Research', sources.researchFolders], ['studio', 'Studio', sources.songFolders]] as const) {
+    for (const [app, label, folders] of [['design', 'Design', sources.designFolders], ['canvas', 'Canvas', sources.boardFolders], ['research', 'Research', sources.researchFolders], ['reader', 'Reader', sources.readingFolders], ['studio', 'Studio', sources.songFolders]] as const) {
       for (const nb of folders ?? []) for (const p of nb.pages) add({ key: `${app}:${p.path}`, kind: 'made', title: p.title, where: `${label} › ${nb.name}`, when: p.modified, target: { app, path: p.path, title: p.title } }, `${p.title} ${nb.name}`);
     }
     for (const a of sources.albums ?? []) for (const p of a.photos) add({ key: `photo:${p.path}`, kind: 'made', title: p.name, where: `Photo › ${a.name}`, when: p.modified, target: { app: 'photo', path: p.path } }, `${p.name} ${a.name}`);

@@ -22,7 +22,7 @@ export interface SurfaceState {
   /** A web page is showing in the browser. */
   hasPage: boolean;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
-  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' } | null;
+  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
@@ -130,6 +130,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Tidy the spacing', prompt: 'Line up the layers in this design on an 8-point grid with even spacing, changing only x, y, w and h. Keep every id.', attach: 'note' },
           ]
         : [{ label: 'Sketch a screen', prompt: 'Make a design in my Design app, a phone-sized frame, for ' }];
+    case 'reader':
+      return state.note
+        ? [
+            { label: 'Summarise this', prompt: 'Summarise the attached article in five short bullet points, then say in one line who would find it worth reading in full.', attach: 'note' },
+            { label: 'Key claims', prompt: 'List the main claims the attached article makes, and for each, what evidence it gives. Say which ones it does not back up.', attach: 'note' },
+            { label: 'Questions about it', prompt: 'Give me five good questions to think about after reading the attached article.', attach: 'note' },
+          ]
+        : [];
     case 'research':
       return state.note
         ? [
@@ -174,7 +182,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
 }
 
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' }): ContextItem {
+export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' }): ContextItem {
   return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 

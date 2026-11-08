@@ -123,6 +123,103 @@ pub fn page_text(html: &str) -> (String, String) {
     (title, text.join("\n").chars().take(MAX_TEXT).collect())
 }
 
+/// A page as an article to read later: its title and its main text as Markdown, with headings, paragraphs, lists and
+/// quotes kept and the rest of the page (scripts, menus, headers, footers, forms) left out. Only the `<article>` or
+/// `<main>` part when the page has one.
+pub fn article_markdown(html: &str) -> (String, String) {
+    let (title, _) = page_text(html);
+    let lower = html.to_ascii_lowercase();
+    let region = |open: &str, close: &str| lower.find(open).and_then(|s| lower.rfind(close).filter(|e| *e > s).map(|e| (s, e)));
+    let (start, end) = region("<article", "</article>").or_else(|| region("<main", "</main>")).or_else(|| region("<body", "</body>")).unwrap_or((0, html.len()));
+    let (src, low) = (&html[start..end], &lower[start..end]);
+    const SKIP: [&str; 12] = ["script", "style", "noscript", "svg", "nav", "header", "footer", "aside", "form", "button", "template", "iframe"];
+    let mut out = String::new();
+    let mut text = String::new();
+    let flush = |text: &mut String, out: &mut String| {
+        let words = decode_entities(text).split_whitespace().collect::<Vec<_>>().join(" ");
+        out.push_str(&words);
+        text.clear();
+    };
+    let mut i = 0;
+    while i < src.len() {
+        if low[i..].starts_with("<!--") {
+            i += low[i..].find("-->").map_or(low.len() - i, |e| e + 3);
+            continue;
+        }
+        if src.as_bytes()[i] == b'<' {
+            let Some(close) = src[i..].find('>') else { break };
+            let tag = &low[i + 1..i + close];
+            let closing = tag.starts_with('/');
+            let name: String = tag.trim_start_matches('/').chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
+            i += close + 1;
+            if !closing && SKIP.contains(&name.as_str()) && !tag.ends_with('/') {
+                let end_tag = format!("</{name}");
+                i += low[i..].find(&end_tag).map_or(low.len() - i, |e| e + end_tag.len());
+                i += low[i..].find('>').map_or(0, |e| e + 1);
+                continue;
+            }
+            let block = match (name.as_str(), closing) {
+                ("h1" | "h2", false) => Some("\n\n## "),
+                ("h3" | "h4" | "h5" | "h6", false) => Some("\n\n### "),
+                ("li", false) => Some("\n- "),
+                ("blockquote", false) => Some("\n\n> "),
+                ("br", _) => Some("\n"),
+                ("p" | "div" | "section" | "ul" | "ol" | "table" | "tr" | "pre" | "figure" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "blockquote", _) => Some("\n\n"),
+                _ => None,
+            };
+            if let Some(b) = block {
+                flush(&mut text, &mut out);
+                out.push_str(b);
+            } else if !matches!(name.as_str(), "b" | "i" | "em" | "strong" | "a" | "span" | "code" | "small" | "sup" | "sub" | "u" | "mark" | "abbr" | "time") {
+                text.push(' ');
+            }
+            continue;
+        }
+        let ch = src[i..].chars().next().unwrap_or(' ');
+        text.push(ch);
+        i += ch.len_utf8();
+    }
+    flush(&mut text, &mut out);
+    // Paragraphs one blank line apart; list items and line breaks on their own lines; nothing empty.
+    let mut lines: Vec<String> = Vec::new();
+    for line in out.split('\n').map(str::trim) {
+        let empty = line.is_empty() || matches!(line, "-" | "##" | "###" | ">");
+        if empty {
+            if lines.last().is_some_and(|l| !l.is_empty()) {
+                lines.push(String::new());
+            }
+        } else {
+            lines.push(line.to_owned());
+        }
+    }
+    let body = lines.join("\n").trim().chars().take(200_000).collect::<String>();
+    (title, body)
+}
+
+/// Fetches a page the person asked to keep in Reader. Pages on this computer or its network are allowed: the person
+/// chose the address.
+pub fn fetch_article(raw: &str) -> Result<Value, String> {
+    let address = url::Url::parse(raw.trim()).map_err(|_| "that is not a web address".to_owned())?;
+    if !matches!(address.scheme(), "http" | "https") {
+        return Err("only http and https pages can be saved".into());
+    }
+    let mut response = agent().get(address.as_str()).call().map_err(|e| format!("the page did not answer: {e}"))?;
+    let status = response.status().as_u16();
+    if status >= 400 {
+        return Err(format!("the page answered {status}"));
+    }
+    let kind = response.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_ascii_lowercase();
+    if !(kind.is_empty() || kind.contains("html") || kind.starts_with("text/")) {
+        return Err(format!("that is not a page of text ({kind})"));
+    }
+    let body = response.body_mut().with_config().limit(MAX_PAGE_BYTES).read_to_string().map_err(|e| e.to_string())?;
+    let (title, text) = if kind.contains("html") || body.trim_start().starts_with('<') { article_markdown(&body) } else { (String::new(), body.chars().take(200_000).collect()) };
+    if text.trim().is_empty() {
+        return Err("no text was found on that page".into());
+    }
+    Ok(json!({ "ok": true, "url": address.as_str(), "title": title, "text": text }))
+}
+
 fn search_base() -> String {
     std::env::var("MOBIUS_WEB_SEARCH_URL").ok().filter(|_| std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1")).unwrap_or_else(|| "https://html.duckduckgo.com/html/".to_owned())
 }
@@ -187,6 +284,15 @@ mod tests {
         let (title, text) = page_text("<html><head><title>Casa &amp; Amora</title><style>p{}</style><script>evil()</script></head><body><h1>Rooms</h1><p>Nine rooms.</p><!-- hidden --><div>Six minutes&nbsp;away</div></body></html>");
         assert_eq!(title, "Casa & Amora");
         assert_eq!(text, "Rooms\nNine rooms.\nSix minutes away");
+    }
+
+    #[test]
+    fn an_article_keeps_its_headings_paragraphs_and_lists_and_leaves_the_rest() {
+        let html = "<html><head><title>Slow travel</title></head><body><nav>Home | About</nav><header>Site</header><article><h1>Slow travel</h1><p>Take the <b>train</b>.\n It is   calmer.</p><ul><li>Lisbon</li><li>Porto</li></ul><blockquote>Go slowly.</blockquote><script>evil()</script><p>Fin &amp; done<br>next</p></article><footer>(c)</footer></body></html>";
+        let (title, text) = article_markdown(html);
+        assert_eq!(title, "Slow travel");
+        assert_eq!(text, "## Slow travel\n\nTake the train. It is calmer.\n\n- Lisbon\n- Porto\n\n> Go slowly.\n\nFin & done\nnext");
+        assert!(fetch_article("ftp://x").is_err());
     }
 
     #[test]

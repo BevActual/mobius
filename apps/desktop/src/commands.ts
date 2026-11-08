@@ -2,7 +2,7 @@
  * Commands the menus send to a part of the app that keeps its own state (the notebook naming field, a note's changes
  * view). The part listens while it is on screen; nothing happens when it is not.
  */
-export type AppCommand = 'new-notebook' | 'new-folder' | 'new-list' | 'show-changes' | 'new-calendar' | 'new-project' | 'new-file' | 'new-sticky';
+export type AppCommand = 'new-notebook' | 'new-folder' | 'new-list' | 'show-changes' | 'new-calendar' | 'new-project' | 'new-file' | 'new-sticky' | 'save-link';
 const EVENT = 'mobius:command';
 
 export const sendCommand = (command: AppCommand): void => { window.dispatchEvent(new CustomEvent<AppCommand>(EVENT, { detail: command })); };

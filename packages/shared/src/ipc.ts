@@ -548,6 +548,8 @@ export interface MobiusBridge {
   boards?: NonNullable<MobiusBridge['notes']>;
   /** The Research app: reports kept like documents, as Markdown in `research/<folder>/<report>.md`. Only the Tauri shell has it. */
   research?: NonNullable<MobiusBridge['notes']>;
+  /** The Reader app: articles kept to read later, as Markdown in `reading/<folder>/<article>.md`, and fetching one. */
+  reading?: NonNullable<MobiusBridge['notes']> & { fetch(url: string): Promise<{ ok: true; url: string; title: string; text: string } | { ok: false; message: string }> };
   /** The Notes app. Only the Tauri shell has it. */
   notes?: {
     list(): Promise<Notebook[] | NotesFailure>;
@@ -1069,13 +1071,13 @@ export interface ScheduleDraft { title: string; prompt: string; time: string; da
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
 /** `calendar` came later: a setting saved before it leaves it out, and it counts as `ask`. */
-export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; research?: AccessLevel; code?: AccessLevel; design?: AccessLevel; canvas?: AccessLevel; photo?: AccessLevel; studio?: AccessLevel; video?: AccessLevel; skills?: AccessLevel };
-export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', research: 'ask', code: 'ask', design: 'ask', canvas: 'ask', photo: 'ask', studio: 'ask', video: 'ask', skills: 'ask' };
+export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; research?: AccessLevel; reader?: AccessLevel; code?: AccessLevel; design?: AccessLevel; canvas?: AccessLevel; photo?: AccessLevel; studio?: AccessLevel; video?: AccessLevel; skills?: AccessLevel };
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', research: 'ask', reader: 'ask', code: 'ask', design: 'ask', canvas: 'ask', photo: 'ask', studio: 'ask', video: 'ask', skills: 'ask' };
 const ACCESS_LEVELS: readonly string[] = ['off', 'ask', 'read', 'act'];
 export function isAppAccess(v: unknown): v is AppAccess {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;
-  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'research', 'code', 'design', 'canvas', 'photo', 'studio', 'video', 'skills'];
+  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'research', 'reader', 'code', 'design', 'canvas', 'photo', 'studio', 'video', 'skills'];
   return Object.keys(o).every((k) => apps.includes(k))
     && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes(o[app] as string))
     && (['docs', 'sheets', 'slides', 'calendar', 'mail'] as const).every((app) => o[app] === undefined || ACCESS_LEVELS.includes(o[app] as string));
