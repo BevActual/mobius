@@ -372,7 +372,7 @@ export function App() {
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'keyboard' | 'about' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'keyboard' | 'about' | 'schedules' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
   const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
   const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
@@ -498,6 +498,7 @@ export function App() {
                   return result;
                 }}
                 onSelect={conversation.select}
+                onOpenSchedules={() => openSettingsAt('schedules')}
                 onDelete={conversation.remove}
                 pin={pinNode}
               />
@@ -586,7 +587,7 @@ export function App() {
     }
     document.execCommand(command);
   };
-  const openSettingsAt = (section: 'keyboard' | 'about') => { setSettingsSection(section); setSettingsOpen(true); };
+  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
     apps: APPS.filter((a) => a.available),

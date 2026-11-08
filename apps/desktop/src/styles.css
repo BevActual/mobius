@@ -1125,3 +1125,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .schedule-day { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); font-size: var(--fs-sm); }
 .schedule-day[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .schedule-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); }
+.scheduled-item { width: 100%; flex-direction: column; align-items: flex-start; gap: 0; padding: 4px 10px; text-align: left; }
+.scheduled-item:hover { background: var(--soft); }
+.scheduled-item[data-off] { opacity: 0.6; }
+.scheduled-when { color: var(--muted); font-size: var(--fs-xs); }
