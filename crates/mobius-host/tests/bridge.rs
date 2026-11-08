@@ -439,7 +439,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 28, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 30, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -484,7 +484,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.commit", "code.push"]);
     }
 
     #[derive(Default)]

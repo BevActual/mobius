@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type CodeEntry, type CodeFile, type CodeTestRun } from '@mobius/shared';
+import { isNotesFailure, type CodeEntry, type CodeFile, type CodeGit, type CodeTestRun } from '@mobius/shared';
 import { parentsOf } from './code-view';
 
 const LAST_KEY = 'mobius.code.last';
@@ -27,6 +27,7 @@ export function useCode() {
   const [message, setMessage] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [tests, setTests] = useState<CodeTests>(NO_TESTS);
+  const [git, setGit] = useState<CodeGit>({ repo: false });
   const live = useRef({ project, open, draft });
   live.current = { project, open, draft };
   const dirty = open !== null && open.text !== null && draft !== open.text;
@@ -39,8 +40,9 @@ export function useCode() {
   }, [api]);
 
   const loadTree = useCallback(async (name: string) => {
-    const tree = await api?.tree(name);
+    const [tree, state] = await Promise.all([api?.tree(name), api?.git(name)]);
     if (tree && !isNotesFailure(tree)) setEntries(tree.entries);
+    setGit(state && !isNotesFailure(state) ? state : { repo: false });
   }, [api]);
 
   const loadTests = useCallback(async (name: string) => {
@@ -170,11 +172,28 @@ export function useCode() {
     setTests((was) => ({ ...was, running: false, last: result, by: 'person' }));
   }, [api]);
 
+  const commit = useCallback(async (message: string) => {
+    const now = live.current;
+    if (!api || !now.project) return false;
+    const done = await api.commit(now.project, message);
+    if (isNotesFailure(done)) { setMessage(done.message); return false; }
+    setMessage('');
+    await loadTree(now.project);
+    return true;
+  }, [api, loadTree]);
+  const push = useCallback(async () => {
+    const now = live.current;
+    if (!api || !now.project) return;
+    const done = await api.push(now.project);
+    setMessage(isNotesFailure(done) ? done.message : '');
+    await loadTree(now.project);
+  }, [api, loadTree]);
+
   const toggle = useCallback((folder: string) => setExpanded((was) => { const next = new Set(was); if (next.has(folder)) next.delete(folder); else next.add(folder); return next; }), []);
 
   return {
     available: api !== undefined, projects, project, entries, open, draft, setDraft, dirty, message, setMessage, expanded, toggle, tests,
-    refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests,
+    git, commit, push, refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests,
   };
 }
 export type CodeState = ReturnType<typeof useCode>;

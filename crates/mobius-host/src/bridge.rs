@@ -952,7 +952,7 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -963,6 +963,13 @@ impl Bridge {
                 (self.emit)("mobius:schedules-changed", Value::Null);
             }
             return result;
+        }
+        if crate::code_git::is_git_tool(tool) {
+            let project = args.get("project").and_then(Value::as_str).unwrap_or("");
+            let dir = self.code.project_dir(project)?;
+            let result = if tool == "code.commit" { crate::code_git::commit(&dir, args.get("message").and_then(Value::as_str).unwrap_or("")) } else { crate::code_git::push(&dir) }?;
+            (self.emit)("mobius:code-changed", json!({ "project": project, "path": null, "by": "assistant" }));
+            return Ok(Value::String(result.to_string()));
         }
         if crate::code_tests::is_code_tool(tool) {
             let project = args.get("project").and_then(Value::as_str).unwrap_or("");
@@ -1119,7 +1126,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -1531,6 +1538,12 @@ impl Bridge {
                 (Some(p), Some(c)) => code.project_dir(p).and_then(|_| self.code_tests.set(p, c)).map(|()| json!({ "ok": true })),
                 _ => Err("a project and a command are needed".to_owned()),
             },
+            "git" => text(0).ok_or_else(need).and_then(|p| code.project_dir(p)).map(|dir| crate::code_git::status(&dir)),
+            "commit" => match (text(0), text(1)) {
+                (Some(p), Some(m)) => code.project_dir(p).and_then(|dir| crate::code_git::commit(&dir, m)),
+                _ => Err("a project and a message are needed".to_owned()),
+            },
+            "push" => text(0).ok_or_else(need).and_then(|p| code.project_dir(p)).and_then(|dir| crate::code_git::push(&dir)),
             "runTests" => text(0).ok_or_else(need).and_then(|p| {
                 let dir = code.project_dir(p)?;
                 let command = self.code_tests.get(p).ok_or("Choose a test command first.")?;
@@ -1542,7 +1555,7 @@ impl Bridge {
         };
         match result {
             Ok(value) => {
-                if matches!(method, "createProject" | "save" | "createFile" | "removeFile") {
+                if matches!(method, "createProject" | "save" | "createFile" | "removeFile" | "commit" | "push") {
                     (self.emit)("mobius:code-changed", json!({ "project": value.get("project").or_else(|| value.get("name")), "path": value.get("path"), "by": "person" }));
                 }
                 value

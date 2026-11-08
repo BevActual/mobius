@@ -53,6 +53,7 @@ export function CodeSidebar({ code, pin, changed }: { code: CodeState; pin?: Rea
           </select>
         </label>
       )}
+      {code.project && code.git.repo && <GitBar code={code} />}
       {code.project && (
         <nav className="code-tree" aria-label="Files">
           <div className="code-tree-head">
@@ -80,6 +81,40 @@ export function CodeSidebar({ code, pin, changed }: { code: CodeState; pin?: Rea
         </nav>
       )}
     </aside>
+  );
+}
+
+/** The project's branch and what changed since its last commit, with Commit and Push. Mobius asks before either. */
+function GitBar({ code }: { code: CodeState }) {
+  const [writing, setWriting] = useState(false);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!code.git.repo) return null;
+  const { branch, changes, ahead } = code.git;
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    if (await code.commit(message)) { setWriting(false); setMessage(''); }
+    setBusy(false);
+  };
+  return (
+    <section className="code-git" aria-label="Git">
+      <div className="code-git-head">
+        <span className="code-git-branch" title="Branch">⎇ {branch || 'no branch'}</span>
+        <span className="code-git-count" role="status">{changes.length === 0 ? 'Nothing to commit' : changes.length === 1 ? '1 change' : `${changes.length} changes`}{ahead ? ` · ${ahead} to push` : ''}</span>
+      </div>
+      {writing ? (
+        <form className="code-git-form" onSubmit={(e) => void submit(e)}>
+          <input autoFocus aria-label="Commit message" placeholder="What changed, and why" value={message} maxLength={500} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setWriting(false); }} />
+          <button type="submit" className="btn primary" disabled={busy || !message.trim()}>Commit</button>
+        </form>
+      ) : (
+        <div className="code-git-actions">
+          <button type="button" className="btn" disabled={changes.length === 0} onClick={() => setWriting(true)}>Commit…</button>
+          <button type="button" className="btn" disabled={busy} onClick={() => { setBusy(true); void code.push().finally(() => setBusy(false)); }}>Push</button>
+        </div>
+      )}
+    </section>
   );
 }
 

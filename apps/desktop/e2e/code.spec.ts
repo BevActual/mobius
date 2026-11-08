@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -122,4 +123,30 @@ test('the agent fixes a failing test as a suggested change, runs the tests, and 
   await change.getByRole('button', { name: /^Discard/ }).click();
   await expect.poll(budget).toBe(BUDGET.replace(OLD_LINE, NEW_LINE));
   await expect(change).toBeHidden();
+});
+
+test('a project that is a git repository is committed from Code, and Mobius commits only when allowed', async () => {
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: project, encoding: 'utf8' }).trim();
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 'test@example.com');
+  git('config', 'user.name', 'Test');
+  await start([callsTool('code-commit', { project: 'offsite-planner', message: 'Split cents exactly' }), says(['Committed.'])]);
+  const bar = shell().getByRole('region', { name: 'Git' });
+  await expect(bar).toContainText('⎇ main');
+  await expect(bar.getByRole('status')).toHaveText('3 changes');
+  await bar.getByRole('button', { name: 'Commit…' }).click();
+  await bar.getByRole('textbox', { name: 'Commit message' }).fill('Start the offsite planner');
+  await bar.getByRole('button', { name: 'Commit' }).click();
+  await expect(bar.getByRole('status')).toHaveText('Nothing to commit');
+  expect(git('log', '--format=%s')).toBe('Start the offsite planner');
+
+  fs.writeFileSync(path.join(project, 'src', 'budget.js'), BUDGET.replace(OLD_LINE, NEW_LINE));
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Commit the fix');
+  await composer.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: code.commit' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log.locator('.msg.assistant')).toHaveText('Committed.');
+  expect(git('log', '--format=%s')).toBe('Split cents exactly\nStart the offsite planner');
+  await expect(bar.getByRole('status')).toHaveText('Nothing to commit');
 });

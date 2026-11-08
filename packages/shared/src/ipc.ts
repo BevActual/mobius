@@ -182,6 +182,7 @@ export interface TurnRecord { start: string; ended: boolean; when: number; ask: 
 export interface CodeEntry { path: string; folder: boolean; depth: number }
 export interface CodeFile { project: string; path: string; text: string | null; why?: string; modified: number }
 export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean }
+export type CodeGit = { repo: false } | { repo: true; branch: string; changes: { status: string; path: string }[]; ahead: number | null };
 export interface CodeChanged { project: string | null; path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 export interface CodeTestsEvent { project: string; running: boolean; result?: CodeTestRun; command?: string; by: 'person' | 'assistant' }
 export interface CellChange { row: number; col: number; text: string }
@@ -478,6 +479,10 @@ export interface MobiusBridge {
     testCommand(project: string): Promise<{ command: string | null; suggested: string | null } | NotesFailure>;
     setTestCommand(project: string, command: string): Promise<{ ok: true } | NotesFailure>;
     runTests(project: string): Promise<CodeTestRun | NotesFailure>;
+    /** The project's git state, when it is a repository. */
+    git(project: string): Promise<CodeGit | NotesFailure>;
+    commit(project: string, message: string): Promise<{ ok: true; commit: string } | NotesFailure>;
+    push(project: string): Promise<{ ok: true; branch: string } | NotesFailure>;
     onChanged(listener: (change: CodeChanged) => void): () => void;
     onTests(listener: (event: CodeTestsEvent) => void): () => void;
   };

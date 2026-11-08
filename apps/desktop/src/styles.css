@@ -1737,3 +1737,10 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .camera-view video { width: 100%; height: 100%; object-fit: cover; }
 .camera-problem { position: absolute; margin: 0; padding: var(--sp-4); color: #ddd; text-align: center; font-size: var(--fs-sm); }
 .camera-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); }
+.code-git { margin: 0 var(--sp-3) var(--sp-2); padding: 8px; border-radius: 8px; background: var(--field); display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); }
+.code-git-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.code-git-branch { font: 600 12px/1.2 ui-monospace, Menlo, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-git-count { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
+.code-git-actions, .code-git-form { display: flex; gap: 6px; }
+.code-git-actions .btn { flex: 1; }
+.code-git-form input { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg); color: inherit; font: inherit; }
