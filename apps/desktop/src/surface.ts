@@ -14,7 +14,7 @@ export interface Suggestion {
   /** What is sent. */
   prompt: string;
   /** What it needs attached first. */
-  attach?: 'page' | 'note' | 'tasks' | 'sheet';
+  attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail';
 }
 
 export interface SurfaceState {
@@ -27,6 +27,8 @@ export interface SurfaceState {
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
   sheet?: { title: string; source: string; text: string } | null;
+  /** The email open in Mail, if any. */
+  mail?: { id: string; title: string; text: string } | null;
 }
 
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
@@ -70,6 +72,13 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
           ]
         : [{ label: 'Make a budget', prompt: 'Make a budget workbook in my Sheets for ' }];
     case 'mail':
+      if (state.mail) {
+        return [
+          { label: 'Draft a reply', prompt: `Suggest a short reply to the attached email with mail.draft (replyTo: ${state.mail.id}), in my voice, answering what it asks. Check my calendar first if it is about a time.`, attach: 'mail' },
+          { label: 'Add a reminder', prompt: 'If the attached email asks me to do something by a time, suggest a calendar event for it with calendar.suggest, a little before it is due. Say what you suggested.', attach: 'mail' },
+          { label: 'Save to Notes', prompt: 'Write the parts of the attached email worth keeping as a short note in my Notes, with who sent it and when.', attach: 'mail' },
+        ];
+      }
       return [
         { label: 'What needs me?', prompt: 'Look through my mail from the last few days and tell me what needs a reply or an action from me, newest first. Say which message each comes from.' },
         { label: 'Summarise my inbox', prompt: 'Summarise my inbox from today in a few short points.' },
@@ -118,6 +127,11 @@ export function tasksContext(tasks: Pick<TasksState, 'view' | 'all'>): { title: 
   const title = view.id === 'today' ? 'Today' : 'Scheduled';
   const lines = smartView(view.id, all, new Date()).map(({ list, task }) => `- [ ] ${task.text} (due ${task.due}, in ${list})`);
   return { title, text: `# ${title}\n${lines.join('\n')}` };
+}
+
+/** The open email as an attachment: its text is someone else's words, which the agent treats as data. */
+export function mailItem(mail: { id: string; title: string; text: string }): ContextItem {
+  return { kind: 'file', title: mail.title, source: `mail:${mail.id}`, text: mail.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 
 /** The open sheet as an attachment. */
