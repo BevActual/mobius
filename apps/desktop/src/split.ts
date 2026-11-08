@@ -20,7 +20,7 @@ export function saveShare(share: number): void {
 
 /** The app (or the two apps of a split view) showing when Mobius closed, so the next start opens where you were. */
 const PANES_KEY = 'mobius.split.panes';
-const PAIRABLE: readonly AppId[] = ['browser', 'agent', 'search', 'notes', 'tasks', 'calendar'];
+const PAIRABLE: readonly AppId[] = ['browser', 'agent', 'search', 'notes', 'docs', 'tasks', 'calendar'];
 export function loadPanes(): readonly [AppId, AppId | null] {
   try {
     const saved: unknown = JSON.parse(window.localStorage.getItem(PANES_KEY) ?? 'null');

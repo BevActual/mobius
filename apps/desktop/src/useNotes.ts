@@ -4,18 +4,21 @@ import { onPageChanged, type SaveStatus } from './notes-state';
 
 const SAVE_DELAY_MS = 500;
 
-/** The page last open, so Notes opens on it again (after a restart too). Per device; nothing breaks without it. */
-const LAST_KEY = 'mobius.notes.last';
-const remembered = (): string | null => { try { return window.localStorage.getItem(LAST_KEY); } catch { return null; } };
-const remember = (path: string | null) => {
-  try { if (path) window.localStorage.setItem(LAST_KEY, path); else window.localStorage.removeItem(LAST_KEY); } catch { /* Not kept. */ }
-};
+/** The page last open, so Notes (or Docs) opens on it again (after a restart too). Per device; nothing breaks without it. */
+const lastKey = (kind: 'notes' | 'docs') => `mobius.${kind}.last`;
 
 export interface OpenPage { path: string; title: string; base: number | null }
 
-/** The Notes app's state: the notebooks, the open page and its text, and saving as the person types. */
-export function useNotes() {
-  const api = window.mobius.notes;
+/**
+ * The Notes app's state: the notebooks, the open page and its text, and saving as the person types. Docs keeps its
+ * documents the same way, in folders, so it uses this too (`kind` 'docs').
+ */
+export function useNotes(kind: 'notes' | 'docs' = 'notes') {
+  const api = window.mobius[kind];
+  const remembered = useCallback((): string | null => { try { return window.localStorage.getItem(lastKey(kind)); } catch { return null; } }, [kind]);
+  const remember = useCallback((path: string | null) => {
+    try { if (path) window.localStorage.setItem(lastKey(kind), path); else window.localStorage.removeItem(lastKey(kind)); } catch { /* Not kept. */ }
+  }, [kind]);
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [page, setPage] = useState<OpenPage | null>(null);
   const [text, setText] = useState('');
@@ -58,7 +61,7 @@ export function useNotes() {
     setStatus('saved');
     setMessage('');
     remember(path);
-  }, [api]);
+  }, [api, remember]);
 
   const open = useCallback(async (path: string, title = '') => {
     const { page: p, status: s } = live.current;
@@ -99,7 +102,7 @@ export function useNotes() {
     setPage({ path: made.path, title, base: made.modified });
     setText(made.content);
     setStatus('saved');
-  }, [api, refresh, save]);
+  }, [api, refresh, save, remember]);
 
   const remove = useCallback(async (path: string) => {
     const done = await api?.remove(path);
@@ -107,7 +110,7 @@ export function useNotes() {
     if (live.current.page?.path === path) { setPage(null); setText(''); setStatus('saved'); }
     if (remembered() === path) remember(null);
     await refresh();
-  }, [api, refresh]);
+  }, [api, refresh, remembered, remember]);
 
   const search = useCallback(async (query: string): Promise<NoteHit[]> => {
     const hits = await api?.search(query);
@@ -128,7 +131,7 @@ export function useNotes() {
       if (action === 'reload' && p) void load(p.path, p.title);
       if (action === 'ask') setStatus('conflict');
     });
-  }, [api, refresh, load]);
+  }, [api, refresh, load, remembered]);
 
   // Nothing typed is lost when the window goes away.
   useEffect(() => () => { if (live.current.status === 'unsaved') void save(); }, [save]);

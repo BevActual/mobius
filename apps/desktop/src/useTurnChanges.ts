@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /** What the last agent turn changed, as note page paths and task list names, so Notes and Tasks can mark them. */
-export interface TurnMarks { notes: ReadonlySet<string>; lists: ReadonlySet<string> }
-const NONE: TurnMarks = { notes: new Set(), lists: new Set() };
+export interface TurnMarks { notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string> }
+const NONE: TurnMarks = { notes: new Set(), lists: new Set(), docs: new Set() };
 
 export function marksOf(files: readonly string[]): TurnMarks {
   const notes = new Set<string>();
   const lists = new Set<string>();
+  const docs = new Set<string>();
   for (const file of files) {
     if (file.startsWith('notes/')) notes.add(file.slice('notes/'.length));
+    else if (file.startsWith('docs/')) docs.add(file.slice('docs/'.length));
     else if (file.startsWith('tasks/') && file.endsWith('.md')) lists.add(file.slice('tasks/'.length, -'.md'.length));
   }
-  return { notes, lists };
+  return { notes, lists, docs };
 }
 
 /** Read when a turn ends, when another conversation is shown, and after anything is put back. */
@@ -26,7 +28,8 @@ export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
     const again = (change: { by: string }) => { if (change.by === 'person' || change.by === 'undo') void load(); };
     const offNotes = window.mobius.notes?.onChanged(again);
     const offTasks = window.mobius.tasks?.onChanged(again);
-    return () => { offNotes?.(); offTasks?.(); };
+    const offDocs = window.mobius.docs?.onChanged(again);
+    return () => { offNotes?.(); offTasks?.(); offDocs?.(); };
   }, [load]);
   return marks;
 }

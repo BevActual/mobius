@@ -13,6 +13,7 @@ fn capabilities(app: &str) -> (&'static [(&'static str, Option<&'static str>)], 
     match app {
         "browser" => (&[("browser.list", None), ("browser.read", None)], &[("browser.navigate", None), ("browser.interact", None)]),
         "notes" => (&[("files.read", Some("notes/*"))], &[("files.write", Some("notes/*"))]),
+        "docs" => (&[("files.read", Some("docs/*"))], &[("files.write", Some("docs/*"))]),
         "tasks" => (&[("tasks.read", None)], &[("tasks.write", None)]),
         "calendar" => (&[("calendar.read", None), ("files.read", Some("calendar/*"))], &[("calendar.write", None), ("files.write", Some("calendar/*"))]),
         _ => (&[], &[]),

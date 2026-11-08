@@ -32,6 +32,7 @@ import { useNotes } from './useNotes';
 import { NotesSidebar } from './NotesSidebar';
 import { TasksPage, TasksSidebar } from './Tasks';
 import { CalendarPage, CalendarSidebar } from './Calendar';
+import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { APP_ICONS, Rail } from './Rail';
 import { AppHub, type HubAction } from './AppHub';
@@ -85,6 +86,7 @@ export function App() {
   const preferences = usePreferences();
   const bookmarks = useBookmarks();
   const notes = useNotes();
+  const docs = useNotes('docs');
   const tasks = useTasks();
   const calendar = useCalendar();
   const [eventToken, setEventToken] = useState(0);
@@ -154,6 +156,7 @@ export function App() {
   const inBrowser = app === 'browser';
   const inAgent = app === 'agent';
   const inNotes = app === 'notes';
+  const inDocs = app === 'docs';
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
@@ -182,6 +185,8 @@ export function App() {
   }, []);
   const notesNow = useRef(notes);
   notesNow.current = notes;
+  const docsNow = useRef(docs);
+  docsNow.current = docs;
   const tasksNow = useRef(tasks);
   tasksNow.current = tasks;
   useEffect(() => {
@@ -197,12 +202,17 @@ export function App() {
       if (c.by === 'assistant' && c.list && showBeside('tasks')) { tasksNow.current.setView({ kind: 'list', name: c.list }); return; }
       mark('tasks');
     });
+    const offDocs = window.mobius.docs?.onChanged((c) => {
+      if (c.by === 'person' || c.by === 'undo') return;
+      if (c.by === 'assistant' && c.path && showBeside('docs')) { void docsNow.current.open(c.path); return; }
+      mark('docs');
+    });
     const offCalendar = window.mobius.calendar?.onChanged((c) => {
       if (c.by === 'person' || c.by === 'undo') return;
       if (c.by === 'assistant' && showBeside('calendar')) return;
       mark('calendar');
     });
-    return () => { offNotes?.(); offTasks?.(); offCalendar?.(); };
+    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offCalendar?.(); };
   }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
   const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
@@ -215,7 +225,7 @@ export function App() {
   const surface: SurfaceState = {
     app,
     hasPage: active !== undefined && /^https?:/.test(active.url),
-    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : null,
+    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs' } : null,
     tasks: inTasks ? tasksContext(tasks) : null,
   };
   // I'll Drive: a proposed plan's steps become a task list of their own, named after the conversation, shown beside it.
@@ -271,7 +281,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
+  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id === 'today' ? 'Today' : 'Scheduled') : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : appName(app);
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -284,6 +294,7 @@ export function App() {
     agent: activity ? activity.label : needsYou > 0 ? `${needsYou} waiting for you` : plural(conversation.list.length, 'conversation'),
     browser: plural(browser.tabs.length, 'tab') + ' open',
     notes: plural(pages, 'page'),
+    docs: plural(docs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'document'),
     tasks: dueToday > 0 ? `${dueToday} due today` : openTasks > 0 ? `${openTasks} to do` : 'All done',
     calendar: eventsToday > 0 ? `${plural(eventsToday, 'event')} today` : 'Nothing today',
     search: 'Find anything',
@@ -308,12 +319,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inNotes || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inNotes || inDocs || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inNotes || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inNotes || inDocs || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -483,6 +494,7 @@ export function App() {
     { id: 'note', label: 'New note', app: 'notes', run: () => { closeSettings(); openApp('notes'); void (async () => { const nb = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name ?? (await notes.createNotebook('Notes')); if (nb) await notes.createPage(nb); })(); } },
     { id: 'task', label: 'New task', app: 'tasks', run: () => { closeSettings(); tasks.setView({ kind: 'list', name: 'Inbox' }); openApp('tasks'); setTaskFocus((n) => n + 1); } },
     { id: 'tab', label: 'New tab', app: 'browser', run: () => { closeSettings(); openApp('browser'); newTab(); } },
+    { id: 'doc', label: 'New document', app: 'docs', run: () => { closeSettings(); openApp('docs'); void (async () => { const folder = docs.page?.path.split('/')[0] ?? docs.notebooks[0]?.name ?? (await docs.createNotebook(DEFAULT_FOLDER)); if (folder) await docs.createPage(folder); })(); } },
     { id: 'event', label: 'New event', app: 'calendar', run: () => { closeSettings(); openApp('calendar'); setEventToken((n) => n + 1); } },
   ];
   /** The one thing worth starting in the app you are in: the panel's New button changes with it. */
@@ -523,6 +535,8 @@ export function App() {
               />
             ) : inNotes ? (
               <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} />
+            ) : inDocs ? (
+              <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} />
             ) : inCalendar ? (
               <CalendarSidebar calendar={calendar} pin={pinNode} />
             ) : inTasks ? (
@@ -661,8 +675,12 @@ export function App() {
         today: () => tasks.setView({ kind: 'smart', id: 'today' }),
         scheduled: () => tasks.setView({ kind: 'smart', id: 'scheduled' }),
       },
+      docs: {
+        newDocument: () => createActions.find((a) => a.id === 'doc')!.run(),
+        newFolder: () => sendCommand('new-folder'),
+      },
       calendar: {
-        newEvent: () => createActions[4]!.run(),
+        newEvent: () => createActions.find((a) => a.id === 'event')!.run(),
         newCalendar: () => sendCommand('new-calendar'),
         today: () => calendar.setAnchor(new Date()),
         mode: (mode) => calendar.setMode(mode),
@@ -721,6 +739,26 @@ export function App() {
     if (action === 'ask' || !ready) { setIncoming({ token: Date.now(), item }); return; }
     void conversation.send(action === 'summarise' ? 'Summarise the attached text from this page in a few lines.' : 'Explain the attached text from this page in plain words.', [item]);
   };
+  /** Docs' writing tools: a request to the agent about the selection (or the whole document), changes made in place. */
+  const onWritingTool = (tool: WritingTool, selection: string | null) => {
+    const page = docs.page;
+    if (!page) return;
+    const title = liveTitle(docs.text, page.title || appName('docs')).slice(0, 120) || 'Document';
+    const where = `docs/${page.path}`;
+    const item: ContextItem = { kind: 'file', title: selection ? `${title} (selection)` : title, source: where, text: (selection ?? docs.text).slice(0, MAX_CONTEXT_ITEM_CHARS) };
+    const what = selection ? `the attached passage from my document "${title}"` : `my document "${title}"`;
+    const inPlace = `Make the changes in the document itself (${where}) with files.edit, change nothing else, and keep it Markdown.`;
+    const prompt = {
+      proofread: `Proofread ${what}: fix spelling, grammar and punctuation only. ${inPlace}`,
+      friendlier: `Rewrite ${what} so it reads friendlier and warmer, keeping its meaning and my voice. ${inPlace}`,
+      shorter: `Make ${what} about half as long, with the same meaning. ${inPlace}`,
+      summarise: `Summarise ${what} in a few short lines. Do not change the document.`,
+    }[tool];
+    const ready = settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy;
+    if (!shows('agent')) setChatOpen(true);
+    if (!ready) { setIncoming({ token: Date.now(), item }); return; }
+    void conversation.send(prompt, [item]);
+  };
   /** On-canvas actions: what to do with text selected in a note. */
   const onNoteSelection = (action: SelectionAction, text: string) => {
     const page = notes.page;
@@ -757,6 +795,8 @@ export function App() {
         return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} review={notes.page && turnMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} />;
+      case 'docs':
+        return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} busy={conversation.state.busy} />;
       case 'calendar':
         return <CalendarPage calendar={calendar} newToken={eventToken} />;
       case 'search':

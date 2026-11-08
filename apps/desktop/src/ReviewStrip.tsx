@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnChanges } from '@mobius/shared';
 
 /** How a workspace path reads to a person: notes and task lists by name, other files by their path. */
-export function describeChange(path: string): { kind: 'Note' | 'Tasks' | 'Calendar' | 'File'; name: string } {
+export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Tasks' | 'Calendar' | 'File'; name: string } {
   const strip = (p: string) => p.replace(/\.md$/i, '');
   if (path.startsWith('notes/')) return { kind: 'Note', name: strip(path.slice('notes/'.length)).replace('/', ' / ') };
+  if (path.startsWith('docs/')) return { kind: 'Doc', name: strip(path.slice('docs/'.length)).replace('/', ' / ') };
   if (path.startsWith('tasks/')) return { kind: 'Tasks', name: strip(path.slice('tasks/'.length)) };
   if (path.startsWith('calendar/')) return { kind: 'Calendar', name: path.slice('calendar/'.length).replace(/\.ics$/i, '') };
   return { kind: 'File', name: path };

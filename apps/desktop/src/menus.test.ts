@@ -23,6 +23,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
       browser: { back: noop, forward: noop, reload: noop, address: noop, bookmark: noop, pin: noop, reopen: noop, selection: noop },
       notes: { newNotebook: noop, pin: noop, changes: noop },
       tasks: { newList: noop, clearDone: noop, today: noop, scheduled: noop },
+      docs: { newDocument: noop, newFolder: noop },
       calendar: { newEvent: noop, newCalendar: noop, today: noop, mode: noop },
       agent: { stop: noop },
     },

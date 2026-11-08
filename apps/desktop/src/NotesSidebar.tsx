@@ -5,12 +5,17 @@ import type { NotesState } from './useNotes';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
-export function NotesSidebar({ notes, pin, changed, pinned, onPin }: { notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void }) {
+/** The words for Notes; Docs passes its own, since it keeps documents in folders the same way. */
+export interface SidebarWords { app: string; group: string; groups: string; item: string; items: string; about: string }
+export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'page', items: 'pages', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.' };
+const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+
+export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES_WORDS }: { notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void; words?: SidebarWords }) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<NoteHit[] | null>(null);
   const [naming, setNaming] = useState(false);
   // The menus' New notebook opens the same naming field.
-  useEffect(() => onCommand('new-notebook', () => setNaming(true)), []);
+  useEffect(() => onCommand(words === NOTES_WORDS ? 'new-notebook' : 'new-folder', () => setNaming(true)), [words]);
   const [name, setName] = useState('');
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -25,35 +30,35 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin }: { notes: No
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const made = await notes.createNotebook(name.trim() || 'Notebook');
+    const made = await notes.createNotebook(name.trim() || cap(words.group));
     if (made) { setNaming(false); setName(''); await notes.createPage(made); }
   };
   const toggle = (nb: string) => setClosed((s) => { const n = new Set(s); if (n.has(nb)) n.delete(nb); else n.add(nb); return n; });
 
   return (
-    <aside className="side notes-side" aria-label="Notes sidebar">
+    <aside className="side notes-side" aria-label={`${words.app} sidebar`}>
       <div className="side-head">
-        <span className="side-title">Notebooks</span>
+        <span className="side-title">{words.groups}</span>
         <span className="side-actions">
           {pin}
-          <button type="button" className="strip-btn" aria-label="New notebook" title="New notebook" onClick={() => setNaming(true)}>
+          <button type="button" className="strip-btn" aria-label={`New ${words.group}`} title={`New ${words.group}`} onClick={() => setNaming(true)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5zM8 3v14" /><path d="M11 8v4M9 10h4" /></svg>
           </button>
-          <button type="button" className="strip-btn" aria-label="New page" title="New page" disabled={!openNotebook} onClick={() => openNotebook && void notes.createPage(openNotebook)}>
+          <button type="button" className="strip-btn" aria-label={`New ${words.item}`} title={`New ${words.item}`} disabled={!openNotebook} onClick={() => openNotebook && void notes.createPage(openNotebook)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
           </button>
         </span>
       </div>
-      <input className="side-search" type="search" aria-label="Search notes" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <input className="side-search" type="search" aria-label={`Search ${words.app.toLowerCase()}`} placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
-          <input autoFocus aria-label="Notebook name" placeholder="Notebook name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
+          <input autoFocus aria-label={`${cap(words.group)} name`} placeholder={`${cap(words.group)} name`} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
           <button type="submit" className="btn primary">Create</button>
         </form>
       )}
       {hits !== null ? (
         <ul className="notes-list" role="list" aria-label="Search results">
-          {hits.length === 0 && <li className="side-empty">No pages match.</li>}
+          {hits.length === 0 && <li className="side-empty">No {words.items} match.</li>}
           {hits.map((hit) => (
             <li key={hit.path}>
               <button type="button" className="note-row" aria-current={notes.page?.path === hit.path ? 'page' : undefined} onClick={() => void notes.open(hit.path, hit.title)}>
@@ -64,11 +69,11 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin }: { notes: No
           ))}
         </ul>
       ) : (
-        <div className="notes-list" role="tree" aria-label="Notebooks">
+        <div className="notes-list" role="tree" aria-label={words.groups}>
           {notes.notebooks.length === 0 && !naming && (
             <div className="side-empty notes-empty">
-              <p>Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.</p>
-              <button type="button" className="btn primary" onClick={() => setNaming(true)}>New notebook</button>
+              <p>{words.about}</p>
+              <button type="button" className="btn primary" onClick={() => setNaming(true)}>New {words.group}</button>
             </div>
           )}
           {notes.notebooks.map((nb) => (
@@ -78,13 +83,13 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin }: { notes: No
                   <svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
                   <span>{nb.name}</span>
                 </button>
-                <button type="button" className="strip-btn notebook-add" aria-label={`New page in ${nb.name}`} title="New page" onClick={() => void notes.createPage(nb.name)}>
+                <button type="button" className="strip-btn notebook-add" aria-label={`New ${words.item} in ${nb.name}`} title={`New ${words.item}`} onClick={() => void notes.createPage(nb.name)}>
                   <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg>
                 </button>
               </div>
               {!closed.has(nb.name) && (
                 <ul role="group">
-                  {nb.pages.length === 0 && <li className="side-empty">No pages yet.</li>}
+                  {nb.pages.length === 0 && <li className="side-empty">No {words.items} yet.</li>}
                   {nb.pages.map((pg) => (
                     <li key={pg.path} className="note-item">
                       <button type="button" className="note-row" aria-current={notes.page?.path === pg.path ? 'page' : undefined} onClick={() => void notes.open(pg.path, pg.title)}>
@@ -97,7 +102,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin }: { notes: No
                       {confirming === pg.path ? (
                         <button type="button" className="note-delete confirm" aria-label={`Confirm delete ${pg.title}`} onClick={() => { setConfirming(null); void notes.remove(pg.path); }} onBlur={() => setConfirming(null)}>Delete</button>
                       ) : (
-                        <button type="button" className="note-delete" aria-label={`Delete ${pg.title}`} title="Delete page" onClick={() => setConfirming(pg.path)}>
+                        <button type="button" className="note-delete" aria-label={`Delete ${pg.title}`} title={`Delete ${words.item}`} onClick={() => setConfirming(pg.path)}>
                           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2M6.5 6l.7 10h5.6l.7-10" /></svg>
                         </button>
                       )}

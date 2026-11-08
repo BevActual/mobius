@@ -21,8 +21,8 @@ export interface SurfaceState {
   app: AppId;
   /** A web page is showing in the browser. */
   hasPage: boolean;
-  /** The note open in Notes, if any. */
-  note: { path: string; title: string; text: string } | null;
+  /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
+  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
 }
@@ -51,6 +51,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         { label: 'Break down a task', prompt: 'Take the biggest task here and break it into a few small steps. Add the steps as tasks in the same list and tell me what you added.', attach: 'tasks' },
         { label: 'Find tasks in my notes', prompt: 'Read my notes and add the actions you find as tasks in my Inbox. Tell me what you added.' },
       ];
+    case 'docs':
+      return state.note
+        ? [
+            { label: 'Proofread', prompt: 'Proofread this document: fix spelling, grammar and punctuation only, in the document itself, and tell me what you changed.', attach: 'note' },
+            { label: 'Tighten it', prompt: 'Make this document shorter and clearer, keeping its meaning and my voice. Make the changes in the document itself.', attach: 'note' },
+            { label: 'What is missing?', prompt: 'Read this document and tell me what a reader would still want to know.', attach: 'note' },
+          ]
+        : [{ label: 'Draft a document', prompt: 'Draft a document in my Docs about ' }];
     case 'calendar':
       return [
         { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },
@@ -69,8 +77,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
 }
 
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string }): ContextItem {
-  return { kind: 'file', title: note.title || note.path, source: `notes/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
+export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' }): ContextItem {
+  return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 
 /** A prompt that ends with a space is a start for you to finish, not something to send at once. */

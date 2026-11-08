@@ -52,6 +52,7 @@ export interface MenuContext {
     browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; selection: () => void };
     notes: { newNotebook: () => void; pin: () => void; changes: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
+    docs: { newDocument: () => void; newFolder: () => void };
     calendar: { newEvent: () => void; newCalendar: () => void; today: () => void; mode: (mode: 'day' | 'week' | 'month') => void };
     agent: { stop: () => void };
   };
@@ -150,6 +151,11 @@ function appMenu(c: MenuContext): Menu | null {
         item('scheduled', 'Scheduled', d.tasks.scheduled),
         separator,
         item('clear-done', s.tasks.done > 0 ? `Clear ${s.tasks.done} completed` : 'Clear completed', d.tasks.clearDone, { disabled: !s.tasks.inList || s.tasks.done === 0 }),
+      ] };
+    case 'docs':
+      return { id: 'app', label: 'Docs', items: [
+        item('new-document', 'New document', d.docs.newDocument),
+        item('new-folder', 'New folder', d.docs.newFolder),
       ] };
     case 'calendar':
       return { id: 'app', label: 'Calendar', items: [

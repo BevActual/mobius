@@ -151,6 +151,7 @@ pub struct Bridge {
     /// Tools from other programs the person set up (MCP servers).
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
+    docs: mobius_workspace::notes::Notes,
     tasks: mobius_workspace::tasks::Tasks,
     calendar: mobius_workspace::calendar::Calendar,
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
@@ -192,6 +193,9 @@ impl Bridge {
             Arc::new(move |path: &str| {
                 if let Some(page) = path.replace('\\', "/").strip_prefix("notes/") {
                     notes_emit("mobius:notes-changed", json!({ "path": page, "by": "another app" }));
+                }
+                if let Some(doc) = path.replace('\\', "/").strip_prefix("docs/") {
+                    notes_emit("mobius:docs-changed", json!({ "path": doc, "by": "another app" }));
                 }
                 if let Some(list) = path.replace('\\', "/").strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")) {
                     notes_emit("mobius:tasks-changed", json!({ "list": list, "by": "another app" }));
@@ -236,6 +240,7 @@ impl Bridge {
             claude_command: Mutex::new(None),
             signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            docs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "docs"),
             tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             calendar: {
                 let calendar = mobius_workspace::calendar::Calendar::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
@@ -336,7 +341,8 @@ impl Bridge {
             }
             ("bookmarks", "remove") => Ok(self.with_url(arg(0), |url| lock(&self.bookmarks).remove(url), "bookmarks-changed")),
 
-            ("notes", _) => Ok(self.notes_call(method, args)),
+            ("notes", _) => Ok(self.notes_call(&self.notes, "mobius:notes-changed", method, args)),
+            ("docs", _) => Ok(self.notes_call(&self.docs, "mobius:docs-changed", method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
@@ -923,6 +929,9 @@ impl Bridge {
                 if let Some(page) = path.strip_prefix("notes/") {
                     (self.emit)("mobius:notes-changed", json!({ "path": page, "by": "assistant" }));
                 }
+                if let Some(doc) = path.strip_prefix("docs/") {
+                    (self.emit)("mobius:docs-changed", json!({ "path": doc, "by": "assistant" }));
+                }
                 if let Some(list) = path.strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")) {
                     (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "assistant" }));
                 }
@@ -1270,9 +1279,9 @@ impl Bridge {
 
     /// The Notes app. Every answer is either the data asked for or `{ ok: false, message }`; a save that would
     /// overwrite a change made elsewhere also says `conflict: true` so the window can reload the page.
-    fn notes_call(&self, method: &str, args: &[Value]) -> Value {
+    /// The Notes app, and Docs, which keeps its documents the same way in another folder.
+    fn notes_call(&self, notes: &mobius_workspace::notes::Notes, event: &str, method: &str, args: &[Value]) -> Value {
         let text = |i: usize| args.get(i).and_then(Value::as_str);
-        let notes = &self.notes;
         let result = match method {
             "list" => notes.list(),
             "read" => text(0).ok_or_else(|| "a page is needed".to_owned()).and_then(|p| notes.read(p)),
@@ -1293,7 +1302,7 @@ impl Bridge {
             Ok(value) => {
                 if matches!(method, "createNotebook" | "createPage" | "save" | "remove") {
                     let path = value.get("path").cloned().unwrap_or(Value::Null);
-                    (self.emit)("mobius:notes-changed", json!({ "path": path, "by": "person" }));
+                    (self.emit)(event, json!({ "path": path, "by": "person" }));
                 }
                 value
             }
@@ -1440,6 +1449,7 @@ impl Bridge {
             let note = path.and_then(|p| p.strip_prefix("notes/"));
             let list = path.and_then(|p| p.strip_prefix("tasks/")).and_then(|p| p.strip_suffix(".md"));
             (self.emit)("mobius:notes-changed", json!({ "path": note, "by": "undo" }));
+            (self.emit)("mobius:docs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("docs/")), "by": "undo" }));
             (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "undo" }));
             if path.is_none_or(|p| p.starts_with("calendar/")) {
                 (self.emit)("mobius:calendar-changed", json!({ "calendar": path.and_then(|p| p.strip_prefix("calendar/")).and_then(|p| p.strip_suffix(".ics")), "by": "undo" }));

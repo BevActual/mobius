@@ -55,12 +55,17 @@ fn page_ok(path: &str) -> Option<(&str, &str)> {
 
 impl Notes {
     pub fn new(workspace: impl Into<PathBuf>, checkpoint_store: impl Into<PathBuf>) -> Notes {
+        Notes::in_folder(workspace, checkpoint_store, FOLDER)
+    }
+
+    /// The same kind of store in another folder of the workspace: Docs keeps its documents in `docs/<folder>/<doc>.md`.
+    pub fn in_folder(workspace: impl Into<PathBuf>, checkpoint_store: impl Into<PathBuf>, folder: &str) -> Notes {
         let workspace = workspace.into();
-        Notes { root: workspace.join(FOLDER), checkpoints: Checkpoints::new(checkpoint_store), workspace }
+        Notes { root: workspace.join(folder), checkpoints: Checkpoints::new(checkpoint_store), workspace }
     }
 
     fn ensure(&self) -> Res<()> {
-        fs::create_dir_all(&self.root).map_err(|e| format!("the notes folder cannot be used: {e}"))
+        fs::create_dir_all(&self.root).map_err(|e| format!("the folder cannot be used: {e}"))
     }
 
     /// The real path of a page, refusing anything that is not a plain `notebook/page.md` inside the notes folder.
@@ -177,7 +182,8 @@ impl Notes {
         if !file.is_file() {
             return Err("that page is not there".into());
         }
-        let checkpoint = self.checkpoints.snapshot(&self.workspace, &format!("before deleting the note {path}")).is_ok();
+        let folder = self.root.file_name().and_then(|f| f.to_str()).unwrap_or(FOLDER);
+        let checkpoint = self.checkpoints.snapshot(&self.workspace, &format!("before deleting {folder}/{path}")).is_ok();
         fs::remove_file(&file).map_err(|e| e.to_string())?;
         Ok(json!({ "removed": path, "checkpoint": checkpoint }))
     }
