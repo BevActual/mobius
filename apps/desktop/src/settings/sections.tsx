@@ -450,11 +450,17 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
         <Choice label="Approval mode" name="approval-mode" value={preferences.approvalMode} options={APPROVAL_MODES} onChange={(approvalMode) => void onPreferences({ approvalMode })} />
         <p className="srow-text" data-testid="approval-mode-help">{APPROVAL_HELP[preferences.approvalMode]}</p>
       </Row>
-      <Row path={path('app-access')} title="What Mobius may do in each app" description="For the browser, notes and tasks: off, ask first, read without asking, or act without asking. Risky actions still ask." highlight={highlight === 'app-access'}>
+      <Row path={path('app-access')} title="What Mobius may do in each app" description="For each app: off, ask first, read without asking, or act without asking. Risky actions still ask." highlight={highlight === 'app-access'}>
+        <div className="access-all" role="group" aria-label="Every app at once">
+          <span>Set every app to</span>
+          {ACCESS_OPTIONS.map((o) => (
+            <button key={o.id} type="button" className="btn" onClick={() => void onPreferences({ appAccess: Object.fromEntries(ACCESS_APPS.map((a) => [a.id, o.id])) as typeof preferences.appAccess })}>{o.label}</button>
+          ))}
+        </div>
         <div className="access-grid">
           {ACCESS_APPS.map((app) => (
             <div key={app.id} className="access-row">
-              <span className="access-app">{app.label}</span>
+              <span className="access-app"><svg viewBox="0 0 20 20" aria-hidden="true" data-app={app.id}>{APP_ICONS[app.id]}</svg>{app.label}</span>
               <Choice label={`${app.label}: what Mobius may do`} name={`access-${app.id}`} value={preferences.appAccess[app.id] ?? 'ask'} options={ACCESS_OPTIONS}
                 onChange={(level) => void onPreferences({ appAccess: { ...preferences.appAccess, [app.id]: level } })} />
               <p className="srow-text access-help">{app.help[preferences.appAccess[app.id] ?? 'ask']}</p>

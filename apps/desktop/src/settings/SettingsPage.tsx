@@ -20,6 +20,21 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   about: AboutSection,
 };
 
+/** The glyph drawn for each section in the list (12 by 12). */
+const SECTION_GLYPHS: Record<string, string> = {
+  appearance: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M6 1.5v9',
+  model: 'M2 9l3-3 2 2 3-4',
+  providers: 'M4 6h4M3 4a2 2 0 1 0 0 4M9 4a2 2 0 1 1 0 4',
+  safety: 'M6 1.5 10 3v3c0 2.5-1.8 4-4 4.5C3.8 10 2 8.5 2 6V3z',
+  browser: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M1.5 6h9M6 1.5c-2 2.5-2 6.5 0 9M6 1.5c2 2.5 2 6.5 0 9',
+  schedules: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M6 3.5V6l1.8 1.2',
+  notifications: 'M3 8.5V5.5a3 3 0 0 1 6 0v3l1 1H2zM5 10.5h2',
+  sessions: 'M2 3h8v5H5l-2 2V8H2z',
+  keyboard: 'M1.5 3.5h9v5h-9zM3.5 5.5h1M5.5 5.5h1M7.5 5.5h1M4 7h4',
+  advanced: 'M2 3l3 3-3 3M6 9h4',
+  about: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M6 5.5v3M6 3.6v0.1',
+};
+
 export function SettingsPage({ onClose, initial, initialSubpage, ...rest }: Passed & { onClose: () => void; initial?: SectionId; initialSubpage?: string }) {
   const [section, setSection] = useState<SectionId>(initial ?? 'appearance');
   const [subpage, setSubpage] = useState<string>(() => initialSubpage ?? findSection(initial ?? 'appearance')?.subpages[0]?.id ?? '');
@@ -62,7 +77,11 @@ export function SettingsPage({ onClose, initial, initialSubpage, ...rest }: Pass
       <div className="settings-body">
         <nav className="settings-nav" aria-label="Settings sections">
           {SETTINGS.map((item) => (
-            <button key={item.id} type="button" className="settings-nav-item" aria-current={item.id === section && !query.trim() ? 'page' : undefined} onClick={() => openSection(item.id)}>{item.label}</button>
+            <button key={item.id} type="button" className="settings-nav-item" data-section={item.id} aria-current={item.id === section && !query.trim() ? 'page' : undefined} onClick={() => openSection(item.id)}>
+              {/* A coloured glyph per section, as in System Settings and the Settings board. */}
+              <svg className="settings-nav-icon" viewBox="0 0 12 12" aria-hidden="true"><path d={SECTION_GLYPHS[item.id] ?? 'M6 1.5a4.5 4.5 0 1 0 0.01 0'} /></svg>
+              <span>{item.label}</span>
+            </button>
           ))}
         </nav>
         <div className="settings-content">

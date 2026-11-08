@@ -932,7 +932,42 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .switch-line input[role="switch"]:checked { background: #34c759; }
 .field input, .field textarea, .notes-name input, .side-search, .model-find, .task-date, select { border-radius: var(--radius-control); }
 .settings-nav-item { border-radius: var(--radius-control); }
-.settings-nav-item[aria-current="page"] { background: var(--accent); color: var(--on-accent); }
+.settings-nav-item[aria-current="page"], .settings-nav-item[aria-current="page"]:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); }
+.settings-nav-item { display: flex; align-items: center; gap: 8px; }
+.settings-nav-icon { width: 20px; height: 20px; padding: 4px; flex: none; border-radius: 5px; background: #8e8e93; fill: none; stroke: #fff; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+.settings-nav-item[data-section="appearance"] .settings-nav-icon { background: #007aff; }
+.settings-nav-item[data-section="model"] .settings-nav-icon { background: #5856d6; }
+.settings-nav-item[data-section="providers"] .settings-nav-icon { background: #0a84ff; }
+.settings-nav-item[data-section="safety"] .settings-nav-icon { background: #ff9f0a; }
+.settings-nav-item[data-section="browser"] .settings-nav-icon { background: #30b0c7; }
+.settings-nav-item[data-section="schedules"] .settings-nav-icon { background: #34c759; }
+.settings-nav-item[data-section="notifications"] .settings-nav-icon { background: #ff3b30; }
+.settings-nav-item[data-section="sessions"] .settings-nav-icon { background: #af52de; }
+.settings-nav-item[data-section="keyboard"] .settings-nav-icon { background: #8e8e93; }
+.settings-nav-item[data-section="advanced"] .settings-nav-icon { background: #3a3a3c; }
+.settings-nav-item[data-section="about"] .settings-nav-icon { background: #636366; }
+.access-app { display: inline-flex; align-items: center; gap: 6px; }
+.access-app svg { width: 18px; height: 18px; padding: 2px; flex: none; border-radius: 5px; color: #fff; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; background: var(--muted); }
+.access-all { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
+.access-app svg[data-app="browser"] { background: var(--app-browser); }
+.access-app svg[data-app="notes"] { background: var(--app-notes); }
+.access-app svg[data-app="docs"] { background: var(--app-docs); }
+.access-app svg[data-app="sheets"] { background: var(--app-sheets); }
+.access-app svg[data-app="slides"] { background: var(--app-slides); }
+.access-app svg[data-app="tasks"] { background: var(--app-tasks); }
+.access-app svg[data-app="calendar"] { background: var(--app-calendar); }
+.access-app svg[data-app="mail"] { background: var(--app-mail); }
+.access-app svg[data-app="research"] { background: var(--app-research); }
+.access-app svg[data-app="reader"] { background: var(--app-reader); }
+.access-app svg[data-app="code"] { background: var(--app-code); }
+.access-app svg[data-app="database"] { background: var(--app-database); }
+.access-app svg[data-app="design"] { background: var(--app-design); }
+.access-app svg[data-app="canvas"] { background: var(--app-canvas); }
+.access-app svg[data-app="photo"] { background: var(--app-photo); }
+.access-app svg[data-app="studio"] { background: var(--app-studio); }
+.access-app svg[data-app="video"] { background: var(--app-video); }
+.access-app svg[data-app="skills"] { background: var(--app-skills); }
+
 
 /* Mobius 2: sidebar fields and tab rows. */
 .side-search { border: 0; background: var(--field); border-radius: var(--radius-pill); padding: 6px 12px; }
@@ -1175,7 +1210,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .chat.full .chat-sees { width: 100%; max-width: 760px; margin: 6px auto 0; background: transparent; padding: 0 4px; }
 /* Settings › Safety: what Mobius may do in each app. */
 .access-grid { display: flex; flex-direction: column; gap: var(--sp-3); width: 100%; }
-.access-row { display: grid; grid-template-columns: 88px auto; align-items: center; gap: var(--sp-1) var(--sp-3); }
+.access-row { display: grid; grid-template-columns: 112px auto; align-items: center; gap: var(--sp-1) var(--sp-3); }
 .access-app { font-weight: var(--fw-semibold); }
 .access-help { grid-column: 2; margin: 0; }
 .memory-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
