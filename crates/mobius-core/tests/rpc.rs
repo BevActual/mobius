@@ -312,3 +312,21 @@ fn a_command_is_asked_about_in_manual_mode_and_run_when_approvals_are_off() {
     call(&mut c, json!({ "jsonrpc": "2.0", "id": 1, "method": "permissions.set_mode", "params": { "mode": "off" } }));
     assert_eq!(run(&mut c)["result"]["status"], "completed");
 }
+
+#[test]
+fn rules_from_settings_let_the_agent_act_or_stop_it_and_bad_rules_are_refused() {
+    let mut c = core();
+    let run = |c: &mut Core| call(c, json!({ "jsonrpc": "2.0", "id": 2, "method": "tools.invoke", "params": { "principal": agent(), "tool": "demo.echo", "args": {} } }));
+    assert_eq!(run(&mut c)["result"]["status"], "needs_approval");
+    let r = call(&mut c, json!({ "jsonrpc": "2.0", "id": 1, "method": "permissions.set_rules", "params": { "rules": [{ "capability": "demo.echo", "effect": "allow" }] } }));
+    assert_eq!(r["result"], json!({}));
+    assert_eq!(run(&mut c)["result"]["status"], "completed");
+    call(&mut c, json!({ "jsonrpc": "2.0", "id": 1, "method": "permissions.set_rules", "params": { "rules": [{ "capability": "demo.echo", "effect": "deny" }] } }));
+    assert_eq!(run(&mut c)["result"]["status"], "denied");
+    for bad in [json!({ "rules": [{ "capability": "Bad Cap", "effect": "allow" }] }), json!({ "rules": [{ "capability": "a.b", "effect": "maybe" }] }), json!({ "rules": "x" }), json!({ "rules": [{ "capability": "a.b", "effect": "allow", "extra": 1 }] })] {
+        let r = call(&mut c, json!({ "jsonrpc": "2.0", "id": 4, "method": "permissions.set_rules", "params": bad }));
+        assert_eq!(r["error"]["code"], -32602, "{bad}");
+    }
+    call(&mut c, json!({ "jsonrpc": "2.0", "id": 1, "method": "permissions.set_rules", "params": { "rules": [] } }));
+    assert_eq!(run(&mut c)["result"]["status"], "needs_approval");
+}

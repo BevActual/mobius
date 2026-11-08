@@ -95,6 +95,7 @@ export const SETTINGS: readonly SettingsSection[] = [
     subpages: [
       { id: 'approvals', label: 'Approvals', rows: [
         row('approval-mode', 'Approval mode', 'Manual asks before the agent acts. Smart lets a reviewer model approve the clearly safe ones. Off lets it act without asking.', 'approval mode', 'manual', 'smart', 'off', 'yolo', 'permissions', 'prompts', 'confirm', 'ask', 'guardian', 'reviewer'),
+        row('app-access', 'What Mobius may do in each app', 'For the browser, notes and tasks: off, ask first, read without asking, or act without asking. Risky actions still ask.', 'per app', 'autonomy', 'access', 'permissions', 'browser', 'notes', 'tasks', 'off limits', 'read', 'act'),
         row('always-allowed', 'Always allowed', 'Actions you chose to always allow. Remove one to be asked again.', 'revoke', 'permissions', 'grants', 'remove', 'allow'),
         row('each-time', 'Asked every time', 'Some actions can only ever be allowed one use at a time.', 'once', 'command', 'delete', 'secrets', 'click', 'type'),
       ] },

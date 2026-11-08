@@ -68,7 +68,7 @@ test('the settings page shows manual, explains off, and the choice survives a re
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
   await expect(page().getByRole('radio', { name: 'Manual' })).toBeChecked();
   await expect(page().getByTestId('approval-mode-help')).toContainText('asked about every time');
-  await page().getByRole('radio', { name: 'Off' }).check();
+  await page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Off' }).check();
   await expect(page().getByTestId('approval-mode-help')).toContainText('without asking');
   await expect.poll(coreMode).toBe('off');
   await mobius!.close({ keepUserData: true });
@@ -119,4 +119,24 @@ test('with smart approvals an unsure or unreadable review asks the person as usu
   await expect(card().getByRole('button', { name: 'Always allow' })).toBeVisible();
   await card().getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant').last()).toHaveText('Listed.');
+});
+
+test('per app: Tasks set to Act changes a list without asking, and Off stops it even with approvals off', async () => {
+  await start([
+    callsTool('tasks-add', { list: 'Inbox', text: 'Water the plants' }), says(['Added.']),
+    callsTool('tasks-add', { list: 'Inbox', text: 'Feed the cat' }), says(['Could not.']),
+  ]);
+  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
+  await page().getByRole('radiogroup', { name: 'Tasks: what Mobius may do' }).getByRole('radio', { name: 'Act' }).check();
+  await expect(page()).toContainText('Mobius reads and changes your task lists without asking.');
+  await shell().getByRole('button', { name: 'Done' }).click();
+  await say('remind me to water the plants');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Added.');
+  await expect(card()).toHaveCount(0);
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), 'utf8')).toContain('Water the plants');
+  await mobius!.shell.evaluate(() => window.mobius.preferences.set({ approvalMode: 'off', appAccess: { browser: 'ask', notes: 'ask', tasks: 'off' } }));
+  await say('remind me to feed the cat');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Could not.');
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), 'utf8')).not.toContain('Feed the cat');
 });

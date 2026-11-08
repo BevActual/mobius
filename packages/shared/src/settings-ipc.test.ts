@@ -136,7 +136,11 @@ describe('approval mode', () => {
 
 describe('preferences changes', () => {
   it('start with alerts on, sounds on and nothing kept awake', () => {
-    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'manual', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1' });
+    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'manual', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', appAccess: { browser: 'ask', notes: 'ask', tasks: 'ask' } });
+  });
+  it('ask in every app until the person chooses otherwise, and accept only the three apps at known levels', () => {
+    expect(parsePreferencesPatch({ appAccess: { browser: 'read', notes: 'act', tasks: 'off' } })).toEqual({ appAccess: { browser: 'read', notes: 'act', tasks: 'off' } });
+    for (const bad of [{}, { browser: 'ask', notes: 'ask' }, { browser: 'ask', notes: 'ask', tasks: 'always' }, { browser: 'ask', notes: 'ask', tasks: 'ask', mail: 'ask' }, 'ask']) expect(parsePreferencesPatch({ appAccess: bad })).toBeNull();
   });
   it('keep the agent out of local addresses until the person says otherwise', () => {
     expect(DEFAULT_PREFERENCES.agentPrivateUrls).toBe(false);

@@ -46,15 +46,29 @@ impl ApprovalMode {
     }
 }
 
+/// A standing rule the person set in Settings (how much Mobius may do in each app), as opposed to a grant given while
+/// answering a question. A rule's allow covers only the agent (not plugins or servers) and never a floor capability:
+/// those are still asked about each time. A rule's deny covers everyone but the person.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rule {
+    pub capability: Capability,
+    /// A resource pattern, as for grants (`notes/*`); none covers every resource.
+    #[serde(default)]
+    pub resource: Option<String>,
+    pub effect: Effect,
+}
+
 #[derive(Debug, Clone)]
 pub struct Policy {
     floors: HashSet<String>,
     mode: ApprovalMode,
+    rules: Vec<Rule>,
 }
 
 impl Policy {
     pub fn new<I: IntoIterator<Item = &'static str>>(floors: I) -> Self {
-        Policy { floors: floors.into_iter().map(str::to_owned).collect(), mode: ApprovalMode::Manual }
+        Policy { floors: floors.into_iter().map(str::to_owned).collect(), mode: ApprovalMode::Manual, rules: Vec::new() }
     }
 
     /// Capabilities that can never be allowed standing: each use needs its own approval.
@@ -71,15 +85,25 @@ impl Policy {
         self.mode = mode;
     }
 
+    /// Replace the rules from Settings.
+    pub fn set_rules(&mut self, rules: Vec<Rule>) {
+        self.rules = rules;
+    }
+
+    #[must_use]
+    pub fn rules(&self) -> &[Rule] {
+        &self.rules
+    }
+
     pub fn is_floor(&self, capability: &Capability) -> bool {
         self.floors.contains(capability.as_str())
     }
 
     /// Decide whether `principal` may use `capability` on `resource`.
     ///
-    /// Order of precedence: a person is always allowed; any matching deny wins; a standing allow
-    /// (session or always) comes next, except for floor capabilities, which accept only one-time
-    /// grants; otherwise someone has to be asked.
+    /// Order of precedence: a person is always allowed; any matching deny grant wins, then a deny rule from Settings;
+    /// a standing allow (session or always) comes next, except for floor capabilities, which accept only one-time
+    /// grants; then an allow rule from Settings (never for a floor); otherwise the approval mode decides.
     pub fn evaluate(
         &self,
         grants: &[Grant],
@@ -92,6 +116,8 @@ impl Policy {
             return Verdict::Allow { consume: None };
         }
         let floor = self.is_floor(capability);
+        let rule = |effect: Effect| self.rules.iter().any(|r| r.effect == effect && r.capability == *capability && resource_matches(r.resource.as_deref(), resource));
+        let denied_by_rule = rule(Effect::Deny);
         let mut standing = false;
         let mut once: Option<u64> = None;
         for grant in grants {
@@ -112,10 +138,14 @@ impl Policy {
                 (Effect::Allow, Duration::Session | Duration::Always) => standing |= !floor,
             }
         }
-        if standing {
+        if denied_by_rule {
+            Verdict::Deny
+        } else if standing {
             Verdict::Allow { consume: None }
         } else if let Some(id) = once {
             Verdict::Allow { consume: Some(id) }
+        } else if !floor && principal.kind == PrincipalKind::Agent && rule(Effect::Allow) {
+            Verdict::Allow { consume: None }
         } else if self.mode == ApprovalMode::Off {
             // Nothing is asked about, and no standing block matched.
             Verdict::Allow { consume: None }
@@ -192,6 +222,34 @@ mod tests {
         assert_eq!(policy().evaluate(&g, NOW, &agent("b"), &cap("browser.read"), None), Verdict::Ask);
         let same_id_other_kind = Principal::new(PrincipalKind::McpServer, "a").unwrap();
         assert_eq!(policy().evaluate(&g, NOW, &same_id_other_kind, &cap("browser.read"), None), Verdict::Ask);
+    }
+
+    fn rule(c: &str, resource: Option<&str>, effect: Effect) -> Rule {
+        Rule { capability: cap(c), resource: resource.map(str::to_owned), effect }
+    }
+
+    #[test]
+    fn rules_from_settings_allow_the_agent_deny_everyone_and_never_open_a_floor() {
+        let a = agent("a");
+        let mut p = policy();
+        p.set_rules(vec![
+            rule("tasks.write", None, Effect::Allow),
+            rule("files.write", Some("notes/*"), Effect::Allow),
+            rule("browser.navigate", None, Effect::Deny),
+            rule("browser.interact", None, Effect::Allow),
+        ]);
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("tasks.write"), Some("Inbox")), Verdict::Allow { consume: None });
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Allow { consume: None });
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("drafts/x.md")), Verdict::Ask, "only under notes/");
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.interact"), None), Verdict::Ask, "a floor is still asked");
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.navigate"), Some("https://a.example")), Verdict::Deny);
+        let server = Principal::new(PrincipalKind::McpServer, "s").unwrap();
+        assert_eq!(p.evaluate(&[], NOW, &server, &cap("tasks.write"), None), Verdict::Ask, "an allow rule is for the agent only");
+        assert_eq!(p.evaluate(&[], NOW, &server, &cap("browser.navigate"), None), Verdict::Deny);
+        // A standing allow the person gave still loses to a deny rule; even with approvals off the rule blocks.
+        let g = [grant(1, &a, "browser.navigate", None, Effect::Allow, Duration::Always)];
+        p.set_mode(ApprovalMode::Off);
+        assert_eq!(p.evaluate(&g, NOW, &a, &cap("browser.navigate"), None), Verdict::Deny);
     }
 
     #[test]

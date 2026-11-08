@@ -220,6 +220,24 @@ impl Core {
         self.policy.mode()
     }
 
+    /// Replace the standing rules from Settings (how much the agent may do in each app). Kept only in memory: the
+    /// host sends them again whenever the core starts.
+    pub fn set_rules(&mut self, rules: Vec<crate::permissions::Rule>) -> Result<(), CoreError> {
+        for rule in &rules {
+            if let Some(resource) = &rule.resource {
+                validate_resource(resource)?;
+            }
+        }
+        let count = rules.len();
+        self.policy.set_rules(rules);
+        self.log("permission.rules", None, None, None, json!({ "rules": count }))
+    }
+
+    #[must_use]
+    pub fn rules(&self) -> Vec<crate::permissions::Rule> {
+        self.policy.rules().to_vec()
+    }
+
     /// Change how often the assistant has to ask. Standing approvals are kept, only not used in the careful mode.
     pub fn set_approval_mode(&mut self, mode: ApprovalMode) -> Result<(), CoreError> {
         self.policy.set_mode(mode);

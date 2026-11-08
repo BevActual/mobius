@@ -14,7 +14,20 @@ pub fn is_model_name(v: &Value) -> bool {
     v.as_str().is_some_and(|s| !s.is_empty() && s.chars().count() <= 200 && !s.chars().any(|c| c.is_control()))
 }
 
-static FIELDS: [Field; 11] = [
+/// The apps whose access the person can set, and the levels: off, ask (the usual), read without asking, act without asking.
+pub const APP_ACCESS_APPS: [&str; 3] = ["browser", "notes", "tasks"];
+pub const APP_ACCESS_LEVELS: [&str; 4] = ["off", "ask", "read", "act"];
+
+pub fn app_access_default() -> Value {
+    json!({ "browser": "ask", "notes": "ask", "tasks": "ask" })
+}
+
+/// Exactly those apps, each at one of the levels.
+pub fn is_app_access(v: &Value) -> bool {
+    v.as_object().is_some_and(|o| o.len() == APP_ACCESS_APPS.len() && APP_ACCESS_APPS.iter().all(|app| o.get(*app).and_then(Value::as_str).is_some_and(|l| APP_ACCESS_LEVELS.contains(&l))))
+}
+
+static FIELDS: [Field; 12] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -26,8 +39,23 @@ static FIELDS: [Field; 11] = [
     Field { name: "keybindings", default: keys::defaults, check: keys::is_key_bindings },
     Field { name: "reasoningEffort", default: || json!(""), check: |v| one_of(v, &["", "none", "low", "medium", "high"]) },
     Field { name: "dictationModel", default: || json!("whisper-1"), check: is_model_name },
+    Field { name: "appAccess", default: app_access_default, check: is_app_access },
 ];
 
 pub fn open(file: PathBuf) -> Settings {
     Settings::open(file, &FIELDS)
+}
+
+#[cfg(test)]
+mod access_tests {
+    use super::*;
+
+    #[test]
+    fn app_access_is_the_three_apps_at_known_levels() {
+        assert!(is_app_access(&app_access_default()));
+        assert!(is_app_access(&json!({ "browser": "off", "notes": "read", "tasks": "act" })));
+        for bad in [json!({}), json!({ "browser": "ask", "notes": "ask" }), json!({ "browser": "ask", "notes": "ask", "tasks": "always" }), json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "mail": "ask" }), json!("ask")] {
+            assert!(!is_app_access(&bad), "{bad}");
+        }
+    }
 }

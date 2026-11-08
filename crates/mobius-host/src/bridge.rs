@@ -1399,6 +1399,7 @@ impl Bridge {
         if status == Status::Ready {
             let prefs = lock(&self.preferences).get();
             let _ = self.core.call("permissions.set_mode", json!({ "mode": prefs["approvalMode"] }), Duration::from_secs(5));
+            let _ = self.core.call("permissions.set_rules", crate::access::rules(&prefs["appAccess"]), Duration::from_secs(5));
             let _ = self.core.call("agent.set_effort", json!({ "effort": prefs["reasoningEffort"] }), Duration::from_secs(5));
             self.register_tools();
             self.agent.apply();
@@ -1450,6 +1451,9 @@ impl Bridge {
             if name == "preferences" {
                 if before["approvalMode"] != value["approvalMode"] {
                     let _ = self.core.call("permissions.set_mode", json!({ "mode": value["approvalMode"] }), Duration::from_secs(5));
+                }
+                if before["appAccess"] != value["appAccess"] {
+                    let _ = self.core.call("permissions.set_rules", crate::access::rules(&value["appAccess"]), Duration::from_secs(5));
                 }
                 if before["keepAwake"] != value["keepAwake"]
                     && let Some(awake) = lock(&self.keep_awake).as_mut()

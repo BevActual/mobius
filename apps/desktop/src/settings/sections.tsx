@@ -39,6 +39,8 @@ import {
   type TextDirection,
   type ThemeChoice,
   type ToolSteps,
+  type AccessLevel,
+  type AppAccess,
 } from '@mobius/shared';
 import { APP_ICONS } from '../Rail';
 import { appName } from '../apps';
@@ -321,6 +323,18 @@ function ActivityList() {
   );
 }
 
+const ACCESS_OPTIONS: ReadonlyArray<{ id: AccessLevel; label: string }> = [
+  { id: 'off', label: 'Off' },
+  { id: 'ask', label: 'Ask first' },
+  { id: 'read', label: 'Read' },
+  { id: 'act', label: 'Act' },
+];
+const ACCESS_APPS: ReadonlyArray<{ id: keyof AppAccess; label: string; help: Record<AccessLevel, string> }> = [
+  { id: 'browser', label: 'Browser', help: { off: 'Mobius cannot see your tabs, read pages or open new ones.', ask: 'Mobius asks before it reads a page or opens one.', read: 'Mobius reads your tabs and pages without asking, and asks before opening one.', act: 'Mobius reads pages and opens new ones without asking. Clicking and typing still ask.' } },
+  { id: 'notes', label: 'Notes', help: { off: 'Mobius cannot open or change your notes.', ask: 'Mobius asks before it opens or changes a note.', read: 'Mobius opens your notes without asking, and asks before changing one.', act: 'Mobius opens and changes your notes without asking. You can still review and undo each change.' } },
+  { id: 'tasks', label: 'Tasks', help: { off: 'Mobius cannot see or change your task lists.', ask: 'Mobius asks before it reads or changes your tasks.', read: 'Mobius reads your task lists without asking, and asks before changing them.', act: 'Mobius reads and changes your task lists without asking.' } },
+];
+
 export function SafetySection({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
   const { grants, remove } = useGrants();
   const path = (row: string) => rowPath('safety', subpage, row);
@@ -349,6 +363,19 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
       <Row path={path('approval-mode')} title="Approval mode" description="Manual asks before the agent acts. Smart lets a reviewer model approve the clearly safe ones. Off lets it act without asking." highlight={highlight === 'approval-mode'}>
         <Choice label="Approval mode" name="approval-mode" value={preferences.approvalMode} options={APPROVAL_MODES} onChange={(approvalMode) => void onPreferences({ approvalMode })} />
         <p className="srow-text" data-testid="approval-mode-help">{APPROVAL_HELP[preferences.approvalMode]}</p>
+      </Row>
+      <Row path={path('app-access')} title="What Mobius may do in each app" description="For the browser, notes and tasks: off, ask first, read without asking, or act without asking. Risky actions still ask." highlight={highlight === 'app-access'}>
+        <div className="access-grid">
+          {ACCESS_APPS.map((app) => (
+            <div key={app.id} className="access-row">
+              <span className="access-app">{app.label}</span>
+              <Choice label={`${app.label}: what Mobius may do`} name={`access-${app.id}`} value={preferences.appAccess[app.id]} options={ACCESS_OPTIONS}
+                onChange={(level) => void onPreferences({ appAccess: { ...preferences.appAccess, [app.id]: level } })} />
+              <p className="srow-text access-help">{app.help[preferences.appAccess[app.id]]}</p>
+            </div>
+          ))}
+        </div>
+        <p className="srow-text">Clicking or typing on a web page, deleting, running commands and reading secrets always ask, whatever you choose here. Off also holds when approvals are off.</p>
       </Row>
       <Row path={path('always-allowed')} title="Always allowed" description="Actions you chose to always allow. Remove one to be asked again." highlight={highlight === 'always-allowed'}>
         <GrantList label="Always allowed" grants={grants} onRemove={remove} empty="Nothing is always allowed. You are asked the first time." />

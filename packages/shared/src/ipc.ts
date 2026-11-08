@@ -837,6 +837,17 @@ export interface PreferencesSettings {
   reasoningEffort: EffortChoice;
   /** The speech-to-text model asked for when dictating, on the same server as the chat model. */
   dictationModel: string;
+  /** How much the agent may do in each app without asking: off, ask (the usual), read, or act. Risky actions still ask. */
+  appAccess: AppAccess;
+}
+export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
+export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel>;
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', tasks: 'ask' };
+const ACCESS_LEVELS: readonly string[] = ['off', 'ask', 'read', 'act'];
+export function isAppAccess(v: unknown): v is AppAccess {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+  const keys = Object.keys(v);
+  return keys.length === 3 && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes((v as Record<string, unknown>)[app] as string));
 }
 /** `none` turns thinking off where the model allows it (models on this computer). */
 export type EffortChoice = '' | 'none' | 'low' | 'medium' | 'high';
@@ -850,7 +861,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'manual', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'manual', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, appAccess: DEFAULT_APP_ACCESS };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -864,6 +875,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   keybindings: isKeyBindings,
   reasoningEffort: oneOf<EffortChoice>('', 'none', 'low', 'medium', 'high'),
   dictationModel: (v): v is string => isModelName(v),
+  appAccess: isAppAccess,
 };
 export function parsePreferencesPatch(value: unknown): Partial<PreferencesSettings> | null {
   return parsePatch(PREFERENCES_CHECKS, value);

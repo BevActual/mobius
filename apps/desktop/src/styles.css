@@ -1094,3 +1094,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .chat-sees { margin: 0 0 4px; padding: 2px 10px; align-self: flex-start; border-radius: var(--radius-pill); background: var(--field); color: var(--muted); font-size: var(--fs-xs); }
 .chat-sees-label { color: var(--ink); font-weight: var(--fw-semibold); }
 .chat.full .chat-sees { width: 100%; max-width: 760px; margin: 6px auto 0; background: transparent; padding: 0 4px; }
+/* Settings › Safety: what Mobius may do in each app. */
+.access-grid { display: flex; flex-direction: column; gap: var(--sp-3); width: 100%; }
+.access-row { display: grid; grid-template-columns: 88px auto; align-items: center; gap: var(--sp-1) var(--sp-3); }
+.access-app { font-weight: var(--fw-semibold); }
+.access-help { grid-column: 2; margin: 0; }
