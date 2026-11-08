@@ -1134,3 +1134,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .msg-sources { margin: -2px 0 0; color: var(--muted); font-size: var(--fs-xs); }
 .profile-new { display: flex; gap: var(--sp-2); }
 .profile-new input { flex: 1; min-width: 0; height: var(--control-h-lg); padding: 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); }
+.change-row { padding-right: 4px; }
+.change-row .clist-main { flex: 1; min-width: 0; }
+.change-actions { display: flex; gap: 2px; }

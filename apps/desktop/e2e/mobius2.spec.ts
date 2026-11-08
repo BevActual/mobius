@@ -133,3 +133,21 @@ test('Keep accepts the last turn’s changes from the keyboard, and the strip st
   await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
   await expect(strip).toHaveCount(0);
 });
+
+test('the Activity tab lists a turn’s changes to review, and Discard there puts them back', async () => {
+  await start([callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.'])]);
+  await composer().fill('make an ideas page');
+  await composer().press('Enter');
+  await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
+  await shell().keyboard.press('Enter');
+  const side = shell().getByRole('complementary', { name: 'Conversation list' });
+  await side.getByRole('tab', { name: 'Activity' }).click();
+  const changes = side.getByRole('list', { name: 'Changes to review' });
+  await expect(changes).toContainText('Changed 1 item');
+  await changes.getByRole('button', { name: /^Discard the changes/ }).click();
+  await expect(changes).toHaveCount(0);
+  expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(false);
+});

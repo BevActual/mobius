@@ -3,6 +3,7 @@ import { MAIN_BOT_ID, MAX_BOT_INSTRUCTIONS, MAX_BOT_NAME, botOfConversation, typ
 import { describeWhen } from './settings/Schedules';
 import { relativeTime } from './relative-time';
 import { activityBoard } from './activity-board';
+import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 
 interface Props {
   /** Open Settings › Schedules. */
@@ -168,6 +169,54 @@ function ScheduledList({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+/**
+ * Changes not yet kept or discarded, from today's conversations, one row per conversation: the design's Activity
+ * history with Undo, for each conversation's last turn. Keep and Discard do what they do in the strip.
+ */
+function ChangesWaiting({ conversations, onSelect }: { conversations: ConversationInfo[]; onSelect: (id: string) => void }) {
+  const [rows, setRows] = useState<{ conversation: ConversationInfo; turn: string | null; files: string[] }[]>([]);
+  const [tick, setTick] = useState(0);
+  const ids = conversations.map((c) => c.id).join(',');
+  useEffect(() => {
+    let live = true;
+    void Promise.all(conversations.map(async (conversation) => {
+      const r = await window.mobius.changes?.lastTurn(conversation.id).catch(() => null);
+      const changes = r && 'files' in r ? r : null;
+      const turn = turnId(conversation.id, changes?.checkpoint ?? null);
+      return { conversation, turn, files: changes && !(turn && keptTurns().includes(turn)) ? changes.files : [] };
+    })).then((all) => live && setRows(all.filter((r) => r.files.length > 0)));
+    const again = () => setTick((n) => n + 1);
+    window.addEventListener(KEPT_EVENT, again);
+    return () => { live = false; window.removeEventListener(KEPT_EVENT, again); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids, tick]);
+  if (rows.length === 0) return null;
+  const discard = async (id: string, files: string[]) => {
+    for (const path of files) await window.mobius.changes?.undoFile(id, path).catch(() => undefined);
+    // Everything showing these changes reads them again (the strip under the conversation, a note's bar).
+    window.dispatchEvent(new CustomEvent(KEPT_EVENT));
+  };
+  return (
+    <section aria-label="Changes to review">
+      <h3 className="clist-group"><span className="group-toggle"><span>Changes to review</span><span className="group-count">{rows.length}</span></span></h3>
+      <ul className="clist" role="list" aria-label="Changes to review">
+        {rows.map(({ conversation, turn, files }) => (
+          <li key={conversation.id} className="clist-item change-row">
+            <button type="button" className="clist-main" onClick={() => onSelect(conversation.id)}>
+              <span className="clist-title">{conversation.title}</span>
+              <span className="clist-sub">Changed {files.length === 1 ? '1 item' : `${files.length} items`}</span>
+            </button>
+            <span className="change-actions">
+              <button type="button" className="review-btn" aria-label={`Discard the changes from ${conversation.title}`} onClick={() => void discard(conversation.id, files)}>Discard</button>
+              <button type="button" className="review-btn" data-kind="keep" aria-label={`Keep the changes from ${conversation.title}`} onClick={() => { if (turn) keepTurn(turn); }}>Keep</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** The Activity tab: what needs you, what is running, what is scheduled, and what finished today. */
 function ActivityBoard({ conversations, active, onSelect, onDelete, onOpenSchedules }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onDelete: (id: string) => Promise<string | null>; onOpenSchedules?: () => void }) {
   const board = activityBoard(conversations, new Date());
@@ -180,11 +229,13 @@ function ActivityBoard({ conversations, active, onSelect, onDelete, onOpenSchedu
     </section>
   );
   const quiet = board.needsYou.length + board.running.length + board.doneToday.length === 0;
+  const recent = [...board.doneToday].slice(0, 10);
   return (
     <>
       {group('Needs you', board.needsYou)}
       {group('Running', board.running)}
       {onOpenSchedules && <ScheduledList onOpen={onOpenSchedules} />}
+      <ChangesWaiting conversations={recent} onSelect={onSelect} />
       {group('Done today', board.doneToday)}
       {quiet && <p className="srow-empty side-empty">Nothing is running or waiting. Ask Mobius something, or schedule it for later.</p>}
     </>
