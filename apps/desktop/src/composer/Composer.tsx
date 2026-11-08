@@ -331,7 +331,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               </div>
             )}
           </PopMenu>
-          <PopMenu label="Effort" className="pill" disabled={busy} title={`Effort: ${effortLabel}. How hard the model thinks.`} trigger={<><span className="pill-text">Effort{effort ? `: ${effortLabel}` : ''}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+          <PopMenu label="Effort" className="pill pill-compact" disabled={busy} title={`Effort: ${effortLabel}. How hard the model thinks.`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 11a5.5 5.5 0 1 1 11 0M8 11l2.5-3.5" /></svg><span className="pill-text">Effort{effort ? `: ${effortLabel}` : ''}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <>
                 {EFFORTS.map((option) => (
@@ -343,11 +343,12 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               </>
             )}
           </PopMenu>
-          <button type="button" className="pill" aria-pressed={planFirst} data-on={planFirst || undefined} disabled={busy} onClick={togglePlanFirst}
+          <button type="button" className="pill pill-compact" aria-label="Plan first" aria-pressed={planFirst} data-on={planFirst || undefined} disabled={busy} onClick={togglePlanFirst}
             title={planFirst ? 'Plan first is on: Mobius shows its steps, and nothing happens until you start them.' : 'Plan first: see the steps before Mobius does anything.'}>
+            <svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h1M3 8h1M3 12h1M6.5 4H13M6.5 8H13M6.5 12H13" /></svg>
             <span className="pill-text">Plan first</span>
           </button>
-          <PopMenu label="Approvals" className="pill" title={`Approvals: ${approval.label}. ${approval.hint}.`} trigger={<><span className="pill-text">{approval.id === 'manual' ? 'Ask first' : approval.id === 'smart' ? 'Smart approvals' : 'No approvals'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+          <PopMenu label="Approvals" className="pill pill-compact" title={`Approvals: ${approval.label}. ${approval.hint}.`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{approval.id === 'manual' ? 'Ask first' : approval.id === 'smart' ? 'Smart approvals' : 'No approvals'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <>
                 {APPROVALS.map((option) => (

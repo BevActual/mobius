@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
 import { Welcome } from './Welcome';
-import { describeAction } from './actions';
+import { describeAction, previewArguments } from './actions';
 import { stepTag } from './step-access';
 import { usePreferences } from './usePreferences';
 import { ClaimChecks, RichText } from './RichText';
@@ -209,7 +209,23 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
       {item.status === 'waiting' && item.requestId !== undefined && (
         <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`}>
           <p className="approval-text">{(() => { const plain = describeAction(item.name, item.args); return plain ? <>Mobius wants to {plain}. <span className="approval-tool">{item.name}</span></> : <>Mobius wants to use <strong>{item.name}</strong>.</>; })()}{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
-          {shownArgs && <pre className="approval-args" tabIndex={0} aria-label="What it will use">{shownArgs}</pre>}
+          {(() => {
+            // In plain words first, as the Approvals board asks: the text it would write, the statement it would run.
+            const preview = previewArguments(item.name, item.args);
+            if (!preview) return shownArgs && <pre className="approval-args" tabIndex={0} aria-label="What it will use">{shownArgs}</pre>;
+            return (
+              <>
+                <div className="approval-preview-label">{preview.label}</div>
+                <pre className="approval-preview" data-mono={preview.mono || undefined} tabIndex={0} aria-label={preview.label}>{preview.text}</pre>
+                {shownArgs && (
+                  <details className="approval-raw">
+                    <summary>Exactly what it sends</summary>
+                    <pre className="approval-args" tabIndex={0} aria-label="What it will use">{shownArgs}</pre>
+                  </details>
+                )}
+              </>
+            );
+          })()}
           <div className="approval-actions">
             <button type="button" className="btn primary" disabled={sending} onClick={() => void respond(true, 'once')}>Allow once</button>
             {item.onceOnly ? null : <button type="button" className="btn" disabled={sending} onClick={() => void respond(true, 'always')}>Always allow</button>}

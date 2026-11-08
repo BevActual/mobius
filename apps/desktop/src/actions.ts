@@ -3,6 +3,31 @@
  * Inbox in Tasks", not `tasks.add {…}`. The tool's name and arguments are still shown below it for anyone who wants
  * them. Null when Mobius has no words for that tool (an MCP server's, say).
  */
+/**
+ * What a tool would use, shown readably on its approval card: the text it would write, the statement it would run,
+ * the command, the query. Null when the arguments say it better as they are.
+ */
+export function previewArguments(name: string, args: unknown): { label: string; text: string; mono: boolean } | null {
+  const a = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>;
+  const s = (key: string): string => (typeof a[key] === 'string' ? (a[key] as string) : '');
+  const cut = (text: string, lines = 14) => { const all = text.replace(/\s+$/, '').split('\n'); return all.length > lines ? `${all.slice(0, lines).join('\n')}\n… ${all.length - lines} more lines` : all.join('\n'); };
+  switch (name) {
+    case 'files.write': return s('content') ? { label: 'What it will write', text: cut(s('content')), mono: /\.(json|csv|ics|ts|js|rs|py)$/i.test(s('path')) } : null;
+    case 'files.edit': {
+      if (!s('old') && !s('new')) return null;
+      const lines = [...cut(s('old'), 6).split('\n').map((l) => `− ${l}`), ...cut(s('new'), 8).split('\n').map((l) => `+ ${l}`)];
+      return { label: 'The change', text: lines.join('\n'), mono: true };
+    }
+    case 'db.query': case 'db.execute': return s('sql') ? { label: 'The statement', text: s('sql'), mono: true } : null;
+    case 'code.run': case 'code.start': return s('command') ? { label: 'The command', text: s('command'), mono: true } : null;
+    case 'web.search': return s('query') ? { label: 'Searching for', text: s('query'), mono: false } : null;
+    case 'web.read': case 'browser.open': return s('url') ? { label: 'The address', text: s('url'), mono: true } : null;
+    case 'mail.draft': return s('body') ? { label: 'The draft', text: cut(s('body')), mono: false } : null;
+    case 'memory.remember': return null;
+    default: return null;
+  }
+}
+
 export function describeAction(name: string, args: unknown): string | null {
   const a = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>;
   const s = (key: string): string => (typeof a[key] === 'string' ? (a[key] as string).trim() : '');
@@ -15,6 +40,11 @@ export function describeAction(name: string, args: unknown): string | null {
     if (clean.startsWith('slides/')) return `the deck ${quote(clean.slice('slides/'.length).replace(/\.md$/i, '').replace('/', ' › '))}`;
     if (clean.startsWith('calendar/')) return `the calendar ${quote(clean.slice('calendar/'.length).replace(/\.ics$/i, ''))}`;
     if (clean.startsWith('tasks/')) return `the task list ${quote(clean.slice('tasks/'.length).replace(/\.md$/i, ''))}`;
+    const kinds: [string, string, RegExp][] = [['designs/', 'the design', /\.json$/i], ['boards/', 'the board', /\.json$/i], ['research/', 'the report', /\.md$/i], ['reading/', 'the article', /\.md$/i], ['studio/', 'the song', /\.json$/i], ['skills/', 'the skill', /\/SKILL\.md$/i]];
+    for (const [prefix, what, ext] of kinds) if (clean.startsWith(prefix)) return `${what} ${quote(clean.slice(prefix.length).replace(ext, '').replace('/', ' › '))}`;
+    if (clean.startsWith('photos/') && /\.edits\.json$/i.test(clean)) return `the edits of the photo ${quote(clean.slice('photos/'.length).replace(/\.edits\.json$/i, '').replace('/', ' › '))}`;
+    if (clean.startsWith('video/') && clean.endsWith('/cut.json')) return `the cut of the video ${quote(clean.slice('video/'.length, -'/cut.json'.length))}`;
+    if (clean.startsWith('code/')) { const [project, ...rest] = clean.slice('code/'.length).split('/'); return rest.length ? `${quote(rest.join('/'))} in the project ${quote(project ?? '')}` : `the project ${quote(project ?? '')}`; }
     return clean ? `the file ${quote(clean)}` : 'a file';
   };
   const which = () => (s('calendar') && s('calendar') !== 'Calendar' ? `the calendar ${quote(s('calendar'))}` : 'your calendar');
@@ -58,6 +88,20 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'schedules.add': return s('title') ? `schedule ${quote(s('title'))} at ${s('time') || 'a time'}` : 'schedule a request';
     case 'schedules.list': return 'see what is scheduled';
     case 'sessions.search': return s('query') ? `search your past conversations for ${quote(s('query'), 40)}` : 'search your past conversations';
+    case 'web.search': return s('query') ? `search the web for ${quote(s('query'), 60)}` : 'search the web';
+    case 'web.read': return s('url') ? `read the page ${host(s('url'))}` : 'read a web page';
+    case 'db.list': return 'see your databases and their tables';
+    case 'db.query': return `read from the database ${quote(s('database') || 'one of yours')}`;
+    case 'db.execute': return `change the database ${quote(s('database') || 'one of yours')}`;
+    case 'code.test': return `run the tests of ${quote(s('project') || 'a project')}`;
+    case 'code.run': return s('command') ? `run ${quote(s('command'), 60)} in ${quote(s('project') || 'a project')}` : 'run a command';
+    case 'code.start': return s('command') ? `start ${quote(s('command'), 60)} in ${quote(s('project') || 'a project')} and keep it running` : 'start a command that keeps running';
+    case 'code.output': return 'read what a running command printed';
+    case 'code.stop': return 'stop a running command';
+    case 'code.commit': return s('message') ? `commit in ${quote(s('project') || 'a project')}: ${quote(s('message'), 60)}` : 'commit the changes';
+    case 'code.push': return `push ${quote(s('project') || 'a project')} to its remote`;
+    case 'skills.list': return 'see your skills';
+    case 'skills.read': return s('name') ? `read the skill ${quote(s('name'))}` : 'read a skill';
     default: return null;
   }
 }
