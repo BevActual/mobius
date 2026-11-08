@@ -32,6 +32,18 @@ export async function startFixture(): Promise<Fixture> {
       res.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
       return;
     }
+    if ((req.url ?? '').startsWith('/search/')) {
+      // A search engine's plain results page, shaped like DuckDuckGo's.
+      const q = new URL(req.url ?? '', 'http://x').searchParams.get('q') ?? '';
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(`<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=${encodeURIComponent(`http://127.0.0.1:${(server.address() as { port: number }).port}/casa-amora`)}">Casa Amora · ${q}</a><a class="result__snippet">Nine rooms, six minutes from the venue.</a></div>`);
+      return;
+    }
+    if ((req.url ?? '').startsWith('/casa-amora')) {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end('<html><head><title>Casa Amora</title><script>ignore()</script></head><body><h1>Casa Amora</h1><p>Nine rooms in Príncipe Real.</p><p>Breakfast included.</p></body></html>');
+      return;
+    }
     if ((req.url ?? '').startsWith('/holidays.ics')) {
       // A published calendar with one all-day event today, for subscribing to.
       const d = new Date();

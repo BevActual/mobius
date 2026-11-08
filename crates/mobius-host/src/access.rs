@@ -14,7 +14,7 @@ type Grants = &'static [(&'static str, Option<&'static str>)];
 
 fn capabilities(app: &str) -> (Grants, Grants) {
     match app {
-        "browser" => (&[("browser.list", None), ("browser.read", None)], &[("browser.navigate", None), ("browser.interact", None)]),
+        "browser" => (&[("browser.list", None), ("browser.read", None), ("web.search", None), ("web.read", None)], &[("browser.navigate", None), ("browser.interact", None)]),
         "notes" => (&[("files.read", Some("notes/*"))], &[("files.write", Some("notes/*"))]),
         "docs" => (&[("files.read", Some("docs/*"))], &[("files.write", Some("docs/*"))]),
         "slides" => (&[("files.read", Some("slides/*"))], &[("files.write", Some("slides/*"))]),
@@ -75,6 +75,8 @@ mod tests {
         assert_eq!(r["rules"], json!([
             { "capability": "browser.list", "effect": "allow" },
             { "capability": "browser.read", "effect": "allow" },
+            { "capability": "web.search", "effect": "allow" },
+            { "capability": "web.read", "effect": "allow" },
             { "capability": "files.read", "resource": "notes/*", "effect": "allow" },
             { "capability": "files.write", "resource": "notes/*", "effect": "allow" },
             { "capability": "tasks.read", "effect": "deny" },
