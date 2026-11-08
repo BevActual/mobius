@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /** What the last agent turn changed, as note page paths and task list names, so Notes and Tasks can mark them. */
-export interface TurnMarks { notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string>; sheets: ReadonlySet<string>; slides: ReadonlySet<string>; /** `project/path` of code files. */ code: ReadonlySet<string>; designs: ReadonlySet<string> }
-const NONE: TurnMarks = { notes: new Set(), lists: new Set(), docs: new Set(), sheets: new Set(), slides: new Set(), code: new Set(), designs: new Set() };
+export interface TurnMarks { notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string>; sheets: ReadonlySet<string>; slides: ReadonlySet<string>; /** `project/path` of code files. */ code: ReadonlySet<string>; designs: ReadonlySet<string>; /** `album/photo` whose edits changed. */ photos: ReadonlySet<string> }
+const NONE: TurnMarks = { notes: new Set(), lists: new Set(), docs: new Set(), sheets: new Set(), slides: new Set(), code: new Set(), designs: new Set(), photos: new Set() };
 
 export function marksOf(files: readonly string[]): TurnMarks {
   const notes = new Set<string>();
@@ -12,16 +12,18 @@ export function marksOf(files: readonly string[]): TurnMarks {
   const slides = new Set<string>();
   const code = new Set<string>();
   const designs = new Set<string>();
+  const photos = new Set<string>();
   for (const file of files) {
     if (file.startsWith('notes/')) notes.add(file.slice('notes/'.length));
     else if (file.startsWith('docs/')) docs.add(file.slice('docs/'.length));
     else if (file.startsWith('slides/')) slides.add(file.slice('slides/'.length));
     else if (file.startsWith('sheets/')) sheets.add(file.slice('sheets/'.length).split('/')[0]!);
+    else if (file.startsWith('photos/')) photos.add(file.slice('photos/'.length).replace(/\.edits\.json$/, ''));
     else if (file.startsWith('designs/')) designs.add(file.slice('designs/'.length));
     else if (file.startsWith('code/')) code.add(file.slice('code/'.length));
     else if (file.startsWith('tasks/') && file.endsWith('.md')) lists.add(file.slice('tasks/'.length, -'.md'.length));
   }
-  return { notes, lists, docs, sheets, slides, code, designs };
+  return { notes, lists, docs, sheets, slides, code, designs, photos };
 }
 
 /** Read when a turn ends, when another conversation is shown, and after anything is put back. */
@@ -41,7 +43,8 @@ export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
     const offSlides = window.mobius.slides?.onChanged(again);
     const offCode = window.mobius.code?.onChanged(again);
     const offDesigns = window.mobius.designs?.onChanged(again);
-    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offCode?.(); offDesigns?.(); };
+    const offPhotos = window.mobius.photos?.onChanged(again);
+    return () => { offPhotos?.(); offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offCode?.(); offDesigns?.(); };
   }, [load]);
   return marks;
 }

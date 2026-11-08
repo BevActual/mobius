@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnChanges } from '@mobius/shared';
 
 /** How a workspace path reads to a person: notes and task lists by name, other files by their path. */
-export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' | 'Tasks' | 'Calendar' | 'Code' | 'Design' | 'File'; name: string } {
+export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' | 'Tasks' | 'Calendar' | 'Code' | 'Design' | 'Photo' | 'File'; name: string } {
   const strip = (p: string) => p.replace(/\.md$/i, '');
   if (path.startsWith('notes/')) return { kind: 'Note', name: strip(path.slice('notes/'.length)).replace('/', ' / ') };
   if (path.startsWith('docs/')) return { kind: 'Doc', name: strip(path.slice('docs/'.length)).replace('/', ' / ') };
   if (path.startsWith('slides/')) return { kind: 'Deck', name: strip(path.slice('slides/'.length)).replace('/', ' / ') };
   if (path.startsWith('sheets/')) return { kind: 'Sheet', name: path.slice('sheets/'.length).replace(/\.csv$/i, '').replace('/', ' › ') };
   if (path.startsWith('tasks/')) return { kind: 'Tasks', name: strip(path.slice('tasks/'.length)) };
+  if (path.startsWith('photos/')) return { kind: 'Photo', name: path.slice('photos/'.length).replace(/\.edits\.json$/i, '').replace('/', ' / ') };
   if (path.startsWith('designs/')) return { kind: 'Design', name: path.slice('designs/'.length).replace(/\.json$/i, '').replace('/', ' / ') };
   if (path.startsWith('code/')) return { kind: 'Code', name: path.slice('code/'.length).replace('/', ' › ') };
   if (path.startsWith('calendar/')) return { kind: 'Calendar', name: path.slice('calendar/'.length).replace(/\.ics$/i, '') };

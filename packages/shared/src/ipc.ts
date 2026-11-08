@@ -169,6 +169,11 @@ export interface SheetData { workbook: string; sheet: string; sheets: string[]; 
 export interface WorkbookInfo { name: string; sheets: string[] }
 export interface SheetsChanged { workbook: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** A Code project's file or folder, as a path inside the project, folders first. */
+/** A photo in an album: `path` is `album/name`; `edited` when it has edits beside it. */
+export interface PhotoInfo { path: string; name: string; modified: number; edited: boolean }
+export interface PhotoAlbum { name: string; photos: PhotoInfo[] }
+export interface PhotoContent { path: string; dataUrl: string; edits: string | null; modified: number; editsModified: number | null }
+export interface PhotosChanged { path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 export interface CodeEntry { path: string; folder: boolean; depth: number }
 export interface CodeFile { project: string; path: string; text: string | null; why?: string; modified: number }
 export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean }
@@ -468,6 +473,19 @@ export interface MobiusBridge {
   docs?: NonNullable<MobiusBridge['notes']>;
   /** The Slides app: decks kept like notes, as Markdown in `slides/<folder>/<deck>.md`. Only the Tauri shell has it. */
   slides?: NonNullable<MobiusBridge['notes']>;
+  /** The Photo app: albums in `photos/`, each photo's edits beside it as `<photo>.edits.json`. Only the Tauri shell has it. */
+  photos?: {
+    albums(): Promise<PhotoAlbum[] | NotesFailure>;
+    createAlbum(name: string): Promise<{ name: string } | NotesFailure>;
+    read(path: string): Promise<PhotoContent | NotesFailure>;
+    /** Refused with `conflict` when the edits changed since `base` (null: there were none). */
+    saveEdits(path: string, text: string, base: number | null): Promise<{ path: string; editsModified: number } | NotesFailure>;
+    /** `data` is the picture as base64. */
+    add(album: string, name: string, data: string): Promise<{ path: string } | NotesFailure>;
+    /** Writes the edited picture (JPEG, base64) next to the photo; says where. */
+    export(path: string, data: string): Promise<{ path: string } | NotesFailure>;
+    onChanged(listener: (change: PhotosChanged) => void): () => void;
+  };
   /** The Design app: designs kept like notes, as JSON in `designs/<folder>/<design>.json`. Only the Tauri shell has it. */
   designs?: NonNullable<MobiusBridge['notes']>;
   /** The Notes app. Only the Tauri shell has it. */
@@ -991,13 +1009,13 @@ export interface ScheduleDraft { title: string; prompt: string; time: string; da
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
 /** `calendar` came later: a setting saved before it leaves it out, and it counts as `ask`. */
-export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; code?: AccessLevel; design?: AccessLevel };
-export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', code: 'ask', design: 'ask' };
+export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; code?: AccessLevel; design?: AccessLevel; photo?: AccessLevel };
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', code: 'ask', design: 'ask', photo: 'ask' };
 const ACCESS_LEVELS: readonly string[] = ['off', 'ask', 'read', 'act'];
 export function isAppAccess(v: unknown): v is AppAccess {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;
-  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'code', 'design'];
+  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'code', 'design', 'photo'];
   return Object.keys(o).every((k) => apps.includes(k))
     && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes(o[app] as string))
     && (['docs', 'sheets', 'slides', 'calendar', 'mail'] as const).every((app) => o[app] === undefined || ACCESS_LEVELS.includes(o[app] as string));

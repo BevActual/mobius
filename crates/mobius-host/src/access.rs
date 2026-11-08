@@ -9,7 +9,10 @@ use serde_json::{Value, json};
 use mobius_store::preferences::APP_ACCESS_APPS as APPS;
 
 /// What each app reads with and changes with: capability and resource pattern.
-fn capabilities(app: &str) -> (&'static [(&'static str, Option<&'static str>)], &'static [(&'static str, Option<&'static str>)]) {
+/// A capability and, for file capabilities, the paths it covers.
+type Grants = &'static [(&'static str, Option<&'static str>)];
+
+fn capabilities(app: &str) -> (Grants, Grants) {
     match app {
         "browser" => (&[("browser.list", None), ("browser.read", None)], &[("browser.navigate", None), ("browser.interact", None)]),
         "notes" => (&[("files.read", Some("notes/*"))], &[("files.write", Some("notes/*"))]),
@@ -19,6 +22,7 @@ fn capabilities(app: &str) -> (&'static [(&'static str, Option<&'static str>)], 
         "tasks" => (&[("tasks.read", None)], &[("tasks.write", None)]),
         "mail" => (&[("mail.read", None)], &[]),
         "design" => (&[("files.read", Some("designs/*"))], &[("files.write", Some("designs/*"))]),
+        "photo" => (&[("files.read", Some("photos/*"))], &[("files.write", Some("photos/*"))]),
         "code" => (&[("files.read", Some("code/*"))], &[("files.write", Some("code/*"))]),
         "calendar" => (&[("calendar.read", None), ("files.read", Some("calendar/*"))], &[("calendar.write", None), ("files.write", Some("calendar/*"))]),
         _ => (&[], &[]),

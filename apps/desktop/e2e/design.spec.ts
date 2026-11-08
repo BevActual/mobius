@@ -55,9 +55,9 @@ test('a design is frames of layers: selected, changed in the inspector, added an
   await start();
   await shell().getByRole('tree', { name: 'Frames and layers' }).getByRole('button', { name: 'Title' }).click();
   await expect(inspector()).toContainText('passes AA');
-  await inspector().getByRole('textbox', { name: 'Text' }).fill('Porto offsite');
-  await inspector().getByRole('textbox', { name: 'Y' }).fill('120');
-  await inspector().getByRole('textbox', { name: 'Y' }).press('Enter');
+  await inspector().getByRole('textbox', { name: 'Text', exact: true }).fill('Porto offsite');
+  await inspector().getByRole('textbox', { name: 'Y', exact: true }).fill('120');
+  await inspector().getByRole('textbox', { name: 'Y', exact: true }).press('Enter');
   await expect.poll(() => saved().frames[0]!.children[0]).toMatchObject({ text: 'Porto offsite', y: 120 });
   await expect(canvas().getByLabel('Text Title')).toHaveText('Porto offsite');
 

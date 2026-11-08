@@ -154,6 +154,7 @@ pub struct Bridge {
     docs: mobius_workspace::notes::Notes,
     slides: mobius_workspace::notes::Notes,
     designs: mobius_workspace::notes::Notes,
+    photos: mobius_workspace::photos::Photos,
     sheets: mobius_workspace::sheets::Sheets,
     code: mobius_workspace::code::Code,
     /// The test command of each Code project, which only the person sets.
@@ -210,6 +211,9 @@ impl Bridge {
                 if let Some(design) = path.replace('\\', "/").strip_prefix("designs/") {
                     notes_emit("mobius:designs-changed", json!({ "path": design, "by": "another app" }));
                 }
+                if let Some(photo) = path.replace('\\', "/").strip_prefix("photos/") {
+                    notes_emit("mobius:photos-changed", json!({ "path": photo.strip_suffix(mobius_workspace::photos::EDITS_SUFFIX).unwrap_or(photo), "by": "another app" }));
+                }
                 if let Some(book) = path.replace('\\', "/").strip_prefix("sheets/") {
                     notes_emit("mobius:sheets-changed", json!({ "workbook": book.split('/').next(), "by": "another app" }));
                 }
@@ -261,6 +265,7 @@ impl Bridge {
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             docs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "docs"),
             slides: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "slides").named_by_file(),
+            photos: mobius_workspace::photos::Photos::new(data_dir.join("workspace")),
             designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter),
             sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
@@ -384,6 +389,7 @@ impl Bridge {
             ("designs", _) => Ok(self.notes_call(&self.designs, "mobius:designs-changed", method, args)),
             ("sheets", _) => Ok(self.sheets_call(method, args)),
             ("code", _) => Ok(self.code_call(method, args)),
+            ("photos", _) => Ok(self.photos_call(method, args)),
             ("mail", _) => Ok(self.mail_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
@@ -1003,6 +1009,9 @@ impl Bridge {
                 if let Some(design) = path.strip_prefix("designs/") {
                     (self.emit)("mobius:designs-changed", json!({ "path": design, "by": "assistant" }));
                 }
+                if let Some(photo) = path.strip_prefix("photos/") {
+                    (self.emit)("mobius:photos-changed", json!({ "path": photo.strip_suffix(mobius_workspace::photos::EDITS_SUFFIX).unwrap_or(photo), "by": "assistant" }));
+                }
                 if let Some(book) = path.strip_prefix("sheets/") {
                     (self.emit)("mobius:sheets-changed", json!({ "workbook": book.split('/').next(), "by": "assistant" }));
                 }
@@ -1390,6 +1399,39 @@ impl Bridge {
         }
     }
 
+    /// The Photo app: albums of pictures in `photos/`, each photo's edits beside it, and exports.
+    fn photos_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let p = &self.photos;
+        let result = match method {
+            "albums" => p.albums(),
+            "createAlbum" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| p.create_album(n)),
+            "read" => text(0).ok_or_else(|| "a photo is needed".to_owned()).and_then(|f| p.read(f)),
+            "saveEdits" => match (text(0), text(1), args.get(2).unwrap_or(&Value::Null)) {
+                (Some(f), Some(t), base @ (Value::Null | Value::Number(_))) => p.save_edits(f, t, base.as_u64()),
+                _ => Err("those edits cannot be saved".to_owned()),
+            },
+            "add" => match (text(0), text(1), text(2)) {
+                (Some(album), Some(name), Some(data)) => p.add(album, name, data),
+                _ => Err("an album, a name and a picture are needed".to_owned()),
+            },
+            "export" => match (text(0), text(1)) {
+                (Some(f), Some(data)) => p.export(f, data),
+                _ => Err("a photo and a picture are needed".to_owned()),
+            },
+            _ => return json!({ "ok": false, "message": "unknown" }),
+        };
+        match result {
+            Ok(value) => {
+                if matches!(method, "createAlbum" | "saveEdits" | "add" | "export") {
+                    (self.emit)("mobius:photos-changed", json!({ "path": value.get("path"), "by": "person" }));
+                }
+                value
+            }
+            Err(message) => json!({ "ok": false, "conflict": message == "changed elsewhere", "message": message }),
+        }
+    }
+
     /// The Code app: projects in `code/`, their files, and the person's test command for each.
     fn code_call(&self, method: &str, args: &[Value]) -> Value {
         let text = |i: usize| args.get(i).and_then(Value::as_str);
@@ -1684,6 +1726,7 @@ impl Bridge {
             (self.emit)("mobius:docs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("docs/")), "by": "undo" }));
             (self.emit)("mobius:slides-changed", json!({ "path": path.and_then(|p| p.strip_prefix("slides/")), "by": "undo" }));
             (self.emit)("mobius:designs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("designs/")), "by": "undo" }));
+            (self.emit)("mobius:photos-changed", json!({ "path": path.and_then(|p| p.strip_prefix("photos/")).map(|p| p.strip_suffix(mobius_workspace::photos::EDITS_SUFFIX).unwrap_or(p)), "by": "undo" }));
             (self.emit)("mobius:sheets-changed", json!({ "workbook": path.and_then(|p| p.strip_prefix("sheets/")).and_then(|p| p.split('/').next()), "by": "undo" }));
             (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "undo" }));
             if path.is_none_or(|p| p.starts_with("code/")) {

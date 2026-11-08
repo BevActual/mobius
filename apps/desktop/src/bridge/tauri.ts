@@ -23,6 +23,7 @@ import {
   type CalendarChanged,
   type SheetsChanged,
   type CodeChanged,
+  type PhotosChanged,
   type CodeTestsEvent,
 } from '@mobius/shared';
 
@@ -242,6 +243,15 @@ export function createTauriBridge(): MobiusBridge {
       deleteDraft: (id) => call('mail', 'deleteDraft', [id], () => ({ ok: false as const, message: 'Mail is not available.' })),
       send: (id) => call('mail', 'send', [id], () => ({ ok: false as const, message: 'Mail is not available.' })),
       onChanged: (listener) => on<{ by: string }>('mobius:mail-changed', listener),
+    },
+    photos: {
+      albums: () => call('photos', 'albums', [], () => []),
+      createAlbum: (name) => call('photos', 'createAlbum', [name], () => ({ ok: false as const, message: 'Photo is not available.' })),
+      read: (path) => call('photos', 'read', [path], () => ({ ok: false as const, message: 'Photo is not available.' })),
+      saveEdits: (path, text, base) => call('photos', 'saveEdits', [path, text, base], () => ({ ok: false as const, message: 'Photo is not available.' })),
+      add: (album, name, data) => call('photos', 'add', [album, name, data], () => ({ ok: false as const, message: 'Photo is not available.' })),
+      export: (path, data) => call('photos', 'export', [path, data], () => ({ ok: false as const, message: 'Photo is not available.' })),
+      onChanged: (listener) => on<PhotosChanged>('mobius:photos-changed', listener),
     },
     code: {
       projects: () => call('code', 'projects', [], () => []),
