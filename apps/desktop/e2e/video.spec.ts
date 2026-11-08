@@ -60,10 +60,10 @@ test('clips are played through the media address, added to the cut as shots, tri
   await shot.getByRole('textbox', { name: 'Title' }).fill('Sunset');
   await shot.getByRole('button', { name: 'Earlier' }).click();
   await expect.poll(() => saved().shots.map((s) => [s.clip, s.out, (s as { title?: string }).title ?? ''])).toEqual([['sunset.webm', 2.5, 'Sunset'], ['terrace.webm', 5, '']]);
-  await expect(shell().getByLabel('Time')).toHaveText('0:00.0 / 0:07.5');
+  await expect(shell().getByLabel('Time', { exact: true })).toHaveText('0:00.0 / 0:07.5');
 
   await shell().getByRole('toolbar', { name: 'Transport' }).getByRole('button', { name: 'Play' }).click();
-  await expect(shell().getByLabel('Time')).not.toHaveText(/^0:00\.0/, { timeout: 5000 });
+  await expect(shell().getByLabel('Time', { exact: true })).not.toHaveText(/^0:00\.0/, { timeout: 5000 });
   await expect(shell().getByRole('status').filter({ hasText: 'cannot be played' })).toHaveCount(0);
 });
 
