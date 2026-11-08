@@ -150,6 +150,8 @@ test('Mobius asks before remembering, uses what it remembers next time, and it c
   await card.getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant').last()).toHaveText('I will remember that.');
   expect(fs.readFileSync(path.join(userData, 'memory.md'), 'utf8')).toContain('- Prefers boutique hotels');
+  // The reply has finished (it can show its words while still streaming).
+  await expect(shell().getByRole('button', { name: 'Send', exact: true })).toBeVisible();
   await say('find me a hotel');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Noted.');
   expect(JSON.stringify(model!.requests.at(-1))).toContain('Prefers boutique hotels');
