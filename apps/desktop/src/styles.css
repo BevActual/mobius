@@ -730,6 +730,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .hub-icon[data-app="research"] { background: var(--app-research); }
 .hub-icon[data-app="reader"] { background: var(--app-reader); }
 .hub-icon[data-app="database"] { background: var(--app-database); }
+.hub-icon[data-app="terminal"] { background: var(--app-terminal); }
 .hub-icon[data-app="review"] { background: var(--app-review); }
 .hub-icon[data-app="connect"] { background: var(--app-connect); width: 34px; height: 34px; }
 .hub-icon[data-app="connect"] svg { width: 18px; height: 18px; }
@@ -1552,6 +1553,33 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .code-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .code-mark { color: var(--warning); font: 700 10px/1 ui-monospace, Menlo, Consolas, monospace; }
 .code-side { display: flex; flex-direction: column; }
+
+/* Terminal: a dark screen of what was run and printed, and the line to type on. */
+.stage .term-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: #1c1c1e; color: #e5e5ea; font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.term-screen { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px 4px; }
+.term-welcome { margin: 0 0 12px; color: #98989f; font-family: var(--font, system-ui); font-size: var(--fs-sm); max-width: 640px; }
+.term-welcome code { color: #e5e5ea; }
+.term-entry { margin-bottom: 10px; }
+.term-prompt { color: #7d7aff; white-space: nowrap; }
+.term-command { color: #fff; white-space: pre-wrap; word-break: break-all; }
+.term-out { margin: 2px 0 0; white-space: pre-wrap; word-break: break-word; font: inherit; color: #d1d1d6; }
+.term-note { color: #98989f; }
+.term-exit { color: #ff6961; }
+.term-entry[data-failed] .term-command { color: #ffb4ae; }
+.term-input { display: flex; align-items: center; gap: 8px; padding: 8px 16px 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.term-input input[aria-label="Command"] { flex: 1; min-width: 0; border: 0; background: none; color: #fff; font: inherit; outline: none; }
+.term-keep { display: inline-flex; align-items: center; gap: 4px; color: #98989f; font: var(--fs-xs) / 1 system-ui, sans-serif; white-space: nowrap; }
+.term-places, .term-procs { list-style: none; margin: 0; padding: 0 var(--sp-2); display: flex; flex-direction: column; gap: 1px; }
+.term-place { width: 100%; height: 28px; padding: 0 8px; text-align: left; color: inherit; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.term-place[data-within] { padding-left: 22px; }
+.term-procs li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 2px 0; }
+.term-proc { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; color: inherit; text-align: left; font-size: var(--fs-xs); }
+.term-proc code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.term-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.term-procs li[data-running] .term-dot { background: var(--success, #34c759); }
+.term-state { color: var(--muted); }
+.term-proc-out { width: 100%; max-height: 180px; overflow: auto; margin: 0; padding: 6px 8px; border-radius: 6px; background: #1c1c1e; color: #d1d1d6; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+.term-hint { padding: 0 var(--sp-3); }
 
 /* Database: databases and their tables on the left; a statement and its rows. */
 .db-list { list-style: none; margin: 0; padding: 0 var(--sp-2); display: flex; flex-direction: column; gap: 1px; overflow-y: auto; }

@@ -556,6 +556,16 @@ export interface MobiusBridge {
   /** The Research app: reports kept like documents, as Markdown in `research/<folder>/<report>.md`. Only the Tauri shell has it. */
   research?: NonNullable<MobiusBridge['notes']>;
   /** The Reader app: articles kept to read later, as Markdown in `reading/<folder>/<article>.md`, and fetching one. */
+  /** The Terminal app: the person's commands in a folder of the workspace (`cwd`, from the workspace with `/`). */
+  terminal?: {
+    places(): Promise<{ cwd: string; name: string; within?: string }[]>;
+    /** Where `cd target` leads from `cwd`. */
+    resolve(cwd: string, target: string): Promise<{ ok: true; cwd: string } | NotesFailure>;
+    run(cwd: string, command: string): Promise<(CodeTestRun & { cwd: string }) | NotesFailure>;
+    start(cwd: string, command: string): Promise<{ id: number } | NotesFailure>;
+    processes(): Promise<CodeProcess[]>;
+    stop(id: number): Promise<unknown>;
+  };
   databases?: {
     list(): Promise<DbInfo[]>;
     create(name: string): Promise<{ ok: true; name: string } | NotesFailure>;

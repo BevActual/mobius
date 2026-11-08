@@ -9,6 +9,7 @@ pub mod code_git;
 pub mod code_processes;
 pub mod web;
 pub mod database;
+pub mod terminal;
 pub mod turn_history;
 pub mod schedules;
 pub mod calendar_accounts;

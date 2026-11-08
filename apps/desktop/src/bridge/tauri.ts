@@ -390,6 +390,14 @@ export function createTauriBridge(): MobiusBridge {
       search: (query) => call('research', 'search', [query], () => []),
       onChanged: (listener) => on<NotesChange>('mobius:research-changed', listener),
     },
+    terminal: {
+      places: () => call('terminal', 'places', [], () => []),
+      resolve: (cwd, target) => call('terminal', 'resolve', [cwd, target], () => ({ ok: false as const, message: 'Terminal is not available.' })),
+      run: (cwd, command) => call('terminal', 'run', [cwd, command], () => ({ ok: false as const, message: 'Terminal is not available.' })),
+      start: (cwd, command) => call('terminal', 'start', [cwd, command], () => ({ ok: false as const, message: 'Terminal is not available.' })),
+      processes: () => call('terminal', 'processes', [], () => []),
+      stop: (id) => call('terminal', 'stop', [id], () => null),
+    },
     databases: {
       list: () => call('databases', 'list', [], () => []),
       create: (name) => call('databases', 'create', [name], () => ({ ok: false as const, message: 'Database is not available.' })),

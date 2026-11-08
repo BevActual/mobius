@@ -449,6 +449,7 @@ impl Bridge {
             ("reading", "fetch") => Ok(crate::web::fetch_article(arg(0).as_str().unwrap_or("")).unwrap_or_else(|e| json!({ "ok": false, "message": e }))),
             ("reading", _) => Ok(self.notes_call(&self.reading, "mobius:reading-changed", method, args)),
             ("databases", _) => Ok(self.databases_call(method, args)),
+            ("terminal", _) => Ok(self.terminal_call(method, args)),
             ("sheets", _) => Ok(self.sheets_call(method, args)),
             ("code", _) => Ok(self.code_call(method, args)),
             ("photos", _) => Ok(self.photos_call(method, args)),
@@ -2020,6 +2021,37 @@ impl Bridge {
             },
             _ => return None,
         })
+    }
+
+    /// The Terminal app: the person's commands in a folder of the workspace, one line at a time, and ones that keep
+    /// running. Nothing here is the agent's: it has no tool for this app.
+    fn terminal_call(&self, method: &str, args: &[Value]) -> Value {
+        const KEY: &str = ":terminal";
+        let text = |i: usize| args.get(i).and_then(Value::as_str).unwrap_or("");
+        let failed = |e: String| json!({ "ok": false, "message": e });
+        let root = self.data_dir.join("workspace");
+        let one_line = |c: &str| { let c = c.trim(); (!c.is_empty() && c.len() <= 2000 && !c.contains(['\n', '\r', '\0'])).then(|| c.to_owned()) };
+        match method {
+            "places" => json!(crate::terminal::places(&root)),
+            "resolve" => crate::terminal::resolve(&root, text(0), text(1)).map(|cwd| json!({ "ok": true, "cwd": cwd })).unwrap_or_else(failed),
+            "run" => match (crate::terminal::resolve(&root, text(0), ""), one_line(text(1))) {
+                (Ok(cwd), Some(command)) => {
+                    let mut result = crate::code_tests::run(&crate::terminal::dir(&root, &cwd), &command, crate::code_tests::COMMAND_TIMEOUT);
+                    result["cwd"] = json!(cwd);
+                    result
+                }
+                (Err(e), _) => failed(e),
+                (_, None) => failed("a command is one line".into()),
+            },
+            "start" => match (crate::terminal::resolve(&root, text(0), ""), one_line(text(1))) {
+                (Ok(cwd), Some(command)) => self.processes.start(&crate::terminal::dir(&root, &cwd), KEY, &command, "person").unwrap_or_else(failed),
+                (Err(e), _) => failed(e),
+                (_, None) => failed("a command is one line".into()),
+            },
+            "processes" => self.processes.list(KEY),
+            "stop" => args.first().and_then(Value::as_u64).map_or_else(|| failed("which one?".into()), |id| self.processes.stop(id).unwrap_or_else(failed)),
+            _ => failed("unknown call".into()),
+        }
     }
 
     /// The Database app: databases in `databases/`, their tables, and the person's queries.

@@ -103,6 +103,9 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
   the Browser menu), with where each came from, text size and typeface, and Done reading moving it to Archive.
 - **Database** (`databases/<name>.sqlite`): CSV files imported as tables, any SQL statement of the person's with the
   rows in a grid; Mobius reads with `db.query` on a read-only connection and changes data only with `db.execute`.
+- **Terminal**: the person's commands in a folder of the workspace, one line at a time, `cd` kept inside it, history
+  on the arrow keys, and commands that keep running listed with their output and a Stop. Mobius has no tool for it; it
+  explains output when asked, with the last output attached.
 - **Canvas** (`boards/<folder>/*.json`): a whiteboard of stickies, shapes, text, arrows joining them and pen lines,
   one item per line in the file; sorting into themes or a flowchart from Mobius shows dashed until kept.
 - **Photo** (`photos/<album>/`): pictures never changed; adjustment layers to all or part of each, in

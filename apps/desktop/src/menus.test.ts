@@ -32,6 +32,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
       research: { newResearch: noop, newFolder: noop },
       reader: { newList: noop },
       database: { newDatabase: noop, importCsv: noop },
+      terminal: { clear: noop },
       code: { newProject: noop, newFile: noop, save: noop, runTests: noop },
       sheets: { newWorkbook: noop, newSheet: noop, insertRow: noop },
       mail: { newMessage: noop, getMail: noop },

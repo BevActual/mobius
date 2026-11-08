@@ -22,7 +22,7 @@ export interface SurfaceState {
   /** A web page is showing in the browser. */
   hasPage: boolean;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
-  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' } | null;
+  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' | 'terminal' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
@@ -130,6 +130,13 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Tidy the spacing', prompt: 'Line up the layers in this design on an 8-point grid with even spacing, changing only x, y, w and h. Keep every id.', attach: 'note' },
           ]
         : [{ label: 'Sketch a screen', prompt: 'Make a design in my Design app, a phone-sized frame, for ' }];
+    case 'terminal':
+      return state.note
+        ? [
+            { label: 'Explain this', prompt: 'Explain what the attached terminal output says, in plain words. If it is an error, say what most likely caused it and what to try, as commands I can type.', attach: 'note' },
+            { label: 'What next?', prompt: 'Looking at the attached terminal output, what should I run next to get where I seem to be going? Give the commands and say what each does.', attach: 'note' },
+          ]
+        : [{ label: 'How do I…', prompt: 'Give me the terminal commands to ' }];
     case 'database':
       return state.note
         ? [
@@ -196,7 +203,7 @@ export function databaseOutline(name: string, tables: { name: string; rows: numb
 }
 
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' }): ContextItem {
+export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' | 'terminal' }): ContextItem {
   return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 
