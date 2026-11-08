@@ -438,6 +438,7 @@ fn main() {
             let bridge = Arc::new(Bridge::new(core.clone(), data_dir.clone(), emit, secret_store));
             let _ = slot.set(bridge.clone());
             bridge.start_models();
+            bridge.start_schedules();
             // The core may have become ready before the bridge existed.
             bridge.on_core_status(core.status());
             if test_mode && let Ok(url) = std::env::var("MOBIUS_AGENT_URL") {

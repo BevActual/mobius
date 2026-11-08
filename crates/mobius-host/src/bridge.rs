@@ -154,6 +154,8 @@ pub struct Bridge {
     tasks: mobius_workspace::tasks::Tasks,
     /// What Mobius remembers about the person between conversations.
     memory: crate::memory::Memory,
+    /// Requests to make at times of day.
+    schedules: crate::schedules::Schedules,
     providers: crate::providers::Providers,
     /// The Claude Code CLI to use; tests set a fake one.
     claude_command: Mutex<Option<PathBuf>>,
@@ -230,6 +232,7 @@ impl Bridge {
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             memory: crate::memory::Memory::new(data_dir.join("memory.md")),
+            schedules: crate::schedules::Schedules::open(data_dir.join("schedules.json")),
             data_dir,
             emit,
         }
@@ -252,6 +255,35 @@ impl Bridge {
 
             ("appearance", "get") => Ok(lock(&self.appearance).get()),
             ("appearance", "set") => Ok(self.change(&self.appearance, "appearance", arg(0))),
+            ("schedules", "list") => Ok(json!(self.schedules.list())),
+            ("schedules", "add") => Ok(match self.schedules.add(arg(0)) {
+                Ok(s) => {
+                    (self.emit)("mobius:schedules-changed", Value::Null);
+                    json!({ "ok": true, "schedule": s })
+                }
+                Err(e) => failed(e),
+            }),
+            ("schedules", "update") => Ok(match arg(0).as_str().map(|id| self.schedules.update(id, arg(1))) {
+                Some(Ok(s)) => {
+                    (self.emit)("mobius:schedules-changed", Value::Null);
+                    json!({ "ok": true, "schedule": s })
+                }
+                Some(Err(e)) => failed(e),
+                None => failed("That schedule is gone."),
+            }),
+            ("schedules", "remove") => {
+                if arg(0).as_str().is_some_and(|id| self.schedules.remove(id)) {
+                    (self.emit)("mobius:schedules-changed", Value::Null);
+                }
+                Ok(Value::Null)
+            }
+            ("schedules", "runNow") => Ok(match arg(0).as_str().and_then(|id| self.schedules.get_for_run(id)) {
+                Some(schedule) => {
+                    (self.emit)("mobius:schedules-changed", Value::Null);
+                    self.run_schedule(&schedule)
+                }
+                None => failed("That schedule is gone."),
+            }),
             ("memory", "list") => Ok(json!(self.memory.list())),
             ("memory", "forget") => Ok(match arg(0).as_str().map(|t| self.memory.forget(t)) {
                 Some(Ok(_)) => {
@@ -876,6 +908,56 @@ impl Bridge {
     }
 
     /// Tells the core about the tools this application runs. Called each time the core becomes ready.
+    /// Starts one scheduled request: a new conversation, reviewable like any turn. Says which conversation it is.
+    fn run_schedule(&self, schedule: &crate::schedules::Schedule) -> Value {
+        let conversation = crate::schedules::conversation_for_run();
+        let Some(request) = agent::parse_send(&json!({ "conversation": conversation, "text": schedule.prompt })) else {
+            return failed("That request cannot be sent.");
+        };
+        match self.workspace.mark("before a scheduled request") {
+            Ok(Some(mark)) => {
+                let mut marks = lock(&self.turn_marks);
+                marks.insert(conversation.clone(), mark);
+                mobius_store::file::write_json(&self.data_dir.join("turn-marks.json"), &json!(*marks));
+            }
+            Ok(None) => {}
+            Err(error) => eprintln!("[changes] no mark before the scheduled request: {error}"),
+        }
+        let result = self.agent.send_remembering(&request, None, &self.memory.instructions());
+        if result["ok"] == json!(true) {
+            (self.emit)("mobius:schedule-ran", json!({ "id": schedule.id, "title": schedule.title, "conversation": conversation }));
+            json!({ "ok": true, "conversation": conversation })
+        } else {
+            result
+        }
+    }
+
+    /// Runs what is due now. Called every half minute; does nothing until the core is ready.
+    pub fn run_due_schedules(&self) {
+        if self.core.status() != Status::Ready || !self.agent.settings()["configured"].as_bool().unwrap_or(false) {
+            return;
+        }
+        let due = self.schedules.take_due(&chrono::Local::now());
+        if !due.is_empty() {
+            (self.emit)("mobius:schedules-changed", Value::Null);
+        }
+        for schedule in due {
+            self.run_schedule(&schedule);
+        }
+    }
+
+    /// Checks the schedules every half minute for as long as the bridge lives.
+    pub fn start_schedules(self: &Arc<Self>) {
+        let weak = Arc::downgrade(self);
+        std::thread::spawn(move || {
+            while let Some(bridge) = weak.upgrade() {
+                bridge.run_due_schedules();
+                drop(bridge);
+                std::thread::sleep(Duration::from_secs(30));
+            }
+        });
+    }
+
     fn register_tools(&self) {
         for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(crate::memory::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));

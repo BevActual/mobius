@@ -46,6 +46,8 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   busy.current = state.busy;
   const active = useRef(id);
   active.current = id;
+  const stateNow = useRef(state);
+  stateNow.current = state;
   botRef.current = botOfConversation(id, knownBots);
 
   const refresh = useCallback(async () => {
@@ -57,6 +59,13 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
       window.mobius.agent.onNotification((notification) => {
         dispatch({ type: 'notification', notification });
         if (notification.method === 'agent.event' && ['done', 'failed', 'cancelled', 'needs_approval', 'tool_result', 'question'].includes(notification.params.event.kind)) void refresh();
+        // A turn started elsewhere (a schedule, Little Mobius) was opened while it ran, before its request was saved:
+        // once it ends, read it again so the request shows above the reply.
+        const ended = notification.method === 'agent.event' && ['done', 'failed', 'cancelled'].includes(notification.params.event.kind);
+        if (ended && notification.params.conversation === active.current && !stateNow.current.items.some((item) => item.kind === 'user')) {
+          const id = active.current;
+          void window.mobius.agent.history(id).then((messages) => { if (active.current === id) dispatch({ type: 'loaded', messages }); });
+        }
       }),
     [refresh],
   );

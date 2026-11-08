@@ -196,6 +196,16 @@ export interface MobiusBridge {
     /** Says when Little Mobius opens or closes. */
     onChange(listener: (open: boolean) => void): () => void;
   };
+  /** Requests to make at a time of day, on chosen days. Each run is a new conversation. */
+  schedules?: {
+    list(): Promise<ScheduleInfo[]>;
+    add(draft: ScheduleDraft): Promise<{ ok: true; schedule: ScheduleInfo } | AgentFailure>;
+    update(id: string, draft: ScheduleDraft): Promise<{ ok: true; schedule: ScheduleInfo } | AgentFailure>;
+    remove(id: string): Promise<void>;
+    /** Runs it now; says which conversation it started. */
+    runNow(id: string): Promise<{ ok: true; conversation: string } | AgentFailure>;
+    onChange(listener: () => void): () => void;
+  };
   /** What Mobius remembers about the person between conversations. */
   memory?: {
     list(): Promise<string[]>;
@@ -849,6 +859,9 @@ export interface PreferencesSettings {
   /** How much the agent may do in each app without asking: off, ask (the usual), read, or act. Risky actions still ask. */
   appAccess: AppAccess;
 }
+/** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
+export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean }
+export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
 export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel>;
 export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', tasks: 'ask' };

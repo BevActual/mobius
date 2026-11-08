@@ -3,7 +3,7 @@ import { SETTINGS, findSection, searchSettings, settingPath } from './manifest';
 
 describe('the settings map', () => {
   it('has the sections in a fixed order, each with at least one subpage', () => {
-    expect(SETTINGS.map((s) => s.id)).toEqual(['appearance', 'model', 'providers', 'safety', 'browser', 'notifications', 'sessions', 'keyboard', 'advanced', 'about']);
+    expect(SETTINGS.map((s) => s.id)).toEqual(['appearance', 'model', 'providers', 'safety', 'browser', 'schedules', 'notifications', 'sessions', 'keyboard', 'advanced', 'about']);
     for (const section of SETTINGS) {
       expect(section.label).not.toBe('');
       expect(section.subpages.length).toBeGreaterThan(0);

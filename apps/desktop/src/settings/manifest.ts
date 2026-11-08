@@ -1,4 +1,4 @@
-export type SectionId = 'appearance' | 'model' | 'providers' | 'safety' | 'browser' | 'notifications' | 'sessions' | 'keyboard' | 'advanced' | 'about';
+export type SectionId = 'appearance' | 'model' | 'providers' | 'safety' | 'schedules' | 'browser' | 'notifications' | 'sessions' | 'keyboard' | 'advanced' | 'about';
 
 export interface SettingRow {
   id: string;
@@ -120,6 +120,16 @@ export const SETTINGS: readonly SettingsSection[] = [
       { id: 'history', label: 'History', rows: [
         row('keep-history', 'Keep browsing history', 'Remember the pages you visit, on this computer only.', 'browsing history', 'remember', 'pages visited', 'privacy', 'off'),
         row('history-list', 'Pages you visited', 'Search the pages you visited, remove one, or clear them all.', 'browsing history', 'clear history', 'search history', 'delete', 'visited'),
+      ] },
+    ],
+  },
+  {
+    id: 'schedules',
+    label: 'Schedules',
+    description: 'Things to ask Mobius at a time of day.',
+    subpages: [
+      { id: 'scheduled', label: 'Scheduled', rows: [
+        row('schedules', 'Scheduled requests', 'Ask Mobius something at a time of day, on the days you choose. Each run is a new conversation, and it asks before acting as usual.', 'schedule', 'cron', 'every day', 'weekdays', 'morning brief', 'daily', 'recurring', 'automation', 'timer'),
       ] },
     ],
   },

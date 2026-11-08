@@ -107,6 +107,14 @@ export function createTauriBridge(): MobiusBridge {
       setOnTop: (onTop) => call('mini', 'setOnTop', [onTop], () => null).then(() => undefined),
       onChange: (listener) => on<boolean>('mobius:mini', listener, () => call('mini', 'isOpen', [], () => false)),
     },
+    schedules: {
+      list: () => call('schedules', 'list', [], () => []),
+      add: (draft) => call('schedules', 'add', [draft], () => refused),
+      update: (id, draft) => call('schedules', 'update', [id, draft], () => refused),
+      remove: (id) => call('schedules', 'remove', [id], () => null).then(() => undefined),
+      runNow: (id) => call('schedules', 'runNow', [id], () => refused),
+      onChange: (listener) => on<null>('mobius:schedules-changed', () => listener()),
+    },
     memory: {
       list: () => call<string[]>('memory', 'list', [], () => []),
       forget: (text) => call('memory', 'forget', [text], () => refused),

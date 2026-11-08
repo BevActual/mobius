@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { SETTINGS, findSection, searchSettings, type SectionId } from './manifest';
 import { AboutSection, AdvancedSection, AppearanceSection, BrowserSection, KeyboardSection, NotificationsSection, ModelSection, SafetySection, SessionsSection, type SectionProps } from './sections';
 import { ProvidersSection } from './ProviderKeys';
+import { SchedulesSection } from './Schedules';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
 
@@ -10,6 +11,7 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   model: ModelSection,
   providers: ProvidersSection,
   safety: SafetySection,
+  schedules: SchedulesSection,
   browser: BrowserSection,
   notifications: NotificationsSection,
   sessions: SessionsSection,

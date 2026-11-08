@@ -450,6 +450,20 @@ mod browser {
     }
 
     #[test]
+    fn schedules_are_added_checked_changed_and_removed_through_the_bridge() {
+        let (b, _core, _e, _d) = bridge_in(tempfile::tempdir().unwrap());
+        let made = b.call("schedules", "add", &[json!({ "title": "Brief", "prompt": "Brief me on my tasks", "time": "08:00", "days": [1, 2, 3, 4, 5] })]).unwrap();
+        assert_eq!(made["ok"], json!(true));
+        let id = made["schedule"]["id"].as_str().unwrap().to_owned();
+        assert_eq!(b.call("schedules", "list", &[]).unwrap()[0]["title"], "Brief");
+        assert_eq!(b.call("schedules", "add", &[json!({ "title": "x", "prompt": "y", "time": "8", "days": [1] })]).unwrap()["ok"], json!(false));
+        let changed = b.call("schedules", "update", &[json!(id), json!({ "title": "Brief", "prompt": "Brief me", "time": "09:30", "days": [6, 7], "enabled": false })]).unwrap();
+        assert_eq!((changed["schedule"]["time"].clone(), changed["schedule"]["enabled"].clone()), (json!("09:30"), json!(false)));
+        b.call("schedules", "remove", &[json!(id)]).unwrap();
+        assert_eq!(b.call("schedules", "list", &[]).unwrap(), json!([]));
+    }
+
+    #[test]
     fn what_mobius_remembers_is_added_to_every_turn_and_can_be_forgotten() {
         let dir = tempfile::tempdir().unwrap();
         let (b, _core, _e, _d) = bridge_in(dir);

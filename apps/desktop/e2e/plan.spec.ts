@@ -165,3 +165,26 @@ test('Mobius asks before remembering, uses what it remembers next time, and it c
   await expect(page).toContainText('Nothing yet');
   expect(fs.readFileSync(path.join(userData, 'memory.md'), 'utf8')).not.toContain('boutique');
 });
+
+test('a schedule is made in Settings, kept, and Run now starts it as a conversation of its own', async () => {
+  await start([says(['Start with the invoices.'])]);
+  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  const page = shell().getByRole('region', { name: 'Settings' });
+  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Schedules', exact: true }).click();
+  await page.getByRole('button', { name: 'New schedule…' }).click();
+  const form = page.getByRole('form', { name: 'Schedule' });
+  await form.getByLabel('Name').fill('Morning brief');
+  await form.getByLabel('What to ask').fill('What should I do first today?');
+  await form.getByRole('button', { name: 'Saturday' }).click();
+  await form.getByRole('button', { name: 'Save' }).click();
+  const list = page.getByRole('list', { name: 'Schedules' });
+  await expect(list).toContainText('Morning brief');
+  await expect(list).toContainText('Mon, Tue, Wed, Thu, Fri, Sat at 08:00');
+  const saved = JSON.parse(fs.readFileSync(path.join(userData, 'schedules.json'), 'utf8')) as Array<{ title: string; days: number[] }>;
+  expect(saved[0]).toMatchObject({ title: 'Morning brief', days: [1, 2, 3, 4, 5, 6] });
+  await list.getByRole('button', { name: 'Run now' }).click();
+  await expect(page).toHaveCount(0);
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Start with the invoices.');
+  await expect(log().locator('.msg.user')).toHaveText('What should I do first today?');
+  expect(JSON.stringify(model!.requests[0])).toContain('What should I do first today?');
+});

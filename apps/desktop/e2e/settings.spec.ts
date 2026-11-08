@@ -66,7 +66,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   await start([]);
   await openSettings();
   const nav = page().getByRole('navigation', { name: 'Settings sections' });
-  await expect(nav.getByRole('button')).toHaveText(['Appearance', 'Model', 'Providers', 'Safety', 'Browser', 'Notifications', 'Conversations', 'Keyboard', 'Advanced', 'About']);
+  await expect(nav.getByRole('button')).toHaveText(['Appearance', 'Model', 'Providers', 'Safety', 'Browser', 'Schedules', 'Notifications', 'Conversations', 'Keyboard', 'Advanced', 'About']);
   await go('Safety');
   await expect(page().getByRole('tab')).toHaveText(['Approvals', 'Memory', 'Activity', 'Privacy']);
   await go('Model');
