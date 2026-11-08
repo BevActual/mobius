@@ -1550,6 +1550,60 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .code-mark { color: var(--warning); font: 700 10px/1 ui-monospace, Menlo, Consolas, monospace; }
 .code-side { display: flex; flex-direction: column; }
 
+/* Canvas: a whiteboard of stickies, shapes, text, arrows and pen lines on a dotted ground; Mobius's changes dashed. */
+.stage .canvas-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.canvas-page.empty { align-items: center; justify-content: center; padding: var(--sp-6); }
+.canvas-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 10px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; flex-shrink: 0; }
+.canvas-bar > * { flex-shrink: 0; }
+.canvas-bar-gap { flex: 1; }
+.canvas-tools { display: flex; gap: 2px; padding: 2px; border-radius: var(--radius-control); background: var(--field); }
+.canvas-tool { width: 30px; height: 28px; display: grid; place-items: center; border-radius: 6px; color: var(--muted); }
+.canvas-tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.canvas-tool:hover { color: var(--ink); }
+.canvas-tool[aria-checked="true"] { background: var(--bg); color: var(--accent); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.canvas-colours { display: flex; gap: 4px; align-items: center; }
+.canvas-swatch { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid; padding: 0; }
+.canvas-swatch[aria-checked="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
+.canvas-shape, .canvas-label { height: 28px; padding: 0 8px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
+.canvas-label { width: 120px; }
+.canvas-count { color: var(--muted); font-size: var(--fs-sm); }
+.canvas-view { position: relative; flex: 1; min-height: 0; overflow: hidden; outline: none; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; background-color: color-mix(in srgb, var(--ink) 3%, var(--bg)); background-image: radial-gradient(circle, color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 1.2px); }
+.canvas-page[data-tool="sticky"] .canvas-view, .canvas-page[data-tool="shape"] .canvas-view, .canvas-page[data-tool="text"] .canvas-view, .canvas-page[data-tool="pen"] .canvas-view, .canvas-page[data-tool="arrow"] .canvas-view { cursor: crosshair; }
+.canvas-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.canvas-lines { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.canvas-lines marker path { fill: var(--ink); }
+.canvas-arrow { stroke: var(--ink); stroke-width: 2; fill: none; }
+.canvas-arrow[data-selected] { stroke: var(--accent); stroke-width: 3; }
+.canvas-arrow[data-proposed] { stroke-dasharray: 6 4; stroke: var(--accent); }
+.canvas-arrow[data-drawing] { stroke: var(--accent); stroke-dasharray: 4 4; }
+.canvas-ink { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.canvas-ink[data-selected] { filter: drop-shadow(0 0 2px var(--accent)); }
+.canvas-ink[data-proposed] { stroke-dasharray: 6 5; }
+.canvas-hit { position: absolute; border-radius: 6px; cursor: move; }
+.canvas-hit[data-selected] { outline: 1.5px dashed var(--accent); }
+.canvas-arrow-label { position: absolute; transform: translate(-50%, -50%); padding: 1px 6px; border-radius: 6px; background: var(--bg); color: var(--ink); font-size: 13px; white-space: nowrap; cursor: pointer; border: 1px solid transparent; }
+.canvas-arrow-label[data-empty] { width: 14px; height: 14px; padding: 0; border-radius: 50%; background: transparent; }
+.canvas-arrow-label[data-empty]:hover, .canvas-arrow-label[data-empty][data-selected] { background: var(--accent); }
+.canvas-arrow-label[data-selected] { border-color: var(--accent); }
+.canvas-item { position: absolute; display: flex; align-items: center; justify-content: center; padding: 12px; cursor: default; user-select: none; color: #1d1d1f; font-size: 16px; line-height: 1.3; }
+.canvas-item[data-type="sticky"] { align-items: flex-start; justify-content: flex-start; background: var(--item-fill); border-radius: 3px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 6px 14px rgba(0, 0, 0, 0.08); }
+.canvas-item[data-type="shape"] { background: var(--item-fill); border: 2px solid var(--item-edge); border-radius: 10px; text-align: center; }
+.canvas-item[data-shape="ellipse"] { border-radius: 50%; }
+.canvas-item[data-shape="diamond"] { background: none; border: 0; }
+.canvas-diamond { position: absolute; inset: 0; width: 100%; height: 100%; }
+.canvas-diamond path { fill: var(--item-fill); stroke: var(--item-edge); stroke-width: 2; }
+.canvas-item[data-type="text"] { justify-content: flex-start; padding: 0 4px; color: var(--ink); font-weight: 600; line-height: 1.2; }
+.canvas-text { position: relative; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; max-height: 100%; }
+.canvas-item[data-selected] { outline: 2px solid var(--accent); outline-offset: 2px; cursor: move; }
+.canvas-item[data-proposed] { outline: 2px dashed var(--accent); outline-offset: 3px; }
+.canvas-edit { user-select: text; -webkit-user-select: text; position: relative; width: 100%; height: 100%; border: 0; padding: 0; margin: 0; resize: none; background: transparent; color: inherit; font: inherit; text-align: inherit; outline: none; }
+.canvas-handle { position: absolute; background: #fff; border: 1px solid var(--accent); border-radius: 2px; cursor: nwse-resize; }
+.canvas-marquee { position: absolute; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; }
+.canvas-empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; color: var(--muted); pointer-events: none; }
+.canvas-empty p { margin: 2px 0; }
+.canvas-hint { position: absolute; left: 12px; bottom: 10px; color: var(--muted); font-size: var(--fs-xs); pointer-events: none; }
+.canvas-review { z-index: 2; }
+
 /* Design: frames on a canvas, layers on the left, an inspector on the right; Mobius's changes dashed. */
 .stage .design-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
 .design-page.empty { align-items: center; justify-content: center; padding: var(--sp-6); }

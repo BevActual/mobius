@@ -369,6 +369,16 @@ export function createTauriBridge(): MobiusBridge {
       search: (query) => call('designs', 'search', [query], () => []),
       onChanged: (listener) => on<NotesChange>('mobius:designs-changed', listener),
     },
+    boards: {
+      list: () => call('boards', 'list', [], () => []),
+      read: (path) => call('boards', 'read', [path], () => ({ ok: false as const, message: 'Canvas is not available.' })),
+      save: (path, content, base) => call('boards', 'save', [path, content, base], () => ({ ok: false as const, message: 'Canvas is not available.' })),
+      createNotebook: (name) => call('boards', 'createNotebook', [name], () => ({ ok: false as const, message: 'Canvas is not available.' })),
+      createPage: (notebook, title) => call('boards', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Canvas is not available.' })),
+      remove: (path) => call('boards', 'remove', [path], () => ({ ok: false as const, message: 'Canvas is not available.' })),
+      search: (query) => call('boards', 'search', [query], () => []),
+      onChanged: (listener) => on<NotesChange>('mobius:boards-changed', listener),
+    },
     songs: {
       list: () => call('songs', 'list', [], () => []),
       read: (path) => call('songs', 'read', [path], () => ({ ok: false as const, message: 'Studio is not available.' })),

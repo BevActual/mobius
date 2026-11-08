@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnChanges, TurnRecord } from '@mobius/shared';
 
 /** How a workspace path reads to a person: notes and task lists by name, other files by their path. */
-export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' | 'Tasks' | 'Calendar' | 'Code' | 'Design' | 'Photo' | 'Song' | 'Cut' | 'Skill' | 'File'; name: string } {
+export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' | 'Tasks' | 'Calendar' | 'Code' | 'Design' | 'Board' | 'Photo' | 'Song' | 'Cut' | 'Skill' | 'File'; name: string } {
   const strip = (p: string) => p.replace(/\.md$/i, '');
   if (path.startsWith('notes/')) return { kind: 'Note', name: strip(path.slice('notes/'.length)).replace('/', ' / ') };
   if (path.startsWith('docs/')) return { kind: 'Doc', name: strip(path.slice('docs/'.length)).replace('/', ' / ') };
@@ -14,6 +14,7 @@ export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 
   if (path.startsWith('studio/')) return { kind: 'Song', name: path.slice('studio/'.length).replace(/\.json$/i, '').replace('/', ' / ') };
   if (path.startsWith('photos/')) return { kind: 'Photo', name: path.slice('photos/'.length).replace(/\.edits\.json$/i, '').replace('/', ' / ') };
   if (path.startsWith('designs/')) return { kind: 'Design', name: path.slice('designs/'.length).replace(/\.json$/i, '').replace('/', ' / ') };
+  if (path.startsWith('boards/')) return { kind: 'Board', name: path.slice('boards/'.length).replace(/\.json$/i, '').replace('/', ' / ') };
   if (path.startsWith('code/')) return { kind: 'Code', name: path.slice('code/'.length).replace('/', ' › ') };
   if (path.startsWith('calendar/')) return { kind: 'Calendar', name: path.slice('calendar/'.length).replace(/\.ics$/i, '') };
   return { kind: 'File', name: path };

@@ -22,7 +22,7 @@ export interface SurfaceState {
   /** A web page is showing in the browser. */
   hasPage: boolean;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
-  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' } | null;
+  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
@@ -130,6 +130,15 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Tidy the spacing', prompt: 'Line up the layers in this design on an 8-point grid with even spacing, changing only x, y, w and h. Keep every id.', attach: 'note' },
           ]
         : [{ label: 'Sketch a screen', prompt: 'Make a design in my Design app, a phone-sized frame, for ' }];
+    case 'canvas':
+      return state.note
+        ? [
+            { label: 'Sort into themes', prompt: 'Group the stickies on this board into a few themes: move each sticky under a text heading for its theme, laid out in columns, and colour each theme its own colour. Keep every id and every sticky\'s text; add headings as new text items.', attach: 'note' },
+            { label: 'Turn into a flowchart', prompt: 'Turn what is on this board into a flowchart: shapes for the steps (diamonds for decisions), joined by arrows in order, laid out top to bottom. Keep the ids of what you reuse; give new items new ids.', attach: 'note' },
+            { label: 'Summarise the board', prompt: 'Summarise this board in a few short paragraphs: the main themes, what was decided and what is still open. Change nothing on the board.', attach: 'note' },
+            { label: 'Add ideas', prompt: 'Add six more stickies with new ideas to this board, near the others and in the same style. Keep everything already there as it is.', attach: 'note' },
+          ]
+        : [{ label: 'Start a board', prompt: 'Make a board in my Canvas, with stickies laid out in columns, for ' }];
     case 'code':
       return state.code
         ? [
@@ -157,7 +166,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
 }
 
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' }): ContextItem {
+export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' }): ContextItem {
   return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
 

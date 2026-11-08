@@ -25,7 +25,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'studio', name: 'Studio', available: true, group: 'Create' },
   { id: 'video', name: 'Video', available: true, group: 'Create' },
   { id: 'code', name: 'Code', available: true, group: 'Create' },
-  { id: 'canvas', name: 'Canvas', available: false, group: 'Create' },
+  { id: 'canvas', name: 'Canvas', available: true, group: 'Create' },
   { id: 'review', name: 'Review', available: false, group: 'Review' },
 ];
 

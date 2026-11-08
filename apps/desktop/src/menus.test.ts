@@ -28,6 +28,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
       studio: { newSong: noop, play: noop },
       photo: { newAlbum: noop, export: noop },
       design: { newDesign: noop, newFolder: noop },
+      canvas: { newBoard: noop, newFolder: noop, newSticky: noop },
       code: { newProject: noop, newFile: noop, save: noop, runTests: noop },
       sheets: { newWorkbook: noop, newSheet: noop, insertRow: noop },
       mail: { newMessage: noop, getMail: noop },
