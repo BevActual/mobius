@@ -48,7 +48,7 @@ pub fn resolve(root: &Path, cwd: &str, target: &str) -> Result<String, String> {
 /// The folders worth jumping to: the workspace's own and, in `code/`, each project.
 pub fn places(root: &Path) -> Vec<Value> {
     let mut out = vec![json!({ "cwd": "", "name": "Workspace" })];
-    let mut folders = |within: &str| -> Vec<String> {
+    let folders = |within: &str| -> Vec<String> {
         let mut names: Vec<String> = std::fs::read_dir(dir(root, within))
             .map(|r| r.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_dir())).filter_map(|e| e.file_name().to_str().map(str::to_owned)).filter(|n| !n.starts_with('.')).collect())
             .unwrap_or_default();
