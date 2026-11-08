@@ -175,6 +175,32 @@ export function moveItem(item: BoardItem, dx: number, dy: number): void {
   else if (item.type === 'ink') item.points = item.points.map(([x, y]) => [x + dx, y + dy]);
 }
 
+/**
+ * Copies of `items` added to the board, moved by dx, dy, each with a new id; an arrow comes along only when both its
+ * ends do, joined to their copies. Gives the new ids.
+ */
+export function pasteItems(board: Board, items: readonly BoardItem[], dx: number, dy: number): string[] {
+  const ids = new Map<string, string>();
+  const made: string[] = [];
+  for (const it of items.filter((x) => x.type !== 'arrow')) {
+    const copy = structuredClone(it);
+    copy.id = freshItemId(board, it.type);
+    moveItem(copy, dx, dy);
+    board.items.push(copy);
+    ids.set(it.id, copy.id);
+    made.push(copy.id);
+  }
+  for (const it of items) {
+    if (it.type !== 'arrow') continue;
+    const from = ids.get(it.from), to = ids.get(it.to);
+    if (!from || !to) continue;
+    const id = freshItemId(board, 'arrow');
+    board.items.push({ ...it, id, from, to });
+    made.push(id);
+  }
+  return made;
+}
+
 /** Removes items and the arrows that joined them. */
 export function removeItems(board: Board, ids: ReadonlySet<string>): void {
   board.items = board.items.filter((x) => !ids.has(x.id) && !(x.type === 'arrow' && (ids.has(x.from) || ids.has(x.to))));

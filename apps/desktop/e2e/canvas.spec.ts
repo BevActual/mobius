@@ -106,6 +106,11 @@ test('a board is stickies, shapes and arrows: added, written on, moved, joined, 
   await expect.poll(() => saved().items.map((x) => x.id)).toEqual(['s1', 's2', 'b1', 's3', 'a1']);
   await shell().keyboard.press('Control+Shift+z');
   await expect.poll(() => saved().items.map((x) => x.id)).toEqual(['s1', 'b1', 's3']);
+  // Copy and paste make a copy beside it.
+  await board().getByLabel('Sticky: Walkable').click();
+  await shell().keyboard.press('Control+c');
+  await shell().keyboard.press('Control+v');
+  await expect.poll(() => saved().items.filter((x) => x.text === 'Walkable').length).toBe(2);
 
   // Written on again with a double-click.
   await board().getByLabel('Shape: Book by Friday').dblclick();

@@ -5,7 +5,7 @@ import { useFileReview } from './useFileReview';
 import { useUndo } from './useUndo';
 import {
   BOARD_COLORS, COLOR_NAMES, arrowEnds, boardBounds, boundsOf, changedItems, freshItemId, isBoxed, itemsIn, moveItem, parseBoard, placeNew, removeItems, removedItems, thinPoints, writeBoard,
-  type Board, type BoardColor, type BoardItem, type Boxed, type Rect, type ShapeKind,
+  pasteItems, type Board, type BoardColor, type BoardItem, type Boxed, type Rect, type ShapeKind,
 } from './board-format';
 import type { NotesState } from './useNotes';
 
@@ -27,6 +27,9 @@ const TOOLS: { id: Tool; label: string; key: string; icon: ReactNode }[] = [
 ];
 const SHAPES: { id: ShapeKind; label: string }[] = [{ id: 'rect', label: 'Box' }, { id: 'ellipse', label: 'Oval' }, { id: 'diamond', label: 'Diamond' }];
 const NAMES: Record<BoardItem['type'], string> = { sticky: 'Sticky', shape: 'Shape', text: 'Text', arrow: 'Arrow', ink: 'Drawing' };
+
+/** Items copied on a board, to paste on this one or another; kept while Mobius is open. */
+let clipboard: { items: BoardItem[]; pasted: number } | null = null;
 
 type Gesture =
   | { kind: 'move'; ids: string[]; startX: number; startY: number; dx: number; dy: number }
@@ -205,18 +208,22 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
   };
   const duplicate = useCallback(() => {
     if (!board || !selected.length) return;
-    const copies: string[] = [];
-    change((b) => {
-      for (const it of board.items.filter((x) => selected.includes(x.id) && x.type !== 'arrow')) {
-        const copy = structuredClone(it);
-        copy.id = freshItemId(b, it.type);
-        moveItem(copy, 24, 24);
-        b.items.push(copy);
-        copies.push(copy.id);
-      }
-    });
+    let copies: string[] = [];
+    change((b) => { copies = pasteItems(b, board.items.filter((x) => selected.includes(x.id)), 24, 24); });
     setSelected(copies);
   }, [board, change, selected]);
+  const copy = useCallback(() => {
+    if (!board || !selected.length) return;
+    clipboard = { items: structuredClone(board.items.filter((x) => selected.includes(x.id))), pasted: 0 };
+  }, [board, selected]);
+  const paste = useCallback(() => {
+    if (!clipboard) return;
+    const held = clipboard;
+    held.pasted += 1;
+    let copies: string[] = [];
+    change((b) => { copies = pasteItems(b, held.items, 24 * held.pasted, 24 * held.pasted); });
+    setSelected(copies);
+  }, [change]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -232,6 +239,9 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
       }
       if (mod && e.key.toLowerCase() === 'a' && board) { e.preventDefault(); setSelected(board.items.map((x) => x.id)); return; }
       if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicate(); return; }
+      if (mod && e.key.toLowerCase() === 'c' && selected.length) { e.preventDefault(); copy(); return; }
+      if (mod && e.key.toLowerCase() === 'x' && selected.length) { e.preventDefault(); copy(); remove(); return; }
+      if (mod && e.key.toLowerCase() === 'v' && clipboard) { e.preventDefault(); paste(); return; }
       if (!mod && !e.altKey) {
         const picked = TOOLS.find((x) => x.key === e.key.toLowerCase());
         if (picked) { setTool(picked.id); return; }
@@ -248,7 +258,7 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, remove, nudge, duplicate, board, history]);
+  }, [selected, remove, nudge, duplicate, copy, paste, board, history]);
 
   if (!boards.page) return <section className="canvas-page empty" aria-label="Canvas"><p className="note-empty">Choose a board on the left, or make a new one.</p></section>;
   if (!board) {

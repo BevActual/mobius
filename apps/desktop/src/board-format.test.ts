@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { arrowEnds, boardBounds, boardOutline, changedItems, edgePoint, freshItemId, itemsIn, moveItem, parseBoard, placeNew, removeItems, removedItems, thinPoints, writeBoard, type Board } from './board-format';
+import { pasteItems, arrowEnds, boardBounds, boardOutline, changedItems, edgePoint, freshItemId, itemsIn, moveItem, parseBoard, placeNew, removeItems, removedItems, thinPoints, writeBoard, type Board } from './board-format';
 
 const SAMPLE = {
   version: 1,
@@ -59,6 +59,16 @@ describe('boards', () => {
     expect(boardBounds(b)).toEqual({ x: 0, y: -80, w: 600, h: 400 });
     expect(itemsIn(b, { x: -10, y: -10, w: 50, h: 50 })).toEqual(['s1']);
     expect(thinPoints([[0, 0], [1, 1], [5, 0], [6, 0]])).toEqual([[0, 0], [5, 0], [6, 0]]);
+  });
+
+  it('pastes copies with new ids, and arrows between them', () => {
+    const b = board();
+    const made = pasteItems(b, b.items.filter((x) => ['s1', 'b1', 'a1', 't1'].includes(x.id)), 24, 24);
+    expect(made).toEqual(['s2', 'b2', 't2', 'a2']);
+    expect(b.items.find((x) => x.id === 'a2')).toEqual({ id: 'a2', type: 'arrow', from: 's2', to: 'b2', text: '' });
+    expect(b.items.find((x) => x.id === 's2')).toMatchObject({ x: 24, y: 24, text: 'Walkable' });
+    // An arrow whose other end was not copied stays behind.
+    expect(pasteItems(b, b.items.filter((x) => x.id === 'a1' || x.id === 's1'), 0, 0)).toEqual(['s3']);
   });
 
   it('reads as an outline', () => {
