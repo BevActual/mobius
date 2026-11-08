@@ -126,6 +126,9 @@ export function createTauriBridge(): MobiusBridge {
     },
     memory: {
       list: () => call<string[]>('memory', 'list', [], () => []),
+      items: () => call('memory', 'items', [], () => []),
+      add: (text, category) => call('memory', 'add', [text, category], () => refused),
+      edit: (old, text, category) => call('memory', 'edit', [old, text, category], () => refused),
       forget: (text) => call('memory', 'forget', [text], () => refused),
       onChange: (listener) => on<null>('mobius:memory-changed', () => listener()),
     },

@@ -315,6 +315,18 @@ impl Bridge {
                 None => failed("That schedule is gone."),
             }),
             ("memory", "list") => Ok(json!(self.memory.list())),
+            ("memory", "items") => Ok(json!(self.memory.items().iter().map(crate::memory::Item::to_json).collect::<Vec<_>>())),
+            ("memory", "add" | "edit") => {
+                let s = |i: usize| arg(i).as_str().unwrap_or("");
+                let done = if method == "add" { self.memory.remember_with(s(0), s(1), "you added it") } else { self.memory.edit(s(0), s(1), s(2)) };
+                Ok(match done {
+                    Ok(_) => {
+                        (self.emit)("mobius:memory-changed", Value::Null);
+                        json!({ "ok": true })
+                    }
+                    Err(e) => failed(e),
+                })
+            }
             ("memory", "forget") => Ok(match arg(0).as_str().map(|t| self.memory.forget(t)) {
                 Some(Ok(_)) => {
                     (self.emit)("mobius:memory-changed", Value::Null);
