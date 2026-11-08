@@ -201,6 +201,21 @@ export function pasteItems(board: Board, items: readonly BoardItem[], dx: number
   return made;
 }
 
+/**
+ * Lines the chosen stickies, shapes and text up in a tidy grid, as FigJam's Tidy up does: in reading order (top to
+ * bottom, then left to right), starting where the top-left one was, as close to square as they go, `gap` apart.
+ */
+export function tidyItems(board: Board, ids: ReadonlySet<string>, gap = 24): void {
+  const items = board.items.filter((x): x is Boxed => isBoxed(x) && ids.has(x.id));
+  if (items.length < 2) return;
+  const rowOf = (y: number) => Math.round(y / 60);
+  items.sort((a, b) => rowOf(a.y) - rowOf(b.y) || a.x - b.x);
+  const x0 = Math.min(...items.map((i) => i.x)), y0 = Math.min(...items.map((i) => i.y));
+  const cols = Math.ceil(Math.sqrt(items.length));
+  const cellW = Math.max(...items.map((i) => i.w)) + gap, cellH = Math.max(...items.map((i) => i.h)) + gap;
+  items.forEach((item, n) => { item.x = x0 + (n % cols) * cellW; item.y = y0 + Math.floor(n / cols) * cellH; });
+}
+
 /** Removes items and the arrows that joined them. */
 export function removeItems(board: Board, ids: ReadonlySet<string>): void {
   board.items = board.items.filter((x) => !ids.has(x.id) && !(x.type === 'arrow' && (ids.has(x.from) || ids.has(x.to))));

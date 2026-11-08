@@ -124,6 +124,16 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone 
             <span className="research-gap" />
             <button type="button" className="btn" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>{editing ? 'Done' : 'Edit'}</button>
           </div>
+          {!waiting && sources.length > 0 && (
+            // As in Perplexity: where the answer comes from, at a glance, before reading it.
+            <div className="research-chips" aria-label="Sources at a glance">
+              {[...new Set(sources.map((s) => s.site))].slice(0, 4).map((site) => {
+                const first = sources.find((s) => s.site === site)!;
+                return <a key={site} className="research-chip" href={first.url} title={first.title} onClick={(e) => { e.preventDefault(); void window.mobius.browser.open(first.url); }}><span className="research-chip-dot" aria-hidden="true">{site.charAt(0).toUpperCase()}</span>{site}</a>;
+              })}
+              {new Set(sources.map((s) => s.site)).size > 4 && <span className="research-chip research-more">+{new Set(sources.map((s) => s.site)).size - 4}</span>}
+            </div>
+          )}
           {editing ? (
             <textarea className="research-edit" aria-label="Report text" spellCheck value={research.text} onChange={(e) => research.edit(e.target.value)} />
           ) : (

@@ -8,6 +8,8 @@ export type Inline =
   | { kind: 'text'; text: string }
   | { kind: 'strong'; children: Inline[] }
   | { kind: 'em'; children: Inline[] }
+  /** A highlight, `==like this==`, as Reader keeps them. */
+  | { kind: 'mark'; children: Inline[] }
   | { kind: 'code'; text: string }
   | { kind: 'link'; href: string; children: Inline[] }
   /** A fact marked with where it came from: `[8 people](trust:yours "Calendar · Offsite crew")`. */
@@ -42,6 +44,8 @@ export function parseInline(source: string): Inline[] {
     // A lone `_` inside a word (snake_case) is not emphasis.
     const em = /^(\*|_)(?=\S)([\s\S]*?\S)\1(?![\w*])/.exec(rest);
     if (em && !(em[1] === '_' && /\w$/.test(text))) { flush(); out.push({ kind: 'em', children: parseInline(em[2]!) }); i += em[0].length; continue; }
+    const mark = /^==(?=\S)([\s\S]*?\S)==/.exec(rest);
+    if (mark) { flush(); out.push({ kind: 'mark', children: parseInline(mark[1]!) }); i += mark[0].length; continue; }
     const claim = /^\[([^\]\n]+)\]\(trust:(yours|web|unsure)(?:\s+"([^"\n]*)")?\)/.exec(rest);
     if (claim) { flush(); out.push({ kind: 'claim', tier: claim[2] as 'yours' | 'web' | 'unsure', source: claim[3] ?? '', children: parseInline(claim[1]!) }); i += claim[0].length; continue; }
     const link = /^\[([^\]\n]+)\]\(([^)\s]+)\)/.exec(rest);

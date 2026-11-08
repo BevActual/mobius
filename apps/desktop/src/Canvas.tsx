@@ -5,7 +5,7 @@ import { useFileReview } from './useFileReview';
 import { useUndo } from './useUndo';
 import {
   BOARD_COLORS, COLOR_NAMES, arrowEnds, boardBounds, boundsOf, changedItems, freshItemId, isBoxed, itemsIn, moveItem, parseBoard, placeNew, removeItems, removedItems, thinPoints, writeBoard,
-  pasteItems, type Board, type BoardColor, type BoardItem, type Boxed, type Rect, type ShapeKind,
+  pasteItems, tidyItems, type Board, type BoardColor, type BoardItem, type Boxed, type Rect, type ShapeKind,
 } from './board-format';
 import type { NotesState } from './useNotes';
 
@@ -316,6 +316,7 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
         )}
         <span className="canvas-bar-gap" />
         {selected.length > 0 && <span className="canvas-count" aria-live="polite">{selected.length} selected</span>}
+        {board.items.filter((x) => selected.includes(x.id) && isBoxed(x)).length > 1 && <button type="button" className="btn" title="Line them up in a grid" onClick={() => change((b) => tidyItems(b, new Set(selected)))}>Tidy up</button>}
         {selected.length > 0 && <button type="button" className="btn" onClick={remove}>Delete</button>}
         <button type="button" className="strip-btn" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.1, Math.round(z * 80) / 100))}>−</button>
         <span className="design-zoom" aria-label="Zoom">{Math.round(zoom * 100)}%</span>

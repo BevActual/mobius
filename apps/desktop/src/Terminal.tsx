@@ -45,7 +45,9 @@ export function TerminalSidebar({ term, pin }: { term: TerminalState; pin: React
 }
 
 /** The terminal: what was run and what it printed, and the line to type the next command on. */
-export function TerminalPage({ term, focusToken }: { term: TerminalState; focusToken?: number }) {
+export function TerminalPage({ term, focusToken, onAsk }: { term: TerminalState; focusToken?: number; /** Puts a block beside the message box, for a question about it. */ onAsk?: (title: string, text: string) => void }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = (key: string, text: string) => { void navigator.clipboard?.writeText(text).then(() => { setCopied(key); window.setTimeout(() => setCopied(null), 1400); }); };
   const [line, setLine] = useState('');
   const [keep, setKeep] = useState(false);
   const [at, setAt] = useState(-1);
@@ -72,7 +74,16 @@ export function TerminalPage({ term, focusToken }: { term: TerminalState; focusT
           const out = e.result ? tail(e.result.output.replace(/\s+$/, '')) : null;
           return (
             <div key={e.id} className="term-entry" data-failed={e.result && !e.result.passed ? true : undefined}>
-              <div className="term-line"><span className="term-prompt">{promptPath(e.cwd)} $</span> <span className="term-command">{e.command}</span></div>
+              <div className="term-line">
+                <span className="term-prompt">{promptPath(e.cwd)} $</span> <span className="term-command">{e.command}</span>
+                {/* Each block's own actions, as in Warp: copy what was run or what it printed, run it again, ask about it. */}
+                <span className="term-actions" role="group" aria-label={`Actions for ${e.command}`}>
+                  <button type="button" onClick={() => copy(`c${e.id}`, e.command)}>{copied === `c${e.id}` ? 'Copied' : 'Copy command'}</button>
+                  {e.result && <button type="button" onClick={() => copy(`o${e.id}`, e.result!.output)}>{copied === `o${e.id}` ? 'Copied' : 'Copy output'}</button>}
+                  <button type="button" disabled={busy} onClick={() => { setBusy(true); void term.run(e.command).finally(() => setBusy(false)); }}>Run again</button>
+                  {onAsk && e.result && <button type="button" onClick={() => onAsk(`Terminal: ${e.command}`.slice(0, 120), `$ ${e.command}   (in ${promptPath(e.cwd)})\n${e.result!.output.slice(-20_000)}\n${e.result!.passed ? 'Exit code 0' : `Exit code ${e.result!.code ?? 'none'}`}`)}>Ask Mobius</button>}
+                </span>
+              </div>
               {e.note && <div className="term-note">{e.note}</div>}
               {!e.result && e.note === undefined && <div className="term-note">Running…</div>}
               {out && (

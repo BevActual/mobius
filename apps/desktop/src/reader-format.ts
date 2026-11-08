@@ -62,3 +62,23 @@ export function readLook(): ReadingLook {
   } catch { return { size: 'm', face: 'sans' }; }
 }
 export const keepLook = (look: ReadingLook) => { try { window.localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch { /* Not kept. */ } };
+
+/** The article with a passage marked as a highlight, `==passage==`; null when the passage is not in it as written. */
+export function addHighlight(markdown: string, passage: string): string | null {
+  const words = passage.replace(/\s+/g, ' ').trim();
+  if (words.length < 2 || words.includes('==')) return null;
+  const rule = markdown.search(/^(-{3,}|\*{3,})\s*$/m);
+  const from = rule < 0 ? 0 : rule;
+  const at = markdown.indexOf(words, from);
+  if (at < 0) return null;
+  return `${markdown.slice(0, at)}==${words}==${markdown.slice(at + words.length)}`;
+}
+
+/** The article with one highlight taken off again. */
+export function removeHighlight(markdown: string, passage: string): string {
+  const at = markdown.indexOf(`==${passage}==`);
+  return at < 0 ? markdown : `${markdown.slice(0, at)}${passage}${markdown.slice(at + passage.length + 4)}`;
+}
+
+/** The highlights in an article, in order. */
+export const highlightsOf = (markdown: string): string[] => [...markdown.matchAll(/==(?=\S)([^=\n]*?\S)==/g)].map((m) => m[1]!);

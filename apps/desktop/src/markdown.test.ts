@@ -14,6 +14,11 @@ describe('agent reply markdown', () => {
       { kind: 'link', href: 'https://x.test', children: [{ kind: 'text', text: 'e' }] },
     ]);
   });
+  it('reads highlights', () => {
+    expect(parseInline('a ==marked **bit**== b')).toEqual([{ kind: 'text', text: 'a ' }, { kind: 'mark', children: [{ kind: 'text', text: 'marked ' }, { kind: 'strong', children: [{ kind: 'text', text: 'bit' }] }] }, { kind: 'text', text: ' b' }]);
+    expect(parseInline('a == b')).toEqual([{ kind: 'text', text: 'a == b' }]);
+  });
+
   it('leaves snake_case and unsafe links alone', () => {
     expect(plainText(parseInline('my_var_name'))).toBe('my_var_name');
     expect(parseInline('my_var_name')).toEqual([{ kind: 'text', text: 'my_var_name' }]);

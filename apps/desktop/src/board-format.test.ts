@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pasteItems, arrowEnds, boardBounds, boardOutline, changedItems, edgePoint, freshItemId, itemsIn, moveItem, parseBoard, placeNew, removeItems, removedItems, thinPoints, writeBoard, type Board } from './board-format';
+import { tidyItems, pasteItems, arrowEnds, boardBounds, boardOutline, changedItems, edgePoint, freshItemId, itemsIn, moveItem, parseBoard, placeNew, removeItems, removedItems, thinPoints, writeBoard, type Board } from './board-format';
 
 const SAMPLE = {
   version: 1,
@@ -69,6 +69,16 @@ describe('boards', () => {
     expect(b.items.find((x) => x.id === 's2')).toMatchObject({ x: 24, y: 24, text: 'Walkable' });
     // An arrow whose other end was not copied stays behind.
     expect(pasteItems(b, b.items.filter((x) => x.id === 'a1' || x.id === 's1'), 0, 0)).toEqual(['s3']);
+  });
+
+  it('tidies items into a grid in reading order', () => {
+    const b: Board = { version: 1, items: [
+      { id: 'c', type: 'sticky', x: 500, y: 300, w: 100, h: 100, color: 'yellow', text: '' },
+      { id: 'a', type: 'sticky', x: 40, y: 10, w: 100, h: 100, color: 'yellow', text: '' },
+      { id: 'b', type: 'sticky', x: 300, y: 30, w: 100, h: 100, color: 'yellow', text: '' },
+    ] };
+    tidyItems(b, new Set(['a', 'b', 'c']));
+    expect(b.items.map((i) => ('x' in i ? [i.id, i.x, i.y] : []))).toEqual([['c', 40, 134], ['a', 40, 10], ['b', 164, 10]]);
   });
 
   it('reads as an outline', () => {

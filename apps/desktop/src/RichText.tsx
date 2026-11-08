@@ -46,6 +46,7 @@ function inline(nodes: Inline[], key = ''): ReactNode[] {
       case 'code': return <code key={k}>{node.text}</code>;
       case 'strong': return <strong key={k}>{inline(node.children, `${k}.`)}</strong>;
       case 'em': return <em key={k}>{inline(node.children, `${k}.`)}</em>;
+      case 'mark': return <mark key={k}>{inline(node.children, `${k}.`)}</mark>;
       case 'claim': return <Claim key={k} tier={node.tier} source={node.source} words={plainText(node.children)}>{inline(node.children, `${k}.`)}</Claim>;
       case 'link':
         return (
