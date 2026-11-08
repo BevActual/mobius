@@ -51,7 +51,8 @@ test('a second download of the same name does not overwrite the first', async ()
 });
 
 test('a file that could run a program is saved but cannot be opened from here', async () => {
-  // Known gap: the Windows web view never reports an executable download as finished (the file is saved, the list keeps saying "downloading").
+  // WebView2 holds a file that can run a program until someone presses Keep in its own download prompt, which a test
+  // cannot reach. Mobius leaves those to that prompt (so a person can keep the file); the list follows it.
   // The system web view is the engine unless MOBIUS_ENGINE asks for Chromium (a build with the cef feature).
   test.fixme((process.env.MOBIUS_ENGINE ?? 'webview') === 'webview', 'WebView2 holds executable downloads open');
   mobius = await launch(fixture.origin + '/', { env: { MOBIUS_DOWNLOADS_DIR: folder } });

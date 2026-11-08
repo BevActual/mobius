@@ -94,6 +94,9 @@ thread_local! {
     static OPERATIONS: std::cell::RefCell<std::collections::HashMap<PathBuf, ICoreWebView2DownloadOperation>> = std::cell::RefCell::default();
 }
 
+/// Names of files that can run a program on Windows.
+const RUNS_PROGRAMS: [&str; 9] = [".exe", ".msi", ".msix", ".bat", ".cmd", ".ps1", ".com", ".scr", ".vbs"];
+
 /// Lets the application decide where each download goes (`start` gets the suggested file name and returns the place to
 /// save it, or nothing to refuse), and hears how it goes (`progress`, then `end` with whether it worked).
 pub fn watch_downloads(webview: &Webview<Wry>, start: StartFn, progress: ProgressFn, end: EndFn) {
@@ -110,7 +113,11 @@ pub fn watch_downloads(webview: &Webview<Wry>, start: StartFn, progress: Progres
                 let name = suggested.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 let Some(path) = start(&name) else { return args.SetCancel(true) };
                 args.SetResultFilePath(&HSTRING::from(path.as_path().as_os_str()))?;
-                args.SetHandled(true)?;
+                // A file that can run a program is held by WebView2 until someone says to keep it, and with the download
+                // handled here nobody could: it would stay "downloading" for ever. For those, WebView2 shows its own
+                // download prompt with Keep; the list here still follows it and says when it is done.
+                let runs = RUNS_PROGRAMS.iter().any(|e| name.to_ascii_lowercase().ends_with(e));
+                args.SetHandled(!runs)?;
                 let operation = args.DownloadOperation()?;
                 let (progress, place) = (progress.clone(), path.clone());
                 let received = BytesReceivedChangedEventHandler::create(Box::new(move |operation, _| {
