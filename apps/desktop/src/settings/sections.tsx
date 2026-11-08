@@ -665,7 +665,9 @@ export function KeyboardSection({ subpage, highlight, preferences, onPreferences
     let live = true;
     void window.mobius.window.quickEntryActive().then((active) => live && setWorking(active));
     return () => { live = false; };
-  }, [bindings.quickEntry]);
+    // Asked again whenever the preferences come back, not only when the binding changes: the binding shows at once,
+    // before the system has taken the combination, and asking then says it is not working.
+  }, [preferences]);
   const path = (row: string) => rowPath('keyboard', subpage, row);
   const changed = SHORTCUT_ACTIONS.some((action) => bindings[action] !== DEFAULT_KEYBINDINGS[action]);
   return (
