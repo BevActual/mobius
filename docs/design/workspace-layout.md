@@ -57,7 +57,7 @@ while you work in any app.
 The Mobius Agent design canvas (Mobius 2 boards) is the reference for what follows. The one-window decision stands
 (option B on the canvas: one window, split view, Little Mobius).
 
-- **Mark and icon**: the whorl print from the Logo studies board, four open rings around a core, three below 32 px.
+- **Mark and icon**: the thin trefoil from the Logo board (V10), one ribbon knotted three times with rounded cuts, filled in the current colour at every size; the glossy coloured ring is the app icon only.
 - **Menus**: File, Edit, View, Go, the app's own menu, Window, Help, from one definition (`menus.ts`). In the toolbar on
   Windows and Linux (one Menu button in a narrow window), in the system menu bar on macOS.
 - **Launcher**: one search for apps, pages and every menu command, with Ask Mobius first once a model is set up.

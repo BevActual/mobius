@@ -1,3 +1,4 @@
+import { APP_ICONS } from './Rail';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { isNotesFailure, type BookmarkEntry, type ConversationInfo, type HistoryEntry, type MailMessage, type NoteHit, type Notebook, type TaskItem, type WorkbookInfo } from '@mobius/shared';
 import { relativeTime } from './relative-time';
@@ -94,7 +95,7 @@ export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFo
       <div className="search-results">
         {asking && canAsk && (
           <button type="button" className="search-row ask" onClick={() => onAsk(asking)}>
-            <span className="search-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5l1.4 3.6 3.6 1.4-3.6 1.4L10 13.5 8.6 9.9 5 8.5l3.6-1.4z" /></svg></span>
+            <span className="search-icon"><svg viewBox="0 0 20 20" aria-hidden="true" data-app="agent">{APP_ICONS.agent}</svg></span>
             <span className="search-text"><span className="search-title">Ask Mobius “{asking}”</span><span className="search-where">The agent can look across all of it for you</span></span>
           </button>
         )}

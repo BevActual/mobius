@@ -170,16 +170,13 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .thinking { display: flex; padding: 6px 4px; color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .msg.assistant[data-streaming="true"]::after { animation: none; } }
 
-/* The Mobius mark. Turning, each ring goes round at its own pace, the inner fastest, as the whorl winds. */
+/* The Mobius mark. Turning, the three bands of the trefoil brighten one after the other, as the band travels round. */
 .mobius-mark { flex: none; display: block; }
-.mobius-mark .mark-ring { transform-box: view-box; transform-origin: 50% 52%; }
-.mobius-mark .mark-core { fill: var(--mark-core, currentColor); }
-.mobius-mark[data-turning] .mark-ring[data-ring="1"] { animation: mark-turn 4.8s linear infinite; }
-.mobius-mark[data-turning] .mark-ring[data-ring="2"] { animation: mark-turn 3.4s linear infinite; }
-.mobius-mark[data-turning] .mark-ring[data-ring="3"] { animation: mark-turn 2.4s linear infinite; }
-.mobius-mark[data-turning] .mark-ring[data-ring="4"] { animation: mark-turn 1.6s linear infinite; }
-@keyframes mark-turn { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .mobius-mark[data-turning] .mark-ring { animation: none; } }
+.mobius-mark[data-turning] .mark-band { animation: mark-travel 1.8s ease-in-out infinite; }
+.mobius-mark[data-turning] .mark-band[data-band="2"] { animation-delay: .6s; }
+.mobius-mark[data-turning] .mark-band[data-band="3"] { animation-delay: 1.2s; }
+@keyframes mark-travel { 0%, 100% { opacity: .45; } 33% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .mobius-mark[data-turning] .mark-band { animation: none; } }
 .empty-mark { color: var(--accent); margin: 0 auto 12px; }
 .chat-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); }
 .chat-brand .chat-title { color: var(--ink); }
@@ -1187,11 +1184,11 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* First run: hello, how much Mobius should do, then the model. */
 .welcome { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-6) 0 var(--sp-2); text-align: center; }
 .welcome-mark { color: var(--accent); margin-bottom: var(--sp-2); }
-.welcome-ring { stroke-dasharray: 100; stroke-dashoffset: 100; animation: welcome-draw 1.4s cubic-bezier(.6, 0, .2, 1) forwards; }
-.welcome-core { opacity: 0; animation: welcome-light .5s ease 1.3s forwards; }
-@keyframes welcome-draw { to { stroke-dashoffset: 0; } }
-@keyframes welcome-light { to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .welcome-ring { animation: none; stroke-dashoffset: 0; } .welcome-core { animation: none; opacity: 1; } }
+.welcome-mark .mark-band { opacity: 0; animation: welcome-band .6s ease forwards; }
+.welcome-mark .mark-band[data-band="2"] { animation-delay: .35s; }
+.welcome-mark .mark-band[data-band="3"] { animation-delay: .7s; }
+@keyframes welcome-band { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .welcome-mark .mark-band { animation: none; opacity: 1; } }
 .welcome-title { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.04em; }
 .welcome-lede { margin: 0; max-width: 34ch; color: var(--muted); font-size: var(--fs-lg); }
 .welcome-levels { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; max-width: 420px; margin-top: var(--sp-4); text-align: left; }

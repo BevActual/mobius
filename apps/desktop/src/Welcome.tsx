@@ -1,4 +1,5 @@
 import type { ApprovalModeChoice } from '@mobius/shared';
+import { MobiusMark } from './MobiusMark';
 import { usePreferences } from './usePreferences';
 
 const LEVELS: { id: ApprovalModeChoice; name: string; sub: string }[] = [
@@ -6,17 +7,6 @@ const LEVELS: { id: ApprovalModeChoice; name: string; sub: string }[] = [
   { id: 'smart', name: 'Smart approvals', sub: 'Mobius goes ahead with what is clearly safe and asks about the rest.' },
   { id: 'off', name: 'Act', sub: 'Mobius acts without asking. Blocked sites and actions stay blocked.' },
 ];
-
-/** The whorl print drawing itself in, then its core lighting: Mobius's hello. Still for people who ask for less motion. */
-function DrawnMark() {
-  const rings = ['M63.68 89.59A40 40 0 1 1 87.59 65.68', 'M39.74 23.81A30 30 0 1 1 21.81 41.74', 'M68.79 58.84A20 20 0 1 1 67.32 42', 'M40.6 55.42A10 10 0 1 1 46.58 61.4'];
-  return (
-    <svg className="welcome-mark" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth={5} aria-hidden="true" style={{ width: 88, height: 88 }}>
-      {rings.map((d, i) => <path key={d} d={d} pathLength={100} className="welcome-ring" style={{ animationDelay: `${i * 0.18}s` }} />)}
-      <circle cx="50" cy="52" r="3.5" fill="currentColor" stroke="none" className="welcome-core" />
-    </svg>
-  );
-}
 
 /**
  * The first thing a new person sees, above setting up a model: who Mobius is, and how much it should do on its own.
@@ -27,7 +17,8 @@ export function Welcome() {
   const chosen = preferences.value.approvalMode;
   return (
     <section className="welcome" aria-labelledby="welcome-title">
-      <DrawnMark />
+      {/* The mark arriving band by band: Mobius's hello. Still for people who ask for less motion. */}
+      <MobiusMark size={88} className="welcome-mark" />
       <h1 id="welcome-title" className="welcome-title">Hello.</h1>
       <p className="welcome-lede">Mobius is one assistant inside your browser, notes and tasks. It works where you are, and asks before it acts.</p>
       <div className="welcome-levels" role="radiogroup" aria-label="How much should Mobius do?">
