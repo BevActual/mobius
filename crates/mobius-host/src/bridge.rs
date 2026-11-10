@@ -1117,6 +1117,18 @@ impl Bridge {
             return Ok(Value::String(crate::code_tests::tool_text(project, &result)));
         }
         if crate::memory::is_memory_tool(tool) {
+            // In a project's thread, what Mobius would remember is for the project: a proposed line on its memory page
+            // in the Wiki, dashed there until the person keeps it. Personal memory is only for conversations outside.
+            let conversation = params.get("conversation").and_then(Value::as_str).unwrap_or("");
+            if tool == "memory.remember"
+                && let Some(project) = self.projects.project_of(conversation).and_then(|id| self.projects.list().into_iter().find(|p| p.id == id))
+            {
+                let text = args.get("text").and_then(Value::as_str).unwrap_or("");
+                let page = format!("Projects/{}.md", crate::projects::folder_of(&project.name));
+                self.wiki_incoming.offer("Mobius", Some(&page), text)?;
+                (self.emit)("mobius:wiki-changed", json!({ "path": page, "by": "assistant" }));
+                return Ok(Value::String(format!("Proposed for the {} project's memory. It waits on the project's page until the person keeps it.", project.name)));
+            }
             let result = self.memory.run(tool, &args).map(Value::String);
             if result.is_ok() {
                 (self.emit)("mobius:memory-changed", Value::Null);

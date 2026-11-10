@@ -41,6 +41,14 @@ async function newProject(name: string): Promise<void> {
   await shell().getByRole('textbox', { name: 'Project name' }).press('Enter');
   await expect(shell().getByRole('region', { name })).toBeVisible();
 }
+/** The project's newest thread is the conversation open. */
+async function inThread(): Promise<void> {
+  await expect.poll(async () => {
+    const threads: string[] = fs.existsSync(path.join(userData, 'projects.json')) ? JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0]?.threads ?? [] : [];
+    const open = await shell().evaluate(() => window.localStorage.getItem('mobius.conversation'));
+    return threads.length > 0 && threads.at(-1) === open;
+  }).toBe(true);
+}
 async function say(text: string): Promise<void> {
   const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
   await composer.fill(text);
@@ -111,4 +119,34 @@ test('the core counts a project’s rules in its threads only: Act goes ahead th
   await expect(card.getByRole('button', { name: 'Always allow' })).toHaveCount(0);
   await card.getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant').last()).toHaveText('Wrote it again.');
+});
+
+test('what Mobius learns in a project thread waits dashed on the project memory, Keep adds it, Discard drops it', async () => {
+  await start([
+    callsTool('memory-remember', { text: 'Builds start on Mondays', category: 'work', source: 'a conversation' }), says(['Noted for the project.']),
+    callsTool('memory-remember', { text: 'The venue is in Lisbon', category: 'work', source: 'a conversation' }), says(['Noted that too.']),
+  ]);
+  await openProjects();
+  await newProject('Kestrel');
+  await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: 'New thread' }).click();
+  await inThread();
+  for (const [ask, reply] of [['remember that builds start on Mondays', 'Noted for the project.'], ['and that the venue is in Lisbon', 'Noted that too.']] as const) {
+    await say(ask);
+    const card = log().getByRole('group', { name: 'Approval needed: memory.remember' });
+    if (await card.waitFor({ timeout: 4000 }).then(() => true, () => false)) await card.getByRole('button', { name: 'Allow once' }).click();
+    await expect(log().locator('.msg.assistant').last()).toHaveText(reply);
+  }
+  // Not personal memory: it is the project's.
+  expect(fs.existsSync(path.join(userData, 'memory.md')) ? fs.readFileSync(path.join(userData, 'memory.md'), 'utf8') : '').not.toContain('Mondays');
+  await openProjects();
+  const memory = shell().getByRole('region', { name: 'Kestrel' }).getByRole('region', { name: 'Project memory' });
+  const mondays = memory.getByRole('listitem', { name: 'Builds start on Mondays, proposed by Mobius' });
+  await expect(mondays).toHaveAttribute('data-proposed');
+  await mondays.getByRole('button', { name: 'Keep' }).click();
+  await expect(memory.getByRole('listitem', { name: 'Builds start on Mondays, proposed by Mobius' })).toHaveCount(0);
+  await expect(memory.getByRole('list', { name: 'What this project knows' })).toContainText('Builds start on Mondays');
+  await expect.poll(() => fs.readFileSync(path.join(userData, 'workspace', 'wiki', 'Projects', 'Kestrel.md'), 'utf8')).toContain('- Builds start on Mondays');
+  await memory.getByRole('listitem', { name: 'The venue is in Lisbon, proposed by Mobius' }).getByRole('button', { name: 'Discard' }).click();
+  await expect(memory.getByRole('listitem', { name: /Lisbon/ })).toHaveCount(0);
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'wiki', 'Projects', 'Kestrel.md'), 'utf8')).not.toContain('Lisbon');
 });

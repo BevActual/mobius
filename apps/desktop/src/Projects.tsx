@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import type { ConversationInfo, ProjectInfo, ProjectLevel } from '@mobius/shared';
+import type { ConversationInfo, ProjectInfo, ProjectLevel, WikiChange } from '@mobius/shared';
 import { appName, type AppId } from './apps';
+import type { WikiIncoming } from './Wiki';
 
 /** The apps a project can set a level for, as Settings lists them. */
 const RULE_APPS: readonly AppId[] = ['notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'browser', 'research', 'reader', 'code', 'database', 'design', 'canvas', 'photo', 'studio', 'video', 'skills'];
@@ -77,12 +78,63 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
   );
 }
 
+/** The project's memory page, as Markdown in the Wiki. */
+export const memoryPage = (project: ProjectInfo) => `Projects/${project.name.trim().replace(/\.+$/, '')}.md`;
+
+/**
+ * What the project knows: its memory page's lines, and what Mobius proposed for it in the project's threads, dashed
+ * until kept (Keep adds the line to the page; Discard drops it).
+ */
+function ProjectMemory({ project, incoming, onOpen }: { project: ProjectInfo; incoming: WikiIncoming; onOpen: () => void }) {
+  const page = memoryPage(project);
+  const [lines, setLines] = useState<string[]>([]);
+  const [problem, setProblem] = useState<string | null>(null);
+  const proposed = incoming.waiting.filter((c) => c.page === page);
+  const load = useCallback(async () => {
+    const got = await window.mobius.wiki?.read(page).catch(() => null);
+    const content = got && 'content' in got ? got.content : '';
+    setLines(content.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '' && !l.startsWith('#')).map((l) => l.replace(/^[-*]\s+/, '')));
+  }, [page]);
+  useEffect(() => { void load(); }, [load, incoming.waiting.length]);
+  useEffect(() => window.mobius.wiki?.onChanged(() => void load()), [load]);
+  const act = async (c: WikiChange, keep: boolean) => {
+    const api = window.mobius.wiki;
+    const r = await (keep ? api?.keepChange?.(c.id) : api?.declineChange?.(c.id))?.catch(() => null);
+    setProblem(r && r.ok ? null : r && !r.ok ? r.message : 'That could not be done.');
+    await incoming.load();
+    await load();
+  };
+  return (
+    <section className="project-card" aria-label="Project memory">
+      <h2 className="ext-heading">Memory</h2>
+      <p className="wiki-private">What this project knows, as a page in the Wiki that you and Mobius both read.</p>
+      {problem && <p className="field-error" role="alert">{problem}</p>}
+      <ul className="wiki-lines" role="list" aria-label="What this project knows">
+        {lines.map((l, i) => <li key={`${i}-${l}`} className="wiki-line"><span className="wiki-line-text">{l}</span></li>)}
+        {proposed.map((c) => (
+          <li key={c.id} className="wiki-line" data-proposed aria-label={`${c.text}, proposed by ${c.from}`}>
+            <span className="wiki-line-text">{c.text}</span>
+            <span className="wiki-line-actions">
+              <span className="wiki-learned">Proposed by {c.from}</span>
+              <button type="button" className="review-btn" onClick={() => void act(c, false)}>Discard</button>
+              <button type="button" className="review-btn" data-kind="keep" onClick={() => void act(c, true)}>Keep</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {lines.length === 0 && proposed.length === 0 && <p className="note-empty">Nothing yet. What Mobius learns in this project's threads waits here for you to keep.</p>}
+      <button type="button" className="btn" onClick={onOpen}>Open in Wiki</button>
+    </section>
+  );
+}
+
 /**
  * A project as a place: what waits on you, its rules (how much Mobius may do in each app there), its memory (a wiki
  * page), its threads and what was made in it (a Files folder).
  */
-export function ProjectPage({ projects, conversations, onOpenThread, onNewThread, onOpenMemory, onOpenFiles }: {
+export function ProjectPage({ projects, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles }: {
   projects: ProjectsState;
+  incoming: WikiIncoming;
   conversations: readonly ConversationInfo[];
   onOpenThread: (conversation: string) => void;
   onNewThread: (project: string) => void;
@@ -119,11 +171,7 @@ export function ProjectPage({ projects, conversations, onOpenThread, onNewThread
           ))}
         </ul>
       </section>
-      <section className="project-card" aria-label="Project memory">
-        <h2 className="ext-heading">Memory</h2>
-        <p className="wiki-private">What this project knows, as a page in the Wiki that you and Mobius both read.</p>
-        <button type="button" className="btn" onClick={() => onOpenMemory(p)}>Open in Wiki</button>
-      </section>
+      <ProjectMemory project={p} incoming={incoming} onOpen={() => onOpenMemory(p)} />
       <section className="project-card" aria-label="Chat and threads">
         <h2 className="ext-heading">Chat and threads</h2>
         {threads.length === 0 && <p className="note-empty">No threads yet.</p>}
