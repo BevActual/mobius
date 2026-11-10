@@ -49,6 +49,103 @@ pub fn title_of(content: &str, file_stem: &str) -> String {
     content.lines().map(str::trim).find_map(|l| l.strip_prefix("# ").map(str::trim).filter(|t| !t.is_empty())).unwrap_or(file_stem).chars().take(200).collect()
 }
 
+/// How many tags one page may give the sidebar.
+const MAX_TAGS: usize = 50;
+
+/// The `#tags` in a page, as Bear writes them: a `#` at the start of a word, then a letter, then letters, digits, `_`,
+/// `-` or `/` (`#kestrel/p2`). Headings (`# Title`), `\#`, links (`page#part`) and code are not tags. The first spelling
+/// is kept, a tag written twice in other case is one tag, and they come sorted. The same rules as `tagsIn` in
+/// `apps/desktop/src/note-tags.ts`.
+pub fn tags_in(content: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut fenced = false;
+    for line in content.lines() {
+        if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+            continue;
+        }
+        if fenced {
+            continue;
+        }
+        let chars: Vec<char> = line.chars().collect();
+        let mut code = false;
+        let mut i = 0;
+        while i < chars.len() {
+            let c = chars[i];
+            if c == '`' {
+                code = !code;
+            } else if c == '#' && !code && (i == 0 || chars[i - 1].is_whitespace() || chars[i - 1] == '(') && chars.get(i + 1).is_some_and(|n| n.is_alphabetic()) {
+                let mut j = i + 1;
+                while j < chars.len() && (chars[j].is_alphanumeric() || matches!(chars[j], '_' | '-' | '/')) {
+                    j += 1;
+                }
+                let tag: String = chars[i + 1..j].iter().collect::<String>().trim_end_matches(['-', '/']).chars().take(60).collect();
+                if !out.iter().any(|t| t.to_lowercase() == tag.to_lowercase()) && out.len() < MAX_TAGS {
+                    out.push(tag);
+                }
+                i = j;
+                continue;
+            }
+            i += 1;
+        }
+    }
+    out.sort_by_key(|t| t.to_lowercase());
+    out
+}
+
+/// The first line of a page's text under its title, without Markdown marks, for the list. Empty when there is none.
+pub fn preview_of(content: &str) -> String {
+    let mut fenced = false;
+    let mut titled = false;
+    for line in content.lines() {
+        let t = line.trim();
+        if t.starts_with("```") {
+            fenced = !fenced;
+            continue;
+        }
+        if fenced || t.is_empty() || t.starts_with("|") || t == "---" {
+            continue;
+        }
+        if !titled && t.starts_with("# ") {
+            titled = true;
+            continue;
+        }
+        let mut s = t.trim_start_matches('#').trim_start_matches('>').trim();
+        for mark in ["- [ ] ", "- [x] ", "- [X] ", "* [ ] ", "* [x] ", "- ", "* ", "+ "] {
+            if let Some(rest) = s.strip_prefix(mark) {
+                s = rest;
+                break;
+            }
+        }
+        let s = s.trim_start_matches(|c: char| c.is_ascii_digit()).strip_prefix(". ").unwrap_or(s);
+        let plain = strip_inline_marks(s);
+        if !plain.is_empty() {
+            return plain.chars().take(120).collect();
+        }
+    }
+    String::new()
+}
+
+/// `**bold**`, `_it_`, `` `code` `` and `[words](link)` as their words.
+fn strip_inline_marks(s: &str) -> String {
+    let mut out = String::new();
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '[' && let Some(close) = chars[i..].iter().position(|&x| x == ']').map(|p| p + i) && chars.get(close + 1) == Some(&'(') && let Some(end) = chars[close..].iter().position(|&x| x == ')').map(|p| p + close) {
+            out.extend(&chars[i + 1..close]);
+            i = end + 1;
+            continue;
+        }
+        if !matches!(c, '*' | '_' | '`' | '~' | '\\') {
+            out.push(c);
+        }
+        i += 1;
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 fn modified_ms(path: &Path) -> u64 {
     fs::metadata(path).and_then(|m| m.modified()).ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
@@ -143,9 +240,16 @@ impl Notes {
                 }
                 count += 1;
                 let stem = file.strip_suffix(self.ext).and_then(|f| f.strip_suffix('.')).unwrap_or(&file);
-                let head: String = fs::read_to_string(entry.path()).unwrap_or_default().chars().take(4000).collect();
+                let content = fs::read_to_string(entry.path()).unwrap_or_default();
+                let head: String = content.chars().take(4000).collect();
                 let title = if self.named_by_file { stem.to_owned() } else { title_of(&head, stem) };
-                pages.push(json!({ "path": path, "title": title, "modified": modified_ms(&entry.path()) }));
+                let mut row = json!({ "path": path, "title": title, "modified": modified_ms(&entry.path()) });
+                // Markdown pages say how they start and what they are tagged with, for the list; JSON files do not.
+                if self.ext == "md" && !self.named_by_file {
+                    row["preview"] = json!(preview_of(&head));
+                    row["tags"] = json!(tags_in(&content));
+                }
+                pages.push(row);
             }
             pages.sort_by(|a, b| b["modified"].as_u64().cmp(&a["modified"].as_u64()).then(a["path"].as_str().cmp(&b["path"].as_str())));
             notebooks.push(json!({ "name": name, "pages": pages }));
@@ -263,6 +367,34 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let notes = Notes::new(dir.path().join("work"), dir.path().join("store"));
         (dir, notes)
+    }
+
+    #[test]
+    fn tags_are_words_that_start_with_a_hash() {
+        let page = "# Plan #intitle\n\nCall Sam #kestrel/p2 and #Supplier.\n## Heading\nSee page#part, \\#escaped, `#code` and #42.\n```\n#fenced\n```\n(#inbrackets) #supplier again #trail-\n";
+        assert_eq!(tags_in(page), vec!["inbrackets", "intitle", "kestrel/p2", "Supplier", "trail"]);
+        assert!(tags_in("# Only a title\n").is_empty());
+    }
+
+    #[test]
+    fn the_preview_is_the_first_line_under_the_title_without_marks() {
+        assert_eq!(preview_of("# Plan\n\n- [ ] Call **Sam** about [the packs](https://x.example)\n"), "Call Sam about the packs");
+        assert_eq!(preview_of("# Plan\n\n## Week one\n"), "Week one");
+        assert_eq!(preview_of("# Plan\n\n1. First `step`\n"), "First step");
+        assert_eq!(preview_of("# Plan\n"), "");
+        assert_eq!(preview_of("No title, just words\n"), "No title, just words");
+    }
+
+    #[test]
+    fn the_list_gives_each_page_its_preview_and_tags() -> Result<(), String> {
+        let (_dir, notes) = setup();
+        notes.create_notebook("Work")?;
+        notes.save("Work/Plan.md", "# Plan\n\nShip it #launch\n", None)?;
+        let list = notes.list()?;
+        let page = &list[0]["pages"][0];
+        assert_eq!(page["preview"], "Ship it #launch");
+        assert_eq!(page["tags"], json!(["launch"]));
+        Ok(())
     }
 
     #[test]

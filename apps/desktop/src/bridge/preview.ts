@@ -1,3 +1,4 @@
+import { tagsIn } from '../note-tags';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
 /**
@@ -42,15 +43,18 @@ const EVENTS = [
   { id: 'e4', calendar: 'Work', title: 'Standup', start: `${day(0)}T09:30`, end: `${day(0)}T09:45`, allDay: false, location: '', notes: '', repeats: true },
 ];
 
-const NOTES = [
-  { name: 'P2 build', pages: [{ path: 'P2 build/Build plan.md', title: 'Build plan', modified: now - 3 * hour }, { path: 'P2 build/Supplier notes.md', title: 'Supplier notes', modified: now - hour }] },
-  { name: 'Home', pages: [{ path: 'Home/Groceries.md', title: 'Groceries', modified: now - 30 * hour }] },
-];
 const NOTE_TEXT: Record<string, string> = {
-  'P2 build/Build plan.md': '# Build plan\n\nThe build week is the 23rd. Packs arrive six weeks from order.\n\n- Confirm the build week with Priya\n- Send the plan to the team\n',
-  'P2 build/Supplier notes.md': '# Supplier notes\n\n## Veltro Cells\n\n- 8 × 60 kWh packs, six weeks from order to the dock\n- The price hold lasts until Friday\n',
-  'Home/Groceries.md': '# Groceries\n\n- Oats\n- Coffee\n',
+  'P2 build/Build plan.md': '# Build plan\n\nThe build week is the 23rd. Packs arrive six weeks from order. #kestrel/p2\n\n## Before we go\n\n- [x] Confirm the build week with Priya\n- [ ] Send the plan to the team\n- [ ] Book the sled for Friday\n\n| Item | Cost |\n| --- | --- |\n| Packs | 48000 |\n| Sled | 6500 |\n',
+  'P2 build/Supplier notes.md': '# Supplier notes\n\n## Veltro Cells\n\n- 8 × 60 kWh packs, six weeks from order to the dock\n- The price hold lasts until **Friday** #supplier #kestrel/p2\n',
+  'Home/Groceries.md': '# Groceries\n\n- [ ] Oats\n- [ ] Coffee #home\n',
 };
+const notePage = (path: string, modified: number) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), modified, preview: previewOf(NOTE_TEXT[path] ?? ''), tags: tagsIn(NOTE_TEXT[path] ?? '') });
+const NOTES = () => [
+  { name: 'P2 build', pages: [notePage('P2 build/Supplier notes.md', now - hour), notePage('P2 build/Build plan.md', now - 3 * hour)] },
+  { name: 'Home', pages: [notePage('Home/Groceries.md', now - 30 * hour)] },
+];
+/** The first line under the title, as the Rust list gives it (roughly: enough for the preview). */
+const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('# ') && !l.startsWith('|'))[0] ?? '').replace(/^#+\s*|^[-*] (\[[ x]\] )?/g, '').replace(/[*_`]/g, '').slice(0, 120);
 /** One turn of Mobius's, still waiting to be kept, so the dashed proposals and Why this can be looked at. */
 const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv'] };
 
@@ -70,7 +74,9 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'mini.isOpen': () => false,
   'tasks.lists': () => [{ name: 'P2 build', open: 3, done: 2 }, { name: 'Work', open: 0, done: 0 }, { name: 'Home', open: 0, done: 0 }],
   'tasks.read': ((list: string) => ({ list, tasks: list === 'P2 build' ? TASKS : [], version: 'preview' })) as never,
-  'notes.list': () => NOTES,
+  'notes.list': () => NOTES(),
+  // Typing in a note is kept for as long as the preview is open, so the Markdown it is saved as can be looked at.
+  'notes.save': ((path: string, content: string) => { NOTE_TEXT[path] = content; (window as unknown as { savedNote?: string }).savedNote = content; return { path, modified: Date.now() }; }) as never,
   'sheets.list': () => [{ name: 'P2 budget', sheets: ['Sheet 1'] }],
   // Mobius added the Total row in its turn.
   'sheets.read': ((workbook: string, sheet: string) => ({ workbook, sheet, sheets: ['Sheet 1'], version: 'preview',

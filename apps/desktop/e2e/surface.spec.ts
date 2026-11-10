@@ -118,7 +118,7 @@ test('in Notes, a note suggestion attaches the open note', async () => {
   await openApp('Notes');
   const side = shell().getByRole('complementary', { name: 'Notes sidebar' });
   await side.getByRole('button', { name: 'Errands', exact: true }).click();
-  await expect(shell().getByRole('textbox', { name: 'Page text' })).toHaveValue(/Buy stamps/);
+  await expect(shell().getByRole('textbox', { name: 'Note text' })).toContainText('Buy stamps');
   await suggestions().getByRole('button', { name: 'Make a to-do list' }).click();
   // The reply's to-do shows as an unticked box with its words.
   await expect(log().locator('.msg.assistant')).toHaveText('Buy stamps');
