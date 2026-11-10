@@ -100,7 +100,7 @@ export const SETTINGS: readonly SettingsSection[] = [
         row('each-time', 'Asked every time', 'Some actions can only ever be allowed one use at a time.', 'once', 'command', 'delete', 'secrets', 'click', 'type'),
       ] },
       { id: 'memory', label: 'Memory', rows: [
-        row('remembered', 'What Mobius remembers', 'Short facts Mobius keeps between conversations. It asks before remembering unless you chose otherwise. Forget any of them here.', 'memory', 'remember', 'forget', 'journey', 'facts', 'personal', 'learned'),
+        row('remembered', 'What Mobius remembers', 'Short facts Mobius keeps between conversations. It asks before remembering unless you chose otherwise. Forget any of them here.', 'memory', 'remember', 'forget', 'wiki', 'how I work', 'facts', 'personal', 'learned'),
       ] },
       { id: 'activity', label: 'Activity', rows: [row('activity-log', 'Activity log', 'A record of what was asked, allowed and run. It never contains what was typed or read.', 'log', 'history', 'audit', 'events', 'record')] },
       { id: 'privacy', label: 'Privacy', rows: [

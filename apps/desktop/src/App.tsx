@@ -35,7 +35,6 @@ import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { SheetGrid, SheetsSidebar } from './Sheets';
 import { MailPage, MailSidebar } from './Mail';
-import { JourneyPage, JourneySidebar, useJourney } from './Journey';
 import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
 import { useSheets } from './useSheets';
@@ -149,7 +148,6 @@ export function App() {
   const sheets = useSheets();
   const code = useCode();
   const mail = useMail();
-  const journey = useJourney();
   const tasks = useTasks();
   const calendar = useCalendar();
   const [eventToken, setEventToken] = useState(0);
@@ -223,7 +221,6 @@ export function App() {
   const inSlides = app === 'slides';
   const inSheets = app === 'sheets';
   const inMail = app === 'mail';
-  const inJourney = app === 'journey';
   const inCode = app === 'code';
   const inDesign = app === 'design';
   const inCanvas = app === 'canvas';
@@ -443,7 +440,6 @@ export function App() {
     docs: plural(docs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'document'),
     sheets: plural(sheets.workbooks.length, 'workbook'),
     slides: plural(slides.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'deck'),
-    journey: plural(journey.items.length, 'memory', 'memories'),
     code: plural(code.projects.length, 'project'),
     video: plural(video.projects.length, 'project'),
     skills: plural(skills.list.length, 'skill'),
@@ -484,12 +480,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -739,8 +735,6 @@ export function App() {
               />
             ) : inNotes ? (
               <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />
-            ) : inJourney ? (
-              <JourneySidebar journey={journey} />
             ) : inSkills ? (
               <ExtensionsSidebar place={extPlace} onPlace={setExtPlace} skills={skills} pin={pinNode} changed={turnMarks.skills} />
             ) : inVideo ? (
@@ -1162,7 +1156,7 @@ export function App() {
       case 'database':
         return <DatabasePage db={databases} review={databases.open && turnMarks.databases.has(databases.open) ? { conversation: conversation.state.conversation } : null} />;
       case 'wiki':
-        if (wikiPlace.kind === 'mine') return <HowIWork />;
+        if (wikiPlace.kind === 'mine') return <HowIWork asking={conversation.state.items} onAnswer={(id, approve) => void conversation.answer(id, approve, 'once')} />;
         if (wikiPlace.kind === 'shared') return <SharedQueue incoming={wikiIncoming} />;
         return <div className="wiki-doc"><WikiVersions wiki={wiki} /><DocEditor docs={wiki} autoFocus={app === 'wiki'} busy={conversation.state.busy} /></div>;
       case 'reader':
@@ -1173,8 +1167,6 @@ export function App() {
         return <CanvasBoard boards={boards} review={boards.page && turnMarks.boards.has(boards.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'code':
         return <CodeEditor code={code} review={code.open && code.project && turnMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation } : null} />;
-      case 'journey':
-        return <JourneyPage journey={journey} asking={conversation.state.items} onAnswer={(id, approve) => void conversation.answer(id, approve, 'once')} />;
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'sheets':

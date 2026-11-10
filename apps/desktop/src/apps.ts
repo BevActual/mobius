@@ -1,4 +1,4 @@
-export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo' | 'studio' | 'video' | 'skills' | 'docs' | 'sheets' | 'slides' | 'mail' | 'journey' | 'notes' | 'canvas' | 'research' | 'reader' | 'database' | 'terminal' | 'tasks' | 'calendar' | 'review' | 'files' | 'wiki';
+export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo' | 'studio' | 'video' | 'skills' | 'docs' | 'sheets' | 'slides' | 'mail' | 'notes' | 'canvas' | 'research' | 'reader' | 'database' | 'terminal' | 'tasks' | 'calendar' | 'review' | 'files' | 'wiki';
 
 /** What an app is for. The hub groups apps this way, so however many there are, they read as a few clear groups. */
 export type AppGroup = 'Assistant' | 'Browse and find' | 'Write and plan' | 'Create' | 'Review';
@@ -11,11 +11,10 @@ export const APPS: readonly AppInfo[] = [
   { id: 'browser', name: 'Browser', available: true, group: 'Browse and find' },
   { id: 'agent', name: 'Agent', available: true, group: 'Assistant' },
   { id: 'mail', name: 'Mail', available: true, group: 'Browse and find' },
-  { id: 'journey', name: 'Journey', available: true, group: 'Assistant' },
   { id: 'skills', name: 'Extensions', available: true, group: 'Assistant', own: true, also: 'Skills Connectors Plugins Catalogue Updates MCP' },
   { id: 'notes', name: 'Notes', available: true, group: 'Write and plan' },
   { id: 'docs', name: 'Docs', available: true, group: 'Write and plan' },
-  { id: 'wiki', name: 'Wiki', available: true, group: 'Write and plan', also: 'How I work Memory' },
+  { id: 'wiki', name: 'Wiki', available: true, group: 'Write and plan', also: 'How I work Memory Journey What Mobius knows' },
   { id: 'sheets', name: 'Sheets', available: true, group: 'Write and plan' },
   { id: 'slides', name: 'Slides', available: true, group: 'Create' },
   { id: 'tasks', name: 'Tasks', available: true, group: 'Write and plan' },

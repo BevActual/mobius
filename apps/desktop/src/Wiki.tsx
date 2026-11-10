@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { MemoryCategory, MemoryItem, WikiChange, WikiVersion } from '@mobius/shared';
 import type { NotesState } from './useNotes';
+import type { Item } from './conversation';
+
+/** The kinds of things Mobius remembers. */
+export const MEMORY_KINDS: { id: MemoryCategory; name: string }[] = [
+  { id: 'you', name: 'About you' },
+  { id: 'prefs', name: 'Preferences' },
+  { id: 'work', name: 'Projects' },
+  { id: 'people', name: 'People' },
+  { id: 'skills', name: 'Learned skills' },
+];
 
 /** Where the Wiki is: your own How I work page, the changes waiting for this wiki, or one of its pages. */
 export type WikiPlace = { kind: 'mine' } | { kind: 'shared' } | { kind: 'page' };
@@ -76,12 +86,16 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
 
 /**
  * Your wiki: How I work, the page only you and your Mobius see. It is what Mobius remembers about you, from the same
- * store Journey shows: what Mobius learned is dashed until you Keep it, or say Not true (it is forgotten). A line can
+ * store Mobius reads before every turn (memory.md): what Mobius learned is dashed until you Keep it, or say Not true (it is forgotten). A line can
  * be shared to this wiki, where it waits like any other change.
  */
-export function HowIWork() {
+export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; onAnswer?: (requestId: number, approve: boolean) => void }) {
   const api = window.mobius.memory;
   const [items, setItems] = useState<MemoryItem[]>([]);
+  const [kind, setKind] = useState<MemoryCategory>('you');
+  const [editing, setEditing] = useState<{ old: string; text: string; category: MemoryCategory } | null>(null);
+  // What Mobius would like to remember waits here too, as it waits in the conversation.
+  const waiting = asking.filter((i): i is Extract<Item, { kind: 'tool' }> => i.kind === 'tool' && i.name === 'memory.remember' && i.status === 'waiting' && i.requestId !== undefined);
   const [undo, setUndo] = useState<{ label: string; run: () => Promise<unknown> } | null>(null);
   const [adding, setAdding] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -111,6 +125,19 @@ export function HowIWork() {
         </p>
       )}
       {problem && <p className="field-error" role="alert">{problem}</p>}
+      {onAnswer && waiting.map((w) => {
+        const args = (w.args ?? {}) as { text?: string; source?: string };
+        return (
+          <div key={w.callId} className="wiki-line wiki-ask" data-proposed role="group" aria-label="Mobius would like to remember">
+            <span className="wiki-line-text">“{args.text ?? ''}”</span>
+            <span className="wiki-line-actions">
+              {args.source && <span className="wiki-learned">Noticed in {args.source}</span>}
+              <button type="button" className="review-btn" onClick={() => onAnswer(w.requestId!, false)}>Don’t</button>
+              <button type="button" className="review-btn" data-kind="keep" onClick={() => onAnswer(w.requestId!, true)}>Remember</button>
+            </span>
+          </div>
+        );
+      })}
       {items.length === 0 && <p className="note-empty">Nothing yet. What you add here, and what Mobius learns and you keep, is how Mobius knows how you work.</p>}
       <ul className="wiki-lines" role="list" aria-label="How I work">
         {items.map((m) => (
@@ -122,16 +149,28 @@ export function HowIWork() {
                 <button type="button" className="review-btn" onClick={() => void notTrue(m)}>Not true</button>
                 <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep(m)}>Keep</button>
               </span>
+            ) : editing?.old === m.text ? (
+              <form className="wiki-edit" onSubmit={(e) => { e.preventDefault(); void api.edit(editing.old, editing.text, editing.category).then((r) => done(r, null)).then(() => setEditing(null)); }}>
+                <input autoFocus aria-label="Line" value={editing.text} maxLength={300} onChange={(e) => setEditing({ ...editing, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }} />
+                <select aria-label="Kind" value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value as MemoryCategory })}>{MEMORY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
+                <button type="button" className="review-btn" onClick={() => setEditing(null)}>Cancel</button>
+                <button type="submit" className="review-btn" data-kind="keep">Save</button>
+              </form>
             ) : (
               <span className="wiki-line-actions">
+                {m.source && m.source !== 'you added it' && <span className="wiki-from-line">From {m.source}</span>}
+                <button type="button" className="review-btn" onClick={() => setEditing({ old: m.text, text: m.text, category: m.category })}>Edit</button>
+                <button type="button" className="review-btn" aria-label={`Forget: ${m.text}`} onClick={() => void api.forget(m.text).then((r) => done(r, { label: `Forgot “${m.text}”.`, run: () => api.restore!(m.text, m.category, m.source) }))}>Forget</button>
                 <button type="button" className="review-btn" title="Offer this line to the wiki others share" onClick={() => void share(m)}>Share</button>
               </span>
             )}
           </li>
         ))}
       </ul>
-      <form className="wiki-add" onSubmit={(e) => { e.preventDefault(); const t = adding.trim(); if (!t) return; void api.add(t, 'prefs' as MemoryCategory).then((r) => done(r, null)).then(() => setAdding('')); }}>
-        <input aria-label="Add a line" placeholder="Add how you work, in one line" value={adding} onChange={(e) => setAdding(e.target.value)} />
+      <form className="wiki-add" onSubmit={(e) => { e.preventDefault(); const t = adding.trim(); if (!t) return; void api.add(t, kind).then((r) => done(r, null)).then(() => setAdding('')); }}>
+        <input aria-label="Add a line" placeholder="Add how you work, in one line" value={adding} maxLength={300} onChange={(e) => setAdding(e.target.value)} />
+        <select aria-label="Kind of line" value={kind} onChange={(e) => setKind(e.target.value as MemoryCategory)}>{MEMORY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
+        <button type="submit" className="review-btn" data-kind="keep" disabled={!adding.trim()}>Add</button>
       </form>
     </section>
   );

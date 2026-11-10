@@ -152,7 +152,7 @@ export interface TasksChanged { list: string | null; by: 'person' | 'assistant' 
  * `YYYY-MM-DDTHH:MM` otherwise; `end` is exclusive (an all-day event on the 12th ends on the 13th). A repeating event
  * is listed once for each time it happens, all with the same id. */
 export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; readOnly?: boolean }
-/** What Mobius remembers, sorted as Journey shows it: about you, preferences, projects, people, learned skills. */
+/** What Mobius remembers, sorted as How I work in the Wiki shows it: about you, preferences, projects, people, learned skills. */
 export type MemoryCategory = 'you' | 'prefs' | 'work' | 'people' | 'skills';
 export interface MemoryItem { text: string; category: MemoryCategory; source: string; /** Mobius noticed it and you have not kept it yet: shown dashed in How I work. */ learned?: boolean }
 /** A change offered to the Wiki: a line for a page, waiting in Shared with this wiki until it is kept or declined. */
@@ -308,7 +308,7 @@ export interface MobiusBridge {
   /** What Mobius remembers about the person between conversations. */
   memory?: {
     list(): Promise<string[]>;
-    /** Each fact with its kind and where it was noticed, as Journey shows them. */
+    /** Each fact with its kind and where it was noticed, as How I work shows them. */
     items(): Promise<MemoryItem[]>;
     /** The person adds a fact of their own. */
     add(text: string, category: MemoryCategory): Promise<{ ok: true } | AgentFailure>;

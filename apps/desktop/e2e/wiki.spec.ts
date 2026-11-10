@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
-import { says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
+import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -114,4 +114,48 @@ test('a wiki page keeps its earlier versions from the checkpoints, and one can b
   await expect(versions.getByLabel('That version')).toContainText('Builds start on Mondays.');
   await versions.getByRole('button', { name: 'Put this version back' }).click();
   await expect.poll(() => fs.readFileSync(page, 'utf8'), { timeout: 10_000 }).toContain('Mondays');
+});
+
+test('in How I work a line can be added with its kind, changed and forgotten, in the same memory.md', async () => {
+  fs.writeFileSync(memory(), '# What Mobius remembers\n\n- Likes boutique hotels <!-- prefs · Browser, June · kept -->\n- Rui runs the terrace venue <!-- people · Mail · kept -->\n- Uses metric units\n');
+  await start();
+  await openWiki();
+  const page = shell().getByRole('region', { name: 'How I work' });
+  const lines = page.getByRole('list', { name: 'How I work' });
+  await expect(lines.getByRole('listitem')).toHaveCount(3);
+  await expect(lines.getByRole('listitem', { name: 'Likes boutique hotels' })).toContainText('From Browser, June');
+  await page.getByRole('textbox', { name: 'Add a line' }).fill('Ana and Ken fly from London');
+  await page.getByRole('combobox', { name: 'Kind of line' }).selectOption('people');
+  await page.getByRole('button', { name: 'Add' }).click();
+  await expect.poll(() => fs.readFileSync(memory(), 'utf8')).toContain('- Ana and Ken fly from London <!-- people · you added it -->');
+  await lines.getByRole('listitem', { name: 'Rui runs the terrace venue' }).getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('textbox', { name: 'Line', exact: true }).fill('Rui runs the terrace venue; prefers email');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect.poll(() => fs.readFileSync(memory(), 'utf8')).toContain('- Rui runs the terrace venue; prefers email <!-- people · Mail · kept -->');
+  await lines.getByRole('button', { name: 'Forget: Uses metric units' }).click();
+  await expect.poll(() => fs.readFileSync(memory(), 'utf8')).not.toContain('metric');
+});
+
+test('what Mobius would like to remember waits in How I work until the person says Remember', async () => {
+  await start([callsTool('memory-remember', { text: 'Prefers vegetarian options at team meals', category: 'prefs', source: 'Mail from Rui' }), says(['Noted.'])]);
+  await openWiki();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Remember that I prefer vegetarian options at team meals');
+  await composer.press('Enter');
+  const page = shell().getByRole('region', { name: 'How I work' });
+  const ask = page.getByRole('group', { name: 'Mobius would like to remember' });
+  await expect(ask).toContainText('“Prefers vegetarian options at team meals”');
+  await expect(ask).toContainText('Noticed in Mail from Rui');
+  await ask.getByRole('button', { name: 'Remember' }).click();
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Noted.');
+  await expect(page.getByRole('listitem', { name: 'Prefers vegetarian options at team meals, Mobius learned this' })).toContainText('Mail from Rui');
+  expect(fs.readFileSync(memory(), 'utf8')).toContain('- Prefers vegetarian options at team meals <!-- prefs · Mail from Rui -->');
+});
+
+test('Journey is gone from the apps: looking for it finds How I work in the Wiki', async () => {
+  await start();
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Journey');
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByRole('region', { name: 'How I work' })).toBeVisible();
 });

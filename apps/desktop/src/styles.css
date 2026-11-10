@@ -122,7 +122,6 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .launcher-icon svg[data-app="search"] { background: var(--app-search); }
 .launcher-icon svg[data-app="browser"] { background: var(--app-browser); }
 .launcher-icon svg[data-app="mail"] { background: var(--app-mail); }
-.launcher-icon svg[data-app="journey"] { background: var(--app-journey); }
 .launcher-icon svg[data-app="skills"] { background: var(--app-skills); }
 .launcher-icon svg[data-app="notes"] { background: var(--app-notes); }
 .launcher-icon svg[data-app="docs"] { background: var(--app-docs); }
@@ -741,22 +740,18 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .hub-icon[data-app="video"] { background: var(--app-video); }
 .hub-icon[data-app="skills"] { background: var(--app-skills); }
 .hub-icon[data-app="docs"] { background: var(--app-docs); }
-.hub-icon[data-app="journey"] { background: var(--app-journey); }
 .hub-icon[data-app="slides"] { background: var(--app-slides); }
 .hub-icon[data-app="mail"] { background: var(--app-mail); }
 .hub-icon[data-app="sheets"] { background: var(--app-sheets); }
 .rail[data-expanded] svg[data-app="docs"] { background: var(--app-docs); }
-.rail[data-expanded] svg[data-app="journey"] { background: var(--app-journey); }
 .rail[data-expanded] svg[data-app="slides"] { background: var(--app-slides); }
 .rail[data-expanded] svg[data-app="mail"] { background: var(--app-mail); }
 .rail[data-expanded] svg[data-app="sheets"] { background: var(--app-sheets); }
 .sidebar-app-show svg[data-app="docs"] { background: var(--app-docs); }
-.sidebar-app-show svg[data-app="journey"] { background: var(--app-journey); }
 .sidebar-app-show svg[data-app="slides"] { background: var(--app-slides); }
 .sidebar-app-show svg[data-app="mail"] { background: var(--app-mail); }
 .sidebar-app-show svg[data-app="sheets"] { background: var(--app-sheets); }
 .rail-pin-open svg[data-app="docs"] { background: var(--app-docs); }
-.rail-pin-open svg[data-app="journey"] { background: var(--app-journey); }
 .rail-pin-open svg[data-app="slides"] { background: var(--app-slides); }
 .rail-pin-open svg[data-app="mail"] { background: var(--app-mail); }
 .rail-pin-open svg[data-app="sheets"] { background: var(--app-sheets); }
@@ -1554,28 +1549,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .claim-card .btn { align-self: flex-start; }
 .msg-gate { font-size: var(--fs-xs); color: #b36b00; }
 
-/* Journey: what Mobius remembers, by kind, each with where it was noticed. */
-.stage .journey-page { position: absolute; z-index: 1; inset: 0; overflow: auto; padding: var(--sp-6) var(--sp-8); background: var(--bg); display: flex; flex-direction: column; gap: var(--sp-3); }
-.journey-page > * { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; }
-.journey-page.empty { align-items: center; justify-content: center; }
-.journey-head { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; }
-.journey-head h2 { margin: 0; font-size: var(--fs-2xl); font-weight: 600; }
-.journey-head span { color: var(--muted); font-size: var(--fs-sm); }
-.journey-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
-.journey-tools { display: flex; flex-direction: column; gap: var(--sp-2); }
-.journey-add, .journey-edit { display: flex; gap: var(--sp-2); }
-.journey-add input, .journey-edit input { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg); font: inherit; color: inherit; }
-.journey-add select, .journey-edit select { height: 32px; padding: 0 24px 0 10px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg) var(--chevron) no-repeat right 8px center / 12px; appearance: none; font: inherit; color: inherit; }
-.journey-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
-.journey-item { display: grid; grid-template-columns: 1fr auto; gap: 2px var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-group); border: 1px solid var(--line); }
-.journey-cat { grid-column: 1; font-size: var(--fs-xs); font-weight: 600; }
-.journey-text { grid-column: 1; }
-.journey-from { grid-column: 1; font-size: var(--fs-xs); color: var(--muted); }
-.journey-actions { grid-column: 2; grid-row: 1 / span 3; display: flex; gap: var(--sp-2); align-items: center; }
-.journey-item .journey-edit { grid-column: 1 / -1; }
-.journey-ask { display: grid; grid-template-columns: 1fr auto; gap: 2px var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-group); border: 1.5px dashed color-mix(in srgb, var(--accent) 60%, var(--bg)); background: color-mix(in srgb, var(--accent) 5%, var(--bg)); }
-.journey-ask-head { grid-column: 1; font-size: var(--fs-xs); font-weight: 600; color: var(--accent); }
-.journey-ask-text { grid-column: 1; font-weight: 600; }
+/* (Journey retired: what Mobius remembers is How I work in the Wiki.) */
 
 /* Code: projects as a file tree, the open file in an editor (or Mobius's change as removed and added lines), tests below. */
 .code-page { --code-bg: #fbfbfd; --code-gutter: #a1a1a8; --tok-kw: #ad3da4; --tok-type: #3f6e74; --tok-fn: #326d74; --tok-str: #c41a16; --tok-num: #1c00cf; --tok-com: #707f8c; --code-add: rgba(48, 209, 88, 0.12); --code-del: rgba(255, 69, 58, 0.10); --code-font: 12.5px/20px ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, Consolas, monospace; }
@@ -2343,3 +2317,6 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .wiki-versions-list { flex-basis: 100%; display: grid; gap: 4px; }
 .wiki-versions-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
 .wiki-version pre { max-height: 240px; overflow: auto; padding: 8px; border-radius: 8px; background: var(--wash); white-space: pre-wrap; }
+.wiki-from-line { color: var(--muted); font-size: var(--fs-xs); }
+.wiki-add { display: flex; gap: 6px; }
+.wiki-add input { flex: 1; }
