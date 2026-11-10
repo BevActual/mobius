@@ -74,10 +74,7 @@ pub fn renew_app_access(access: &Value) -> Value {
         APP_ACCESS_APPS
             .iter()
             .map(|app| {
-                let level = match access.get(*app).and_then(Value::as_str) {
-                    Some(l @ ("follow" | "always" | "off")) => l,
-                    _ => "follow",
-                };
+                let level = access.get(*app).and_then(Value::as_str).filter(|l| matches!(*l, "follow" | "always" | "off")).unwrap_or("follow");
                 ((*app).to_owned(), json!(level))
             })
             .collect(),
