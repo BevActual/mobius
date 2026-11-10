@@ -45,6 +45,7 @@ const EVENTS = [
 ];
 
 const NOTE_FILES: Record<string, string> = {};
+const NOTE_COMMENTS: Record<string, unknown[]> = { 'P2 build/Supplier notes.md': [{ id: 'c1', quote: 'six weeks from order to the dock', text: 'Can Veltro do five if we pay the deposit this week?', by: 'you', whenMs: Date.now() - 2 * 3_600_000, resolved: false }] };
 const NOTE_TEXT: Record<string, string> = {
   'P2 build/Build plan.md': '# Build plan\n\nThe build week is the 23rd. Packs arrive six weeks from order (see [Supplier notes](Supplier%20notes.md)). #kestrel/p2\n\n## Before we go\n\n- [x] Confirm the build week with Priya\n- [ ] Send the plan to the team\n- [ ] Book the sled for Friday\n\n| Item | Cost |\n| --- | --- |\n| Packs | 48000 |\n| Sled | 6500 |\n',
   'P2 build/Supplier notes.md': '# Supplier notes\n\n## Veltro Cells\n\n- 8 × 60 kWh packs, six weeks from order to the dock\n- The price hold lasts until **Friday** #supplier #kestrel/p2\n',
@@ -92,6 +93,10 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
     return { path, ref, name, image: /\.(png|jpe?g|gif|webp)$/i.test(name) };
   }) as never,
   'notes.asset': ((_path: string, ref: string) => (NOTE_FILES[ref] ? { dataUrl: NOTE_FILES[ref], size: 1 } : { ok: false, message: 'that file is not there' })) as never,
+  // Comments are kept for as long as the preview is open; Supplier notes starts with one.
+  'notes.comments': ((path: string) => NOTE_COMMENTS[path] ?? []) as never,
+  'notes.setComments': ((path: string, comments: unknown[]) => { NOTE_COMMENTS[path] = comments; return { path, comments }; }) as never,
+  'notes.export': ((path: string, kind: string) => { const name = `${path.slice(path.indexOf('/') + 1, -3)}.${kind}`; (window as unknown as { exported?: string }).exported = name; return { path, saved: `Exports/${name}`, name }; }) as never,
   'sheets.list': () => [{ name: 'P2 budget', sheets: ['Sheet 1'] }],
   // Mobius added the Total row in its turn.
   'sheets.read': ((workbook: string, sheet: string) => ({ workbook, sheet, sheets: ['Sheet 1'], version: 'preview',

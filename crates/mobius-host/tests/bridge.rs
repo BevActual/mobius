@@ -941,6 +941,22 @@ fn a_note_keeps_its_versions_and_files_and_never_hands_out_a_file_outside_its_ow
 }
 
 #[test]
+fn a_notes_comments_are_kept_beside_it_and_an_export_lands_in_exports() {
+    let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "notes", "createNotebook", json!(["Work"]));
+    call(&b, "notes", "createPage", json!(["Work", "Plan"]));
+    let kept = call(&b, "notes", "setComments", json!(["Work/Plan.md", [{ "id": "c1", "quote": "Plan", "text": "Good", "whenMs": 1 }]]));
+    assert_eq!(kept["comments"][0]["by"], "you", "{kept}");
+    assert_eq!(call(&b, "notes", "comments", json!(["Work/Plan.md"]))[0]["text"], "Good");
+    assert_eq!(call(&b, "notes", "setComments", json!(["../Plan.md", []]))["ok"], false);
+    assert_eq!(call(&b, "notes", "setComments", json!(["Work/Plan.md", "nope"]))["ok"], false);
+    let saved = call(&b, "notes", "export", json!(["Work/Plan.md", "md"]));
+    assert_eq!(saved["saved"], "Exports/Plan.md", "{saved}");
+    assert!(dir.path().join("workspace/Exports/Plan.md").is_file());
+    assert_eq!(call(&b, "notes", "export", json!(["Work/Plan.md", "exe"]))["ok"], false);
+}
+
+#[test]
 fn notes_are_real_files_the_window_can_list_edit_and_search() {
     let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
     assert_eq!(call(&b, "notes", "list", json!([])), json!([]));
