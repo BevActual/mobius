@@ -496,6 +496,7 @@ export function App() {
   const setLeftOpen = inAgent ? setAgentListOpen : setPanelOpen;
   const chatInSide = wide && hasRight && chatPlace === 'sidebar';
   const rightOpen = hasRight && chatOpen && !chatInSide;
+  useEffect(() => { if (rightOpen && miniOpen) void window.mobius.mini.close(); }, [rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
   const [hovering, setHovering] = useState(false);
   const leftWidth = drag?.side === 'left' ? drag.width : appearance.value.leftWidth;
@@ -626,7 +627,8 @@ export function App() {
     if (narrow) return;
     if (split) closePane(focused === 0 ? 1 : 0); else openSplit();
   }, [narrow, split, focused, closePane, openSplit]);
-  const toggleMini = useCallback(() => { void (miniOpen ? window.mobius.mini.close() : window.mobius.mini.open()); }, [miniOpen]);
+  // Little Mobius never sits over the open panel: opening it puts the panel away, and opening the panel closes it.
+  const toggleMini = useCallback(() => { if (miniOpen) void window.mobius.mini.close(); else { setChatOpen(false); void window.mobius.mini.open(); } }, [miniOpen]);
 
   useEffect(
     () =>
@@ -1294,6 +1296,8 @@ export function App() {
               onEffort={(reasoningEffort) => void preferences.set({ reasoningEffort })}
               onModelChanged={() => void reloadSettings()}
             pin={pinned}
+            place={appName(app)}
+            onHide={hideRight}
           />
   );
   // The browser's own controls. With the full sidebar they live in it, under the app's name, and nothing but the

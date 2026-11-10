@@ -179,11 +179,17 @@ test('browser: sites you allowed are listed by site and can be removed', async (
   await expect(page().getByText('No sites are always allowed')).toBeVisible();
 });
 
+/** A new conversation, from the panel's All chats list. */
+async function newConversation(): Promise<void> {
+  await shell().getByRole('button', { name: 'All chats' }).click();
+  await shell().getByRole('menu', { name: 'Conversations' }).getByRole('menuitem', { name: 'New conversation' }).click();
+}
+
 test('conversations are saved across restarts, listed, reopened and deleted', async () => {
   await start([says(['First answer.']), says(['Second answer.'])]);
   await say('Plan the harbour walk');
   await expect(log().locator('.msg.assistant')).toHaveText('First answer.');
-  await shell().getByRole('button', { name: 'New conversation' }).click();
+  await newConversation();
   await expect(log().locator('.msg')).toHaveCount(0);
   await say('Order new nets');
   await expect(log().locator('.msg.assistant')).toHaveText('Second answer.');
@@ -216,16 +222,16 @@ test('the conversation menu in the panel switches between conversations and star
   await start([says(['Alpha reply.']), says(['Beta reply.'])]);
   await say('Alpha topic');
   await expect(log().locator('.msg.assistant')).toHaveText('Alpha reply.');
-  await shell().getByRole('button', { name: 'New conversation' }).click();
+  await newConversation();
   await say('Beta topic');
   await expect(log().locator('.msg.assistant')).toHaveText('Beta reply.');
-  await shell().getByRole('button', { name: 'Conversations', exact: true }).click();
+  await shell().getByRole('button', { name: 'All chats' }).click();
   const menu = shell().getByRole('menu', { name: 'Conversations' });
   await expect(menu.getByRole('menuitem')).toContainText(['New conversation', 'Beta topic', 'Alpha topic']);
   await menu.getByRole('menuitem', { name: /Alpha topic/ }).click();
   await expect(menu).toHaveCount(0);
   await expect(log().locator('.msg.user')).toHaveText('Alpha topic');
-  await shell().getByRole('button', { name: 'Conversations', exact: true }).click();
+  await shell().getByRole('button', { name: 'All chats' }).click();
   await shell().keyboard.press('Escape');
   await expect(shell().getByRole('menu')).toHaveCount(0);
 });
@@ -235,7 +241,7 @@ test('Advanced: the step limit is enforced', async () => {
   await say('time');
   await allowAlways('clock.now');
   await expect(log().locator('.msg.assistant')).toHaveText('unreachable');
-  await shell().getByRole('button', { name: 'New conversation' }).click();
+  await newConversation();
   model!.requests.length = 0;
   await openSettings();
   await go('Advanced');

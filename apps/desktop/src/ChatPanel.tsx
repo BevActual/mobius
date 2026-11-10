@@ -10,6 +10,7 @@ import { ReviewStrip, TurnHistory } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
+import { modeOf } from './approval-modes';
 import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import type { SurfaceState } from './surface';
@@ -284,6 +285,10 @@ export interface ChatPanelProps {
   appCard?: ReactNode;
   /** Open one email in Mail, from the rows under an answer about the mail. */
   onOpenMail?: (id: string) => void;
+  /** The app the panel sits beside, for the line under its title ("In Notes"). */
+  place?: string;
+  /** Put the panel away. */
+  onHide?: () => void;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
   /** The model on the server was changed from the composer. */
@@ -296,8 +301,9 @@ export interface ChatPanelProps {
 }
 
 /** The title of the conversation, which opens the list of the others. */
-function ConversationMenu({ conversations, active, onSelect, onNew }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onNew: () => void }) {
+function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 0 }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onNew: () => void; /** Changes when something outside asks for the list (the needs-you capsule). */ openToken?: number }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => { if (openToken) setOpen(true); }, [openToken]);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const title = conversations.find((c) => c.id === active)?.title ?? 'New conversation';
@@ -337,9 +343,8 @@ function ConversationMenu({ conversations, active, onSelect, onNew }: { conversa
 
   return (
     <div className="convo">
-      <button ref={trigger} type="button" className="convo-trigger" aria-label="Conversations" aria-haspopup="menu" aria-expanded={open} title={title} onClick={() => setOpen((value) => !value)}>
-        <span className="convo-title">{title}</span>
-        <svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+      <button ref={trigger} type="button" className="head-icon" aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={`All chats · now: ${title}`} onClick={() => setOpen((value) => !value)}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5.5h9M7 10h9M7 14.5h9" /><circle cx="4" cy="5.5" r="0.6" /><circle cx="4" cy="10" r="0.6" /><circle cx="4" cy="14.5" r="0.6" /></svg>
       </button>
       {open && (
         <div ref={menu} className="convo-menu" role="menu" aria-label="Conversations" onKeyDown={move}>
@@ -379,10 +384,13 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
+  const [chatsToken, setChatsToken] = useState(0);
+  const [contextOpen, setContextOpen] = useState(false);
+  const preferences = usePreferences();
   const [copied, setCopied] = useState<string | null>(null);
   // Not-sure facts the person checked, per reply: a reply with unchecked ones is not copied out of Mobius.
   const [checkedClaims, setCheckedClaims] = useState<Record<string, ReadonlySet<string>>>({});
@@ -423,6 +431,11 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   const needsSetup = settings !== null && !configured && !settings.baseUrl;
   const showSettings = settings !== null && needsSetup;
   const canType = configured && coreReady;
+  // Questions waiting for the person, in every conversation: the head says so, and opens the list.
+  const waiting = conversations.reduce((n, c) => n + (c.waiting > 0 ? 1 : 0), 0);
+  // What Mobius sees here: what is open beside it, or what it worked in during this conversation.
+  const sees = surface?.note ? `this ${({ docs: 'document', slides: 'deck', designs: 'design', studio: 'song', boards: 'board', research: 'report', reading: 'article', databases: 'database', terminal: 'terminal' } as Record<string, string>)[surface.note.folder ?? ''] ?? 'note'}`
+    : surface?.tasks ? 'this list' : surface?.hasPage ? 'this page' : seen.length > 0 ? seen.join(' · ') : 'this conversation';
 
   useLayoutEffect(() => {
     const element = log.current;
@@ -444,18 +457,41 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   return (
     <Shell variant={variant} empty={state.items.length === 0}>
       <div className="chat-head">
-        {needsSetup ? <span className="chat-brand"><MobiusMark size={20} /><span className="chat-title">Mobius</span></span> : variant === 'full' ? <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span> : <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} />}
+        {variant === 'full' && !needsSetup ? <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span> : (
+          <span className="chat-titles">
+            <span className="chat-title">Mobius</span>
+            {place && <span className="chat-sub">In {place}</span>}
+          </span>
+        )}
+        {variant === 'panel' && waiting > 0 && (
+          <button type="button" className="needs-you" title="Open the chats that wait for you" onClick={() => setChatsToken((n) => n + 1)}>
+            <span className="needs-you-dot" aria-hidden="true" />{waiting} needs you
+          </button>
+        )}
         <div className="chat-head-actions">
+          {variant === 'panel' && !needsSetup && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} />}
           {pin}
-          {variant === 'panel' && <button type="button" className="strip-btn" aria-label="New conversation" title="New conversation" disabled={!configured || state.items.length === 0} onClick={onNewConversation}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-          </button>}
+          {variant === 'panel' && onHide && (
+            <button type="button" className="head-icon" aria-label="Hide" title="Hide Mobius" onClick={onHide}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
+            </button>
+          )}
         </div>
       </div>
-      {!showSettings && seen.length > 0 && (
-        <p className="chat-sees" title="What Mobius has read from or worked in during this conversation">
-          <span className="chat-sees-label">Sees:</span> {seen.join(' · ')}
-        </p>
+      {!showSettings && (
+        <div className="chat-context">
+          <button type="button" className="chat-context-line" aria-expanded={contextOpen} onClick={() => setContextOpen((o) => !o)} title="What Mobius sees here, and how much it may do">
+            <svg className="chat-context-eye" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" /><circle cx="10" cy="10" r="2.2" /></svg>
+            <span className="chat-context-text">Sees {sees} · {modeOf(preferences.value.approvalMode).name}</span>
+            <svg className="chat-context-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
+          </button>
+          {contextOpen && (
+            <div className="chat-context-more" role="group" aria-label="What Mobius sees">
+              {seen.length > 0 && <p className="chat-sees" title="What Mobius has read from or worked in during this conversation"><span className="chat-sees-label">Sees:</span> {seen.join(' · ')}</p>}
+              <p className="chat-context-rule">What Mobius may do here comes from Settings. <button type="button" className="link-btn" onClick={onOpenSettings}>Change</button></p>
+            </div>
+          )}
+        </div>
       )}
       {showSettings && settings ? (
         <div className="chat-scroll">

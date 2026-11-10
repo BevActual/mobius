@@ -241,6 +241,14 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
       if (killed) await new Promise((resolve) => setTimeout(resolve, 400));
       // The system web view's own processes let go of its profile (webview/EBWebView) a moment after the app ends
       // (CI showed no process left by then): try again every 100 ms for up to 3 s before looking for what holds it.
+      if (closeOptions.keepUserData) {
+        // The app starts again on the same folder: wait until its web view has let go of its profile (its lockfile
+        // can be removed), or the next start finds it still in use and cannot open its window.
+        const lock = path.join(userData, 'webview', 'EBWebView', 'lockfile');
+        for (let i = 0; i < 50 && fs.existsSync(lock); i++) {
+          try { fs.rmSync(lock, { force: true }); } catch { await new Promise((resolve) => setTimeout(resolve, 100)); }
+        }
+      }
       let gone = closeOptions.keepUserData === true || removeTestDataSoon(userData);
       for (let i = 0; !gone && i < 30; i++) {
         await new Promise((resolve) => setTimeout(resolve, 100));

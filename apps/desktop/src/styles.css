@@ -2395,3 +2395,73 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .side-thread-ask { display: flex; gap: 6px; }
 .side-thread-ask input { flex: 1; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }
 .project-side { padding-left: var(--sp-6); }
+
+/* ---- The Mobius panel, v172 (Apple HIG style) ---- */
+.dock.right .chat { border-radius: 22px; box-shadow: inset 0 0 0 0.5px var(--hairline); }
+.chat-head { height: 44px; gap: 6px; }
+.chat-titles { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.chat-titles .chat-title { font-size: 15px; font-weight: 600; }
+.chat-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-head-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.chat-head-actions .strip-btn, .head-icon { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); display: inline-grid; place-items: center; cursor: pointer; }
+.chat-head-actions .strip-btn:hover, .head-icon:hover { background: var(--wash); color: var(--text); }
+.head-icon svg, .chat-head-actions .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.needs-you { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: rgba(255, 159, 10, 0.14); color: #C25E00; font: 500 12px/1 var(--font); cursor: pointer; white-space: nowrap; }
+.needs-you-dot { width: 7px; height: 7px; border-radius: 50%; background: #FF9F0A; }
+@media (prefers-color-scheme: dark) { .needs-you { color: #FFB340; } }
+
+.chat-context { flex: none; margin: 0 0 6px; }
+.chat-context-line { display: flex; align-items: center; gap: 6px; width: 100%; height: 30px; padding: 0 6px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: 12px/1 var(--font); text-align: left; cursor: pointer; }
+.chat-context-line:hover { background: var(--wash); }
+.chat-context-eye { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.chat-context-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-context-chev { width: 11px; height: 11px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; transition: transform 160ms ease; }
+.chat-context-line[aria-expanded="true"] .chat-context-chev { transform: rotate(90deg); }
+.chat-context-more { display: grid; gap: 4px; margin: 4px 0 0; padding: 8px 10px; border-radius: 12px; background: rgba(88, 86, 214, 0.06); font-size: 12px; }
+.chat-context-more p { margin: 0; }
+.chat-context-more .chat-sees { padding: 0; }
+.chat-context-rule { color: var(--muted); }
+.link-btn { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+
+/* Messages: yours in a grey bubble, Mobius's as plain text. */
+.chat .msg.user { max-width: 82%; padding: 8px 12px; border-radius: 18px; background: rgba(120, 120, 128, 0.13); color: var(--text); font-size: calc(14px * var(--chat-scale, 1)); }
+@media (prefers-color-scheme: dark) { .chat .msg.user { background: rgba(255, 255, 255, 0.12); } }
+.chat .msg.assistant { padding: 2px 2px; font-size: calc(14px * var(--chat-scale, 1)); line-height: 1.45; }
+
+/* Cards: an approval, a running step, a proposal. */
+.chat .tool:has(.approval), .chat .plan, .chat .review-strip { padding: 12px 14px; border-radius: 16px; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 14px rgba(0, 0, 0, 0.05); outline: 0.5px solid var(--hairline); }
+@media (prefers-color-scheme: dark) { .chat .tool:has(.approval), .chat .plan, .chat .review-strip { background: rgba(255, 255, 255, 0.07); box-shadow: none; } }
+.chat .tool[data-status="waiting"]:has(.approval) { outline: 1px dashed #7D7AFF; }
+.chat .tool:has(.approval) .tool-line { font-size: 12px; }
+.chat .tool[data-status="waiting"] .tool-dot { background: #7D7AFF; }
+.chat .tool[data-status="done"] .tool-dot { background: #34C759; }
+.chat .approval { border-top: 0; padding-top: 4px; }
+.chat .approval-head { margin: 0 0 2px; font-size: 12px; font-weight: 500; color: #FF9F0A; }
+.chat .approval-text { font-size: 14px; }
+.chat .approval-actions { display: flex; gap: 8px; }
+.chat .approval-actions .btn { flex: 1; height: 32px; border: 0; border-radius: 999px; background: rgba(120, 120, 128, 0.14); color: var(--text); font-weight: 500; }
+.chat .approval-actions .btn.primary, .chat .review-btn[data-kind="keep"] { background: #1D1D1F; color: #fff; }
+@media (prefers-color-scheme: dark) { .chat .approval-actions .btn.primary, .chat .review-btn[data-kind="keep"] { background: #F5F5F7; color: #1D1D1F; } }
+
+/* The review strip above the message box, as a card; Keep is dark. */
+.chat .review-strip .review-actions { display: flex; gap: 8px; }
+.chat .review-strip .review-btn { flex: 1; height: 32px; border: 0; border-radius: 999px; background: rgba(120, 120, 128, 0.14); color: var(--text); font-weight: 500; }
+.chat .review-strip .review-btn[data-kind="keep"] { background: #1D1D1F; color: #fff; }
+@media (prefers-color-scheme: dark) { .chat .review-strip .review-btn[data-kind="keep"] { background: #F5F5F7; color: #1D1D1F; } }
+
+/* The message box: rounder, a hairline and a tiny shadow; the controls under it as quiet text. */
+.chat .composer { border-radius: 20px; box-shadow: inset 0 0 0 0.5px var(--line-strong), 0 1px 4px rgba(0, 0, 0, 0.05); }
+.chat .composer textarea { font-size: 14px; }
+.chat .composer .round.send, .chat .composer .round.stop { width: 28px; height: 28px; }
+.chat .composer .pill { height: 24px; padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 12px; }
+.chat .composer .pill:hover { color: var(--text); background: none; }
+
+
+/* Verbs above the message box: tinted capsules. */
+.chat .suggest-chip { height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: rgba(88, 86, 214, 0.08); color: #3634A3; font-size: 12px; font-weight: 500; }
+@media (prefers-color-scheme: dark) { .chat .suggest-chip { background: rgba(125, 122, 255, 0.16); color: #B9B7FF; } }
+/* Effort, Plan first and Approvals say what they are in words, however narrow the panel. */
+@container (max-width: 440px) { .chat .composer .pill-compact .pill-text { display: inline; } .chat .composer .pill-compact .pill-icon { display: none; } }
+.chat .review-strip .review-head { flex-wrap: wrap; row-gap: 8px; }
+.chat .review-strip .review-actions { flex-basis: 100%; }
+.chat .review-strip .review-btn { white-space: nowrap; }
