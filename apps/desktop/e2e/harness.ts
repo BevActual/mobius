@@ -1,6 +1,7 @@
 import { chromium, expect, test, type Page } from '@playwright/test';
 import { spawn, execSync } from 'node:child_process';
 import http from 'node:http';
+import net from 'node:net';
 import type { AddressInfo } from 'node:net';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -162,9 +163,23 @@ export const crashCore = (app: AppHandle): Promise<void> => testHook<void>(app, 
  * Starts the shell and drives it over the debugging port of its web view. There is no in-process `app` object: what a test
  * needs from the application goes through the `test` hooks of the bridge (see the helpers below).
  */
+/** A TCP port free right now, as the system gives it. */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
 async function launchTauri(startUrl: string, userData: string, env: Record<string, string>): Promise<Launched> {
   const exe = path.resolve(root, '../../target/debug', process.platform === 'win32' ? 'mobius-shell.exe' : 'mobius-shell');
-  const port = 9300 + Math.floor(Math.random() * 600);
+  // A port no one is using now: a web view of the test before can still be listening on its port for a moment, and
+  // connecting there would drive that one as it closes.
+  const port = await freePort();
   const child = spawn(exe, [], {
     env: { ...process.env, MOBIUS_TEST: '1', MOBIUS_USER_DATA: userData, MOBIUS_START_URL: startUrl, MOBIUS_HIDE_WINDOW: '1', WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --disable-features=msSmartScreenProtection --safebrowsing-disable-download-protection --use-fake-device-for-media-stream --use-fake-ui-for-media-stream`, WEBVIEW2_USER_DATA_FOLDER: path.join(userData, 'webview'), ...env },
     stdio: ['ignore', 'ignore', process.env.MOBIUS_TAURI_LOG ? fs.openSync(process.env.MOBIUS_TAURI_LOG, 'a') : 'ignore'],
@@ -194,6 +209,9 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
     throw new Error('shell window did not appear');
   })();
   phase("shell window", started);
+  // What the app says about its start (core status, model set up), shown with the test: a message box that stays
+  // disabled then says why.
+  shell.on('console', (message) => { if (message.text().startsWith('[mobius]')) console.log(`[e2e app] ${test.info().titlePath.slice(1).join(' › ')}: ${message.text()}`); });
   await shell.waitForLoadState('domcontentloaded');
   phase("page loaded", started);
   // Playwright takes over downloads by default; the shell must see them itself.

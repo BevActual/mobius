@@ -5,8 +5,10 @@ export function useCoreStatus(): CoreStatus {
   const [status, setStatus] = useState<CoreStatus>('starting');
   useEffect(() => {
     let live = true;
-    const off = window.mobius.core.onStatus((next) => live && setStatus(next));
-    void window.mobius.core.getStatus().then((initial) => live && initial && setStatus(initial));
+    // The answer to "how is it now" can arrive after a change was announced: it never undoes one heard since.
+    let heard = false;
+    const off = window.mobius.core.onStatus((next) => { if (!live) return; heard = true; console.info(`[mobius] core ${next}`); setStatus(next); });
+    void window.mobius.core.getStatus().then((initial) => { if (!live || !initial || heard) return; console.info(`[mobius] core ${initial} (at start)`); setStatus(initial); });
     return () => {
       live = false;
       off();

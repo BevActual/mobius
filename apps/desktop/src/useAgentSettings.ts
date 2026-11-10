@@ -5,8 +5,10 @@ export function useAgentSettings(): { settings: AgentSettings | null; save(reque
   const [settings, setSettings] = useState<AgentSettings | null>(null);
   useEffect(() => {
     let live = true;
-    void window.mobius.agent.getSettings().then((value) => live && value && setSettings(value));
-    const off = window.mobius.agent.onSettings((value) => live && setSettings(value));
+    // As for the core's status: settings asked for at start never undo newer ones announced meanwhile.
+    let heard = false;
+    const off = window.mobius.agent.onSettings((value) => { if (!live) return; heard = true; console.info(`[mobius] model ${value.configured ? 'set up' : 'not set up'}`); setSettings(value); });
+    void window.mobius.agent.getSettings().then((value) => { if (!live || !value || heard) return; console.info(`[mobius] model ${value.configured ? 'set up' : 'not set up'} (at start)`); setSettings(value); });
     return () => {
       live = false;
       off();
