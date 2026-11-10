@@ -57,6 +57,7 @@ const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add th
 /** Answers for the calls that must return more than an empty list. Keyed by the call's path. */
 const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'core.getStatus': () => 'ready',
+  'files.list': (path: string) => ({ path, truncated: false, entries: path === '' ? [{ name: 'docs', type: 'folder' }, { name: 'notes', type: 'folder' }, { name: 'sheets', type: 'folder' }, { name: 'tasks', type: 'folder' }, { name: 'README.md', type: 'file', bytes: 2048 }] : path === 'notes' ? [{ name: 'P2 build', type: 'folder' }, { name: 'Home', type: 'folder' }] : path === 'notes/P2 build' ? [{ name: 'Build plan.md', type: 'file', bytes: 620 }, { name: 'Supplier notes.md', type: 'file', bytes: 410 }] : [] }),
   'extensions.connectors': () => ({ running: ['github'], failed: [{ server: 'linear', error: 'The command was not found' }], problem: null }),
   'appearance.get': () => DEFAULT_APPEARANCE,
   'preferences.get': () => DEFAULT_PREFERENCES,

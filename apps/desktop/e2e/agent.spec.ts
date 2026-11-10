@@ -222,7 +222,7 @@ test('if the core restarts, the agent is set up again by itself', async () => {
 test('a web page cannot reach the agent, and the shell cannot call the core directly', async () => {
   await start([says(['x'])]);
   const keys = await mobius!.shell.evaluate(() => Object.keys(window.mobius).sort());
-  expect(keys).toEqual(['agent', 'app', 'appearance', 'boards', 'bookmarks', 'bots', 'browser', 'calendar', 'changes', 'code', 'context', 'core', 'databases', 'designs', 'docs', 'downloads', 'extensions', 'history', 'mail', 'memory', 'menu', 'mini', 'models', 'notes', 'photos', 'platform', 'preferences', 'profiles', 'providers', 'reading', 'research', 'schedules', 'share', 'sheets', 'signins', 'skills', 'slides', 'songs', 'surface', 'tasks', 'terminal', 'tray', 'video', 'window']);
+  expect(keys).toEqual(['agent', 'app', 'appearance', 'boards', 'bookmarks', 'bots', 'browser', 'calendar', 'changes', 'code', 'context', 'core', 'databases', 'designs', 'docs', 'downloads', 'extensions', 'files', 'history', 'mail', 'memory', 'menu', 'mini', 'models', 'notes', 'photos', 'platform', 'preferences', 'profiles', 'providers', 'reading', 'research', 'schedules', 'share', 'sheets', 'signins', 'skills', 'slides', 'songs', 'surface', 'tasks', 'terminal', 'tray', 'video', 'window']);
   const coreKeys = await mobius!.shell.evaluate(() => Object.keys(window.mobius.core).sort());
   expect(coreKeys).toEqual(['getStatus', 'onStatus']);
   const outcomes = await mobius!.shell.evaluate(async () => ({

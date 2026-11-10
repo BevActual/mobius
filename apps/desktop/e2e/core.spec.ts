@@ -89,7 +89,7 @@ test('the page-facing shell can read the core status but cannot call the core', 
     top: Object.keys((window as unknown as { mobius: object }).mobius).sort(),
   }));
   expect(surface.core).toEqual(['getStatus', 'onStatus']);
-  expect(surface.top).toEqual(['agent', 'app', 'appearance', 'boards', 'bookmarks', 'bots', 'browser', 'calendar', 'changes', 'code', 'context', 'core', 'databases', 'designs', 'docs', 'downloads', 'extensions', 'history', 'mail', 'memory', 'menu', 'mini', 'models', 'notes', 'photos', 'platform', 'preferences', 'profiles', 'providers', 'reading', 'research', 'schedules', 'share', 'sheets', 'signins', 'skills', 'slides', 'songs', 'surface', 'tasks', 'terminal', 'tray', 'video', 'window']);
+  expect(surface.top).toEqual(['agent', 'app', 'appearance', 'boards', 'bookmarks', 'bots', 'browser', 'calendar', 'changes', 'code', 'context', 'core', 'databases', 'designs', 'docs', 'downloads', 'extensions', 'files', 'history', 'mail', 'memory', 'menu', 'mini', 'models', 'notes', 'photos', 'platform', 'preferences', 'profiles', 'providers', 'reading', 'research', 'schedules', 'share', 'sheets', 'signins', 'skills', 'slides', 'songs', 'surface', 'tasks', 'terminal', 'tray', 'video', 'window']);
 });
 
 test('without a core binary the shell still works and says the core is unavailable', async () => {

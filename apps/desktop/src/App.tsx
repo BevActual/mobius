@@ -56,6 +56,7 @@ import { StudioEditor, StudioSidebar } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
 import { SkillEditor } from './Skills';
 import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
+import { FilesPage, FilesSidebar, useFiles } from './Files';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
 import { useVideo } from './useVideo';
@@ -127,6 +128,7 @@ export function App() {
   const databases = useDatabases();
   const terminal = useTerminal();
   const review = useReview(conversation.list, conversation.state.busy);
+  const files = useFiles(conversation.state.conversation, conversation.state.busy);
   const [terminalFocus, setTerminalFocus] = useState(0);
   const lastTerminal = [...terminal.entries].reverse().find((e) => e.result !== null) ?? null;
   /** New research was chosen: the Research app shows its question form. */
@@ -221,6 +223,7 @@ export function App() {
   const inDatabase = app === 'database';
   const inTerminal = app === 'terminal';
   const inReview = app === 'review';
+  const inFiles = app === 'files';
   const inPhoto = app === 'photo';
   const inStudio = app === 'studio';
   const inVideo = app === 'video';
@@ -471,12 +474,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inJourney || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -738,6 +741,8 @@ export function App() {
               <PhotoSidebar photos={photos} pin={pinNode} changed={turnMarks.photos} />
             ) : inDesign ? (
               <DesignSidebar designs={designs} pin={pinNode} changed={turnMarks.designs} starts={startsFor('design')} onStart={startWithMobius} />
+            ) : inFiles ? (
+              <FilesSidebar files={files} pin={pinNode} />
             ) : inReview ? (
               <ReviewSidebar review={review} pin={pinNode} />
             ) : inTerminal ? (
@@ -1135,6 +1140,8 @@ export function App() {
         return <PhotoEditor photos={photos} review={photos.open && turnMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'design':
         return <DesignEditor designs={designs} review={designs.page && turnMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
+      case 'files':
+        return <FilesPage files={files} onOpenFile={openChangedFile} />;
       case 'review':
         return <ReviewPage review={review} onOpenFile={openChangedFile} onOpenConversation={(id) => { conversation.select(id); openApp('agent'); }} />;
       case 'terminal':

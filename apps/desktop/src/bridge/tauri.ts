@@ -228,6 +228,9 @@ export function createTauriBridge(): MobiusBridge {
       use: (id, model) => call('providers', 'use', [id, model], () => ({ ok: false as const, error: 'Providers are not available.' })),
       onChanged: (listener) => on<null>('mobius:providers-changed', () => listener()),
     },
+    files: {
+      list: (path) => call('files', 'list', [path], () => ({ error: 'Not available.' })),
+    },
     extensions: {
       connectors: () => call('extensions', 'connectors', [], () => ({ running: [], failed: [], problem: null })),
     },

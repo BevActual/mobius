@@ -481,6 +481,11 @@ impl Bridge {
             ("changes", _) => self.changes_call(method, args),
             ("signins", _) => Ok(self.signins_call(method, args)),
             ("extensions", "connectors") => Ok(self.mcp_status()),
+            // The person looking through their own workspace: read only, and inside it.
+            ("files", "list") => Ok(match self.workspace.run("files.list", &json!({ "path": arg(0).as_str().unwrap_or("") })) {
+                Ok(text) => serde_json::from_str(&text).unwrap_or(Value::Null),
+                Err(error) => json!({ "error": error }),
+            }),
             ("browser", _) => self.browser_call(method, args),
             ("surface", "setBounds") => {
                 if let Some(b) = self.browser.get() {
