@@ -1165,6 +1165,7 @@ export function App() {
           <ProjectPage
             projects={projects}
             conversations={conversation.list}
+            incoming={wikiIncoming}
             onOpenThread={(id) => { conversation.select(id); openApp('agent'); }}
             onNewThread={(pid) => { const id = conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()); void projects.addThread(pid, id).then((ok) => { if (ok) { conversation.select(id); openApp('agent'); } }); }}
             onOpenMemory={(p) => { setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(`Projects/${p.name}.md`, p.name); }}

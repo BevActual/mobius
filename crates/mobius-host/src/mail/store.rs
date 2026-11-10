@@ -99,6 +99,17 @@ pub struct Message {
     /// A kept plan said it needs a reply.
     #[serde(default)]
     pub needs_reply: bool,
+    /// Moved out of the inbox on the server too, to `archive` or `later`: kept here while it is there.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_box: Option<String>,
+}
+
+/// Where a message goes on the server: out of the inbox to the archive or to Later, or back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Move {
+    ToArchive,
+    ToLater,
+    Back,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -485,7 +496,7 @@ impl Mail {
                 }
                 // Gone from the server, or now too old.
                 let before = saved.messages.len();
-                saved.messages.retain(|m| m.account != account.id || m.mailbox != which || keep.contains(&m.uid));
+                saved.messages.retain(|m| m.account != account.id || m.mailbox != which || keep.contains(&m.uid) || m.server_box.is_some());
                 changed |= saved.messages.len() != before;
                 saved.messages.iter().filter(|m| m.account == account.id && m.mailbox == which).map(|m| (m.uid, (m.seen, m.flagged))).collect()
             };
@@ -530,7 +541,7 @@ impl Mail {
             None => (Person { name: String::new(), email: String::new() }, Vec::new(), Vec::new(), String::new(), 0, String::from_utf8_lossy(raw).into_owned(), Vec::new(), String::new(), Vec::new(), false),
         };
         let category = if mailbox == "sent" { "primary" } else { categorize(&subject, &from.email, list, &text) }.to_owned();
-        Message { id: format!("{account}/{mailbox}/{uid}"), account: account.to_owned(), mailbox: mailbox.to_owned(), uid, from, to, cc, subject, date_ms, seen: has("\\Seen") || mailbox == "sent", flagged: has("\\Flagged"), preview: preview_of(&text), category, attachments, message_id, references, list, archived: false, later_ms: None, needs_reply: false }
+        Message { id: format!("{account}/{mailbox}/{uid}"), account: account.to_owned(), mailbox: mailbox.to_owned(), uid, from, to, cc, subject, date_ms, seen: has("\\Seen") || mailbox == "sent", flagged: has("\\Flagged"), preview: preview_of(&text), category, attachments, message_id, references, list, archived: false, later_ms: None, needs_reply: false, server_box: None }
     }
 
     /// Messages, newest first: a mailbox (`inbox` or `sent`), a category (or `all`), and words to look for.
@@ -667,8 +678,12 @@ impl Mail {
         if undo.archived.is_empty() && undo.later.is_empty() && undo.reply.is_empty() && undo.todos.is_empty() {
             return Err("There is nothing in that plan to do.".into());
         }
+        // Kept: the server is told too, archive and Later moving the messages out of the inbox there.
+        let moves: Vec<(String, Move)> = undo.archived.iter().map(|id| (id.clone(), Move::ToArchive)).chain(undo.later.iter().map(|id| (id.clone(), Move::ToLater))).collect();
         saved.plan_undo = Some(undo);
         self.save(&saved);
+        drop(saved);
+        self.server_moves(&moves);
         Ok(json!({ "ok": true, "todos": texts, "list": TODO_LIST }))
     }
 
@@ -688,7 +703,94 @@ impl Mail {
             }
         }
         self.save(&saved);
+        drop(saved);
+        let back: Vec<(String, Move)> = undo.archived.iter().chain(&undo.later).map(|id| (id.clone(), Move::Back)).collect();
+        self.server_moves(&back);
         Ok(json!({ "ok": true, "todos": undo.todos, "list": TODO_LIST }))
+    }
+
+    /// Moves messages on the server too, after the person kept the change here: to the account's archive (its
+    /// \Archive or \All mailbox, else one called Archive), to a mailbox called Later, or back to the inbox, found by
+    /// its Message-ID. What the server refuses stays as it is there; here it is as the person said.
+    pub fn server_moves(&self, moves: &[(String, Move)]) {
+        let messages: Vec<(Message, Move)> = {
+            let saved = self.lock();
+            moves.iter().filter_map(|(id, mv)| saved.messages.iter().find(|m| &m.id == id && m.mailbox == "inbox").cloned().map(|m| (m, *mv))).collect()
+        };
+        let mut accounts: Vec<String> = messages.iter().map(|(m, _)| m.account.clone()).collect();
+        accounts.sort();
+        accounts.dedup();
+        for account_id in accounts {
+            let account = self.lock().accounts.iter().find(|a| a.id == account_id).cloned();
+            let (Some(a), Some(password)) = (account, self.secrets.get(&secret_name(&account_id))) else { continue };
+            let done: Vec<(String, Option<String>)> = (|| -> Res<Vec<(String, Option<String>)>> {
+                let mut c = (self.connector)(&a.imap_host, a.imap_port)?;
+                c.login(&a.email, &password)?;
+                let boxes = c.list()?;
+                let inbox = boxes.iter().find(|b| b.name.eq_ignore_ascii_case("INBOX")).map_or_else(|| "INBOX".to_owned(), |b| b.name.clone());
+                let archive = boxes.iter().find(|b| b.special.as_deref().is_some_and(|s| s.eq_ignore_ascii_case("\\Archive"))).or_else(|| boxes.iter().find(|b| b.special.as_deref().is_some_and(|s| s.eq_ignore_ascii_case("\\All")))).or_else(|| boxes.iter().find(|b| b.name.eq_ignore_ascii_case("Archive"))).map(|b| b.name.clone());
+                let later = boxes.iter().find(|b| b.name.eq_ignore_ascii_case("Later")).map(|b| b.name.clone());
+                let mut out = Vec::new();
+                for (m, mv) in messages.iter().filter(|(m, _)| m.account == account_id) {
+                    let result = match mv {
+                        Move::ToArchive | Move::ToLater => {
+                            let (name, label) = if *mv == Move::ToArchive { (archive.clone().unwrap_or_else(|| "Archive".to_owned()), "archive") } else { (later.clone().unwrap_or_else(|| "Later".to_owned()), "later") };
+                            if (*mv == Move::ToArchive && archive.is_none()) || (*mv == Move::ToLater && later.is_none()) {
+                                c.create(&name)?;
+                            }
+                            c.select(&inbox).and_then(|()| c.move_uid(m.uid, &name)).map(|()| Some(label.to_owned()))
+                        }
+                        Move::Back => {
+                            let from = match m.server_box.as_deref() {
+                                Some("archive") => Some(archive.clone().unwrap_or_else(|| "Archive".to_owned())),
+                                Some("later") => Some(later.clone().unwrap_or_else(|| "Later".to_owned())),
+                                _ => None,
+                            };
+                            match (from, m.message_id.is_empty()) {
+                                (Some(from), false) => c.select(&from).and_then(|()| c.search_message_id(&m.message_id)).and_then(|uids| uids.into_iter().try_for_each(|u| c.move_uid(u, &inbox))).map(|()| None),
+                                _ => Ok(None),
+                            }
+                        }
+                    };
+                    if let Ok(server_box) = result {
+                        out.push((m.id.clone(), server_box));
+                    }
+                }
+                c.logout();
+                Ok(out)
+            })()
+            .unwrap_or_default();
+            let mut saved = self.lock();
+            let mut back = false;
+            for (id, server_box) in done {
+                if server_box.is_none() {
+                    // Back in the inbox on the server, under a new UID: this entry goes, and the next read of the
+                    // inbox brings the message back as it is there.
+                    if saved.messages.iter().any(|m| m.id == id && m.server_box.is_some()) {
+                        saved.messages.retain(|m| m.id != id);
+                        back = true;
+                    }
+                } else if let Some(m) = saved.messages.iter_mut().find(|m| m.id == id) {
+                    m.server_box = server_box;
+                }
+            }
+            self.save(&saved);
+            drop(saved);
+            if back {
+                self.sync(Some(&account_id));
+            }
+        }
+    }
+
+    /// Later's time came for messages moved to Later on the server: they go back to the inbox there too.
+    pub fn later_due(&self) -> bool {
+        let now = i64::try_from(now_ms()).unwrap_or(i64::MAX);
+        let due: Vec<(String, Move)> = self.lock().messages.iter().filter(|m| m.server_box.as_deref() == Some("later") && m.later_ms.is_none_or(|t| t <= now)).map(|m| (m.id.clone(), Move::Back)).collect();
+        if due.is_empty() {
+            return false;
+        }
+        self.server_moves(&due);
+        true
     }
 
     /// E: archive (or bring back) one message.
@@ -697,6 +799,8 @@ impl Mail {
         let m = saved.messages.iter_mut().find(|m| m.id == id).ok_or("That message is not known.")?;
         m.archived = on;
         self.save(&saved);
+        drop(saved);
+        self.server_moves(&[(id.to_owned(), if on { Move::ToArchive } else { Move::Back })]);
         Ok(json!({ "ok": true }))
     }
 
@@ -706,6 +810,9 @@ impl Mail {
         let m = saved.messages.iter_mut().find(|m| m.id == id).ok_or("That message is not known.")?;
         m.later_ms = at_ms;
         self.save(&saved);
+        drop(saved);
+        let later = at_ms.is_some_and(|t| t > i64::try_from(now_ms()).unwrap_or(i64::MAX));
+        self.server_moves(&[(id.to_owned(), if later { Move::ToLater } else { Move::Back })]);
         Ok(json!({ "ok": true, "laterMs": at_ms }))
     }
 
@@ -961,6 +1068,32 @@ mod tests {
         assert_eq!(subjects(&mail.list("inbox", "all", "", 50)).len(), 5, "everything is back");
         assert_eq!(mail.list("inbox", "all", "", 50)[0]["needsReply"], false);
         assert!(mail.undo_plan().is_err(), "once");
+    }
+
+    #[test]
+    fn a_kept_plan_moves_the_mail_on_the_server_too_and_undo_all_brings_it_back() {
+        let (addr, log) = fake_server(vec![(8, "", RECEIPT.to_vec()), (11, "", QUESTION.to_vec()), (12, "\\Seen", RUI.to_vec())]);
+        let dir = tempfile::tempdir().unwrap();
+        let mail = Mail::with_connector(dir.path(), Arc::new(MemorySecrets::new(true)), Mail::plain_connector());
+        let host = addr.ip().to_string();
+        mail.connect("other", "ana@example.com", "app-pass", Some((&host, addr.port())), Some((&host, 1))).unwrap();
+        let said = |log: &Arc<std::sync::Mutex<Vec<String>>>| log.lock().unwrap().clone();
+        let plan = mail.plan();
+        assert!(said(&log).iter().all(|c| !c.starts_with("UID MOVE")), "nothing moves on the server before Keep");
+        mail.keep_plan(&plan).unwrap();
+        let after = said(&log);
+        assert!(after.iter().any(|c| c == "CREATE \"Archive\""), "the account has no archive: one is made {after:?}");
+        assert!(after.iter().any(|c| c == "UID MOVE 8 \"Archive\""), "the receipt is archived there {after:?}");
+        assert!(after.iter().any(|c| c == "UID MOVE 12 \"Later\""), "what is for later goes to Later {after:?}");
+        assert!(!after.iter().any(|c| c.starts_with("UID MOVE 11")), "what needs a reply stays in the inbox");
+        // Kept here while it is out of the inbox there, even when the server no longer lists it in the inbox.
+        assert_eq!(mail.list("all", "all", "", 50).as_array().unwrap().iter().filter(|m| m["box"] == "inbox").count(), 3);
+        log.lock().unwrap().clear();
+        mail.undo_plan().unwrap();
+        let back = said(&log);
+        assert!(back.iter().any(|c| c.starts_with("UID SEARCH HEADER Message-ID")), "found again by its Message-ID {back:?}");
+        assert!(back.iter().any(|c| c.ends_with("\"INBOX\"") && c.starts_with("UID MOVE")), "and moved back to the inbox {back:?}");
+        assert_eq!(mail.list("inbox", "all", "", 50).as_array().unwrap().len(), 3, "all back here too");
     }
 
     #[test]

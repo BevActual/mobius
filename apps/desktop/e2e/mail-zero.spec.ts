@@ -65,12 +65,16 @@ test('Get to zero is a plan in the Mobius panel: keep it and the inbox empties, 
   await expect(plan.getByRole('button', { name: /^To-dos/ })).toHaveText('To-dos1');
   await plan.getByRole('button', { name: /^To-dos/ }).click();
   await expect(plan.getByRole('list', { name: 'To-dos' })).toContainText('Terrace + lunch for the 13th');
+  expect(servers.commands.filter((c) => c.startsWith('UID MOVE')), 'nothing moves on the server before Keep').toEqual([]);
   await plan.getByRole('button', { name: 'Keep the plan' }).click();
   await expect(zero.getByRole('status')).toContainText('Kept the plan');
   await expect(inbox().getByRole('option')).toHaveCount(0);
+  // Kept: archived on the server too.
+  expect(servers.commands).toContain('UID MOVE 8 "Archive"');
   await expect.poll(() => fs.existsSync(todos()) && fs.readFileSync(todos(), 'utf8')).toContain('Terrace + lunch for the 13th (Rui Almeida)');
   await zero.getByRole('button', { name: 'Undo all' }).click();
   await expect(inbox().getByRole('option')).toHaveCount(2);
+  expect(servers.commands.some((c) => c.startsWith('UID MOVE') && c.endsWith('"INBOX"')), 'and back to the inbox there').toBe(true);
   await expect.poll(() => fs.readFileSync(todos(), 'utf8')).not.toContain('Terrace');
   // Discard plan leaves everything as it was.
   await zero.getByRole('button', { name: 'Get to zero' }).click();
