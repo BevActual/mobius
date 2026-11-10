@@ -371,3 +371,19 @@ describe('where a reply came from', () => {
     expect(replySources(items, 0)).toEqual([]);
   });
 });
+
+import { linkedFrom } from './conversation';
+
+describe('linked from', () => {
+  it('names the apps the last turn read, apart from the ones it changed', () => {
+    const call = (name: string, args: object = {}) => ({ id: name, name, arguments: args });
+    expect(linkedFrom([
+      { role: 'user', text: 'earlier' },
+      { role: 'assistant', text: '', tool_calls: [call('notes.read')] },
+      { role: 'user', text: 'make a task from that email' },
+      { role: 'assistant', text: '', tool_calls: [call('mail.read', { id: 'm1' }), call('files.read', { path: 'notes/Work/Plan.md' }), call('tasks.add', { list: 'Inbox' })] },
+      { role: 'assistant', text: 'Done.', tool_calls: [] },
+    ])).toEqual(['Mail', 'Notes']);
+    expect(linkedFrom([{ role: 'user', text: 'x' }, { role: 'assistant', text: '', tool_calls: [call('files.read', { path: 'notes/a.md' }), call('files.write', { path: 'notes/b.md' })] }])).toEqual([]);
+  });
+});

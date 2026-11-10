@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
+import { linkedFrom } from './conversation';
 
 /**
  * Asking Mobius for another go at what was just discarded. The app provides it while a conversation can take a new
@@ -15,13 +16,19 @@ export const TRY_ANOTHER_ASK = 'I discarded that change. Try another way.';
  */
 export function WhyThis({ conversation }: { conversation: string }) {
   const [ask, setAsk] = useState<string | null>(null);
+  const [from, setFrom] = useState<string[]>([]);
   useEffect(() => {
     let live = true;
     void window.mobius.changes?.turns?.(conversation).then((r) => { if (live) setAsk(r.ok ? r.turns[0]?.ask?.trim() || null : null); }).catch(() => undefined);
+    void window.mobius.agent.history(conversation).then((h) => { if (live) setFrom(linkedFrom(h)); }).catch(() => undefined);
     return () => { live = false; };
   }, [conversation]);
-  if (!ask) return null;
-  return <span className="review-why" title={ask}>Why this: you asked “{ask.length > 90 ? `${ask.slice(0, 89)}…` : ask}”</span>;
+  return (
+    <>
+      {ask && <span className="review-why" title={ask}>Why this: you asked “{ask.length > 90 ? `${ask.slice(0, 89)}…` : ask}”</span>}
+      {from.length > 0 && <span className="review-why review-linked">Linked from {from.join(' · ')}</span>}
+    </>
+  );
 }
 
 interface Props {

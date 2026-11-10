@@ -265,7 +265,7 @@ export function proposedPlan(state: ConversationState): number {
 }
 
 /** Which app a tool works in, for saying what Mobius has seen. Files under notes/ and tasks/ belong to those apps. */
-function appOfTool(name: string, args: unknown): string | null {
+export function appOfTool(name: string, args: unknown): string | null {
   const path = typeof args === 'object' && args !== null && typeof (args as { path?: unknown }).path === 'string' ? (args as { path: string }).path : '';
   if (name.startsWith('browser.')) return 'Browser';
   if (name.startsWith('tasks.')) return 'Tasks';
@@ -281,6 +281,29 @@ function appOfTool(name: string, args: unknown): string | null {
  * The apps Mobius has read from or worked in during this conversation, in the order it first did: what you attached
  * (a page, a note, a file) and the tools it used that ran. Shown as "Sees:" so it is never a surprise.
  */
+/** A tool that only reads (it brings something from an app, and changes nothing). */
+const READS = /\.(read|list|search|tabs|events|calendars|lists|query|tables)$/;
+
+/**
+ * Where a turn's change was made from: the apps its last turn read, apart from the ones it changed. Shown on a
+ * proposal as "Linked from Mail · Notes", so a task made from an email says so.
+ */
+export function linkedFrom(history: readonly Message[]): string[] {
+  const start = history.map((m) => m.role).lastIndexOf('user');
+  const turn = start < 0 ? [] : history.slice(start);
+  const read: string[] = [];
+  const changed = new Set<string>();
+  for (const m of turn) {
+    if (m.role !== 'assistant') continue;
+    for (const call of m.tool_calls) {
+      const app = appOfTool(call.name, call.arguments);
+      if (!app) continue;
+      if (READS.test(call.name)) { if (!read.includes(app)) read.push(app); } else changed.add(app);
+    }
+  }
+  return read.filter((app) => !changed.has(app));
+}
+
 export function appsSeen(state: ConversationState): string[] {
   const seen: string[] = [];
   const add = (app: string | null) => { if (app && !seen.includes(app)) seen.push(app); };
