@@ -2330,3 +2330,5 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .project-card > .btn { justify-self: start; }
 
 .project-thread-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.project-title { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.project-title input { font: inherit; font-size: var(--fs-xl); padding: 2px 8px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--field); color: inherit; }

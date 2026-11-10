@@ -1685,6 +1685,26 @@ impl Bridge {
                 (self.emit)("mobius:wiki-changed", json!({ "path": null, "by": "person" }));
                 json!(project)
             }),
+            "rename" => match (text(0), text(1)) {
+                (Some(id), Some(name)) => p.rename(id, name).map(|(before, after)| {
+                    // Its folder and its memory page follow the name.
+                    let (old, new) = (crate::projects::folder_of(&before.name), crate::projects::folder_of(&after.name));
+                    let root = self.data_dir.join("workspace").join("projects");
+                    if old != new {
+                        let _ = std::fs::rename(root.join(&old), root.join(&new));
+                        let _ = std::fs::create_dir_all(root.join(&new));
+                        let pages = self.data_dir.join("workspace").join("wiki").join("Projects");
+                        let (from, to) = (format!("Projects/{old}.md"), format!("Projects/{new}.md"));
+                        if !pages.join(format!("{new}.md")).exists() {
+                            let _ = std::fs::rename(pages.join(format!("{old}.md")), pages.join(format!("{new}.md")));
+                        }
+                        let _ = self.wiki_incoming.repage(&from, &to);
+                        (self.emit)("mobius:wiki-changed", json!({ "path": null, "by": "person" }));
+                    }
+                    json!(after)
+                }),
+                _ => Err("a project and a name are needed".to_owned()),
+            },
             "remove" => text(0).ok_or_else(|| "a project is needed".to_owned()).and_then(|id| {
                 p.remove(id)?;
                 let _ = self.core.call("permissions.set_project_rules", json!({ "project": id, "rules": [] }), Duration::from_secs(5));

@@ -170,3 +170,23 @@ test('a conversation started outside can be moved into a project, and from then 
   await expect(log().locator('.msg.assistant').last()).toHaveText('Wrote it in the project.');
   await expect(log().getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
 });
+
+test('a project can be renamed, and its folder and its memory page follow the name', async () => {
+  await start();
+  await openProjects();
+  await newProject('Kestrel');
+  const workspace = (...p: string[]) => path.join(userData, 'workspace', ...p);
+  fs.writeFileSync(workspace('wiki', 'Projects', 'Kestrel.md'), '# Kestrel\n\n- Builds start on Mondays\n');
+  fs.writeFileSync(workspace('projects', 'Kestrel', 'brief.md'), 'brief');
+  await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: 'Rename' }).click();
+  const field = shell().getByRole('region', { name: 'Kestrel' }).getByRole('textbox', { name: 'Project name' });
+  await field.fill('Kestrel P3');
+  await field.press('Enter');
+  const page = shell().getByRole('region', { name: 'Kestrel P3' });
+  await expect(page.getByRole('heading', { name: 'Kestrel P3' })).toBeVisible();
+  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('button')).toHaveText(['Kestrel P3']);
+  expect(fs.readFileSync(workspace('projects', 'Kestrel P3', 'brief.md'), 'utf8')).toBe('brief');
+  expect(fs.existsSync(workspace('projects', 'Kestrel'))).toBe(false);
+  expect(fs.readFileSync(workspace('wiki', 'Projects', 'Kestrel P3.md'), 'utf8')).toContain('Builds start on Mondays');
+  await expect(page.getByRole('list', { name: 'What this project knows' })).toContainText('Builds start on Mondays');
+});

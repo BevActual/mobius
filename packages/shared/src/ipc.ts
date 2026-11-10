@@ -446,6 +446,8 @@ export interface MobiusBridge {
     list(): Promise<ProjectInfo[]>;
     create(name: string): Promise<ProjectInfo | NotesFailure>;
     remove(id: string): Promise<{ ok: true } | NotesFailure>;
+    /** A new name: its folder in Files and its memory page in the Wiki follow it. */
+    rename(id: string, name: string): Promise<ProjectInfo | NotesFailure>;
     setRule(id: string, app: string, level: ProjectLevel | 'follow'): Promise<ProjectInfo | NotesFailure>;
     addThread(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
     onChanged(listener: () => void): () => void;

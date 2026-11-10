@@ -34,9 +34,10 @@ export function useProjects() {
   };
   const setRule = async (id: string, app: AppId, level: ProjectLevel | 'follow') => { setProblem(failed(await api?.setRule(id, app, level).catch(() => null))); await load(); };
   const addThread = async (id: string, conversation: string) => { const r = await api?.addThread(id, conversation).catch(() => null); setProblem(failed(r)); await load(); return failed(r) === null; };
+  const rename = async (id: string, name: string) => { const r = await api?.rename(id, name).catch(() => null); const why = r ? failed(r) : 'Projects are not available here.'; setProblem(why); await load(); return why === null; };
   const remove = async (id: string) => { await api?.remove(id).catch(() => null); setOpenId(null); await load(); };
   const open = list.find((p) => p.id === openId) ?? list[0] ?? null;
-  return { available: api !== undefined, list, open, setOpenId, create, setRule, addThread, remove, problem };
+  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, addThread, remove, problem };
 }
 export type ProjectsState = ReturnType<typeof useProjects>;
 
@@ -88,6 +89,27 @@ function MoveHere({ projects, project, conversations }: { projects: ProjectsStat
       <option value="">Move a conversation here…</option>
       {free.map((c) => <option key={c.id} value={c.id}>{c.title || 'A conversation'}</option>)}
     </select>
+  );
+}
+
+/** The project's name, and Rename: its folder in Files and its memory page in the Wiki follow the new name. */
+function ProjectTitle({ projects, project }: { projects: ProjectsState; project: ProjectInfo }) {
+  const [naming, setNaming] = useState<string | null>(null);
+  if (naming === null) {
+    return (
+      <div className="project-title">
+        <h1 className="ext-title">{project.name}</h1>
+        <button type="button" className="review-btn" onClick={() => setNaming(project.name)}>Rename</button>
+      </div>
+    );
+  }
+  return (
+    <form className="project-title" onSubmit={(e) => { e.preventDefault(); void projects.rename(project.id, naming).then((ok) => { if (ok) setNaming(null); }); }}>
+      <input autoFocus aria-label="Project name" value={naming} maxLength={60} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(null); }} />
+      <button type="button" className="review-btn" onClick={() => setNaming(null)}>Cancel</button>
+      <button type="submit" className="review-btn" data-kind="keep">Save</button>
+      {projects.problem && <span className="field-error" role="alert">{projects.problem}</span>}
+    </form>
   );
 }
 
@@ -161,7 +183,7 @@ export function ProjectPage({ projects, conversations, incoming, onOpenThread, o
   const waiting = threads.filter((t) => (t.info?.waiting ?? 0) > 0);
   return (
     <section className="skills-page project-page" aria-label={p.name}>
-      <h1 className="ext-title">{p.name}</h1>
+      <ProjectTitle key={p.id} projects={projects} project={p} />
       {waiting.length > 0 && (
         <section className="project-card project-waiting" aria-label="Waiting on you">
           <h2 className="ext-heading">Waiting on you</h2>

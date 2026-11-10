@@ -89,6 +89,20 @@ impl Projects {
         })
     }
 
+    /// A new name. Returns the project as it was, then as it is, so its folder and page can follow.
+    pub fn rename(&self, id: &str, name: &str) -> Result<(Project, Project), String> {
+        let name = clean_name(name).ok_or("A project's name is a few words, without / \\ : * ? \" < > |.")?;
+        self.change(|all| {
+            if all.iter().any(|p| p.id != id && p.name.eq_ignore_ascii_case(&name)) {
+                return Err("There is a project with that name already.".into());
+            }
+            let p = all.iter_mut().find(|p| p.id == id).ok_or("That project is not there.")?;
+            let before = p.clone();
+            p.name = name;
+            Ok((before, p.clone()))
+        })
+    }
+
     pub fn remove(&self, id: &str) -> Result<(), String> {
         self.change(|all| {
             let before = all.len();
@@ -196,6 +210,11 @@ mod tests {
         assert!(!rules.to_string().contains("browser.interact"), "acting in a page always asks");
         p.set_rule(&kestrel.id, "docs", "follow").unwrap();
         assert!(!p.list()[0].rules.contains_key("docs"));
+        let (before, after) = p.rename(&kestrel.id, "Kestrel P3").unwrap();
+        assert_eq!((before.name.as_str(), after.name.as_str()), ("Kestrel P2", "Kestrel P3"));
+        assert_eq!(after.threads, before.threads, "its threads and rules stay");
+        assert!(p.rename(&kestrel.id, "home").is_err(), "names stay unique");
+        assert!(p.rename(&kestrel.id, "a/b").is_err());
         p.remove(&other.id).unwrap();
         assert_eq!(p.list().len(), 1);
     }
