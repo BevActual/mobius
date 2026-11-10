@@ -158,9 +158,11 @@ export type MemoryCategory = 'you' | 'prefs' | 'work' | 'people' | 'skills';
 export interface MemoryItem { text: string; category: MemoryCategory; source: string; /** Mobius noticed it and you have not kept it yet: shown dashed in How I work. */ learned?: boolean }
 /** A change offered to the Wiki: a line for a page, waiting in Shared with this wiki until it is kept or declined. */
 export interface WikiChange { id: string; from: string; page: string; text: string; whenMs: number }
-/** A wiki page as it was at a checkpoint. */
+/** A page as it was earlier: kept as the person typed, or read from a workspace checkpoint. */
 export interface NoteVersion { whenMs: number; content: string; source?: 'kept' | 'checkpoint'; checkpoint?: string }
+/** A file added beside a page; `ref` is the link to it from the page, `image` whether it shows in the page. */
 export interface NoteAttachment { path: string; ref: string; name: string; image: boolean }
+/** A wiki page as it was at a checkpoint. */
 export interface WikiVersion { checkpoint: string; whenMs: number; content: string }
 /** Someone in an email's From, To or Cc. */
 export interface MailPerson { name: string; email: string }

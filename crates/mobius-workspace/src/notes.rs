@@ -104,7 +104,7 @@ fn is_picture(line: &str, close: usize) -> bool {
 
 /// A link's target as `notebook/page.md`, when it is a page: `Plan.md` (this notebook) or `../Home/Plan.md`.
 fn page_link(target: &str, notebook: &str) -> Option<String> {
-    let target = target.trim_matches(['<', '>']).replace("%20", " ");
+    let target = unescape(target.trim_matches(['<', '>']))?;
     if target.contains(':') || target.starts_with('/') || target.contains('\\') || !target.ends_with(".md") {
         return None;
     }
@@ -401,7 +401,8 @@ impl Notes {
         Ok(json!({ "path": path, "content": content, "modified": modified_ms(&file) }))
     }
 
-    /// Delete a page. A checkpoint is taken first, so it can be brought back.
+    /// Delete a page and its files folder. A checkpoint is taken first, so it can be brought back. Its kept versions
+    /// stay in `.versions` on purpose: a page made again with the same name, or put back, has its History still.
     pub fn remove_page(&self, path: &str) -> Res<Value> {
         let file = self.page(path)?;
         if !file.is_file() {
@@ -559,7 +560,7 @@ impl Notes {
     pub fn asset(&self, path: &str, reference: &str) -> Res<Value> {
         let folder = self.files_folder(path).ok_or("that is not a page")?;
         let dir = folder.file_name().and_then(|f| f.to_str()).unwrap_or_default().to_owned();
-        let decoded = reference.replace("%20", " ");
+        let decoded = unescape(reference).ok_or("that file is not one of this page's")?;
         let leaf = decoded.strip_prefix(&format!("{dir}/")).ok_or("that file is not one of this page's")?;
         if leaf.is_empty() || leaf.starts_with('.') || leaf.contains(['/', '\\', ':']) || leaf.contains("..") {
             return Err("that file is not one of this page's".into());
@@ -582,6 +583,26 @@ const KEEP_EVERY_MS: u64 = 5 * 60 * 1000;
 const MAX_KEPT: usize = 50;
 const MAX_VERSIONS: usize = 30;
 pub const MAX_ATTACHMENT: usize = 20 * 1024 * 1024;
+
+/// A link's `%XX` escapes written out (`%20` is a space); `None` if they do not make UTF-8 text.
+fn unescape(link: &str) -> Option<String> {
+    let bytes = link.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%'
+            && let Some(hex) = link.get(i + 1..i + 3)
+            && let Ok(b) = u8::from_str_radix(hex, 16)
+        {
+            out.push(b);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
 
 /// `Battery` keeps its files in `Battery files`.
 pub fn files_folder_name(page_stem: &str) -> String {
@@ -859,6 +880,8 @@ mod tests {
         let again = notes.attach(&path, "photo one.png", &format!("data:image/png;base64,{png}")).unwrap();
         assert_eq!(again["ref"], "Battery%20files/photo%20one%202.png");
         let shown = notes.asset(&path, "Battery%20files/photo%20one.png").unwrap();
+        assert_eq!(notes.asset(&path, "Battery files/photo%20%6Fne.png").unwrap()["dataUrl"], shown["dataUrl"]);
+        assert!(notes.asset(&path, "Battery%20files/%2E%2E%2FBattery.md").is_err());
         assert_eq!(shown["dataUrl"], format!("data:image/png;base64,{png}"));
         for bad in ["Battery files/../Battery.md", "../notes/x.png", "/etc/passwd", "C:/x.png", "Battery files/sub/x.png", "Other files/x.png", "Battery files/.hidden"] {
             assert!(notes.asset(&path, bad).is_err(), "{bad} should be refused");

@@ -7,7 +7,8 @@ import type { Notebook, NotePage } from '@mobius/shared';
  */
 export function pageOfLink(href: string, from: string): string | null {
   const notebook = from.split('/')[0];
-  const target = href.trim().replace(/^<|>$/g, '').replace(/%20/g, ' ');
+  let target: string;
+  try { target = decodeURIComponent(href.trim().replace(/^<|>$/g, '')); } catch { return null; }
   if (!notebook || target.includes(':') || target.startsWith('/') || target.includes('\\') || !target.endsWith('.md')) return null;
   const path = target.startsWith('../') ? target.slice(3) : `${notebook}/${target.replace(/^\.\//, '')}`;
   const parts = path.split('/');
