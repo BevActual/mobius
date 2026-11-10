@@ -272,6 +272,15 @@ describe('a long conversation being summarised', () => {
   });
 });
 
+describe('how full the model window is', () => {
+  it('keeps the latest estimate, adds nothing to the conversation, and forgets it for another conversation', () => {
+    const s = run({ type: 'sent', text: 'hi', turn: 1 }, note({ kind: 'context', used: 1000, limit: 40000 }), note({ kind: 'context', used: 3000, limit: 40000 }));
+    expect(s.context).toEqual({ used: 3000, limit: 40000 });
+    expect(s.items.map((i) => i.kind)).toEqual(['user']);
+    expect(reduce(s, { type: 'switch', conversation: 'other' }).context).toBeUndefined();
+  });
+});
+
 describe('the plan and questions', () => {
   const plan = (items: Array<[string, 'pending' | 'in_progress' | 'done']>) => note({ kind: 'todo', items: items.map(([text, status]) => ({ text, status })) });
 

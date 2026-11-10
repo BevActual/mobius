@@ -1099,6 +1099,7 @@ function validEvent(event: unknown): event is AgentEvent {
     case 'needs_approval': return isCount(event.request_id) && isString(event.call_id) && isString(event.tool) && 'arguments' in event && (event.once_only === undefined || typeof event.once_only === 'boolean') && (event.origin === undefined || event.origin === null || typeof event.origin === 'string');
     case 'failed': return isString(event.message);
     case 'compacted': return isCount(event.messages);
+    case 'context': return isCount(event.used) && isCount(event.limit) && event.limit > 0;
     case 'todo': return Array.isArray(event.items) && event.items.length <= 50 && event.items.every((i: unknown) => isObject(i) && isString(i.text) && i.text.length <= 300 && TODO_STATUSES.includes(i.status as string));
     case 'question': return isString(event.call_id) && isString(event.question) && event.question.length > 0 && event.question.length <= 1000 && Array.isArray(event.choices) && event.choices.length <= 6 && event.choices.every((c: unknown) => isString(c) && c.length <= 200);
     case 'done':

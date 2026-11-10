@@ -1,3 +1,4 @@
+import { FromMobius } from './FromMobius';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
@@ -90,6 +91,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
           </li>
         ))}
       </ul>
+      <FromMobius items={db.list.filter((d) => changed?.has(d.name)).map((d) => ({ key: d.name, name: d.name, current: db.open === d.name, onOpen: () => void db.choose(d.name) }))} />
     </aside>
   );
 }

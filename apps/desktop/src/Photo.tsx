@@ -1,3 +1,4 @@
+import { FromMobius } from './FromMobius';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { AMOUNTS, AMOUNT_NAMES, applyEdits, blankAdjustment, describePixels, editsPathFor, parseEdits, type Adjustment, type AreaKind, type PhotoEdits } from './photo-edit';
@@ -55,6 +56,7 @@ export function PhotoSidebar({ photos, pin, changed }: { photos: PhotosState; pi
           </section>
         ))}
       </nav>
+      <FromMobius items={photos.albums.flatMap((a) => a.photos.filter((p) => changed?.has(p.path)).map((p) => ({ key: p.path, name: p.name, where: a.name, current: photos.open?.path === p.path, onOpen: () => void photos.openPhoto(p.path) })))} />
     </aside>
   );
 }

@@ -391,6 +391,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [chatsToken, setChatsToken] = useState(0);
   const [contextOpen, setContextOpen] = useState(false);
+  const [starterSlot, setStarterSlot] = useState<HTMLDivElement | null>(null);
   const preferences = usePreferences();
   const [copied, setCopied] = useState<string | null>(null);
   // Not-sure facts the person checked, per reply: a reply with unchecked ones is not copied out of Mobius.
@@ -468,7 +469,12 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   return (
     <Shell variant={variant} empty={state.items.length === 0}>
       <div className="chat-head">
-        {variant === 'full' && !needsSetup ? <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span> : (
+        {variant === 'full' && !needsSetup ? (
+          <span className="chat-titles">
+            <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span>
+            <span className="chat-sub">Mobius</span>
+          </span>
+        ) : (
           <span className="chat-titles">
             <span className="chat-title">Mobius</span>
             {place && <span className="chat-sub">In {place}</span>}
@@ -528,6 +534,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                 <MobiusMark size={44} turning={!configured} className="empty-mark" />
                 <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
                 {configured && <p className="greeting-note">Mobius asks before it uses a tool, unless you change that below.</p>}
+                {configured && <div ref={setStarterSlot} className="empty-starters" />}
                 {desk}
               </div>
             )}
@@ -601,6 +608,8 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
           {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
           <Composer
             takeFocus={takeFocus}
+            contextUse={state.context}
+            startersIn={state.items.length === 0 ? starterSlot : null}
             draft={draft}
             onDraft={setDraft}
             context={context}

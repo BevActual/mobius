@@ -1,6 +1,8 @@
 import { Reorder, motion } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Activity } from './activity';
+import { useSideFolds } from './side-fold';
+import { useMorphIn } from './motion';
 import { appName, type AppId } from './apps';
 import type { Favourite } from '@mobius/shared';
 
@@ -138,6 +140,9 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   // Right-click an app (or Shift+F10) to move or hide it: HIG asks that people can shape the sidebar.
   const [menu, setMenu] = useState<{ id: AppId; x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLElement>(null);
+  useSideFolds(railRef, expanded);
+  const askRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menu) return undefined;
     menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
@@ -160,6 +165,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   const [face, setFace] = useState<'app' | 'apps'>('app');
   const switching = expanded && face === 'apps';
   const asking = expanded && !switching && Boolean(mobius?.shown);
+  useMorphIn(askRef, asking, 'left');
   const showOwn = expanded && !switching && !settingsOpen && !asking;
   const showApps = !asking && (!showOwn || !children);
   useEffect(() => { setFace('app'); }, [app, settingsOpen, expanded]);
@@ -193,7 +199,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
     </button>
   );
   return (
-    <nav className="rail" aria-label="Apps" data-expanded={expanded || undefined} data-face={expanded ? (switching ? 'apps' : asking ? 'mobius' : 'app') : undefined}>
+    <nav ref={railRef} className="rail" aria-label="Apps" data-expanded={expanded || undefined} data-face={expanded ? (switching ? 'apps' : asking ? 'mobius' : 'app') : undefined}>
       {expanded ? (
         <>
           <div className="rail-head">
@@ -220,7 +226,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
           {/* The page's controls stay where they were, above Mobius, so the address does not jump when Mobius opens. */}
           {(showOwn || asking) && chrome && <div className="rail-chrome">{chrome}</div>}
           {asking && mobius && (
-            <div className="rail-ask">
+            <div ref={askRef} className="rail-ask">
               <div className="rail-ask-bar">
                 <span className="rail-ask-title">Mobius</span>
                 <button type="button" className="rail-ask-beside" onClick={mobius.onBeside} title="Show Mobius beside the page instead">Show beside</button>

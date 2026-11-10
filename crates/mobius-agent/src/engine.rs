@@ -85,6 +85,13 @@ pub enum AgentEvent {
         #[ts(type = "number")]
         messages: usize,
     },
+    /// How much of the model's window the next request takes, estimated in tokens, against the window's size.
+    Context {
+        #[ts(type = "number")]
+        used: usize,
+        #[ts(type = "number")]
+        limit: usize,
+    },
     Done,
     Failed { message: String },
     Cancelled,
@@ -492,7 +499,10 @@ impl Engine {
 
     fn call_model(&self, core: &Core, turn: &mut Turn) -> Step {
         turn.steps += 1;
-        Step::CallModel(self.request(core, turn))
+        let request = self.request(core, turn);
+        let used = compaction::tokens_of(&request.system, &request.messages, &request.tools);
+        turn.events.push(AgentEvent::Context { used, limit: self.budget.context_tokens });
+        Step::CallModel(request)
     }
 
     fn model_of(&self, turn: &Turn) -> String {

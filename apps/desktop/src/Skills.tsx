@@ -1,3 +1,4 @@
+import { FromMobius } from './FromMobius';
 import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { lineDiff } from './code-view';
@@ -57,6 +58,7 @@ export function SkillsSidebar({ skills, pin, changed, places }: { skills: Skills
           ))}
         </ul>
       </nav>
+      <FromMobius items={skills.list.filter((s) => changed?.has(s.name)).map((s) => ({ key: s.name, name: `/${s.name}`, current: skills.open?.name === s.name, onOpen: () => void skills.openSkill(s.name) }))} />
     </aside>
   );
 }

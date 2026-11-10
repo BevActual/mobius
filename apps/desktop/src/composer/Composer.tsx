@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { MobiusMark } from '../MobiusMark';
 import { MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
 import { usePreferences } from '../usePreferences';
@@ -26,6 +27,10 @@ const KIND_NOTE: Record<ModelGroup['kind'], string> = { subscription: 'Plan', pr
 type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: ModelCatalog };
 
 export interface ComposerProps {
+  /** In an empty conversation: where three starters go, as plain text under the greeting, instead of chips here. */
+  startersIn?: HTMLElement | null;
+  /** How full the model's window is, when the core has said: a small ring with its percent. */
+  contextUse?: { used: number; limit: number };
   /** Whether the message box takes the keyboard when it appears (not when a floating panel is only peeked at). */
   takeFocus?: boolean;
   draft: string;
@@ -56,7 +61,7 @@ export interface ComposerProps {
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity, contextUse, startersIn }: ComposerProps) {
   // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
   const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
   const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
@@ -234,7 +239,15 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           )}
         </div>
       )}
-      {suggestions.length > 0 && (
+      {suggestions.length > 0 && startersIn && createPortal(
+        <div className="starters" role="group" aria-label="Suggestions">
+          {suggestions.slice(0, 3).map((s) => (
+            <button key={s.label} type="button" className="starter" onClick={() => void suggest(s)}>{s.label}</button>
+          ))}
+        </div>,
+        startersIn,
+      )}
+      {suggestions.length > 0 && !startersIn && (
         <div className="suggest" role="group" aria-label="Suggestions">
           {suggestions.map((s) => (
             <button key={s.label} type="button" className="suggest-chip" title={s.attach === 'page' ? 'Attaches this page' : s.attach === 'note' ? 'Attaches this note' : s.attach === 'tasks' ? 'Attaches this list' : s.attach === 'sheet' ? 'Attaches this sheet' : s.attach === 'mail' ? 'Attaches this email' : s.attach === 'code' ? 'Attaches this file' : s.attach === 'photo' ? 'Attaches this photo, described, and its edits' : s.attach === 'cut' ? 'Attaches the clips and the cut' : undefined} onClick={() => void suggest(s)}>
@@ -365,6 +378,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           </PopMenu>
         </div>
         <div className="composer-actions">
+          {contextUse && <ContextRing used={contextUse.used} limit={contextUse.limit} />}
           {dictation.state === 'recording' && <span className="rec" role="status" aria-label={`Recording ${clock(dictation.seconds)}`}><span className="rec-dot" aria-hidden="true" />{clock(dictation.seconds)}</span>}
           {dictation.state === 'transcribing' && <span className="rec" role="status">Turning speech into text…</span>}
           <button type="button" className="round ghost" data-recording={dictation.state === 'recording' || undefined} aria-label={dictation.state === 'recording' ? 'Stop dictation' : 'Dictate'} title={dictation.state === 'recording' ? 'Stop and insert the words (Esc cancels)' : 'Dictate'} disabled={!canType || busy || dictation.state === 'transcribing'} onClick={dictation.toggle}>
@@ -384,5 +398,23 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       </div>
       {shownProblem && <p className="composer-problem" role="alert">{shownProblem}</p>}
     </form>
+  );
+}
+
+/** How much of the model's window the conversation takes: a 13px ring that fills, with its percent. */
+function ContextRing({ used, limit }: { used: number; limit: number }) {
+  const share = Math.min(1, Math.max(0, used / limit));
+  const percent = Math.round(share * 100);
+  const r = 5;
+  const around = 2 * Math.PI * r;
+  return (
+    <span className="context-ring" role="meter" aria-label="Context used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}
+      title={`Context used: ${percent}% (about ${used.toLocaleString()} of ${limit.toLocaleString()} tokens). Mobius summarises older messages when it fills.`}>
+      <svg viewBox="0 0 13 13" width="13" height="13" aria-hidden="true">
+        <circle cx="6.5" cy="6.5" r={r} className="context-ring-track" />
+        <circle cx="6.5" cy="6.5" r={r} className="context-ring-fill" strokeDasharray={`${share * around} ${around}`} transform="rotate(-90 6.5 6.5)" />
+      </svg>
+      <span className="context-ring-text">{percent}%</span>
+    </span>
   );
 }

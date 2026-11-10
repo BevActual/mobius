@@ -59,6 +59,18 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
     }
   }, [open]);
 
+  // While it is open the keys are its own: something behind it that takes the focus as it loads (an editor opening a
+  // page) hands it back, so Enter opens what was found instead of going into that page.
+  useEffect(() => {
+    if (!open) return undefined;
+    const keep = (event: FocusEvent) => {
+      const element = dialog.current;
+      if (element?.open && event.target instanceof Node && !element.contains(event.target)) input.current?.focus();
+    };
+    document.addEventListener('focusin', keep, true);
+    return () => document.removeEventListener('focusin', keep, true);
+  }, [open]);
+
   const items = useMemo<LauncherItem[]>(() => {
     const q = query.trim().toLowerCase();
     const has = (text: string) => !q || text.toLowerCase().includes(q);

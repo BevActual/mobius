@@ -759,6 +759,7 @@ fn valid_event(e: &Value) -> bool {
         Some("needs_approval") => e.get("request_id").is_some_and(Value::is_u64) && s("call_id") && s("tool") && e.get("arguments").is_some() && e.get("once_only").is_none_or(Value::is_boolean) && e.get("origin").is_none_or(|o| o.as_str().is_some_and(|o| o.chars().count() <= 300)),
         Some("failed") => s("message"),
         Some("compacted") => e.get("messages").is_some_and(Value::is_u64),
+        Some("context") => e.get("used").is_some_and(Value::is_u64) && e.get("limit").and_then(Value::as_u64).is_some_and(|l| l > 0),
         Some("todo") => e.get("items").and_then(Value::as_array).is_some_and(|items| {
             items.len() <= 50 && items.iter().all(|i| i.get("text").and_then(Value::as_str).is_some_and(|t| t.chars().count() <= 300) && matches!(i.get("status").and_then(Value::as_str), Some("pending" | "in_progress" | "done")))
         }),

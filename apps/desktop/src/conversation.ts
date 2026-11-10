@@ -31,6 +31,8 @@ export interface ConversationState {
   nextId: number;
   /** You took over the running task: Mobius paused at this step (of this many, when it has a plan). */
   control?: { step: number; of?: number } | null;
+  /** How full the model's window was at its last request, as the core estimated it, in tokens. */
+  context?: { used: number; limit: number };
 }
 
 export type ConversationAction =
@@ -227,6 +229,8 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
           return { ...base, control: { step: event.step, ...(typeof event.of === 'number' ? { of: event.of } : {}) } };
         case 'resumed':
           return { ...base, control: null };
+        case 'context':
+          return { ...base, context: { used: event.used, limit: event.limit } };
         case 'compacted':
           return withItem(base, (id) => ({ kind: 'notice', id, text: 'Earlier messages were summarised to make room for the model. They are still here for you.' }));
         case 'done':

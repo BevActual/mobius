@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
-import { quick } from './motion';
+import { quick, useMorphIn } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
 import { DownloadsList } from './DownloadsList';
 import { FindBar } from './FindBar';
@@ -19,6 +19,7 @@ import { useDownloads } from './useDownloads';
 import { Launcher } from './Launcher';
 import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
+import { useSideFolds } from './side-fold';
 import type { Side } from './resize';
 import { SurfaceSlot } from './SurfaceSlot';
 import { useAgentSettings } from './useAgentSettings';
@@ -511,6 +512,8 @@ export function App() {
   const [peeked, setPeeked] = useState(false);
   useEffect(() => { if (!chatOpen) setPeeked(false); }, [chatOpen]);
   useAutoHide(leftFloating, hasLeft && leftOpen, hideLeft, leftDock, leftFromEdge);
+  useSideFolds(leftDock, hasLeft && leftOpen);
+  useMorphIn(rightDock, rightOpen);
   useAutoHide(rightFloating, rightOpen, hideRight, rightDock, rightFromEdge);
   // Switching to floating while the pointer and keyboard are elsewhere puts the sidebar away.
   const wasFloating = useRef({ left: leftFloating, right: rightFloating });
