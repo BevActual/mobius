@@ -167,3 +167,24 @@ fn allowing_it_once_lets_that_one_call_through_and_nothing_more() {
     assert_eq!(w.sent.load(Ordering::SeqCst), 1, "the one the person allowed");
     assert!(matches!(step, Step::AwaitApproval { .. }), "the next one asks again: {step:?}");
 }
+
+#[test]
+fn running_the_tests_the_person_set_up_is_not_stopped_by_a_project_name_mobius_read() {
+    let mut w = world(ApprovalMode::Manual);
+    let ran = Arc::new(AtomicUsize::new(0));
+    let r = ran.clone();
+    w.core.register_tool(ToolSpec::new("code.test", "Run the project's tests.", "code.test").unwrap(), Box::new(move |_| { r.fetch_add(1, Ordering::SeqCst); Ok(json!({ "project": "offsite-planner", "passed": false })) })).unwrap();
+    if let InvokeOutcome::NeedsApproval { request_id } = w.core.invoke(&agent(), "code.test", &json!({})).unwrap() {
+        w.core.resolve(request_id, true, Duration::Always).unwrap();
+    }
+    ran.store(0, Ordering::SeqCst);
+    let provider = ScriptedProvider::new(vec![
+        calls(vec![call("c1", "code.test", json!({ "project": "offsite-planner" }))]),
+        calls(vec![call("c2", "code.test", json!({ "project": "offsite-planner" }))]),
+        Ok(Completion { text: "Fixed.".into(), tool_calls: vec![], stop: StopReason::EndTurn }),
+    ]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "Why is the split test off?", 1);
+    let step = drive(&mut w, &mut turn, &provider, step);
+    assert_eq!(step, Step::Done);
+    assert_eq!(ran.load(Ordering::SeqCst), 2, "both runs went ahead without asking");
+}

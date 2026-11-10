@@ -85,7 +85,8 @@ fn kind_of(tool: &str) -> &'static str {
 /// Whether a call sends, pays, deletes, runs or opens a site: what read text must never ask for on its own.
 #[must_use]
 pub fn is_consequential(tool: &str, capability: &str, arguments: &Value) -> bool {
-    const CAPS: [&str; 11] = ["process.exec", "fs.delete", "mail.draft", "mail.send", "code.push", "code.test", "code.run", "browser.navigate", "browser.interact", "payments.pay", "db.write"];
+    // Not code.test: it runs only the test command the person chose, and its arguments only name the project.
+    const CAPS: [&str; 10] = ["process.exec", "fs.delete", "mail.draft", "mail.send", "code.push", "code.run", "browser.navigate", "browser.interact", "payments.pay", "db.write"];
     if CAPS.contains(&capability) || capability.starts_with("payments.") {
         return true;
     }
@@ -215,5 +216,7 @@ mod tests {
         assert!(is_consequential("tasks.update", "tasks.write", &json!({ "action": "delete" })));
         assert!(!is_consequential("files.write", "files.write", &json!({ "path": "notes/a.md" })));
         assert!(!is_consequential("browser.read", "browser.read", &json!({})));
+        // Running the tests the person set up, in a project named in an earlier result, is theirs to have asked for.
+        assert!(!is_consequential("code.test", "code.test", &json!({ "project": "offsite-planner" })));
     }
 }
