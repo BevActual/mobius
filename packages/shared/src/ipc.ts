@@ -159,6 +159,8 @@ export interface MemoryItem { text: string; category: MemoryCategory; source: st
 /** A change offered to the Wiki: a line for a page, waiting in Shared with this wiki until it is kept or declined. */
 export interface WikiChange { id: string; from: string; page: string; text: string; whenMs: number }
 /** A wiki page as it was at a checkpoint. */
+export interface NoteVersion { whenMs: number; content: string; source?: 'kept' | 'checkpoint'; checkpoint?: string }
+export interface NoteAttachment { path: string; ref: string; name: string; image: boolean }
 export interface WikiVersion { checkpoint: string; whenMs: number; content: string }
 /** Someone in an email's From, To or Cc. */
 export interface MailPerson { name: string; email: string }
@@ -575,7 +577,7 @@ export interface MobiusBridge {
   /** The Docs app: documents kept like notes, as Markdown in `docs/<folder>/<doc>.md`. Only the Tauri shell has it. */
   docs?: NonNullable<MobiusBridge['notes']>;
   /** The Wiki app: pages kept like notes, as Markdown in `wiki/<folder>/<page>.md`, and the changes offered to it. */
-  wiki?: NonNullable<MobiusBridge['notes']> & {
+  wiki?: Omit<NonNullable<MobiusBridge['notes']>, 'versions'> & {
     versions?(path: string): Promise<WikiVersion[] | NotesFailure>;
     incoming?(): Promise<WikiChange[]>;
     offer?(from: string, text: string, page?: string): Promise<WikiChange | NotesFailure>;
@@ -664,6 +666,12 @@ export interface MobiusBridge {
     createPage(notebook: string, title: string): Promise<NoteContent | NotesFailure>;
     remove(path: string): Promise<{ ok: true } | NotesFailure>;
     search(query: string): Promise<NoteHit[] | NotesFailure>;
+    /** The page's earlier versions, newest first: kept as the person typed, and from the workspace checkpoints. */
+    versions?(path: string): Promise<NoteVersion[] | NotesFailure>;
+    /** Add a file (base64) to the page's files folder; `ref` is the link to put in the page. */
+    attach?(path: string, name: string, base64: string): Promise<NoteAttachment | NotesFailure>;
+    /** One of the page's files, as a `data:` address to show. */
+    asset?(path: string, ref: string): Promise<{ dataUrl: string; size: number } | NotesFailure>;
     onChanged(listener: (change: NotesChange) => void): () => void;
   };
   history: {

@@ -7,7 +7,7 @@ import { Markdown } from '@tiptap/markdown';
 import { TableKit } from '@tiptap/extension-table';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { Placeholder } from '@tiptap/extensions';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { onCommand } from './commands';
@@ -20,6 +20,8 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { showTag, tagRanges, tagsIn } from './note-tags';
 import { countWords } from './Docs';
 import { relativeTime } from './relative-time';
+import { NoteHistory, dayOf } from './NoteHistory';
+import { fileMarkdown, noteImage, readFile } from './note-files';
 
 /** How long a recording in a note may run: ten minutes. */
 const NOTE_RECORDING_SECONDS = 600;
@@ -162,6 +164,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
 
   // The Markdown the editor last gave or was given, so a change from elsewhere is told from the person's typing.
   const known = useRef<string | null>(null);
+  // The open page, for pictures to be read from its files folder; and files pasted or dropped on it.
+  const pathNow = useRef(path);
+  pathNow.current = path;
+  const filesIn = useRef<(files: File[]) => void>(() => undefined);
+  const image = useMemo(() => noteImage(() => pathNow.current), []);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
@@ -171,9 +178,27 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       Markdown,
       Placeholder.configure({ placeholder: ({ node }) => (node.type.name === 'heading' ? 'Title' : 'Start writing, or type # for a tag') }),
       NoteTags,
+      image,
     ],
     content: '',
-    editorProps: { attributes: { class: 'note-page', 'aria-label': 'Note text', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'true' } },
+    editorProps: {
+      attributes: { class: 'note-page', 'aria-label': 'Note text', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'true' },
+      // Files pasted or dropped on the page are added to it: pictures show, anything else is a link.
+      handlePaste: (_view, event) => {
+        const files = [...(event.clipboardData?.files ?? [])];
+        if (!files.length) return false;
+        filesIn.current(files);
+        return true;
+      },
+      handleDrop: (view, event) => {
+        const files = [...(event.dataTransfer?.files ?? [])];
+        if (!files.length) return false;
+        const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
+        if (at) view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(at.pos))));
+        filesIn.current(files);
+        return true;
+      },
+    },
     onUpdate: ({ editor: e, transaction }) => {
       if (transaction.getMeta('mobius-load')) return;
       const md = markdownOf(e);
@@ -232,6 +257,31 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     caret.current = done.cursor;
     window.requestAnimationFrame(() => { const f = area.current; if (f) { f.focus(); f.setSelectionRange(done.cursor, done.cursor); } });
   };
+  // Files added to the page: kept beside it, then put in where the cursor is.
+  const picker = useRef<HTMLInputElement>(null);
+  const [adding, setAdding] = useState(0);
+  const addFiles = async (files: File[]) => {
+    const page = pathNow.current;
+    const attach = window.mobius.notes?.attach;
+    if (!page || !attach || !files.length) return;
+    setInsertProblem(null);
+    setAdding((n) => n + files.length);
+    const added: string[] = [];
+    for (const file of files) {
+      try {
+        if (file.size > 20 * 1024 * 1024) { setInsertProblem(`${file.name} is too big to add (20 MB at most).`); continue; }
+        const got = await attach(page, file.name || 'Pasted', await readFile(file));
+        if ('ref' in got) added.push(fileMarkdown(got.ref, got.name, got.image));
+        else setInsertProblem(`${file.name} could not be added: ${got.message}.`);
+      } catch {
+        setInsertProblem(`${file.name} could not be read.`);
+      } finally {
+        setAdding((n) => n - 1);
+      }
+    }
+    if (added.length && pathNow.current === page) put(added.join('\n\n'));
+  };
+  filesIn.current = (files) => void addFiles(files);
   const recording = useDictation((words) => put(recordingBlock(words, recordedFor.current)), NOTE_RECORDING_SECONDS);
   recordedFor.current = recording.seconds;
   const clip = async (url: string) => {
@@ -252,6 +302,16 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const chain = editor.chain().focus();
     if (editor.state.selection.empty) chain.insertContent({ type: 'text', text: href, marks: [{ type: 'link', attrs: { href: full } }] }).run();
     else chain.extendMarkRange('link').setLink({ href: full }).run();
+  };
+  // History, shown in place of the page; and the last restore, which can be undone.
+  const [history, setHistory] = useState(false);
+  const [restored, setRestored] = useState<{ was: string; label: string } | null>(null);
+  useEffect(() => { setHistory(false); setRestored(null); }, [path]);
+  const restore = (content: string, whenMs: number) => {
+    const at = new Date(whenMs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    setRestored({ was: notes.text, label: `${dayOf(whenMs, Date.now())}, ${at}` });
+    notes.edit(content);
+    setHistory(false);
   };
   // What the last turn changed on this page, line by line, read only while it is shown.
   const [diff, setDiff] = useState<DiffLine[] | null>(null);
@@ -352,7 +412,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           <button type="button" className="btn primary" onClick={() => void notes.resolve(true)}>Keep mine</button>
         </div>
       )}
-      {diff === null && (
+      {history && path && <NoteHistory path={path} text={notes.text} onRestore={restore} onClose={() => setHistory(false)} />}
+      {diff === null && !history && (
         <div className="doc-toolbar note-format" role="toolbar" aria-label="Format">
           {editor && !source && <FormatButtons editor={editor} onLink={() => setLinking('')} />}
           {source && (
@@ -363,12 +424,33 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           )}
           <span className="doc-tool-sep" />
           <div className="note-insert" role="group" aria-label="Insert">
-            <button type="button" className="note-insert-btn" data-recording={recording.state === 'recording' || undefined} disabled={recording.state === 'transcribing'} title="Record what is said and keep the words in this page" onPointerDown={keep} onClick={recording.toggle}>
-              {recording.state === 'recording' ? `Stop · ${Math.floor(recording.seconds / 60)}:${String(recording.seconds % 60).padStart(2, '0')}` : recording.state === 'transcribing' ? 'Writing it down…' : 'Record'}
+            {recording.state === 'idle' ? (
+              <button type="button" className="doc-tool" aria-label="Record" title="Record what is said and keep the words in this page" onPointerDown={keep} onClick={recording.toggle}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5" /><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17" /></svg>
+              </button>
+            ) : (
+              <button type="button" className="note-insert-btn" data-recording={recording.state === 'recording' || undefined} disabled={recording.state === 'transcribing'} title="Stop and keep the words in this page" onPointerDown={keep} onClick={recording.toggle}>
+                {recording.state === 'recording' ? `Stop · ${Math.floor(recording.seconds / 60)}:${String(recording.seconds % 60).padStart(2, '0')}` : 'Writing it down…'}
+              </button>
+            )}
+            {window.mobius.notes?.attach && (
+              <>
+                <button type="button" className="doc-tool" aria-label="Picture or file" title={adding > 0 ? 'Adding…' : 'Add a picture or a file to this page (or paste or drop one)'} aria-busy={adding > 0 || undefined} disabled={adding > 0} onPointerDown={keep} onClick={() => picker.current?.click()}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="11" rx="2" /><circle cx="7.5" cy="8.5" r="1.3" /><path d="m3.5 14 4-3.5 3 2.5 2.5-2 3.5 3" /></svg>
+                </button>
+                <input ref={picker} type="file" multiple hidden aria-label="Choose files to add" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; void addFiles(files); }} />
+              </>
+            )}
+            <button type="button" className="doc-tool" aria-label="Clip from web" title="Clip a web page into this page" aria-expanded={clipping !== null} onPointerDown={keep} onClick={() => setClipping((c) => (c === null ? '' : null))}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M3.5 10h13M10 3.5c-2 2-2.8 4.2-2.8 6.5s.8 4.5 2.8 6.5M10 3.5c2 2 2.8 4.2 2.8 6.5s-.8 4.5-2.8 6.5" /></svg>
             </button>
-            <button type="button" className="note-insert-btn" aria-expanded={clipping !== null} onPointerDown={keep} onClick={() => setClipping((c) => (c === null ? '' : null))}>Clip from web</button>
           </div>
           <span className="spacer" />
+          {window.mobius.notes?.versions && (
+            <button type="button" className="doc-tool" aria-label="History" title="Earlier versions of this page" onClick={() => setHistory(true)}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.8 10a6.2 6.2 0 1 0 1.9-4.5M3.5 3.5v3h3M10 6.5V10l2.5 1.6" /></svg>
+            </button>
+          )}
           <button type="button" className="doc-tool text note-source" aria-pressed={source} title={source ? 'Show the page formatted' : 'Show and type the Markdown the page is kept as'} onClick={toggleSource}>Markdown</button>
           {clipping !== null && (
             <form className="note-clip" onSubmit={(e) => { e.preventDefault(); if (clipping.trim()) void clip(clipping); }}>
@@ -385,7 +467,14 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           {(insertProblem ?? recording.problem) && <span className="review-problem" role="alert">{insertProblem ?? recording.problem}</span>}
         </div>
       )}
-      {review && !kept && (
+      {restored && !history && (
+        <div className="note-restored" role="status">
+          <span>Restored the version from {restored.label}.</span>
+          <button type="button" className="review-btn" onClick={() => { notes.edit(restored.was); setRestored(null); }}>Undo</button>
+          <button type="button" className="review-btn" aria-label="Dismiss" onClick={() => setRestored(null)}>OK</button>
+        </div>
+      )}
+      {review && !kept && !history && (
         <div className="note-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in Mobius's last turn`; })() : "Mobius changed this page in its last turn."}<WhyThis conversation={review.conversation} /></span>
@@ -414,7 +503,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           })()}
         </ol>
       )}
-      <div className="note-scroll" hidden={diff !== null}>
+      <div className="note-scroll" hidden={diff !== null || history}>
         <p className="note-meta">
           {edited && <span>Edited {edited.toLowerCase() === 'just now' ? 'just now' : edited}</span>}
           <span>{words === 1 ? '1 word' : `${words} words`}</span>
@@ -430,6 +519,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
             spellCheck
             value={notes.text}
             onChange={(e) => notes.edit(e.target.value)}
+            onPaste={(e) => { const files = [...e.clipboardData.files]; if (files.length) { e.preventDefault(); caret.current = e.currentTarget.selectionStart; void addFiles(files); } }}
+            onDrop={(e) => { const files = [...e.dataTransfer.files]; if (files.length) { e.preventDefault(); void addFiles(files); } }}
             onSelect={(e) => { caret.current = e.currentTarget.selectionStart; }}
             onPointerDown={(e) => { pointer.current = null; pressedAt.current = e.clientY; setSelection(null); }}
             onPointerUp={(e) => { pointer.current = { x: e.clientX, y: e.clientY }; readSourceSelection(); }}

@@ -279,6 +279,12 @@ impl Notes {
         {
             return Err("changed elsewhere".into());
         }
+        if self.ext == "md"
+            && let Ok(before) = fs::read_to_string(&file)
+            && before != content
+        {
+            self.keep_version(path, &before, modified_ms(&file));
+        }
         let temp = file.with_extension("md.mobius-tmp");
         fs::write(&temp, content).map_err(|e| e.to_string())?;
         fs::rename(&temp, &file).map_err(|e| {
@@ -330,6 +336,9 @@ impl Notes {
         let folder = self.root.file_name().and_then(|f| f.to_str()).unwrap_or(FOLDER);
         let checkpoint = self.checkpoints.snapshot(&self.workspace, &format!("before deleting {folder}/{path}")).is_ok();
         fs::remove_file(&file).map_err(|e| e.to_string())?;
+        if let Some(files) = self.files_folder(path) {
+            let _ = fs::remove_dir_all(files);
+        }
         Ok(json!({ "removed": path, "checkpoint": checkpoint }))
     }
 
@@ -356,6 +365,210 @@ impl Notes {
         hits.sort_by_key(|h| !h.0);
         Ok(Value::Array(hits.into_iter().take(MAX_HITS).map(|h| h.1).collect()))
     }
+
+    /// Where a page's kept versions live: `<folder>/.versions/<notebook>/<page>/<ms>.md`. The leading dot keeps the
+    /// folder out of the notebook list.
+    fn versions_folder(&self, path: &str) -> Option<PathBuf> {
+        let (notebook, file) = page_ok(path, self.ext)?;
+        Some(self.root.join(VERSIONS).join(notebook).join(file.strip_suffix(".md")?))
+    }
+
+    /// Keep what a page held before a save, at most one version every few minutes (typing saves often), and only the
+    /// newest `MAX_KEPT`.
+    fn keep_version(&self, path: &str, before: &str, when_ms: u64) {
+        let Some(folder) = self.versions_folder(path) else { return };
+        let mut kept = kept_times(&folder);
+        if kept.last().is_some_and(|last| when_ms.saturating_sub(*last) < KEEP_EVERY_MS) {
+            return;
+        }
+        if fs::create_dir_all(&folder).is_err() || fs::write(folder.join(format!("{when_ms}.md")), before).is_err() {
+            return;
+        }
+        kept.push(when_ms);
+        for old in kept.iter().take(kept.len().saturating_sub(MAX_KEPT)) {
+            let _ = fs::remove_file(folder.join(format!("{old}.md")));
+        }
+    }
+
+    /// A page's earlier versions, newest first: the ones kept as the person typed, and the page as it was at each
+    /// workspace checkpoint (taken before Mobius changes files and before a delete). Versions that are the same as the
+    /// page now, or as the version after them, are left out.
+    pub fn versions(&self, path: &str) -> Res<Value> {
+        let file = self.page(path)?;
+        let now = fs::read_to_string(&file).map_err(|_| "that page is not there".to_owned())?;
+        let mut found: Vec<(u64, String, &str)> = Vec::new();
+        if let Some(folder) = self.versions_folder(path) {
+            for when in kept_times(&folder) {
+                if let Ok(text) = fs::read_to_string(folder.join(format!("{when}.md"))) {
+                    found.push((when, text, "kept"));
+                }
+            }
+        }
+        let folder = self.root.file_name().and_then(|f| f.to_str()).unwrap_or(FOLDER);
+        if let Ok(list) = self.checkpoints.list(&self.workspace, 40) {
+            for c in list {
+                if let Ok(Some(text)) = self.checkpoints.read_at(&self.workspace, &c.id, &format!("{folder}/{path}")) {
+                    found.push((c.when * 1000, text, "checkpoint"));
+                }
+            }
+        }
+        found.sort_by_key(|b| std::cmp::Reverse(b.0));
+        let mut out = Vec::new();
+        let mut last = now.clone();
+        for (when, text, source) in found {
+            if text == last || text == now {
+                continue;
+            }
+            out.push(json!({ "whenMs": when, "content": text, "source": source }));
+            last = text;
+            if out.len() >= MAX_VERSIONS {
+                break;
+            }
+        }
+        Ok(Value::Array(out))
+    }
+
+    /// The folder beside a page that holds what was added to it: `Battery.md` keeps its pictures in `Battery files/`,
+    /// as other Markdown apps do, so the page's links work outside Mobius too.
+    fn files_folder(&self, path: &str) -> Option<PathBuf> {
+        let (notebook, file) = page_ok(path, self.ext)?;
+        Some(self.root.join(notebook).join(files_folder_name(file.strip_suffix(".md")?)))
+    }
+
+    /// Add a file to a page: saved in the page's files folder under a safe name (never replacing one there), and the
+    /// link to put in the page returned as `ref`, relative to the page and with spaces written `%20`.
+    pub fn attach(&self, path: &str, name: &str, base64: &str) -> Res<Value> {
+        if self.ext != "md" || self.named_by_file {
+            return Err("only pages take files".into());
+        }
+        let page = self.page(path)?;
+        if !page.is_file() {
+            return Err("that page is not there".into());
+        }
+        if base64.len() > MAX_ATTACHMENT / 3 * 4 + 4 {
+            return Err("that file is too big to add (20 MB at most)".into());
+        }
+        let bytes = from_base64(base64).ok_or("that file could not be read")?;
+        if bytes.len() > MAX_ATTACHMENT {
+            return Err("that file is too big to add (20 MB at most)".into());
+        }
+        let leaf = name.rsplit(['/', '\\']).next().unwrap_or("");
+        let (stem, ext) = match leaf.rsplit_once('.') {
+            Some((s, e)) if !s.is_empty() && !e.is_empty() && e.len() <= 8 && e.chars().all(|c| c.is_ascii_alphanumeric()) => (s, Some(e.to_ascii_lowercase())),
+            _ => (leaf, None),
+        };
+        let stem = file_name_for(stem);
+        let named = |n: u32| {
+            let s = if n < 2 { stem.clone() } else { format!("{stem} {n}") };
+            ext.as_ref().map_or(s.clone(), |e| format!("{s}.{e}"))
+        };
+        let folder = self.files_folder(path).ok_or("that is not a page")?;
+        fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+        let mut n = 1;
+        let chosen = loop {
+            let candidate = named(n);
+            match fs::OpenOptions::new().write(true).create_new(true).open(folder.join(&candidate)) {
+                Ok(mut f) => {
+                    std::io::Write::write_all(&mut f, &bytes).map_err(|e| e.to_string())?;
+                    break candidate;
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && n < 1000 => n += 1,
+                Err(e) => return Err(e.to_string()),
+            }
+        };
+        let dir = folder.file_name().and_then(|f| f.to_str()).unwrap_or_default();
+        Ok(json!({ "path": path, "ref": format!("{}/{}", dir, chosen).replace(' ', "%20"), "name": chosen, "image": ext.as_deref().is_some_and(|e| image_type(e).is_some()) }))
+    }
+
+    /// A file a page links to, as a `data:` address the editor can show. Only files in the page's own files folder are
+    /// given: a link that leaves it (`..`, a full path, a drive) is refused.
+    pub fn asset(&self, path: &str, reference: &str) -> Res<Value> {
+        let folder = self.files_folder(path).ok_or("that is not a page")?;
+        let dir = folder.file_name().and_then(|f| f.to_str()).unwrap_or_default().to_owned();
+        let decoded = reference.replace("%20", " ");
+        let leaf = decoded.strip_prefix(&format!("{dir}/")).ok_or("that file is not one of this page's")?;
+        if leaf.is_empty() || leaf.starts_with('.') || leaf.contains(['/', '\\', ':']) || leaf.contains("..") {
+            return Err("that file is not one of this page's".into());
+        }
+        let file = folder.join(leaf);
+        let size = fs::metadata(&file).map_err(|_| "that file is not there".to_owned())?.len();
+        if size > MAX_ATTACHMENT as u64 {
+            return Err("that file is too big to show".into());
+        }
+        let ext = leaf.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
+        let kind = image_type(&ext).unwrap_or("application/octet-stream");
+        let bytes = fs::read(&file).map_err(|e| e.to_string())?;
+        Ok(json!({ "dataUrl": format!("data:{kind};base64,{}", to_base64(&bytes)), "size": size }))
+    }
+}
+
+const VERSIONS: &str = ".versions";
+/// Typing saves every moment; a version is kept at most this often.
+const KEEP_EVERY_MS: u64 = 5 * 60 * 1000;
+const MAX_KEPT: usize = 50;
+const MAX_VERSIONS: usize = 30;
+pub const MAX_ATTACHMENT: usize = 20 * 1024 * 1024;
+
+/// `Battery` keeps its files in `Battery files`.
+pub fn files_folder_name(page_stem: &str) -> String {
+    format!("{page_stem} files")
+}
+
+/// The times of a page's kept versions, oldest first.
+fn kept_times(folder: &Path) -> Vec<u64> {
+    let mut times: Vec<u64> = fs::read_dir(folder).into_iter().flatten().filter_map(Result::ok).filter_map(|e| e.file_name().to_str()?.strip_suffix(".md")?.parse().ok()).collect();
+    times.sort_unstable();
+    times
+}
+
+fn image_type(ext: &str) -> Option<&'static str> {
+    Some(match ext {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "avif" => "image/avif",
+        "bmp" => "image/bmp",
+        _ => return None,
+    })
+}
+
+const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+fn to_base64(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let n = (u32::from(chunk[0]) << 16) | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8) | u32::from(*chunk.get(2).unwrap_or(&0));
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(char::from(B64[((n >> (18 - 6 * i)) & 63) as usize]));
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
+/// Plain or `data:…;base64,` text back to bytes; `None` if it is not base64.
+fn from_base64(text: &str) -> Option<Vec<u8>> {
+    let body = text.split_once(";base64,").map_or(text, |(_, b)| b);
+    let mut out = Vec::with_capacity(body.len() / 4 * 3);
+    let (mut acc, mut bits) = (0u32, 0u32);
+    for c in body.bytes().filter(|c| !c.is_ascii_whitespace()) {
+        if c == b'=' {
+            break;
+        }
+        let v = B64.iter().position(|&b| b == c)? as u32;
+        acc = (acc << 6) | v;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+            acc &= (1 << bits) - 1;
+        }
+    }
+    Some(out)
 }
 
 #[cfg(test)]
@@ -533,4 +746,64 @@ mod tests {
         assert_eq!(list[0]["pages"][0]["title"], "Home");
         assert!(designs.read("Trip app/notes.md").is_err());
     }
+
+    #[test]
+    fn a_save_keeps_what_the_page_held_before_and_versions_list_it_newest_first() {
+        let (_d, notes) = setup();
+        notes.create_notebook("Work").unwrap();
+        let page = notes.create_page("Work", "Plan").unwrap();
+        let path = page["path"].as_str().unwrap();
+        notes.save(path, "# Plan\n\nfirst\n", None).unwrap();
+        // Typing straight after does not keep another version: one at most every few minutes.
+        notes.save(path, "# Plan\n\nsecond\n", None).unwrap();
+        let v = notes.versions(path).unwrap();
+        let v = v.as_array().unwrap();
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0]["content"], "# Plan\n\n");
+        assert_eq!(v[0]["source"], "kept");
+        // An older kept version shows after it; one the same as the page now is left out.
+        let folder = notes.versions_folder(path).unwrap();
+        fs::write(folder.join("1000.md"), "# Plan\n\nsecond\n").unwrap();
+        fs::write(folder.join("500.md"), "# Plan\n\nzero\n").unwrap();
+        let v = notes.versions(path).unwrap();
+        let texts: Vec<&str> = v.as_array().unwrap().iter().map(|x| x["content"].as_str().unwrap()).collect();
+        assert_eq!(texts, vec!["# Plan\n\n", "# Plan\n\nzero\n"]);
+        // The versions folder is not a notebook.
+        let list = notes.list().unwrap();
+        assert_eq!(list.as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_file_added_to_a_page_sits_beside_it_and_is_given_back_only_from_there() {
+        let (_d, notes) = setup();
+        notes.create_notebook("Work").unwrap();
+        let path = notes.create_page("Work", "Battery").unwrap()["path"].as_str().unwrap().to_owned();
+        let png = to_base64(b"\x89PNG fake");
+        let first = notes.attach(&path, "../../photo one.PNG", &png).unwrap();
+        assert_eq!(first["ref"], "Battery%20files/photo%20one.png");
+        assert_eq!(first["image"], true);
+        let again = notes.attach(&path, "photo one.png", &format!("data:image/png;base64,{png}")).unwrap();
+        assert_eq!(again["ref"], "Battery%20files/photo%20one%202.png");
+        let shown = notes.asset(&path, "Battery%20files/photo%20one.png").unwrap();
+        assert_eq!(shown["dataUrl"], format!("data:image/png;base64,{png}"));
+        for bad in ["Battery files/../Battery.md", "../notes/x.png", "/etc/passwd", "C:/x.png", "Battery files/sub/x.png", "Other files/x.png", "Battery files/.hidden"] {
+            assert!(notes.asset(&path, bad).is_err(), "{bad} should be refused");
+        }
+        assert!(notes.attach("../x.md", "a.png", &png).is_err());
+        assert!(notes.attach(&path, "big.bin", &"A".repeat(MAX_ATTACHMENT / 3 * 4 + 8)).is_err());
+        // The list still has one page, and deleting the page takes its files with it.
+        assert_eq!(notes.list().unwrap()[0]["pages"].as_array().unwrap().len(), 1);
+        notes.remove_page(&path).unwrap();
+        assert!(!notes.root.join("Work/Battery files").exists());
+    }
+
+    #[test]
+    fn base64_goes_there_and_back() {
+        for bytes in [&b""[..], b"a", b"ab", b"abc", b"abcd", &[0, 255, 128, 7, 9]] {
+            assert_eq!(from_base64(&to_base64(bytes)).unwrap(), bytes);
+        }
+        assert_eq!(to_base64(b"Man"), "TWFu");
+        assert!(from_base64("not*base64").is_none());
+    }
+
 }

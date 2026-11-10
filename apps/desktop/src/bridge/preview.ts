@@ -43,6 +43,7 @@ const EVENTS = [
   { id: 'e4', calendar: 'Work', title: 'Standup', start: `${day(0)}T09:30`, end: `${day(0)}T09:45`, allDay: false, location: '', notes: '', repeats: true },
 ];
 
+const NOTE_FILES: Record<string, string> = {};
 const NOTE_TEXT: Record<string, string> = {
   'P2 build/Build plan.md': '# Build plan\n\nThe build week is the 23rd. Packs arrive six weeks from order. #kestrel/p2\n\n## Before we go\n\n- [x] Confirm the build week with Priya\n- [ ] Send the plan to the team\n- [ ] Book the sled for Friday\n\n| Item | Cost |\n| --- | --- |\n| Packs | 48000 |\n| Sled | 6500 |\n',
   'P2 build/Supplier notes.md': '# Supplier notes\n\n## Veltro Cells\n\n- 8 × 60 kWh packs, six weeks from order to the dock\n- The price hold lasts until **Friday** #supplier #kestrel/p2\n',
@@ -78,6 +79,18 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'notes.search': ((query: string) => Object.entries(NOTE_TEXT).filter(([, t]) => t.toLowerCase().includes(query.toLowerCase())).map(([path, t]) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), notebook: path.split('/')[0], line: t.split('\n').find((l) => l.toLowerCase().includes(query.toLowerCase())) ?? '' }))) as never,
   // Typing in a note is kept for as long as the preview is open, so the Markdown it is saved as can be looked at.
   'notes.save': ((path: string, content: string) => { NOTE_TEXT[path] = content; (window as unknown as { savedNote?: string }).savedNote = content; return { path, modified: Date.now() }; }) as never,
+  // Two earlier versions of every page: one from before Mobius's turn, one kept while typing.
+  'notes.versions': ((path: string) => [
+    { whenMs: now - 40 * 60_000, content: (NOTE_TEXT[path] ?? '').replace(/\n- The price hold[^\n]*/, ''), source: 'kept' },
+    { whenMs: now - 26 * hour, content: (NOTE_TEXT[path] ?? '').split('\n').slice(0, 3).join('\n'), source: 'checkpoint' },
+  ]) as never,
+  // Files added to a page are kept for as long as the preview is open.
+  'notes.attach': ((path: string, name: string, base64: string) => {
+    const ref = `${path.slice(path.indexOf('/') + 1, -3)} files/${name}`.replace(/ /g, '%20');
+    NOTE_FILES[ref] = base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`;
+    return { path, ref, name, image: /\.(png|jpe?g|gif|webp)$/i.test(name) };
+  }) as never,
+  'notes.asset': ((_path: string, ref: string) => (NOTE_FILES[ref] ? { dataUrl: NOTE_FILES[ref], size: 1 } : { ok: false, message: 'that file is not there' })) as never,
   'sheets.list': () => [{ name: 'P2 budget', sheets: ['Sheet 1'] }],
   // Mobius added the Total row in its turn.
   'sheets.read': ((workbook: string, sheet: string) => ({ workbook, sheet, sheets: ['Sheet 1'], version: 'preview',
