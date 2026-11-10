@@ -175,6 +175,7 @@ export function Rail({ app, expanded, onToggle, create, counts, menus, chrome, m
                   ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
                   : <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-tile" style={{ background: `var(--app-${app})` }}>{APP_ICONS[app]}</svg>}
               <span className="rail-label" aria-hidden="true">{switching ? 'Apps' : title}</span>
+              {needsYou > 0 && !showApps && <span className="rail-badge" role="status" aria-label={`${needsYou} waiting for you`}>{needsYou}</span>}
               <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-caret"><path d="m7 8.5 3 3 3-3" /></svg>
             </button>
             {mobius && !switching && (

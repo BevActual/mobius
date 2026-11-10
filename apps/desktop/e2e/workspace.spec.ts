@@ -48,9 +48,9 @@ test('the rail opens every app, shows where you are, and holds Settings', async 
   for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', '[aria-label="Notes sidebar"]'], ['Search', '.search-page'], ['Agent', '.chat.full']] as const) {
     await showApps();
     await railButton(name).click();
+    await expect(shell().locator(view)).toBeVisible();
     await showApps();
     await expect(railButton(name)).toHaveAttribute('aria-current', 'page');
-    await expect(shell().locator(view)).toBeVisible();
   }
   await showApps();
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
