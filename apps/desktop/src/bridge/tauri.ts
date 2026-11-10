@@ -109,6 +109,9 @@ export function createTauriBridge(): MobiusBridge {
       turns: (conversation) => call('changes', 'turns', [conversation], () => ({ ok: true as const, turns: [] })),
       turnBefore: (conversation, start, path) => call('changes', 'turnBefore', [conversation, start, path], () => refused),
       undoTurnFile: (conversation, start, path, force) => call('changes', 'undoTurnFile', [conversation, start, path, force === true], () => refused),
+      rewindPreview: (conversation, start) => call('changes', 'rewindPreview', [conversation, start], () => refused),
+      rewind: (conversation, start) => call('changes', 'rewind', [conversation, start], () => refused),
+      undoRewind: (conversation, undo) => call('changes', 'undoRewind', [conversation, undo], () => refused),
     },
     mini: {
       open: () => call('mini', 'open', [], () => null).then(() => undefined),

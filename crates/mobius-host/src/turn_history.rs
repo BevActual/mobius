@@ -143,6 +143,35 @@ impl TurnHistory {
             .unwrap_or_default()
     }
 
+    /// Takes out the turns after the one that started at `start` (rewinding to it), oldest first. None when that
+    /// turn is not known.
+    pub fn drop_after(&self, conversation: &str, start: &str) -> Option<Vec<Turn>> {
+        let Ok(mut all) = self.all.lock() else { return None };
+        let turns = all.get_mut(conversation)?;
+        let at = turns.iter().position(|t| t.start == start)?;
+        let later = turns.split_off(at + 1);
+        self.save(&all);
+        Some(later)
+    }
+
+    /// Puts back turns taken out by a rewind that was undone, after the ones there now.
+    pub fn put_back(&self, conversation: &str, later: Vec<Turn>) {
+        let Ok(mut all) = self.all.lock() else { return };
+        let turns = all.entry(conversation.to_owned()).or_default();
+        turns.extend(later);
+        let extra = turns.len().saturating_sub(PER_CONVERSATION);
+        turns.drain(..extra);
+        self.save(&all);
+    }
+
+    /// How many turns came after the one that started at `start`.
+    pub fn later_than(&self, conversation: &str, start: &str) -> Option<usize> {
+        let all = self.all.lock().ok()?;
+        let turns = all.get(conversation)?;
+        let at = turns.iter().position(|t| t.start == start)?;
+        Some(turns.len() - at - 1)
+    }
+
     /// One turn, by the checkpoint before it.
     pub fn find(&self, conversation: &str, start: &str) -> Option<Turn> {
         self.all
@@ -194,5 +223,22 @@ mod tests {
         }
         assert_eq!(h.turns("c2").len(), PER_CONVERSATION);
         assert!(h.turns("nope").is_empty());
+    }
+
+    #[test]
+    fn rewinding_takes_out_the_later_turns_and_undoing_puts_them_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let h = TurnHistory::open(dir.path().join("turn-history.json"));
+        for (start, end) in [("aaaa", "bbbb"), ("bbbb", "cccc"), ("cccc", "dddd")] {
+            h.started("c1", start, start);
+            h.ended("c1", end);
+        }
+        assert_eq!(h.later_than("c1", "aaaa"), Some(2));
+        assert_eq!(h.later_than("c1", "nope"), None);
+        let later = h.drop_after("c1", "aaaa").unwrap();
+        assert_eq!(later.iter().map(|t| t.start.as_str()).collect::<Vec<_>>(), ["bbbb", "cccc"]);
+        assert_eq!(h.turns("c1").len(), 1);
+        h.put_back("c1", later);
+        assert_eq!(h.turns("c1").iter().map(|t| t.start.as_str()).collect::<Vec<_>>(), ["cccc", "bbbb", "aaaa"]);
     }
 }

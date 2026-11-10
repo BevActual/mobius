@@ -5,6 +5,7 @@ import { relativeTime } from './relative-time';
 import { activityBoard } from './activity-board';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { ReviewActions } from './ReviewBar';
+import { Turns } from './Rewind';
 
 interface Props {
   /** Open Settings › Schedules. */
@@ -238,6 +239,7 @@ function ActivityBoard({ conversations, active, onSelect, onDelete, onOpenSchedu
       {group('Running', board.running)}
       {onOpenSchedules && <ScheduledList onOpen={onOpenSchedules} />}
       <ChangesWaiting conversations={recent} onSelect={onSelect} />
+      {active && <Turns conversation={active} busy={conversations.find((c) => c.id === active)?.activity === 'working'} />}
       {group('Done today', board.doneToday)}
       {quiet && <p className="srow-empty side-empty">Nothing is running or waiting. Ask Mobius something, or schedule it for later.</p>}
     </>

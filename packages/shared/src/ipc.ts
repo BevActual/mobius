@@ -251,6 +251,11 @@ export interface MobiusBridge {
     turnBefore(conversation: string, start: string, path: string): Promise<{ ok: true; text: string | null } | AgentFailure>;
     /** Puts one file back as it was before one turn. Refused with `later` when it changed again after that turn, unless `force`. */
     undoTurnFile(conversation: string, start: string, path: string, force?: boolean): Promise<{ ok: true } | (AgentFailure & { later?: boolean })>;
+    /** What rewinding to right after one turn would do: how many later turns go, and the files that would change. */
+    rewindPreview?(conversation: string, start: string): Promise<{ ok: true; later: number; files: string[] } | AgentFailure>;
+    /** Everything back as it was right after that turn; the later turns go. `undo` names the rewind for undoRewind. */
+    rewind?(conversation: string, start: string): Promise<{ ok: true; undo: string; later: number } | AgentFailure>;
+    undoRewind?(conversation: string, undo: string): Promise<{ ok: true } | AgentFailure>;
   };
   /** Little Mobius: a small window, kept above other apps, with the conversation and nothing else. */
   mini: {

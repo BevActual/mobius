@@ -2236,3 +2236,11 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .desk-row[data-changed] { box-shadow: none; border: 1px dashed var(--accent); }
 .desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--accent); }
 @container (max-width: 520px) { .desk-rows[data-columns] { grid-template-columns: 1fr; } }
+
+/* Activity: the open conversation's turns, each with Rewind to here. */
+.turn-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 6px var(--sp-2); }
+.turn-ask { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
+.turn-when { font-size: var(--fs-xs); color: var(--muted); }
+.turn-rewind { grid-column: 1 / -1; justify-self: start; height: 22px; padding: 0 8px; font-size: var(--fs-xs); }
+.turn-confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: var(--fs-xs); }
+.turn-confirm > span { flex: 1 0 100%; }

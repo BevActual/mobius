@@ -163,6 +163,8 @@ pub struct Bridge {
     marking: Arc<(Mutex<u32>, std::sync::Condvar)>,
     /// Every turn's checkpoints, not only the last, so older turns can be looked at and put back too.
     turn_history: Arc<crate::turn_history::TurnHistory>,
+    /// The last rewind, so it can be undone: its conversation, the checkpoint before it, and the turns it took out.
+    rewound: Mutex<Option<(String, String, Vec<crate::turn_history::Turn>)>>,
     /// Tools from other programs the person set up (MCP servers).
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
@@ -303,6 +305,7 @@ impl Bridge {
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
             turn_history: Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json"))),
+            rewound: Mutex::new(None),
             turn_marks: Arc::new(Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default())),
             marking: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             mcp: Arc::default(),
@@ -2001,6 +2004,51 @@ impl Bridge {
                 },
                 _ => failed("That turn is not known."),
             },
+            // Rewind to here: what it would change, then everything back as it was right after that turn.
+            "rewindPreview" => match turn() {
+                Some(crate::turn_history::Turn { end: Some(end), start, .. }) => match self.workspace.changed_since(&end) {
+                    Ok(files) => json!({ "ok": true, "later": self.turn_history.later_than(conversation, &start).unwrap_or(0), "files": files }),
+                    Err(e) => failed(e),
+                },
+                Some(_) => failed("That turn has not ended."),
+                None => failed("That turn is not known."),
+            },
+            "rewind" => match turn() {
+                Some(crate::turn_history::Turn { end: Some(end), start, .. }) => {
+                    // What is there now is kept, so the rewind can be undone.
+                    let before = match self.workspace.mark("before rewinding") {
+                        Ok(Some(mark)) => mark,
+                        Ok(None) => return Some(failed("Nothing to rewind from.")),
+                        Err(e) => return Some(failed(e)),
+                    };
+                    match self.workspace.restore(&end) {
+                        Ok(()) => {
+                            let later = self.turn_history.drop_after(conversation, &start).unwrap_or_default();
+                            let count = later.len();
+                            *lock(&self.rewound) = Some((conversation.to_owned(), before.clone(), later));
+                            self.reload_after_undo(None);
+                            json!({ "ok": true, "undo": before, "later": count })
+                        }
+                        Err(e) => failed(e),
+                    }
+                }
+                Some(_) => failed("That turn has not ended."),
+                None => failed("That turn is not known."),
+            },
+            "undoRewind" => {
+                let kept = lock(&self.rewound).take();
+                match (kept, text(1)) {
+                    (Some((c, before, later)), Some(mark)) if c == conversation && before == mark => match self.workspace.restore(&before) {
+                        Ok(()) => {
+                            self.turn_history.put_back(conversation, later);
+                            self.reload_after_undo(None);
+                            json!({ "ok": true })
+                        }
+                        Err(e) => failed(e),
+                    },
+                    _ => failed("That rewind can no longer be undone."),
+                }
+            }
             "undoTurnFile" => match (turn(), text(2)) {
                 (Some(t), Some(path)) => {
                     let force = args.get(3).and_then(Value::as_bool) == Some(true);
