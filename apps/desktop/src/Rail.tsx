@@ -61,6 +61,10 @@ interface Props {
   create: { label: string; run: () => void };
   /** Small numbers beside an app's name in the full sidebar (open tabs, tasks due today). */
   counts: Partial<Record<AppId, number>>;
+  /** The menus, as one button in the head of the full sidebar. */
+  menus?: ReactNode;
+  /** The open app's own controls (the browser's address and buttons), under its name in the full sidebar. */
+  chrome?: ReactNode;
   children?: ReactNode;
   onOpen: (id: AppId) => void;
   /** What the agent is doing now: the app it is working in shows it, live. */
@@ -91,7 +95,7 @@ interface Props {
  * The sidebar: one column that belongs to the app you are in, and turns into the list of apps from its head. The highlight slides to the app you are in, the app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles }: Props) {
+export function Rail({ app, expanded, onToggle, create, counts, menus, chrome, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles }: Props) {
   // While an app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
   const dragged = useRef(false);
@@ -170,8 +174,10 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
               <span className="rail-label" aria-hidden="true">{switching ? 'Apps' : title}</span>
               <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-caret"><path d="m7 8.5 3 3 3-3" /></svg>
             </button>
+            {menus}
             {toggle}
           </div>
+          {showOwn && chrome && <div className="rail-chrome">{chrome}</div>}
           {showOwn && <div className="rail-new">{createButton}</div>}
         </>
       ) : (

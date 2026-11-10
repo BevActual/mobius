@@ -1196,55 +1196,10 @@ export function App() {
     }
   };
 
-  return (
-    <div className="app" data-wide={wide || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
-      <Rail
-        {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
-        app={app}
-        expanded={wide}
-        onToggle={toggleWide}
-        onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); openApp(id); }}
-        activity={activity}
-        changed={changed}
-        needsYou={needsYou}
-        counts={{ browser: browser.tabs.length, tasks: dueToday }}
-        create={createFor(app)}
-        onLauncher={openHub}
-        onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
-        settingsOpen={settingsOpen}
-        apps={appearance.value.sidebarApps}
-        onApps={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
-        onEditApps={() => { setSettingsSection('layout'); openSettings(); }}
-        favourites={favourites}
-        onOpenFavourite={openFavourite}
-        onUnpin={togglePin}
-        onReorderFavourites={(next) => void appearance.set({ favourites: next })}
-        currentFavourite={settingsOpen ? null : currentFavourite}
-      >
-        {wide && hasAppList && appSidebar(null)}
-      </Rail>
-      <header className="context-strip">
-        <div className="strip-left" role="group" aria-label="Window">
-          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
-          </button>}
-          {!nativeMenus && <MenuBar menus={menus} compact={compactMenus} onOpenChange={setMenuOpen} />}
-        </div>
-        <div className="toolbar-place" data-browser={inBrowser || undefined}>
-          <h1 className="strip-title">{place}</h1>
-          {inAgent && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
-          {inNotes && notes.page && <span className="toolbar-sub">{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></span>}
-          {inMail && <span className="toolbar-sub">{mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`}</span>}
-          {inSheets && sheets.data && <span className="toolbar-sub">{sheets.data.sheet}</span>}
-          {inCalendar && <span className="toolbar-sub">{eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`}</span>}
-          {inTasks && <span className="toolbar-sub">{tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`}</span>}
-        </div>
-        {inTasks && tasks.view.kind === 'list' && tasksDone > 0 && (
-          <div className="strip-middle toolbar-tools" role="group" aria-label="Tasks">
-            <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
-          </div>
-        )}
-        {inBrowser && <div className="strip-middle" role="group" aria-label="Browser">
+  // The browser's own controls. With the full sidebar they live in it, under the app's name, and nothing but the
+  // page's title sits above the page; with the narrow rail they stay in the toolbar.
+  const browserChrome = (
+    <div className="strip-middle" role="group" aria-label="Browser">
           <div className="cap-group">
             <button type="button" className="strip-btn" aria-label="Back" disabled={!active?.canGoBack} onClick={() => active && window.mobius.browser.back(active.id)}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4 6 10l6 6" /></svg>
@@ -1287,7 +1242,61 @@ export function App() {
           </form>
           {notice && <span className="notice" role="status">{notice}</span>}
           {findOpen && active && <FindBar key={active.id} tabId={active.id} focusToken={finding} onClose={() => setFindOpen(false)} />}
-        </div>}
+        </div>
+  );
+  const menuBar = nativeMenus ? null : <MenuBar menus={menus} compact={wide || compactMenus} onOpenChange={setMenuOpen} />;
+
+  return (
+    <div className="app" data-wide={wide || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+      <Rail
+        {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
+        app={app}
+        expanded={wide}
+        onToggle={toggleWide}
+        onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); openApp(id); }}
+        activity={activity}
+        changed={changed}
+        needsYou={needsYou}
+        counts={{ browser: browser.tabs.length, tasks: dueToday }}
+        create={createFor(app)}
+        menus={wide ? menuBar : null}
+        chrome={wide && inBrowser && !settingsOpen ? browserChrome : null}
+        onLauncher={openHub}
+        onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
+        settingsOpen={settingsOpen}
+        apps={appearance.value.sidebarApps}
+        onApps={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
+        onEditApps={() => { setSettingsSection('layout'); openSettings(); }}
+        favourites={favourites}
+        onOpenFavourite={openFavourite}
+        onUnpin={togglePin}
+        onReorderFavourites={(next) => void appearance.set({ favourites: next })}
+        currentFavourite={settingsOpen ? null : currentFavourite}
+      >
+        {wide && hasAppList && appSidebar(null)}
+      </Rail>
+      <header className="context-strip" data-quiet={wide || undefined}>
+        <div className="strip-left" role="group" aria-label="Window">
+          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
+          </button>}
+          {!wide && menuBar}
+        </div>
+        <div className="toolbar-place" data-browser={(inBrowser && !wide) || undefined}>
+          <h1 className="strip-title">{place}</h1>
+          {inAgent && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
+          {inNotes && notes.page && <span className="toolbar-sub">{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></span>}
+          {inMail && <span className="toolbar-sub">{mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`}</span>}
+          {inSheets && sheets.data && <span className="toolbar-sub">{sheets.data.sheet}</span>}
+          {inCalendar && <span className="toolbar-sub">{eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`}</span>}
+          {inTasks && <span className="toolbar-sub">{tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`}</span>}
+        </div>
+        {inTasks && tasks.view.kind === 'list' && tasksDone > 0 && (
+          <div className="strip-middle toolbar-tools" role="group" aria-label="Tasks">
+            <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
+          </div>
+        )}
+        {inBrowser && !wide && browserChrome}
         <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
         {hasRight && !rightOpen && (
           <form className="ask-pill" role="search" aria-label="Ask the agent" onSubmit={(e) => {

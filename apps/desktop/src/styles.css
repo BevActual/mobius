@@ -2156,3 +2156,19 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .rail[data-face="apps"] ul.rail-apps, .rail[data-face="app"] ul.rail-apps { margin-top: 2px; }
 .rail[data-face="apps"] .rail-end { margin-top: auto; }
 @media (prefers-reduced-motion: reduce) { .rail[data-expanded] .rail-switch svg.rail-switch-caret { transition: none; } }
+
+/* With the full sidebar nothing sits on top: the menus fold into the sidebar's head, the browser's controls sit under
+   the app's name, and what is left above the page is the page's own quiet toolbar row. */
+.context-strip[data-quiet] { background: var(--bg); border-bottom-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.rail-head .menubar { margin: 0; flex: none; }
+.rail-head .menubar .menu-title { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; color: var(--muted); }
+.rail-head .menubar .menu-title svg { width: 17px; height: 17px; }
+.rail-chrome { margin: 2px 0 var(--sp-2); }
+.rail-chrome .strip-middle { flex-wrap: wrap; gap: 6px 2px; margin: 0; }
+.rail-chrome .cap-group { background: none; box-shadow: none; padding: 0; height: 30px; }
+.rail-chrome .cap-group > .strip-btn + .strip-btn::before { content: none; }
+.rail-chrome .strip-btn { min-width: 30px; height: 28px; }
+.rail-chrome .address { order: 10; flex: 1 0 100%; max-width: none; margin: 0; }
+.rail-chrome .address input { background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); padding: 0 12px; }
+.rail-chrome .notice { order: 11; flex: 1 0 100%; font-size: var(--fs-sm); }
+.rail-chrome .find-bar, .rail-chrome .findbar { order: 12; flex: 1 0 100%; }
