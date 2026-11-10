@@ -16,12 +16,15 @@ pub fn is_model_name(v: &Value) -> bool {
 
 /// The apps whose access the person can set, and the levels: off, ask (the usual), read without asking, act without asking.
 pub const APP_ACCESS_APPS: [&str; 18] = ["browser", "notes", "docs", "sheets", "slides", "tasks", "calendar", "mail", "research", "reader", "code", "database", "design", "canvas", "photo", "studio", "video", "skills"];
-/// Apps added later: a setting saved before them may leave them out, and they count as `ask`.
+/// Apps added later: a setting saved before them may leave them out, and they follow the mode.
 const LATER_APPS: [&str; 15] = ["docs", "sheets", "slides", "calendar", "mail", "research", "reader", "code", "database", "design", "canvas", "photo", "studio", "video", "skills"];
-pub const APP_ACCESS_LEVELS: [&str; 4] = ["off", "ask", "read", "act"];
+/// Per app: `follow` the approval mode, `always` ask, or `off`. The four levels from before the three modes are still
+/// read (`ask`, `read` and `act` as follow, `off` as off) and written back in the new words.
+pub const APP_ACCESS_LEVELS: [&str; 3] = ["follow", "always", "off"];
+const OLD_ACCESS_LEVELS: [&str; 3] = ["ask", "read", "act"];
 
 pub fn app_access_default() -> Value {
-    json!({ "browser": "ask", "notes": "ask", "docs": "ask", "sheets": "ask", "slides": "ask", "tasks": "ask", "calendar": "ask", "mail": "ask", "research": "ask", "reader": "ask", "code": "ask", "database": "ask", "design": "ask", "canvas": "ask", "photo": "ask", "studio": "ask", "video": "ask", "skills": "ask" })
+    Value::Object(APP_ACCESS_APPS.iter().map(|app| ((*app).to_owned(), json!("follow"))).collect())
 }
 
 /// Exactly those apps, each at one of the levels.
@@ -30,7 +33,7 @@ pub fn is_app_access(v: &Value) -> bool {
         o.keys().all(|k| APP_ACCESS_APPS.contains(&k.as_str()))
             && APP_ACCESS_APPS.iter().all(|app| match o.get(*app) {
                 None => LATER_APPS.contains(app),
-                Some(level) => level.as_str().is_some_and(|l| APP_ACCESS_LEVELS.contains(&l)),
+                Some(level) => level.as_str().is_some_and(|l| APP_ACCESS_LEVELS.contains(&l) || OLD_ACCESS_LEVELS.contains(&l)),
             })
     })
 }
@@ -57,7 +60,28 @@ pub fn open(file: PathBuf) -> Settings {
     if settings.get()["approvalMode"] == "off" {
         settings.set(&json!({ "approvalMode": "smart" }));
     }
+    let access = settings.get()["appAccess"].clone();
+    let renewed = renew_app_access(&access);
+    if renewed != access {
+        settings.set(&json!({ "appAccess": renewed }));
+    }
     settings
+}
+
+/// Every app at one of the three levels: the old ones put in the new words, and apps a setting left out following the mode.
+pub fn renew_app_access(access: &Value) -> Value {
+    Value::Object(
+        APP_ACCESS_APPS
+            .iter()
+            .map(|app| {
+                let level = match access.get(*app).and_then(Value::as_str) {
+                    Some(l @ ("follow" | "always" | "off")) => l,
+                    _ => "follow",
+                };
+                ((*app).to_owned(), json!(level))
+            })
+            .collect(),
+    )
 }
 
 #[cfg(test)]
@@ -79,11 +103,23 @@ mod access_tests {
     }
 
     #[test]
+    fn old_app_levels_are_read_in_the_new_words() {
+        let dir = tempfile::tempdir().unwrap();
+        let old = dir.path().join("old.json");
+        std::fs::write(&old, r#"{ "appAccess": { "browser": "ask", "notes": "act", "tasks": "off", "calendar": "read" } }"#).unwrap();
+        let access = open(old.clone()).get()["appAccess"].clone();
+        assert_eq!((access["browser"].as_str(), access["notes"].as_str(), access["tasks"].as_str(), access["calendar"].as_str(), access["mail"].as_str()), (Some("follow"), Some("follow"), Some("off"), Some("follow"), Some("follow")));
+        assert_eq!(open(old).get()["appAccess"]["tasks"], "off");
+        assert_eq!(open(dir.path().join("new.json")).get()["appAccess"]["notes"], "follow");
+    }
+
+    #[test]
     fn app_access_is_the_known_apps_at_known_levels() {
         assert!(is_app_access(&app_access_default()));
         assert!(is_app_access(&json!({ "browser": "off", "notes": "read", "tasks": "act" })), "saved before Calendar");
         assert!(is_app_access(&json!({ "browser": "off", "notes": "read", "tasks": "act", "calendar": "read" })));
-        for bad in [json!({}), json!({ "browser": "ask", "notes": "ask" }), json!({ "browser": "ask", "notes": "ask", "tasks": "always" }), json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "fax": "ask" }), json!("ask")] {
+        assert!(is_app_access(&json!({ "browser": "always", "notes": "follow", "tasks": "off" })));
+        for bad in [json!({}), json!({ "browser": "ask", "notes": "ask" }), json!({ "browser": "ask", "notes": "ask", "tasks": "sometimes" }), json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "fax": "ask" }), json!("ask")] {
             assert!(!is_app_access(&bad), "{bad}");
         }
     }

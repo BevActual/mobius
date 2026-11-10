@@ -36,11 +36,10 @@ export function stepTag(text: string, access: AppAccess, mode: ApprovalModeChoic
   const app = appOfStep(text);
   if (!app) return null;
   const name = app === 'browser' ? 'Browser' : app === 'notes' ? 'Notes' : app === 'docs' ? 'Docs' : app === 'mail' ? 'Mail' : app === 'sheets' ? 'Sheets' : app === 'slides' ? 'Slides' : app === 'calendar' ? 'Calendar' : 'Tasks';
-  const level = access[app] ?? 'ask';
+  const level = access[app] ?? 'follow';
   if (level === 'off') return { app: name, tag: 'Off' };
-  if (level === 'act') return { app: name, tag: 'Acts' };
+  if (level === 'always') return { app: name, tag: 'Asks first' };
   if (mode === 'off') return { app: name, tag: 'Acts' };
-  if (level === 'read') return { app: name, tag: 'Reads freely' };
   // Propose changes the workspace without asking; the browser and mail are not the workspace, so they still ask.
   if (mode === 'propose' && app !== 'browser' && app !== 'mail') return { app: name, tag: 'Proposes' };
   return { app: name, tag: mode === 'smart' ? 'Asks if unsure' : 'Asks first' };

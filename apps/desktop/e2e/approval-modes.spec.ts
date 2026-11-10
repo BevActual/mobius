@@ -137,21 +137,29 @@ test('with smart approvals an unsure or unreadable review asks the person as usu
   await expect(log().locator('.msg.assistant').last()).toHaveText('Listed.');
 });
 
-test('per app: Tasks set to Act changes a list without asking, and Off stops it even with approvals off', async () => {
+test('per app: Tasks following Propose changes a list without asking, Always ask asks each time, and Off stops it', async () => {
   await start([
     callsTool('tasks-add', { list: 'Inbox', text: 'Water the plants' }), says(['Added.']),
+    callsTool('tasks-add', { list: 'Inbox', text: 'Buy stamps' }), says(['Left it.']),
     callsTool('tasks-add', { list: 'Inbox', text: 'Feed the cat' }), says(['Could not.']),
   ]);
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
-  await page().getByRole('radiogroup', { name: 'Tasks: what Mobius may do' }).getByRole('radio', { name: 'Act' }).check();
-  await expect(page()).toContainText('Mobius reads and changes your task lists without asking.');
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await setMode('propose');
   await say('remind me to water the plants');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Added.');
   await expect(card()).toHaveCount(0);
   expect(fs.readFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), 'utf8')).toContain('Water the plants');
-  await mobius!.shell.evaluate(() => window.mobius.preferences.set({ approvalMode: 'off', appAccess: { browser: 'ask', notes: 'ask', tasks: 'off' } }));
+  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
+  await page().getByRole('radiogroup', { name: 'Tasks: what Mobius may do' }).getByRole('radio', { name: 'Always ask' }).check();
+  await expect(page()).toContainText('Mobius asks you every time before it reads or changes your tasks.');
+  await page().getByRole('button', { name: 'Close settings' }).click();
+  await say('remind me to buy stamps');
+  await expect(card()).toBeVisible();
+  // Asked every time: there is no always-allow answer.
+  await expect(card().getByRole('button', { name: 'Always allow' })).toHaveCount(0);
+  await card().getByRole('button', { name: 'Decline' }).click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Left it.');
+  await mobius!.shell.evaluate(() => window.mobius.preferences.set({ approvalMode: 'off', appAccess: { browser: 'follow', notes: 'follow', tasks: 'off' } }));
   await say('remind me to feed the cat');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Could not.');
   expect(fs.readFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), 'utf8')).not.toContain('Feed the cat');

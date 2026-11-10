@@ -1,8 +1,8 @@
 //! How much the agent may do in each app, as the person set it in Settings, turned into the core's standing rules.
 //!
-//! Each app has four levels: `off` (it may not read or change anything there), `ask` (it asks, the usual), `read` (it
-//! may read without asking) and `act` (it may read and change without asking). Risky actions, such as clicking or typing
-//! in a page, are still asked about every time: the core never lets a rule cover those.
+//! Each app has three levels: `follow` (the approval mode decides: Ask first, Propose or Act), `always` (the person is
+//! asked each time, whatever the mode) and `off` (it may not read or change anything there). Risky actions, such as
+//! clicking or typing in a page, are asked about every time in every mode: the core never lets a rule cover those.
 use serde_json::{Value, json};
 
 
@@ -40,7 +40,7 @@ fn capabilities(app: &str) -> (Grants, Grants) {
 pub fn rules(access: &Value) -> Value {
     let mut out = Vec::new();
     for app in APPS {
-        let level = access.get(app).and_then(Value::as_str).unwrap_or("ask");
+        let level = access.get(app).and_then(Value::as_str).unwrap_or("follow");
         let (read, write) = capabilities(app);
         let rule = |(capability, resource): &(&str, Option<&str>), effect: &str| match resource {
             Some(r) => json!({ "capability": capability, "resource": r, "effect": effect }),
@@ -61,8 +61,8 @@ pub fn rules(access: &Value) -> Value {
         }
         match level {
             "off" => out.extend(read.iter().chain(write).map(|c| rule(c, "deny"))),
-            "read" => out.extend(read.iter().map(|c| rule(c, "allow"))),
-            "act" => out.extend(read.iter().chain(write).map(|c| rule(c, "allow"))),
+            "always" => out.extend(read.iter().chain(write).map(|c| rule(c, "ask"))),
+            // Following the mode adds no rule. So do the levels from before the three modes, which are read as follow.
             _ => {}
         }
     }
@@ -76,14 +76,10 @@ mod tests {
     #[test]
     fn each_level_becomes_the_rules_it_says() {
         assert_eq!(rules(&mobius_store::preferences::app_access_default()), json!({ "rules": [{ "capability": "calendar.suggest", "effect": "allow" }, { "capability": "mail.draft", "effect": "allow" }, { "capability": "code.test", "effect": "allow" }, { "capability": "code.output", "effect": "allow" }] }));
-        let r = rules(&json!({ "browser": "read", "notes": "act", "tasks": "off" }));
+        let r = rules(&json!({ "browser": "follow", "notes": "always", "tasks": "off" }));
         assert_eq!(r["rules"], json!([
-            { "capability": "browser.list", "effect": "allow" },
-            { "capability": "browser.read", "effect": "allow" },
-            { "capability": "web.search", "effect": "allow" },
-            { "capability": "web.read", "effect": "allow" },
-            { "capability": "files.read", "resource": "notes/*", "effect": "allow" },
-            { "capability": "files.write", "resource": "notes/*", "effect": "allow" },
+            { "capability": "files.read", "resource": "notes/*", "effect": "ask" },
+            { "capability": "files.write", "resource": "notes/*", "effect": "ask" },
             { "capability": "tasks.read", "effect": "deny" },
             { "capability": "tasks.write", "effect": "deny" },
             { "capability": "calendar.suggest", "effect": "allow" },
@@ -91,7 +87,7 @@ mod tests {
             { "capability": "code.test", "effect": "allow" },
             { "capability": "code.output", "effect": "allow" },
         ]));
-        let off = rules(&json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "calendar": "off" }));
+        let off = rules(&json!({ "browser": "follow", "notes": "follow", "tasks": "follow", "calendar": "off" }));
         assert_eq!(off["rules"][0], json!({ "capability": "calendar.suggest", "effect": "deny" }));
     }
 }

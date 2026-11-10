@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { appOfStep, stepTag } from './step-access';
 
-const ask = { browser: 'ask', notes: 'ask', tasks: 'ask' } as const;
+const ask = { browser: 'follow', notes: 'follow', tasks: 'follow' } as const;
 
 describe('plan step tags', () => {
   it('finds the app a step names', () => {
@@ -15,11 +15,10 @@ describe('plan step tags', () => {
     expect(stepTag('Open the site', ask, 'manual')).toEqual({ app: 'Browser', tag: 'Asks first' });
     expect(stepTag('Open the site', ask, 'smart')?.tag).toBe('Asks if unsure');
     expect(stepTag('Open the site', ask, 'off')?.tag).toBe('Acts');
-    expect(stepTag('Add a task', { ...ask, tasks: 'act' }, 'manual')?.tag).toBe('Acts');
-    expect(stepTag('Write the note', { ...ask, notes: 'read' }, 'manual')?.tag).toBe('Reads freely');
+    expect(stepTag('Add a task', { ...ask, tasks: 'always' }, 'propose')?.tag).toBe('Asks first');
     expect(stepTag('Write the note', { ...ask, notes: 'off' }, 'off')?.tag).toBe('Off');
-    expect(stepTag('Add the dentist appointment', ask, 'manual'), 'settings from before Calendar ask').toEqual({ app: 'Calendar', tag: 'Asks first' });
-    expect(stepTag('Add the dentist appointment', { ...ask, calendar: 'act' }, 'manual')?.tag).toBe('Acts');
+    expect(stepTag('Add the dentist appointment', ask, 'manual'), 'settings from before Calendar follow the mode').toEqual({ app: 'Calendar', tag: 'Asks first' });
+    expect(stepTag('Add the dentist appointment', { ...ask, calendar: 'always' }, 'smart')?.tag).toBe('Asks first');
     expect(stepTag('Write the note', ask, 'propose')?.tag).toBe('Proposes');
     expect(stepTag('Open the site', ask, 'propose')?.tag).toBe('Asks first');
     expect(stepTag('Think', ask, 'manual')).toBeNull();

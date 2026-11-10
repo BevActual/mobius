@@ -10,6 +10,8 @@ pub enum Verdict {
     Deny,
     /// No grant covers this: someone has to decide.
     Ask,
+    /// The person set this app to always ask: the person decides, each time (allow once), and no reviewer does.
+    AskPerson,
 }
 
 /// The person's choice of how the assistant is gated, named as Hermes names it.
@@ -54,7 +56,8 @@ impl ApprovalMode {
 
 /// A standing rule the person set in Settings (how much Mobius may do in each app), as opposed to a grant given while
 /// answering a question. A rule's allow covers only the agent (not plugins or servers) and never a floor capability:
-/// those are still asked about each time. A rule's deny covers everyone but the person.
+/// those are still asked about each time. A rule's deny covers everyone but the person. A rule's ask (the app set to
+/// always ask) makes the agent ask the person every time, whatever the mode and any standing allow.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Rule {
@@ -62,7 +65,25 @@ pub struct Rule {
     /// A resource pattern, as for grants (`notes/*`); none covers every resource.
     #[serde(default)]
     pub resource: Option<String>,
-    pub effect: Effect,
+    pub effect: RuleEffect,
+}
+
+/// What a rule from Settings does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuleEffect {
+    Allow,
+    Deny,
+    Ask,
+}
+
+impl From<Effect> for RuleEffect {
+    fn from(effect: Effect) -> Self {
+        match effect {
+            Effect::Allow => RuleEffect::Allow,
+            Effect::Deny => RuleEffect::Deny,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -122,8 +143,9 @@ impl Policy {
             return Verdict::Allow { consume: None };
         }
         let floor = self.is_floor(capability);
-        let rule = |effect: Effect| self.rules.iter().any(|r| r.effect == effect && r.capability == *capability && resource_matches(r.resource.as_deref(), resource));
-        let denied_by_rule = rule(Effect::Deny);
+        let rule = |effect: RuleEffect| self.rules.iter().any(|r| r.effect == effect && r.capability == *capability && resource_matches(r.resource.as_deref(), resource));
+        let denied_by_rule = rule(RuleEffect::Deny);
+        let always_ask = principal.kind == PrincipalKind::Agent && rule(RuleEffect::Ask);
         let mut standing = false;
         let mut once: Option<u64> = None;
         for grant in grants {
@@ -146,11 +168,14 @@ impl Policy {
         }
         if denied_by_rule {
             Verdict::Deny
+        } else if always_ask {
+            // Only an answer for this one use counts: no standing allow, rule or mode lets it through.
+            once.map_or(Verdict::AskPerson, |id| Verdict::Allow { consume: Some(id) })
         } else if standing {
             Verdict::Allow { consume: None }
         } else if let Some(id) = once {
             Verdict::Allow { consume: Some(id) }
-        } else if !floor && principal.kind == PrincipalKind::Agent && rule(Effect::Allow) {
+        } else if !floor && principal.kind == PrincipalKind::Agent && rule(RuleEffect::Allow) {
             Verdict::Allow { consume: None }
         } else if self.mode == ApprovalMode::Propose && !floor && principal.kind == PrincipalKind::Agent && is_reversible(capability) {
             // A proposal: the turn's checkpoint puts it back if the person discards it.
@@ -246,7 +271,7 @@ mod tests {
     }
 
     fn rule(c: &str, resource: Option<&str>, effect: Effect) -> Rule {
-        Rule { capability: cap(c), resource: resource.map(str::to_owned), effect }
+        Rule { capability: cap(c), resource: resource.map(str::to_owned), effect: effect.into() }
     }
 
     #[test]
@@ -357,6 +382,26 @@ mod tests {
         let g = [grant(1, &a, "browser.read", None, Effect::Allow, Duration::Once)];
         assert_eq!(policy().evaluate(&g, 1_000 + 60_000, &a, &cap("browser.read"), None), Verdict::Ask, "expires_ms is exclusive");
         assert_eq!(policy().evaluate(&g, 1_000 + 59_999, &a, &cap("browser.read"), None), Verdict::Allow { consume: Some(1) });
+    }
+
+    #[test]
+    fn an_app_set_to_always_ask_asks_the_person_every_time_in_every_mode() {
+        let a = agent("mobius");
+        let always = Rule { capability: cap("files.write"), resource: Some("notes/*".into()), effect: RuleEffect::Ask };
+        let standing = grant(1, &a, "files.write", Some("notes/*"), Effect::Allow, Duration::Always);
+        for mode in [ApprovalMode::Manual, ApprovalMode::Propose, ApprovalMode::Smart, ApprovalMode::Off] {
+            let mut p = policy();
+            p.set_mode(mode);
+            p.set_rules(vec![always.clone()]);
+            assert_eq!(p.evaluate(&[standing.clone()], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::AskPerson, "{mode:?}");
+            // An answer for this one use lets it through, once.
+            let once = grant(2, &a, "files.write", Some("notes/Plan.md"), Effect::Allow, Duration::Once);
+            assert_eq!(p.evaluate(&[once], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Allow { consume: Some(2) });
+            // Other apps follow the mode as before.
+            assert_ne!(p.evaluate(&[], NOW, &a, &cap("tasks.write"), None), Verdict::AskPerson);
+        }
+        let parsed: Rule = serde_json::from_value(serde_json::json!({ "capability": "files.write", "resource": "notes/*", "effect": "ask" })).unwrap();
+        assert_eq!(parsed, always);
     }
 
     #[test]

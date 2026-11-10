@@ -347,12 +347,12 @@ function PrivacyReport({ baseUrl }: { baseUrl: string }) {
 }
 
 const ACCESS_OPTIONS: ReadonlyArray<{ id: AccessLevel; label: string }> = [
+  { id: 'follow', label: 'Follow the mode' },
+  { id: 'always', label: 'Always ask' },
   { id: 'off', label: 'Off' },
-  { id: 'ask', label: 'Ask first' },
-  { id: 'read', label: 'Read' },
-  { id: 'act', label: 'Act' },
 ];
-const ACCESS_APPS: ReadonlyArray<{ id: keyof AppAccess; label: string; help: Record<AccessLevel, string> }> = [
+/** Each app's words: what off means there, and what Mobius asks about there (said "every time" for Always ask). */
+const ACCESS_APPS: ReadonlyArray<{ id: keyof AppAccess; label: string; help: { off: string; ask: string; read: string; act: string } }> = [
   { id: 'browser', label: 'Browser', help: { off: 'Mobius cannot see your tabs, read pages, search the web or open new ones.', ask: 'Mobius asks before it reads a page, searches the web or opens a page.', read: 'Mobius reads your tabs and pages and searches the web without asking, and asks before opening one.', act: 'Mobius reads pages, searches the web and opens new ones without asking. Clicking and typing still ask.' } },
   { id: 'notes', label: 'Notes', help: { off: 'Mobius cannot open or change your notes.', ask: 'Mobius asks before it opens or changes a note.', read: 'Mobius opens your notes without asking, and asks before changing one.', act: 'Mobius opens and changes your notes without asking. You can still review and undo each change.' } },
   { id: 'docs', label: 'Docs', help: { off: 'Mobius cannot open or change your documents.', ask: 'Mobius asks before it opens or changes a document.', read: 'Mobius opens your documents without asking, and asks before changing one.', act: 'Mobius opens and changes your documents without asking. You can still keep or discard each change.' } },
@@ -372,6 +372,14 @@ const ACCESS_APPS: ReadonlyArray<{ id: keyof AppAccess; label: string; help: Rec
   { id: 'photo', label: 'Photo', help: { off: 'Mobius cannot see or change your photos’ edits.', ask: 'Mobius asks before it reads or changes a photo’s edits.', read: 'Mobius reads your photos’ edits without asking, and asks before changing them.', act: 'Mobius changes your photos’ edits without asking. The pictures themselves are never changed.' } },
   { id: 'code', label: 'Code', help: { off: 'Mobius cannot open, change or test your projects.', ask: 'Mobius asks before it opens or changes a file. It may run the test command you chose.', read: 'Mobius opens your project files without asking, and asks before changing one. It may run the test command you chose.', act: 'Mobius opens and changes your project files without asking. You can still keep or discard each change.' } },
 ];
+
+/** What a level means for one app, in the mode chosen now. */
+function accessHelp(help: { off: string; ask: string }, level: AccessLevel, mode: Parameters<typeof modeOf>[0]): string {
+  if (level === 'off') return help.off;
+  if (level === 'always') return help.ask.replace('Mobius asks before', 'Mobius asks you every time before');
+  const current = modeOf(mode);
+  return `Follows your mode, ${current.name}: ${current.hint.charAt(0).toLowerCase()}${current.hint.slice(1)}.`;
+}
 
 /** What Mobius remembers, each with Forget. Read again whenever it changes, by the agent or here. */
 function MemoryList() {
@@ -445,7 +453,7 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
         <Choice label="Approval mode" name="approval-mode" value={modeOf(preferences.approvalMode).id} options={APPROVAL_MODES} onChange={(approvalMode) => void onPreferences({ approvalMode })} />
         <p className="srow-text" data-testid="approval-mode-help">{modeOf(preferences.approvalMode).help}</p>
       </Row>
-      <Row path={path('app-access')} title="What Mobius may do in each app" description="For each app: off, ask first, read without asking, or act without asking. Risky actions still ask." highlight={highlight === 'app-access'}>
+      <Row path={path('app-access')} title="What Mobius may do in each app" description="For each app: follow the mode, always ask you, or off. Paying, sending, deleting and running commands ask in every mode." highlight={highlight === 'app-access'}>
         <div className="access-all" role="group" aria-label="Every app at once">
           <span>Set every app to</span>
           {ACCESS_OPTIONS.map((o) => (
@@ -456,9 +464,9 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
           {ACCESS_APPS.map((app) => (
             <div key={app.id} className="access-row">
               <span className="access-app"><svg viewBox="0 0 20 20" aria-hidden="true" data-app={app.id}>{APP_ICONS[app.id]}</svg>{app.label}</span>
-              <Choice label={`${app.label}: what Mobius may do`} name={`access-${app.id}`} value={preferences.appAccess[app.id] ?? 'ask'} options={ACCESS_OPTIONS}
+              <Choice label={`${app.label}: what Mobius may do`} name={`access-${app.id}`} value={preferences.appAccess[app.id] ?? 'follow'} options={ACCESS_OPTIONS}
                 onChange={(level) => void onPreferences({ appAccess: { ...preferences.appAccess, [app.id]: level } })} />
-              <p className="srow-text access-help">{app.help[preferences.appAccess[app.id] ?? 'ask']}</p>
+              <p className="srow-text access-help">{accessHelp(app.help, preferences.appAccess[app.id] ?? 'follow', preferences.approvalMode)}</p>
             </div>
           ))}
         </div>

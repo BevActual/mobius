@@ -143,6 +143,8 @@ pub struct Core {
     pending: Vec<PendingRequest>,
     /// Questions that may only be answered "allow once", whatever the policy says.
     once_only: HashSet<u64>,
+    /// Questions only the person may answer: the app is set to always ask, so no reviewer answers them.
+    person_only: HashSet<u64>,
     /// Answers to questions, held until the asker collects them (oldest dropped first).
     answered: VecDeque<(u64, bool)>,
     next_grant_id: u64,
@@ -161,7 +163,7 @@ impl Core {
     fn with_store(store: Store, clock: Clock) -> Result<Self, CoreError> {
         let grants = store.load_grants()?;
         let next_grant_id = store.max_grant_id()? + 1;
-        Ok(Core { store, clock, policy: Policy::default_floors(), tools: HashMap::new(), grants, pending: Vec::new(), once_only: HashSet::new(), answered: VecDeque::new(), next_grant_id, next_request_id: 1 })
+        Ok(Core { store, clock, policy: Policy::default_floors(), tools: HashMap::new(), grants, pending: Vec::new(), once_only: HashSet::new(), person_only: HashSet::new(), answered: VecDeque::new(), next_grant_id, next_request_id: 1 })
     }
 
     pub fn register_tool(&mut self, spec: ToolSpec, handler: ToolHandler) -> Result<(), CoreError> {
@@ -206,6 +208,11 @@ impl Core {
     /// Whether this question can only be answered "allow once": its capability is a floor.
     pub fn is_once_only(&self, request_id: u64) -> bool {
         self.pending.iter().find(|r| r.id == request_id).is_some_and(|r| self.once_only.contains(&r.id) || self.policy.is_floor(&r.capability))
+    }
+
+    /// Whether only the person may answer this question: its app is set to always ask, so no reviewer model does.
+    pub fn is_person_only(&self, request_id: u64) -> bool {
+        self.person_only.contains(&request_id)
     }
 
     /// From now on this question can only be answered "allow once". Nothing happens for an unknown question.
@@ -325,6 +332,7 @@ impl Core {
         }
         let request = self.pending.remove(index);
         self.once_only.remove(&request.id);
+        self.person_only.remove(&request.id);
         let now = (self.clock)();
         let effect = if approve { Effect::Allow } else { Effect::Deny };
         // Rejecting once is just "no, not now": it leaves nothing behind, so the next attempt asks again.
@@ -365,6 +373,7 @@ impl Core {
         let index = self.pending.iter().position(|r| r.id == request_id).ok_or(CoreError::UnknownRequest(request_id))?;
         let request = self.pending.remove(index);
         self.once_only.remove(&request.id);
+        self.person_only.remove(&request.id);
         self.log("permission.withdrawn", Some(&request.principal), Some(request.capability.as_str()), request.resource.as_deref(), json!({ "request_id": request_id }))?;
         Ok(())
     }
@@ -382,7 +391,8 @@ impl Core {
     fn decide(&mut self, principal: &Principal, capability: &Capability, resource: Option<&str>, consume: bool) -> Result<Decision, CoreError> {
         let now = (self.clock)();
         self.grants.retain(|g| g.expires_ms.is_none_or(|expires| now < expires));
-        match self.policy.evaluate(&self.grants, now, principal, capability, resource) {
+        let verdict = self.policy.evaluate(&self.grants, now, principal, capability, resource);
+        match verdict {
             Verdict::Allow { consume: used } => {
                 if consume && let Some(id) = used {
                     self.grants.retain(|g| g.id != id);
@@ -394,9 +404,14 @@ impl Core {
                 self.log("permission.denied", Some(principal), Some(capability.as_str()), resource, json!({ "reason": "denied by a standing rule" }))?;
                 Ok(Decision::Deny { reason: "blocked by a standing rule".to_owned() })
             }
-            Verdict::Ask => {
+            Verdict::Ask | Verdict::AskPerson => {
+                let person = matches!(verdict, Verdict::AskPerson);
                 let existing = self.pending.iter().find(|r| r.principal == *principal && r.capability == *capability && r.resource.as_deref() == resource).map(|r| r.id);
                 if let Some(request_id) = existing {
+                    if person {
+                        self.once_only.insert(request_id);
+                        self.person_only.insert(request_id);
+                    }
                     return Ok(Decision::Ask { request_id });
                 }
                 if self.pending.len() >= MAX_PENDING {
@@ -406,6 +421,11 @@ impl Core {
                 let request_id = self.next_request_id;
                 self.next_request_id += 1;
                 self.pending.push(PendingRequest { id: request_id, principal: principal.clone(), capability: capability.clone(), resource: resource.map(str::to_owned), created_ms: now });
+                if person {
+                    // The app is set to always ask: allow once is the only yes, and no reviewer answers for the person.
+                    self.once_only.insert(request_id);
+                    self.person_only.insert(request_id);
+                }
                 self.log("permission.asked", Some(principal), Some(capability.as_str()), resource, json!({ "request_id": request_id }))?;
                 Ok(Decision::Ask { request_id })
             }

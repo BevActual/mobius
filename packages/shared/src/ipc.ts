@@ -1096,11 +1096,12 @@ export interface ProfilesState { current: string; list: { id: string; name: stri
 /** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
 export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean }
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
-export type AccessLevel = 'off' | 'ask' | 'read' | 'act';
-/** `calendar` came later: a setting saved before it leaves it out, and it counts as `ask`. */
+/** Per app: follow the approval mode, always ask the person, or off. */
+export type AccessLevel = 'follow' | 'always' | 'off';
+/** `calendar` came later: a setting saved before it leaves it out, and it follows the mode. */
 export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; research?: AccessLevel; reader?: AccessLevel; code?: AccessLevel; database?: AccessLevel; design?: AccessLevel; canvas?: AccessLevel; photo?: AccessLevel; studio?: AccessLevel; video?: AccessLevel; skills?: AccessLevel };
-export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', research: 'ask', reader: 'ask', code: 'ask', database: 'ask', design: 'ask', canvas: 'ask', photo: 'ask', studio: 'ask', video: 'ask', skills: 'ask' };
-const ACCESS_LEVELS: readonly string[] = ['off', 'ask', 'read', 'act'];
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'follow', notes: 'follow', docs: 'follow', sheets: 'follow', slides: 'follow', tasks: 'follow', calendar: 'follow', mail: 'follow', research: 'follow', reader: 'follow', code: 'follow', database: 'follow', design: 'follow', canvas: 'follow', photo: 'follow', studio: 'follow', video: 'follow', skills: 'follow' };
+const ACCESS_LEVELS: readonly string[] = ['follow', 'always', 'off'];
 export function isAppAccess(v: unknown): v is AppAccess {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;

@@ -136,12 +136,12 @@ describe('approval mode', () => {
 
 describe('preferences changes', () => {
   it('start with alerts on, sounds on and nothing kept awake', () => {
-    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', appAccess: { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', research: 'ask', reader: 'ask', code: 'ask', database: 'ask', design: 'ask', canvas: 'ask', photo: 'ask', studio: 'ask', video: 'ask', skills: 'ask' } });
+    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', appAccess: { browser: 'follow', notes: 'follow', docs: 'follow', sheets: 'follow', slides: 'follow', tasks: 'follow', calendar: 'follow', mail: 'follow', research: 'follow', reader: 'follow', code: 'follow', database: 'follow', design: 'follow', canvas: 'follow', photo: 'follow', studio: 'follow', video: 'follow', skills: 'follow' } });
   });
-  it('ask in every app until the person chooses otherwise, and accept only the apps it knows at known levels (Calendar may be missing from older settings)', () => {
-    expect(parsePreferencesPatch({ appAccess: { browser: 'read', notes: 'act', tasks: 'off' } })).toEqual({ appAccess: { browser: 'read', notes: 'act', tasks: 'off' } });
-    expect(parsePreferencesPatch({ appAccess: { browser: 'read', notes: 'act', tasks: 'off', calendar: 'read' } })).toEqual({ appAccess: { browser: 'read', notes: 'act', tasks: 'off', calendar: 'read' } });
-    for (const bad of [{}, { browser: 'ask', notes: 'ask' }, { browser: 'ask', notes: 'ask', tasks: 'always' }, { browser: 'ask', notes: 'ask', tasks: 'ask', fax: 'ask' }, { browser: 'ask', notes: 'ask', tasks: 'ask', calendar: 'yes' }, 'ask']) expect(parsePreferencesPatch({ appAccess: bad })).toBeNull();
+  it('follow the mode in every app until the person chooses otherwise, and accept only the apps it knows at the three levels (Calendar may be missing from older settings)', () => {
+    expect(parsePreferencesPatch({ appAccess: { browser: 'always', notes: 'follow', tasks: 'off' } })).toEqual({ appAccess: { browser: 'always', notes: 'follow', tasks: 'off' } });
+    expect(parsePreferencesPatch({ appAccess: { browser: 'always', notes: 'follow', tasks: 'off', calendar: 'always' } })).toEqual({ appAccess: { browser: 'always', notes: 'follow', tasks: 'off', calendar: 'always' } });
+    for (const bad of [{}, { browser: 'follow', notes: 'follow' }, { browser: 'follow', notes: 'follow', tasks: 'act' }, { browser: 'follow', notes: 'follow', tasks: 'follow', fax: 'follow' }, { browser: 'follow', notes: 'follow', tasks: 'follow', calendar: 'yes' }, 'follow']) expect(parsePreferencesPatch({ appAccess: bad })).toBeNull();
   });
   it('keep the agent out of local addresses until the person says otherwise', () => {
     expect(DEFAULT_PREFERENCES.agentPrivateUrls).toBe(false);
