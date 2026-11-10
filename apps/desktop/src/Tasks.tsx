@@ -87,7 +87,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
         <ul role="list" className="smart-tiles" aria-label="Views">
           {SMART_VIEWS.map((v) => (
             <li key={v.id}>
-              <button type="button" className="smart-tile list-row" aria-current={current('smart', v.id)} onClick={() => tasks.setView({ kind: 'smart', id: v.id })}>
+              <button type="button" className="smart-tile" aria-current={current('smart', v.id)} onClick={() => tasks.setView({ kind: 'smart', id: v.id })}>
                 <SmartIcon id={v.id} />
                 <span className="list-name">{v.name}</span>
                 <span className="smart-count">{v.id === 'completed' ? '' : count(v.id) || ''}</span>
