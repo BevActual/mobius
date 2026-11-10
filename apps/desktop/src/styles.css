@@ -851,6 +851,9 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .rail[data-expanded] .rail-btn { height: 32px; border-radius: var(--radius-control); }
 .rail[data-expanded] .rail-here { border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .rail[data-expanded] .rail-apps .rail-btn svg[data-app] { width: 22px; height: 22px; padding: 4px; border-radius: 6px; color: #fff; stroke-width: 1.9; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); }
+/* Mobius's own apps: the same tiles, in Mobius's indigo. */
+.rail[data-expanded] .rail-own .rail-btn svg[data-own] { width: 22px; height: 22px; padding: 4px; border-radius: 6px; color: #fff; background: var(--app-agent); stroke-width: 1.9; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); }
+.rail-own { margin-top: var(--sp-2); }
 .rail[data-expanded] svg[data-app="agent"] { background: var(--app-agent); }
 .rail[data-expanded] svg[data-app="search"] { background: var(--app-search); }
 .rail[data-expanded] svg[data-app="browser"] { background: var(--app-browser); }

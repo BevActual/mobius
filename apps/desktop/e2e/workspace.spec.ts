@@ -242,3 +242,25 @@ test('with the agent panel put away, asking from the toolbar opens it with the a
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('That page is the fixture home.');
   await expect(ask).toHaveCount(0);
 });
+
+test('Mobius’s own apps sit in the switcher: Bots and Activity open their views of the Agent app, and Settings opens Settings', async () => {
+  await start();
+  await showApps();
+  const own = rail().getByRole('region', { name: 'Mobius’s apps' });
+  await own.getByRole('button', { name: 'Bots', exact: true }).click();
+  const side = shell().getByRole('complementary', { name: 'Conversation list' });
+  await expect(side.getByRole('tab', { name: 'Bots' })).toHaveAttribute('aria-selected', 'true');
+  await expect(rail().locator('[data-app-switcher]')).toHaveAttribute('aria-label', 'Switch app. Current: Bots');
+  await showApps();
+  // Only Bots is where you are: not Agent too.
+  await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
+  await own.getByRole('button', { name: 'Activity', exact: true }).click();
+  await expect(side.getByRole('tab', { name: 'Activity' })).toHaveAttribute('aria-selected', 'true');
+  // Agent itself opens on the conversations.
+  await showApps();
+  await railButton('Agent').click();
+  await expect(side.getByRole('tab', { name: 'Sessions' })).toHaveAttribute('aria-selected', 'true');
+  await showApps();
+  await own.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
+});

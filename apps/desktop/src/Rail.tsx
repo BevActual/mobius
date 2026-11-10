@@ -46,7 +46,25 @@ export const RAIL_APPS: { id: AppId; name: string }[] = [
   { id: 'calendar', name: 'Calendar' },
 ];
 
+/** One of Mobius's own apps, listed in the switcher under the person's apps. */
+export interface OwnApp {
+  id: 'bots' | 'activity' | 'settings';
+  name: string;
+  /** It is the one showing. */
+  current: boolean;
+  run: () => void;
+}
+
+/** The marks of Mobius's own apps. */
+export const OWN_ICONS: Record<OwnApp['id'], ReactNode> = {
+  bots: <><rect x="4.5" y="7" width="11" height="8.5" rx="2.5" /><path d="M10 7V4.5M8 11h.01M12 11h.01" /></>,
+  activity: <path d="M3 10.5h3l2-5 4 9 2-4h3" />,
+  settings: <><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></>,
+};
+
 interface Props {
+  /** Bots, Activity and Settings: Mobius's own apps, in the switcher. */
+  ownApps?: readonly OwnApp[];
   /** The app's own sidebar list starts with its New row, so the sidebar's New button is left out. */
   createInList?: boolean;
   /** The open profile's name, when it is not Personal. */
@@ -99,7 +117,7 @@ interface Props {
  * The sidebar: one column that belongs to the app you are in, and turns into the list of apps from its head. The highlight slides to the app you are in, the app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, expanded, onToggle, create, createInList = false, counts, menus, chrome, mobius, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles }: Props) {
+export function Rail({ app, expanded, onToggle, create, createInList = false, ownApps, counts, menus, chrome, mobius, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles }: Props) {
   // While an app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
   const dragged = useRef(false);
@@ -148,7 +166,9 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, co
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [switching]);
-  const title = settingsOpen ? 'Settings' : appName(app);
+  // Bots and Activity are views of the Agent app, but they are apps of their own in the switcher: the head says so.
+  const ownHere = settingsOpen ? undefined : ownApps?.find((o) => o.current && o.id !== 'settings');
+  const title = settingsOpen ? 'Settings' : ownHere?.name ?? appName(app);
   // Seen from inside one app: is anything happening in another?
   const elsewhereWorking = activity !== null && activity.app !== null && activity.app !== app;
   const elsewhereChanged = [...changed].some((id) => id !== app);
@@ -175,7 +195,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, co
                 ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
                 : settingsOpen
                   ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
-                  : <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-tile" style={{ background: `var(--app-${app})` }}>{APP_ICONS[app]}</svg>}
+                  : <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-tile" style={{ background: `var(--app-${app})` }}>{ownHere ? OWN_ICONS[ownHere.id] : APP_ICONS[app]}</svg>}
               <span className="rail-label" aria-hidden="true">{switching ? 'Apps' : title}</span>
               {needsYou > 0 && !showApps && <span className="rail-badge" role="status" aria-label={`${needsYou} waiting for you`}>{needsYou}</span>}
               <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-caret"><path d="m7 8.5 3 3 3-3" /></svg>
@@ -209,7 +229,8 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, co
       )}
       {showApps && <Reorder.Group as="ul" axis="y" role="list" className="rail-apps" values={order} onReorder={(next: AppId[]) => { if (onApps) setDragOrder(next); }}>
         {listed.map(({ id, name }) => {
-          const here = app === id && !settingsOpen;
+          // The Agent app showing Bots or Activity is that app, not Agent.
+          const here = app === id && !settingsOpen && !(id === 'agent' && (ownApps ?? []).some((o) => o.current));
           const working = activity !== null && (activity.app === id || (id === 'agent' && activity.app === null && app !== 'agent'));
           const waiting = id === 'agent' ? needsYou : 0;
           return (
@@ -291,6 +312,22 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, co
         </section>
       )}
       {showOwn && children && <div className="rail-app">{children}</div>}
+      {switching && ownApps && ownApps.length > 0 && (
+        <section className="rail-own" aria-label="Mobius’s apps">
+          <h2 className="rail-pinned-title">Mobius</h2>
+          <ul role="list" className="rail-apps">
+            {ownApps.map((o) => (
+              <li key={o.id}>
+                <button type="button" className="rail-btn" aria-label={o.name} aria-current={o.current ? 'page' : undefined} title={o.name} onClick={() => { setFace('app'); o.run(); }}>
+                  {o.current && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
+                  <svg viewBox="0 0 20 20" aria-hidden="true" data-own={o.id}>{OWN_ICONS[o.id]}</svg>
+                  <span className="rail-label" aria-hidden="true">{o.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {!asking && <div className="rail-end">
         {profile && onProfiles && (
           <button type="button" className="rail-btn rail-profile" aria-label={`Profile: ${profile}. Change profile`} title={`Profile: ${profile}`} onClick={onProfiles}>
@@ -302,11 +339,12 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, co
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
           {expanded && <span className="rail-label" aria-hidden="true">All apps</span>}
         </button>
-        <button type="button" className="rail-btn" aria-label="Settings" aria-current={settingsOpen ? 'page' : undefined} title="Settings (Ctrl+,)" onClick={onSettings}>
+        {/* While the switcher shows Mobius's apps, Settings is there. */}
+        {!(switching && ownApps?.some((o) => o.id === 'settings')) && <button type="button" className="rail-btn" aria-label="Settings" aria-current={settingsOpen ? 'page' : undefined} title="Settings (Ctrl+,)" onClick={onSettings}>
           {settingsOpen && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
           {expanded && <span className="rail-label" aria-hidden="true">Settings</span>}
-        </button>
+        </button>}
       </div>}
     </nav>
   );
