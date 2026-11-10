@@ -442,6 +442,15 @@ export interface MobiusBridge {
     onChanged(listener: () => void): () => void;
   };
   /** Other apps using Mobius's tools over MCP. Only the Tauri shell has it. */
+  /** Only the desktop app: projects, each a place with its own rules (counted by the core), threads, memory and files. */
+  projects?: {
+    list(): Promise<ProjectInfo[]>;
+    create(name: string): Promise<ProjectInfo | NotesFailure>;
+    remove(id: string): Promise<{ ok: true } | NotesFailure>;
+    setRule(id: string, app: string, level: ProjectLevel | 'follow'): Promise<ProjectInfo | NotesFailure>;
+    addThread(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
+    onChanged(listener: () => void): () => void;
+  };
   /** Only the desktop app: the workspace folder as a drive, for the person to look through. */
   files?: {
     list(path: string): Promise<{ path: string; entries: FileEntry[]; truncated: boolean } | { error: string }>;
@@ -1257,3 +1266,8 @@ export function parseHistoryUrl(value: unknown): string | null {
 export interface MailPlanRow { id: string; from: string; subject: string; text?: string }
 /** Get to zero: what Mobius proposes for everything in the inbox. */
 export interface MailPlan { archive: MailPlanRow[]; reply: MailPlanRow[]; todos: MailPlanRow[]; later: MailPlanRow[] }
+
+/** How much Mobius may do in one app of a project: Ask first, Propose or Act. */
+export type ProjectLevel = 'ask' | 'propose' | 'act';
+/** A project: its name, its rules by app, and its conversations (threads). */
+export interface ProjectInfo { id: string; name: string; rules: Partial<Record<string, ProjectLevel>>; threads: string[] }

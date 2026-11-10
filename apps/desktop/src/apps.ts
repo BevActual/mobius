@@ -1,4 +1,4 @@
-export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo' | 'studio' | 'video' | 'skills' | 'docs' | 'sheets' | 'slides' | 'mail' | 'notes' | 'canvas' | 'research' | 'reader' | 'database' | 'terminal' | 'tasks' | 'calendar' | 'review' | 'files' | 'wiki';
+export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo' | 'studio' | 'video' | 'skills' | 'docs' | 'sheets' | 'slides' | 'mail' | 'notes' | 'canvas' | 'research' | 'reader' | 'database' | 'terminal' | 'tasks' | 'calendar' | 'review' | 'files' | 'wiki' | 'projects';
 
 /** What an app is for. The hub groups apps this way, so however many there are, they read as a few clear groups. */
 export type AppGroup = 'Assistant' | 'Browse and find' | 'Write and plan' | 'Create' | 'Review';
@@ -14,6 +14,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'skills', name: 'Extensions', available: true, group: 'Assistant', own: true, also: 'Skills Connectors Plugins Catalogue Updates MCP' },
   { id: 'notes', name: 'Notes', available: true, group: 'Write and plan' },
   { id: 'docs', name: 'Docs', available: true, group: 'Write and plan' },
+  { id: 'projects', name: 'Projects', available: true, group: 'Write and plan', also: 'Project place rules threads' },
   { id: 'wiki', name: 'Wiki', available: true, group: 'Write and plan', also: 'How I work Memory Journey What Mobius knows' },
   { id: 'sheets', name: 'Sheets', available: true, group: 'Write and plan' },
   { id: 'slides', name: 'Slides', available: true, group: 'Create' },

@@ -5,6 +5,7 @@ pub mod access;
 pub mod agent;
 pub mod memory;
 pub mod wiki;
+pub mod projects;
 pub mod code_tests;
 pub mod code_git;
 pub mod code_processes;

@@ -140,6 +140,8 @@ pub struct SendRequest {
     pub plan: bool,
     /// Pictures attached to the message, as `data:` URLs: at most four, each a PNG, JPEG, WebP or GIF of a few MB.
     pub images: Vec<String>,
+    /// The project the conversation belongs to: its rules count for the turn. Set by the host, never by the window.
+    pub project: Option<String>,
 }
 
 pub const MAX_IMAGES: usize = 4;
@@ -166,7 +168,7 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
             list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
         }
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, images })
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, images, project: None })
 }
 
 const AUDIO_TYPES: [&str; 5] = ["audio/webm", "audio/ogg", "audio/mp4", "audio/wav", "audio/mpeg"];
@@ -399,6 +401,9 @@ impl AgentService {
         }
         if !request.images.is_empty() {
             params.insert("images".into(), json!(request.images));
+        }
+        if let Some(project) = &request.project {
+            params.insert("project".into(), json!(project));
         }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),

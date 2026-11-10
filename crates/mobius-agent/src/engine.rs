@@ -187,6 +187,8 @@ pub struct TurnSetup {
     pub plan_only: bool,
     /// Pictures the person attached to this message, as `data:` URLs.
     pub images: Vec<String>,
+    /// The project the conversation belongs to: its rules count for the turn's calls.
+    pub project: Option<String>,
 }
 
 /// Added to the next request after the person took over and handed back.
@@ -594,7 +596,7 @@ impl Engine {
             // Arguments that came from something read, for a call that sends, pays, deletes, runs or opens a site:
             // the person decides, every time and in every mode, told where the request came from.
             let origin = core.capability_of(&call.name).filter(|c| untrusted::is_consequential(&call.name, c.as_str(), &call.arguments)).and_then(|_| untrusted::came_from(&turn.messages, &call.arguments));
-            match self.execute(core, &call, origin.is_some()) {
+            match self.execute(core, &call, origin.is_some(), turn.setup.project.as_deref()) {
                 Executed::Result { content, is_error } => self.push_result(turn, &call, content, is_error),
                 Executed::Dispatch => {
                     let step = Step::RunTool { call_id: call.id.clone(), name: call.name.clone(), arguments: call.arguments.clone() };
@@ -655,12 +657,12 @@ impl Engine {
         }
     }
 
-    fn execute(&self, core: &mut Core, call: &ToolCall, person_only: bool) -> Executed {
+    fn execute(&self, core: &mut Core, call: &ToolCall, person_only: bool, project: Option<&str>) -> Executed {
         if !call.arguments.is_object() {
             return Executed::Result { content: "the arguments must be a JSON object".to_owned(), is_error: true };
         }
         let error = |content: String| Executed::Result { content, is_error: true };
-        match core.invoke_guarded(&self.config.principal, &call.name, &call.arguments, person_only) {
+        match core.invoke_in(&self.config.principal, &call.name, &call.arguments, person_only, project) {
             Ok(InvokeOutcome::Completed { result }) => Executed::Result { content: untrusted::wrap(&call.name, &call.arguments, &truncate(result.to_string())), is_error: false },
             Ok(InvokeOutcome::Failed { error: message }) => error(message),
             Ok(InvokeOutcome::Denied { reason }) => error(format!("denied: {reason}")),

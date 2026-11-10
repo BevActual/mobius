@@ -2372,3 +2372,11 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .notes-tag-clear { margin-left: auto; }
 .notes-list[role="region"] ul { list-style: none; margin: 0; padding: 0; }
 .notes-list[role="region"] .note-row { padding-left: var(--sp-2); }
+
+/* Projects: a place, with its cards. */
+.hub-icon[data-app="projects"], .launcher-icon svg[data-app="projects"], .review-filter svg[data-app="projects"] { background: var(--app-projects); }
+.project-card { display: grid; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--hairline); border-radius: var(--radius-panel); }
+.project-waiting { border-color: var(--accent); }
+.project-rules { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px var(--sp-3); }
+.project-rule { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.project-card > .btn { justify-self: start; }

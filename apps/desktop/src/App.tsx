@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { MenuBar } from './MenuBar';
 import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type MailContent, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type MailContent, type SidebarMode } from '@mobius/shared';
 import { appName, askAbout, isAvailable, type AppId, noteOpened, APPS } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
@@ -57,6 +57,7 @@ import { SkillEditor } from './Skills';
 import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
+import { ProjectPage, ProjectsSidebar, useProjects } from './Projects';
 import { HowIWork, SharedQueue, WikiSidebar, WikiVersions, useWikiIncoming, type WikiPlace } from './Wiki';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
@@ -132,6 +133,7 @@ export function App() {
   const reading = useNotes('reading');
   const wiki = useNotes('wiki');
   const wikiIncoming = useWikiIncoming();
+  const projects = useProjects();
   const [wikiPlace, setWikiPlace] = useState<WikiPlace>({ kind: 'mine' });
   const databases = useDatabases();
   const terminal = useTerminal();
@@ -227,6 +229,7 @@ export function App() {
   const inResearch = app === 'research';
   const inReader = app === 'reader';
   const inWiki = app === 'wiki';
+  const inProjects = app === 'projects';
   const inDatabase = app === 'database';
   const inTerminal = app === 'terminal';
   const inReview = app === 'review';
@@ -480,12 +483,12 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
+  const hasAppList = inBrowser || inAgent || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -753,6 +756,8 @@ export function App() {
               <TerminalSidebar term={terminal} pin={pinNode} />
             ) : inDatabase ? (
               <DatabaseSidebar db={databases} pin={pinNode} changed={turnMarks.databases} />
+            ) : inProjects ? (
+              <ProjectsSidebar projects={projects} pin={pinNode} conversations={conversation.list} />
             ) : inWiki ? (
               <WikiSidebar wiki={wiki} place={wikiPlace} onPlace={setWikiPlace} incoming={wikiIncoming} pin={pinNode} />
             ) : inReader ? (
@@ -1155,6 +1160,17 @@ export function App() {
         return <TerminalPage term={terminal} focusToken={terminalFocus} onAsk={(title, text) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item: { kind: 'file', title, source: `terminal/${terminal.cwd || '~'}`, text } }); }} />;
       case 'database':
         return <DatabasePage db={databases} review={databases.open && turnMarks.databases.has(databases.open) ? { conversation: conversation.state.conversation } : null} />;
+      case 'projects':
+        return (
+          <ProjectPage
+            projects={projects}
+            conversations={conversation.list}
+            onOpenThread={(id) => { conversation.select(id); openApp('agent'); }}
+            onNewThread={(pid) => { const id = conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()); void projects.addThread(pid, id).then((ok) => { if (ok) { conversation.select(id); openApp('agent'); } }); }}
+            onOpenMemory={(p) => { setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(`Projects/${p.name}.md`, p.name); }}
+            onOpenFiles={(p) => { files.setPlace({ kind: 'folder', path: `projects/${p.name}` }); openApp('files'); }}
+          />
+        );
       case 'wiki':
         if (wikiPlace.kind === 'mine') return <HowIWork asking={conversation.state.items} onAnswer={(id, approve) => void conversation.answer(id, approve, 'once')} />;
         if (wikiPlace.kind === 'shared') return <SharedQueue incoming={wikiIncoming} />;
@@ -1318,7 +1334,8 @@ export function App() {
               autoComplete="off"
               value={draft ?? active?.url ?? ''}
               onChange={(event) => { setDraft(event.target.value); setNotice(''); }}
-              onFocus={(event) => event.target.select()}
+              // From the moment it is focused the text is the person's draft: a page finishing loading meanwhile cannot change it under their typing.
+              onFocus={(event) => { setDraft(event.target.value); event.target.select(); }}
               onBlur={() => setDraft(null)}
             />
             {active?.loading && <span className="spinner" role="status" aria-label="Loading" />}

@@ -134,6 +134,10 @@ struct Tool {
 }
 
 pub struct Core {
+    /// Each project's own rules, by project id.
+    project_rules: HashMap<String, Vec<crate::permissions::Rule>>,
+    /// The project of the call being decided, while it is.
+    in_project: Option<String>,
     store: Store,
     clock: Clock,
     policy: Policy,
@@ -165,7 +169,7 @@ impl Core {
     fn with_store(store: Store, clock: Clock) -> Result<Self, CoreError> {
         let grants = store.load_grants()?;
         let next_grant_id = store.max_grant_id()? + 1;
-        Ok(Core { store, clock, policy: Policy::default_floors(), signins: crate::signins::SignIns::new(), tools: HashMap::new(), grants, pending: Vec::new(), once_only: HashSet::new(), person_only: HashSet::new(), answered: VecDeque::new(), next_grant_id, next_request_id: 1 })
+        Ok(Core { store, clock, policy: Policy::default_floors(), signins: crate::signins::SignIns::new(), tools: HashMap::new(), grants, pending: Vec::new(), once_only: HashSet::new(), person_only: HashSet::new(), answered: VecDeque::new(), next_grant_id, next_request_id: 1, project_rules: HashMap::new(), in_project: None })
     }
 
     pub fn register_tool(&mut self, spec: ToolSpec, handler: ToolHandler) -> Result<(), CoreError> {
@@ -290,7 +294,28 @@ impl Core {
     /// no approval mode): the person is asked, only "allow once" answers, and no reviewer model answers for them. For a
     /// call whose arguments came from something read rather than from the person. A block still blocks.
     pub fn invoke_guarded(&mut self, principal: &Principal, tool: &str, args: &Value, person_only: bool) -> Result<InvokeOutcome, CoreError> {
+        self.invoke_in(principal, tool, args, person_only, None)
+    }
+
+    /// The rules of one project (how much Mobius may do in each app there), counted beside the person's own rules
+    /// for calls made in that project's conversations. Kept in memory: the host sends them when it starts.
+    pub fn set_project_rules(&mut self, project: &str, rules: Vec<crate::permissions::Rule>) -> Result<(), CoreError> {
+        if project.is_empty() || project.len() > 64 || !project.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+            return Err(CoreError::InvalidArgs("that is not a project".into()));
+        }
+        // An allow for a floor is kept but never counts: the policy asks about floors every time, in every project.
+        if rules.is_empty() {
+            self.project_rules.remove(project);
+        } else {
+            self.project_rules.insert(project.to_owned(), rules);
+        }
+        Ok(())
+    }
+
+    /// As `invoke_guarded`, for a call made in a project's conversation: that project's rules count too.
+    pub fn invoke_in(&mut self, principal: &Principal, tool: &str, args: &Value, person_only: bool, project: Option<&str>) -> Result<InvokeOutcome, CoreError> {
         principal.validate()?;
+        self.in_project = project.map(str::to_owned);
         let (capability, resource_arg, by_origin, external) = {
             let tool = self.tools.get(tool).ok_or_else(|| CoreError::UnknownTool(tool.to_owned()))?;
             (tool.spec.capability.clone(), tool.spec.resource_arg.clone(), tool.spec.resource_origin, tool.spec.external)
@@ -308,7 +333,9 @@ impl Core {
                 _ => return Err(CoreError::InvalidArgs(format!("`{key}` is required and must be a string"))),
             },
         };
-        match self.decide_guarded(principal, &capability, resource.as_deref(), true, person_only)? {
+        let decided = self.decide_guarded(principal, &capability, resource.as_deref(), true, person_only);
+        self.in_project = None;
+        match decided? {
             Decision::Allow => {
                 self.log("tool.started", Some(principal), Some(capability.as_str()), resource.as_deref(), json!({ "tool": tool }))?;
                 if external {
@@ -410,7 +437,8 @@ impl Core {
     fn decide_guarded(&mut self, principal: &Principal, capability: &Capability, resource: Option<&str>, consume: bool, person_only: bool) -> Result<Decision, CoreError> {
         let now = (self.clock)();
         self.grants.retain(|g| g.expires_ms.is_none_or(|expires| now < expires));
-        let verdict = match self.policy.evaluate(&self.grants, now, principal, capability, resource) {
+        let project: &[crate::permissions::Rule] = self.in_project.as_ref().and_then(|p| self.project_rules.get(p)).map_or(&[], Vec::as_slice);
+        let verdict = match self.policy.evaluate_in(&self.grants, now, principal, capability, resource, project) {
             // Only the person's answer for this one use counts.
             Verdict::Allow { consume: None } | Verdict::Ask if person_only && principal.kind != crate::model::PrincipalKind::Person => {
                 let once = self.grants.iter().find(|g| {
