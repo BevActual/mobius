@@ -3,10 +3,11 @@ import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { applyGroups, badgeOf, changeGroups, highlight, langOf, lineDiff, testLineKind, type DiffRow, type Lang } from './code-view';
 import type { CodeState } from './useCode';
-import { ReviewActions } from './ReviewBar';
+import { ReviewActions, WhyThis } from './ReviewBar';
+import { SideNew, type Start } from './SideNew';
 
 /** Projects, and the open project's files as a tree, with the ones the agent changed in its last turn marked. */
-export function CodeSidebar({ code, pin, changed }: { code: CodeState; pin?: ReactNode; changed?: ReadonlySet<string> }) {
+export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: CodeState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [naming, setNaming] = useState<'project' | 'file' | null>(null);
   const [name, setName] = useState('');
   useEffect(() => onCommand('new-project', () => { setNaming('project'); setName(''); }), []);
@@ -59,10 +60,8 @@ export function CodeSidebar({ code, pin, changed }: { code: CodeState; pin?: Rea
         <nav className="code-tree" aria-label="Files">
           <div className="code-tree-head">
             <span>Files</span>
-            <button type="button" className="strip-btn" aria-label="New file" title="New file" onClick={() => { setNaming('file'); setName(code.open ? code.open.path.split('/').slice(0, -1).concat('').join('/') : ''); }}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-            </button>
           </div>
+          <SideNew item="file" title="New file, in the folder of the open one" onNew={() => { setNaming('file'); setName(code.open ? code.open.path.split('/').slice(0, -1).concat('').join('/') : ''); }} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
           <ul role="tree" aria-label={`Files in ${code.project}`}>
             {shown.map((e) => {
               const name = e.path.split('/').pop() ?? e.path;
@@ -70,7 +69,7 @@ export function CodeSidebar({ code, pin, changed }: { code: CodeState; pin?: Rea
               const mark = e.folder ? (changedInside(e.path) && !isOpen) : changedHere(e.path);
               return (
                 <li key={e.path} role="treeitem" aria-expanded={e.folder ? isOpen : undefined} aria-selected={code.open?.path === e.path} aria-label={e.path}>
-                  <button type="button" className="code-file" data-folder={e.folder || undefined} aria-current={code.open?.path === e.path ? 'page' : undefined} style={{ paddingLeft: 8 + e.depth * 14 }} onClick={() => (e.folder ? code.toggle(e.path) : void code.openFile(e.path))}>
+                  <button type="button" className="code-file" data-folder={e.folder || undefined} data-proposed={mark || undefined} aria-current={code.open?.path === e.path ? 'page' : undefined} style={{ paddingLeft: 8 + e.depth * 14 }} onClick={() => (e.folder ? code.toggle(e.path) : void code.openFile(e.path))}>
                     {e.folder ? <span className="code-caret" aria-hidden="true">{isOpen ? '▾' : '▸'}</span> : <span className="code-badge" data-lang={langOf(e.path)} aria-hidden="true">{badgeOf(e.path)}</span>}
                     <span className="code-file-name">{name}</span>
                     {mark && <span className="code-mark" role="img" aria-label="Changed by the agent" title="Changed by Mobius in its last turn">M</span>}
@@ -124,7 +123,7 @@ function Line({ text, lang }: { text: string; lang: Lang }) {
 }
 
 /** What the agent's last turn changed in the open file, as removed and added lines, each change kept or put back. */
-function Suggestion({ rows, lang, endsWithNewline, onWrite, onKeepAll, onDiscardAll }: { rows: DiffRow[]; lang: Lang; endsWithNewline: boolean; onWrite: (text: string) => void; onKeepAll: () => void; onDiscardAll: () => void }) {
+function Suggestion({ rows, lang, endsWithNewline, onWrite, onKeepAll, onDiscardAll, conversation }: { rows: DiffRow[]; lang: Lang; endsWithNewline: boolean; onWrite: (text: string) => void; onKeepAll: () => void; onDiscardAll: () => void; conversation?: string }) {
   const groups = changeGroups(rows);
   const lastOf = new Map(groups.map(([, e], g) => [e, g]));
   const discardOne = (g: number) => onWrite(applyGroups(rows, new Set(groups.map((_, i) => i).filter((i) => i !== g)), endsWithNewline));
@@ -148,7 +147,7 @@ function Suggestion({ rows, lang, endsWithNewline, onWrite, onKeepAll, onDiscard
         );
       })}
       <div className="code-diff-bar" role="group" aria-label="Mobius's change">
-        <span>{groups.length === 1 ? 'One change from Mobius' : `${groups.length} changes from Mobius`}</span>
+        <span>{groups.length === 1 ? 'One change from Mobius' : `${groups.length} changes from Mobius`}{conversation && <WhyThis conversation={conversation} />}</span>
         <ReviewActions onKeep={onKeepAll} onDiscard={onDiscardAll} discardTitle="Discard (Ctrl+Backspace)" keepTitle="Keep (Ctrl+Enter)" />
       </div>
     </div>
@@ -374,7 +373,7 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
             {code.open.text === null ? (
               <p className="note-empty">This file is {code.open.why ?? 'not shown'}.</p>
             ) : showSuggestion && rows ? (
-              <Suggestion rows={rows} lang={lang} endsWithNewline={code.open.text.endsWith('\n')} onWrite={(t) => void code.write(t)} onKeepAll={() => void keepAll()} onDiscardAll={() => void discardAll()} />
+              <Suggestion rows={rows} lang={lang} endsWithNewline={code.open.text.endsWith('\n')} onWrite={(t) => void code.write(t)} onKeepAll={() => void keepAll()} onDiscardAll={() => void discardAll()} {...(review ? { conversation: review.conversation } : {})} />
             ) : (
               <Editor code={code} lang={lang} />
             )}

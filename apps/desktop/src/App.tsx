@@ -751,7 +751,7 @@ export function App() {
             ) : inCanvas ? (
               <CanvasSidebar boards={boards} pin={pinNode} changed={turnMarks.boards} />
             ) : inCode ? (
-              <CodeSidebar code={code} pin={pinNode} changed={turnMarks.code} />
+              <CodeSidebar code={code} pin={pinNode} changed={turnMarks.code} starts={startsFor('code')} onStart={startWithMobius} />
             ) : inMail ? (
               <MailSidebar mail={mail} pin={pinNode} starts={startsFor('mail')} onStart={startWithMobius} />
             ) : inSlides ? (

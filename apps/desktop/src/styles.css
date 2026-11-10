@@ -1105,7 +1105,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 /* A page or list the agent changed in its last turn. */
 .changed-mark { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--accent); }
 /* What Mobius made or changed, in a sidebar list: dashed indigo until it is kept. */
-.note-row[data-proposed], .list-row[data-proposed], .task[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
+.note-row[data-proposed], .list-row[data-proposed], .task[data-proposed], .code-file[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
 /* Why this: what was asked, under a proposal's summary. */
 .review-why { display: block; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
 /* New, as the first row of an app's list, and under it Mobius's starts: dashed indigo, as Mobius's things are. */
