@@ -70,10 +70,9 @@ impl Projects {
     }
 
     fn store(&self, all: &[Project]) -> Result<(), String> {
-        if let Some(dir) = self.file.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-        }
-        std::fs::write(&self.file, serde_json::to_string_pretty(all).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+        // Written whole and then put in place, so a read at the same moment never finds half a file (and no projects).
+        let value = serde_json::to_value(all).map_err(|e| e.to_string())?;
+        if mobius_store::file::write_json_checked(&self.file, &value) { Ok(()) } else { Err("The projects could not be saved.".into()) }
     }
 
     fn change<T>(&self, f: impl FnOnce(&mut Vec<Project>) -> Result<T, String>) -> Result<T, String> {
@@ -86,6 +85,7 @@ impl Projects {
 
     #[must_use]
     pub fn list(&self) -> Vec<Project> {
+        let _one = self.lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         self.load()
     }
 
@@ -167,7 +167,7 @@ impl Projects {
     /// The project a conversation belongs to, if any: one of its threads, or a bot's side thread in it.
     #[must_use]
     pub fn project_of(&self, conversation: &str) -> Option<String> {
-        self.load().into_iter().find(|p| p.threads.iter().any(|t| t == conversation) || p.sides.iter().any(|s| s.conversation == conversation)).map(|p| p.id)
+        self.list().into_iter().find(|p| p.threads.iter().any(|t| t == conversation) || p.sides.iter().any(|s| s.conversation == conversation)).map(|p| p.id)
     }
 
     /// A bot asked, from one of the project's threads, to do something in a side thread of its own.
@@ -277,4 +277,29 @@ mod tests {
         p.remove(&other.id).unwrap();
         assert_eq!(p.list().len(), 1);
     }
+
+    #[test]
+    fn reading_the_projects_while_they_are_being_saved_never_finds_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = std::sync::Arc::new(Projects::new(dir.path().join("projects.json")));
+        let kestrel = p.create("Kestrel").unwrap();
+        for i in 0..40 {
+            p.add_thread(&kestrel.id, &format!("c-{i:04}")).unwrap();
+        }
+        let writer = {
+            let p = p.clone();
+            let id = kestrel.id.clone();
+            std::thread::spawn(move || {
+                for i in 0..200 {
+                    p.set_rule(&id, "docs", if i % 2 == 0 { "act" } else { "ask" }).unwrap();
+                }
+            })
+        };
+        for _ in 0..400 {
+            assert_eq!(p.list().len(), 1, "a read during a save sees the whole file");
+            assert_eq!(p.project_of("c-0007").as_deref(), Some(kestrel.id.as_str()));
+        }
+        writer.join().unwrap();
+    }
 }
+

@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -51,6 +51,7 @@ test('an empty Agent app greets you in the middle and suggests a start, which is
   expect(sent()).toContain('give me a short overview');
   // A conversation has started, so the greeting has gone; the suggestions hide while you type.
   await expect(region.getByRole('heading', { name: 'What can I help with?' })).toHaveCount(0);
+  await turnEnded(composer());
   await composer().fill('x');
   await expect(region.getByRole('group', { name: 'Suggestions' })).toHaveCount(0);
 });

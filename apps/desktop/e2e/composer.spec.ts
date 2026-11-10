@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
 import { says, startModel, type ModelFixture, type ModelOptions, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -172,6 +172,7 @@ test('Edit puts the words back in the box and the attachment back as a chip', as
 
 test('dictation records, sends the sound to the server\'s speech model, and puts the words in the box', async () => {
   await start([], { transcript: 'hello from my voice' });
+  await turnEnded(composer());
   await composer().fill('Note:');
   await shell().getByRole('button', { name: 'Dictate' }).click();
   await expect(shell().getByRole('button', { name: 'Stop dictation' })).toBeVisible();

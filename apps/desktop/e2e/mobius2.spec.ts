@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, views, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, views, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 // The Mobius 2 shell: split view, on-canvas actions in notes, and review and undo of the agent's last turn.
@@ -175,6 +175,7 @@ test('Keep accepts the last turn’s changes from the keyboard, and the strip st
 
 test('the Activity tab lists a turn’s changes to review, and Discard there puts them back', async () => {
   await start([callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.'])]);
+  await turnEnded(composer());
   await composer().fill('make an ideas page');
   await composer().press('Enter');
   await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();

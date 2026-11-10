@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -107,6 +107,7 @@ test('asking from Search hands the question to the agent', async () => {
 
 test('while the agent works the composer says what it is doing, the app it works in glows, and a change elsewhere leaves a dot', async () => {
   await start([callsTool('tasks-add', { list: 'Inbox', text: 'Water the plants' }), says(['Added.'])]);
+  await turnEnded(composer());
   await composer().fill('Remind me to water the plants');
   await composer().press('Enter');
   const activity = shell().getByRole('status', { name: 'Agent activity' });
