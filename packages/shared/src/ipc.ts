@@ -456,6 +456,14 @@ export interface MobiusBridge {
   };
   /** Other apps using Mobius's tools over MCP. Only the Tauri shell has it. */
   /** Only the desktop app: projects, each a place with its own rules (counted by the core), threads, memory and files. */
+  /** Comments on anything in the workspace, kept per document in `.comments/<app>/`. */
+  comments?: {
+    list(app: string, doc: string): Promise<CommentThread[] | NotesFailure>;
+    /** Every document of the app that has threads. */
+    all(app: string): Promise<Array<{ doc: string; threads: CommentThread[] }> | NotesFailure>;
+    set(app: string, doc: string, threads: CommentThread[]): Promise<{ app: string; doc: string; threads: CommentThread[] } | NotesFailure>;
+    onChanged(listener: (app: string) => void): () => void;
+  };
   projects?: {
     list(): Promise<ProjectInfo[]>;
     create(name: string): Promise<ProjectInfo | NotesFailure>;
@@ -1085,6 +1093,24 @@ export interface ModelCatalog { current: string; groups: ModelGroup[] }
 export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number }
 export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null }
 export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }
+
+/** What a comment is pinned to: an object's stable id (`data-comment-id`), or a place in the document (0 to 1). */
+export interface CommentAnchor { id?: string; x?: number; y?: number; label: string }
+/** `open` just written, `sent` asked of Mobius, `note` kept for people (Mobius does not read it), `resolved` done. */
+export type CommentState = 'open' | 'sent' | 'note' | 'resolved';
+export interface CommentThread {
+  id: string;
+  doc: string;
+  anchor: CommentAnchor;
+  text: string;
+  /** The words of what it is pinned to, for Mobius. */
+  context: string;
+  by: string;
+  whenMs: number;
+  state: CommentState;
+  reply?: string;
+  conversation?: string;
+}
 
 /** A question the model put to the person. */
 export interface AgentQuestion { callId: string; question: string; choices: string[] }

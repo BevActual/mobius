@@ -135,10 +135,14 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
     <section className="review-strip" aria-label="Changes from the last turn" data-open={open || undefined}>
       <div className="review-head">
         <span className="review-dot" aria-hidden="true" />
-        <span className="review-summary">Changed {files.length === 1 ? '1 item' : `${files.length} items`}</span>
+        <button type="button" className="review-toggle" aria-expanded={open} title={open ? 'Hide what changed' : 'See what changed'} onClick={() => setOpen((o) => !o)}>
+          <span className="review-summary">{files.length === 1 ? '1 change' : `${files.length} changes`}</span>
+          <span className="review-sep" aria-hidden="true">·</span>
+          <span>Review</span>
+          <svg className="review-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
+        </button>
         <span className="review-actions">
-          <button type="button" className="review-btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : 'Review'}</button>
-          <ReviewActions onKeep={keep} onDiscard={undoAll} discardTitle={`Put everything back as it was (${modKey()}+Backspace)`} keepTitle={`Keep these changes (${modKey()}+Enter)`} />
+          <ReviewActions only="keep" onKeep={keep} onDiscard={undoAll} keepTitle={`Keep these changes (${modKey()}+Enter)`} />
         </span>
       </div>
       {open && (
@@ -154,6 +158,11 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
             );
           })}
         </ul>
+      )}
+      {open && (
+        <div className="review-more">
+          <ReviewActions only="others" onKeep={keep} onDiscard={undoAll} discardTitle={`Put everything back as it was (${modKey()}+Backspace)`} />
+        </div>
       )}
       {problem && <p className="review-problem" role="alert">{problem}</p>}
     </section>

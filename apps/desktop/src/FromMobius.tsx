@@ -21,8 +21,8 @@ export function FromMobius({ items }: { items: readonly FromMobiusItem[] }) {
         {items.map((it) => (
           <li key={it.key}>
             <button type="button" className="note-row" data-proposed aria-current={it.current ? 'page' : undefined} aria-label={`${it.name}, from Mobius`} onClick={it.onOpen}>
-              <span className="note-title">{it.name}</span>
-              {it.where && <span className="note-sub">{it.where}</span>}
+              <span className="from-mobius-dot" aria-hidden="true" /><span className="note-title">{it.name}</span>
+              {it.where && <span className="note-sub from-mobius-where">{it.where}</span>}
             </button>
           </li>
         ))}

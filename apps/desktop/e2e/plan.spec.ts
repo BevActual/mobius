@@ -88,8 +88,10 @@ test('with Plan first, the assistant only proposes steps, and starts them when y
     says(['Here is the plan. Nothing happens until you start it.']),
     says(['Done.']),
   ]);
+  // Plan first is in the model's menu; while it is on, the composer says so.
+  await shell().getByRole('button', { name: 'Model' }).click();
+  await shell().getByRole('menu', { name: 'Model' }).getByRole('menuitemcheckbox', { name: 'Plan first' }).click();
   const planFirst = shell().getByRole('button', { name: 'Plan first' });
-  await planFirst.click();
   await expect(planFirst).toHaveAttribute('aria-pressed', 'true');
   await say('summarise my notes');
   const plan = log().getByRole('region', { name: 'Plan' });
@@ -116,7 +118,8 @@ test('I’ll Drive puts a proposed plan in Tasks, for you to do yourself', async
     callsTool('todo-write', { items: [{ text: 'Book the room', status: 'pending' }, { text: 'Send the invite', status: 'pending' }] }),
     says(['Here is the plan.']),
   ]);
-  await shell().getByRole('button', { name: 'Plan first' }).click();
+  await shell().getByRole('button', { name: 'Model' }).click();
+  await shell().getByRole('menu', { name: 'Model' }).getByRole('menuitemcheckbox', { name: 'Plan first' }).click();
   await say('plan the offsite');
   const plan = log().getByRole('region', { name: 'Plan' });
   await plan.getByRole('button', { name: 'I’ll Drive' }).click();

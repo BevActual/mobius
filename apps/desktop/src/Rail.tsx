@@ -1,5 +1,5 @@
 import { Reorder, motion } from 'motion/react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { Activity } from './activity';
 import { useSideFolds } from './side-fold';
 import { useMorphIn } from './motion';
@@ -143,6 +143,10 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   const railRef = useRef<HTMLElement>(null);
   useSideFolds(railRef, expanded);
   const askRef = useRef<HTMLDivElement>(null);
+  // After the app changes under a pointer that has not moved, the row now under it is not "hovered": the browser
+  // keeps the old hover until the pointer moves, which drew a grey bar on whatever landed there.
+  const [still, setStill] = useState(false);
+  useEffect(() => { setStill(true); }, [app]);
   useEffect(() => {
     if (!menu) return undefined;
     menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
@@ -198,23 +202,26 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
       {expanded && <span className="rail-label" aria-hidden="true">{create.label}</span>}
     </button>
   );
+  const switcher = (
+        <button type="button" className="rail-btn rail-switch" data-app-switcher aria-label={switching ? `Back to ${title}` : `Switch app. Current: ${title}`} aria-expanded={switching} title={switching ? `Back to ${title}` : 'Switch app'}
+          data-working={(!switching && elsewhereWorking) || undefined} data-changed={(!switching && elsewhereChanged) || undefined}
+          onClick={() => setFace(switching ? 'app' : 'apps')}>
+          {switching
+            ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
+            : settingsOpen
+              ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
+              : <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-tile" style={{ background: `var(--app-${app})` }}>{ownHere ? OWN_ICONS[ownHere.id] : APP_ICONS[app]}</svg>}
+          <span className="rail-label" aria-hidden="true">{switching ? 'Apps' : title}</span>
+          {needsYou > 0 && !showApps && <span className="rail-badge" role="status" aria-label={`${needsYou} waiting for you`}>{needsYou}</span>}
+          <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-caret"><path d="m7 8.5 3 3 3-3" /></svg>
+        </button>
+  );
   return (
-    <nav ref={railRef} className="rail" aria-label="Apps" data-expanded={expanded || undefined} data-face={expanded ? (switching ? 'apps' : asking ? 'mobius' : 'app') : undefined}>
+    <nav ref={railRef} className="rail" aria-label="Apps" data-pointer-still={still || undefined} onPointerMove={still ? () => setStill(false) : undefined} data-expanded={expanded || undefined} data-face={expanded ? (switching ? 'apps' : asking ? 'mobius' : 'app') : undefined}>
       {expanded ? (
         <>
-          <div className="rail-head">
-            <button type="button" className="rail-btn rail-switch" data-app-switcher aria-label={switching ? `Back to ${title}` : `Switch app. Current: ${title}`} aria-expanded={switching} title={switching ? `Back to ${title}` : 'Switch app'}
-              data-working={(!switching && elsewhereWorking) || undefined} data-changed={(!switching && elsewhereChanged) || undefined}
-              onClick={() => setFace(switching ? 'app' : 'apps')}>
-              {switching
-                ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
-                : settingsOpen
-                  ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
-                  : <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-tile" style={{ background: `var(--app-${app})` }}>{ownHere ? OWN_ICONS[ownHere.id] : APP_ICONS[app]}</svg>}
-              <span className="rail-label" aria-hidden="true">{switching ? 'Apps' : title}</span>
-              {needsYou > 0 && !showApps && <span className="rail-badge" role="status" aria-label={`${needsYou} waiting for you`}>{needsYou}</span>}
-              <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-caret"><path d="m7 8.5 3 3 3-3" /></svg>
-            </button>
+          {!asking && <div className="rail-head">
+            {switcher}
             {mobius && !switching && (
               <button type="button" className="rail-btn rail-mobius" data-mobius-face aria-pressed={mobius.shown} aria-label={mobius.shown ? 'Back to the sidebar' : 'Mobius in the sidebar'} title={mobius.shown ? `Back to ${title}` : 'Ask Mobius here, in the sidebar'} onClick={mobius.onToggle}>
                 <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
@@ -222,16 +229,26 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
             )}
             {menus}
             {toggle}
-          </div>
+          </div>}
           {/* The page's controls stay where they were, above Mobius, so the address does not jump when Mobius opens. */}
-          {(showOwn || asking) && chrome && <div className="rail-chrome">{chrome}</div>}
+          {showOwn && chrome && <div className="rail-chrome">{chrome}</div>}
           {asking && mobius && (
             <div ref={askRef} className="rail-ask">
-              <div className="rail-ask-bar">
-                <span className="rail-ask-title">Mobius</span>
-                <button type="button" className="rail-ask-beside" onClick={mobius.onBeside} title="Show Mobius beside the page instead">Show beside</button>
-              </div>
-              {mobius.panel}
+              {/* One head: the app's switcher, Mobius and where, then its icons; the page's controls under it. */}
+              {isValidElement(mobius.panel) ? cloneElement(mobius.panel as ReactElement<{ lead?: ReactNode; pin?: ReactNode; below?: ReactNode }>, {
+                lead: switcher,
+                pin: (
+                  <>
+                    <button type="button" className="head-icon" aria-label="Show beside" title="Show Mobius beside the page instead" onClick={mobius.onBeside}>
+                      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>
+                    </button>
+                    <button type="button" className="head-icon" data-mobius-face aria-pressed="true" aria-label="Back to the sidebar" title={`Back to ${title}`} onClick={mobius.onToggle}>
+                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
+                    </button>
+                  </>
+                ),
+                below: chrome ? <div className="rail-chrome">{chrome}</div> : null,
+              }) : mobius.panel}
             </div>
           )}
           {showOwn && !createInList && <div className="rail-new">{createButton}</div>}

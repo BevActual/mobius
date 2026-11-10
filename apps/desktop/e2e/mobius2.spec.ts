@@ -52,7 +52,7 @@ test('split view shows two apps, follows the focused pane, swaps and closes', as
   // Clicking a pane makes it the one the toolbar and sidebar follow.
   // Its name, not the middle of the header, where (by window size) one of the app buttons can sit.
   await right.locator('.pane-name').click();
-  await expect(shell().locator('.strip-title')).toHaveText('Notes');
+  await expect(shell().getByRole('complementary', { name: 'Notes sidebar' })).toBeVisible();
   await right.getByRole('button', { name: 'Swap panes' }).click();
   await expect(shell().getByRole('region', { name: 'Left pane: Notes' })).toBeVisible();
   await shell().getByRole('separator', { name: 'Resize the panes' }).focus();
@@ -107,8 +107,8 @@ test('what the last turn changed can be reviewed and undone', async () => {
   await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
   expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(true);
   const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
-  await expect(strip).toContainText('Changed 1 item');
-  await strip.getByRole('button', { name: 'Review' }).click();
+  await expect(strip).toContainText('1 change');
+  await strip.getByRole('button', { name: /Review/ }).click();
   await expect(strip).toContainText('Work / Ideas');
   await strip.getByRole('button', { name: 'Discard' }).click();
   await expect(shell().getByText('Put back as it was before that turn.')).toBeVisible();

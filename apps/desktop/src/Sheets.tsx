@@ -212,6 +212,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
                       key={c}
                       role="gridcell"
                       aria-label={cellName(r, c)}
+                      data-comment-id={cellName(r, c)}
                       aria-selected={on}
                       data-cell={key}
                       data-num={isNumeric(value) || undefined}

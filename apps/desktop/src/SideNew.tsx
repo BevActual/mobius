@@ -16,23 +16,17 @@ interface Props {
 }
 
 /**
- * The first row of an app's sidebar list: New, and under it Mobius's starts (dashed indigo, as everything of Mobius's
- * is until it is the person's). A start only fills the message box.
+ * The first row of an app's sidebar list: New. Mobius's starts are no longer drawn here (a sidebar holds places, not
+ * suggestions): the panel's empty chat offers what is worth asking. `starts` and `onStart` are still accepted, so
+ * sidebars that pass them need no change.
  */
-export function SideNew({ item, onNew, disabled = false, title, starts = [], onStart }: Props) {
+export function SideNew({ item, onNew, disabled = false, title }: Props) {
   return (
     <div className="side-new">
       <button type="button" className="side-new-row" aria-label={`New ${item}`} title={title ?? `New ${item}`} disabled={disabled} onClick={onNew}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
         <span>New {item}</span>
       </button>
-      {onStart && starts.length > 0 && (
-        <div className="side-starts" role="group" aria-label="Start with Mobius">
-          {starts.map((s) => (
-            <button key={s.label} type="button" className="side-start" title={`Ask Mobius: ${s.prompt.trim()}`} onClick={() => onStart(s.prompt)}>{s.label}</button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

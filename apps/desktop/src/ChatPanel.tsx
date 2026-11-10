@@ -290,6 +290,10 @@ export interface ChatPanelProps {
   place?: string;
   /** Put the panel away. */
   onHide?: () => void;
+  /** Before the title: the app switcher, when the panel takes the sidebar. */
+  lead?: ReactNode;
+  /** Under the head: the page's controls, when the panel takes the sidebar. */
+  below?: ReactNode;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
   /** The model on the server was changed from the composer. */
@@ -385,7 +389,7 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, below }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -468,7 +472,8 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
 
   return (
     <Shell variant={variant} empty={state.items.length === 0}>
-      <div className="chat-head">
+      <div className="chat-head" data-lead={lead ? true : undefined}>
+        {lead}
         {variant === 'full' && !needsSetup ? (
           <span className="chat-titles">
             <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span>
@@ -488,13 +493,14 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
         <div className="chat-head-actions">
           {variant === 'panel' && !needsSetup && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} />}
           {pin}
-          {variant === 'panel' && onHide && (
+          {variant === 'panel' && onHide && !lead && (
             <button type="button" className="head-icon" aria-label="Hide" title="Hide Mobius" onClick={onHide}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
             </button>
           )}
         </div>
       </div>
+      {below}
       {!showSettings && (
         <div className="chat-context">
           <button type="button" className="chat-context-line" aria-expanded={contextOpen} onClick={() => setContextOpen((o) => !o)} title="What Mobius sees here, and how much it may do">
@@ -586,7 +592,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                 <div key={item.id} className="msg-notice" role="status">{item.text}</div>
               ) : item.kind === 'error' ? (
                 <Fragment key={item.id}>
-                  <div className="msg error" role="alert">{item.text}</div>
+                  <div className="msg error" role="alert" data-failed={item.failed || undefined}><svg className="msg-error-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5 14 13H2z" /><path d="M8 6.5v3M8 11.3v.2" /></svg><span>{item.text}</span></div>
                   {settled && index === state.items.length - 1 && lastUser >= 0 && (
                     <div className="msg-actions assistant">
                       <button type="button" className="msg-action" aria-label="Try again" onClick={() => void retry()}>Try again</button>
@@ -597,19 +603,20 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                 <ToolRow key={item.id} item={item} onAnswer={onAnswer} onDetails={onDetails} />
               ),
             )}
+            {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} />}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
               <div className="thinking" role="status" aria-label="Mobius is working"><MobiusMark size={22} turning /></div>
             )}
           </div>
           <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
-          <ReviewStrip conversation={state.conversation} busy={state.busy} />
           <TurnHistory conversation={state.conversation} busy={state.busy} />
           {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
           <Composer
             takeFocus={takeFocus}
             contextUse={state.context}
             startersIn={state.items.length === 0 ? starterSlot : null}
+            started={state.items.length > 0}
             draft={draft}
             onDraft={setDraft}
             context={context}

@@ -48,7 +48,7 @@ const say = async (text: string) => {
 
 test('the message box has add context, model, effort, dictate and send', async () => {
   await start();
-  for (const name of ['Add context', 'Model', 'Effort', 'Approvals', 'Dictate']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
+  for (const name of ['Add context', 'Model', 'Approvals', 'Dictate']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
   await expect(shell().getByRole('button', { name: 'Send' })).toBeDisabled();
   await expect(shell().getByRole('button', { name: 'Model' })).toContainText('chat-model');
   await composer().fill('hi');
@@ -69,7 +69,7 @@ test('send becomes stop while the agent works, and stop ends the request', async
 test('the model menu lists what the server offers and switching changes the model for the next message', async () => {
   await start([says(['one']), says(['two'])], { models: ['chat-model', 'other-model', 'big-model'] });
   await shell().getByRole('button', { name: 'Model' }).click();
-  await expect(menu('Model').getByRole('menuitemradio')).toHaveText([/big-model/, /chat-model/, /other-model/]);
+  await expect(menu('Model').locator('.model-groups').getByRole('menuitemradio')).toHaveText([/big-model/, /chat-model/, /other-model/]);
   await expect(menu('Model').getByRole('menuitemradio', { name: /chat-model/ })).toHaveAttribute('aria-checked', 'true');
   await menu('Model').getByRole('menuitemradio', { name: /other-model/ }).click();
   await expect(shell().getByRole('button', { name: 'Model' })).toContainText('other-model');
@@ -90,16 +90,18 @@ test('a server that cannot list its models says so and still shows the one in us
 
 test('the effort is chosen from the menu, kept, and sent with the next request', async () => {
   await start([says(['ok']), says(['ok again'])]);
-  await shell().getByRole('button', { name: 'Effort' }).click();
-  await expect(menu('Effort').getByRole('menuitemradio', { name: /Default/ })).toHaveAttribute('aria-checked', 'true');
-  await menu('Effort').getByRole('menuitemradio', { name: /High/ }).click();
-  await expect(shell().getByRole('button', { name: 'Effort' })).toContainText('High');
+  // Effort is in the model's menu, marked with a check; the model's button says it once it is not the default.
+  await shell().getByRole('button', { name: 'Model' }).click();
+  const thinking = menu('Model').getByRole('group', { name: 'Thinking' });
+  await expect(thinking.getByRole('menuitemradio', { name: /Default/ })).toHaveAttribute('aria-checked', 'true');
+  await thinking.getByRole('menuitemradio', { name: /High/ }).click();
+  await expect(shell().getByRole('button', { name: 'Model' })).toContainText('High');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).reasoningEffort).toBe('high');
   await say('think hard');
   await expect(log().locator('.msg.assistant')).toHaveText('ok');
   expect(model!.requests.at(-1)?.reasoning_effort).toBe('high');
-  await shell().getByRole('button', { name: 'Effort' }).click();
-  await menu('Effort').getByRole('menuitemradio', { name: /Default/ }).click();
+  await shell().getByRole('button', { name: 'Model' }).click();
+  await menu('Model').getByRole('group', { name: 'Thinking' }).getByRole('menuitemradio', { name: /Default/ }).click();
   await say('relax');
   await expect(log().locator('.msg.assistant').last()).toHaveText('ok again');
   expect(model!.requests.at(-1)).not.toHaveProperty('reasoning_effort');
@@ -223,12 +225,12 @@ test('the model menu groups every provider with a key, can be searched, and swit
     await start([says(['from the first server'])], { models: ['chat-model', 'other-model'] }, { MOBIUS_TEST_PROVIDER: `openai=${openai.url}` });
     await shell().evaluate(() => window.mobius.providers!.setKey('openai', 'sk-composer-test-1234'));
     await shell().getByRole('button', { name: 'Model' }).click();
-    const groups = menu('Model').getByRole('group');
+    const groups = menu('Model').locator('.model-groups').getByRole('group');
     await expect(groups).toHaveCount(2);
     await expect(menu('Model').getByRole('group', { name: 'OpenAI' }).getByRole('menuitemradio')).toHaveText([/gpt-5.4-mini/, /gpt-5.5/]);
     await expect(menu('Model').getByRole('group', { name: 'This server' }).getByRole('menuitemradio', { name: /chat-model/ })).toHaveAttribute('aria-checked', 'true');
     await menu('Model').getByRole('searchbox', { name: 'Find a model' }).fill('mini');
-    await expect(menu('Model').getByRole('menuitemradio')).toHaveText([/gpt-5.4-mini/]);
+    await expect(menu('Model').locator('.model-groups').getByRole('menuitemradio')).toHaveText([/gpt-5.4-mini/]);
     await menu('Model').getByRole('menuitemradio', { name: /gpt-5.4-mini/ }).click();
     await expect(shell().getByRole('button', { name: 'Model' })).toContainText('gpt-5.4-mini');
     await say('hello');
@@ -261,9 +263,9 @@ test('approvals can be changed from the message box and match Settings', async (
 
 test('effort Off tells a model on this computer not to think', async () => {
   await start([says(['quick'])]);
-  await shell().getByRole('button', { name: 'Effort' }).click();
-  await menu('Effort').getByRole('menuitemradio', { name: /^Off/ }).click();
-  await expect(shell().getByRole('button', { name: 'Effort' })).toContainText('Off');
+  await shell().getByRole('button', { name: 'Model' }).click();
+  await menu('Model').getByRole('group', { name: 'Thinking' }).getByRole('menuitemradio', { name: /^Off/ }).click();
+  await expect(shell().getByRole('button', { name: 'Model' })).toContainText('Off');
   await say('fast please');
   await expect(log().locator('.msg.assistant')).toHaveText('quick');
   expect(model!.requests.at(-1)).toMatchObject({ chat_template_kwargs: { enable_thinking: false } });

@@ -29,6 +29,8 @@ type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: Mode
 export interface ComposerProps {
   /** In an empty conversation: where three starters go, as plain text under the greeting, instead of chips here. */
   startersIn?: HTMLElement | null;
+  /** Suggestions are for starting: once the conversation has begun there are none. */
+  started?: boolean;
   /** How full the model's window is, when the core has said: a small ring with its percent. */
   contextUse?: { used: number; limit: number };
   /** Whether the message box takes the keyboard when it appears (not when a floating panel is only peeked at). */
@@ -61,7 +63,7 @@ export interface ComposerProps {
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity, contextUse, startersIn }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity, contextUse, startersIn, started = false }: ComposerProps) {
   // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
   const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
   const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
@@ -165,7 +167,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     fieldRef.current?.focus();
   };
 
-  const suggestions = surface && canType && !busy && !listening && draft === '' ? suggestionsFor(surface) : [];
+  const suggestions = surface && !started && canType && !busy && !listening && draft === '' ? suggestionsFor(surface) : [];
   const suggest = async (s: Suggestion) => {
     setProblem(null);
     if (isStarter(s)) {
@@ -323,7 +325,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               </>
             )}
           </PopMenu>
-          <PopMenu label="Model" className="pill" disabled={!configured || busy} onOpen={loadModels} title={modelName ? `Model: ${modelName}` : 'Model'} trigger={<><span className="pill-text">{modelName || 'Model'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+          <PopMenu label="Model" className="pill" disabled={!configured || busy} onOpen={loadModels} title={modelName ? `Model: ${modelName}` : 'Model'} trigger={<><span className="pill-text">{modelName || 'Model'}{effort ? ` · ${effortLabel}` : ''}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <div className="model-menu">
                 <input type="search" className="model-find" aria-label="Find a model" placeholder="Find a model" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />
@@ -336,46 +338,45 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                       <header className="model-group-head"><span>{group.name}</span><span className="popmenu-hint">{group.active ? 'In use' : KIND_NOTE[group.kind]}</span></header>
                       {group.error && <p className="popmenu-note" role="alert">{group.error}</p>}
                       {group.models.map((model) => (
-                        <button key={model.id} type="button" role="menuitemradio" aria-checked={isCurrent(group, model)} className="popmenu-item" title={`${model.label} · ${group.name}`} onClick={() => void chooseModel(group, model, close)}>
-                          <span>{model.label}</span>{isCurrent(group, model) && <span className="popmenu-hint">In use</span>}
+                        <button key={model.id} type="button" role="menuitemradio" aria-checked={isCurrent(group, model)} className="popmenu-item popmenu-checkable" title={`${model.label} · ${group.name}`} onClick={() => void chooseModel(group, model, close)}>
+                          <Check on={isCurrent(group, model)} /><span>{model.label}</span>
                         </button>
                       ))}
                     </section>
                   ))}
                 </div>
                 <button type="button" role="menuitem" className="popmenu-item popmenu-link" onClick={() => { close(); onOpenSettings(); }}>Add providers and models…</button>
+                <div className="popmenu-section" role="group" aria-label="Thinking">
+                  <p className="popmenu-heading" aria-hidden="true">Effort</p>
+                  {EFFORTS.map((option) => (
+                    <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === effort} className="popmenu-item popmenu-checkable" title={option.id === 'none' ? 'Thinking off, for models on this computer' : undefined} onClick={() => { close(); onEffort(option.id); }}>
+                      <Check on={option.id === effort} /><span>{option.label}</span>
+                    </button>
+                  ))}
+                  <button type="button" role="menuitemcheckbox" aria-checked={planFirst} className="popmenu-item popmenu-checkable popmenu-split" title="See the steps before Mobius does anything" onClick={() => { close(); togglePlanFirst(); }}>
+                    <Check on={planFirst} /><span>Plan first</span>
+                  </button>
+                </div>
               </div>
             )}
           </PopMenu>
-          <PopMenu label="Effort" className="pill pill-compact" disabled={busy} title={`Effort: ${effortLabel}. How hard the model thinks.`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 11a5.5 5.5 0 1 1 11 0M8 11l2.5-3.5" /></svg><span className="pill-text">Effort{effort ? `: ${effortLabel}` : ''}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
-            {(close) => (
-              <>
-                {EFFORTS.map((option) => (
-                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === effort} className="popmenu-item" onClick={() => { close(); onEffort(option.id); }}>
-                    <span>{option.label}</span>{option.id === effort && <span className="popmenu-hint">Chosen</span>}
-                  </button>
-                ))}
-                <p className="popmenu-note">How hard the model is asked to think. Only models that can reason use this. Off turns thinking off for models on this computer.</p>
-              </>
-            )}
-          </PopMenu>
-          <button type="button" className="pill pill-compact" aria-label="Plan first" aria-pressed={planFirst} data-on={planFirst || undefined} disabled={busy} onClick={togglePlanFirst}
-            title={planFirst ? 'Plan first is on: Mobius shows its steps, and nothing happens until you start them.' : 'Plan first: see the steps before Mobius does anything.'}>
-            <svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h1M3 8h1M3 12h1M6.5 4H13M6.5 8H13M6.5 12H13" /></svg>
-            <span className="pill-text">Plan first</span>
-          </button>
           <PopMenu label="Approvals" className="pill pill-compact" title={`${approval.name}: ${approval.hint}. Shift+Tab in the message box changes it.`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{approval.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <>
                 {MODES.map((option) => (
-                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === approval.id} className="popmenu-item" onClick={() => { close(); void preferences.set({ approvalMode: option.id }); }}>
-                    <span>{option.name}</span><span className="popmenu-hint">{option.hint}</span>
+                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === approval.id} className="popmenu-item popmenu-checkable" onClick={() => { close(); void preferences.set({ approvalMode: option.id }); }}>
+                    <Check on={option.id === approval.id} /><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span>
                   </button>
                 ))}
                 <p className="popmenu-note">In every mode, paying, sending, deleting and running commands ask first, and what you blocked stays blocked. Shift+Tab in the message box changes it.</p>
               </>
             )}
           </PopMenu>
+          {planFirst && (
+            <button type="button" className="pill pill-compact" aria-label="Plan first" aria-pressed="true" data-on disabled={busy} onClick={togglePlanFirst} title="Plan first is on: Mobius shows its steps, and nothing happens until you start them. Click to turn it off.">
+              <span className="pill-text">Plan first</span>
+            </button>
+          )}
         </div>
         <div className="composer-actions">
           {contextUse && <ContextRing used={contextUse.used} limit={contextUse.limit} />}
@@ -417,4 +418,9 @@ function ContextRing({ used, limit }: { used: number; limit: number }) {
       <span className="context-ring-text">{percent}%</span>
     </span>
   );
+}
+
+/** The mark beside the chosen item of a menu, as macOS menus have. */
+function Check({ on }: { on: boolean }) {
+  return <svg className="popmenu-check" viewBox="0 0 12 12" aria-hidden="true">{on && <path d="M2.5 6.5 5 9l4.5-6" />}</svg>;
 }
