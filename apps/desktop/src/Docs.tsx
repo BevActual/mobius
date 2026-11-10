@@ -11,6 +11,7 @@ import { liveTitle } from './notes-state';
 import { NotesSidebar, type SidebarWords } from './NotesSidebar';
 import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
+import { ReviewActions } from './ReviewBar';
 
 export const DOCS_WORDS: SidebarWords = { app: 'Docs', group: 'folder', groups: 'Folders', item: 'document', items: 'documents', about: 'Documents are kept as Markdown files in your workspace, so other apps and the agent can open them too.', defaultGroup: 'Documents' };
 export const DEFAULT_FOLDER = 'Documents';
@@ -284,8 +285,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
             <div className="note-review doc-review" role="status">
               <span className="review-dot" aria-hidden="true" />
               <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `Mobius changed ${c.added + c.removed === 1 ? 'one line' : `${c.added + c.removed} lines`} here in its last turn.`; })() : 'Mobius changed this document in its last turn.'}</span>
-              <button type="button" className="review-btn" onClick={() => void discardAll()}>Discard</button>
-              <button type="button" className="review-btn" data-kind="keep" onClick={() => void keepAll()}>Keep</button>
+              <ReviewActions onKeep={keepAll} onDiscard={discardAll} />
             </div>
           )}
           {problem && <p className="tasks-message" role="alert">{problem}</p>}

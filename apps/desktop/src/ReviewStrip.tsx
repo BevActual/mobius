@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnChanges, TurnRecord } from '@mobius/shared';
+import { ReviewActions } from './ReviewBar';
 
 /** How a workspace path reads to a person: notes and task lists by name, other files by their path. */
 export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' | 'Tasks' | 'Calendar' | 'Code' | 'Design' | 'Board' | 'Report' | 'Article' | 'Database' | 'Photo' | 'Song' | 'Cut' | 'Skill' | 'File'; name: string } {
@@ -82,23 +83,27 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
   // Read when a turn ends, and when another conversation is shown.
   useEffect(() => { if (!busy) void load(); else { setUndone(false); setProblem(null); } }, [busy, load]);
 
-  const run = async (action: () => Promise<{ ok: true } | { ok: false; error: string }>) => {
+  const run = async (action: () => Promise<{ ok: true } | { ok: false; error: string }>): Promise<string | null> => {
     setProblem(null);
     const result = await action().catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
-    if (!result.ok) { setProblem(result.error); return; }
+    if (!result.ok) { setProblem(result.error); return result.error; }
     await load();
+    return null;
   };
   // Only what this turn changed goes back, one item at a time, so edits made since in other files are kept.
-  const undoAll = async () => {
-    await run(async () => {
-      for (const path of files) {
-        const result = await window.mobius.changes.undoFile(conversation, path);
-        if (!result.ok) return result;
-      }
-      return { ok: true as const };
-    });
+  const undoAll = async (): Promise<string | null> => {
+    setProblem(null);
+    for (const path of files) {
+      const result = await window.mobius.changes.undoFile(conversation, path).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
+      if (!result.ok) { setProblem(result.error); void load(); return result.error; }
+    }
+    // Say so at once: reading the turn again is slow on some computers. The core still lists a turn after it is put
+    // back, so it is settled as a kept one is, and the strip does not return for it.
+    setFiles([]);
     setUndone(true);
     setOpen(false);
+    if (turn) keepTurn(turn);
+    return null;
   };
 
   const keep = useCallback(() => {
@@ -132,8 +137,7 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
         <span className="review-dot" aria-hidden="true" />
         <span className="review-summary">Changed {files.length === 1 ? '1 item' : `${files.length} items`}</span>
         <button type="button" className="review-btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : 'Review'}</button>
-        <button type="button" className="review-btn" title={`Put everything back as it was (${modKey()}+Backspace)`} onClick={() => void undoAll()}>Discard</button>
-        <button type="button" className="review-btn" data-kind="keep" title={`Keep these changes (${modKey()}+Enter)`} onClick={keep}>Keep</button>
+        <ReviewActions onKeep={keep} onDiscard={undoAll} discardTitle={`Put everything back as it was (${modKey()}+Backspace)`} keepTitle={`Keep these changes (${modKey()}+Enter)`} />
       </div>
       {open && (
         <ul className="review-list">

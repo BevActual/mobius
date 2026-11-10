@@ -6,6 +6,7 @@ import { useFileReview } from './useFileReview';
 import { ARCHIVE, READING_LIST, addHighlight, articleFile, articleTitle, highlightsOf, keepLook, parseArticle, readLook, removeHighlight, type ReadingLook } from './reader-format';
 import { clipToNotes } from './clip';
 import type { NotesState } from './useNotes';
+import { ReviewActions } from './ReviewBar';
 
 export const READER_WORDS: SidebarWords = { app: 'Reader', group: 'list', groups: 'Lists', item: 'article', items: 'articles', about: 'Articles are kept as Markdown files in your workspace, so the agent can read them with you.', defaultGroup: READING_LIST };
 
@@ -140,8 +141,7 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
             <div className="note-review" role="status">
               <span className="review-dot" aria-hidden="true" />
               <span className="note-review-text">Mobius changed this article in its last turn.</span>
-              <button type="button" className="review-btn" onClick={() => void discard()}>Discard</button>
-              <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep()}>Keep</button>
+              <ReviewActions onKeep={keep} onDiscard={discard} />
             </div>
           )}
           <div className="reader-meta">

@@ -4,6 +4,7 @@ import { RichText } from './RichText';
 import { useFileReview } from './useFileReview';
 import { DEPTHS, claimCounts, followUpPrompt, isWaiting, researchPrompt, sourcesOf, startingPage, titleFor, type Depth } from './research-format';
 import type { NotesState } from './useNotes';
+import { ReviewActions } from './ReviewBar';
 
 export const RESEARCH_WORDS: SidebarWords = { app: 'Research', group: 'folder', groups: 'Folders', item: 'report', items: 'reports', about: 'Reports are kept as Markdown files in your workspace, with their sources, so Docs and the agent can open them too.', defaultGroup: 'Research' };
 export const RESEARCH_FOLDER = 'Research';
@@ -114,8 +115,7 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone 
             <div className="note-review" role="status">
               <span className="review-dot" aria-hidden="true" />
               <span className="note-review-text">{before === null || isWaiting(before) ? 'Mobius wrote this report in its last turn.' : 'Mobius changed this report in its last turn.'}</span>
-              <button type="button" className="review-btn" onClick={() => void discard()}>Discard</button>
-              <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep()}>Keep</button>
+              <ReviewActions onKeep={keep} onDiscard={discard} />
             </div>
           )}
           <div className="research-tools" role="toolbar" aria-label="Report">

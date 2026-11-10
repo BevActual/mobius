@@ -3,6 +3,7 @@ import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { applyGroups, badgeOf, changeGroups, highlight, langOf, lineDiff, testLineKind, type DiffRow, type Lang } from './code-view';
 import type { CodeState } from './useCode';
+import { ReviewActions } from './ReviewBar';
 
 /** Projects, and the open project's files as a tree, with the ones the agent changed in its last turn marked. */
 export function CodeSidebar({ code, pin, changed }: { code: CodeState; pin?: ReactNode; changed?: ReadonlySet<string> }) {
@@ -148,8 +149,7 @@ function Suggestion({ rows, lang, endsWithNewline, onWrite, onKeepAll, onDiscard
       })}
       <div className="code-diff-bar" role="group" aria-label="Mobius's change">
         <span>{groups.length === 1 ? 'One change from Mobius' : `${groups.length} changes from Mobius`}</span>
-        <button type="button" className="review-btn" onClick={onDiscardAll}>Discard <kbd>⌘⌫</kbd></button>
-        <button type="button" className="review-btn" data-kind="keep" onClick={onKeepAll}>Keep <kbd>⌘⏎</kbd></button>
+        <ReviewActions onKeep={onKeepAll} onDiscard={onDiscardAll} discardTitle="Discard (Ctrl+Backspace)" keepTitle="Keep (Ctrl+Enter)" />
       </div>
     </div>
   );

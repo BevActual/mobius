@@ -5,6 +5,7 @@ import { changedIds, contrast, freshId, nextFramePlace, parseDesign, resolveColo
 import type { NotesState } from './useNotes';
 import { onCommand } from './commands';
 import { useUndo } from './useUndo';
+import { ReviewActions } from './ReviewBar';
 
 export const DESIGN_WORDS: SidebarWords = { app: 'Design', group: 'folder', groups: 'Folders', item: 'design', items: 'designs', about: 'Designs are kept as JSON files in your workspace, frames and their layers, so the agent can read and change them too.', defaultGroup: 'Designs' };
 
@@ -319,8 +320,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
             <div className="design-review" role="group" aria-label="Mobius's change" onPointerDown={(e) => e.stopPropagation()}>
               <span className="review-dot" aria-hidden="true" />
               <span>{changed.size === 1 ? 'Mobius changed one layer here, dashed.' : `Mobius changed ${changed.size} layers here, dashed.`}</span>
-              <button type="button" className="review-btn" onClick={() => void discard()}>Discard</button>
-              <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep()}>Keep</button>
+              <ReviewActions onKeep={keep} onDiscard={discard} />
             </div>
           )}
         </div>

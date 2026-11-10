@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, t
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { AMOUNTS, AMOUNT_NAMES, applyEdits, blankAdjustment, describePixels, editsPathFor, parseEdits, type Adjustment, type AreaKind, type PhotoEdits } from './photo-edit';
 import type { PhotosState } from './usePhotos';
+import { ReviewActions } from './ReviewBar';
 
 const PREVIEW_MAX = 1600;
 const EXPORT_MAX = 6000;
@@ -237,8 +238,7 @@ export function PhotoEditor({ photos, review }: { photos: PhotosState; review?: 
             <div className="photo-review" role="group" aria-label="Mobius's change">
               <span className="review-dot" aria-hidden="true" />
               <span>{`Mobius changed ${[...changed].filter((c) => c !== '(removed)').map((id) => edits.adjustments.find((a) => a.id === id)?.name ?? id).join(', ') || 'the edits'}; nothing else touched.`}</span>
-              <button type="button" className="review-btn" onClick={() => void discard()}>Discard</button>
-              <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep()}>Keep</button>
+              <ReviewActions onKeep={keep} onDiscard={discard} />
             </div>
           )}
         </div>

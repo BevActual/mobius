@@ -4,6 +4,7 @@ import { describeWhen } from './settings/Schedules';
 import { relativeTime } from './relative-time';
 import { activityBoard } from './activity-board';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { ReviewActions } from './ReviewBar';
 
 interface Props {
   /** Open Settings › Schedules. */
@@ -191,10 +192,12 @@ function ChangesWaiting({ conversations, onSelect }: { conversations: Conversati
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids, tick]);
   if (rows.length === 0) return null;
-  const discard = async (id: string, files: string[]) => {
+  const discard = async (id: string, files: string[], turn: string | null) => {
     for (const path of files) await window.mobius.changes?.undoFile(id, path).catch(() => undefined);
-    // Everything showing these changes reads them again (the strip under the conversation, a note's bar).
-    window.dispatchEvent(new CustomEvent(KEPT_EVENT));
+    // The row goes at once (reading the turns again is slow on some computers). The core still lists a turn after it
+    // is put back: settle it, and everything showing it reads it again.
+    setRows((cur) => cur.filter((r) => r.conversation.id !== id));
+    if (turn) keepTurn(turn); else window.dispatchEvent(new CustomEvent(KEPT_EVENT));
   };
   return (
     <section aria-label="Changes to review">
@@ -207,8 +210,7 @@ function ChangesWaiting({ conversations, onSelect }: { conversations: Conversati
               <span className="clist-sub">Changed {files.length === 1 ? '1 item' : `${files.length} items`}</span>
             </button>
             <span className="change-actions">
-              <button type="button" className="review-btn" aria-label={`Discard the changes from ${conversation.title}`} onClick={() => void discard(conversation.id, files)}>Discard</button>
-              <button type="button" className="review-btn" data-kind="keep" aria-label={`Keep the changes from ${conversation.title}`} onClick={() => { if (turn) keepTurn(turn); }}>Keep</button>
+              <ReviewActions onDiscard={() => discard(conversation.id, files, turn)} onKeep={() => { if (turn) keepTurn(turn); }} discardLabel={`Discard the changes from ${conversation.title}`} keepLabel={`Keep the changes from ${conversation.title}`} />
             </span>
           </li>
         ))}

@@ -75,6 +75,21 @@ test('the desk is the Agent app’s home: what waits is allowed in place, and wh
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(true);
 });
 
+test('Try another puts the change back and asks Mobius to do it another way', async () => {
+  await start([callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.']), says(['Here is another way.'])]);
+  await composer().fill('make an ideas page');
+  await composer().press('Enter');
+  await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
+  const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
+  // One bar, the same everywhere: Try another, Discard, Keep.
+  await expect(strip.getByRole('button')).toHaveText(['Review', 'Try another', 'Discard', 'Keep']);
+  await strip.getByRole('button', { name: 'Try another' }).click();
+  await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(false);
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Here is another way.');
+  expect(sent()).toContain('Try another way.');
+});
+
 test('a suggestion that starts a sentence puts it in the box for you to finish', async () => {
   await start();
   await openApp('Agent');

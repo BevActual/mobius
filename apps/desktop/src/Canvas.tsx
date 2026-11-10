@@ -8,6 +8,7 @@ import {
   pasteItems, tidyItems, type Board, type BoardColor, type BoardItem, type Boxed, type Rect, type ShapeKind,
 } from './board-format';
 import type { NotesState } from './useNotes';
+import { ReviewActions } from './ReviewBar';
 
 export const CANVAS_WORDS: SidebarWords = { app: 'Canvas', group: 'folder', groups: 'Folders', item: 'board', items: 'boards', about: 'Boards are kept as JSON files in your workspace, one item per line, so the agent can read and change them too.', defaultGroup: 'Boards' };
 
@@ -427,8 +428,7 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
           <div className="design-review canvas-review" role="group" aria-label="Mobius's change" onPointerDown={(e) => e.stopPropagation()}>
             <span className="review-dot" aria-hidden="true" />
             <span>{reviewText(changed.size, removed.length)}</span>
-            <button type="button" className="review-btn" onClick={() => void discard()}>Discard</button>
-            <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep()}>Keep</button>
+            <ReviewActions onKeep={keep} onDiscard={discard} />
           </div>
         )}
         <div className="canvas-hint" aria-hidden="true">{tool === 'arrow' ? 'Drag from one item to another.' : tool === 'pen' ? 'Draw on the board.' : tool === 'select' ? 'Drag to move around · Shift-drag to select · Double-click to add' : 'Click to place.'}</div>

@@ -79,6 +79,7 @@ import { Pane, SplitDivider } from './SplitView';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { clipToNotes } from './clip';
 import { loadPanes, savePanes, companionFor, loadShare, saveShare } from './split';
+import { TRY_ANOTHER_ASK, TryAnotherContext } from './ReviewBar';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
 
@@ -1296,8 +1297,13 @@ export function App() {
         </div>
   );
   const menuBar = nativeMenus ? null : <MenuBar menus={menus} compact={wide || compactMenus} onOpenChange={setMenuOpen} />;
+  // Try another, from any review bar: Mobius is told its change was put back and asked to do it differently.
+  const tryAnother = settings?.configured && !conversation.state.busy
+    ? () => { if (!shows('agent')) setChatOpen(true); void conversation.send(TRY_ANOTHER_ASK, []); }
+    : null;
 
   return (
+    <TryAnotherContext.Provider value={tryAnother}>
     <div className="app" data-wide={wide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
@@ -1445,5 +1451,6 @@ export function App() {
         onAsk={settings?.configured ? (question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined}
         commands={launcherCommands} />
     </div>
+    </TryAnotherContext.Provider>
   );
 }
