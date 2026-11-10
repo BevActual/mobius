@@ -713,6 +713,9 @@ fn main() {
             if matches!(event, tauri::RunEvent::Exit) && let Some(engines) = handle.try_state::<Engines>() {
                 engines.0.shutdown();
             }
+            if matches!(event, tauri::RunEvent::Exit) && let Some(shell) = handle.try_state::<Shell>() {
+                shell.bridge.stop_core();
+            }
         }),
         Err(error) => eprintln!("the Mobius shell could not start: {error}"),
     }
