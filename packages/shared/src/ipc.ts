@@ -130,7 +130,7 @@ export type NavigateOutcome = 'navigated' | 'ask' | 'blocked' | 'empty';
 /** The API the preload script exposes. Nothing else is reachable from the renderer. */
 /** One page of the Notes app: a Markdown file in a notebook folder. `path` is `notebook/page.md`. */
 /** `preview` is the first line under the title and `tags` its `#tags`, for Markdown pages (notes, docs, wiki). */
-export interface NotePage { path: string; title: string; modified: number; preview?: string; tags?: string[] }
+export interface NotePage { path: string; title: string; modified: number; preview?: string; tags?: string[]; links?: string[] }
 export interface Notebook { name: string; pages: NotePage[] }
 export interface NoteContent { path: string; content: string; modified: number }
 export interface NoteHit { path: string; title: string; notebook: string; line: string }

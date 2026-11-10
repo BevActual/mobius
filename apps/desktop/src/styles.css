@@ -2416,3 +2416,16 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .note-page .note-figure[data-missing="true"] { display: inline-flex; padding: 10px 14px; border-radius: 10px; background: var(--wash); color: var(--muted); font-size: var(--fs-sm); }
 .note-page .note-figure[data-missing="true"]::before { content: attr(title); }
 .note-page .note-figure[data-missing="true"] img { display: none; }
+/* Linking a note: the Link field lists notes by name. Linked from: the notes that link here, under the page. */
+.note-link-form { position: relative; }
+.note-link-pages { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 280px; max-width: 420px; margin: 0; padding: 4px; list-style: none; background: var(--bg); border: 1px solid var(--hairline); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16); }
+.note-link-pages li { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 8px; cursor: default; }
+.note-link-pages li[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.note-link-title { font-weight: 500; }
+.note-link-book { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.note-page a[href$=".md"] { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); cursor: pointer; }
+.note-backlinks { width: calc(100% - 48px); max-width: 760px; margin: 8px auto 40px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.note-backlinks h2 { margin: 0 0 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+.note-backlinks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.note-backlinks button { display: grid; gap: 1px; width: 100%; text-align: left; padding: 6px 10px; border-radius: 8px; }
+.note-backlinks button:hover { background: var(--wash); }

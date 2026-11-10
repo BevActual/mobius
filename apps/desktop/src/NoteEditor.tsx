@@ -14,7 +14,7 @@ import { onCommand } from './commands';
 import { liveTitle } from './notes-state';
 import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from './line-diff';
 import type { NotesState } from './useNotes';
-import { CHECKLIST, TABLE, clipBlock, insertBlock, recordingBlock } from './note-insert';
+import { CHECKLIST, TABLE, clipBlock, insertBlock, recordingBlock, tidyMarkdown } from './note-insert';
 import { useDictation } from './composer/useDictation';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { showTag, tagRanges, tagsIn } from './note-tags';
@@ -22,6 +22,7 @@ import { countWords } from './Docs';
 import { relativeTime } from './relative-time';
 import { NoteHistory, dayOf } from './NoteHistory';
 import { fileMarkdown, noteImage, readFile } from './note-files';
+import { linkTo, linkedFrom, pageOfLink, pagesMatching } from './note-links';
 
 /** How long a recording in a note may run: ten minutes. */
 const NOTE_RECORDING_SECONDS = 600;
@@ -81,7 +82,7 @@ const STYLES = [
 ] as const;
 
 /** The Markdown the editor holds, written as people write it: one blank line between blocks, a newline at the end. */
-const markdownOf = (e: Editor) => `${e.getMarkdown().replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
+const markdownOf = (e: Editor) => tidyMarkdown(e.getMarkdown());
 
 /** The format bar's buttons, with what they show as pressed. Off in Markdown, where the marks are typed. */
 function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void }) {
@@ -168,6 +169,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   const pathNow = useRef(path);
   pathNow.current = path;
   const filesIn = useRef<(files: File[]) => void>(() => undefined);
+  // A link to another note opens it; typing [[ asks which note to link.
+  const openPage = useRef<(page: string) => void>(() => undefined);
+  const askForPage = useRef<() => void>(() => undefined);
   const image = useMemo(() => noteImage(() => pathNow.current), []);
   const editor = useEditor({
     extensions: [
@@ -188,6 +192,20 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
         const files = [...(event.clipboardData?.files ?? [])];
         if (!files.length) return false;
         filesIn.current(files);
+        return true;
+      },
+      handleTextInput: (view, from, to, text) => {
+        if (text !== '[' || from < 1 || view.state.doc.textBetween(from - 1, from) !== '[') return false;
+        view.dispatch(view.state.tr.delete(from - 1, to));
+        askForPage.current();
+        return true;
+      },
+      handleClick: (_view, _pos, event) => {
+        const a = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a[href]');
+        const page = a && pathNow.current ? pageOfLink(a.getAttribute('href') ?? '', pathNow.current) : null;
+        if (!page) return false;
+        event.preventDefault();
+        openPage.current(page);
         return true;
       },
       handleDrop: (view, event) => {
@@ -313,6 +331,22 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     notes.edit(content);
     setHistory(false);
   };
+  // Linking another note: the Link field lists the notes whose title has what was typed.
+  const [linkChoice, setLinkChoice] = useState(0);
+  const looksLikeAddress = (t: string) => /^(https?:|mailto:|www\.)|\.[a-z]{2,}(\/|$)/i.test(t.trim());
+  const linkPages = useMemo(() => (linking === null || looksLikeAddress(linking) ? [] : pagesMatching(notes.notebooks, linking, path, 6)), [linking, notes.notebooks, path]);
+  useEffect(() => setLinkChoice(0), [linking]);
+  const linkPage = (page: { path: string; title: string }) => {
+    setLinking(null);
+    if (!editor || !path) return;
+    const href = linkTo(path, page.path);
+    const chain = editor.chain().focus();
+    if (editor.state.selection.empty) chain.insertContent({ type: 'text', text: page.title, marks: [{ type: 'link', attrs: { href } }] }).run();
+    else chain.extendMarkRange('link').setLink({ href }).run();
+  };
+  openPage.current = (page) => { const found = notes.notebooks.flatMap((nb) => nb.pages).find((pg) => pg.path === page); void notes.open(page, found?.title ?? ''); };
+  askForPage.current = () => setLinking('');
+  const backlinks = useMemo(() => (path ? linkedFrom(notes.notebooks, path) : []), [notes.notebooks, path]);
   // What the last turn changed on this page, line by line, read only while it is shown.
   const [diff, setDiff] = useState<DiffLine[] | null>(null);
   // The page as it was before the turn; null when the turn made the page.
@@ -459,9 +493,24 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
             </form>
           )}
           {linking !== null && (
-            <form className="note-clip" onSubmit={addLink}>
-              <input autoFocus aria-label="Link to" placeholder="Paste a link" value={linking} onChange={(e) => setLinking(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { setLinking(null); editor?.commands.focus(); } }} />
-              <button type="submit" className="btn" disabled={!linking.trim()}>Link</button>
+            <form className="note-clip note-link-form" onSubmit={(e) => { const pick = linkPages[linkChoice]; if (pick) { e.preventDefault(); linkPage(pick); } else addLink(e); }}>
+              <input autoFocus aria-label="Link to" placeholder="A note's name, or paste a link" value={linking} role="combobox" aria-expanded={linkPages.length > 0} aria-controls="note-link-pages" aria-activedescendant={linkPages[linkChoice] ? `note-link-${linkChoice}` : undefined}
+                onChange={(e) => setLinking(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') { setLinking(null); editor?.commands.focus(); }
+                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setLinkChoice((c) => (linkPages.length ? (c + (e.key === 'ArrowDown' ? 1 : linkPages.length - 1)) % linkPages.length : 0)); }
+                }} />
+              <button type="submit" className="btn" disabled={!linking.trim() && !linkPages.length}>Link</button>
+              {linkPages.length > 0 && (
+                <ul id="note-link-pages" className="note-link-pages" role="listbox" aria-label="Notes to link">
+                  {linkPages.map((pg, i) => (
+                    <li key={pg.path} id={`note-link-${i}`} role="option" aria-selected={i === linkChoice} onPointerDown={(e) => e.preventDefault()} onClick={() => linkPage(pg)}>
+                      <span className="note-link-title">{pg.title}</span>
+                      <span className="note-link-book">{pg.notebook}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </form>
           )}
           {(insertProblem ?? recording.problem) && <span className="review-problem" role="alert">{insertProblem ?? recording.problem}</span>}
@@ -529,6 +578,21 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           />
         ) : (
           <EditorContent editor={editor} className="note-paper" />
+        )}
+        {backlinks.length > 0 && (
+          <section className="note-backlinks" aria-label="Linked from">
+            <h2>Linked from</h2>
+            <ul>
+              {backlinks.map((pg) => (
+                <li key={pg.path}>
+                  <button type="button" onClick={() => void notes.open(pg.path, pg.title)}>
+                    <span className="note-link-title">{pg.title}</span>
+                    <span className="note-link-book">{pg.notebook}{pg.preview ? ` · ${pg.preview}` : ''}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
       {selection && onSelection && (

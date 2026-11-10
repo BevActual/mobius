@@ -224,3 +224,71 @@ test('a pinned page is listed first, under Pinned, as well as in its notebook', 
   await pinned.getByRole('button', { name: 'Unpin Motors' }).click();
   await expect(side().getByRole('treeitem', { name: 'Pinned' })).toHaveCount(0);
 });
+
+test('History shows what the page was, compared with now, and Restore puts it back (and Undo undoes that)', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nCall Sam.\n');
+  await start();
+  await side().getByRole('button', { name: 'Plan', exact: true }).click();
+  await text().getByText('Call Sam.').click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' Book the sled.');
+  await expect(status()).toHaveText('Saved');
+  expect(onDisk('Work', 'Plan.md')).toBe('# Plan\n\nCall Sam. Book the sled.\n');
+  await format().getByRole('button', { name: 'History' }).click();
+  const history = shell().getByRole('region', { name: 'History' });
+  await expect(history.getByRole('navigation', { name: 'Versions' }).getByRole('button')).toHaveCount(1);
+  await expect(history.getByRole('list', { name: 'What restoring changes' })).toContainText('Call Sam.');
+  await history.getByRole('button', { name: 'Whole page' }).click();
+  await expect(history.getByLabel('That version')).toHaveText('# Plan\n\nCall Sam.\n');
+  await history.getByRole('button', { name: 'Restore this version' }).click();
+  await expect(history).toHaveCount(0);
+  await expect.poll(() => onDisk('Work', 'Plan.md')).toBe('# Plan\n\nCall Sam.\n');
+  await shell().getByRole('status').filter({ hasText: 'Restored the version from' }).getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => onDisk('Work', 'Plan.md')).toBe('# Plan\n\nCall Sam. Book the sled.\n');
+});
+
+// A four-pixel PNG.
+const DOT = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAEAgMAAADUn3btAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAJUExURX+z5m+PTv///yURNH0AAAABYktHRAJmC3xkAAAAB3RJTUUH6gsICzIQNf0gTgAAABBJREFUCNdjYGBgYAhlCAUAAVwAq6n8OZAAAAAASUVORK5CYII=', 'base64');
+
+test('a picture added to a page is kept beside it, linked in its Markdown, and shown in the page', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Battery.md'), '# Battery\n\nThe cell:\n');
+  fs.writeFileSync(file('Work', 'Missing.md'), '# Missing\n\n![gone](Missing%20files/gone.png)\n');
+  await start();
+  await side().getByRole('button', { name: 'Battery', exact: true }).click();
+  await text().getByText('The cell:').click();
+  await shell().keyboard.press('End');
+  await shell().getByLabel('Choose files to add').setInputFiles({ name: 'cell photo.png', mimeType: 'image/png', buffer: DOT });
+  await expect.poll(() => onDisk('Work', 'Battery.md')).toBe('# Battery\n\nThe cell:\n\n![cell photo.png](Battery%20files/cell%20photo.png)\n');
+  expect(fs.readFileSync(file('Work', 'Battery files', 'cell photo.png'))).toEqual(DOT);
+  await expect(text().locator('img')).toHaveJSProperty('naturalWidth', 4);
+  // A page whose picture is not there says so, rather than showing a broken image.
+  await side().getByRole('button', { name: 'Missing', exact: true }).click();
+  await expect(text().locator('figure[data-missing="true"]')).toBeVisible();
+  // Deleting the page takes its files with it.
+  await side().getByRole('button', { name: 'Battery', exact: true }).click();
+  await side().getByRole('button', { name: 'Delete Battery' }).click();
+  await side().getByRole('button', { name: 'Confirm delete Battery' }).click();
+  await expect.poll(() => fs.existsSync(file('Work', 'Battery files'))).toBe(false);
+});
+
+test('[[ links another note, the link opens it, and that note lists where it is linked from', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.mkdirSync(file('Home'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nShopping:\n');
+  fs.writeFileSync(file('Home', 'Groceries.md'), '# Groceries\n\n- [ ] Oats\n');
+  await start();
+  await side().getByRole('button', { name: 'Plan', exact: true }).click();
+  await text().getByText('Shopping:').click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' [[gro');
+  await expect(shell().getByRole('listbox', { name: 'Notes to link' }).getByRole('option')).toHaveText([/Groceries/]);
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => onDisk('Work', 'Plan.md')).toBe('# Plan\n\nShopping: [Groceries](../Home/Groceries.md)\n');
+  await text().getByRole('link', { name: 'Groceries' }).click();
+  await expect(text().locator('h1')).toHaveText('Groceries');
+  const linked = shell().getByRole('region', { name: 'Linked from' });
+  await linked.getByRole('button', { name: /Plan/ }).click();
+  await expect(text().locator('h1')).toHaveText('Plan');
+});

@@ -49,6 +49,70 @@ pub fn title_of(content: &str, file_stem: &str) -> String {
     content.lines().map(str::trim).find_map(|l| l.strip_prefix("# ").map(str::trim).filter(|t| !t.is_empty())).unwrap_or(file_stem).chars().take(200).collect()
 }
 
+/// How many links to other pages one page may give the list.
+const MAX_LINKS: usize = 100;
+
+/// The other pages a page links to, as Markdown links that work in any editor: `[Plan](Plan.md)` in the same
+/// notebook, `[Plan](../Home/Plan.md)` in another, spaces written `%20`. Given as `notebook/page.md`, each once, in
+/// the order they come. Web links, pictures, files and links in code are not pages. The same rules as `linksIn` in
+/// `apps/desktop/src/note-links.ts`.
+pub fn links_in(content: &str, from: &str) -> Vec<String> {
+    let Some((notebook, _)) = from.split_once('/') else { return Vec::new() };
+    let mut out: Vec<String> = Vec::new();
+    let mut fenced = false;
+    for line in content.lines() {
+        if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+            continue;
+        }
+        if fenced {
+            continue;
+        }
+        let mut in_code = false;
+        let bytes = line.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'`' => in_code = !in_code,
+                b']' if !in_code && bytes.get(i + 1) == Some(&b'(') && !is_picture(line, i) => {
+                    if let Some(end) = line[i + 2..].find(')') {
+                        let target = line[i + 2..i + 2 + end].split_whitespace().next().unwrap_or("");
+                        if let Some(page) = page_link(target, notebook)
+                            && page != from
+                            && !out.contains(&page)
+                            && out.len() < MAX_LINKS
+                        {
+                            out.push(page);
+                        }
+                        i += 2 + end;
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Whether the `]` at `close` ends a picture's `![…]`.
+fn is_picture(line: &str, close: usize) -> bool {
+    line[..close].rfind('[').is_some_and(|open| open > 0 && line.as_bytes()[open - 1] == b'!')
+}
+
+/// A link's target as `notebook/page.md`, when it is a page: `Plan.md` (this notebook) or `../Home/Plan.md`.
+fn page_link(target: &str, notebook: &str) -> Option<String> {
+    let target = target.trim_matches(['<', '>']).replace("%20", " ");
+    if target.contains(':') || target.starts_with('/') || target.contains('\\') || !target.ends_with(".md") {
+        return None;
+    }
+    let path = match target.strip_prefix("../") {
+        Some(rest) => rest.to_owned(),
+        None => format!("{notebook}/{}", target.strip_prefix("./").unwrap_or(&target)),
+    };
+    page_ok(&path, "md").is_some().then_some(path)
+}
+
 /// How many tags one page may give the sidebar.
 const MAX_TAGS: usize = 50;
 
@@ -248,6 +312,7 @@ impl Notes {
                 if self.ext == "md" && !self.named_by_file {
                     row["preview"] = json!(preview_of(&head));
                     row["tags"] = json!(tags_in(&content));
+                    row["links"] = json!(links_in(&content, &path));
                 }
                 pages.push(row);
             }
@@ -804,6 +869,15 @@ mod tests {
         }
         assert_eq!(to_base64(b"Man"), "TWFu");
         assert!(from_base64("not*base64").is_none());
+    }
+
+
+    #[test]
+    fn links_to_other_pages_are_markdown_links_to_their_files() {
+        let page = "# Plan\n\nSee [the notes](Supplier%20notes.md), [groceries](../Home/Groceries.md) and [again](<Supplier notes.md>).\n\
+            Not [the web](https://x.example/a.md), ![a picture](Plan%20files/a.md), [a file](Plan%20files/q.pdf), `[code](Code.md)`,\n\
+            [escape](../../etc/x.md), [self](Plan.md) or [deep](../a/b/c.md).\n```\n[fenced](Fenced.md)\n```\n";
+        assert_eq!(links_in(page, "Work/Plan.md"), vec!["Work/Supplier notes.md", "Home/Groceries.md"]);
     }
 
 }

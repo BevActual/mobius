@@ -1,4 +1,5 @@
 import { tagsIn } from '../note-tags';
+import { linksIn } from '../note-links';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
 /**
@@ -45,11 +46,11 @@ const EVENTS = [
 
 const NOTE_FILES: Record<string, string> = {};
 const NOTE_TEXT: Record<string, string> = {
-  'P2 build/Build plan.md': '# Build plan\n\nThe build week is the 23rd. Packs arrive six weeks from order. #kestrel/p2\n\n## Before we go\n\n- [x] Confirm the build week with Priya\n- [ ] Send the plan to the team\n- [ ] Book the sled for Friday\n\n| Item | Cost |\n| --- | --- |\n| Packs | 48000 |\n| Sled | 6500 |\n',
+  'P2 build/Build plan.md': '# Build plan\n\nThe build week is the 23rd. Packs arrive six weeks from order (see [Supplier notes](Supplier%20notes.md)). #kestrel/p2\n\n## Before we go\n\n- [x] Confirm the build week with Priya\n- [ ] Send the plan to the team\n- [ ] Book the sled for Friday\n\n| Item | Cost |\n| --- | --- |\n| Packs | 48000 |\n| Sled | 6500 |\n',
   'P2 build/Supplier notes.md': '# Supplier notes\n\n## Veltro Cells\n\n- 8 × 60 kWh packs, six weeks from order to the dock\n- The price hold lasts until **Friday** #supplier #kestrel/p2\n',
   'Home/Groceries.md': '# Groceries\n\n- [ ] Oats\n- [ ] Coffee #home\n',
 };
-const notePage = (path: string, modified: number) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), modified, preview: previewOf(NOTE_TEXT[path] ?? ''), tags: tagsIn(NOTE_TEXT[path] ?? '') });
+const notePage = (path: string, modified: number) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), modified, preview: previewOf(NOTE_TEXT[path] ?? ''), tags: tagsIn(NOTE_TEXT[path] ?? ''), links: linksIn(NOTE_TEXT[path] ?? '', path) });
 const NOTES = () => [
   { name: 'P2 build', pages: [notePage('P2 build/Supplier notes.md', now - hour), notePage('P2 build/Build plan.md', now - 3 * hour)] },
   { name: 'Home', pages: [notePage('Home/Groceries.md', now - 30 * hour)] },
