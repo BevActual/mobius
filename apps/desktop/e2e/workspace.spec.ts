@@ -178,13 +178,15 @@ test('the full sidebar is the default: it belongs to the open app, with the apps
   await expect(shell().locator('.body > .dock.left')).toHaveCount(0);
   await showApps();
   await railButton('Tasks').click();
-  await expect(railButton('Create')).toHaveAttribute('title', 'New task');
-  await expect(rail().getByRole('navigation', { name: 'Lists' })).toBeVisible();
-  await rail().getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Inbox/ }).click();
+  // In Tasks, New is the first row of the app's own lists (and adding a task the first row of a list), so the
+  // sidebar's own Create button gives way.
+  const lists = rail().getByRole('navigation', { name: 'Lists' });
+  await expect(lists).toBeVisible();
+  await expect(railButton('Create')).toHaveCount(0);
+  await expect(lists.getByRole('button', { name: 'New list' })).toBeVisible();
+  await lists.getByRole('button', { name: /^Inbox/ }).click();
   await expect(shell().locator('.strip-title')).toHaveText('Inbox');
-  await railButton('Create').click();
-  const field = shell().getByRole('textbox', { name: 'New task', exact: true });
-  await expect.poll(() => field.evaluate((el) => el === document.activeElement)).toBe(true);
+  await expect(shell().getByRole('textbox', { name: 'New task', exact: true })).toHaveAttribute('placeholder', 'Add to Inbox');
 
   await railButton('Collapse sidebar').click();
   await expect(rail()).not.toHaveAttribute('data-expanded');
