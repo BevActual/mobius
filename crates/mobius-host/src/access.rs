@@ -8,11 +8,14 @@ use serde_json::{Value, json};
 
 use mobius_store::preferences::APP_ACCESS_APPS as APPS;
 
+/// The apps a level can be set for.
+pub const APP_NAMES: &[&str] = &APPS;
+
 /// What each app reads with and changes with: capability and resource pattern.
 /// A capability and, for file capabilities, the paths it covers.
-type Grants = &'static [(&'static str, Option<&'static str>)];
+pub(crate) type Grants = &'static [(&'static str, Option<&'static str>)];
 
-fn capabilities(app: &str) -> (Grants, Grants) {
+pub(crate) fn capabilities(app: &str) -> (Grants, Grants) {
     match app {
         "browser" => (&[("browser.list", None), ("browser.read", None), ("web.search", None), ("web.read", None)], &[("browser.navigate", None), ("browser.interact", None)]),
         "notes" => (&[("files.read", Some("notes/*"))], &[("files.write", Some("notes/*"))]),

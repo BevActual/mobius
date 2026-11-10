@@ -140,11 +140,25 @@ impl Policy {
         capability: &Capability,
         resource: Option<&str>,
     ) -> Verdict {
+        self.evaluate_in(grants, now_ms, principal, capability, resource, &[])
+    }
+
+    /// As `evaluate`, with a project's own rules counted beside the person's rules from Settings: a deny in either
+    /// denies, an ask in either asks the person, an allow in either allows (never for a floor).
+    pub fn evaluate_in(
+        &self,
+        grants: &[Grant],
+        now_ms: u64,
+        principal: &Principal,
+        capability: &Capability,
+        resource: Option<&str>,
+        project: &[Rule],
+    ) -> Verdict {
         if principal.kind == PrincipalKind::Person {
             return Verdict::Allow { consume: None };
         }
         let floor = self.is_floor(capability);
-        let rule = |effect: RuleEffect| self.rules.iter().any(|r| r.effect == effect && r.capability == *capability && resource_matches(r.resource.as_deref(), resource));
+        let rule = |effect: RuleEffect| self.rules.iter().chain(project).any(|r| r.effect == effect && r.capability == *capability && resource_matches(r.resource.as_deref(), resource));
         let denied_by_rule = rule(RuleEffect::Deny);
         let always_ask = principal.kind == PrincipalKind::Agent && rule(RuleEffect::Ask);
         let mut standing = false;
@@ -273,6 +287,24 @@ mod tests {
 
     fn rule(c: &str, resource: Option<&str>, effect: Effect) -> Rule {
         Rule { capability: cap(c), resource: resource.map(str::to_owned), effect: effect.into() }
+    }
+
+    #[test]
+    fn a_projects_rules_count_only_in_that_project_and_never_open_a_floor() {
+        let a = agent("a");
+        let mut p = policy();
+        p.set_rules(vec![rule("tasks.write", None, Effect::Deny)]);
+        let act = [rule("files.write", Some("docs/*"), Effect::Allow), rule("tasks.write", None, Effect::Allow), rule("process.exec", None, Effect::Allow)];
+        let ask = [Rule { capability: cap("files.write"), resource: Some("docs/*".into()), effect: RuleEffect::Ask }];
+        // Act in the project: its app's changes go ahead there, and only there.
+        assert_eq!(p.evaluate_in(&[], NOW, &a, &cap("files.write"), Some("docs/Plan.md"), &act), Verdict::Allow { consume: None });
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("docs/Plan.md")), Verdict::Ask);
+        // What the person blocked in Settings stays blocked in every project.
+        assert_eq!(p.evaluate_in(&[], NOW, &a, &cap("tasks.write"), None, &act), Verdict::Deny);
+        // Commands, deleting and the other floors ask every time, whatever the project says.
+        assert_eq!(p.evaluate_in(&[], NOW, &a, &cap("process.exec"), None, &act), Verdict::Ask);
+        // Ask first in the project: the person, every time.
+        assert_eq!(p.evaluate_in(&[], NOW, &a, &cap("files.write"), Some("docs/Plan.md"), &ask), Verdict::AskPerson);
     }
 
     #[test]

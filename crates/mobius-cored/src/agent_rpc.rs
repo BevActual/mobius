@@ -84,6 +84,9 @@ struct SendParams {
     /// Plan first: the turn only proposes a plan, and nothing else runs.
     #[serde(default)]
     plan: bool,
+    /// The project the conversation belongs to: its rules count for this turn.
+    #[serde(default)]
+    project: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -421,7 +424,7 @@ impl Extension for Agent {
                 if p.images.len() > mobius_agent::engine::MAX_IMAGES || !p.images.iter().all(|u| mobius_agent::engine::image_ok(u)) {
                     return Err(ExtensionError::invalid_params("pictures are at most four PNG, JPEG, WebP or GIF data URLs"));
                 }
-                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, images: p.images.clone() };
+                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()) };
                 let (turn, outs) = self.host.send_with(core, &p.conversation, &p.text, setup).map_err(|e| host_error(&e))?;
                 self.queued.extend(outs);
                 Ok(json!({ "turn": turn }))

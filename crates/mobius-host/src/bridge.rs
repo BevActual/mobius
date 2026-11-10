@@ -179,6 +179,7 @@ pub struct Bridge {
     /// The Wiki app's pages, and the changes offered to it that wait.
     wiki: mobius_workspace::notes::Notes,
     wiki_incoming: crate::wiki::Incoming,
+    projects: crate::projects::Projects,
     databases: crate::database::Databases,
     songs: mobius_workspace::notes::Notes,
     photos: mobius_workspace::photos::Photos,
@@ -331,6 +332,7 @@ impl Bridge {
             reading: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "reading"),
             wiki: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "wiki"),
             wiki_incoming: crate::wiki::Incoming::new(data_dir.join("wiki-incoming.json")),
+            projects: crate::projects::Projects::new(data_dir.join("projects.json")),
             databases: crate::database::Databases::new(&data_dir.join("workspace")),
             sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
@@ -478,6 +480,7 @@ impl Bridge {
             // Reader keeps pages the person chose to read later; fetching one is their request, not the agent's.
             ("reading", "fetch") => Ok(crate::web::fetch_article(arg(0).as_str().unwrap_or("")).unwrap_or_else(|e| json!({ "ok": false, "message": e }))),
             ("reading", _) => Ok(self.notes_call(&self.reading, "mobius:reading-changed", method, args)),
+            ("projects", _) => Ok(self.projects_call(method, args)),
             ("wiki", "versions" | "incoming" | "offer" | "keepChange" | "declineChange" | "undoChange") => Ok(self.wiki_call(method, args)),
             ("wiki", _) => Ok(self.notes_call(&self.wiki, "mobius:wiki-changed", method, args)),
             ("databases", _) => Ok(self.databases_call(method, args)),
@@ -1644,6 +1647,57 @@ impl Bridge {
     /// The Notes app. Every answer is either the data asked for or `{ ok: false, message }`; a save that would
     /// overwrite a change made elsewhere also says `conflict: true` so the window can reload the page.
     /// The Notes app, and Docs, which keeps its documents the same way in another folder.
+    /// A project's rules, sent to the core, which counts them for every call in the project's conversations.
+    fn push_project_rules(&self, project: &crate::projects::Project) {
+        let _ = self.core.call("permissions.set_project_rules", json!({ "project": project.id, "rules": crate::projects::core_rules(project) }), Duration::from_secs(5));
+    }
+
+    /// The Projects app. A new project gets its files folder (`projects/<name>`) and its memory page in the Wiki
+    /// (`Projects/<name>.md`).
+    fn projects_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let p = &self.projects;
+        let result: Result<Value, String> = match method {
+            "list" => Ok(json!(p.list())),
+            "create" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|name| p.create(name)).map(|project| {
+                let folder = crate::projects::folder_of(&project.name);
+                let _ = std::fs::create_dir_all(self.data_dir.join("workspace").join("projects").join(&folder));
+                let _ = self.wiki.create_notebook("Projects");
+                if self.wiki.read(&format!("Projects/{folder}.md")).is_err() {
+                    let _ = self.wiki.create_page("Projects", &folder);
+                }
+                (self.emit)("mobius:wiki-changed", json!({ "path": null, "by": "person" }));
+                json!(project)
+            }),
+            "remove" => text(0).ok_or_else(|| "a project is needed".to_owned()).and_then(|id| {
+                p.remove(id)?;
+                let _ = self.core.call("permissions.set_project_rules", json!({ "project": id, "rules": [] }), Duration::from_secs(5));
+                Ok(json!({ "ok": true }))
+            }),
+            "setRule" => match (text(0), text(1), text(2)) {
+                (Some(id), Some(app), Some(level)) => p.set_rule(id, app, level).map(|project| {
+                    self.push_project_rules(&project);
+                    json!(project)
+                }),
+                _ => Err("that cannot be set".to_owned()),
+            },
+            "addThread" => match (text(0), text(1).filter(|c| agent::is_conversation_id(c))) {
+                (Some(id), Some(conversation)) => p.add_thread(id, conversation).map(|project| json!(project)),
+                _ => Err("that conversation cannot be added".to_owned()),
+            },
+            _ => Err("unknown".to_owned()),
+        };
+        match result {
+            Ok(v) => {
+                if method != "list" {
+                    (self.emit)("mobius:projects-changed", Value::Null);
+                }
+                v
+            }
+            Err(message) => json!({ "ok": false, "message": message }),
+        }
+    }
+
     /// The Wiki app beyond its pages: a page's earlier versions, and the changes offered to the wiki.
     fn wiki_call(&self, method: &str, args: &[Value]) -> Value {
         let text = |i: usize| args.get(i).and_then(Value::as_str);
@@ -2435,7 +2489,9 @@ impl Bridge {
                     request["images"] = images.clone();
                 }
                 match agent::parse_send(&request) {
-                    Some(r) => {
+                    Some(mut r) => {
+                        // A project's conversation: its rules count for this turn, in the core.
+                        r.project = self.projects.project_of(&r.conversation);
                         // Saved before the turn changes anything, so everything it changes can be reviewed and undone at
                         // once. Taken beside the model's first answer rather than before asking it (a checkpoint is a few
                         // runs of git, slow on some computers); the turn's tools wait for it (`host_request`).
@@ -2574,6 +2630,9 @@ impl Bridge {
             let prefs = lock(&self.preferences).get();
             let _ = self.core.call("permissions.set_mode", json!({ "mode": prefs["approvalMode"] }), Duration::from_secs(5));
             let _ = self.core.call("permissions.set_rules", crate::access::rules(&prefs["appAccess"]), Duration::from_secs(5));
+            for project in self.projects.list() {
+                self.push_project_rules(&project);
+            }
             let _ = self.core.call("agent.set_effort", json!({ "effort": prefs["reasoningEffort"] }), Duration::from_secs(5));
             self.register_tools();
             self.agent.apply();

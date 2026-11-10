@@ -87,6 +87,13 @@ struct SetRulesParams {
     rules: Vec<crate::permissions::Rule>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetProjectRulesParams {
+    project: String,
+    rules: Vec<crate::permissions::Rule>,
+}
+
 #[derive(Debug, Deserialize, TS)]
 #[serde(deny_unknown_fields)]
 #[ts(export)]
@@ -330,6 +337,14 @@ fn dispatch(core: &mut Core, extension: &mut dyn Extension, method: &str, params
             let mode = ApprovalMode::parse(&params.mode).ok_or_else(|| RpcError::invalid_params("mode must be manual, propose, smart or off"))?;
             core.set_approval_mode(mode)?;
             Ok(json!({ "mode": mode.as_str() }))
+        }
+        "permissions.set_project_rules" => {
+            let params: SetProjectRulesParams = parse_params(params)?;
+            if params.rules.len() > 200 {
+                return Err(RpcError::invalid_params("at most 200 rules"));
+            }
+            core.set_project_rules(&params.project, params.rules).map_err(|_| RpcError::invalid_params("that is not a project"))?;
+            Ok(json!({}))
         }
         "permissions.set_rules" => {
             let params: SetRulesParams = parse_params(params)?;
