@@ -89,6 +89,7 @@ export function MailSidebar({ mail, pin, starts, onStart }: { mail: MailState; p
   const here = (kind: 'inbox' | 'sent' | 'drafts') => (kind === 'drafts' ? v.kind === 'drafts' : v.kind === 'box' && v.box === kind) ? 'page' : undefined;
   return (
     <aside className="side mail-side" aria-label="Mail sidebar">
+      <SideNew item="message" onNew={mail.compose} disabled={mail.accounts.length === 0} title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} {...(mail.accounts.length > 0 && starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
       <div className="side-head">
         <span className="side-title">Mailboxes</span>
         <span className="side-actions">
@@ -99,7 +100,6 @@ export function MailSidebar({ mail, pin, starts, onStart }: { mail: MailState; p
         </span>
       </div>
       <nav className="task-lists" aria-label="Mailboxes">
-        <SideNew item="message" onNew={mail.compose} disabled={mail.accounts.length === 0} title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} {...(mail.accounts.length > 0 && starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
         <ul role="list">
           <li><button type="button" className="list-row" aria-current={here('inbox')} onClick={() => mail.setView({ kind: 'box', box: 'inbox', category: v.kind === 'box' ? v.category : 'primary' })}><span className="list-name">Inbox</span><span className="list-count">{mail.counts.all || ''}</span></button></li>
           <li><button type="button" className="list-row" aria-current={here('drafts')} onClick={() => mail.setView({ kind: 'drafts' })}><span className="list-name">Drafts</span><span className="list-count">{mail.counts.drafts + mail.counts.suggested || ''}</span></button></li>

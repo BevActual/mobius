@@ -89,6 +89,19 @@ function pinAt(thread: CommentThread, stage: Element): { x: number; y: number } 
   return { x: area.left + thread.anchor.x * area.width, y: area.top + thread.anchor.y * area.height - 24 };
 }
 
+/**
+ * Where a card goes: beside its pin, on the right when there is room before the window's edge or the Mobius panel, else
+ * on the left, and kept inside the window.
+ */
+export function cardPlace(at: { x: number; y: number }, width = 280, height = 220): { left: number; top: number } {
+  const panel = document.querySelector('.dock.right')?.getBoundingClientRect();
+  const limit = Math.min(window.innerWidth, panel && panel.width > 0 ? panel.left : Infinity) - 8;
+  const right = at.x + 30;
+  const left = right + width <= limit ? right : Math.max(8, at.x - width - 6);
+  const top = Math.max(8, Math.min(at.y, window.innerHeight - height - 8));
+  return { left, top };
+}
+
 interface Draft { anchor: CommentAnchor; context: string; at: { x: number; y: number } }
 
 export interface CommentLayerProps {
@@ -100,12 +113,14 @@ export interface CommentLayerProps {
   threads: CommentThread[];
   save: (threads: CommentThread[]) => Promise<void>;
   /** Ask Mobius in the open conversation; resolves with that conversation's id, or null when it could not. */
-  onSend: (text: string, context: ContextItem[]) => Promise<string | null>;
+  onSend: (text: string, context: ContextItem[]) => Promise<boolean>;
+  /** The conversation a comment sent now goes to. */
+  conversation: string;
   /** Which thread to open, from the sidebar's Comments group. */
   focus?: string | null;
 }
 
-export function CommentLayer({ app, doc, on, onOff, threads, save, onSend, focus = null }: CommentLayerProps) {
+export function CommentLayer({ app, doc, on, onOff, threads, save, onSend, conversation, focus = null }: CommentLayerProps) {
   const [hover, setHover] = useState<DOMRect | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -182,8 +197,11 @@ export function CommentLayer({ app, doc, on, onOff, threads, save, onSend, focus
   const remove = (id: string) => { setOpenId(null); void save(threads.filter((t) => t.id !== id)); };
   const send = async (t: CommentThread) => {
     const about: ContextItem = { kind: 'note', title: t.anchor.label || 'What the comment is on', source: `${app}: ${t.doc}`, text: t.context || t.anchor.label };
-    const conversation = await onSend(`About ${t.anchor.label ? `“${t.anchor.label}”` : 'this'} in ${t.doc}: ${t.text}`, [about]);
-    if (conversation) update(t.id, { state: 'sent', conversation });
+    // Marked as sent before asking, so a quick reply finds the thread waiting for it.
+    const before = threads;
+    await save(threads.map((x) => (x.id === t.id ? { ...x, state: 'sent', conversation } : x)));
+    const asked = await onSend(`About ${t.anchor.label ? `“${t.anchor.label}”` : 'this'} in ${t.doc}: ${t.text}`, [about]);
+    if (!asked) void save(before);
   };
 
   return (
@@ -212,7 +230,7 @@ export function CommentLayer({ app, doc, on, onOff, threads, save, onSend, focus
         const at = t ? pinAt(t, area) : null;
         if (!t || !at) return null;
         return (
-          <section className="comment-card" role="dialog" aria-label={`Comment on ${t.anchor.label || 'this'}`} style={{ left: at.x + 30, top: at.y }}>
+          <section className="comment-card" role="dialog" aria-label={`Comment on ${t.anchor.label || 'this'}`} style={cardPlace(at)}>
             <p className="comment-on">{t.anchor.label}</p>
             <p className="comment-text">{t.text}</p>
             {t.state === 'note' && <p className="comment-meta">A note for people. Mobius does not read it.</p>}
@@ -241,7 +259,7 @@ function swallow(event: MouseEvent) {
 function DraftCard({ draft, onSave, onCancel }: { draft: Draft; onSave: (text: string) => void; onCancel: () => void }) {
   const [text, setText] = useState('');
   return (
-    <form className="comment-card" role="dialog" aria-label="New comment" style={{ left: draft.at.x + 12, top: draft.at.y }}
+    <form className="comment-card" role="dialog" aria-label="New comment" style={cardPlace({ x: draft.at.x - 18, y: draft.at.y })}
       onSubmit={(e) => { e.preventDefault(); if (text.trim()) onSave(text.trim()); }}>
       <p className="comment-on">{draft.anchor.label}</p>
       <textarea autoFocus aria-label="Comment" placeholder="Add a comment" value={text} maxLength={4000} rows={3} onChange={(e) => setText(e.target.value)}

@@ -73,6 +73,11 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
   const deletingInfo = tasks.lists.find((l) => l.name === deleting);
   return (
     <aside className="side tasks-side" aria-label="Tasks sidebar">
+      <label className="tasks-search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5" /><path d="m13 13 3.5 3.5" /></svg>
+        <input type="search" aria-label="Search tasks" placeholder="Search" value={tasks.query} onChange={(e) => tasks.setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') tasks.setQuery(''); }} />
+      </label>
+      <SideNew item="list" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
       <div className="side-head">
         <span className="side-title">Lists</span>
         <span className="side-actions">
@@ -80,10 +85,6 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
         </span>
       </div>
       <nav className="task-lists" aria-label="Lists">
-        <label className="tasks-search">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5" /><path d="m13 13 3.5 3.5" /></svg>
-          <input type="search" aria-label="Search tasks" placeholder="Search" value={tasks.query} onChange={(e) => tasks.setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') tasks.setQuery(''); }} />
-        </label>
         <ul role="list" className="smart-tiles" aria-label="Views">
           {SMART_VIEWS.map((v) => (
             <li key={v.id}>
@@ -96,7 +97,6 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
           ))}
         </ul>
         <h2 className="tasks-side-heading">My Lists</h2>
-        <SideNew item="list" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
         {naming && (
           <form className="notes-name" onSubmit={(e) => void submit(e)}>
             <input autoFocus aria-label="List name" placeholder="List name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />

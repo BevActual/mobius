@@ -473,10 +473,12 @@ export function App() {
     else void appearance.set({ navigation: wide ? 'rail' : 'sidebar' });
   }, [narrow, wide, appearance]);
   const startedUp = useRef(false);
-  const [chatOpen, setChatOpen] = useState(true);
-  // Where the agent sits when it is open: beside the page, or in the sidebar as its third face. Kept per device.
-  const [chatPlace, setChatPlaceState] = useState<'beside' | 'sidebar'>(() => { try { return window.localStorage.getItem('mobius.agent.place') === 'sidebar' ? 'sidebar' : 'beside'; } catch { return 'beside'; } });
-  const setChatPlace = (place: 'beside' | 'sidebar') => { setChatPlaceState(place); try { window.localStorage.setItem('mobius.agent.place', place); } catch { /* Not kept. */ } };
+  // Where the agent sits when it is open: in the sidebar, which turns into Mobius (the default), or pinned beside the
+  // page. Pinning is kept per computer.
+  const [chatPlace, setChatPlaceState] = useState<'beside' | 'sidebar'>(() => { try { return window.localStorage.getItem('mobius.agent.beside') !== '0' ? 'beside' : 'sidebar'; } catch { return 'beside'; } });
+  const setChatPlace = (place: 'beside' | 'sidebar') => { setChatPlaceState(place); try { window.localStorage.setItem('mobius.agent.beside', place === 'beside' ? '1' : '0'); } catch { /* Not kept. */ } };
+  // In the sidebar, Mobius waits to be asked and the app's own list shows; pinned beside, it is there from the start.
+  const [chatOpen, setChatOpen] = useState(() => chatPlace === 'beside');
   const [focusToken, setFocusToken] = useState(0);
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
@@ -486,8 +488,6 @@ export function App() {
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
   const hasAppList = inBrowser || inAgent || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
-  // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
-  const hasLeft = hasAppList && !wide;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
@@ -496,7 +496,12 @@ export function App() {
   const [agentListOpen, setAgentListOpen] = useState(true);
   const leftOpen = inAgent ? agentListOpen : panelOpen;
   const setLeftOpen = inAgent ? setAgentListOpen : setPanelOpen;
-  const chatInSide = wide && hasRight && chatPlace === 'sidebar';
+  const chatInSide = hasRight && chatPlace === 'sidebar';
+  // Mobius in the sidebar takes the sidebar column at its usual width, even when it was folded to the rail or the
+  // window is narrow; closing it folds the column back.
+  const showWide = wide || (chatInSide && chatOpen && !settingsOpen);
+  // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
+  const hasLeft = hasAppList && !showWide;
   const rightOpen = hasRight && chatOpen && !chatInSide;
   useEffect(() => { if (rightOpen && miniOpen) void window.mobius.mini.close(); }, [rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
@@ -1383,11 +1388,11 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={wide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
-        expanded={wide}
+        expanded={showWide}
         onToggle={toggleWide}
         onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); if (id === 'agent') setSideMode('sessions'); openApp(id); }}
         ownApps={[
@@ -1403,8 +1408,8 @@ export function App() {
         create={createFor(app)}
         createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'] as AppId[]).includes(app)}
         menus={menuBar}
-        chrome={wide && inBrowser && !settingsOpen ? browserChrome : null}
-        mobius={wide && hasRight && !settingsOpen ? {
+        chrome={showWide && inBrowser && !settingsOpen ? browserChrome : null}
+        mobius={showWide && hasRight && !settingsOpen ? {
           shown: chatInSide && chatOpen,
           onToggle: () => { if (chatInSide && chatOpen) { setChatOpen(false); } else { setChatPlace('sidebar'); setChatOpen(true); setFocusToken((n) => n + 1); } },
           onBeside: () => { setChatPlace('beside'); setChatOpen(true); },
@@ -1422,15 +1427,15 @@ export function App() {
         onReorderFavourites={(next) => void appearance.set({ favourites: next })}
         currentFavourite={settingsOpen ? null : currentFavourite}
       >
-        {wide && hasAppList && appSidebar(null)}
+        {showWide && hasAppList && appSidebar(null)}
       </Rail>
-      <header className="context-strip" data-quiet={wide || undefined}>
+      <header className="context-strip" data-quiet={showWide || undefined}>
         <div className="strip-left" role="group" aria-label="Window">
           {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
         </div>
-        <div className="toolbar-place" data-browser={(inBrowser && !wide) || undefined}>
+        <div className="toolbar-place" data-browser={(inBrowser && !showWide) || undefined}>
           {/* The open document's name; nothing when nothing is open, rather than the app's name again. */}
           {place && <h1 className="strip-title">{place}</h1>}
           {inAgent && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
@@ -1445,7 +1450,7 @@ export function App() {
             <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
           </div>
         )}
-        {inBrowser && !wide && browserChrome}
+        {inBrowser && !showWide && browserChrome}
         <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
         {hasRight && !rightOpen && !(chatInSide && chatOpen) && (
           <form className="ask-pill" role="search" aria-label="Ask the agent" onSubmit={(e) => {
@@ -1519,7 +1524,12 @@ export function App() {
         </main>
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
-            {chatPanel(pin('right'))}
+            {chatPanel(<>
+              <button type="button" className="head-icon" data-pinned-beside aria-label="Unpin from beside" title="Put Mobius back in the sidebar" onClick={() => setChatPlace('sidebar')}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
+              </button>
+              {pin('right')}
+            </>)}
             {resizer('right', 'Resize the agent panel')}
           </div>
         )}
@@ -1542,11 +1552,12 @@ export function App() {
         threads={commentThreads.threads}
         save={commentThreads.save}
         focus={commentFocus}
+        conversation={conversation.id}
         onSend={async (text, context) => {
-          if (!settings?.configured) return null;
+          if (!settings?.configured) return false;
           setChatOpen(true);
           await conversation.send(text, context);
-          return conversation.id;
+          return true;
         }}
       />
       <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp}
