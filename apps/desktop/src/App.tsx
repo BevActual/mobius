@@ -456,6 +456,9 @@ export function App() {
   }, [narrow, wide, appearance]);
   const startedUp = useRef(false);
   const [chatOpen, setChatOpen] = useState(true);
+  // Where the agent sits when it is open: beside the page, or in the sidebar as its third face. Kept per device.
+  const [chatPlace, setChatPlaceState] = useState<'beside' | 'sidebar'>(() => { try { return window.localStorage.getItem('mobius.agent.place') === 'sidebar' ? 'sidebar' : 'beside'; } catch { return 'beside'; } });
+  const setChatPlace = (place: 'beside' | 'sidebar') => { setChatPlaceState(place); try { window.localStorage.setItem('mobius.agent.place', place); } catch { /* Not kept. */ } };
   const [focusToken, setFocusToken] = useState(0);
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
@@ -475,7 +478,8 @@ export function App() {
   const [agentListOpen, setAgentListOpen] = useState(true);
   const leftOpen = inAgent ? agentListOpen : panelOpen;
   const setLeftOpen = inAgent ? setAgentListOpen : setPanelOpen;
-  const rightOpen = hasRight && chatOpen;
+  const chatInSide = wide && hasRight && chatPlace === 'sidebar';
+  const rightOpen = hasRight && chatOpen && !chatInSide;
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
   const [hovering, setHovering] = useState(false);
   const leftWidth = drag?.side === 'left' ? drag.width : appearance.value.leftWidth;
@@ -1196,6 +1200,36 @@ export function App() {
     }
   };
 
+  // The agent's panel: beside the page, or in the sidebar.
+  const chatPanel = (pinned: React.ReactNode) => (
+          <ChatPanel
+              takeFocus={!(rightFloating && peeked)}
+              surface={surface}
+            state={conversation.state}
+            settings={settings}
+            coreReady={coreStatus === 'ready'}
+            onSend={(text, items, options) => void conversation.send(expandSlash(text, skills.names), items, options)}
+            onDrive={driveTasks}
+            onStop={conversation.stop}
+            onAnswer={conversation.answer}
+              onReply={conversation.reply}
+            onSaveSettings={saveSettings}
+            focusToken={focusToken}
+            incoming={incoming}
+            conversations={conversation.list}
+            activeConversation={conversation.id}
+            onNewConversation={() => conversation.newConversation()}
+            onSelectConversation={conversation.select}
+            onOpenSettings={openSettings}
+            onRetry={conversation.retry}
+            onEdit={conversation.edit}
+            onDetails={conversation.toolDetails}
+              effort={preferences.value.reasoningEffort}
+              onEffort={(reasoningEffort) => void preferences.set({ reasoningEffort })}
+              onModelChanged={() => void reloadSettings()}
+            pin={pinned}
+          />
+  );
   // The browser's own controls. With the full sidebar they live in it, under the app's name, and nothing but the
   // page's title sits above the page; with the narrow rail they stay in the toolbar.
   const browserChrome = (
@@ -1247,7 +1281,7 @@ export function App() {
   const menuBar = nativeMenus ? null : <MenuBar menus={menus} compact={wide || compactMenus} onOpenChange={setMenuOpen} />;
 
   return (
-    <div className="app" data-wide={wide || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" data-wide={wide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
@@ -1261,6 +1295,12 @@ export function App() {
         create={createFor(app)}
         menus={wide ? menuBar : null}
         chrome={wide && inBrowser && !settingsOpen ? browserChrome : null}
+        mobius={wide && hasRight && !settingsOpen ? {
+          shown: chatInSide && chatOpen,
+          onToggle: () => { if (chatInSide && chatOpen) { setChatOpen(false); } else { setChatPlace('sidebar'); setChatOpen(true); setFocusToken((n) => n + 1); } },
+          onBeside: () => { setChatPlace('beside'); setChatOpen(true); },
+          panel: chatInSide && chatOpen ? chatPanel(null) : null,
+        } : null}
         onLauncher={openHub}
         onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
         settingsOpen={settingsOpen}
@@ -1298,7 +1338,7 @@ export function App() {
         )}
         {inBrowser && !wide && browserChrome}
         <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
-        {hasRight && !rightOpen && (
+        {hasRight && !rightOpen && !(chatInSide && chatOpen) && (
           <form className="ask-pill" role="search" aria-label="Ask the agent" onSubmit={(e) => {
             e.preventDefault();
             const field = e.currentTarget.elements.namedItem('ask') as HTMLInputElement;
@@ -1369,33 +1409,7 @@ export function App() {
         </main>
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
-          <ChatPanel
-              takeFocus={!(rightFloating && peeked)}
-              surface={surface}
-            state={conversation.state}
-            settings={settings}
-            coreReady={coreStatus === 'ready'}
-            onSend={(text, items, options) => void conversation.send(expandSlash(text, skills.names), items, options)}
-            onDrive={driveTasks}
-            onStop={conversation.stop}
-            onAnswer={conversation.answer}
-              onReply={conversation.reply}
-            onSaveSettings={saveSettings}
-            focusToken={focusToken}
-            incoming={incoming}
-            conversations={conversation.list}
-            activeConversation={conversation.id}
-            onNewConversation={() => conversation.newConversation()}
-            onSelectConversation={conversation.select}
-            onOpenSettings={openSettings}
-            onRetry={conversation.retry}
-            onEdit={conversation.edit}
-            onDetails={conversation.toolDetails}
-              effort={preferences.value.reasoningEffort}
-              onEffort={(reasoningEffort) => void preferences.set({ reasoningEffort })}
-              onModelChanged={() => void reloadSettings()}
-            pin={pin('right')}
-          />
+            {chatPanel(pin('right'))}
             {resizer('right', 'Resize the agent panel')}
           </div>
         )}

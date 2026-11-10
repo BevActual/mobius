@@ -198,6 +198,26 @@ test('the full sidebar is the default: it belongs to the open app, with the apps
   await expect(rail()).toHaveAttribute('data-expanded', 'true');
 });
 
+test('Mobius can sit in the sidebar: the conversation takes the column, the panel beside the page goes, and it comes back', async () => {
+  await start();
+  const face = rail().locator('[data-mobius-face]');
+  await expect(shell().locator('.dock.right')).toHaveCount(1);
+  await face.click();
+  await expect(rail()).toHaveAttribute('data-face', 'mobius');
+  await expect(shell().locator('.dock.right')).toHaveCount(0);
+  await expect(rail().getByRole('textbox', { name: 'Message Mobius' })).toBeVisible();
+  // The browser's address stays with it.
+  await expect(rail().getByRole('textbox', { name: 'Address or question' })).toBeVisible();
+  // The same button gives the sidebar back to the app; Mobius stays out of the way.
+  await face.click();
+  await expect(rail()).toHaveAttribute('data-face', 'app');
+  await expect(shell().locator('.dock.right')).toHaveCount(0);
+  await face.click();
+  await rail().getByRole('button', { name: 'Show beside' }).click();
+  await expect(shell().locator('.dock.right')).toHaveCount(1);
+  await expect(rail()).toHaveAttribute('data-face', 'app');
+});
+
 test('a narrow window folds the sidebar to the rail without changing the choice', async () => {
   await start();
   await expect(rail()).toHaveAttribute('data-expanded', 'true');
