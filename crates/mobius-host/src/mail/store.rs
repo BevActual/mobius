@@ -90,6 +90,15 @@ pub struct Message {
     /// Sorted from its headers and words; a sender the person moved is sorted as they said.
     #[serde(default)]
     pub list: bool,
+    /// Archived in Mobius: out of the inbox, still in All mail and search.
+    #[serde(default)]
+    pub archived: bool,
+    /// Out of the inbox until then (Later, Remind me).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub later_ms: Option<i64>,
+    /// A kept plan said it needs a reply.
+    #[serde(default)]
+    pub needs_reply: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -110,6 +119,9 @@ pub struct Draft {
     #[serde(default)]
     pub why: String,
     pub updated_ms: u64,
+    /// Sent then, by Mobius on the person's say-so (Send later).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub send_at_ms: Option<i64>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -122,6 +134,66 @@ struct Saved {
     /// Sender address → category, as the person sorted it.
     #[serde(default)]
     senders: BTreeMap<String, String>,
+    /// What the last kept plan did, so Undo all can put it back.
+    #[serde(default)]
+    plan_undo: Option<PlanUndo>,
+}
+
+#[derive(Default, Clone, Serialize, Deserialize)]
+struct PlanUndo {
+    archived: Vec<String>,
+    later: Vec<String>,
+    reply: Vec<String>,
+    todos: Vec<String>,
+}
+
+/// The list in Tasks that a kept plan's to-dos go to.
+pub const TODO_LIST: &str = "From mail";
+
+/// Whether a message shows in the inbox now: not archived, and not put off until later.
+fn in_inbox(m: &Message, now: i64) -> bool {
+    m.mailbox == "inbox" && !m.archived && m.later_ms.is_none_or(|t| t <= now)
+}
+
+/// What Get to zero proposes for one message: archive what is not from a person, a to-do for what asks for
+/// something to be done, a reply for a question or anything new from a person, and later for the rest.
+fn triage(m: &Message) -> &'static str {
+    if m.category != "primary" || m.list {
+        return "archive";
+    }
+    let hay = format!(" {} {} ", m.subject, m.preview).to_lowercase();
+    const ASKS: [&str; 11] = ["please ", "can you", "could you", "would you", " by monday", " by friday", " by tomorrow", "deadline", "confirm", "send me", "send the"];
+    if ASKS.iter().any(|a| hay.contains(a)) {
+        "todo"
+    } else if hay.contains('?') || !m.seen {
+        "reply"
+    } else {
+        "later"
+    }
+}
+
+fn shown_name(p: &Person) -> String {
+    if p.name.trim().is_empty() { p.email.clone() } else { p.name.clone() }
+}
+
+fn local_ms(at: chrono::DateTime<chrono::Local>) -> i64 {
+    at.timestamp_millis()
+}
+
+/// `hour`:00 on the next day (or today when `today` and it is still ahead), here.
+fn next_at(hour: u32, today: bool, now: chrono::DateTime<chrono::Local>) -> i64 {
+    use chrono::{Duration, TimeZone};
+    let day = |d: chrono::NaiveDate| chrono::Local.from_local_datetime(&d.and_hms_opt(hour, 0, 0).unwrap_or_default()).earliest();
+    match day(now.date_naive()).filter(|t| today && *t > now + Duration::minutes(15)) {
+        Some(t) => local_ms(t),
+        None => day(now.date_naive() + Duration::days(1)).map_or(local_ms(now) + 86_400_000, local_ms),
+    }
+}
+
+/// Tomorrow at 8:00 here: when Later and Remind me bring a message back.
+#[must_use]
+pub fn tomorrow_morning() -> i64 {
+    next_at(8, false, chrono::Local::now())
 }
 
 /// Connects to a mail server (over TLS, or plain for a test server).
@@ -458,17 +530,19 @@ impl Mail {
             None => (Person { name: String::new(), email: String::new() }, Vec::new(), Vec::new(), String::new(), 0, String::from_utf8_lossy(raw).into_owned(), Vec::new(), String::new(), Vec::new(), false),
         };
         let category = if mailbox == "sent" { "primary" } else { categorize(&subject, &from.email, list, &text) }.to_owned();
-        Message { id: format!("{account}/{mailbox}/{uid}"), account: account.to_owned(), mailbox: mailbox.to_owned(), uid, from, to, cc, subject, date_ms, seen: has("\\Seen") || mailbox == "sent", flagged: has("\\Flagged"), preview: preview_of(&text), category, attachments, message_id, references, list }
+        Message { id: format!("{account}/{mailbox}/{uid}"), account: account.to_owned(), mailbox: mailbox.to_owned(), uid, from, to, cc, subject, date_ms, seen: has("\\Seen") || mailbox == "sent", flagged: has("\\Flagged"), preview: preview_of(&text), category, attachments, message_id, references, list, archived: false, later_ms: None, needs_reply: false }
     }
 
     /// Messages, newest first: a mailbox (`inbox` or `sent`), a category (or `all`), and words to look for.
     pub fn list(&self, mailbox: &str, category: &str, query: &str, limit: usize) -> Value {
         let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
         let saved = self.lock();
+        let now = i64::try_from(now_ms()).unwrap_or(i64::MAX);
         let mut found: Vec<&Message> = saved
             .messages
             .iter()
             .filter(|m| mailbox == "all" || m.mailbox == mailbox)
+            .filter(|m| mailbox != "inbox" || in_inbox(m, now))
             .filter(|m| category == "all" || m.category == category)
             .filter(|m| {
                 let hay = format!("{} {} {} {} {}", m.subject, m.from.name, m.from.email, m.preview, m.to.iter().map(|p| format!("{} {}", p.name, p.email)).collect::<Vec<_>>().join(" ")).to_lowercase();
@@ -481,7 +555,8 @@ impl Mail {
 
     pub fn counts(&self) -> Value {
         let saved = self.lock();
-        let unread = |c: &str| saved.messages.iter().filter(|m| m.mailbox == "inbox" && !m.seen && (c == "all" || m.category == c)).count();
+        let now = i64::try_from(now_ms()).unwrap_or(i64::MAX);
+        let unread = |c: &str| saved.messages.iter().filter(|m| in_inbox(m, now) && !m.seen && (c == "all" || m.category == c)).count();
         json!({ "primary": unread("primary"), "transactions": unread("transactions"), "updates": unread("updates"), "all": unread("all"), "drafts": saved.drafts.iter().filter(|d| d.by == "you").count(), "suggested": saved.drafts.iter().filter(|d| d.by == "mobius").count() })
     }
 
@@ -547,6 +622,154 @@ impl Mail {
         Ok(json!({ "ok": true, "sender": sender }))
     }
 
+    // ---- get to zero ----
+
+    /// What Mobius proposes for everything in the inbox: archive, reply, to-do or later, each with its messages.
+    pub fn plan(&self) -> Value {
+        let now = i64::try_from(now_ms()).unwrap_or(i64::MAX);
+        let saved = self.lock();
+        let (mut archive, mut reply, mut todos, mut later) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let mut inbox: Vec<&Message> = saved.messages.iter().filter(|m| in_inbox(m, now)).collect();
+        inbox.sort_by_key(|m| std::cmp::Reverse(m.date_ms));
+        for m in inbox {
+            let row = json!({ "id": m.id, "from": shown_name(&m.from), "subject": m.subject });
+            match triage(m) {
+                "archive" => archive.push(row),
+                "todo" => todos.push(json!({ "id": m.id, "from": shown_name(&m.from), "subject": m.subject, "text": format!("{} ({})", if m.subject.trim().is_empty() { "An email" } else { m.subject.trim() }, shown_name(&m.from)) })),
+                "reply" => reply.push(row),
+                _ => later.push(row),
+            }
+        }
+        json!({ "archive": archive, "reply": reply, "todos": todos, "later": later })
+    }
+
+    /// The person kept a plan: what it archives leaves the inbox, its to-dos (returned, for Tasks) leave it too,
+    /// what is for later comes back tomorrow at 8:00, and what needs a reply stays, marked. Undo all puts it back.
+    pub fn keep_plan(&self, plan: &Value) -> Res<Value> {
+        let ids = |k: &str| -> Vec<String> { plan.get(k).and_then(Value::as_array).into_iter().flatten().filter_map(|r| r.get("id").and_then(Value::as_str).map(str::to_owned)).collect() };
+        let (archive, reply, todo_ids, later) = (ids("archive"), ids("reply"), ids("todos"), ids("later"));
+        let texts: Vec<String> = plan.get("todos").and_then(Value::as_array).into_iter().flatten().filter_map(|r| r.get("text").and_then(Value::as_str).map(str::to_owned)).collect();
+        let back = tomorrow_morning();
+        let mut undo = PlanUndo { todos: texts.clone(), ..PlanUndo::default() };
+        let mut saved = self.lock();
+        for m in saved.messages.iter_mut() {
+            if (archive.contains(&m.id) || todo_ids.contains(&m.id)) && !m.archived {
+                m.archived = true;
+                undo.archived.push(m.id.clone());
+            } else if later.contains(&m.id) && m.later_ms.is_none() {
+                m.later_ms = Some(back);
+                undo.later.push(m.id.clone());
+            } else if reply.contains(&m.id) && !m.needs_reply {
+                m.needs_reply = true;
+                undo.reply.push(m.id.clone());
+            }
+        }
+        if undo.archived.is_empty() && undo.later.is_empty() && undo.reply.is_empty() && undo.todos.is_empty() {
+            return Err("There is nothing in that plan to do.".into());
+        }
+        saved.plan_undo = Some(undo);
+        self.save(&saved);
+        Ok(json!({ "ok": true, "todos": texts, "list": TODO_LIST }))
+    }
+
+    /// Undo all: everything the last kept plan did is put back. The to-dos to take out of Tasks are returned.
+    pub fn undo_plan(&self) -> Res<Value> {
+        let mut saved = self.lock();
+        let undo = saved.plan_undo.take().ok_or("There is no plan to undo.")?;
+        for m in saved.messages.iter_mut() {
+            if undo.archived.contains(&m.id) {
+                m.archived = false;
+            }
+            if undo.later.contains(&m.id) {
+                m.later_ms = None;
+            }
+            if undo.reply.contains(&m.id) {
+                m.needs_reply = false;
+            }
+        }
+        self.save(&saved);
+        Ok(json!({ "ok": true, "todos": undo.todos, "list": TODO_LIST }))
+    }
+
+    /// E: archive (or bring back) one message.
+    pub fn archive(&self, id: &str, on: bool) -> Res<Value> {
+        let mut saved = self.lock();
+        let m = saved.messages.iter_mut().find(|m| m.id == id).ok_or("That message is not known.")?;
+        m.archived = on;
+        self.save(&saved);
+        Ok(json!({ "ok": true }))
+    }
+
+    /// H: out of the inbox until `at_ms`, or back now with none.
+    pub fn remind(&self, id: &str, at_ms: Option<i64>) -> Res<Value> {
+        let mut saved = self.lock();
+        let m = saved.messages.iter_mut().find(|m| m.id == id).ok_or("That message is not known.")?;
+        m.later_ms = at_ms;
+        self.save(&saved);
+        Ok(json!({ "ok": true, "laterMs": at_ms }))
+    }
+
+    /// Send later: the person chose when a kept draft goes (or none, to unschedule).
+    pub fn schedule(&self, id: &str, at_ms: Option<i64>) -> Res<Value> {
+        let mut saved = self.lock();
+        let d = saved.drafts.iter_mut().find(|d| d.id == id).ok_or("That draft is gone.")?;
+        if d.by != "you" {
+            return Err("Keep the suggestion first: only your own drafts are sent.".into());
+        }
+        if at_ms.is_some() && d.to.trim().is_empty() {
+            return Err("Who is it to?".into());
+        }
+        d.send_at_ms = at_ms;
+        let out = json!(d.clone());
+        self.save(&saved);
+        Ok(out)
+    }
+
+    /// When the person this draft is to usually writes, as the time to send it: Mobius's suggestion for Send later.
+    pub fn suggest_send(&self, id: &str) -> Value {
+        use chrono::{Local, TimeZone, Timelike};
+        let saved = self.lock();
+        let Some(d) = saved.drafts.iter().find(|d| d.id == id) else { return Value::Null };
+        let to = d.to.split([',', ';']).next().unwrap_or("").trim().to_lowercase();
+        let to = to.rsplit('<').next().unwrap_or(&to).trim_end_matches('>').to_owned();
+        let theirs: Vec<&Message> = saved.messages.iter().filter(|m| m.mailbox == "inbox" && m.from.email.to_lowercase() == to && m.date_ms > 0).collect();
+        if theirs.len() < 2 {
+            return Value::Null;
+        }
+        let mut hours = [0u32; 24];
+        for m in &theirs {
+            if let Some(t) = Local.timestamp_millis_opt(m.date_ms).single() {
+                hours[t.hour() as usize] += 1;
+            }
+        }
+        let (hour, _) = hours.iter().enumerate().max_by_key(|(h, n)| (**n, std::cmp::Reverse(*h))).unwrap_or((9, &0));
+        let hour = u32::try_from(hour).unwrap_or(9);
+        let name = theirs.first().map(|m| shown_name(&m.from)).unwrap_or_default();
+        json!({ "atMs": next_at(hour, true, Local::now()), "why": format!("{name} is usually on mail around {hour}:00") })
+    }
+
+    /// Drafts whose Send later time has come, sent now. Returns how many went; one that could not go stays a draft,
+    /// unscheduled, saying why.
+    pub fn send_due(&self) -> usize {
+        let now = i64::try_from(now_ms()).unwrap_or(i64::MAX);
+        let due: Vec<String> = self.lock().drafts.iter().filter(|d| d.by == "you" && d.send_at_ms.is_some_and(|t| t <= now)).map(|d| d.id.clone()).collect();
+        let mut sent = 0;
+        for id in due {
+            match self.send(&id) {
+                Ok(_) => sent += 1,
+                Err(e) => {
+                    let mut saved = self.lock();
+                    if let Some(d) = saved.drafts.iter_mut().find(|d| d.id == id) {
+                        d.send_at_ms = None;
+                        d.why = format!("Not sent at the time you chose: {e}");
+                    }
+                    self.save(&saved);
+                }
+            }
+        }
+        sent
+    }
+
     // ---- drafts ----
 
     pub fn drafts(&self) -> Value {
@@ -569,7 +792,7 @@ impl Mail {
         if body.len() > 200_000 || subject.len() > 1000 || to.len() > 2000 {
             return Err("That draft is too long.".into());
         }
-        let draft = Draft { id: existing.map_or_else(new_id, |i| saved.drafts[i].id.clone()), account, to, cc: s("cc").unwrap_or_default(), subject, body, reply_to, by: by.to_owned(), why: s("why").unwrap_or_default(), updated_ms: now_ms() };
+        let draft = Draft { id: existing.map_or_else(new_id, |i| saved.drafts[i].id.clone()), account, to, cc: s("cc").unwrap_or_default(), subject, body, reply_to, by: by.to_owned(), why: s("why").unwrap_or_default(), updated_ms: now_ms(), send_at_ms: existing.and_then(|i| saved.drafts[i].send_at_ms) };
         match existing {
             Some(i) => saved.drafts[i] = draft.clone(),
             None => {
@@ -701,6 +924,72 @@ mod tests {
     const RUI: &[u8] = b"From: Rui Almeida <rui@example.com>\r\nTo: Ana <ana@example.com>\r\nSubject: Terrace + lunch for the 13th\r\nMessage-ID: <t1@example.com>\r\nDate: Sun, 08 Nov 2026 09:02:00 +0000\r\n\r\nHi!\r\n\r\nI can hold the terrace for eight on the 13th.\r\n\r\nObrigado,\r\nRui\r\n";
     const RECEIPT: &[u8] = b"From: TAP <noreply@flytap.com>\r\nSubject: Your booking LX7Q2M\r\nDate: Thu, 05 Nov 2026 18:10:00 +0000\r\nContent-Type: text/html\r\n\r\n<html><head><style>p{}</style></head><body><p>Your booking is confirmed.</p><p>SFO &rarr; LIS</p></body></html>\r\n";
     const NEWS: &[u8] = b"From: Design Weekly <hello@design.example>\r\nSubject: Issue 212\r\nList-Unsubscribe: <mailto:u@design.example>\r\nDate: Wed, 04 Nov 2026 07:00:00 +0000\r\n\r\nThis week: glass.\r\n";
+
+    const ASK: &[u8] = b"From: Priya Nair <priya@example.com>\r\nTo: Ana <ana@example.com>\r\nSubject: Build week\r\nDate: Mon, 09 Nov 2026 09:10:00 +0000\r\n\r\nCan you confirm the build week and send the plan to the team?\r\n";
+    const QUESTION: &[u8] = b"From: Priya Nair <priya@example.com>\r\nTo: Ana <ana@example.com>\r\nSubject: Dinner\r\nDate: Tue, 10 Nov 2026 09:20:00 +0000\r\n\r\nDinner on Friday?\r\n";
+
+    fn connected(messages: Vec<(u32, &'static str, Vec<u8>)>) -> (Mail, tempfile::TempDir) {
+        let (addr, _log) = fake_server(messages);
+        let dir = tempfile::tempdir().unwrap();
+        let mail = Mail::with_connector(dir.path(), Arc::new(MemorySecrets::new(true)), Mail::plain_connector());
+        let host = addr.ip().to_string();
+        mail.connect("other", "ana@example.com", "app-pass", Some((&host, addr.port())), Some((&host, 1))).unwrap();
+        (mail, dir)
+    }
+    fn subjects(v: &Value) -> Vec<String> {
+        v.as_array().unwrap().iter().map(|m| m["subject"].as_str().unwrap().to_owned()).collect()
+    }
+
+    #[test]
+    fn get_to_zero_proposes_a_plan_keeping_it_empties_the_inbox_and_undo_all_puts_it_back() {
+        let (mail, _dir) = connected(vec![(7, "\\Seen", RUI.to_vec()), (8, "", RECEIPT.to_vec()), (9, "", NEWS.to_vec()), (10, "", ASK.to_vec()), (11, "", QUESTION.to_vec())]);
+        let plan = mail.plan();
+        assert_eq!(subjects(&plan["archive"]), ["Your booking LX7Q2M", "Issue 212"], "what is not from a person");
+        assert_eq!(subjects(&plan["todos"]), ["Build week"], "it asks for something to be done");
+        assert_eq!(plan["todos"][0]["text"], "Build week (Priya Nair)");
+        assert_eq!(subjects(&plan["reply"]), ["Dinner"], "a question");
+        assert_eq!(subjects(&plan["later"]), ["Terrace + lunch for the 13th"], "read, and nothing to do now");
+        let kept = mail.keep_plan(&plan).unwrap();
+        assert_eq!(kept["todos"], json!(["Build week (Priya Nair)"]));
+        assert_eq!(subjects(&mail.list("inbox", "all", "", 50)), ["Dinner"], "only what needs a reply is left");
+        assert_eq!(mail.list("inbox", "all", "", 50)[0]["needsReply"], true);
+        assert_eq!(mail.list("all", "all", "", 50).as_array().unwrap().iter().filter(|m| m["box"] == "inbox").count(), 5, "nothing is gone: archived mail is in All mail");
+        assert!(mail.list("all", "all", "", 50).as_array().unwrap().iter().any(|m| m["laterMs"].as_i64().is_some_and(|t| t > 0)), "later comes back tomorrow");
+        assert_eq!(mail.counts()["all"], 1);
+        let undone = mail.undo_plan().unwrap();
+        assert_eq!(undone["todos"], json!(["Build week (Priya Nair)"]), "the to-dos to take back out of Tasks");
+        assert_eq!(subjects(&mail.list("inbox", "all", "", 50)).len(), 5, "everything is back");
+        assert_eq!(mail.list("inbox", "all", "", 50)[0]["needsReply"], false);
+        assert!(mail.undo_plan().is_err(), "once");
+    }
+
+    #[test]
+    fn e_archives_h_puts_off_and_send_later_is_only_for_your_own_draft() {
+        let (mail, _dir) = connected(vec![(10, "", ASK.to_vec()), (11, "", QUESTION.to_vec())]);
+        let first = mail.list("inbox", "all", "", 50)[0]["id"].as_str().unwrap().to_owned();
+        mail.archive(&first, true).unwrap();
+        assert_eq!(subjects(&mail.list("inbox", "all", "", 50)), ["Build week"]);
+        mail.archive(&first, false).unwrap();
+        mail.remind(&first, Some(tomorrow_morning())).unwrap();
+        assert_eq!(subjects(&mail.list("inbox", "all", "", 50)), ["Build week"]);
+        mail.remind(&first, Some(1)).unwrap();
+        assert_eq!(subjects(&mail.list("inbox", "all", "", 50)).len(), 2, "its time came: it is back");
+
+        let draft = mail.save_draft(&json!({ "to": "priya@example.com", "subject": "Re: Dinner", "body": "Yes!" }), "you").unwrap();
+        let id = draft["id"].as_str().unwrap();
+        let suggestion = mail.suggest_send(id);
+        assert!(suggestion["why"].as_str().unwrap().starts_with("Priya Nair is usually on mail around"), "{suggestion}");
+        assert!(suggestion["atMs"].as_i64().unwrap() > 0);
+        let at = tomorrow_morning();
+        assert_eq!(mail.schedule(id, Some(at)).unwrap()["sendAtMs"], at);
+        // Editing it keeps the time it goes.
+        mail.save_draft(&json!({ "id": id, "to": "priya@example.com", "subject": "Re: Dinner", "body": "Yes, Friday!" }), "you").unwrap();
+        assert_eq!(mail.drafts()[0]["sendAtMs"], at);
+        assert_eq!(mail.send_due(), 0, "not yet");
+        assert!(mail.schedule(id, None).unwrap().get("sendAtMs").is_none(), "unscheduled");
+        let suggested = mail.save_draft(&json!({ "to": "priya@example.com", "subject": "Re: Dinner", "body": "Maybe" }), "mobius").unwrap();
+        assert!(mail.schedule(suggested["id"].as_str().unwrap(), Some(at)).unwrap_err().contains("Keep the suggestion first"));
+    }
 
     #[test]
     fn drafts_keep_the_words_of_marked_facts_without_the_marks() {

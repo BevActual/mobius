@@ -2301,3 +2301,26 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .tab-driver { flex: none; padding: 1px 6px; border-radius: 999px; font-size: var(--fs-xs); line-height: 16px; color: var(--muted); border: 1px solid var(--hairline); }
 .tab-driver[data-driver="mobius"] { color: var(--accent); border: 1px dashed var(--accent); }
 .tab-driver[data-driver="yours"] { color: var(--text); background: var(--wash); }
+
+/* Mail: Get to zero in the Mobius panel, Ask your mail, Send later, and the keys. */
+.mail-plan { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }
+.mail-plan-start { justify-self: start; }
+.mail-plan-card { display: grid; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-panel); outline: 1px dashed var(--accent); outline-offset: -1px; background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.mail-plan-head { margin: 0; font-weight: 600; font-size: var(--fs-sm); }
+.mail-plan-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.mail-plan-row { display: flex; width: 100%; justify-content: space-between; padding: 4px 6px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.mail-plan-row:hover { background: var(--wash); }
+.mail-plan-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.mail-plan-items { margin: 0 0 4px; padding: 0 6px 0 16px; font-size: var(--fs-sm); color: var(--muted); }
+.mail-plan-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
+.mail-plan-done, .mail-scheduled { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--fs-sm); }
+.mail-ask input { width: 100%; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }
+.mail-sources { list-style: none; margin: 0 0 var(--sp-2); padding: 0; display: grid; gap: 2px; }
+.mail-source { display: flex; gap: var(--sp-2); width: 100%; padding: 4px 8px; border: 1px solid var(--hairline); border-radius: 8px; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
+.mail-source span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-later { position: relative; display: inline-flex; }
+.mail-later-menu { position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 5; display: grid; gap: 4px; padding: 6px; border-radius: var(--radius-panel); background: var(--bg); box-shadow: var(--shadow-1); white-space: nowrap; }
+.mail-later-suggested[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; color: var(--accent); }
+.mail-keys { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin: 0; padding: 6px var(--sp-3); border-top: 1px solid var(--hairline); color: var(--muted); font-size: var(--fs-xs); }
+.mail-keys kbd { margin-right: 4px; padding: 0 4px; border: 1px solid var(--hairline); border-radius: 4px; font: inherit; }
+.mail-needs-reply { color: var(--accent); }

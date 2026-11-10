@@ -9,6 +9,7 @@ import { unsureClaims, withoutMarks } from './markdown';
 import { ReviewStrip, TurnHistory } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
+import { MailSources } from './MailPlan';
 import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import type { SurfaceState } from './surface';
@@ -279,6 +280,10 @@ export interface ChatPanelProps {
   pin?: ReactNode;
   /** The desk: what is in flight, shown under the greeting of an empty conversation in the Agent app. */
   desk?: ReactNode;
+  /** The open app's own card above the conversation (Get to zero in Mail). */
+  appCard?: ReactNode;
+  /** Open one email in Mail, from the rows under an answer about the mail. */
+  onOpenMail?: (id: string) => void;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
   /** The model on the server was changed from the composer. */
@@ -374,7 +379,7 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -459,6 +464,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
         </div>
       ) : (
         <>
+          {appCard}
           <div
             ref={log}
             className="chat-scroll messages"
@@ -504,6 +510,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                     <div className="msg assistant" data-streaming={item.streaming}><RichText text={item.text} /></div>
                   </ClaimChecks.Provider>
                   {!item.streaming && item.text !== '' && (() => { const from = replySources(state.items, index); return from.length > 0 ? <p className="msg-sources" title="The apps Mobius used for this reply">Based on {from.join(' · ')}</p> : null; })()}
+                  {!item.streaming && item.text !== '' && onOpenMail && !state.busy && index === state.items.findLastIndex((i) => i.kind === 'assistant') && replySources(state.items, index).includes('Mail') && <MailSources conversation={state.conversation} version={state.items.length} onOpen={onOpenMail} />}
                   {!item.streaming && item.text !== '' && (
                     <div className="msg-actions assistant">
                       {(() => {

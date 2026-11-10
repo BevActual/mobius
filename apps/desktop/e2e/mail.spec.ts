@@ -78,7 +78,7 @@ test('an account signs in with an app password, mail is sorted here, and only th
   await expect(compose.getByRole('textbox', { name: 'To' })).toHaveValue('rui@example.com');
   await expect(compose.getByRole('textbox', { name: 'Subject' })).toHaveValue('Re: Terrace + lunch for the 13th');
   await compose.getByRole('textbox', { name: 'Message' }).fill('Hi Rui, please hold it. We are 8.');
-  await compose.getByRole('button', { name: 'Send' }).click();
+  await compose.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(compose).toHaveCount(0);
   await expect.poll(() => servers.sent.length).toBe(1);
   expect(servers.sent[0]).toContain('In-Reply-To: <t1@example.com>');
@@ -104,7 +104,7 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   expect(servers.sent.length).toBe(0);
   // Keep opens it as your draft.
   await suggested.getByRole('button', { name: 'Keep' }).click();
-  await page().getByRole('form', { name: 'Reply' }).getByRole('button', { name: 'Send' }).click();
+  await page().getByRole('form', { name: 'Reply' }).getByRole('button', { name: 'Send', exact: true }).click();
   await expect.poll(() => servers.sent.length).toBe(1);
   expect(servers.sent[0]).toContain('two vegetarians');
 });

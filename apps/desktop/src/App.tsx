@@ -57,6 +57,7 @@ import { VideoEditor, VideoSidebar } from './Video';
 import { SkillEditor } from './Skills';
 import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, useFiles } from './Files';
+import { MailPlanCard } from './MailPlan';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
 import { useVideo } from './useVideo';
@@ -1213,6 +1214,8 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
+            {...(inMail ? { appCard: <MailPlanCard onAsk={(text) => void conversation.send(text, [])} onChanged={() => void mail.refresh()} /> } : {})}
+            onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
             onReply={conversation.reply}
@@ -1250,6 +1253,8 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
+            {...(inMail ? { appCard: <MailPlanCard onAsk={(text) => void conversation.send(text, [])} onChanged={() => void mail.refresh()} /> } : {})}
+            onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
               onReply={conversation.reply}

@@ -1327,6 +1327,10 @@ impl Bridge {
                 if bridge.mail.sync_due() {
                     (bridge.emit)("mobius:mail-changed", json!({ "by": "another app" }));
                 }
+                // Send later: what the person scheduled goes when its time comes.
+                if bridge.mail.send_due() > 0 {
+                    (bridge.emit)("mobius:mail-changed", json!({ "by": "person" }));
+                }
                 drop(bridge);
                 std::thread::sleep(Duration::from_secs(60));
             }
@@ -1921,11 +1925,38 @@ impl Bridge {
             "saveDraft" => m.save_draft(args.first().unwrap_or(&Value::Null), "you"),
             "deleteDraft" => text(0).ok_or_else(|| "a draft is needed".to_owned()).and_then(|id| m.delete_draft(id)),
             "send" => text(0).ok_or_else(|| "a draft is needed".to_owned()).and_then(|id| m.send(id)),
+            "plan" => Ok(m.plan()),
+            "keepPlan" => m.keep_plan(args.first().unwrap_or(&Value::Null)).map(|kept| {
+                // The plan's to-dos go to Tasks, in a list of their own.
+                for todo in kept["todos"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+                    let _ = self.tasks.add(crate::mail::store::TODO_LIST, todo, None);
+                }
+                (self.emit)("mobius:tasks-changed", json!({ "list": crate::mail::store::TODO_LIST, "by": "person" }));
+                kept
+            }),
+            "undoPlan" => m.undo_plan().map(|undone| {
+                let list = crate::mail::store::TODO_LIST;
+                for todo in undone["todos"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+                    let line = self.tasks.read(list).ok().and_then(|l| l["tasks"].as_array().and_then(|t| t.iter().rev().find(|t| t["text"] == todo && t["done"] == false).and_then(|t| t["line"].as_u64())));
+                    if let Some(line) = line.and_then(|n| usize::try_from(n).ok()) {
+                        let _ = self.tasks.remove(list, line, todo);
+                    }
+                }
+                (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "person" }));
+                undone
+            }),
+            "archive" => match (text(0), args.get(1).and_then(Value::as_bool)) {
+                (Some(id), Some(on)) => m.archive(id, on),
+                _ => Err("that cannot be done".to_owned()),
+            },
+            "remind" => text(0).ok_or_else(|| "a message is needed".to_owned()).and_then(|id| m.remind(id, args.get(1).and_then(Value::as_i64))),
+            "schedule" => text(0).ok_or_else(|| "a draft is needed".to_owned()).and_then(|id| m.schedule(id, args.get(1).and_then(Value::as_i64))),
+            "suggestSend" => Ok(text(0).map_or(Value::Null, |id| m.suggest_send(id))),
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
             Ok(value) => {
-                if !matches!(method, "accounts" | "list" | "counts" | "drafts" | "read") {
+                if !matches!(method, "accounts" | "list" | "counts" | "drafts" | "read" | "plan" | "suggestSend") {
                     (self.emit)("mobius:mail-changed", json!({ "by": "person" }));
                 }
                 value

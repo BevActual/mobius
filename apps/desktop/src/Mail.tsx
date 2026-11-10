@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailState } from './useMail';
@@ -130,6 +130,42 @@ function HtmlBody({ html }: { html: string }) {
   return <iframe className="mail-html" title="Message" sandbox="allow-same-origin" srcDoc={doc} style={{ height }} onLoad={(e) => { const b = e.currentTarget.contentDocument?.body; if (b) setHeight(Math.min(6000, b.scrollHeight + 24)); }} />;
 }
 
+const sendTime = (ms: number) => new Date(ms).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+
+/** `hour`:00 on the next `weekday` (0 Sunday … 6 Saturday), or tomorrow when there is none. */
+export function nextAt(hour: number, weekday: number | null, now = new Date()): number {
+  const at = new Date(now);
+  at.setHours(hour, 0, 0, 0);
+  if (weekday === null) at.setDate(at.getDate() + 1);
+  else { let add = (weekday - now.getDay() + 7) % 7; if (add === 0) add = 7; at.setDate(at.getDate() + add); }
+  return at.getTime();
+}
+
+/** Send later: tomorrow at 8:00, Monday at 9:00, or when the person it is to is usually on mail (Mobius's suggestion). */
+function SendLater({ mail, draft, onScheduled }: { mail: MailState; draft: MailDraft; onScheduled: (at: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [suggested, setSuggested] = useState<{ atMs: number; why: string } | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    void window.mobius.mail?.suggestSend?.(draft.id).then((s) => { if (live) setSuggested(s); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [open, draft.id]);
+  const pick = async (at: number) => { setOpen(false); if (await mail.schedule(draft.id, at)) onScheduled(at); };
+  return (
+    <span className="mail-later">
+      <button type="button" className="btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>Send later</button>
+      {open && (
+        <span className="mail-later-menu" role="group" aria-label="Send later">
+          <button type="button" className="btn" onClick={() => void pick(nextAt(8, null))}>Tomorrow 8:00</button>
+          <button type="button" className="btn" onClick={() => void pick(nextAt(9, 1))}>Monday 9:00</button>
+          {suggested && <button type="button" className="btn mail-later-suggested" data-proposed title={suggested.why} onClick={() => void pick(suggested.atMs)}>{sendTime(suggested.atMs)} · {suggested.why}</button>}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function DraftEditor({ mail, draft }: { mail: MailState; draft: MailDraft }) {
   const [d, setD] = useState(draft);
   const [problem, setProblem] = useState<string | null>(null);
@@ -152,8 +188,15 @@ function DraftEditor({ mail, draft }: { mail: MailState; draft: MailDraft }) {
         {d.id && <button type="button" className="btn cal-delete" onClick={() => void mail.deleteDraft(d.id)}>Delete Draft</button>}
         <span className="spacer" />
         <button type="button" className="btn" onClick={() => { void keep(d); mail.setEditing(null); }}>Close</button>
+        {d.id && d.by === 'you' && <SendLater mail={mail} draft={d} onScheduled={(at) => setD((cur) => ({ ...cur, sendAtMs: at }))} />}
         <button type="submit" className="btn primary" disabled={sending || !d.to.trim()}>{sending ? 'Sending…' : 'Send'}</button>
       </div>
+      {d.sendAtMs ? (
+        <p className="mail-scheduled" role="status">
+          <span>Scheduled by you for {sendTime(d.sendAtMs)}</span>
+          <button type="button" className="review-btn" onClick={() => void mail.schedule(d.id, null).then((ok) => { if (ok) setD((cur) => ({ ...cur, sendAtMs: null })); })}>Unschedule</button>
+        </p>
+      ) : null}
     </form>
   );
 }
@@ -206,7 +249,7 @@ function Row({ m, on, onOpen }: { m: MailMessage; on: boolean; onOpen: () => voi
   return (
     <button type="button" role="option" aria-selected={on} className="mail-row" data-unread={!m.seen || undefined} onClick={onOpen}>
       <span className="mail-row-top"><b>{who}</b><span className="mail-when">{when(m.dateMs)}</span></span>
-      <span className="mail-row-subject">{m.subject || '(no subject)'}</span>
+      <span className="mail-row-subject">{m.subject || '(no subject)'}{m.needsReply && <span className="mail-needs-reply"> · Reply</span>}</span>
       <span className="mail-row-preview">{m.preview}</span>
     </button>
   );
@@ -215,6 +258,22 @@ function Row({ m, on, onOpen }: { m: MailMessage; on: boolean; onOpen: () => voi
 /** The Mail app: categories, the list, and the message or draft open beside it. */
 export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply?: (m: MailContent) => void }) {
   const v = mail.view;
+  // E archives, R replies, H puts the open message off until tomorrow at 8:00. Not while typing, and not with Ctrl or Alt.
+  const keys = useRef(mail);
+  keys.current = mail;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const m = keys.current;
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]') || !m.open || m.editing) return;
+      const key = e.key.toLowerCase();
+      if (key === 'e') { e.preventDefault(); void m.archive(m.open.id); }
+      else if (key === 'r') { e.preventDefault(); m.reply(m.open); }
+      else if (key === 'h') { e.preventDefault(); void m.remindTomorrow(m.open.id); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   if (!mail.available) return <section className="mail-page empty" aria-label="Mail"><p className="note-empty">Mail is not available here.</p></section>;
   if (mail.accounts.length === 0) {
     return (
@@ -253,6 +312,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
             {mail.messages.map((m) => <Row key={m.id} m={m} on={mail.open?.id === m.id} onOpen={() => void mail.read(m.id)} />)}
           </div>
         )}
+        <p className="mail-keys" aria-label="Keyboard"><span><kbd>E</kbd> Archive</span><span><kbd>R</kbd> Reply</span><span><kbd>H</kbd> Remind me</span><span><kbd>Ctrl+K</kbd> Anything</span></p>
       </div>
       <div className="mail-reading-pane">
         {mail.message && <p className="tasks-message" role="alert">{mail.message}</p>}

@@ -158,12 +158,14 @@ export interface MemoryItem { text: string; category: MemoryCategory; source: st
 /** Someone in an email's From, To or Cc. */
 export interface MailPerson { name: string; email: string }
 /** A message in the Mail app's list. `box` is inbox or sent; `category` is sorted on this computer. */
-export interface MailMessage { id: string; account: string; box: 'inbox' | 'sent'; uid: number; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; seen: boolean; flagged: boolean; preview: string; category: MailCategory; attachments: string[] }
+export interface MailMessage { id: string; account: string; box: 'inbox' | 'sent'; uid: number; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; seen: boolean; flagged: boolean; preview: string; category: MailCategory; attachments: string[]; /** A kept Get to zero plan said it needs a reply. */ needsReply?: boolean; laterMs?: number | null; archived?: boolean }
 export type MailCategory = 'primary' | 'transactions' | 'updates';
 /** A whole message: its text, and its HTML (shown sandboxed, without loading anything from the web). */
 export interface MailContent { id: string; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; text: string; html: string | null; attachments: string[]; category?: MailCategory }
 /** A draft: the person's, or one Mobius suggested (`by` mobius), which waits as a suggestion until opened. */
-export interface MailDraft { id: string; account: string; to: string; cc: string; subject: string; body: string; replyTo: string | null; by: 'you' | 'mobius'; why: string; updatedMs: number }
+export interface MailDraft {
+  /** Send later: when it goes, as you scheduled it. */
+  sendAtMs?: number | null; id: string; account: string; to: string; cc: string; subject: string; body: string; replyTo: string | null; by: 'you' | 'mobius'; why: string; updatedMs: number }
 export interface MailAccount { id: string; name: string; email: string; lastSyncMs: number; problem: string | null }
 export interface MailCounts { primary: number; transactions: number; updates: number; all: number; drafts: number; suggested: number }
 /** A sheet in the Sheets app: each cell as typed (`cells`, a formula starts with =) and as worked out (`values`). */
@@ -495,6 +497,19 @@ export interface MobiusBridge {
     saveDraft(draft: Partial<MailDraft>): Promise<MailDraft | NotesFailure>;
     deleteDraft(id: string): Promise<{ ok: true } | NotesFailure>;
     send(id: string): Promise<{ ok: true } | NotesFailure>;
+    /** Get to zero: what Mobius proposes for everything in the inbox. */
+    plan?(): Promise<MailPlan | NotesFailure>;
+    /** Keep the plan: archive, mark for reply, put off until tomorrow 8:00, and add the to-dos to Tasks. */
+    keepPlan?(plan: MailPlan): Promise<{ ok: true; todos: string[]; list: string } | NotesFailure>;
+    /** Undo all: put back everything the last kept plan did. */
+    undoPlan?(): Promise<{ ok: true } | NotesFailure>;
+    archive?(id: string, on: boolean): Promise<{ ok: true } | NotesFailure>;
+    /** Out of the inbox until then (null: back now). */
+    remind?(id: string, atMs: number | null): Promise<{ ok: true } | NotesFailure>;
+    /** Send later: when a kept draft of yours goes (null: unschedule). */
+    schedule?(id: string, atMs: number | null): Promise<MailDraft | NotesFailure>;
+    /** When the person a draft is to is usually on mail, as Mobius's suggestion for Send later. */
+    suggestSend?(id: string): Promise<{ atMs: number; why: string } | null>;
     onChanged(listener: (change: { by: string }) => void): () => void;
   };
   /** The Sheets app: workbooks of CSV sheets in `sheets/<workbook>/`. Only the Tauri shell has it. */
@@ -1217,3 +1232,8 @@ export function parseHistoryQuery(value: unknown): string {
 export function parseHistoryUrl(value: unknown): string | null {
   return typeof value === 'string' && value.length <= 2048 ? value : null;
 }
+
+/** One message in a Get to zero plan. To-dos also say what goes into Tasks. */
+export interface MailPlanRow { id: string; from: string; subject: string; text?: string }
+/** Get to zero: what Mobius proposes for everything in the inbox. */
+export interface MailPlan { archive: MailPlanRow[]; reply: MailPlanRow[]; todos: MailPlanRow[]; later: MailPlanRow[] }

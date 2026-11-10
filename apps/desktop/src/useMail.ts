@@ -88,6 +88,29 @@ export function useMail() {
     return null;
   }, [api, refresh]);
 
+  /** E: out of the inbox (still in All mail). The next message opens. */
+  const archive = useCallback(async (id: string) => {
+    const done = await api?.archive?.(id, true);
+    if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
+    setOpen((cur) => (cur?.id === id ? null : cur));
+    await refresh();
+  }, [api, refresh]);
+  /** H: back in the inbox tomorrow at 8:00. */
+  const remindTomorrow = useCallback(async (id: string) => {
+    const at = new Date(); at.setDate(at.getDate() + 1); at.setHours(8, 0, 0, 0);
+    const done = await api?.remind?.(id, at.getTime());
+    if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
+    setOpen((cur) => (cur?.id === id ? null : cur));
+    await refresh();
+  }, [api, refresh]);
+  /** Send later, as the person chose (null: unschedule). True when it is set. */
+  const schedule = useCallback(async (id: string, at: number | null) => {
+    const done = await api?.schedule?.(id, at);
+    if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return false; }
+    setDrafts((cur) => cur.map((d) => (d.id === id ? done : d)));
+    return true;
+  }, [api]);
+
   const reply = useCallback((to: MailContent) => {
     setEditing({ id: '', account: '', to: to.from.email, cc: '', subject: /^re:/i.test(to.subject) ? to.subject : `Re: ${to.subject}`, body: '', replyTo: to.id, by: 'you', why: '', updatedMs: 0 });
   }, []);
@@ -96,7 +119,7 @@ export function useMail() {
     setEditing({ id: '', account: accounts[0]?.id ?? '', to: '', cc: '', subject: '', body: '', replyTo: null, by: 'you', why: '', updatedMs: 0 });
   }, [accounts]);
 
-  return { available: api !== undefined, accounts, view, setView, query, setQuery, messages, counts, drafts, open, setOpen, read, editing, setEditing, connect, sync, syncing, removeAccount, sort, flag, saveDraft, deleteDraft, send, reply, compose, message, refresh };
+  return { available: api !== undefined, accounts, view, setView, query, setQuery, messages, counts, drafts, open, setOpen, read, editing, setEditing, connect, sync, syncing, removeAccount, sort, flag, saveDraft, deleteDraft, send, reply, compose, message, refresh, archive, remindTomorrow, schedule };
 }
 
 export type MailState = ReturnType<typeof useMail>;
