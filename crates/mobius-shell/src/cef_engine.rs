@@ -314,6 +314,14 @@ mod chromium {
                 1
             }
 
+            // The page has really closed (after close_browser): it is no longer one of the open pages, so shutting down
+            // waits only as long as closing takes.
+            fn on_before_close(&self, browser: Option<&mut cef::Browser>) {
+                if let Some(browser) = browser {
+                    lock(&self.shared.by_id).remove(&browser.identifier());
+                }
+            }
+
             fn on_after_created(&self, browser: Option<&mut cef::Browser>) {
                 let Some(browser) = browser.cloned() else { return };
                 let id = browser.identifier();

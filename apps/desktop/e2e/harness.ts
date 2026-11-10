@@ -198,13 +198,18 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
     close: async (closeOptions = {}) => {
       const closing = Date.now();
       // Ask the shell to end itself first, so what the page stored (its saved choices) is written out as in a normal quit.
-      await testHook(handle, 'quit', []).catch(() => undefined);
-      for (let i = 0; i < 50 && child.exitCode === null; i++) await new Promise((resolve) => setTimeout(resolve, 100));
+      // The app can end before the page answers this call, and then the answer never comes: wait for it a moment at
+      // most, then watch the process itself.
+      await Promise.race([testHook(handle, 'quit', []).catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 2000))]);
+      for (let i = 0; i < 100 && child.exitCode === null; i++) await new Promise((resolve) => setTimeout(resolve, 50));
+      phase(child.exitCode === null ? "quit (did not end; killed)" : "quit", closing);
       await browser?.close().catch(() => undefined);
-      if (child.pid) {
+      // Only when the app did not end by itself (taskkill is the fallback, not the way out).
+      const killed = child.exitCode === null;
+      if (killed && child.pid) {
         try { execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: 'ignore' }); } catch { child.kill(); }
       }
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      if (killed) await new Promise((resolve) => setTimeout(resolve, 400));
       // WebView2 can hold its files for a moment after it ends: keep trying for a few seconds.
       if (!closeOptions.keepUserData) removeTestData(userData);
       phase("close", closing);
