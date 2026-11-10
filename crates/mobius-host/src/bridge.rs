@@ -330,7 +330,7 @@ impl Bridge {
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
             research: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "research"),
             reading: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "reading"),
-            wiki: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "wiki"),
+            wiki: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "wiki").without_kept_versions(),
             wiki_incoming: crate::wiki::Incoming::new(data_dir.join("wiki-incoming.json")),
             projects: crate::projects::Projects::new(data_dir.join("projects.json")),
             databases: crate::database::Databases::new(&data_dir.join("workspace")),

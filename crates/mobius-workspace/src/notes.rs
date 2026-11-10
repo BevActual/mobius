@@ -26,6 +26,8 @@ pub struct Notes {
     ext: &'static str,
     /// What a new page holds, from its title.
     starter: fn(&str) -> String,
+    /// Whether a save keeps what the page held before, for History. Off where history comes from elsewhere (Wiki).
+    keeps_versions: bool,
 }
 
 fn markdown_starter(title: &str) -> String {
@@ -247,7 +249,13 @@ impl Notes {
     /// The same kind of store in another folder of the workspace: Docs keeps its documents in `docs/<folder>/<doc>.md`.
     pub fn in_folder(workspace: impl Into<PathBuf>, checkpoint_store: impl Into<PathBuf>, folder: &str) -> Notes {
         let workspace = workspace.into();
-        Notes { root: workspace.join(folder), checkpoints: Checkpoints::new(checkpoint_store), workspace, named_by_file: false, ext: "md", starter: markdown_starter }
+        Notes { root: workspace.join(folder), checkpoints: Checkpoints::new(checkpoint_store), workspace, named_by_file: false, ext: "md", starter: markdown_starter, keeps_versions: true }
+    }
+
+    /// Saves keep no versions of their own: the store's history comes from the workspace checkpoints alone.
+    pub fn without_kept_versions(mut self) -> Notes {
+        self.keeps_versions = false;
+        self
     }
 
     /// Pages called by their file names, as Slides calls its decks.
@@ -345,6 +353,7 @@ impl Notes {
             return Err("changed elsewhere".into());
         }
         if self.ext == "md"
+            && self.keeps_versions
             && let Ok(before) = fs::read_to_string(&file)
             && before != content
         {
@@ -878,6 +887,17 @@ mod tests {
             Not [the web](https://x.example/a.md), ![a picture](Plan%20files/a.md), [a file](Plan%20files/q.pdf), `[code](Code.md)`,\n\
             [escape](../../etc/x.md), [self](Plan.md) or [deep](../a/b/c.md).\n```\n[fenced](Fenced.md)\n```\n";
         assert_eq!(links_in(page, "Work/Plan.md"), vec!["Work/Supplier notes.md", "Home/Groceries.md"]);
+    }
+
+
+    #[test]
+    fn a_store_without_kept_versions_keeps_none() {
+        let dir = TempDir::new().unwrap();
+        let wiki = Notes::in_folder(dir.path().join("work"), dir.path().join("store"), "wiki").without_kept_versions();
+        wiki.create_notebook("Team").unwrap();
+        let path = wiki.create_page("Team", "Battery").unwrap()["path"].as_str().unwrap().to_owned();
+        wiki.save(&path, "# Battery\n\nnew\n", None).unwrap();
+        assert!(!dir.path().join("work/wiki/.versions").exists());
     }
 
 }
