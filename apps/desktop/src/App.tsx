@@ -1185,6 +1185,7 @@ export function App() {
                 conversations={conversation.list}
                 onOpenApp={openApp}
                 onOpenConversation={conversation.select}
+                onOpenSchedules={() => openSettingsAt('schedules')}
               />
             )}
             state={conversation.state}

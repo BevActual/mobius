@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
-import { says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
+import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -53,6 +53,26 @@ test('an empty Agent app greets you in the middle and suggests a start, which is
   await expect(region.getByRole('heading', { name: 'What can I help with?' })).toHaveCount(0);
   await composer().fill('x');
   await expect(region.getByRole('group', { name: 'Suggestions' })).toHaveCount(0);
+});
+
+test('the desk is the Agent app’s home: what waits is allowed in place, and what is scheduled comes next', async () => {
+  await start([callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.'])]);
+  await shell().evaluate(() => window.mobius.schedules?.add({ title: 'Morning brief', prompt: 'What is on today?', time: '08:00', days: [1, 2, 3, 4, 5, 6, 7], enabled: true }));
+  // A conversation started beside the page waits for an approval.
+  await composer().fill('make an ideas page');
+  await composer().press('Enter');
+  await expect(shell().getByRole('group', { name: /Approval needed/ })).toBeVisible();
+  await openApp('Agent');
+  await shell().getByRole('button', { name: 'Create' }).click();
+  const desk = shell().getByRole('region', { name: 'Agent conversation' }).getByRole('region', { name: 'Desk' });
+  await expect(shell().getByRole('heading', { name: 'What can I help with?' })).toBeVisible();
+  await expect(desk.locator('.desk-title')).toContainText('1 waiting for you');
+  const now = desk.getByRole('group', { name: 'Now' });
+  await expect(now.getByRole('listitem')).toContainText('Wants to');
+  await expect(desk.getByRole('group', { name: 'Next' }).getByRole('button', { name: /Morning brief.*at 08:00/ })).toBeVisible();
+  await now.getByRole('button', { name: /^Allow .* once$/ }).click();
+  await expect(desk.getByRole('group', { name: 'Now' })).toHaveCount(0);
+  await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(true);
 });
 
 test('a suggestion that starts a sentence puts it in the box for you to finish', async () => {
