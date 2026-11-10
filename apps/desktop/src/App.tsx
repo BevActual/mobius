@@ -63,6 +63,7 @@ import { usePhotos } from './usePhotos';
 import { editsPathFor } from './photo-edit';
 import { sheetContext } from './sheets-view';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
+import { Desk } from './Desk';
 import { APP_ICONS, Rail } from './Rail';
 import { AppHub, type HubAction } from './AppHub';
 import { smartView } from './tasks-view';
@@ -1171,6 +1172,21 @@ export function App() {
           <ChatPanel
             surface={surface}
             variant="full"
+            desk={(
+              <Desk
+                rows={[
+                  ...(browser.tabs.length > 0 ? [{ app: 'browser' as const, text: plural(browser.tabs.length, 'tab') + ' open' }] : []),
+                  ...(mail.counts.all > 0 ? [{ app: 'mail' as const, text: `${mail.counts.all} unread` }] : []),
+                  ...(dueToday > 0 ? [{ app: 'tasks' as const, text: `${dueToday} due today` }] : []),
+                  ...(eventsToday > 0 ? [{ app: 'calendar' as const, text: `${plural(eventsToday, 'event')} today` }] : []),
+                ]}
+                changed={changed}
+                activity={activity}
+                conversations={conversation.list}
+                onOpenApp={openApp}
+                onOpenConversation={conversation.select}
+              />
+            )}
             state={conversation.state}
             settings={settings}
             coreReady={coreStatus === 'ready'}

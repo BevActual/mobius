@@ -268,6 +268,8 @@ export interface ChatPanelProps {
   onDetails: (callId: string) => Promise<Details>;
   /** The button that floats or attaches the panel. */
   pin?: ReactNode;
+  /** The desk: what is in flight, shown under the greeting of an empty conversation in the Agent app. */
+  desk?: ReactNode;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
   /** The model on the server was changed from the composer. */
@@ -350,7 +352,7 @@ function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty:
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged, onDrive }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -450,6 +452,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                 <MobiusMark size={44} turning={!configured} className="empty-mark" />
                 <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
                 {configured && <p className="greeting-note">Mobius asks before it uses a tool, unless you change that below.</p>}
+                {desk}
               </div>
             )}
             {state.items.map((item, index) =>

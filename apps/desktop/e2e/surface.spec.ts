@@ -44,6 +44,8 @@ test('an empty Agent app greets you in the middle and suggests a start, which is
   await openApp('Agent');
   const region = shell().getByRole('region', { name: 'Agent conversation' });
   await expect(region.getByRole('heading', { name: 'What can I help with?' })).toBeVisible();
+  // Under the greeting is the desk: what is open in your apps, each row one press from its app.
+  await expect(region.getByRole('region', { name: 'Desk' }).getByRole('button', { name: /Browser.*1 tab open/ })).toBeVisible();
   await region.getByRole('group', { name: 'Suggestions' }).getByRole('button', { name: 'What is in my notes?' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('Here is an overview.');
   expect(sent()).toContain('give me a short overview');

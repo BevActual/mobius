@@ -2185,3 +2185,21 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .rail-ask-beside { height: 22px; padding: 0 8px; border-radius: var(--radius-pill); font-size: var(--fs-xs); color: var(--muted); }
 .rail-ask-beside:hover { color: var(--ink); background: color-mix(in srgb, var(--soft) 70%, transparent); }
 .rail-ask > :not(.rail-ask-bar) { flex: 1; min-height: 0; background: transparent; }
+
+/* The desk: what is in flight, under the greeting of an empty conversation in the Agent app. */
+.desk { display: none; }
+.chat.full[data-empty] .desk { display: block; margin: 28px auto 0; max-width: 620px; text-align: left; }
+.desk-title { margin: 0 0 var(--sp-3); text-align: center; font-size: var(--fs-sm); color: var(--muted); }
+.desk-quiet { margin: 0; text-align: center; font-size: var(--fs-sm); color: var(--muted); }
+.desk-group + .desk-group { margin-top: var(--sp-3); }
+.desk-head { margin: 0 0 6px; padding-left: 2px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.desk-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.desk-rows[data-columns] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.desk-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px 0 8px; border: 1px solid transparent; border-radius: 12px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--hairline), 0 1px 2px rgba(0, 0, 0, 0.04); color: var(--ink); text-align: left; }
+button.desk-row:hover { background: color-mix(in srgb, var(--soft) 60%, var(--bg)); }
+.desk-row svg { flex: none; width: 24px; height: 24px; padding: 4.5px; border-radius: 7px; color: #fff; stroke-width: 1.9; }
+.desk-name { flex: none; font-size: var(--fs-md); font-weight: var(--fw-medium); }
+.desk-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: var(--fs-sm); color: var(--muted); }
+.desk-row[data-changed] { box-shadow: none; border: 1px dashed var(--accent); }
+.desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--accent); }
+@media (max-width: 720px) { .desk-rows[data-columns] { grid-template-columns: 1fr; } }
