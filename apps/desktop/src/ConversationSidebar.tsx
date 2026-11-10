@@ -272,7 +272,7 @@ function ActivityBoard({ conversations, active, onSelect, onDelete, onOpenSchedu
       {group('Running', board.running)}
       {onOpenSchedules && <ScheduledList onOpen={onOpenSchedules} />}
       <ChangesWaiting conversations={recent} onSelect={onSelect} />
-      {active && <Turns conversation={active} busy={conversations.find((c) => c.id === active)?.activity === 'working'} />}
+      {active && <Turns conversation={active} busy={conversations.find((c) => c.id === active)?.activity === 'working'} version={conversations.find((c) => c.id === active)?.updated_ms ?? 0} />}
       {group('Done today', board.doneToday)}
       {quiet && <p className="srow-empty side-empty">Nothing is running or waiting. Ask Mobius something, or schedule it for later.</p>}
     </>

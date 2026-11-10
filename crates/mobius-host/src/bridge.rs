@@ -1168,7 +1168,17 @@ impl Bridge {
         let result = run_browser_tool(tool, &args, &deps)?;
         let conversation = params.get("conversation").and_then(Value::as_str).unwrap_or("");
         Ok(Value::String(match self.sign_in_needed(&browser, tool, conversation) {
-            Some(site) => format!("{result}\n\nThis page asks for a sign-in to {site}. Mobius never signs in and never sees passwords: stop here, and tell the person you need them to sign in to {site} for this task. They will say when they have."),
+            // The note goes in the result, which stays JSON when it is JSON.
+            Some(site) => {
+                let note = format!("This page asks for a sign-in to {site}. Mobius never signs in and never sees passwords: stop here, and tell the person you need them to sign in to {site} for this task. They will say when they have.");
+                match serde_json::from_str::<Value>(&result) {
+                    Ok(Value::Object(mut fields)) => {
+                        fields.insert("signInNeeded".into(), json!(note));
+                        Value::Object(fields).to_string()
+                    }
+                    _ => format!("{result}\n\n{note}"),
+                }
+            }
             None => result,
         }))
     }

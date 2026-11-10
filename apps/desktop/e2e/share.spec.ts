@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 
 test.skip(process.env.MOBIUS_SHELL !== 'tauri', 'Sharing tools over MCP is built in the Tauri shell');
 
@@ -42,7 +42,7 @@ test('another agent can read the workspace over MCP once allowed, and change fil
   await shell().waitForFunction(() => Boolean((window as unknown as { mobius: { share?: unknown } }).mobius.share));
   await shell().evaluate((p) => (window as unknown as { mobius: { share: { set(c: object): Promise<unknown> } } }).mobius.share.set({ port: p }), port);
 
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Advanced', exact: true }).click();
   await page().getByRole('tab', { name: 'Other apps', exact: true }).click();
   await expect(page().getByLabel('Connect an app')).toHaveCount(0);

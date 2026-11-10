@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -24,7 +24,7 @@ const visit = async (route: string, title: string) => {
   await expect(shell().locator('.tab-title').first()).toHaveText(title);
 };
 const openHistory = async () => {
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   await expect(settings()).toBeVisible();
   await settings().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await settings().getByRole('tab', { name: 'History', exact: true }).click();

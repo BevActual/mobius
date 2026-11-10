@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { launch, startFixture, views, type Fixture, type Launched } from './harness';
+import { launch, startFixture, views, type Fixture, type Launched, openSettings } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -8,8 +8,11 @@ test.beforeEach(async () => {
   mobius = await launch(fixture.origin + '/');
   await expect(shell().getByText('Core ready')).toBeVisible();
   // These tests are about the app's own list beside the page, which the narrow rail keeps separate.
-  await shell().evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
-  await expect(shell().locator('.dock.left')).toHaveCount(1);
+  // Set once the window has read its own settings, which can land after this on a slow start: try until it holds.
+  await expect(async () => {
+    await shell().evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
+    await expect(shell().locator('.dock.left')).toHaveCount(1, { timeout: 1500 });
+  }).toPass({ timeout: 15_000 });
   // The sidebar folds with a short animation: measure only once it has settled.
   await expect.poll(async () => Math.round((await shell().locator('.rail').boundingBox())!.width)).toBe(52);
 });
@@ -185,7 +188,7 @@ test('widths and modes survive a restart, and the settings page shows and resets
   await expect(shell().locator('.dock.right')).toBeVisible();
   await expect(shell().getByRole('separator', { name: 'Resize the agent panel' })).toHaveAttribute('aria-valuenow', '500');
 
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
   await expect(page).toBeVisible();
   await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Appearance', exact: true }).click();

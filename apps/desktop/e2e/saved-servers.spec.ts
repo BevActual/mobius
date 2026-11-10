@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, openSettings } from './harness';
 import { says, startModel, type ModelFixture } from './model-fixture';
 
 
@@ -20,7 +20,7 @@ test.afterEach(async () => {
 
 test('the server in use can be saved under a name, switched away from and back to, and removed', async () => {
   const shell = mobius!.shell;
-  await shell.keyboard.press('Control+Comma');
+  await openSettings(shell);
   await shell.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
   await shell.getByRole('textbox', { name: 'Name for this server' }).fill('Bench');
   await shell.getByRole('button', { name: 'Keep current server' }).click();
@@ -35,7 +35,7 @@ test('the server in use can be saved under a name, switched away from and back t
 
 test('an empty name cannot be saved', async () => {
   const shell = mobius!.shell;
-  await shell.keyboard.press('Control+Comma');
+  await openSettings(shell);
   await shell.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
   await expect(shell.getByRole('button', { name: 'Keep current server' })).toBeDisabled();
 });

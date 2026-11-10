@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, resizeWindow, startFixture, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, removeTestData, openSettings } from './harness';
 import { callsTool, says, startModel } from './model-fixture';
 
 // Not a test: pictures of the current app for design review. Run with MOBIUS_SHOTS=1 and MOBIUS_SHOTS_DIR=<folder>.
@@ -92,7 +92,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
       await shell.keyboard.press('Enter');
       await shell.waitForTimeout(300);
-      await shell.keyboard.press('Control+Comma');
+      await openSettings(shell);
       const page = shell.getByRole('region', { name: 'Settings' });
       await shell.waitForTimeout(800);
       await shot('3b-settings-opened');

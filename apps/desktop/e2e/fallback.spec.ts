@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { says, startModel, type ModelFixture } from './model-fixture';
 
 let fixture: Fixture;
@@ -37,7 +37,7 @@ const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mo
 const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
 const openServer = async () => {
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
   await page().getByRole('tab', { name: 'Server', exact: true }).click();

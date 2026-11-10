@@ -25,7 +25,7 @@ const when = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: 'numeri
  * The open conversation's turns, newest first, in Activity. "Rewind to here" puts every app back as it was right after
  * that turn and takes out the turns after it; it asks once, naming what will change, and can be undone for a moment.
  */
-export function Turns({ conversation, busy }: { conversation: string; busy: boolean }) {
+export function Turns({ conversation, busy, version = 0 }: { conversation: string; busy: boolean; /** Changes when the conversation does, so the list is read again. */ version?: number }) {
   const [turns, setTurns] = useState<TurnRecord[]>([]);
   const [asking, setAsking] = useState<{ start: string; question: string } | null>(null);
   const [rewound, setRewound] = useState<{ undo: string; ask: string } | null>(null);
@@ -33,10 +33,13 @@ export function Turns({ conversation, busy }: { conversation: string; busy: bool
   const api = window.mobius.changes;
   const load = useCallback(async () => {
     const result = await api?.turns?.(conversation).catch(() => null);
-    setTurns(result && result.ok ? result.turns.filter((t) => t.ended) : []);
+    // Every turn is listed; a turn whose end is still being saved has no Rewind yet.
+    setTurns(result && result.ok ? result.turns : []);
   }, [api, conversation]);
   useEffect(() => { setAsking(null); setProblem(null); }, [conversation]);
-  useEffect(() => { if (!busy) void load(); }, [busy, load]);
+  useEffect(() => { if (!busy) void load(); }, [busy, load, version]);
+  // The end of the turn just finished is saved a moment after it: read the list again then.
+  useEffect(() => { const t = window.setTimeout(() => void load(), 1500); return () => window.clearTimeout(t); }, [load, version]);
   useEffect(() => { if (!rewound) return undefined; const t = window.setTimeout(() => setRewound(null), 10_000); return () => window.clearTimeout(t); }, [rewound]);
   if (!api?.rewind || (turns.length === 0 && !rewound)) return null;
 
@@ -81,7 +84,7 @@ export function Turns({ conversation, busy }: { conversation: string; busy: bool
                 <button type="button" className="review-btn" onClick={() => setAsking(null)}>Cancel</button>
                 <button type="button" className="review-btn" data-kind="keep" onClick={() => void rewind(t)}>Rewind</button>
               </span>
-            ) : i > 0 && (
+            ) : i > 0 && t.ended && (
               <button type="button" className="review-btn turn-rewind" disabled={busy} title="Put every app back as it was right after this turn" onClick={() => void ask(t.start)}>Rewind to here</button>
             )}
           </li>

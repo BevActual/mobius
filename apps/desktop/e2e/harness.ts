@@ -242,3 +242,12 @@ export const takeGlobalShortcut = async (app: AppHandle, accelerator: string): P
 export function removeTestData(folder: string): void {
   try { fs.rmSync(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch { /* left behind */ }
 }
+
+/** Opens Settings as a person would: from the switcher's Mobius apps in the full sidebar, or the folded rail's button. */
+export async function openSettings(shell: Page): Promise<void> {
+  const rail = shell.getByRole('navigation', { name: 'Apps' });
+  const folded = rail.locator('.rail-end').getByRole('button', { name: 'Settings', exact: true });
+  if (await folded.count()) { await folded.click(); return; }
+  if ((await rail.getAttribute('data-face')) !== 'apps') await rail.locator('[data-app-switcher]').click();
+  await rail.getByRole('region', { name: 'Mobius’s apps' }).getByRole('button', { name: 'Settings', exact: true }).click();
+}

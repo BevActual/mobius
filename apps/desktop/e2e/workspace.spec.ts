@@ -26,7 +26,8 @@ const shell = () => mobius!.shell;
 const rail = (): Locator => shell().getByRole('navigation', { name: 'Apps' });
 const railButton = (name: string): Locator => rail().getByRole('button', { name, exact: true });
 // The sidebar belongs to the open app; its head switches the same column to the list of apps.
-const showApps = async (): Promise<void> => { if ((await rail().getAttribute('data-face')) === 'app') await rail().locator('[data-app-switcher]').click(); };
+// Waits for the full sidebar to show a face first: just after start it can still be settling.
+const showApps = async (): Promise<void> => { await expect(rail()).toHaveAttribute('data-face', /^(app|apps|mobius)$/); if ((await rail().getAttribute('data-face')) !== 'apps') await rail().locator('[data-app-switcher]').click(); await expect(rail()).toHaveAttribute('data-face', 'apps'); };
 const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mobius' });
 
 async function start(replies: ModelReply[] = []): Promise<void> {
@@ -139,6 +140,7 @@ test('the app hub shows every app with what is happening in it, starts new thing
   // All apps is the last row of the switcher.
   await showApps();
   const opener = shell().getByRole('button', { name: /^Applications/ });
+  await showApps();
   await opener.click();
   const hub = shell().getByRole('dialog', { name: 'Applications' });
   await expect(hub).toBeVisible();
@@ -158,16 +160,19 @@ test('the app hub shows every app with what is happening in it, starts new thing
   await expect(railButton('Tasks')).toHaveAttribute('aria-current', 'page');
 
   // Start something new from anywhere: a task lands in the Inbox, with the cursor in the new-task box.
+  await showApps();
   await opener.click();
   await hub.getByRole('region', { name: 'Start something' }).getByRole('button', { name: 'New task' }).click();
   await expect(shell().locator('.strip-title')).toHaveText('Inbox');
   const field = shell().getByRole('textbox', { name: 'New task', exact: true });
   await expect.poll(() => field.evaluate((el) => el === document.activeElement)).toBe(true);
+  await showApps();
   await opener.click();
   await hub.getByRole('button', { name: 'New note' }).click();
   await showApps();
   await expect(railButton('Notes')).toHaveAttribute('aria-current', 'page');
   await expect(shell().getByRole('textbox', { name: 'Page text' })).toHaveValue(/^# Untitled/);
+  await showApps();
   await opener.click();
   await shell().keyboard.press('Escape');
   await expect(hub).toBeHidden();

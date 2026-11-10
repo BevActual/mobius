@@ -414,7 +414,7 @@ fn a_tool_the_application_runs_is_sent_out_after_approval_and_its_answer_goes_ba
     let request = d.take_host_request();
     assert_eq!(request["jsonrpc"], "2.0");
     assert!(request["id"].is_string());
-    assert_eq!(request["params"], json!({ "call_id": "call_1", "tool": "browser.open", "arguments": { "url": "https://example.com/page" } }));
+    assert_eq!(request["params"], json!({ "call_id": "call_1", "tool": "browser.open", "arguments": { "url": "https://example.com/page" }, "conversation": "c1" }), "the conversation goes too, for sign-ins per task");
     assert_eq!(server.bodies.lock().unwrap().len(), 1, "the model waits for the application");
 
     d.reply_raw(json!({ "jsonrpc": "2.0", "id": request["id"], "result": "{\"tabId\":\"tab-2\"}" }));

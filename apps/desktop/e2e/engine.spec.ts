@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, openSettings } from './harness';
 import { startGithub, type GithubFixture } from './github-fixture';
 
 test.skip(process.env.MOBIUS_SHELL !== 'tauri' || process.platform !== 'win32', 'Mobius installs its own engine on Windows in the Tauri shell');
@@ -22,7 +22,7 @@ test.afterEach(async () => {
 const page = (): Locator => mobius!.shell.getByRole('region', { name: 'Settings' });
 
 async function openThisComputer(): Promise<Locator> {
-  await mobius!.shell.keyboard.press('Control+Comma');
+  await openSettings(mobius!.shell);
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
   await page().getByRole('tab', { name: 'This computer', exact: true }).click();
   return page().locator('[data-setting="model.local.engine"]');

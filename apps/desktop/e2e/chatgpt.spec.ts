@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { startModel, type ModelFixture } from './model-fixture';
 import { startOpenAi, type OpenAiFixture } from './openai-fixture';
 
@@ -35,7 +35,7 @@ const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
 
 async function openProviders(): Promise<void> {
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Providers', exact: true }).click();
 }
 

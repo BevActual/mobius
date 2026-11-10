@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { callsTool, says, startModel, type ModelFixture } from './model-fixture';
 
 test.skip(process.env.MOBIUS_SHELL !== 'tauri', 'The plan and questions are built in the Tauri shell');
@@ -155,7 +155,7 @@ test('Mobius asks before remembering, uses what it remembers next time, and it c
   await say('find me a hotel');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Noted.');
   expect(JSON.stringify(model!.requests.at(-1))).toContain('Prefers boutique hotels');
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
   await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
   await page.getByRole('tab', { name: 'Memory' }).click();
@@ -168,7 +168,7 @@ test('Mobius asks before remembering, uses what it remembers next time, and it c
 
 test('a schedule is made in Settings, kept, and Run now starts it as a conversation of its own', async () => {
   await start([says(['Start with the invoices.'])]);
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
   await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Schedules', exact: true }).click();
   await page.getByRole('button', { name: 'New schedule…' }).click();
@@ -205,7 +205,7 @@ test('the Agent app’s Activity tab shows what finished today, and what is sche
 
 test('profiles: Personal is there, a new one can be made in Settings, and the open one is marked', async () => {
   await start([]);
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
   await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Advanced', exact: true }).click();
   await page.getByRole('tab', { name: 'Profiles' }).click();

@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { says, startModel, type ModelFixture } from './model-fixture';
 
 test.skip(process.env.MOBIUS_SHELL !== 'tauri', 'Providers are built in the Tauri shell');
@@ -36,7 +36,7 @@ async function start(): Promise<void> {
   provider = await startModel([says(['from OpenAI'])], { models: ['gpt-b', 'gpt-a'] });
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_PROVIDER: `openai=${provider.url}` } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Providers', exact: true }).click();
   await expect(openai()).toBeVisible();
 }

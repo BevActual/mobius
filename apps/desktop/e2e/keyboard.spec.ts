@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, quickEntry, startFixture, takeGlobalShortcut, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, quickEntry, startFixture, takeGlobalShortcut, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { startModel, type ModelFixture } from './model-fixture';
 
 let fixture: Fixture;
@@ -29,7 +29,7 @@ const launcher = (): Locator => shell().getByRole('combobox', { name: 'Find apps
 const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const keys = (action: string): Locator => page().getByTestId(`keys-${action}`);
 const openKeyboard = async () => {
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Keyboard', exact: true }).click();
 };

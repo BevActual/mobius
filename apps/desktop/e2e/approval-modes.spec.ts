@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { coreCall, launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { coreCall, launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -65,7 +65,7 @@ test('with approvals off (from before the three modes) the agent opens a site wi
 
 test('the settings page shows Ask first, explains Propose, and the choice survives a restart into the core', async () => {
   await start([]);
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
   await expect(page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Ask first' })).toBeChecked();
@@ -164,7 +164,7 @@ test('per app: Tasks following Propose changes a list without asking, Always ask
   await expect(log().locator('.msg.assistant').last()).toHaveText('Added.');
   await expect(card()).toHaveCount(0);
   expect(fs.readFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), 'utf8')).toContain('Water the plants');
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
   await page().getByRole('radiogroup', { name: 'Tasks: what Mobius may do' }).getByRole('radio', { name: 'Always ask' }).check();
   await expect(page()).toContainText('Mobius asks you every time before it reads or changes your tasks.');

@@ -46,11 +46,20 @@ fn kill_tree(child: &mut Child) {
 struct TempDir(PathBuf);
 
 impl TempDir {
+    /// A folder of its own for each request. Two requests in the same instant once shared one, and the first to finish
+    /// removed the other's files (its system prompt read as empty): each name now has a count, and the folder must be new.
     fn new() -> std::io::Result<TempDir> {
-        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
-        let dir = std::env::temp_dir().join(format!("mobius-claude-{}-{nanos}", std::process::id()));
-        std::fs::create_dir_all(&dir)?;
-        Ok(TempDir(dir))
+        static COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        loop {
+            let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+            let n = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let dir = std::env::temp_dir().join(format!("mobius-claude-{}-{nanos}-{n}", std::process::id()));
+            match std::fs::create_dir(&dir) {
+                Ok(()) => return Ok(TempDir(dir)),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(e) => return Err(e),
+            }
+        }
     }
 }
 

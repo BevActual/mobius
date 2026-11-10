@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { holdingAwake, launch, recordedNotices, startFixture, type Fixture, type Launched } from './harness';
+import { holdingAwake, launch, recordedNotices, startFixture, type Fixture, type Launched, openSettings } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -43,7 +43,7 @@ const notices = (): Promise<Seen[]> => recordedNotices<Seen>(mobius!.app);
 const awake = (): Promise<boolean> => holdingAwake(mobius!.app);
 const openPage = async (section: string, tab: string) => {
   // The Settings button closes Settings when it is already open, so only press it to open.
-  if ((await page().count()) === 0) await shell().keyboard.press('Control+Comma');
+  if ((await page().count()) === 0) await openSettings(shell());
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
   await page().getByRole('tab', { name: tab, exact: true }).click();

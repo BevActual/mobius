@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -38,7 +38,7 @@ const say = async (text: string) => {
   await composer().press('Enter');
 };
 const openPage = async (section: string, tab: string) => {
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
   await page().getByRole('tab', { name: tab, exact: true }).click();

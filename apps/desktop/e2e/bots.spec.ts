@@ -57,6 +57,10 @@ async function newBot(name: string, instructions = '', modelName = ''): Promise<
   await form.getByLabel('Instructions').fill(instructions);
   await form.getByLabel('Model').fill(modelName);
   await form.getByRole('button', { name: 'Create' }).click();
+  // The bot's first session opens a moment later, empty: wait for it, so what is said next goes to the bot.
+  await expect(form).toHaveCount(0);
+  await expect(tab('Sessions')).toHaveAttribute('aria-selected', 'true');
+  await expect(log().locator('.msg')).toHaveCount(0);
 }
 
 test('the side list switches between sessions and bots, and starts with Mobius alone', async () => {
@@ -245,14 +249,17 @@ test('a conversation can be made a bot: its form is filled in from it, says what
   await say('Look at my tasks and calendar and plan the week');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Here is your week.');
   await tab('Sessions').click();
-  await list().getByRole('button', { name: /^Make .* a bot$/ }).first().click();
+  // The row's own buttons show on hover, as Archive and Delete do.
+  const row = list().getByRole('listitem').filter({ hasText: 'Look at my tasks and calendar' }).first();
+  await row.hover();
+  await row.getByRole('button', { name: /^Make .* a bot$/ }).click();
   const form = list().getByRole('form', { name: 'New bot' });
   await expect(tab('Bots')).toHaveAttribute('aria-selected', 'true');
   await expect(form.getByRole('textbox').nth(1)).toHaveValue(/Look at my tasks and calendar and plan the week/);
   await expect(form).toContainText('What it may touch');
   await form.getByRole('textbox').first().fill('Week planner');
   await form.getByLabel('Also on a schedule').check();
-  await form.getByLabel('At').fill('07:30');
+  await form.getByLabel('At', { exact: true }).fill('07:30');
   await form.getByRole('button', { name: 'Create' }).click();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.schedules?.list() ?? Promise.resolve([]))).map((s) => `${s.title} ${s.time}`)).toContain('Week planner 07:30');
 });

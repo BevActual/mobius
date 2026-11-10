@@ -252,7 +252,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
                 data-working={working || undefined}
                 data-changed={(changed.has(id) && !here) || undefined}
                 title={name}
-                onClick={() => { if (!dragged.current) onOpen(id); }}
+                onClick={() => { if (!dragged.current) { setFace('app'); onOpen(id); } }}
                 onKeyDown={onApps ? (event) => {
                   // Alt+Up and Alt+Down move the focused app; focus stays with it.
                   if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;

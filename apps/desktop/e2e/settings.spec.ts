@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { interfaceZoom, launch, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
+import { interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -36,7 +36,7 @@ const say = async (text: string) => {
   await composer().press('Enter');
 };
 const openSettings = async () => {
-  await shell().keyboard.press('Control+Comma');
+  await openSettingsIn(shell());
   await expect(page()).toBeVisible();
 };
 const go = async (section: string, subpage?: string) => {

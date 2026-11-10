@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { startModel, type ModelFixture } from './model-fixture';
 import { startAnthropic, type AnthropicFixture, type AnthropicReply } from './anthropic-fixture';
 
@@ -41,7 +41,7 @@ async function start(replies: AnthropicReply[]): Promise<void> {
   anthropic = await startAnthropic(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_CLAUDE: FAKE_CLAUDE, MOBIUS_TEST_CLAUDE_UPSTREAM: anthropic.url } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
-  await shell().keyboard.press('Control+Comma');
+  await openSettings(shell());
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Providers', exact: true }).click();
   await expect(row().getByRole('status')).toHaveText('Signed in as person@example.com', { timeout: 15_000 });
   await row().getByRole('button', { name: 'Use Claude subscription' }).click();
