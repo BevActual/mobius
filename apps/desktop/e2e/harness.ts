@@ -224,8 +224,9 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
       if (!closeOptions.keepUserData && !removeTestDataSoon(userData)) {
         // Something the app started (its core, a browser helper) still holds the folder after the app ended: end what
         // runs from this build, then try again.
-        phase('data folder still in use; ending what the app started', closing);
-        endLeftovers(exe);
+        phase(`data folder still in use (${leftFiles(userData).join(', ')}); ending what the app started`, closing);
+        const ended = endLeftovers(exe, userData);
+        console.log(`[e2e leftovers] ${test.info().titlePath.slice(1).join(' › ')}: ${ended ? ended.replace(/\r?\n/g, ' | ') : 'no process found'}`);
         removeTestData(userData);
       }
       phase("close", closing);
@@ -275,11 +276,28 @@ function removeTestDataSoon(folder: string): boolean {
 }
 
 /** Ends every process still running from this build's folder (the shell's core and browser helpers), when one outlives the app. */
-function endLeftovers(shellExe: string): void {
+function endLeftovers(shellExe: string, userData: string): string {
   const folder = path.dirname(shellExe).replace(/'/g, "''");
+  const data = userData.replace(/'/g, "''");
+  // Also anything run with the test's data folder in its command line (git for a checkpoint, a tool the app started).
+  // Says what it ended, so a run shows what was still holding the folder.
   try {
-    execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '${folder}\\*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`, { stdio: 'ignore', timeout: 15_000 });
-  } catch { /* nothing left, or it could not be ended */ }
+    return execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '${folder}\\*' -or $_.CommandLine -like '*${data}*' } | ForEach-Object { $_.Name + ' ' + $_.ProcessId + ' (parent ' + $_.ParentProcessId + '): ' + ([string]$_.CommandLine).Substring(0, [Math]::Min(160, ([string]$_.CommandLine).Length)); Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`, { encoding: 'utf8', timeout: 15_000 }).trim();
+  } catch { return ''; }
+}
+
+/** Up to a few files still left in a folder that could not be removed, relative to it. */
+function leftFiles(folder: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of (() => { try { return fs.readdirSync(dir, { withFileTypes: true }); } catch { return []; } })()) {
+      if (out.length >= 6) return;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full); else out.push(path.relative(folder, full));
+    }
+  };
+  walk(folder);
+  return out;
 }
 
 export function removeTestData(folder: string): void {
