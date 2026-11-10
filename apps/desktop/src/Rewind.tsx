@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnRecord } from '@mobius/shared';
 import { describeChange } from './ReviewStrip';
 
@@ -31,8 +31,13 @@ export function Turns({ conversation, busy, version = 0 }: { conversation: strin
   const [rewound, setRewound] = useState<{ undo: string; ask: string } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const api = window.mobius.changes;
+  // Reading the turns can be slow, and several reads can be under way at once (after a turn, a moment later, after
+  // a rewind). Only the newest read is shown: one that began before a rewind would bring back the turns it took out.
+  const reading = useRef(0);
   const load = useCallback(async () => {
+    const mine = ++reading.current;
     const result = await api?.turns?.(conversation).catch(() => null);
+    if (mine !== reading.current) return;
     // Every turn is listed; a turn whose end is still being saved has no Rewind yet.
     setTurns(result && result.ok ? result.turns : []);
   }, [api, conversation]);
@@ -51,6 +56,7 @@ export function Turns({ conversation, busy, version = 0 }: { conversation: strin
   };
   const rewind = async (turn: TurnRecord) => {
     setAsking(null);
+    reading.current += 1;
     const result = await api.rewind!(conversation, turn.start).catch(() => null);
     if (!result || !result.ok) { setProblem(result && !result.ok ? result.error : 'That could not be rewound.'); return; }
     setRewound({ undo: result.undo, ask: turn.ask });
@@ -58,6 +64,7 @@ export function Turns({ conversation, busy, version = 0 }: { conversation: strin
   };
   const undo = async () => {
     if (!rewound) return;
+    reading.current += 1;
     const result = await api.undoRewind?.(conversation, rewound.undo).catch(() => null);
     setRewound(null);
     if (!result || !result.ok) setProblem(result && !result.ok ? result.error : 'That could not be undone.');
