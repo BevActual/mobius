@@ -67,14 +67,14 @@ impl Incoming {
     }
 
     fn store(&self, saved: &Saved) -> Result<(), String> {
-        if let Some(dir) = self.file.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-        }
-        std::fs::write(&self.file, serde_json::to_string_pretty(saved).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+        // Written whole and then put in place, so a read at the same moment never finds half a file (and no changes).
+        let value = serde_json::to_value(saved).map_err(|e| e.to_string())?;
+        if mobius_store::file::write_json_checked(&self.file, &value) { Ok(()) } else { Err("The changes could not be saved.".into()) }
     }
 
     /// What waits, oldest first.
     pub fn list(&self) -> Value {
+        let _one = self.lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         json!(self.load().waiting)
     }
 

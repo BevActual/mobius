@@ -133,7 +133,8 @@ test('what Mobius learns in a project thread waits dashed on the project memory,
   for (const [ask, reply] of [['remember that builds start on Mondays', 'Noted for the project.'], ['and that the venue is in Lisbon', 'Noted that too.']] as const) {
     await say(ask);
     const card = log().getByRole('group', { name: 'Approval needed: memory.remember' });
-    if (await card.waitFor({ timeout: 4000 }).then(() => true, () => false)) await card.getByRole('button', { name: 'Allow once' }).click();
+    // In Ask first (as these tests start), remembering is asked about each time.
+    await card.getByRole('button', { name: 'Allow once' }).click();
     await expect(log().locator('.msg.assistant').last()).toHaveText(reply);
   }
   // Not personal memory: it is the project's.
