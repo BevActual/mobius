@@ -4,6 +4,7 @@ import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { NotesSidebar, type SidebarWords } from './NotesSidebar';
 import { SLIDE_STYLES, blankSlide, changedSlides, parseDeck, writeDeck, type Slide, type SlideStyle } from './slides-format';
 import type { NotesState } from './useNotes';
+import { ReviewActions, WhyThis } from './ReviewBar';
 
 export const SLIDES_WORDS: SidebarWords = { app: 'Slides', group: 'folder', groups: 'Folders', item: 'deck', items: 'decks', about: 'Decks are kept as Markdown files in your workspace, a slide between each line of ---, so other apps and the agent can open them too.', defaultGroup: 'Presentations' };
 
@@ -184,9 +185,8 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
       {proposing && (
         <div className="note-review sheet-review" role="status">
           <span className="review-dot" aria-hidden="true" />
-          <span className="note-review-text">{`Mobius ${changed.size === 1 ? 'changed one slide' : `changed ${changed.size} slides`}, dashed in the navigator. Click one to look before keeping.`}</span>
-          <button type="button" className="review-btn" onClick={() => void discardAll()}>Discard</button>
-          <button type="button" className="review-btn" data-kind="keep" onClick={() => void keepAll()}>Keep All</button>
+          <span className="note-review-text">{`Mobius ${changed.size === 1 ? 'changed one slide' : `changed ${changed.size} slides`}, dashed in the navigator. Click one to look before keeping.`}{review && <WhyThis conversation={review.conversation} />}</span>
+          <ReviewActions onKeep={keepAll} onDiscard={discardAll} keepTitle="Keep every slide Mobius changed" />
         </div>
       )}
       <div className="slides-body">

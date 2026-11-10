@@ -4,10 +4,11 @@ import { BEATS_PER_BAR, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, changedTrack
 import { play, type Player } from './studio-audio';
 import { useFileReview } from './useFileReview';
 import type { NotesState } from './useNotes';
+import { ReviewActions, WhyThis } from './ReviewBar';
 
 export const STUDIO_WORDS: SidebarWords = { app: 'Studio', group: 'folder', groups: 'Folders', item: 'song', items: 'songs', about: 'Songs are kept as JSON files in your workspace: tracks of notes, never audio, so the agent can read and write them like a score.', defaultGroup: 'Songs' };
 
-export function StudioSidebar(props: { songs: NotesState; pin: ReactNode; changed?: ReadonlySet<string> }) {
+export function StudioSidebar(props: { songs: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; starts?: readonly import('./SideNew').Start[]; onStart?: (prompt: string) => void }) {
   const { songs, ...rest } = props;
   return <NotesSidebar notes={songs} words={STUDIO_WORDS} {...rest} />;
 }
@@ -171,9 +172,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       {changed.size > 0 && (
         <div className="studio-review" role="group" aria-label="Mobius's change">
           <span className="review-dot" aria-hidden="true" />
-          <span>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join(', ')}. Notes, never audio: each is yours to edit.`}</span>
-          <button type="button" className="review-btn" onClick={() => void discard()}>Discard</button>
-          <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep()}>Keep</button>
+          <span>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join(', ')}. Notes, never audio: each is yours to edit.`}{review && <WhyThis conversation={review.conversation} />}</span>
+          <ReviewActions onKeep={keep} onDiscard={discard} />
         </div>
       )}
       {track && (

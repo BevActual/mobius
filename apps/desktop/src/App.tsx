@@ -733,7 +733,7 @@ export function App() {
             ) : inVideo ? (
               <VideoSidebar video={video} pin={pinNode} changed={turnMarks.video} />
             ) : inStudio ? (
-              <StudioSidebar songs={songs} pin={pinNode} changed={turnMarks.songs} />
+              <StudioSidebar songs={songs} pin={pinNode} changed={turnMarks.songs} starts={startsFor('studio')} onStart={startWithMobius} />
             ) : inPhoto ? (
               <PhotoSidebar photos={photos} pin={pinNode} changed={turnMarks.photos} />
             ) : inDesign ? (

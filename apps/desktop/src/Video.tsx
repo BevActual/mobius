@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, t
 import { changedShots, cutLength, freshShotId, locate, parseCut, shotLength, shotStart, timecode, type Shot } from './cut-format';
 import { useFileReview } from './useFileReview';
 import type { VideoState } from './useVideo';
+import { ReviewActions, WhyThis } from './ReviewBar';
 
 /** Video projects, and the open project's footage: clips to add to the cut. */
 export function VideoSidebar({ video, pin, changed }: { video: VideoState; pin?: ReactNode; changed?: ReadonlySet<string> }) {
@@ -180,9 +181,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
       {changed.size > 0 && (
         <div className="studio-review" role="group" aria-label="Mobius's change">
           <span className="review-dot" aria-hidden="true" />
-          <span>{`Mobius ${before === null ? 'made the cut' : `changed ${names.join(', ')}`}; dashed below. The clips are untouched.`}</span>
-          <button type="button" className="review-btn" onClick={() => void discard()}>Discard</button>
-          <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep()}>Keep</button>
+          <span>{`Mobius ${before === null ? 'made the cut' : `changed ${names.join(', ')}`}; dashed below. The clips are untouched.`}{review && <WhyThis conversation={review.conversation} />}</span>
+          <ReviewActions onKeep={keep} onDiscard={discard} />
         </div>
       )}
       <div className="video-timeline" role="listbox" aria-label="Timeline" onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>

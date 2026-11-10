@@ -4,6 +4,7 @@ import { lineDiff } from './code-view';
 import { parseSkill, writeSkill, type Skill } from './skill-format';
 import { useFileReview } from './useFileReview';
 import type { SkillsState } from './useSkills';
+import { ReviewActions, WhyThis } from './ReviewBar';
 
 /** The skills Mobius keeps, by name, with New skill. */
 export function SkillsSidebar({ skills, pin, changed }: { skills: SkillsState; pin?: ReactNode; changed?: ReadonlySet<string> }) {
@@ -126,9 +127,8 @@ export function SkillEditor({ skills, review, onRun }: { skills: SkillsState; re
         <div className="skill-review" role="group" aria-label="Mobius's change">
           <div className="skill-review-head">
             <span className="review-dot" aria-hidden="true" />
-            <span>Mobius changed this skill</span>
-            <button type="button" className="review-btn" onClick={() => void discard().then(() => skills.reload())}>Discard</button>
-            <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep()}>Keep</button>
+            <span>Mobius changed this skill{review && <WhyThis conversation={review.conversation} />}</span>
+            <ReviewActions onKeep={keep} onDiscard={() => discard().then(() => skills.reload())} />
           </div>
           <ul className="skill-review-lines">
             {changedRows.map((r, i) => <li key={i} data-kind={r.kind}>{r.kind === 'add' ? '+ ' : '− '}{r.text}</li>)}

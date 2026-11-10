@@ -2025,7 +2025,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .studio-mini[data-instrument="pad"], .studio-note[data-instrument="pad"] { background: #af52de; }
 .studio-mini[data-instrument="lead"], .studio-note[data-instrument="lead"] { background: #ff375f; }
 .studio-playhead { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--danger); pointer-events: none; z-index: 3; }
-.studio-review { display: flex; align-items: center; gap: 8px; margin: 6px 12px; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
+.studio-review { display: flex; align-items: center; gap: 8px; margin: 6px 12px; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--wash); font-size: var(--fs-sm); }
 .studio-review > span:nth-child(2) { flex: 1; }
 .studio-roll { flex: 1 1 auto; min-height: 140px; overflow: auto; border-top: 1px solid var(--line); }
 .studio-roll-inner { position: relative; }

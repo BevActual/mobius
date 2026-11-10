@@ -77,7 +77,7 @@ test('slides Mobius adds are dashed in the navigator until kept', async () => {
   await expect(nav().getByRole('button')).toHaveCount(3);
   await expect(nav().getByRole('button', { name: 'Slide 3: Three days (proposed by Mobius)' })).toBeVisible();
   await expect(nav().locator('[data-proposed]')).toHaveCount(1);
-  await page().getByRole('status').getByRole('button', { name: 'Keep All' }).click();
+  await page().getByRole('status').getByRole('button', { name: 'Keep' }).click();
   await expect(nav().locator('[data-proposed]')).toHaveCount(0);
   expect(fs.readFileSync(file(), 'utf8')).toContain('## Three days');
 });
