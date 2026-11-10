@@ -411,8 +411,14 @@ impl Notes {
         let folder = self.root.file_name().and_then(|f| f.to_str()).unwrap_or(FOLDER);
         let checkpoint = self.checkpoints.snapshot(&self.workspace, &format!("before deleting {folder}/{path}")).is_ok();
         fs::remove_file(&file).map_err(|e| e.to_string())?;
-        if let Some(files) = self.files_folder(path) {
-            let _ = fs::remove_dir_all(files);
+        if let Some(files) = self.files_folder(path).filter(|f| f.is_dir()) {
+            // Windows refuses for a moment while something else (a virus scan, the search index) has a new file open.
+            for wait in [0, 50, 150, 400, 1000] {
+                std::thread::sleep(std::time::Duration::from_millis(wait));
+                if fs::remove_dir_all(&files).is_ok() || !files.exists() {
+                    break;
+                }
+            }
         }
         Ok(json!({ "removed": path, "checkpoint": checkpoint }))
     }
