@@ -97,7 +97,7 @@ fn main() {
             "agent.configure" if params.get("model") == Some(&json!("reject")) => {
                 send(&mut out, &json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32602, "message": "that model is refused" } }));
             }
-            "agent.configure" | "agent.cancel" | "agent.delete" | "permissions.resolve" | "permissions.revoke" | "agent.set_effort" | "permissions.set_mode" | "tools.register_external" => send(&mut out, &reply(json!({}))),
+            "agent.configure" | "agent.cancel" | "agent.take_over" | "agent.hand_back" | "agent.delete" | "permissions.resolve" | "permissions.revoke" | "agent.set_effort" | "permissions.set_mode" | "tools.register_external" => send(&mut out, &reply(json!({}))),
             m => match canned(m) {
                 Some(result) => send(&mut out, &reply(result)),
                 None if message.get("id").is_some() => send(&mut out, &reply(json!({ "echo": method }))),

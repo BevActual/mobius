@@ -106,6 +106,10 @@ function useNarrowWindow(width: number): boolean {
 /** A button's tooltip with its shortcut after it, when it has one. */
 const withKeys = (text: string, binding: string) => (binding ? `${text} (${describeCombo(binding, window.mobius.platform)})` : text);
 
+/** Who is using a tab while a task runs, as the tab says it. */
+const TAB_DRIVER = { reading: 'Mobius reading', mobius: 'Mobius', yours: 'Yours' } as const;
+const TAB_DRIVER_TITLE = { reading: 'Mobius is reading this tab', mobius: 'Mobius is using this tab', yours: 'You took over this tab from Mobius' } as const;
+
 export function App() {
   const browser = useBrowser();
   const coreStatus = useCoreStatus();
@@ -792,6 +796,7 @@ export function App() {
                   <button type="button" className="tab-main" onClick={() => window.mobius.browser.activate(tab.id)}>
                     {tab.icon ? <img className="tab-icon" src={tab.icon} alt="" width={16} height={16} /> : <span className="tab-icon placeholder" aria-hidden="true" />}
                     <span className="tab-title">{tab.title}</span>
+                    {tab.driver && <span className="tab-driver" data-driver={tab.driver} title={TAB_DRIVER_TITLE[tab.driver]}>{TAB_DRIVER[tab.driver]}</span>}
                     {tab.loading && <span className="tab-loading" aria-label="Loading" />}
                   </button>
                   {window.mobius.browser.pin && (

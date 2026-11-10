@@ -2296,3 +2296,8 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .control-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin: 0 var(--sp-3) var(--sp-2); padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font: var(--fs-sm)/1.2 var(--font); }
 .control-text { flex: 1; font-weight: 500; }
 .composer-actions .take-over { height: 28px; padding: 0 10px; font-size: var(--fs-sm); }
+
+/* Who is using a tab while a task runs. */
+.tab-driver { flex: none; padding: 1px 6px; border-radius: 999px; font-size: var(--fs-xs); line-height: 16px; color: var(--muted); border: 1px solid var(--hairline); }
+.tab-driver[data-driver="mobius"] { color: var(--accent); border: 1px dashed var(--accent); }
+.tab-driver[data-driver="yours"] { color: var(--text); background: var(--wash); }

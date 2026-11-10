@@ -165,6 +165,8 @@ pub struct Bridge {
     turn_history: Arc<crate::turn_history::TurnHistory>,
     /// The last rewind, so it can be undone: its conversation, the checkpoint before it, and the turns it took out.
     rewound: Mutex<Option<(String, String, Vec<crate::turn_history::Turn>)>>,
+    /// The tabs a running task uses, and the conversation each belongs to.
+    tab_drivers: Mutex<std::collections::HashMap<String, String>>,
     /// Tools from other programs the person set up (MCP servers).
     mcp: Arc<crate::mcp::McpState>,
     notes: mobius_workspace::notes::Notes,
@@ -306,6 +308,7 @@ impl Bridge {
             // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
             turn_history: Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json"))),
             rewound: Mutex::new(None),
+            tab_drivers: Mutex::new(std::collections::HashMap::new()),
             turn_marks: Arc::new(Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default())),
             marking: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             mcp: Arc::default(),
@@ -1173,6 +1176,7 @@ impl Bridge {
         let deps = BrowserTools { browser: browser.clone(), allow_private: Box::new(move || prefs == Value::Bool(true)) };
         let result = run_browser_tool(tool, &args, &deps)?;
         let conversation = params.get("conversation").and_then(Value::as_str).unwrap_or("");
+        self.mark_driver(&browser, tool, &args, &result, conversation);
         Ok(Value::String(match self.sign_in_needed(&browser, tool, conversation) {
             // The note goes in the result, which stays JSON when it is JSON.
             Some(site) => {
@@ -1187,6 +1191,44 @@ impl Bridge {
             }
             None => result,
         }))
+    }
+
+    /// The tab a browser tool used is the task's while it runs: read by Mobius, or driven by it (opening, clicking,
+    /// typing). Reading a tab Mobius drives leaves it driven.
+    fn mark_driver(&self, browser: &mobius_browser::tabs::Browser, tool: &str, args: &Value, result: &str, conversation: &str) {
+        use mobius_browser::tabs::Driver;
+        if conversation.is_empty() || tool == "browser.tabs" {
+            return;
+        }
+        let from_result = serde_json::from_str::<Value>(result).ok().and_then(|v| v.get("tabId").and_then(Value::as_str).map(str::to_owned));
+        let Some(tab) = from_result.or_else(|| args.get("tabId").and_then(Value::as_str).map(str::to_owned)).or_else(|| browser.active_id()) else { return };
+        let driver = if tool == "browser.read" { Driver::Reading } else { Driver::Mobius };
+        let current = browser.driver(&tab);
+        if current == Some(Driver::Yours) || (driver == Driver::Reading && current == Some(Driver::Mobius)) {
+            return;
+        }
+        lock(&self.tab_drivers).insert(tab.clone(), conversation.to_owned());
+        browser.set_driver(&tab, Some(driver));
+    }
+
+    /// A task's tabs change hands: Take over makes the tabs Mobius drives the person's, Hand back gives them back, and
+    /// the end of the task makes every tab it used plain again.
+    fn hand_tabs(&self, conversation: &str, change: TabChange) {
+        use mobius_browser::tabs::Driver;
+        let Some(browser) = self.browser.get() else { return };
+        let mut drivers = lock(&self.tab_drivers);
+        let tabs: Vec<String> = drivers.iter().filter(|(_, c)| c.as_str() == conversation).map(|(t, _)| t.clone()).collect();
+        for tab in tabs {
+            match (change, browser.driver(&tab)) {
+                (TabChange::TakeOver, Some(Driver::Mobius)) => browser.set_driver(&tab, Some(Driver::Yours)),
+                (TabChange::HandBack, Some(Driver::Yours)) => browser.set_driver(&tab, Some(Driver::Mobius)),
+                (TabChange::End, _) => {
+                    drivers.remove(&tab);
+                    browser.set_driver(&tab, None);
+                }
+                _ => {}
+            }
+        }
     }
 
     /// Sign in once per task: after Mobius opened, clicked or typed in a page, whether the page now asks for a password on
@@ -2321,8 +2363,17 @@ impl Bridge {
                 }
                 Value::Null
             }
-            "takeOver" => conversation().map_or_else(|| json!({ "ok": false, "error": "No such conversation." }), |c| self.agent.control(c, true)),
-            "handBack" => conversation().map_or_else(|| json!({ "ok": false, "error": "No such conversation." }), |c| self.agent.control(c, false)),
+            "takeOver" | "handBack" => conversation().map_or_else(
+                || json!({ "ok": false, "error": "No such conversation." }),
+                |c| {
+                    let theirs = method == "takeOver";
+                    let result = self.agent.control(c, theirs);
+                    if result["ok"] == true {
+                        self.hand_tabs(c, if theirs { TabChange::TakeOver } else { TabChange::HandBack });
+                    }
+                    result
+                },
+            ),
             "control" => conversation().map_or_else(|| json!({ "theirs": false }), |c| self.agent.control_state(c)),
             "history" => conversation().map_or_else(|| json!([]), |c| self.agent.history(c)),
             "waiting" => conversation().map_or_else(|| json!([]), |c| self.agent.waiting(c)),
@@ -2422,6 +2473,8 @@ impl Bridge {
             // Taken on a thread of its own: this one carries the core's messages and must not wait on the disk.
             // After the start's checkpoint, which may still be being taken when a quick turn ends.
             if let Some(conversation) = n["params"]["conversation"].as_str().filter(|_| matches!(kind, "done" | "cancelled" | "failed")) {
+                // The task ended: the tabs it used are plain tabs again.
+                self.hand_tabs(conversation, TabChange::End);
                 let (history, conversation, marking) = (self.turn_history.clone(), conversation.to_owned(), Arc::clone(&self.marking));
                 let workspace = mobius_workspace::files::Workspace::new(self.data_dir.join("workspace"), self.data_dir.join("checkpoints"));
                 std::thread::spawn(move || {
@@ -2578,4 +2631,12 @@ impl Bridge {
             "dataFolder": self.data_dir.display().to_string(),
         })
     }
+}
+
+/// How a running task's tabs change hands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TabChange {
+    TakeOver,
+    HandBack,
+    End,
 }

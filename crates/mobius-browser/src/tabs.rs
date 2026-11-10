@@ -31,6 +31,30 @@ struct Tab {
     pinned: bool,
     /// The page finished loading before it had a title: the first title it gets goes to history too.
     untitled_visit: bool,
+    /// Who is using the tab while a task runs: Mobius reading it, Mobius driving it, or the person who took over.
+    driver: Option<Driver>,
+}
+
+/// Who is using a tab while a task runs. With none, the tab is simply the person's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Driver {
+    /// Mobius reads it and changes nothing.
+    Reading,
+    /// Mobius opens, clicks and types in it.
+    Mobius,
+    /// The person took over from Mobius: the tab is theirs until they hand back.
+    Yours,
+}
+
+impl Driver {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Driver::Reading => "reading",
+            Driver::Mobius => "mobius",
+            Driver::Yours => "yours",
+        }
+    }
 }
 
 /// How many closed pages are remembered for reopening.
@@ -80,7 +104,7 @@ impl Browser {
                 let url = shown_url(&t.url);
                 json!({
                     "id": t.id, "url": url, "title": if t.title.is_empty() { if url.is_empty() { "New tab" } else { url } } else { t.title.as_str() },
-                    "loading": t.loading, "canGoBack": t.can_back, "canGoForward": t.can_forward, "pinned": t.pinned, "active": s.active.as_deref() == Some(t.id.as_str()), "icon": t.icon,
+                    "loading": t.loading, "canGoBack": t.can_back, "canGoForward": t.can_forward, "pinned": t.pinned, "active": s.active.as_deref() == Some(t.id.as_str()), "icon": t.icon, "driver": t.driver.map(Driver::as_str),
                 })
             })
             .collect();
@@ -102,7 +126,7 @@ impl Browser {
             let mut s = lock(&self.state);
             s.counter += 1;
             let id = format!("tab-{}", s.counter);
-            s.tabs.push(Tab { id: id.clone(), url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false, untitled_visit: false });
+            s.tabs.push(Tab { id: id.clone(), url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false, untitled_visit: false, driver: None });
             id
         };
         self.engine.open(&id, url.unwrap_or(START_PAGE));
@@ -381,6 +405,29 @@ impl Browser {
         let id = s.active.clone()?;
         let bounds = s.bounds.filter(|b| b.width > 0 && b.height > 0)?;
         Some((id, bounds))
+    }
+
+    /// Who is using a tab now (none: the person's, as usual).
+    #[must_use]
+    pub fn driver(&self, id: &str) -> Option<Driver> {
+        lock(&self.state).tabs.iter().find(|t| t.id == id).and_then(|t| t.driver)
+    }
+
+    /// Say who is using a tab; the window shows it on the tab.
+    pub fn set_driver(&self, id: &str, driver: Option<Driver>) {
+        let changed = {
+            let mut s = lock(&self.state);
+            match s.tabs.iter_mut().find(|t| t.id == id) {
+                Some(t) if t.driver != driver => {
+                    t.driver = driver;
+                    true
+                }
+                _ => false,
+            }
+        };
+        if changed {
+            self.publish();
+        }
     }
 
     pub fn active_id(&self) -> Option<String> {

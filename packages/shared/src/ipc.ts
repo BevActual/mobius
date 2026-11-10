@@ -19,6 +19,8 @@ export interface BrowserTabState {
   icon: string | null;
   /** Pinned tabs stay at the front of the list. Only the Tauri shell has pinning. */
   pinned?: boolean;
+  /** Who is using the tab while a task runs: Mobius reading it, Mobius driving it, or you after taking over. None: yours, as usual. */
+  driver?: 'reading' | 'mobius' | 'yours' | null;
 }
 
 export interface SavedServer {

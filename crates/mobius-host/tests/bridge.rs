@@ -387,6 +387,44 @@ mod browser {
     }
 
     #[test]
+    fn a_tab_says_who_is_using_it_and_changes_hands_on_take_over_and_hand_back() {
+        let (b, engine, br, _e, _d) = with_browser(None);
+        engine.answer("innerText", Ok(json!({ "text": "A page", "title": "A", "url": "https://a.example/" })));
+        let driver = |tab: &str| br.state()["tabs"].as_array().unwrap().iter().find(|t| t["id"] == tab).map(|t| t["driver"].clone()).unwrap();
+        let first = call(&b, "browser", "open", json!(["example.com"]));
+        let first = first.as_str().unwrap();
+        br.navigated(first, "https://a.example/", false, false);
+        br.finished(first);
+        assert_eq!(driver(first), json!(null), "a tab is the person's until a task uses it");
+        b.host_request("host.tool", &json!({ "tool": "browser.read", "arguments": {}, "conversation": "c1" })).unwrap();
+        assert_eq!(driver(first), json!("reading"));
+        // The page Mobius opens loads a moment later.
+        let loader = br.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            loader.navigated("tab-2", "https://b.example/", false, false);
+            loader.finished("tab-2");
+        });
+        let opened = b.host_request("host.tool", &json!({ "tool": "browser.open", "arguments": { "url": "https://b.example/" }, "conversation": "c1" })).unwrap();
+        let second: serde_json::Value = serde_json::from_str(opened.as_str().unwrap()).unwrap();
+        let second = second["tabId"].as_str().unwrap().to_owned();
+        assert_eq!(driver(&second), json!("mobius"));
+        // Reading a tab Mobius drives leaves it driven.
+        b.host_request("host.tool", &json!({ "tool": "browser.read", "arguments": { "tabId": second }, "conversation": "c1" })).unwrap();
+        assert_eq!(driver(&second), json!("mobius"));
+        assert_eq!(call(&b, "agent", "takeOver", json!(["c1"]))["ok"], json!(true));
+        assert_eq!(driver(&second), json!("yours"), "the tab Mobius drove is yours now");
+        assert_eq!(driver(first), json!("reading"), "a tab it only read stays as it was");
+        assert_eq!(call(&b, "agent", "handBack", json!(["c1"]))["ok"], json!(true));
+        assert_eq!(driver(&second), json!("mobius"));
+        // Another task's end changes nothing here; this task's end makes both plain tabs again.
+        b.on_core_notification("agent.event", &json!({ "conversation": "c2", "turn": 2, "event": { "kind": "done" } }));
+        assert_eq!(driver(&second), json!("mobius"));
+        b.on_core_notification("agent.event", &json!({ "conversation": "c1", "turn": 1, "event": { "kind": "done" } }));
+        assert_eq!((driver(first), driver(&second)), (json!(null), json!(null)));
+    }
+
+    #[test]
     fn file_tools_work_in_the_workspace_folder_without_a_window() {
         let (b, _c, _e, dir) = bridge_in(tempfile::tempdir().unwrap());
         let run = |tool: &str, arguments: serde_json::Value| b.host_request("host.tool", &json!({ "tool": tool, "arguments": arguments }));

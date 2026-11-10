@@ -68,3 +68,31 @@ test('Stop on the control bar ends the task', async () => {
   await expect(bar).toBeHidden();
   await expect(shell.getByRole('button', { name: 'Send' })).toBeVisible();
 });
+
+test('a tab Mobius drives says so, becomes Yours on Take over, and is Mobius’s again on Hand back', async () => {
+  model = await startModel([
+    callsTool('browser-open', { url: fixture.origin + '/second' }),
+    callsTool('files-read', { path: 'notes/Work/Plan.md' }),
+    says(['Done with the page.']),
+  ]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  const shell = mobius.shell;
+  const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
+  await expect(composer).toBeEnabled({ timeout: 15_000 });
+  await composer.fill('Look at the second page');
+  await composer.press('Enter');
+  const log = shell.getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: browser.open' }).getByRole('button', { name: 'Allow once' }).click();
+  const tab = shell.locator('.tab', { hasText: 'Second page' });
+  await expect(tab.locator('.tab-driver')).toHaveText('Mobius');
+  await expect(log.getByRole('group', { name: 'Approval needed: files.read' })).toBeVisible();
+
+  await shell.getByRole('button', { name: 'Take over' }).click();
+  await expect(tab.locator('.tab-driver')).toHaveText('Yours');
+  await shell.getByRole('status', { name: 'You have control' }).getByRole('button', { name: 'Hand back' }).click();
+  await expect(tab.locator('.tab-driver')).toHaveText('Mobius');
+
+  await log.getByRole('group', { name: 'Approval needed: files.read' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log.locator('.msg.assistant')).toContainText('Done with the page.');
+  await expect(tab.locator('.tab-driver')).toHaveCount(0);
+});
