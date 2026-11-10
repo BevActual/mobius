@@ -67,7 +67,7 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
       ...(typed && onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, run: () => onAsk(typed) }] : []),
       // As in Spotlight and Raycast: with nothing typed the apps used last come first; typing puts names that start
       // with it before names that only contain it.
-      ...rankApps(APPS.filter((app) => has(app.name)), q).map<LauncherItem>((app) => ({
+      ...rankApps(APPS.filter((app) => has(`${app.name} ${app.also ?? ''}`)), q).map<LauncherItem>((app) => ({
         id: `app-${app.id}`,
         kind: 'app',
         app: app.id,

@@ -780,7 +780,7 @@ export function NotificationsSection({ subpage, highlight, preferences, onPrefer
 }
 
 /** Settings > Advanced > Other apps: Mobius as an MCP server for other agents. */
-function OtherApps({ subpage, highlight }: { subpage: string; highlight: string | null | undefined }) {
+export function OtherApps({ subpage, highlight }: { subpage: string; highlight: string | null | undefined }) {
   const api = window.mobius.share;
   const [status, setStatus] = useState<ShareStatus | null>(null);
   const [token, setToken] = useState<string | null>(null);

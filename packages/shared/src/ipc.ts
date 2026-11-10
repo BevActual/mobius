@@ -423,6 +423,11 @@ export interface MobiusBridge {
     onChanged(listener: () => void): () => void;
   };
   /** Other apps using Mobius's tools over MCP. Only the Tauri shell has it. */
+  /** Only the desktop app: what extends Mobius. */
+  extensions?: {
+    /** The MCP servers from mcp.json: which run, which did not start and why. */
+    connectors(): Promise<ConnectorStatus>;
+  };
   share?: {
     status(): Promise<ShareStatus>;
     set(change: { enabled?: boolean; allowChanges?: boolean; port?: number }): Promise<AgentResult>;
@@ -982,6 +987,7 @@ export interface ModelGroup {
 export interface ModelCatalog { current: string; groups: ModelGroup[] }
 
 /** Settings > Advanced > Other apps. */
+export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null }
 export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }
 
 /** A question the model put to the person. */

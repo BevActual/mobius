@@ -228,6 +228,9 @@ export function createTauriBridge(): MobiusBridge {
       use: (id, model) => call('providers', 'use', [id, model], () => ({ ok: false as const, error: 'Providers are not available.' })),
       onChanged: (listener) => on<null>('mobius:providers-changed', () => listener()),
     },
+    extensions: {
+      connectors: () => call('extensions', 'connectors', [], () => ({ running: [], failed: [], problem: null })),
+    },
     share: {
       status: () => call('share', 'status', [], () => ({ enabled: false, allowChanges: false, port: 0, running: false, url: null, problem: 'Not available.' })),
       set: (change) => call('share', 'set', [change], () => ({ ok: false as const, error: 'Not available.' })),

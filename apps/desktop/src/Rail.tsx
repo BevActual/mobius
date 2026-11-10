@@ -48,7 +48,7 @@ export const RAIL_APPS: { id: AppId; name: string }[] = [
 
 /** One of Mobius's own apps, listed in the switcher under the person's apps. */
 export interface OwnApp {
-  id: 'bots' | 'activity' | 'settings';
+  id: 'bots' | 'activity' | 'extensions' | 'settings';
   name: string;
   /** It is the one showing. */
   current: boolean;
@@ -59,6 +59,7 @@ export interface OwnApp {
 export const OWN_ICONS: Record<OwnApp['id'], ReactNode> = {
   bots: <><rect x="4.5" y="7" width="11" height="8.5" rx="2.5" /><path d="M10 7V4.5M8 11h.01M12 11h.01" /></>,
   activity: <path d="M3 10.5h3l2-5 4 9 2-4h3" />,
+  extensions: <path d="M8 4.5h3v2a1.5 1.5 0 0 0 3 0v-2h1.5v4h-2a1.5 1.5 0 0 0 0 3h2v4h-4v-2a1.5 1.5 0 0 0-3 0v2h-4v-11z" />,
   settings: <><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></>,
 };
 

@@ -54,7 +54,8 @@ import { StartPage } from './StartPage';
 import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
-import { SkillEditor, SkillsSidebar } from './Skills';
+import { SkillEditor } from './Skills';
+import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
 import { useVideo } from './useVideo';
@@ -224,6 +225,7 @@ export function App() {
   const inStudio = app === 'studio';
   const inVideo = app === 'video';
   const inSkills = app === 'skills';
+  const [extPlace, setExtPlace] = useState<ExtensionPlace>('skills');
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
@@ -580,7 +582,7 @@ export function App() {
     else if (top === 'video') openTarget({ app: 'video', project: rest[0] ?? '' });
     else if (top === 'databases') openTarget({ app: 'database', name: title });
     else if (top === 'code') { openApp('code'); void code.openProject(rest[0] ?? '', rest.slice(1).join('/') || null); }
-    else if (top === 'skills') { openApp('skills'); void skills.openSkill(rest[0] ?? ''); }
+    else if (top === 'skills') { openApp('skills'); setExtPlace('skills'); void skills.openSkill(rest[0] ?? ''); }
     else if (top === 'calendar') openApp('calendar');
   };
   const openTarget = (target: HubTarget) => {
@@ -727,7 +729,7 @@ export function App() {
             ) : inJourney ? (
               <JourneySidebar journey={journey} />
             ) : inSkills ? (
-              <SkillsSidebar skills={skills} pin={pinNode} changed={turnMarks.skills} />
+              <ExtensionsSidebar place={extPlace} onPlace={setExtPlace} skills={skills} pin={pinNode} changed={turnMarks.skills} />
             ) : inVideo ? (
               <VideoSidebar video={video} pin={pinNode} changed={turnMarks.video} />
             ) : inStudio ? (
@@ -1123,6 +1125,7 @@ export function App() {
       case 'slides':
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':
+        if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} skills={skills} onPlace={setExtPlace} />;
         return <SkillEditor skills={skills} review={skills.open && turnMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} onRun={(name) => { openApp('agent'); void conversation.send(expandSlash(`/${name}`, skills.names), []); }} />;
       case 'video':
         return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
@@ -1320,6 +1323,7 @@ export function App() {
         ownApps={[
           { id: 'bots', name: 'Bots', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
           { id: 'activity', name: 'Activity', current: !settingsOpen && app === 'agent' && sideMode === 'activity', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } },
+          { id: 'extensions', name: 'Extensions', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
           { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
         ]}
         activity={activity}
@@ -1454,7 +1458,7 @@ export function App() {
         onClose={closeHub}
         current={app}
         onOpenApp={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); openApp(id); }}
-        onConnect={() => { setSettingsSection('advanced'); openSettings(); }}
+        onConnect={() => { closeSettings(); setExtPlace('connectors'); openApp('skills'); }}
         status={hubStatus}
         actions={createActions}
       />

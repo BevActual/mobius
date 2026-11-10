@@ -2267,3 +2267,13 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .from-mobius ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .from-mobius .note-row { padding-left: var(--sp-2); }
 .from-mobius .note-sub { margin-left: auto; font-size: var(--fs-xs); color: var(--muted); }
+
+/* Extensions: one of Mobius's own apps, grey. Its places sit above the skills list. */
+.rail[data-expanded] .rail-own .rail-btn svg[data-own="extensions"] { background: var(--app-skills); }
+.ext-places { margin-bottom: var(--sp-2); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--hairline); }
+.ext-title { margin: 0; font-size: var(--fs-xl); font-weight: 600; }
+.ext-block { display: grid; gap: var(--sp-2); }
+.ext-heading { margin: 0; font-size: var(--fs-md); font-weight: 600; }
+.ext-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); }
+.ext-name { font-weight: 500; }
+.ext-state { color: var(--muted); font-size: var(--fs-sm); flex: 1; }

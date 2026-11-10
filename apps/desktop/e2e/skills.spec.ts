@@ -32,7 +32,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await shell().keyboard.press('Control+k');
-  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Skills');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Extensions');
   await shell().keyboard.press('Enter');
 }
 
@@ -97,4 +97,21 @@ test('a skill someone shared shows what it is for and what it can touch before i
   await expect(dialog).toBeHidden();
   await expect(shell().getByRole('region', { name: 'Skills' }).getByRole('heading', { name: '/compare-stays' })).toBeVisible();
   expect(fs.readFileSync(file('compare-stays'), 'utf8')).toContain('name: compare-stays\ndescription: When choosing where to stay');
+});
+
+test('Extensions is one of Mobius’s own apps: connectors, skills, plugins, catalogue and updates in one place', async () => {
+  model = await startModel([]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  const rail = shell().getByRole('navigation', { name: 'Apps' });
+  if ((await rail.getAttribute('data-face')) !== 'apps') await rail.locator('[data-app-switcher]').click();
+  await rail.getByRole('region', { name: 'Mobius’s apps' }).getByRole('button', { name: 'Extensions', exact: true }).click();
+  const places = shell().getByRole('navigation', { name: 'Extensions' });
+  await expect(places.getByRole('button', { name: 'Skills' })).toHaveAttribute('aria-current', 'page');
+  await places.getByRole('button', { name: 'Connectors' }).click();
+  const page = shell().getByRole('region', { name: 'Connectors' });
+  await expect(page).toContainText('No connectors yet');
+  await expect(page.getByRole('switch', { name: 'Let other apps use Mobius' })).toBeVisible();
+  await places.getByRole('button', { name: 'Updates' }).click();
+  await expect(shell().getByRole('region', { name: 'Updates' }).getByRole('table', { name: 'Versions' })).toBeVisible();
 });

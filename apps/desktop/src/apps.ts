@@ -4,7 +4,7 @@ export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo'
 export type AppGroup = 'Assistant' | 'Browse and find' | 'Write and plan' | 'Create' | 'Review';
 export const APP_GROUPS: readonly AppGroup[] = ['Assistant', 'Browse and find', 'Write and plan', 'Create', 'Review'];
 
-export interface AppInfo { id: AppId; name: string; available: boolean; group: AppGroup }
+export interface AppInfo { id: AppId; name: string; available: boolean; group: AppGroup; /** One of Mobius's own apps: opened from Mobius's apps in the switcher, not the app list. */ own?: boolean; /** Other words it is found by. */ also?: string }
 
 /** Every application Mobius will have. Only the ones marked available can be opened. */
 export const APPS: readonly AppInfo[] = [
@@ -12,7 +12,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'agent', name: 'Agent', available: true, group: 'Assistant' },
   { id: 'mail', name: 'Mail', available: true, group: 'Browse and find' },
   { id: 'journey', name: 'Journey', available: true, group: 'Assistant' },
-  { id: 'skills', name: 'Skills', available: true, group: 'Assistant' },
+  { id: 'skills', name: 'Extensions', available: true, group: 'Assistant', own: true, also: 'Skills Connectors Plugins Catalogue Updates MCP' },
   { id: 'notes', name: 'Notes', available: true, group: 'Write and plan' },
   { id: 'docs', name: 'Docs', available: true, group: 'Write and plan' },
   { id: 'sheets', name: 'Sheets', available: true, group: 'Write and plan' },

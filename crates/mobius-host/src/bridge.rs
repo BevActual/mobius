@@ -480,6 +480,7 @@ impl Bridge {
             ("agent", _) => self.agent_call(method, args),
             ("changes", _) => self.changes_call(method, args),
             ("signins", _) => Ok(self.signins_call(method, args)),
+            ("extensions", "connectors") => Ok(self.mcp_status()),
             ("browser", _) => self.browser_call(method, args),
             ("surface", "setBounds") => {
                 if let Some(b) = self.browser.get() {

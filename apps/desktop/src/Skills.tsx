@@ -7,7 +7,7 @@ import type { SkillsState } from './useSkills';
 import { ReviewActions, WhyThis } from './ReviewBar';
 
 /** The skills Mobius keeps, by name, with New skill. */
-export function SkillsSidebar({ skills, pin, changed }: { skills: SkillsState; pin?: ReactNode; changed?: ReadonlySet<string> }) {
+export function SkillsSidebar({ skills, pin, changed, places }: { skills: SkillsState; pin?: ReactNode; changed?: ReadonlySet<string>; /** Extensions' places, above the skills. */ places?: ReactNode }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [about, setAbout] = useState('');
@@ -17,7 +17,7 @@ export function SkillsSidebar({ skills, pin, changed }: { skills: SkillsState; p
   return (
     <aside className="side skills-side" aria-label="Skills sidebar">
       <div className="side-head">
-        <span className="side-title">Skills</span>
+        <span className="side-title">{places ? 'Extensions' : 'Skills'}</span>
         <span className="side-actions">
           {pin}
           <button type="button" className="strip-btn" aria-label="New skill" title="New skill" onClick={() => setNaming(true)}>
@@ -25,6 +25,7 @@ export function SkillsSidebar({ skills, pin, changed }: { skills: SkillsState; p
           </button>
         </span>
       </div>
+      {places}
       {naming && (
         <form className="skill-new" onSubmit={(e) => void submit(e)}>
           <input autoFocus aria-label="Skill name" placeholder="Compare stays" value={name} maxLength={64} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
@@ -64,7 +65,7 @@ export function SkillsSidebar({ skills, pin, changed }: { skills: SkillsState; p
  * A skill someone shared, before it is added: what it is for, its steps, and what it says it will use. Nothing in it
  * runs until Mobius is asked for it, and each tool still asks as your settings say.
  */
-function InstallDialog({ text, skills, onClose }: { text: string; skills: SkillsState; onClose: () => void }) {
+export function InstallDialog({ text, skills, onClose }: { text: string; skills: SkillsState; onClose: () => void }) {
   const skill = parseSkill(text);
   const tools = skill.extra.find((l) => /^allowed-tools:/.test(l))?.replace(/^allowed-tools:\s*/, '').split(/[\s,]+/).filter(Boolean) ?? [];
   const valid = text.startsWith('---') && skill.name !== '' && skill.description !== '';

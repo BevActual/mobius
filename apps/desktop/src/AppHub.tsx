@@ -45,7 +45,7 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
 
   const q = query.trim().toLowerCase();
   const has = (...texts: string[]) => !q || texts.some((t) => t.toLowerCase().includes(q));
-  const built = APPS.filter((a) => a.available && has(a.name, status[a.id] ?? ''));
+  const built = APPS.filter((a) => a.available && !a.own && has(a.name, status[a.id] ?? ''));
   const later = APPS.filter((a) => !a.available && has(a.name));
   const starts = actions.filter((a) => has(a.label));
   // Eight to start from; the rest when asked for, or found by typing.
@@ -108,7 +108,7 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
             // Otherwise by what each app is for; apps still to come sit in their group, dimmed. The groups flow side by
             // side, each as wide as its apps, so a few small groups stay as compact as one grid.
             <div className="hub-groups">{APP_GROUPS.map((group) => {
-              const members = APPS.filter((a) => a.group === group);
+              const members = APPS.filter((a) => a.group === group && !a.own);
               if (members.length === 0) return null;
               return (
                 <div key={group} className="hub-group" role="group" aria-label={group}>
