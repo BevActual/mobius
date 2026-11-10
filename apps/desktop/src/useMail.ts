@@ -20,10 +20,15 @@ export function useMail() {
   const live = useRef({ view, query, open });
   live.current = { view, query, open };
 
+  // Several reads of the list can be under way at once (after a change, and when Mail says it changed). Only the
+  // newest is shown: one that began before a change would bring back what the change took out of the inbox.
+  const reading = useRef(0);
   const refresh = useCallback(async () => {
     if (!api) return;
+    const mine = ++reading.current;
     const v = live.current.view;
     const [a, list, c, d] = await Promise.all([api.accounts(), v.kind === 'box' ? api.list(v.box, v.category, live.current.query) : Promise.resolve([] as MailMessage[]), api.counts(), api.drafts()]);
+    if (mine !== reading.current) return;
     if (!isNotesFailure(a)) setAccounts(a);
     if (!isNotesFailure(list)) setMessages(list);
     if (!isNotesFailure(c)) setCounts(c);
@@ -90,6 +95,7 @@ export function useMail() {
 
   /** E: out of the inbox (still in All mail). The next message opens. */
   const archive = useCallback(async (id: string) => {
+    reading.current += 1;
     const done = await api?.archive?.(id, true);
     if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
     setOpen((cur) => (cur?.id === id ? null : cur));
@@ -98,6 +104,7 @@ export function useMail() {
   /** H: back in the inbox tomorrow at 8:00. */
   const remindTomorrow = useCallback(async (id: string) => {
     const at = new Date(); at.setDate(at.getDate() + 1); at.setHours(8, 0, 0, 0);
+    reading.current += 1;
     const done = await api?.remind?.(id, at.getTime());
     if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
     setOpen((cur) => (cur?.id === id ? null : cur));

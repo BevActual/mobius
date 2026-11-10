@@ -1318,7 +1318,8 @@ export function App() {
               autoComplete="off"
               value={draft ?? active?.url ?? ''}
               onChange={(event) => { setDraft(event.target.value); setNotice(''); }}
-              onFocus={(event) => event.target.select()}
+              // From the moment it is focused the text is the person's draft: a page finishing loading meanwhile cannot change it under their typing.
+              onFocus={(event) => { setDraft(event.target.value); event.target.select(); }}
               onBlur={() => setDraft(null)}
             />
             {active?.loading && <span className="spinner" role="status" aria-label="Loading" />}
