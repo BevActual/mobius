@@ -138,7 +138,7 @@ pub fn prepare(request: &ChatRequest, natives: &NativeTurns) -> Result<Prepared,
     };
     for message in &request.messages {
         match message {
-            Message::User { text, images } => {
+            Message::User { text, images, .. } => {
                 let mut blocks = Vec::new();
                 if !text.is_empty() {
                     blocks.push(json!({ "type": "text", "text": text }));
@@ -342,7 +342,7 @@ mod tests {
 
     #[test]
     fn pictures_go_as_image_blocks() {
-        let p = prepare(&request(vec![Message::User { text: "what is this?".into(), images: vec!["data:image/png;base64,iVBORw0KGgo=".into()] }]), &NativeTurns::default()).unwrap();
+        let p = prepare(&request(vec![Message::User { text: "what is this?".into(), images: vec!["data:image/png;base64,iVBORw0KGgo=".into()], at_ms: None }]), &NativeTurns::default()).unwrap();
         assert_eq!(p.frames[0]["message"]["content"][1], json!({ "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo=" } }));
     }
 

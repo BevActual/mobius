@@ -5,4 +5,8 @@ export type Message = { "role": "user", text: string,
 /**
  * Pictures the person attached, as `data:` URLs (PNG, JPEG, WebP or GIF), for models that read pictures.
  */
-images?: Array<string>, } | { "role": "assistant", text: string, tool_calls: Array<ToolCall>, } | { "role": "tool", call_id: string, name: string, content: string, is_error: boolean, };
+images?: Array<string>, 
+/**
+ * When the person sent it, in milliseconds since 1970: the window shows a time above a group of messages.
+ */
+at_ms?: number, } | { "role": "assistant", text: string, tool_calls: Array<ToolCall>, } | { "role": "tool", call_id: string, name: string, content: string, is_error: boolean, };

@@ -88,7 +88,7 @@ fn a_plain_answer_ends_the_turn_and_the_first_request_describes_the_conversation
     assert_eq!(request.model, "test-model");
     assert_eq!(request.system, with_rule("You are a test."));
     assert_eq!(request.messages.len(), 3);
-    assert_eq!(request.messages[2], Message::user("hi"));
+    assert!(matches!(&request.messages[2], Message::User { text, at_ms: Some(_), .. } if text == "hi"), "the new message carries the time it was sent");
     let names: Vec<&str> = request.tools.iter().map(|t| t.name.as_str()).collect();
     assert_eq!(names, ["demo.big", "demo.echo", "demo.fail", "demo.panic", "demo.remote", "todo.write", "ask.person"], "every registered tool is offered, in a stable order, then the engine's own");
     assert_eq!(request.tools[1].input_schema["properties"]["text"]["type"], "string");

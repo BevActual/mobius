@@ -2465,3 +2465,6 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .chat .review-strip .review-head { flex-wrap: wrap; row-gap: 8px; }
 .chat .review-strip .review-actions { flex-basis: 100%; }
 .chat .review-strip .review-btn { white-space: nowrap; }
+
+/* The time above a group of messages: "Today 9:12". */
+.chat .msg-stamp { align-self: center; margin: 6px 0 2px; font-size: 11px; line-height: 1.3; color: var(--muted, #86868B); text-align: center; font-variant-numeric: tabular-nums; }

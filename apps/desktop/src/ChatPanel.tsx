@@ -11,6 +11,7 @@ import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentS
 import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
 import { modeOf } from './approval-modes';
+import { stampLabel, startsGroup } from './time-stamps';
 import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import type { SurfaceState } from './surface';
@@ -431,6 +432,16 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   const needsSetup = settings !== null && !configured && !settings.baseUrl;
   const showSettings = settings !== null && needsSetup;
   const canType = configured && coreReady;
+  // A time above the first message, and above any sent more than fifteen minutes after the one before.
+  const stamps = new Set<string>();
+  {
+    let previous: number | undefined;
+    for (const item of state.items) {
+      if (item.kind !== 'user') continue;
+      if (startsGroup(item.at, previous)) stamps.add(item.id);
+      if (item.at !== undefined) previous = item.at;
+    }
+  }
   // Questions waiting for the person, in every conversation: the head says so, and opens the list.
   const waiting = conversations.reduce((n, c) => n + (c.waiting > 0 ? 1 : 0), 0);
   // What Mobius sees here: what is open beside it, or what it worked in during this conversation.
@@ -523,6 +534,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
             {state.items.map((item, index) =>
               item.kind === 'user' ? (
                 <Fragment key={item.id}>
+                  {stamps.has(item.id) && item.at !== undefined && <p className="msg-stamp"><time dateTime={new Date(item.at).toISOString()}>{stampLabel(item.at, Date.now())}</time></p>}
                   <div className="msg user">{item.text}</div>
                   {item.images && item.images.length > 0 && (
                     <ul className="msg-images" aria-label="Pictures attached">

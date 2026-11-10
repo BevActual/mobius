@@ -105,6 +105,9 @@ test('"Always allow" is remembered, so the next use does not ask', async () => {
   await say('time again');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Second.');
   await expect(mobius!.shell.getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
+  // Messages sent close together share one time, above the first.
+  await expect(log().locator('.msg-stamp')).toHaveCount(1);
+  await expect(log().locator('.msg-stamp')).toHaveText(/^Today \d{1,2}[:.]\d{2}/);
 });
 
 test('declining tells the model, and the tool never runs', async () => {

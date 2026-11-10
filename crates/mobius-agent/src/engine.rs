@@ -340,7 +340,8 @@ impl Engine {
     /// Like `start_with`, for a conversation that was already shortened for the model.
     pub fn start_from(&self, core: &Core, mut history: Vec<Message>, compaction: Option<Compaction>, user_text: &str, id: u64, setup: TurnSetup) -> (Turn, Step) {
         let compaction = compaction.filter(|c| c.covers < history.len() && !matches!(history[c.covers], Message::Tool { .. }));
-        history.push(Message::User { text: user_text.to_owned(), images: turn_images(&setup) });
+        let at_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok().and_then(|d| u64::try_from(d.as_millis()).ok());
+        history.push(Message::User { text: user_text.to_owned(), images: turn_images(&setup), at_ms });
         let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false };
         let step = self.next_model_call(core, &mut turn);
         (turn, step)

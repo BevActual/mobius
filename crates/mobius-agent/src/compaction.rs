@@ -76,7 +76,7 @@ pub fn tokens_of_text(text: &str) -> usize {
 fn tokens_of_message(message: &Message) -> usize {
     4 + match message {
         // A picture counts as about what a model charges for a medium-sized one.
-        Message::User { text, images } => tokens_of_text(text) + images.len() * 1_000,
+        Message::User { text, images, .. } => tokens_of_text(text) + images.len() * 1_000,
         Message::Assistant { text, tool_calls } => tokens_of_text(text) + tool_calls.iter().map(|c| tokens_of_text(&c.name) + tokens_of_text(&c.arguments.to_string()) + 8).sum::<usize>(),
         Message::Tool { content, .. } => tokens_of_text(content) + 8,
     }
@@ -150,8 +150,8 @@ pub fn transcript(messages: &[Message], max_chars: usize) -> String {
     let parts: Vec<String> = messages
         .iter()
         .map(|m| match m {
-            Message::User { text, images } if images.is_empty() => format!("PERSON: {}", clip(text, 6_000)),
-            Message::User { text, images } => format!("PERSON: {} [{} attached]", clip(text, 6_000), if images.len() == 1 { "1 picture".to_owned() } else { format!("{} pictures", images.len()) }),
+            Message::User { text, images, .. } if images.is_empty() => format!("PERSON: {}", clip(text, 6_000)),
+            Message::User { text, images, .. } => format!("PERSON: {} [{} attached]", clip(text, 6_000), if images.len() == 1 { "1 picture".to_owned() } else { format!("{} pictures", images.len()) }),
             Message::Assistant { text, tool_calls } => {
                 let calls: String = tool_calls.iter().map(|c| format!("\n  [called {} with {}]", c.name, clip(&c.arguments.to_string(), 600))).collect();
                 format!("ASSISTANT: {}{calls}", clip(text, 6_000))

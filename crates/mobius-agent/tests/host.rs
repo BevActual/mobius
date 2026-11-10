@@ -72,7 +72,7 @@ fn a_message_starts_a_turn_and_the_answer_is_announced_and_remembered() {
     let (turn_id, outs) = host.send(&core, "c1", "hello").unwrap();
     let (called_turn, request) = model_call(&outs).expect("a model call");
     assert_eq!(called_turn, turn_id);
-    assert_eq!(request.messages, [Message::user("hello")]);
+    assert_eq!(untimed(&request.messages), [Message::user("hello")]);
     assert!(host.is_busy("c1"));
 
     let outs = host.model_result(&mut core, turn_id, text("Hi!"));
@@ -80,7 +80,7 @@ fn a_message_starts_a_turn_and_the_answer_is_announced_and_remembered() {
     assert_eq!(n[0], json!({ "jsonrpc": "2.0", "method": "agent.event", "params": { "conversation": "c1", "turn": turn_id, "event": { "kind": "message", "text": "Hi!" } } }));
     assert_eq!(kinds(&outs), ["message", "done"]);
     assert!(!host.is_busy("c1"));
-    assert_eq!(host.history("c1"), [Message::user("hello"), Message::Assistant { text: "Hi!".into(), tool_calls: vec![] }]);
+    assert_eq!(untimed(&host.history("c1")), [Message::user("hello"), Message::Assistant { text: "Hi!".into(), tool_calls: vec![] }]);
 
     let (_, outs) = host.send(&core, "c1", "again").unwrap();
     assert_eq!(model_call(&outs).unwrap().1.messages.len(), 3, "the next turn sees the earlier ones");
@@ -93,7 +93,7 @@ fn conversations_are_independent_and_one_turn_runs_per_conversation() {
     assert_eq!(host.send(&core, "a", "two").err(), Some(HostError::Busy));
     let (_, outs) = host.send(&core, "b", "other").unwrap();
     assert_eq!(model_call(&outs).unwrap().1.messages.len(), 1);
-    assert_eq!(host.history("a"), [Message::user("one")], "a turn in progress is already part of the history");
+    assert_eq!(untimed(&host.history("a")), [Message::user("one")], "a turn in progress is already part of the history");
 }
 
 #[test]
@@ -294,7 +294,7 @@ fn the_last_waiter_cancelling_withdraws_the_question() {
 fn the_history_includes_the_turn_in_progress_and_the_parked_call_can_be_found() {
     let (mut core, mut host) = setup();
     let (turn_id, _) = host.send(&core, "c1", "use it").unwrap();
-    assert_eq!(host.history("c1"), [Message::user("use it")]);
+    assert_eq!(untimed(&host.history("c1")), [Message::user("use it")]);
     assert!(host.waiting("c1").is_empty());
 
     let outs = host.model_result(&mut core, turn_id, tool("call1", json!({ "text": "hi" })));
@@ -832,4 +832,12 @@ fn the_pause_names_the_step_of_the_plan() {
     let outs = host.cancel(&mut core, "c1");
     assert!(kinds(&outs).contains(&"cancelled".to_owned()));
     assert!(!host.is_busy("c1"));
+}
+
+/// The messages without the time each was sent, to compare with plain ones.
+fn untimed(messages: &[Message]) -> Vec<Message> {
+    messages.iter().cloned().map(|m| match m {
+        Message::User { text, images, .. } => Message::User { text, images, at_ms: None },
+        other => other,
+    }).collect()
 }

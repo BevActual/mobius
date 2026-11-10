@@ -66,7 +66,7 @@ pub fn build_body(request: &ChatRequest) -> Value {
     let mut input = Vec::new();
     for message in &request.messages {
         match message {
-            Message::User { text, images } => {
+            Message::User { text, images, .. } => {
                 let mut content = vec![json!({ "type": "input_text", "text": text })];
                 content.extend(images.iter().map(|url| json!({ "type": "input_image", "image_url": url })));
                 input.push(json!({ "type": "message", "role": "user", "content": content }));
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn pictures_go_as_input_images() {
         let mut r = request();
-        r.messages = vec![Message::User { text: "look".into(), images: vec!["data:image/jpeg;base64,AAAA".into()] }];
+        r.messages = vec![Message::User { text: "look".into(), images: vec!["data:image/jpeg;base64,AAAA".into()], at_ms: None }];
         let body = build_body(&r);
         assert_eq!(body["input"][0]["content"][1], json!({ "type": "input_image", "image_url": "data:image/jpeg;base64,AAAA" }));
     }

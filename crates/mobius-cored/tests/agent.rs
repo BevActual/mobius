@@ -282,7 +282,8 @@ fn a_reply_streams_and_arrives_after_the_response_that_started_it() {
     assert_eq!(message["params"]["event"]["text"], "Hello there");
     d.until_event("done");
     let history = d.call(3, "agent.history", json!({ "conversation": "c1" }));
-    assert_eq!(history["result"][0], json!({ "role": "user", "text": "hi" }));
+    assert!(history["result"][0]["at_ms"].as_u64().is_some_and(|t| t > 1_700_000_000_000), "{history}");
+    assert_eq!(history["result"][0]["text"], "hi");
     assert_eq!(history["result"][1]["text"], "Hello there");
     let body = &server.bodies.lock().unwrap()[0];
     assert_eq!(body["model"], "fake-model");
@@ -317,7 +318,8 @@ fn a_tool_call_waits_for_a_person_and_the_whole_flow_works_through_the_real_pipe
     let waiting = d.call(9, "agent.waiting", json!({ "conversation": "c1" }));
     assert_eq!(waiting["result"], json!([{ "request_id": request_id, "call_id": "call_1", "tool": "demo.echo", "arguments": { "text": "hi" }, "once_only": false }]));
     let history = d.call(10, "agent.history", json!({ "conversation": "c1" }));
-    assert_eq!(history["result"][0], json!({ "role": "user", "text": "echo hi" }));
+    assert!(history["result"][0]["at_ms"].as_u64().is_some_and(|t| t > 1_700_000_000_000), "{history}");
+    assert_eq!(history["result"][0]["text"], "echo hi");
     assert_eq!(history["result"][1]["tool_calls"][0]["name"], "demo.echo", "a turn in progress can be reloaded");
     assert_eq!(d.call(3, "permissions.pending", json!({}))["result"].as_array().unwrap().len(), 1);
 
@@ -532,7 +534,8 @@ fn conversations_are_kept_across_restarts_listed_and_deletable() {
         let server = fake(vec![says(&["Again."], 0)]);
         let mut d = Daemon::start(&["--conversations", path]);
         let history = d.call(1, "agent.history", json!({ "conversation": "trip" }));
-        assert_eq!(history["result"][0], json!({ "role": "user", "text": "Plan a trip to Lisbon" }), "the conversation is there before any model is set up");
+        assert!(history["result"][0]["at_ms"].as_u64().is_some_and(|t| t > 1_700_000_000_000), "{history}");
+    assert_eq!(history["result"][0]["text"], "Plan a trip to Lisbon", "the conversation is there before any model is set up");
         assert_eq!(d.call(2, "agent.conversations", json!({}))["result"][0]["id"], "trip");
         configure(&mut d, &server);
         d.call(3, "agent.send", json!({ "conversation": "trip", "text": "and hotels?" }));

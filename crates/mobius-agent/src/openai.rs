@@ -28,9 +28,9 @@ pub fn build_request_body(request: &ChatRequest) -> Value {
     }
     for message in &request.messages {
         messages.push(match message {
-            Message::User { text, images } if images.is_empty() => json!({ "role": "user", "content": text }),
+            Message::User { text, images, .. } if images.is_empty() => json!({ "role": "user", "content": text }),
             // Pictures go as content parts after the words, for models that read them.
-            Message::User { text, images } => {
+            Message::User { text, images, .. } => {
                 let mut parts = vec![json!({ "type": "text", "text": text })];
                 parts.extend(images.iter().map(|url| json!({ "type": "image_url", "image_url": { "url": url } })));
                 json!({ "role": "user", "content": parts })
@@ -570,7 +570,7 @@ mod tests {
     #[test]
     fn pictures_go_as_content_parts_after_the_words() {
         let picture = "data:image/png;base64,iVBORw0KGgo=".to_owned();
-        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "what is this?".into(), images: vec![picture.clone()] }], tools: vec![], effort: None, max_tokens: None };
+        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "what is this?".into(), images: vec![picture.clone()], at_ms: None }], tools: vec![], effort: None, max_tokens: None };
         let body = body_for(&request, false);
         assert_eq!(body["messages"][0]["content"], json!([{ "type": "text", "text": "what is this?" }, { "type": "image_url", "image_url": { "url": picture } }]));
     }
