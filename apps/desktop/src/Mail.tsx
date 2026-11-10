@@ -219,8 +219,11 @@ function Suggested({ mail, draft }: { mail: MailState; draft: MailDraft }) {
 function Reader({ mail, content, onDraftReply }: { mail: MailState; content: MailContent; onDraftReply?: (m: MailContent) => void }) {
   const suggestions = mail.drafts.filter((d) => d.by === 'mobius' && d.replyTo === content.id);
   const [showHtml, setShowHtml] = useState(true);
+  // The keyboard follows the message opened: E, R and H act on it straight away, whatever was clicked to open it.
+  const reader = useRef<HTMLElement>(null);
+  useEffect(() => { reader.current?.focus({ preventScroll: true }); }, [content.id]);
   return (
-    <article className="mail-reader" aria-label={content.subject || 'Message'}>
+    <article ref={reader} tabIndex={-1} className="mail-reader" aria-label={content.subject || 'Message'}>
       <header className="mail-reader-head">
         <span className="mail-avatar" aria-hidden="true">{initials(content.from.name, content.from.email)}</span>
         <div className="mail-reader-who">

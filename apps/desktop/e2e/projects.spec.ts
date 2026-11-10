@@ -150,3 +150,67 @@ test('what Mobius learns in a project thread waits dashed on the project memory,
   await expect(memory.getByRole('listitem', { name: /Lisbon/ })).toHaveCount(0);
   expect(fs.readFileSync(path.join(userData, 'workspace', 'wiki', 'Projects', 'Kestrel.md'), 'utf8')).not.toContain('Lisbon');
 });
+
+test('a conversation started outside can be moved into a project, and from then on the project’s rules count in it', async () => {
+  const change = callsTool('files-write', { path: 'docs/Plan.md', content: '# Plan\n' });
+  await start([says(['Hello.']), change, says(['Wrote it in the project.'])]);
+  await say('hello');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Hello.');
+  await openProjects();
+  await newProject('Kestrel');
+  const page = shell().getByRole('region', { name: 'Kestrel' });
+  await page.getByRole('combobox', { name: 'Docs in Kestrel' }).selectOption('act');
+  const move = page.getByRole('combobox', { name: 'Move a conversation into Kestrel' });
+  await move.selectOption({ label: 'hello' });
+  await expect(page.getByRole('list', { name: 'Threads' }).getByRole('button')).toHaveText([/hello/]);
+  await expect(move).toHaveCount(0);
+  await page.getByRole('list', { name: 'Threads' }).getByRole('button').click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Hello.');
+  await say('write the plan');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Wrote it in the project.');
+  await expect(log().getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
+});
+
+test('a project can be renamed, and its folder and its memory page follow the name', async () => {
+  await start();
+  await openProjects();
+  await newProject('Kestrel');
+  const workspace = (...p: string[]) => path.join(userData, 'workspace', ...p);
+  fs.writeFileSync(workspace('wiki', 'Projects', 'Kestrel.md'), '# Kestrel\n\n- Builds start on Mondays\n');
+  fs.writeFileSync(workspace('projects', 'Kestrel', 'brief.md'), 'brief');
+  await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: 'Rename' }).click();
+  const field = shell().getByRole('region', { name: 'Kestrel' }).getByRole('textbox', { name: 'Project name' });
+  await field.fill('Kestrel P3');
+  await field.press('Enter');
+  const page = shell().getByRole('region', { name: 'Kestrel P3' });
+  await expect(page.getByRole('heading', { name: 'Kestrel P3' })).toBeVisible();
+  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('button')).toHaveText(['Kestrel P3']);
+  expect(fs.readFileSync(workspace('projects', 'Kestrel P3', 'brief.md'), 'utf8')).toBe('brief');
+  expect(fs.existsSync(workspace('projects', 'Kestrel'))).toBe(false);
+  expect(fs.readFileSync(workspace('wiki', 'Projects', 'Kestrel P3.md'), 'utf8')).toContain('Builds start on Mondays');
+  await expect(page.getByRole('list', { name: 'What this project knows' })).toContainText('Builds start on Mondays');
+});
+
+test('a bot asked from a project thread works in a side thread of its own and reports back into the thread', async () => {
+  await start([says(['Hi.']), says(['Three venues: Casa A, Quinta B and Palácio C.'])]);
+  await shell().evaluate(() => (window as unknown as { mobius: { bots: { create(d: { name: string; instructions: string; model: string }): Promise<unknown> } } }).mobius.bots.create({ name: 'Research', instructions: 'Find things out.', model: '' }));
+  await openProjects();
+  await newProject('Kestrel');
+  await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: 'New thread' }).click();
+  await inThread();
+  await say('hi');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Hi.');
+  const sides = shell().getByRole('region', { name: 'Side threads' }).first();
+  await sides.getByRole('combobox', { name: 'Bot' }).selectOption({ label: 'Research' });
+  await sides.getByRole('textbox', { name: 'Ask a bot' }).fill('Find three venues in Lisbon');
+  await sides.getByRole('textbox', { name: 'Ask a bot' }).press('Enter');
+  const report = sides.getByRole('group', { name: 'From Research' });
+  await expect(report).toContainText('From Research · “Find three venues in Lisbon”');
+  await expect(report).toContainText('Three venues: Casa A, Quinta B and Palácio C.');
+  // The side thread is the project's too, under the thread it was asked from.
+  const project = JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0];
+  expect(project.sides).toHaveLength(1);
+  expect(project.sides[0].parent).toBe(project.threads[0]);
+  await openProjects();
+  await expect(shell().getByRole('region', { name: 'Kestrel' }).getByRole('list', { name: 'Threads' })).toContainText('ResearchReported back · Find three venues in Lisbon');
+});

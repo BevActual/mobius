@@ -449,8 +449,14 @@ export interface MobiusBridge {
     list(): Promise<ProjectInfo[]>;
     create(name: string): Promise<ProjectInfo | NotesFailure>;
     remove(id: string): Promise<{ ok: true } | NotesFailure>;
+    /** A new name: its folder in Files and its memory page in the Wiki follow it. */
+    rename(id: string, name: string): Promise<ProjectInfo | NotesFailure>;
     setRule(id: string, app: string, level: ProjectLevel | 'follow'): Promise<ProjectInfo | NotesFailure>;
     addThread(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
+    /** Ask a bot, from one of the project's threads, to do something in a side thread of its own. */
+    addSide(id: string, parent: string, conversation: string, bot: string, botName: string, ask: string): Promise<ProjectInfo | NotesFailure>;
+    /** A side thread finished: what it found, for the thread it was asked from. */
+    report(conversation: string, text: string): Promise<ProjectInfo | NotesFailure>;
     onChanged(listener: () => void): () => void;
   };
   /** Only the desktop app: the workspace folder as a drive, for the person to look through. */
@@ -1278,4 +1284,6 @@ export interface MailPlan { archive: MailPlanRow[]; reply: MailPlanRow[]; todos:
 /** How much Mobius may do in one app of a project: Ask first, Propose or Act. */
 export type ProjectLevel = 'ask' | 'propose' | 'act';
 /** A project: its name, its rules by app, and its conversations (threads). */
-export interface ProjectInfo { id: string; name: string; rules: Partial<Record<string, ProjectLevel>>; threads: string[] }
+export interface ProjectInfo { id: string; name: string; rules: Partial<Record<string, ProjectLevel>>; threads: string[]; sides?: ProjectSide[] }
+/** A bot asked from a project thread to do something in a side thread of its own, and what it reported back. */
+export interface ProjectSide { conversation: string; parent: string; bot: string; botName: string; ask: string; report?: string | null }

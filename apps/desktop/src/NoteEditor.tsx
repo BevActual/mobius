@@ -21,6 +21,7 @@ import { showTag, tagRanges, tagsIn } from './note-tags';
 import { countWords } from './Docs';
 import { relativeTime } from './relative-time';
 import { NoteHistory, dayOf } from './NoteHistory';
+import './notes.css';
 import { fileMarkdown, noteImage, readFile } from './note-files';
 import { linkTo, linkedFrom, pageOfLink, pagesMatching } from './note-links';
 

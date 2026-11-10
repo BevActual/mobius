@@ -24,6 +24,23 @@ pub struct Project {
     /// The project's conversations, newest last.
     #[serde(default)]
     pub threads: Vec<String>,
+    /// Bots asked from a thread to do something on the side: each in a conversation of its own, reporting back.
+    #[serde(default)]
+    pub sides: Vec<Side>,
+}
+
+/// A bot's side thread: what it was asked from which thread, and what it reported back when it finished.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Side {
+    pub conversation: String,
+    /// The thread it was asked from, which its report goes back to.
+    pub parent: String,
+    pub bot: String,
+    pub bot_name: String,
+    pub ask: String,
+    #[serde(default)]
+    pub report: Option<String>,
 }
 
 pub struct Projects {
@@ -83,9 +100,23 @@ impl Projects {
             }
             let mut bytes = [0u8; 4];
             let _ = getrandom::fill(&mut bytes);
-            let project = Project { id: format!("p{}", bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()), name, rules: BTreeMap::new(), threads: Vec::new() };
+            let project = Project { id: format!("p{}", bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()), name, rules: BTreeMap::new(), threads: Vec::new(), sides: Vec::new() };
             all.push(project.clone());
             Ok(project)
+        })
+    }
+
+    /// A new name. Returns the project as it was, then as it is, so its folder and page can follow.
+    pub fn rename(&self, id: &str, name: &str) -> Result<(Project, Project), String> {
+        let name = clean_name(name).ok_or("A project's name is a few words, without / \\ : * ? \" < > |.")?;
+        self.change(|all| {
+            if all.iter().any(|p| p.id != id && p.name.eq_ignore_ascii_case(&name)) {
+                return Err("There is a project with that name already.".into());
+            }
+            let p = all.iter_mut().find(|p| p.id == id).ok_or("That project is not there.")?;
+            let before = p.clone();
+            p.name = name;
+            Ok((before, p.clone()))
         })
     }
 
@@ -133,10 +164,44 @@ impl Projects {
         })
     }
 
-    /// The project a conversation belongs to, if any.
+    /// The project a conversation belongs to, if any: one of its threads, or a bot's side thread in it.
     #[must_use]
     pub fn project_of(&self, conversation: &str) -> Option<String> {
-        self.load().into_iter().find(|p| p.threads.iter().any(|t| t == conversation)).map(|p| p.id)
+        self.load().into_iter().find(|p| p.threads.iter().any(|t| t == conversation) || p.sides.iter().any(|s| s.conversation == conversation)).map(|p| p.id)
+    }
+
+    /// A bot asked, from one of the project's threads, to do something in a side thread of its own.
+    pub fn add_side(&self, id: &str, side: Side) -> Result<Project, String> {
+        let ask: String = side.ask.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(500).collect();
+        if ask.is_empty() {
+            return Err("What should the bot do?".into());
+        }
+        self.change(|all| {
+            if all.iter().any(|p| p.threads.iter().any(|t| *t == side.conversation) || p.sides.iter().any(|s| s.conversation == side.conversation)) {
+                return Err("That conversation is in a project already.".into());
+            }
+            let p = all.iter_mut().find(|p| p.id == id).ok_or("That project is not there.")?;
+            if !p.threads.iter().any(|t| *t == side.parent) {
+                return Err("A side thread is asked from one of the project's threads.".into());
+            }
+            if p.sides.len() >= MAX_THREADS {
+                return Err("That project has too many side threads.".into());
+            }
+            p.sides.push(Side { ask, report: None, ..side });
+            Ok(p.clone())
+        })
+    }
+
+    /// A side thread finished: what it found goes back to the thread it was asked from.
+    pub fn report(&self, conversation: &str, text: &str) -> Result<Project, String> {
+        let text: String = text.trim().chars().take(4000).collect();
+        self.change(|all| {
+            let p = all.iter_mut().find(|p| p.sides.iter().any(|s| s.conversation == conversation)).ok_or("That is not a side thread.")?;
+            if let Some(s) = p.sides.iter_mut().find(|s| s.conversation == conversation) {
+                s.report = Some(if text.is_empty() { "Done.".to_owned() } else { text });
+            }
+            Ok(p.clone())
+        })
     }
 }
 
@@ -196,6 +261,19 @@ mod tests {
         assert!(!rules.to_string().contains("browser.interact"), "acting in a page always asks");
         p.set_rule(&kestrel.id, "docs", "follow").unwrap();
         assert!(!p.list()[0].rules.contains_key("docs"));
+        let (before, after) = p.rename(&kestrel.id, "Kestrel P3").unwrap();
+        assert_eq!((before.name.as_str(), after.name.as_str()), ("Kestrel P2", "Kestrel P3"));
+        assert_eq!(after.threads, before.threads, "its threads and rules stay");
+        assert!(p.rename(&kestrel.id, "home").is_err(), "names stay unique");
+        assert!(p.rename(&kestrel.id, "a/b").is_err());
+        let side = Side { conversation: "c-abc123-1".into(), parent: "main-1".into(), bot: "abc123".into(), bot_name: "Research".into(), ask: "Find three venues".into(), report: None };
+        assert!(p.add_side(&kestrel.id, Side { parent: "main-9".into(), ..side.clone() }).is_err(), "asked from one of the project's threads");
+        p.add_side(&kestrel.id, side.clone()).unwrap();
+        assert_eq!(p.project_of("c-abc123-1").as_deref(), Some(kestrel.id.as_str()), "the project's rules count in a side thread too");
+        assert!(p.add_side(&kestrel.id, side).is_err(), "once");
+        let reported = p.report("c-abc123-1", "Three venues: A, B and C.").unwrap();
+        assert_eq!(reported.sides[0].report.as_deref(), Some("Three venues: A, B and C."));
+        assert!(p.report("c-other", "x").is_err());
         p.remove(&other.id).unwrap();
         assert_eq!(p.list().len(), 1);
     }

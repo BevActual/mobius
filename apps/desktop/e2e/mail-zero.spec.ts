@@ -85,12 +85,13 @@ test('Get to zero is a plan in the Mobius panel: keep it and the inbox empties, 
 test('the keys are shown under the list; E archives and H puts off the open message', async () => {
   await start();
   await expect(page().getByLabel('Keyboard')).toHaveText('E ArchiveR ReplyH Remind meCtrl+K Anything');
+  // Opening a message gives it the keyboard: E and H act on it at once.
   await inbox().getByRole('option').filter({ hasText: 'Your booking' }).click();
-  await page().locator('.mail-reader').click();
+  await expect(page().getByRole('article', { name: 'Your booking LX7Q2M' })).toBeFocused();
   await shell().keyboard.press('e');
   await expect(inbox().getByRole('option')).toHaveCount(1);
   await inbox().getByRole('option').first().click();
-  await page().locator('.mail-reader').click();
+  await expect(page().getByRole('article', { name: 'Terrace + lunch for the 13th' })).toBeFocused();
   await shell().keyboard.press('h');
   await expect(inbox().getByRole('option')).toHaveCount(0);
 });

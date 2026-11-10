@@ -111,6 +111,16 @@ impl Incoming {
         Ok(change)
     }
 
+    /// A page was renamed: what waits for it waits for its new name.
+    pub fn repage(&self, from: &str, to: &str) -> Result<(), String> {
+        let _one = self.lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut saved = self.load();
+        for c in saved.waiting.iter_mut().filter(|c| c.page == from) {
+            c.page = to.to_owned();
+        }
+        self.store(&saved)
+    }
+
     /// Undo: a change kept or declined waits again, where it was.
     pub fn put_back(&self, change: Change) -> Result<(), String> {
         let _one = self.lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -165,6 +175,8 @@ mod tests {
         let ids: Vec<String> = q.list().as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap().to_owned()).collect();
         assert_eq!(ids, [a["id"].as_str().unwrap(), b["id"].as_str().unwrap()], "back where it was");
         assert!(q.take("nope").is_err());
+        q.repage("Team/Rules.md", "Team/Ground rules.md").unwrap();
+        assert_eq!(q.list()[1]["page"], "Team/Ground rules.md", "what waits for a renamed page follows it");
     }
 
     #[test]
