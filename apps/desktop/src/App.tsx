@@ -745,17 +745,17 @@ export function App() {
             ) : inDatabase ? (
               <DatabaseSidebar db={databases} pin={pinNode} changed={turnMarks.databases} />
             ) : inReader ? (
-              <ReaderSidebar reading={reading} pin={pinNode} changed={turnMarks.reading} />
+              <ReaderSidebar reading={reading} pin={pinNode} changed={turnMarks.reading} starts={startsFor('reader')} onStart={startWithMobius} />
             ) : inResearch ? (
-              <ResearchSidebar research={research} pin={pinNode} changed={turnMarks.research} />
+              <ResearchSidebar research={research} pin={pinNode} changed={turnMarks.research} starts={startsFor('research')} onStart={startWithMobius} />
             ) : inCanvas ? (
-              <CanvasSidebar boards={boards} pin={pinNode} changed={turnMarks.boards} />
+              <CanvasSidebar boards={boards} pin={pinNode} changed={turnMarks.boards} starts={startsFor('canvas')} onStart={startWithMobius} />
             ) : inCode ? (
               <CodeSidebar code={code} pin={pinNode} changed={turnMarks.code} starts={startsFor('code')} onStart={startWithMobius} />
             ) : inMail ? (
               <MailSidebar mail={mail} pin={pinNode} starts={startsFor('mail')} onStart={startWithMobius} />
             ) : inSlides ? (
-              <SlidesSidebar slides={slides} pin={pinNode} changed={turnMarks.slides} />
+              <SlidesSidebar slides={slides} pin={pinNode} changed={turnMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
             ) : inSheets ? (
               <SheetsSidebar sheets={sheets} pin={pinNode} changed={turnMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
             ) : inDocs ? (

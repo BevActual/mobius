@@ -8,11 +8,11 @@ import {
   pasteItems, tidyItems, type Board, type BoardColor, type BoardItem, type Boxed, type Rect, type ShapeKind,
 } from './board-format';
 import type { NotesState } from './useNotes';
-import { ReviewActions } from './ReviewBar';
+import { ReviewActions, WhyThis } from './ReviewBar';
 
 export const CANVAS_WORDS: SidebarWords = { app: 'Canvas', group: 'folder', groups: 'Folders', item: 'board', items: 'boards', about: 'Boards are kept as JSON files in your workspace, one item per line, so the agent can read and change them too.', defaultGroup: 'Boards' };
 
-export function CanvasSidebar(props: { boards: NotesState; pin: ReactNode; changed?: ReadonlySet<string> }) {
+export function CanvasSidebar(props: { boards: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; starts?: readonly import('./SideNew').Start[]; onStart?: (prompt: string) => void }) {
   const { boards, ...rest } = props;
   return <NotesSidebar notes={boards} words={CANVAS_WORDS} {...rest} />;
 }
@@ -427,7 +427,7 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
         {(changed.size > 0 || removed.length > 0) && (
           <div className="design-review canvas-review" role="group" aria-label="Mobius's change" onPointerDown={(e) => e.stopPropagation()}>
             <span className="review-dot" aria-hidden="true" />
-            <span>{reviewText(changed.size, removed.length)}</span>
+            <span>{reviewText(changed.size, removed.length)}{review && <WhyThis conversation={review.conversation} />}</span>
             <ReviewActions onKeep={keep} onDiscard={discard} />
           </div>
         )}

@@ -4,7 +4,7 @@ import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { isNotesFailure, type WorkbookInfo } from '@mobius/shared';
 import { sheetToCsv, showCell, tableQuery, toCsv } from './db-view';
 import type { DatabasesState } from './useDatabases';
-import { ReviewActions } from './ReviewBar';
+import { ReviewActions, WhyThis } from './ReviewBar';
 
 /** The databases, the open one's tables, and making or importing one. */
 export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin: ReactNode; changed?: ReadonlySet<string> }) {
@@ -144,7 +144,7 @@ export function DatabasePage({ db, review }: { db: DatabasesState; review?: { co
       {show && (
         <div className="note-review db-review" role="status">
           <span className="review-dot" aria-hidden="true" />
-          <span className="note-review-text">Mobius changed this database in its last turn.</span>
+          <span className="note-review-text">Mobius changed this database in its last turn.{review && <WhyThis conversation={review.conversation} />}</span>
           <ReviewActions onKeep={keep} onDiscard={discard} />
         </div>
       )}

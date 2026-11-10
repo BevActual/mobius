@@ -8,7 +8,7 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 
 export const SLIDES_WORDS: SidebarWords = { app: 'Slides', group: 'folder', groups: 'Folders', item: 'deck', items: 'decks', about: 'Decks are kept as Markdown files in your workspace, a slide between each line of ---, so other apps and the agent can open them too.', defaultGroup: 'Presentations' };
 
-export function SlidesSidebar(props: { slides: NotesState; pin: ReactNode; changed?: ReadonlySet<string> }) {
+export function SlidesSidebar(props: { slides: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; starts?: readonly import('./SideNew').Start[]; onStart?: (prompt: string) => void }) {
   const { slides, ...rest } = props;
   return <NotesSidebar notes={slides} words={SLIDES_WORDS} {...rest} />;
 }

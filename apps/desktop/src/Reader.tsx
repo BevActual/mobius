@@ -6,11 +6,11 @@ import { useFileReview } from './useFileReview';
 import { ARCHIVE, READING_LIST, addHighlight, articleFile, articleTitle, highlightsOf, keepLook, parseArticle, readLook, removeHighlight, type ReadingLook } from './reader-format';
 import { clipToNotes } from './clip';
 import type { NotesState } from './useNotes';
-import { ReviewActions } from './ReviewBar';
+import { ReviewActions, WhyThis } from './ReviewBar';
 
 export const READER_WORDS: SidebarWords = { app: 'Reader', group: 'list', groups: 'Lists', item: 'article', items: 'articles', about: 'Articles are kept as Markdown files in your workspace, so the agent can read them with you.', defaultGroup: READING_LIST };
 
-export function ReaderSidebar(props: { reading: NotesState; pin: ReactNode; changed?: ReadonlySet<string> }) {
+export function ReaderSidebar(props: { reading: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; starts?: readonly import('./SideNew').Start[]; onStart?: (prompt: string) => void }) {
   const { reading, ...rest } = props;
   return <NotesSidebar notes={reading} words={READER_WORDS} {...rest} />;
 }
@@ -140,7 +140,7 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
           {changed && (
             <div className="note-review" role="status">
               <span className="review-dot" aria-hidden="true" />
-              <span className="note-review-text">Mobius changed this article in its last turn.</span>
+              <span className="note-review-text">Mobius changed this article in its last turn.{review && <WhyThis conversation={review.conversation} />}</span>
               <ReviewActions onKeep={keep} onDiscard={discard} />
             </div>
           )}

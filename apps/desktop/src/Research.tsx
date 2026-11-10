@@ -4,12 +4,12 @@ import { RichText } from './RichText';
 import { useFileReview } from './useFileReview';
 import { DEPTHS, claimCounts, followUpPrompt, isWaiting, researchPrompt, sourcesOf, startingPage, titleFor, type Depth } from './research-format';
 import type { NotesState } from './useNotes';
-import { ReviewActions } from './ReviewBar';
+import { ReviewActions, WhyThis } from './ReviewBar';
 
 export const RESEARCH_WORDS: SidebarWords = { app: 'Research', group: 'folder', groups: 'Folders', item: 'report', items: 'reports', about: 'Reports are kept as Markdown files in your workspace, with their sources, so Docs and the agent can open them too.', defaultGroup: 'Research' };
 export const RESEARCH_FOLDER = 'Research';
 
-export function ResearchSidebar(props: { research: NotesState; pin: ReactNode; changed?: ReadonlySet<string> }) {
+export function ResearchSidebar(props: { research: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; starts?: readonly import('./SideNew').Start[]; onStart?: (prompt: string) => void }) {
   const { research, ...rest } = props;
   return <NotesSidebar notes={research} words={RESEARCH_WORDS} {...rest} />;
 }
@@ -114,7 +114,7 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone 
           {changed && (
             <div className="note-review" role="status">
               <span className="review-dot" aria-hidden="true" />
-              <span className="note-review-text">{before === null || isWaiting(before) ? 'Mobius wrote this report in its last turn.' : 'Mobius changed this report in its last turn.'}</span>
+              <span className="note-review-text">{before === null || isWaiting(before) ? 'Mobius wrote this report in its last turn.' : 'Mobius changed this report in its last turn.'}{review && <WhyThis conversation={review.conversation} />}</span>
               <ReviewActions onKeep={keep} onDiscard={discard} />
             </div>
           )}
