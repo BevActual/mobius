@@ -85,14 +85,10 @@ test('text selected in a note becomes a task in one click', async () => {
   await start();
   await openApp('Notes');
   await shell().getByRole('complementary', { name: 'Notes sidebar' }).getByRole('button', { name: 'Plan', exact: true }).click();
-  const text = shell().getByRole('textbox', { name: 'Page text' });
-  await expect(text).toHaveValue(/Call the printer/);
-  await text.evaluate((field: HTMLTextAreaElement) => {
-    const start = field.value.indexOf('Call');
-    field.focus();
-    field.setSelectionRange(start, field.value.indexOf('.', start));
-  });
-  await text.press('Shift+ArrowRight');
+  const text = shell().getByRole('textbox', { name: 'Note text' });
+  await expect(text).toContainText('Call the printer');
+  // The whole sentence, chosen with three clicks.
+  await text.getByText('Call the printer about the posters.').click({ clickCount: 3 });
   const bar = shell().getByRole('toolbar', { name: 'Selected text' });
   await expect(bar).toBeVisible();
   await bar.getByRole('button', { name: 'Make a task' }).click();

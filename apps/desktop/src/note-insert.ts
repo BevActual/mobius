@@ -33,3 +33,9 @@ export function clipBlock(page: { url: string; title: string; text: string }, pa
   const title = (page.title || page.url).replace(/[[\]]/g, '');
   return `${quote || '> (no text on that page)'}\n\n— [${title}](${page.url})`;
 }
+
+/**
+ * The editor's Markdown, written as people write it: one blank line between blocks and a newline at the end. An empty
+ * paragraph (Enter twice) comes out of the editor as `&nbsp;`; in a note it is only a blank line.
+ */
+export const tidyMarkdown = (md: string) => `${md.replace(/^(?:&nbsp;| )$/gm, '').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;

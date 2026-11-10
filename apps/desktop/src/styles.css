@@ -493,6 +493,47 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .note-conflict span { flex: 1; }
 .note-text { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: var(--sp-4) var(--sp-8) var(--sp-8); border: 0; outline: none; resize: none; background: transparent; color: var(--ink); font-size: var(--fs-lg); line-height: 1.65; }
 
+/* Notes: the page as formatted text, kept as Markdown. The Markdown view is the same column as a text box. */
+.note-format { gap: 2px; }
+.note-format .note-insert { width: auto; max-width: none; margin: 0; padding: 0; }
+.note-format .note-clip { flex-basis: 100%; margin: 4px 0 0; }
+.note-source[aria-pressed="true"] { background: var(--wash); color: var(--accent); }
+.note-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.note-scroll[hidden] { display: none; }
+.note-scroll > .note-text { flex: 1; min-height: 60vh; }
+.note-meta { width: 100%; max-width: 760px; margin: 0 auto; padding: var(--sp-4) var(--sp-8) 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--muted); font-size: var(--fs-sm); }
+.note-meta > span + span::before { content: "·"; margin-right: 10px; }
+.note-meta-tag { height: 20px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--wash); color: var(--accent); font-size: var(--fs-sm); }
+.note-meta-tag:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.note-paper { width: 100%; max-width: 760px; margin: 0 auto; flex: 1; }
+.note-page { min-height: 60vh; padding: var(--sp-3) var(--sp-8) var(--sp-8); outline: none; color: var(--ink); font-size: var(--fs-lg); line-height: 1.65; }
+.note-page:focus-visible { outline: none; }
+.note-page h1 { font-size: 26px; line-height: 1.2; margin: 0 0 0.5em; letter-spacing: -0.01em; }
+.note-page h2 { font-size: 19px; margin: 1.3em 0 0.35em; }
+.note-page h3 { font-size: 16px; margin: 1.1em 0 0.3em; }
+.note-page p { margin: 0 0 0.7em; }
+.note-page ul, .note-page ol { margin: 0 0 0.7em; padding-left: 1.4em; }
+.note-page li p, .note-page td p, .note-page th p { margin: 0; }
+.note-page blockquote { margin: 0 0 0.7em; padding-left: 14px; border-left: 3px solid var(--line-strong); color: var(--muted); }
+.note-page a { color: var(--accent); }
+.note-page code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em; padding: 1px 4px; border-radius: 4px; background: var(--soft); }
+.note-page pre { padding: 12px 14px; border-radius: 8px; background: var(--soft); overflow: auto; }
+.note-page pre code { padding: 0; background: none; }
+.note-page hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
+.note-page table { border-collapse: collapse; width: 100%; margin: 0 0 1em; table-layout: fixed; font-size: 14px; }
+.note-page th, .note-page td { border: 1px solid var(--line-strong); padding: 6px 8px; vertical-align: top; position: relative; }
+.note-page th { background: var(--panel); text-align: left; font-weight: 600; }
+.note-page .selectedCell::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--accent) 14%, transparent); pointer-events: none; }
+.note-page .is-empty::before { content: attr(data-placeholder); float: left; height: 0; color: var(--muted); pointer-events: none; }
+.note-page ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
+.note-page ul[data-type="taskList"] ul[data-type="taskList"] { padding-left: 1.4em; margin: 0; }
+.note-page ul[data-type="taskList"] > li { display: flex; align-items: flex-start; gap: 8px; }
+.note-page ul[data-type="taskList"] > li > label { flex-shrink: 0; margin-top: 0.3em; }
+.note-page ul[data-type="taskList"] > li > label input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.note-page ul[data-type="taskList"] > li > div { flex: 1; min-width: 0; }
+.note-page ul[data-type="taskList"] > li[data-checked="true"] > div > p { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.note-tag { padding: 0 3px; border-radius: 4px; background: var(--wash); color: var(--accent); }
+
 /* Settings > Providers */
 .providers { display: grid; gap: var(--sp-3); }
 .plist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-group); overflow: hidden; }
@@ -2320,6 +2361,17 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .wiki-from-line { color: var(--muted); font-size: var(--fs-xs); }
 .wiki-add { display: flex; gap: 6px; }
 .wiki-add input { flex: 1; }
+
+/* Notes' list: each page with how it starts; Pinned and Tags fold like notebooks; a tag lists its pages. */
+.note-lines { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.notes-section .note-row, .notes-tag-row { padding-left: 22px; }
+.notes-tag-row .note-title { color: var(--accent); }
+.note-count { margin-left: auto; font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.notes-tag-head { display: flex; align-items: center; gap: 8px; padding: 4px var(--sp-2) 6px; }
+.notes-tag-head .note-meta-tag { display: inline-flex; align-items: center; }
+.notes-tag-clear { margin-left: auto; }
+.notes-list[role="region"] ul { list-style: none; margin: 0; padding: 0; }
+.notes-list[role="region"] .note-row { padding-left: var(--sp-2); }
 
 /* Projects: a place, with its cards. */
 .hub-icon[data-app="projects"], .launcher-icon svg[data-app="projects"], .review-filter svg[data-app="projects"] { background: var(--app-projects); }

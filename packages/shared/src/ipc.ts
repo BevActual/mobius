@@ -129,7 +129,8 @@ export type NavigateOutcome = 'navigated' | 'ask' | 'blocked' | 'empty';
 
 /** The API the preload script exposes. Nothing else is reachable from the renderer. */
 /** One page of the Notes app: a Markdown file in a notebook folder. `path` is `notebook/page.md`. */
-export interface NotePage { path: string; title: string; modified: number }
+/** `preview` is the first line under the title and `tags` its `#tags`, for Markdown pages (notes, docs, wiki). */
+export interface NotePage { path: string; title: string; modified: number; preview?: string; tags?: string[]; links?: string[] }
 export interface Notebook { name: string; pages: NotePage[] }
 export interface NoteContent { path: string; content: string; modified: number }
 export interface NoteHit { path: string; title: string; notebook: string; line: string }
@@ -157,6 +158,10 @@ export type MemoryCategory = 'you' | 'prefs' | 'work' | 'people' | 'skills';
 export interface MemoryItem { text: string; category: MemoryCategory; source: string; /** Mobius noticed it and you have not kept it yet: shown dashed in How I work. */ learned?: boolean }
 /** A change offered to the Wiki: a line for a page, waiting in Shared with this wiki until it is kept or declined. */
 export interface WikiChange { id: string; from: string; page: string; text: string; whenMs: number }
+/** A page as it was earlier: kept as the person typed, or read from a workspace checkpoint. */
+export interface NoteVersion { whenMs: number; content: string; source?: 'kept' | 'checkpoint'; checkpoint?: string }
+/** A file added beside a page; `ref` is the link to it from the page, `image` whether it shows in the page. */
+export interface NoteAttachment { path: string; ref: string; name: string; image: boolean }
 /** A wiki page as it was at a checkpoint. */
 export interface WikiVersion { checkpoint: string; whenMs: number; content: string }
 /** Someone in an email's From, To or Cc. */
@@ -580,7 +585,7 @@ export interface MobiusBridge {
   /** The Docs app: documents kept like notes, as Markdown in `docs/<folder>/<doc>.md`. Only the Tauri shell has it. */
   docs?: NonNullable<MobiusBridge['notes']>;
   /** The Wiki app: pages kept like notes, as Markdown in `wiki/<folder>/<page>.md`, and the changes offered to it. */
-  wiki?: NonNullable<MobiusBridge['notes']> & {
+  wiki?: Omit<NonNullable<MobiusBridge['notes']>, 'versions'> & {
     versions?(path: string): Promise<WikiVersion[] | NotesFailure>;
     incoming?(): Promise<WikiChange[]>;
     offer?(from: string, text: string, page?: string): Promise<WikiChange | NotesFailure>;
@@ -669,6 +674,12 @@ export interface MobiusBridge {
     createPage(notebook: string, title: string): Promise<NoteContent | NotesFailure>;
     remove(path: string): Promise<{ ok: true } | NotesFailure>;
     search(query: string): Promise<NoteHit[] | NotesFailure>;
+    /** The page's earlier versions, newest first: kept as the person typed, and from the workspace checkpoints. */
+    versions?(path: string): Promise<NoteVersion[] | NotesFailure>;
+    /** Add a file (base64) to the page's files folder; `ref` is the link to put in the page. */
+    attach?(path: string, name: string, base64: string): Promise<NoteAttachment | NotesFailure>;
+    /** One of the page's files, as a `data:` address to show. */
+    asset?(path: string, ref: string): Promise<{ dataUrl: string; size: number } | NotesFailure>;
     onChanged(listener: (change: NotesChange) => void): () => void;
   };
   history: {

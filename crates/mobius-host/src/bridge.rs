@@ -330,7 +330,7 @@ impl Bridge {
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
             research: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "research"),
             reading: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "reading"),
-            wiki: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "wiki"),
+            wiki: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "wiki").without_kept_versions(),
             wiki_incoming: crate::wiki::Incoming::new(data_dir.join("wiki-incoming.json")),
             projects: crate::projects::Projects::new(data_dir.join("projects.json")),
             databases: crate::database::Databases::new(&data_dir.join("workspace")),
@@ -1832,11 +1832,21 @@ impl Bridge {
                 _ => Err("that cannot be saved".to_owned()),
             },
             "remove" => text(0).ok_or_else(|| "a page is needed".to_owned()).and_then(|p| notes.remove_page(p)).map(|_| json!({ "ok": true })),
+            // A page's earlier versions, a file added beside it, and one of those files to show.
+            "versions" => text(0).ok_or_else(|| "a page is needed".to_owned()).and_then(|p| notes.versions(p)),
+            "attach" => match (text(0), text(1), text(2)) {
+                (Some(page), Some(name), Some(bytes)) => notes.attach(page, name, bytes),
+                _ => Err("a page, a name and the file are needed".to_owned()),
+            },
+            "asset" => match (text(0), text(1)) {
+                (Some(page), Some(reference)) => notes.asset(page, reference),
+                _ => Err("a page and a file are needed".to_owned()),
+            },
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
             Ok(value) => {
-                if matches!(method, "createNotebook" | "createPage" | "save" | "remove") {
+                if matches!(method, "createNotebook" | "createPage" | "save" | "remove" | "attach") {
                     let path = value.get("path").cloned().unwrap_or(Value::Null);
                     (self.emit)(event, json!({ "path": path, "by": "person" }));
                 }

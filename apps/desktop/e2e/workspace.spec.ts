@@ -91,7 +91,7 @@ test('Search finds notes, tasks and pages in one place and opens each in its own
   await page.getByRole('radio', { name: 'All' }).click();
   await page.getByRole('searchbox', { name: 'Search everything' }).fill('frost');
   await page.getByRole('list', { name: 'Results' }).getByRole('button', { name: /Garden/ }).click();
-  await expect(shell().getByRole('textbox', { name: 'Page text' })).toHaveValue(/tulips before the frost/);
+  await expect(shell().getByRole('textbox', { name: 'Note text' })).toContainText('tulips before the frost');
 });
 
 test('asking from Search hands the question to the agent', async () => {
@@ -172,7 +172,7 @@ test('the app hub shows every app with what is happening in it, starts new thing
   await hub.getByRole('button', { name: 'New note' }).click();
   await showApps();
   await expect(railButton('Notes')).toHaveAttribute('aria-current', 'page');
-  await expect(shell().getByRole('textbox', { name: 'Page text' })).toHaveValue(/^# Untitled/);
+  await expect(shell().getByRole('textbox', { name: 'Note text' }).locator('h1')).toHaveText('Untitled');
   await showApps();
   await opener.click();
   await shell().keyboard.press('Escape');

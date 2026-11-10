@@ -918,6 +918,29 @@ mod browser {
 }
 
 #[test]
+fn a_note_keeps_its_versions_and_files_and_never_hands_out_a_file_outside_its_own_folder() {
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "notes", "createNotebook", json!(["Work"]));
+    let page = call(&b, "notes", "createPage", json!(["Work", "Battery"]));
+    call(&b, "notes", "save", json!(["Work/Battery.md", "# Battery\n\nfirst\n", page["modified"]]));
+    let versions = call(&b, "notes", "versions", json!(["Work/Battery.md"]));
+    assert_eq!(versions[0]["content"], "# Battery\n\n", "{versions}");
+    // A picture goes beside the page; a name that tries to leave the folder is cut to its last part.
+    let before = events.lock().unwrap().len();
+    let added = call(&b, "notes", "attach", json!(["Work/Battery.md", "..\\..\\cell.png", "iVBORw0K"]));
+    assert_eq!(added["ref"], "Battery%20files/cell.png", "{added}");
+    assert!(dir.path().join("workspace/notes/Work/Battery files/cell.png").is_file());
+    assert!(events.lock().unwrap()[before..].iter().any(|(name, _)| name == "mobius:notes-changed"));
+    assert_eq!(call(&b, "notes", "asset", json!(["Work/Battery.md", "Battery%20files/cell.png"]))["dataUrl"], "data:image/png;base64,iVBORw0K");
+    std::fs::write(dir.path().join("workspace/secret.txt"), "no").unwrap();
+    for bad in ["Battery files/../../../secret.txt", "../secret.txt", "/etc/hosts", "C:\\Windows\\win.ini", "Battery files/C:x"] {
+        assert_eq!(call(&b, "notes", "asset", json!(["Work/Battery.md", bad]))["ok"], false, "{bad}");
+    }
+    assert_eq!(call(&b, "notes", "attach", json!(["../Battery.md", "a.png", "iVBORw0K"]))["ok"], false);
+    assert_eq!(call(&b, "notes", "attach", json!(["Work/Battery.md", "a.png"]))["ok"], false);
+}
+
+#[test]
 fn notes_are_real_files_the_window_can_list_edit_and_search() {
     let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
     assert_eq!(call(&b, "notes", "list", json!([])), json!([]));
