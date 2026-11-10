@@ -1357,6 +1357,10 @@ impl Bridge {
                     (bridge.emit)("mobius:mail-changed", json!({ "by": "another app" }));
                 }
                 // Send later: what the person scheduled goes when its time comes.
+                // Later's time came: what was moved to Later on the server goes back to the inbox there.
+                if bridge.mail.later_due() {
+                    (bridge.emit)("mobius:mail-changed", json!({ "by": "person" }));
+                }
                 if bridge.mail.send_due() > 0 {
                     (bridge.emit)("mobius:mail-changed", json!({ "by": "person" }));
                 }

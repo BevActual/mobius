@@ -2,11 +2,12 @@ import net from 'node:net';
 import type { AddressInfo } from 'node:net';
 
 /** A tiny IMAP server for the tests: one account, an INBOX of the messages given, and a Sent mailbox. */
-export interface MailFixture { imapPort: number; smtpPort: number; sent: string[]; close: () => Promise<void> }
+export interface MailFixture { imapPort: number; smtpPort: number; sent: string[]; /** Every IMAP command the app sent, without its tag. */ commands: string[]; close: () => Promise<void> }
 export interface FakeMessage { uid: number; flags: string; raw: string }
 
 export async function startMailServers(password: string, messages: FakeMessage[]): Promise<MailFixture> {
   const sent: string[] = [];
+  const commands: string[] = [];
   const imap = net.createServer((socket) => {
     socket.write('* OK fake IMAP ready\r\n');
     let box = 'INBOX';
@@ -19,6 +20,7 @@ export async function startMailServers(password: string, messages: FakeMessage[]
         buffer = buffer.slice(at + 2);
         const [tag, ...rest] = line.split(' ');
         const command = rest.join(' ');
+        commands.push(command);
         const upper = command.toUpperCase();
         const list = box === 'INBOX' ? messages : [];
         if (upper.startsWith('LOGIN')) socket.write(command.includes(`"${password}"`) ? `${tag} OK logged in\r\n` : `${tag} NO [AUTHENTICATIONFAILED] Invalid credentials\r\n`);
@@ -35,7 +37,8 @@ export async function startMailServers(password: string, messages: FakeMessage[]
           });
           parts.push(Buffer.from(`${tag} OK done\r\n`));
           socket.write(Buffer.concat(parts));
-        } else if (upper.startsWith('UID STORE')) socket.write(`${tag} OK stored\r\n`);
+        } else if (upper.startsWith('UID MOVE') || upper.startsWith('UID COPY') || upper.startsWith('CREATE') || upper.includes('EXPUNGE')) socket.write(`${tag} OK done\r\n`);
+        else if (upper.startsWith('UID STORE')) socket.write(`${tag} OK stored\r\n`);
         else if (upper.startsWith('LOGOUT')) { socket.write(`* BYE\r\n${tag} OK bye\r\n`); socket.end(); }
         else socket.write(`${tag} BAD what\r\n`);
       }
@@ -74,6 +77,7 @@ export async function startMailServers(password: string, messages: FakeMessage[]
     imapPort: (imap.address() as AddressInfo).port,
     smtpPort: (smtp.address() as AddressInfo).port,
     sent,
+    commands,
     close: async () => { await new Promise((r) => imap.close(() => r(null))); await new Promise((r) => smtp.close(() => r(null))); },
   };
 }

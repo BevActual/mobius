@@ -350,6 +350,43 @@ impl Imap {
         self.run(&format!("UID STORE {uid} {}FLAGS.SILENT ({flag})", if on { "+" } else { "-" })).map(|_| ())
     }
 
+    /// Moves one message of the selected mailbox to another: MOVE where the server has it, else a copy there and
+    /// this one deleted.
+    pub fn move_uid(&mut self, uid: u32, to: &str) -> Res<()> {
+        if self.run(&format!("UID MOVE {uid} {}", quote(to))).is_ok() {
+            return Ok(());
+        }
+        self.run(&format!("UID COPY {uid} {}", quote(to)))?;
+        self.run(&format!("UID STORE {uid} +FLAGS.SILENT (\\Deleted)"))?;
+        // Only that message, where the server can (UIDPLUS); else every message marked deleted in the mailbox.
+        if self.run(&format!("UID EXPUNGE {uid}")).is_err() {
+            self.run("EXPUNGE")?;
+        }
+        Ok(())
+    }
+
+    /// Makes a mailbox, unless the account has it already.
+    pub fn create(&mut self, mailbox: &str) -> Res<()> {
+        match self.run(&format!("CREATE {}", quote(mailbox))) {
+            Ok(_) => Ok(()),
+            Err(e) if e.to_ascii_uppercase().contains("EXISTS") => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// UIDs, in the selected mailbox, of the message with this Message-ID.
+    pub fn search_message_id(&mut self, message_id: &str) -> Res<Vec<u32>> {
+        let id = format!("<{}>", message_id.trim_matches(['<', '>']));
+        let mut out = Vec::new();
+        for line in self.run(&format!("UID SEARCH HEADER Message-ID {}", quote(&id)))? {
+            let t = String::from_utf8_lossy(&line);
+            if let Some(rest) = t.strip_prefix("* SEARCH") {
+                out.extend(rest.split_whitespace().filter_map(|n| n.parse::<u32>().ok()));
+            }
+        }
+        Ok(out)
+    }
+
     /// Keeps a message in a mailbox (a draft in Drafts), as the server's own copy.
     pub fn append(&mut self, mailbox: &str, flags: &str, message: &[u8]) -> Res<()> {
         let tag = self.send(&format!("APPEND {} ({flags}) {{{}}}", quote(mailbox), message.len()))?;
@@ -431,6 +468,8 @@ pub mod tests {
                             out.extend_from_slice(s.as_bytes());
                             let _ = w.write_all(&out);
                             continue;
+                        } else if upper.starts_with("UID MOVE") || upper.starts_with("UID COPY") || upper.starts_with("CREATE") || upper.contains("EXPUNGE") {
+                            format!("{tag} OK done\r\n")
                         } else if upper.starts_with("UID STORE") {
                             format!("{tag} OK stored\r\n")
                         } else if upper.starts_with("APPEND") {
