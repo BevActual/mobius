@@ -84,6 +84,7 @@ function AccountDialog({ mail, onClose }: { mail: MailState; onClose: () => void
 /** Mailboxes, drafts and accounts. */
 export function MailSidebar({ mail, pin, starts, onStart }: { mail: MailState; pin?: ReactNode; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [adding, setAdding] = useState(false);
+  const [accountMenu, setAccountMenu] = useState<string | null>(null);
   const v = mail.view;
   const here = (kind: 'inbox' | 'sent' | 'drafts') => (kind === 'drafts' ? v.kind === 'drafts' : v.kind === 'box' && v.box === kind) ? 'page' : undefined;
   return (
@@ -107,11 +108,16 @@ export function MailSidebar({ mail, pin, starts, onStart }: { mail: MailState; p
         <div className="list-divider" role="separator" />
         <ul role="list" aria-label="Mail accounts">
           {mail.accounts.map((a) => (
-            <li key={a.id} className="mail-account">
-              <span className="list-name" title={a.email}>{a.email}</span>
-              <button type="button" className="strip-btn" aria-label={`Remove ${a.email}`} title="Remove this account from Mobius" onClick={() => void mail.removeAccount(a.id)}>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
-              </button>
+            <li key={a.id} className="mail-account" tabIndex={0} title={`${a.email}: right-click for more`}
+              onContextMenu={(e) => { e.preventDefault(); setAccountMenu(a.id); }}
+              onKeyDown={(e) => { if (e.key === 'Escape') setAccountMenu(null); }}>
+              <span className="list-name">{a.email}</span>
+              {/* Removing an account is in a menu of its own (right-click), so it is not hit by mistake. */}
+              {accountMenu === a.id && (
+                <div className="row-menu" role="menu" aria-label={`${a.email} menu`} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setAccountMenu(null); }}>
+                  <button type="button" role="menuitem" autoFocus className="row-menu-item" data-danger aria-label={`Remove ${a.email}`} onClick={() => { setAccountMenu(null); void mail.removeAccount(a.id); }}>Remove account</button>
+                </div>
+              )}
               {a.problem && <p className="calendar-account-problem" role="alert">{a.problem}</p>}
             </li>
           ))}
@@ -223,7 +229,7 @@ function Reader({ mail, content, onDraftReply }: { mail: MailState; content: Mai
   const reader = useRef<HTMLElement>(null);
   useEffect(() => { reader.current?.focus({ preventScroll: true }); }, [content.id]);
   return (
-    <article ref={reader} tabIndex={-1} className="mail-reader" aria-label={content.subject || 'Message'}>
+    <article ref={reader} tabIndex={-1} className="mail-reader" aria-label={content.subject || 'Message'} data-comment-id={content.id} data-comment-label={content.subject || 'Message'}>
       <header className="mail-reader-head">
         <span className="mail-avatar" aria-hidden="true">{initials(content.from.name, content.from.email)}</span>
         <div className="mail-reader-who">

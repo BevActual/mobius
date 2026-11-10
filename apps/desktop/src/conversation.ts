@@ -14,7 +14,7 @@ export type Item =
   | { kind: 'user'; id: string; text: string; attachments?: ContextItem[]; images?: string[]; /** When it was sent, in milliseconds; older conversations have none. */ at?: number }
   | { kind: 'assistant'; id: string; text: string; streaming: boolean }
   | { kind: 'tool'; id: string; callId: string; name: string; status: ToolStatus; requestId?: number; args?: unknown; onceOnly?: boolean; /** What it was read in, when the request came from there and not from the person. */ origin?: string }
-  | { kind: 'error'; id: string; text: string }
+  | { kind: 'error'; id: string; text: string; /** The turn itself failed (the model or the core), not just a message that could not go. */ failed?: boolean }
   /** Something the person should know that is not part of the conversation itself. */
   | { kind: 'notice'; id: string; text: string }
   /** The model's plan for the task in hand; one per turn, updated in place. */
@@ -236,7 +236,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         case 'done':
           return finished(base);
         case 'failed':
-          return finished(withItem(base, (id) => ({ kind: 'error', id, text: event.message })));
+          return finished(withItem(base, (id) => ({ kind: 'error', id, text: event.message, failed: true })));
         case 'cancelled':
           return finished({ ...base, items: cancelOpenTools(base.items) });
       }

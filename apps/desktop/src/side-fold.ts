@@ -36,6 +36,8 @@ export function foldedBy(title: Element): Element[] {
   const rows: Element[] = [];
   for (let next = rowOf(title).nextElementSibling; next; next = next.nextElementSibling) {
     if (next.matches(HEADER_OF)) break;
+    // Search and New are drawn above the sections, so no section folds them.
+    if (next.matches('.side-search, .side-new')) continue;
     rows.push(next);
   }
   return rows;

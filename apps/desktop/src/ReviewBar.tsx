@@ -46,7 +46,7 @@ interface Props {
  * The one review bar's answers, the same in every app: Keep, Discard, and Try another (discard, then ask Mobius to do
  * it differently). Keep is the filled one, at the end.
  */
-export function ReviewActions({ onKeep, onDiscard, keepTitle, discardTitle, keepLabel, discardLabel }: Props) {
+export function ReviewActions({ onKeep, onDiscard, keepTitle, discardTitle, keepLabel, discardLabel, only }: Props & { /** Just Keep, or just Try another and Discard (a compact row keeps those inside Review). */ only?: 'keep' | 'others' }) {
   const tryAnother = useContext(TryAnotherContext);
   const [busy, setBusy] = useState(false);
   const again = async () => {
@@ -61,9 +61,9 @@ export function ReviewActions({ onKeep, onDiscard, keepTitle, discardTitle, keep
   };
   return (
     <>
-      {tryAnother && <button type="button" className="review-btn" data-kind="again" disabled={busy} title="Put it back and ask Mobius to do it another way" onClick={() => void again()}>Try another</button>}
-      <button type="button" className="review-btn" disabled={busy} title={discardTitle} aria-label={discardLabel} onClick={() => void onDiscard()}>Discard</button>
-      <button type="button" className="review-btn" data-kind="keep" disabled={busy} title={keepTitle} aria-label={keepLabel} onClick={() => void onKeep()}>Keep</button>
+      {only !== 'keep' && tryAnother && <button type="button" className="review-btn" data-kind="again" disabled={busy} title="Put it back and ask Mobius to do it another way" onClick={() => void again()}>Try another</button>}
+      {only !== 'keep' && <button type="button" className="review-btn" disabled={busy} title={discardTitle} aria-label={discardLabel} onClick={() => void onDiscard()}>Discard</button>}
+      {only !== 'others' && <button type="button" className="review-btn" data-kind="keep" disabled={busy} title={keepTitle} aria-label={keepLabel} onClick={() => void onKeep()}>Keep</button>}
     </>
   );
 }

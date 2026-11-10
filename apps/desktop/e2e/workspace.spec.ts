@@ -249,8 +249,11 @@ test('a narrow window folds the sidebar to the rail without changing the choice'
 
 test('with the agent panel put away, asking from the toolbar opens it with the answer', async () => {
   await start([says(['That page is the fixture home.'])]);
-  await shell().getByRole('button', { name: 'Show agent' }).click();
+  // While the panel is open, the window's own Show agent button gives way to the panel's Hide.
+  await expect(shell().getByRole('button', { name: 'Show agent' })).toBeHidden();
+  await shell().getByRole('complementary', { name: 'Agent' }).getByRole('button', { name: 'Hide' }).click();
   await expect(shell().getByRole('complementary', { name: 'Agent' })).toHaveCount(0);
+  await expect(shell().getByRole('button', { name: 'Show agent' })).toBeVisible();
   const ask = shell().getByRole('textbox', { name: 'Ask Mobius' });
   await expect(ask).toHaveAttribute('placeholder', 'Ask about this page');
   await ask.fill('What is this page?');

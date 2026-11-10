@@ -244,6 +244,12 @@ export function createTauriBridge(): MobiusBridge {
       addThread: (id, conversation) => call('projects', 'addThread', [id, conversation], () => ({ ok: false as const, message: 'Projects are not available.' })),
       onChanged: (listener) => on<null>('mobius:projects-changed', () => listener()),
     },
+    comments: {
+      list: (app, doc) => call('comments', 'list', [app, doc], () => []),
+      all: (app) => call('comments', 'all', [app], () => []),
+      set: (app, doc, threads) => call('comments', 'set', [app, doc, threads], () => ({ ok: false as const, message: 'Comments are not available.' })),
+      onChanged: (listener) => on<{ app?: string } | null>('mobius:comments-changed', (p) => listener(p?.app ?? '')),
+    },
     files: {
       list: (path) => call('files', 'list', [path], () => ({ error: 'Not available.' })),
     },

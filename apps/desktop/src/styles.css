@@ -2542,3 +2542,100 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .starter:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .starter:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 0; }
 
+
+/* Menus mark the current choice with a check, as macOS menus do. */
+.popmenu-checkable { display: flex; align-items: center; gap: 6px; }
+.popmenu-check { width: 12px; height: 12px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.popmenu-section { margin-top: 4px; padding-top: 4px; border-top: 0.5px solid var(--hairline); }
+.popmenu-heading { margin: 2px 8px 2px 26px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.popmenu-split { margin-top: 4px; }
+/* The composer's row: + model mode on the left, then the context ring, the microphone and send. */
+.composer-tools { flex-wrap: nowrap; min-width: 0; }
+.composer-tools .pill { flex: 0 1 auto; min-width: 0; }
+.composer-tools .pill .pill-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-actions { gap: 6px; flex: none; }
+
+/* What the last reply changed: one compact row under it, "4 changes · Review" and Keep; Try another and Discard
+   inside Review. */
+.chat .review-strip { margin: 4px 0 8px; padding: 6px 6px 6px 12px; border-radius: 12px; }
+.chat .review-strip .review-head { display: flex; align-items: center; gap: 8px; min-height: 28px; flex-wrap: nowrap; }
+.chat .review-strip .review-actions { display: inline-flex; margin-left: auto; flex: none; }
+.review-toggle { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 0 4px; height: 28px; border-radius: 7px; font-size: 13px; color: var(--ink); background: transparent; }
+.review-toggle:hover { background: var(--side-hover); }
+.review-toggle .review-summary { font-weight: 500; }
+.review-sep { color: var(--muted); }
+.review-chev { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: var(--muted); transition: transform 0.2s var(--ease); }
+.review-toggle[aria-expanded="true"] .review-chev { transform: rotate(90deg); }
+.review-more { display: flex; justify-content: flex-end; gap: 6px; padding-top: 6px; }
+@media (prefers-reduced-motion: reduce) { .review-chev { transition: none; } }
+
+/* Mobius in the sidebar has one head: the app's tile (the switcher), Mobius and where, then its icons. */
+.chat-head[data-lead] { gap: 8px; }
+.chat-head[data-lead] .rail-switch { flex: none; width: 32px; height: 32px; padding: 0; justify-content: center; }
+.chat-head[data-lead] .rail-switch .rail-label, .chat-head[data-lead] .rail-switch .rail-switch-caret { display: none; }
+.chat-head[data-lead] .rail-switch svg.rail-switch-tile { width: 24px; height: 24px; padding: 4.5px; border-radius: 7px; color: #fff; }
+.rail-ask .rail-chrome { margin: 0 0 6px; }
+
+/* Beside the page, the panel starts at the top: its head level with the page's title row, as a rounded card, and
+   the window's own buttons for it give way while it is open. */
+.app[data-chat="open"] > .context-strip { margin-right: var(--chat-col, 0px); }
+.app[data-chat="open"] .dock.right:not([data-floating]) { margin-top: calc(-1 * var(--context)); padding: 8px 8px 0 0; z-index: 2; }
+.app[data-chat="open"] [data-dock-toggle][aria-label="Show agent"] { display: none; }
+
+/* Problems are one quiet line with a small warning mark; red text only when a turn really failed. */
+.chat .msg.error { display: flex; align-items: flex-start; gap: 6px; align-self: stretch; padding: 2px 2px; border-radius: 0; background: none; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.chat .msg.error[data-failed] { color: #c4271c; }
+@media (prefers-color-scheme: dark) { .chat .msg.error { color: var(--muted); } .chat .msg.error[data-failed] { color: #ff8a80; } }
+.msg-error-icon { width: 13px; height: 13px; flex: none; margin-top: 1px; fill: none; stroke: #c27c00; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.chat .msg.error[data-failed] .msg-error-icon { stroke: currentColor; }
+
+/* A row's own menu (right-click): out of the way, for what is easy to regret. */
+.mail-account { position: relative; border-radius: 8px; }
+.mail-account:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
+.row-menu { position: absolute; z-index: 40; right: 4px; top: 100%; min-width: 160px; padding: 4px; border-radius: 10px; border: 0.5px solid var(--hairline); background: var(--bg); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16); }
+.row-menu-item { display: flex; width: 100%; height: 28px; align-items: center; padding: 0 10px; border-radius: 6px; font-size: 13px; color: var(--ink); text-align: left; }
+.row-menu-item:hover, .row-menu-item:focus-visible { background: var(--side-select); outline: 0; }
+.row-menu-item[data-danger] { color: #c4271c; }
+
+/* Selection is a soft fill, never a dashed edge; what Mobius changed and is waiting has a small indigo dot. */
+:is(.rail-app, .dock.left) .side :is(.note-row, .list-row, .clist-item, .files-row)[data-proposed] { outline: none; }
+:is(.rail-app, .dock.left) .side :is(.note-row, .list-row)[data-proposed]::after { content: ""; flex: none; width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--accent); align-self: center; }
+:is(.rail-app, .dock.left) .side :is(.note-row, .list-row, .files-row, .clist-item)[aria-current="page"] { background: var(--side-select); }
+/* From Mobius: ordinary rows, with the dot, and where each is in grey. */
+.from-mobius .note-row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 8px; }
+.from-mobius .note-row::after { display: none; }
+.from-mobius-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.from-mobius .note-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.from-mobius-where { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+/* Order in every sidebar: the head, search, New, then the sections. */
+:is(.rail-app, .dock.left) .side > .side-search { order: -2; }
+:is(.rail-app, .dock.left) .side > .side-new { order: -1; }
+.rail[data-pointer-still] .rail-app :hover:not([aria-current="page"]) { background-color: transparent; }
+.rail[data-pointer-still] .rail-app .clist-item:hover:not(:focus-within) .clist-tools { opacity: 0; }
+.rail[data-pointer-still] .rail-app .clist-item:hover:not(:focus-within) .clist-delete { display: none; }
+/* Tag rows: the label's own colour, with a grey #; the accent is only for selection. */
+.notes-tag-row .note-title { color: var(--ink); }
+.notes-tag-row .note-title::first-letter { color: var(--muted); }
+
+/* Comments: a speech-bubble button with the count of open threads, a dashed ring in comment mode, pins shaped as
+   speech bubbles (indigo open or sent, yellow a note, grey with a check resolved), and a small card beside each. */
+.comment-toggle { position: relative; }
+.comment-toggle[aria-pressed="true"] { background: var(--side-select); color: var(--accent); }
+.comment-badge { position: absolute; top: 0; right: -2px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 600; line-height: 15px; text-align: center; font-variant-numeric: tabular-nums; }
+.comment-layer { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+.comment-layer > * { pointer-events: auto; }
+.comment-ring { position: fixed; pointer-events: none !important; border: 1.5px dashed #7D7AFF; border-radius: 8px; }
+.comment-pin { position: fixed; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 12px 12px 12px 3px; background: #5856D6; color: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 0 0 1.5px var(--bg); cursor: pointer; }
+.comment-pin[data-state="note"] { background: #FFCC00; }
+.comment-pin[data-state="resolved"] { background: #AEAEB2; }
+.comment-pin svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.comment-pin:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; }
+.comment-card { position: fixed; width: 280px; padding: 12px; border-radius: 14px; border: 0.5px solid var(--hairline); background: var(--bg); box-shadow: 0 10px 32px rgba(0, 0, 0, 0.16); font-size: 13px; color: var(--ink); }
+.comment-card textarea { width: 100%; box-sizing: border-box; resize: vertical; padding: 8px 10px; border: 0.5px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }
+.comment-on { margin: 0 0 6px; font-size: 11px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.comment-text { margin: 0 0 6px; white-space: pre-wrap; }
+.comment-meta { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.comment-reply { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--wash); white-space: pre-wrap; }
+.comment-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+.comment-row-pin { flex: none; width: 10px; height: 10px; border-radius: 5px 5px 5px 1.5px; background: #5856D6; }
+.comment-row-pin[data-state="note"] { background: #FFCC00; }

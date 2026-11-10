@@ -513,6 +513,25 @@ impl Bridge {
             ("changes", _) => self.changes_call(method, args),
             ("signins", _) => Ok(self.signins_call(method, args)),
             ("extensions", "connectors") => Ok(self.mcp_status()),
+            // Comments on anything in the workspace, kept per document in `.comments/` (see mobius_workspace::comments).
+            ("comments", "list" | "all" | "set") => {
+                let store = mobius_workspace::comments::Comments::new(self.data_dir.join("workspace"));
+                let s = |i: usize| arg(i).as_str().unwrap_or("");
+                let done = match method {
+                    "list" => store.list(s(0), s(1)),
+                    "all" => store.all(s(0)),
+                    _ => store.set(s(0), s(1), arg(2)),
+                };
+                Ok(match done {
+                    Ok(value) => {
+                        if method == "set" {
+                            (self.emit)("mobius:comments-changed", json!({ "app": s(0) }));
+                        }
+                        value
+                    }
+                    Err(e) => failed(e),
+                })
+            }
             // The person looking through their own workspace: read only, and inside it.
             ("files", "list") => Ok(match self.workspace.run("files.list", &json!({ "path": arg(0).as_str().unwrap_or("") })) {
                 Ok(text) => serde_json::from_str(&text).unwrap_or(Value::Null),
