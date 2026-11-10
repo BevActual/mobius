@@ -595,6 +595,12 @@ impl Bridge {
         if failures == 0 { ok(json!({ "removed": removed })) } else { failed(format!("{failures} items could not be removed. Close other programs using them and try again.")) }
     }
 
+    /// The application is ending: the core is asked to stop (and killed if it does not), so nothing it started
+    /// outlives the app or keeps its data folder in use.
+    pub fn stop_core(&self) {
+        self.core.stop_shared();
+    }
+
     /// How the application ends itself cleanly (used by tests to restart it the way a person would).
     pub fn set_quit(&self, quit: Arc<dyn Fn() + Send + Sync>) {
         let _ = self.quit.set(quit);

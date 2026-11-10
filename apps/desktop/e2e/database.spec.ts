@@ -66,7 +66,9 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   expect(JSON.stringify(model.requests[0]!.messages)).toContain('hotels (3 rows): Name TEXT, Rooms INTEGER, Price REAL, Area TEXT');
   expect(JSON.stringify(model.requests[1]!.messages)).toMatch(/\[3,260(\.0)?\]/);
 
-  // A change is asked about, shows what it did, and can be put back.
+  // A change is asked about, shows what it did, and can be put back. The next message goes once this turn has ended,
+  // as it does for a person: while Mobius works there is Stop, not Send.
+  await expect(shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);
   const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
   await composer.fill('Make Memmo 999');
   await composer.press('Enter');

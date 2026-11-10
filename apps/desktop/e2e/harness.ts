@@ -70,7 +70,17 @@ export async function startFixture(): Promise<Fixture> {
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
-  return { origin: `http://127.0.0.1:${port}`, hits, close: () => new Promise((resolve) => server.close(() => resolve())) };
+  // Closing ends the connections the browser keeps open too: otherwise close waits until the browser lets them go,
+  // which on a slow machine was most of a minute after every test.
+  return {
+    origin: `http://127.0.0.1:${port}`,
+    hits,
+    close: () => new Promise<void>((resolve) => {
+      server.closeAllConnections();
+      server.close(() => resolve());
+      setTimeout(resolve, 3000);
+    }),
+  };
 }
 
 /** Stands for the running application in a test; what it can do is in the helpers below. */
@@ -203,15 +213,22 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
       await Promise.race([testHook(handle, 'quit', []).catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 2000))]);
       for (let i = 0; i < 100 && child.exitCode === null; i++) await new Promise((resolve) => setTimeout(resolve, 50));
       phase(child.exitCode === null ? "quit (did not end; killed)" : "quit", closing);
-      await browser?.close().catch(() => undefined);
+      // The debugging connection of an app that has ended can wait a long time to say so: a moment at most.
+      await Promise.race([browser?.close().catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 1000))]);
       // Only when the app did not end by itself (taskkill is the fallback, not the way out).
       const killed = child.exitCode === null;
       if (killed && child.pid) {
         try { execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: 'ignore' }); } catch { child.kill(); }
       }
       if (killed) await new Promise((resolve) => setTimeout(resolve, 400));
-      // WebView2 can hold its files for a moment after it ends: keep trying for a few seconds.
-      if (!closeOptions.keepUserData) removeTestData(userData);
+      if (!closeOptions.keepUserData && !removeTestDataSoon(userData)) {
+        // Something the app started (its core, a browser helper) still holds the folder after the app ended: end what
+        // runs from this build, then try again.
+        phase(`data folder still in use (${leftFiles(userData).join(', ')}); ending what the app started`, closing);
+        const ended = endLeftovers(exe, userData);
+        console.log(`[e2e leftovers] ${test.info().titlePath.slice(1).join(' › ')}: ${ended ? ended.replace(/\r?\n/g, ' | ') : 'no process found'}`);
+        removeTestData(userData);
+      }
       phase("close", closing);
     },
   };
@@ -252,8 +269,40 @@ export const takeGlobalShortcut = async (app: AppHandle, accelerator: string): P
 
 /** Deletes a test's data folder. WebView2 can hold its files a moment after it ends, so this keeps trying; a folder it
  *  still holds after that is left in the temporary folder, since a leftover never makes a test fail. */
+/** Removes a test's data folder if nothing holds it: a few short tries (about 1.5 s at most). True when it is gone. */
+function removeTestDataSoon(folder: string): boolean {
+  try { fs.rmSync(folder, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch { /* still held */ }
+  return !fs.existsSync(folder);
+}
+
+/** Ends every process still running from this build's folder (the shell's core and browser helpers), when one outlives the app. */
+function endLeftovers(shellExe: string, userData: string): string {
+  const folder = path.dirname(shellExe).replace(/'/g, "''");
+  const data = userData.replace(/'/g, "''");
+  // Also anything run with the test's data folder in its command line (git for a checkpoint, a tool the app started).
+  // Says what it ended, so a run shows what was still holding the folder.
+  try {
+    return execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '${folder}\\*' -or $_.CommandLine -like '*${data}*' } | ForEach-Object { $_.Name + ' ' + $_.ProcessId + ' (parent ' + $_.ParentProcessId + '): ' + ([string]$_.CommandLine).Substring(0, [Math]::Min(160, ([string]$_.CommandLine).Length)); Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`, { encoding: 'utf8', timeout: 15_000 }).trim();
+  } catch { return ''; }
+}
+
+/** Up to a few files still left in a folder that could not be removed, relative to it. */
+function leftFiles(folder: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of (() => { try { return fs.readdirSync(dir, { withFileTypes: true }); } catch { return []; } })()) {
+      if (out.length >= 6) return;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full); else out.push(path.relative(folder, full));
+    }
+  };
+  walk(folder);
+  return out;
+}
+
 export function removeTestData(folder: string): void {
-  try { fs.rmSync(folder, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch { /* left behind */ }
+  // Node waits a little longer before each try (linear backoff): ten tries of 100 ms more each is about 5.5 s at most.
+  try { fs.rmSync(folder, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch { /* left behind */ }
 }
 
 /** Opens Settings as a person would: from the switcher's Mobius apps in the full sidebar, or the folded rail's button. */
