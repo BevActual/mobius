@@ -221,7 +221,14 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
         try { execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: 'ignore' }); } catch { child.kill(); }
       }
       if (killed) await new Promise((resolve) => setTimeout(resolve, 400));
-      if (!closeOptions.keepUserData && !removeTestDataSoon(userData)) {
+      // The system web view's own processes let go of its profile (webview/EBWebView) a moment after the app ends
+      // (CI showed no process left by then): try again every 100 ms for up to 3 s before looking for what holds it.
+      let gone = closeOptions.keepUserData === true || removeTestDataSoon(userData);
+      for (let i = 0; !gone && i < 30; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        gone = removeTestDataSoon(userData);
+      }
+      if (!gone) {
         // Something the app started (its core, a browser helper) still holds the folder after the app ended: end what
         // runs from this build, then try again.
         phase(`data folder still in use (${leftFiles(userData).join(', ')}); ending what the app started`, closing);
@@ -269,9 +276,9 @@ export const takeGlobalShortcut = async (app: AppHandle, accelerator: string): P
 
 /** Deletes a test's data folder. WebView2 can hold its files a moment after it ends, so this keeps trying; a folder it
  *  still holds after that is left in the temporary folder, since a leftover never makes a test fail. */
-/** Removes a test's data folder if nothing holds it: a few short tries (about 1.5 s at most). True when it is gone. */
+/** Removes a test's data folder if nothing holds it, in one try. True when it is gone. */
 function removeTestDataSoon(folder: string): boolean {
-  try { fs.rmSync(folder, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch { /* still held */ }
+  try { fs.rmSync(folder, { recursive: true, force: true }); } catch { /* still held */ }
   return !fs.existsSync(folder);
 }
 
@@ -312,4 +319,10 @@ export async function openSettings(shell: Page): Promise<void> {
   if (await folded.count()) { await folded.click(); return; }
   if ((await rail.getAttribute('data-face')) !== 'apps') await rail.locator('[data-app-switcher]').click();
   await rail.getByRole('region', { name: 'Mobius’s apps' }).getByRole('button', { name: 'Settings', exact: true }).click();
+}
+
+/** Waits for the turn that is running to end, as a person must before the next message: while Mobius works the
+ *  message box has Stop instead of Send, and a message typed then is not sent. */
+export async function turnEnded(box: import('@playwright/test').Locator): Promise<void> {
+  await expect(box.page().getByRole('button', { name: 'Stop' })).toHaveCount(0);
 }

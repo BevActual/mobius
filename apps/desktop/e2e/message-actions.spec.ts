@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { clipboardText, launch, startFixture, type Fixture, type Launched } from './harness';
+import { clipboardText, launch, startFixture, type Fixture, type Launched, turnEnded } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -59,6 +59,7 @@ test('Edit puts the last message back in the box to be changed, and sending it r
   await shell().getByRole('button', { name: 'Edit message' }).click();
   await expect(composer()).toHaveValue('First wordnig');
   await expect(log().locator('.msg')).toHaveCount(0);
+  await turnEnded(composer());
   await composer().fill('First wording');
   await composer().press('Enter');
   await expect(log().locator('.msg.assistant')).toHaveText('Answer to the new wording.');
