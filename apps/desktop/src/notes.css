@@ -47,3 +47,60 @@
 .note-backlinks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .note-backlinks button { display: grid; gap: 1px; width: 100%; text-align: left; padding: 6px 10px; border-radius: 8px; }
 .note-backlinks button:hover { background: var(--wash); }
+
+/* ── Apple-style polish (HIG: clarity, deference to content, depth) ─────────────────────────────── */
+
+/* The format bar steps back: no fill, a hairline under it, quiet icons that wake on hover. */
+.note-editor .note-format { background: transparent; border-bottom-color: var(--hairline); padding: 6px var(--sp-3); }
+.note-editor .note-format .doc-tool { color: color-mix(in srgb, var(--ink) 72%, transparent); border-radius: 7px; transition: background-color 120ms ease, color 120ms ease; }
+.note-editor .note-format .doc-tool:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.note-editor .note-format .doc-tool[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.note-editor .note-format .doc-tool-sep { opacity: 0.6; }
+.note-editor .note-format select { background-color: transparent; font-weight: 500; }
+.note-editor .note-format select:hover { background-color: color-mix(in srgb, var(--ink) 7%, transparent); }
+
+/* The page reads like a page: a comfortable measure, a confident title, calm headings. */
+.note-editor .note-paper, .note-editor .note-meta { max-width: 720px; }
+.note-editor .note-page { font-size: 16px; line-height: 1.6; letter-spacing: -0.003em; -webkit-font-smoothing: antialiased; }
+.note-editor .note-page h1 { font-size: 30px; font-weight: 700; line-height: 1.15; letter-spacing: -0.022em; margin: 0 0 0.45em; }
+.note-editor .note-page h2 { font-size: 21px; font-weight: 650; letter-spacing: -0.015em; margin: 1.25em 0 0.3em; }
+.note-editor .note-page h3 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; margin: 1.05em 0 0.25em; }
+.note-editor .note-page blockquote { border-left-width: 3px; border-left-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.note-editor .note-page ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.note-editor .note-meta { font-size: var(--fs-xs); padding-top: var(--sp-5, 20px); letter-spacing: 0.01em; }
+
+/* Checklists tick with round boxes that fill, as in Apple's Notes. */
+.note-editor .note-page ul[data-type="taskList"] > li > label { margin-top: 0.22em; }
+.note-editor .note-page ul[data-type="taskList"] > li > label input {
+  appearance: none; -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 35%, transparent); background: transparent; display: grid; place-items: center;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 120ms ease;
+}
+.note-editor .note-page ul[data-type="taskList"] > li > label input:hover { border-color: var(--accent); }
+.note-editor .note-page ul[data-type="taskList"] > li > label input:active { transform: scale(0.9); }
+.note-editor .note-page ul[data-type="taskList"] > li > label input:checked { background: var(--accent); border-color: var(--accent); }
+.note-editor .note-page ul[data-type="taskList"] > li > label input:checked::after {
+  content: ""; width: 5px; height: 9px; margin-top: -2px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.note-editor .note-page ul[data-type="taskList"] > li > label input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; }
+.note-editor .note-page ul[data-type="taskList"] > li > div > p { transition: color 160ms ease; }
+
+/* The selection bar floats as glass above the page. */
+.note-editor .selection-bar { border: 0.5px solid var(--hairline); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08); }
+
+/* Tags are soft capsules; a link to a note reads as a link. */
+.note-editor .note-page .note-tag { border-radius: 6px; padding: 0 3px; }
+
+/* Changing page settles in rather than snapping. */
+@keyframes note-page-in { from { opacity: 0.35; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.note-editor .note-scroll[data-entering] { animation: note-page-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .note-editor .note-scroll[data-entering] { animation: none; }
+  .note-editor .note-page ul[data-type="taskList"] > li > label input { transition: none; }
+}
+/* Tables: hairlines and a quiet header, with rounded corners. */
+.note-editor .note-page table { border-collapse: separate; border-spacing: 0; border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden; }
+.note-editor .note-page th, .note-editor .note-page td { border: 0; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+.note-editor .note-page tr > :last-child { border-right: 0; }
+.note-editor .note-page tr:last-child > td { border-bottom: 0; }
+.note-editor .note-page th { background: color-mix(in srgb, var(--ink) 4%, transparent); font-weight: 600; text-align: left; }

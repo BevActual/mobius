@@ -248,6 +248,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     else window.requestAnimationFrame(() => { if (editor && !editor.isDestroyed) editor.commands.focus('end'); });
   }, [path, editor]);
   useEffect(() => setSelection(null), [path, source]);
+  // A page that opens settles in (see notes.css; off with reduced motion).
+  const [entering, setEntering] = useState(false);
+  useEffect(() => { if (path) setEntering(true); }, [path]);
   const toggleSource = () => {
     const next = !source;
     setSource(next);
@@ -553,7 +556,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           })()}
         </ol>
       )}
-      <div className="note-scroll" hidden={diff !== null || history}>
+      <div className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(false); }}>
         <p className="note-meta">
           {edited && <span>Edited {edited.toLowerCase() === 'just now' ? 'just now' : edited}</span>}
           <span>{words === 1 ? '1 word' : `${words} words`}</span>
