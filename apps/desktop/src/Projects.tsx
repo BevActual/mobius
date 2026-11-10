@@ -78,6 +78,19 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
   );
 }
 
+/** Move a conversation that is in no project into this one: from then on, the project's rules count in it. */
+function MoveHere({ projects, project, conversations }: { projects: ProjectsState; project: ProjectInfo; conversations: readonly ConversationInfo[] }) {
+  const taken = new Set(projects.list.flatMap((x) => x.threads));
+  const free = conversations.filter((c) => !taken.has(c.id) && c.messages > 0);
+  if (free.length === 0) return null;
+  return (
+    <select aria-label={`Move a conversation into ${project.name}`} value="" onChange={(e) => { if (e.target.value) void projects.addThread(project.id, e.target.value); }}>
+      <option value="">Move a conversation here…</option>
+      {free.map((c) => <option key={c.id} value={c.id}>{c.title || 'A conversation'}</option>)}
+    </select>
+  );
+}
+
 /** The project's memory page, as Markdown in the Wiki. */
 export const memoryPage = (project: ProjectInfo) => `Projects/${project.name.trim().replace(/\.+$/, '')}.md`;
 
@@ -178,7 +191,10 @@ export function ProjectPage({ projects, conversations, incoming, onOpenThread, o
         <ul className="clist" role="list" aria-label="Threads">
           {threads.map((t) => <li key={t.id}><button type="button" className="files-row" onClick={() => onOpenThread(t.id)}><span className="ext-name">{t.info?.title || 'New thread'}</span>{t.info && <span className="ext-state">{t.info.messages === 1 ? '1 message' : `${t.info.messages} messages`}</span>}</button></li>)}
         </ul>
-        <button type="button" className="btn primary" onClick={() => onNewThread(p.id)}>New thread</button>
+        <div className="project-thread-actions">
+          <button type="button" className="btn primary" onClick={() => onNewThread(p.id)}>New thread</button>
+          <MoveHere projects={projects} project={p} conversations={conversations} />
+        </div>
       </section>
       <section className="project-card" aria-label="Made in this project">
         <h2 className="ext-heading">Made in this project</h2>

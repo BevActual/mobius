@@ -2328,3 +2328,5 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .project-rules { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px var(--sp-3); }
 .project-rule { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .project-card > .btn { justify-self: start; }
+
+.project-thread-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }

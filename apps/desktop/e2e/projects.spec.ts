@@ -150,3 +150,23 @@ test('what Mobius learns in a project thread waits dashed on the project memory,
   await expect(memory.getByRole('listitem', { name: /Lisbon/ })).toHaveCount(0);
   expect(fs.readFileSync(path.join(userData, 'workspace', 'wiki', 'Projects', 'Kestrel.md'), 'utf8')).not.toContain('Lisbon');
 });
+
+test('a conversation started outside can be moved into a project, and from then on the project’s rules count in it', async () => {
+  const change = callsTool('files-write', { path: 'docs/Plan.md', content: '# Plan\n' });
+  await start([says(['Hello.']), change, says(['Wrote it in the project.'])]);
+  await say('hello');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Hello.');
+  await openProjects();
+  await newProject('Kestrel');
+  const page = shell().getByRole('region', { name: 'Kestrel' });
+  await page.getByRole('combobox', { name: 'Docs in Kestrel' }).selectOption('act');
+  const move = page.getByRole('combobox', { name: 'Move a conversation into Kestrel' });
+  await move.selectOption({ label: 'hello' });
+  await expect(page.getByRole('list', { name: 'Threads' }).getByRole('button')).toHaveText([/hello/]);
+  await expect(move).toHaveCount(0);
+  await page.getByRole('list', { name: 'Threads' }).getByRole('button').click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Hello.');
+  await say('write the plan');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Wrote it in the project.');
+  await expect(log().getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
+});
