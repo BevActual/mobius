@@ -52,7 +52,7 @@ const NOTE_TEXT: Record<string, string> = {
   'Home/Groceries.md': '# Groceries\n\n- Oats\n- Coffee\n',
 };
 /** One turn of Mobius's, still waiting to be kept, so the dashed proposals and Why this can be looked at. */
-const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md'] };
+const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv'] };
 
 /** Answers for the calls that must return more than an empty list. Keyed by the call's path. */
 const ANSWERS: Record<string, (...args: never[]) => unknown> = {
@@ -69,13 +69,18 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'tasks.lists': () => [{ name: 'P2 build', open: 3, done: 2 }, { name: 'Work', open: 0, done: 0 }, { name: 'Home', open: 0, done: 0 }],
   'tasks.read': ((list: string) => ({ list, tasks: list === 'P2 build' ? TASKS : [], version: 'preview' })) as never,
   'notes.list': () => NOTES,
+  'sheets.list': () => [{ name: 'P2 budget', sheets: ['Sheet 1'] }],
+  // Mobius added the Total row in its turn.
+  'sheets.read': ((workbook: string, sheet: string) => ({ workbook, sheet, sheets: ['Sheet 1'], version: 'preview',
+    cells: [['Item', 'Cost'], ['Packs', '48000'], ['Sled', '6500'], ['Total', '=B2+B3']],
+    values: [['Item', 'Cost'], ['Packs', '48000'], ['Sled', '6500'], ['Total', '54500']] })) as never,
   'docs.list': () => [{ name: 'P2 build', pages: [{ path: 'P2 build/Build brief.md', title: 'Build brief', modified: now - hour }] }],
   'docs.read': ((path: string) => ({ path, content: '# Build brief\n\nThe P2 build runs the week of the 23rd at Northfield.\n\n## Packs\n\nEight 60 kWh packs from Veltro, six weeks from order.\n', modified: now })) as never,
   'notes.read': ((path: string) => ({ path, content: NOTE_TEXT[path] ?? '', modified: now })) as never,
   'changes.lastTurn': () => ({ checkpoint: TURN.start, files: TURN.files }),
   'changes.turns': () => ({ ok: true, turns: [TURN] }),
   // Before the turn: the supplier notes had only their title, and the P2 build list had no deposit task.
-  'changes.before': ((_conversation: string, path: string) => ({ ok: true, text: path.startsWith('tasks/') ? '# P2 build\n\n- [x] Confirm the build week with everyone\n- [ ] Hold 8 packs at Veltro\n- [ ] Book the sled for Friday\n- [x] Draft the build budget\n' : path.startsWith('docs/') ? '# Build brief\n\nThe P2 build runs the week of the 23rd.\n' : '# Supplier notes\n' })) as never,
+  'changes.before': ((_conversation: string, path: string) => ({ ok: true, text: path.startsWith('tasks/') ? '# P2 build\n\n- [x] Confirm the build week with everyone\n- [ ] Hold 8 packs at Veltro\n- [ ] Book the sled for Friday\n- [x] Draft the build budget\n' : path.startsWith('sheets/') ? 'Item,Cost\nPacks,48000\nSled,6500\n' : path.startsWith('docs/') ? '# Build brief\n\nThe P2 build runs the week of the 23rd.\n' : '# Supplier notes\n' })) as never,
   'calendar.calendars': () => ['Kestrel P2', 'Work', 'Home'],
   'calendar.events': () => EVENTS,
   // Time Mobius suggests, waiting to be kept.

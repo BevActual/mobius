@@ -2,9 +2,11 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type R
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { cellName, changedCells, columnName, isError, isNumeric, parseCsv, pasted } from './sheets-view';
 import type { SheetsState } from './useSheets';
+import { ReviewActions, WhyThis } from './ReviewBar';
+import { SideNew, type Start } from './SideNew';
 
 /** The workbooks, each with its sheets. */
-export function SheetsSidebar({ sheets, pin, changed }: { sheets: SheetsState; pin?: ReactNode; changed?: ReadonlySet<string> }) {
+export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheets: SheetsState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const submit = async (event: FormEvent) => {
@@ -18,9 +20,6 @@ export function SheetsSidebar({ sheets, pin, changed }: { sheets: SheetsState; p
         <span className="side-title">Workbooks</span>
         <span className="side-actions">
           {pin}
-          <button type="button" className="strip-btn" aria-label="New workbook" title="New workbook" onClick={() => setNaming(true)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-          </button>
         </span>
       </div>
       {naming && (
@@ -30,16 +29,16 @@ export function SheetsSidebar({ sheets, pin, changed }: { sheets: SheetsState; p
         </form>
       )}
       <nav className="task-lists" aria-label="Workbooks">
+        <SideNew item="workbook" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
         {sheets.workbooks.length === 0 && !naming && (
           <div className="side-empty notes-empty">
             <p>Workbooks are kept as CSV files in your workspace, one for each sheet, so any spreadsheet app can open them.</p>
-            <button type="button" className="btn primary" onClick={() => setNaming(true)}>New workbook</button>
           </div>
         )}
         <ul role="list">
           {sheets.workbooks.map((w) => (
             <li key={w.name}>
-              <button type="button" className="list-row" aria-current={here?.workbook === w.name ? 'page' : undefined} onClick={() => void sheets.open(w.name, here?.workbook === w.name ? here.sheet : w.sheets[0] ?? 'Sheet 1')}>
+              <button type="button" className="list-row" data-proposed={changed?.has(w.name) || undefined} aria-current={here?.workbook === w.name ? 'page' : undefined} onClick={() => void sheets.open(w.name, here?.workbook === w.name ? here.sheet : w.sheets[0] ?? 'Sheet 1')}>
                 <span className="list-name">{w.name}</span>
                 {changed?.has(w.name) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Changed by the agent in its last turn" />}
                 <span className="list-count">{w.sheets.length > 1 ? w.sheets.length : ''}</span>
@@ -171,9 +170,8 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
       {showReview && (
         <div className="note-review sheet-review" role="status">
           <span className="review-dot" aria-hidden="true" />
-          <span className="note-review-text">{`Mobius changed ${changed.size === 1 ? 'one cell' : `${changed.size} cells`} here in its last turn, marked below.`}</span>
-          <button type="button" className="review-btn" onClick={() => void discardAll()}>Discard</button>
-          <button type="button" className="review-btn" data-kind="keep" onClick={() => void keepAll()}>Keep</button>
+          <span className="note-review-text">{`Mobius changed ${changed.size === 1 ? 'one cell' : `${changed.size} cells`} here in its last turn, marked below.`}{review && <WhyThis conversation={review.conversation} />}</span>
+          <ReviewActions onKeep={keepAll} onDiscard={discardAll} discardTitle="Put this sheet back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
         </div>
       )}
       {sheets.message && <p className="tasks-message" role="alert">{sheets.message}</p>}

@@ -757,7 +757,7 @@ export function App() {
             ) : inSlides ? (
               <SlidesSidebar slides={slides} pin={pinNode} changed={turnMarks.slides} />
             ) : inSheets ? (
-              <SheetsSidebar sheets={sheets} pin={pinNode} changed={turnMarks.sheets} />
+              <SheetsSidebar sheets={sheets} pin={pinNode} changed={turnMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
             ) : inDocs ? (
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
@@ -1320,7 +1320,7 @@ export function App() {
         needsYou={needsYou}
         counts={{ browser: browser.tabs.length, tasks: dueToday }}
         create={createFor(app)}
-        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar'] as AppId[]).includes(app)}
+        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'] as AppId[]).includes(app)}
         menus={wide ? menuBar : null}
         chrome={wide && inBrowser && !settingsOpen ? browserChrome : null}
         mobius={wide && hasRight && !settingsOpen ? {
