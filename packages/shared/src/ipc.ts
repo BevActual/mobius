@@ -157,7 +157,8 @@ export interface TasksChanged { list: string | null; by: 'person' | 'assistant' 
 /** An event in the Calendar app, from `calendar/<calendar>.ics`. Times are local: `YYYY-MM-DD` for an all-day event,
  * `YYYY-MM-DDTHH:MM` otherwise; `end` is exclusive (an all-day event on the 12th ends on the 13th). A repeating event
  * is listed once for each time it happens, all with the same id. */
-export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; readOnly?: boolean }
+/** `repeat`: daily, weekdays, weekly, biweekly, monthly or yearly; custom for one made elsewhere; empty when it does not repeat. */
+export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; repeat?: string; readOnly?: boolean }
 /** What Mobius remembers, sorted as How I work in the Wiki shows it: about you, preferences, projects, people, learned skills. */
 export type MemoryCategory = 'you' | 'prefs' | 'work' | 'people' | 'skills';
 export interface MemoryItem { text: string; category: MemoryCategory; source: string; /** Mobius noticed it and you have not kept it yet: shown dashed in How I work. */ learned?: boolean }
@@ -224,7 +225,8 @@ export interface CalendarSource { name: string; account: string | null; readOnly
 /** A calendar kept elsewhere: a subscribed link, or a CalDAV account (iCloud, Fastmail, Nextcloud). */
 export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; name: string; url: string; username: string; calendars: string[]; lastSyncMs: number; problem: string | null }
 /** What may be set on an event. An all-day `end` is the last day, included. */
-export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string }
+/** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
+export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
 export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */

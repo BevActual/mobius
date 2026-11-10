@@ -459,12 +459,50 @@ pub struct Draft {
     pub end: Option<String>,
     pub location: Option<String>,
     pub notes: Option<String>,
+    /// How it repeats, by name (`REPEATS`); an empty text stops it repeating.
+    pub repeat: Option<String>,
+    /// For a repeating event, the start of the one time the window showed and changed: a new start then moves every
+    /// time by as much, rather than starting the series again there.
+    pub occurrence: Option<String>,
 }
 
 impl Draft {
     pub fn from_json(v: &Value) -> Draft {
         let s = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);
-        Draft { title: s("title"), start: s("start"), end: s("end"), location: s("location"), notes: s("notes") }
+        Draft { title: s("title"), start: s("start"), end: s("end"), location: s("location"), notes: s("notes"), repeat: s("repeat"), occurrence: s("occurrence") }
+    }
+}
+
+/// The ways to repeat an event that the window and the agent offer, by name.
+pub const REPEATS: [&str; 6] = ["daily", "weekdays", "weekly", "biweekly", "monthly", "yearly"];
+
+/// A repeat by name; `None` for no repeat (an empty name or "never").
+pub fn repeat_named(name: &str) -> Res<Option<Repeat>> {
+    let plain = |freq: &str, interval: u32, by_day: Vec<u32>| Some(Repeat { freq: freq.into(), interval, count: None, until: None, by_day });
+    Ok(match name.trim().to_ascii_lowercase().as_str() {
+        "" | "never" | "none" => None,
+        "daily" => plain("DAILY", 1, vec![]),
+        "weekdays" => plain("WEEKLY", 1, vec![0, 1, 2, 3, 4]),
+        "weekly" => plain("WEEKLY", 1, vec![]),
+        "biweekly" => plain("WEEKLY", 2, vec![]),
+        "monthly" => plain("MONTHLY", 1, vec![]),
+        "yearly" => plain("YEARLY", 1, vec![]),
+        _ => return Err(format!("repeat is one of {}, or empty", REPEATS.join(", "))),
+    })
+}
+
+/// The name of a repeat, or "custom" for one made elsewhere that has no name here.
+pub fn repeat_name(r: &Repeat) -> &'static str {
+    let open = r.count.is_none() && r.until.is_none();
+    match (r.freq.as_str(), r.interval, r.by_day.as_slice()) {
+        _ if !open => "custom",
+        ("DAILY", 1, []) => "daily",
+        ("WEEKLY", 1, [0, 1, 2, 3, 4]) => "weekdays",
+        ("WEEKLY", 1, []) => "weekly",
+        ("WEEKLY", 2, []) => "biweekly",
+        ("MONTHLY", 1, []) => "monthly",
+        ("YEARLY", 1, []) => "yearly",
+        _ => "custom",
     }
 }
 
@@ -507,7 +545,8 @@ pub fn tool_descriptions() -> Vec<Value> {
                 "calendar": { "type": "string", "description": "Which calendar: Calendar, unless the person names another (calendar.list shows each event's)." },
                 "title": { "type": "string" }, "start": { "type": "string", "description": when },
                 "end": { "type": "string", "description": format!("{when} Leave out for an hour (or the one day).") },
-                "location": { "type": "string" }, "notes": { "type": "string" } }, "required": ["calendar", "title", "start"] } }),
+                "location": { "type": "string" }, "notes": { "type": "string" },
+                "repeat": { "type": "string", "enum": REPEATS, "description": "How it repeats, if it does." } }, "required": ["calendar", "title", "start"] } }),
         json!({ "name": "calendar.suggest", "capability": "calendar.suggest",
             "description": "Suggest an event for the person to add to their calendar or decline, with why. Use this, not calendar.add, for anything they did not ask for outright: a reminder before a deadline, time to prepare, a free hour for a task. It shows dashed in their calendar and nothing is added until they choose Add. Never suggest inviting anyone.",
             "input_schema": { "type": "object", "properties": {
@@ -517,11 +556,12 @@ pub fn tool_descriptions() -> Vec<Value> {
                 "location": { "type": "string" }, "notes": { "type": "string" },
                 "why": { "type": "string", "description": "One short sentence the person reads: why this, and why then." } }, "required": ["title", "start", "why"] } }),
         json!({ "name": "calendar.update", "capability": "calendar.write", "resource_arg": "calendar",
-            "description": "Change an event in the Calendar app, found by the id calendar.list gave: its title, times, place or notes.",
+            "description": "Change an event in the Calendar app, found by the id calendar.list gave: its title, times, place, notes or how it repeats. For a repeating event, a new start moves the whole series to start there.",
             "input_schema": { "type": "object", "properties": {
                 "calendar": { "type": "string" }, "id": { "type": "string" }, "title": { "type": "string" },
                 "start": { "type": "string", "description": when }, "end": { "type": "string", "description": when },
-                "location": { "type": "string" }, "notes": { "type": "string" } }, "required": ["calendar", "id"] } }),
+                "location": { "type": "string" }, "notes": { "type": "string" },
+                "repeat": { "type": "string", "description": format!("How it repeats: one of {}, or never.", REPEATS.join(", ")) } }, "required": ["calendar", "id"] } }),
     ]
 }
 
@@ -534,7 +574,7 @@ fn event_json(calendar: &str, e: &Event, start: When, read_only: bool) -> Value 
     let end = e.end.shifted(shift);
     let all_day = matches!(e.start, When::Day(_));
     json!({ "id": e.uid, "calendar": calendar, "title": e.title, "start": start.show(), "end": end.show(), "allDay": all_day,
-        "location": e.location, "notes": e.notes, "repeats": e.repeat.is_some(), "readOnly": read_only })
+        "location": e.location, "notes": e.notes, "repeats": e.repeat.is_some(), "repeat": e.repeat.as_ref().map_or("", repeat_name), "readOnly": read_only })
 }
 
 /// The starts a repeating event skips (`EXDATE`), and the one a changed copy of a single time replaces
@@ -738,8 +778,9 @@ impl Calendar {
 
     pub fn add(&self, calendar: &str, draft: &Draft) -> Res<Value> {
         let (title, start, end, location, notes) = Self::checked(draft, None)?;
+        let repeat = repeat_named(draft.repeat.as_deref().unwrap_or(""))?;
         let (mut events, other) = self.load(calendar)?;
-        let event = Event { uid: new_uid(), title, start, end, location, notes, repeat: None, extra: Vec::new() };
+        let event = Event { uid: new_uid(), title, start, end, location, notes, repeat, extra: Vec::new() };
         self.send(calendar, Some((std::slice::from_ref(&event), true)), None)?;
         events.push(event.clone());
         self.store(calendar, &events, &other)?;
@@ -750,9 +791,24 @@ impl Calendar {
         let (mut events, other) = self.load(calendar)?;
         // The event itself, not a changed copy of one of its times.
         let at = events.iter().position(|e| e.uid == uid && (e.repeat.is_some() || moments_in(e, "RECURRENCE-ID").is_empty())).ok_or("that event is not in that calendar")?;
-        let (title, start, end, location, notes) = Self::checked(draft, Some(&events[at]))?;
-        let mut changed = events[at].clone();
+        let (title, mut start, mut end, location, notes) = Self::checked(draft, Some(&events[at]))?;
+        let base = &events[at];
+        // One time of a repeating event moved: every time moves by as much, so the series keeps its first time.
+        if base.repeat.is_some()
+            && draft.start.is_some()
+            && let Some(shown) = draft.occurrence.as_deref().and_then(When::parse)
+            && matches!(shown, When::Day(_)) == matches!(start, When::Day(_))
+            && matches!(base.start, When::Day(_)) == matches!(start, When::Day(_))
+        {
+            let length = end.moment() - start.moment();
+            start = base.start.shifted(start.moment() - shown.moment());
+            end = start.shifted(length);
+        }
+        let mut changed = base.clone();
         (changed.title, changed.start, changed.end, changed.location, changed.notes) = (title, start, end, location, notes);
+        if let Some(name) = &draft.repeat {
+            changed.repeat = repeat_named(name)?;
+        }
         let mut after = events.clone();
         after[at] = changed.clone();
         let parts: Vec<Event> = after.iter().filter(|e| e.uid == uid).cloned().collect();
@@ -1038,5 +1094,33 @@ mod tests {
         c.run("calendar.update", &json!({ "calendar": "Calendar", "id": id, "start": "2026-11-21T08:00" })).unwrap();
         assert_eq!(c.events("2026-11-21", "2026-11-21").unwrap()[0]["title"], "Dentist");
         assert!(c.run("calendar.update", &json!({ "calendar": "Calendar", "id": "nope", "title": "x" })).is_err());
+    }
+
+    #[test]
+    fn an_event_repeats_by_name_and_moving_one_time_moves_them_all() {
+        let dir = tempfile::tempdir().unwrap();
+        let cal = Calendar::new(dir.path().join("work"), dir.path().join("store"));
+        cal.create("Work").unwrap();
+        let draft = |start: &str, repeat: &str| Draft { title: Some("Standup".into()), start: Some(start.into()), end: None, repeat: Some(repeat.into()), ..Draft::default() };
+        let made = cal.add("Work", &draft("2026-11-02T09:00", "weekdays")).unwrap();
+        assert_eq!((made["repeats"].clone(), made["repeat"].clone()), (json!(true), json!("weekdays")));
+        let week = cal.events("2026-11-02", "2026-11-08").unwrap();
+        assert_eq!(week.as_array().unwrap().len(), 5);
+        assert!(std::fs::read_to_string(dir.path().join("work/calendar/Work.ics")).unwrap().contains("RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"));
+        // Wednesday's standup dragged to 10:30: every time moves to 10:30, and Monday is still the first.
+        let id = made["id"].as_str().unwrap();
+        let moved = Draft { start: Some("2026-11-04T10:30".into()), end: Some("2026-11-04T11:30".into()), occurrence: Some("2026-11-04T09:00".into()), ..Draft::default() };
+        cal.update("Work", id, &moved).unwrap();
+        let week = cal.events("2026-11-02", "2026-11-08").unwrap();
+        let starts: Vec<&str> = week.as_array().unwrap().iter().map(|e| e["start"].as_str().unwrap()).collect();
+        assert_eq!(starts, ["2026-11-02T10:30", "2026-11-03T10:30", "2026-11-04T10:30", "2026-11-05T10:30", "2026-11-06T10:30"]);
+        assert_eq!(week[0]["end"], "2026-11-02T11:30");
+        // Stop repeating; a name it does not know is refused.
+        cal.update("Work", id, &Draft { repeat: Some(String::new()), ..Draft::default() }).unwrap();
+        assert_eq!(cal.events("2026-11-02", "2026-11-08").unwrap().as_array().unwrap().len(), 1);
+        assert!(cal.add("Work", &draft("2026-11-02T09:00", "fortnightly-ish")).is_err());
+        let yearly = cal.add("Work", &draft("2026-11-10", "yearly")).unwrap();
+        assert_eq!(yearly["repeat"], "yearly");
+        assert_eq!(repeat_name(&Repeat { freq: "WEEKLY".into(), interval: 1, count: Some(3), until: None, by_day: vec![] }), "custom");
     }
 }

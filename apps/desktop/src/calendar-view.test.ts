@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
-import { allDayOn, clock, daysFor, eventsOn, heading, isoDay, localDate, placeDay, step, weekStart } from './calendar-view';
+import { allDayOn, clock, daysFor, dragged, draftEnd, movedByDays, eventsOn, heading, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
 const day = (text: string) => localDate(text);
@@ -62,5 +63,48 @@ describe('placing events', () => {
     expect(['2026-11-11', '2026-11-12', '2026-11-14', '2026-11-15'].map((d) => allDayOn([trip], day(d)).length)).toEqual([0, 1, 1, 0]);
     const lunch = ev('Lunch', '2026-11-12T12:00', '2026-11-12T13:00');
     expect(eventsOn([lunch, trip], day('2026-11-12')).map((e) => e.title)).toEqual(['Lisbon', 'Lunch']);
+  });
+});
+
+describe('a new event said in words', () => {
+  // Friday 6 November 2026, 15:00.
+  const now = new Date(2026, 10, 6, 15, 0);
+  const said = (text: string) => parseEventWords(text, now, parseWhen);
+  it('reads the day and the time in either order, a range, and a length', () => {
+    expect(said('Lunch with Sam fri 1pm')).toEqual({ title: 'Lunch with Sam', start: '2026-11-13T13:00', end: '2026-11-13T14:00', allDay: false });
+    expect(said('Lunch with Sam 1pm fri')).toEqual({ title: 'Lunch with Sam', start: '2026-11-13T13:00', end: '2026-11-13T14:00', allDay: false });
+    expect(said('Standup tomorrow 9:30 for 15m')).toEqual({ title: 'Standup', start: '2026-11-07T09:30', end: '2026-11-07T09:45', allDay: false });
+    expect(said('Dentist 12 dec at 3pm')).toEqual({ title: 'Dentist', start: '2026-12-12T15:00', end: '2026-12-12T16:00', allDay: false });
+    expect(said('Workshop mon 10-12')).toEqual({ title: 'Workshop', start: '2026-11-09T10:00', end: '2026-11-09T12:00', allDay: false });
+    expect(said('Call 2-3pm')).toEqual({ title: 'Call', start: '2026-11-07T14:00', end: '2026-11-07T15:00', allDay: false });
+    expect(said('Review at noon for 2h')).toEqual({ title: 'Review', start: '2026-11-07T12:00', end: '2026-11-07T14:00', allDay: false });
+    expect(said('Drinks 6pm')).toEqual({ title: 'Drinks', start: '2026-11-06T18:00', end: '2026-11-06T19:00', allDay: false });
+  });
+  it('a day alone is all day; words with no day or time are not an event yet', () => {
+    expect(said('Offsite next week')).toEqual({ title: 'Offsite', start: '2026-11-09', end: '2026-11-09', allDay: true });
+    expect(said('Read chapter 12')).toBeNull();
+    expect(said('Buy 2 coffees')).toBeNull();
+    expect(said('fri 1pm')).toBeNull();
+  });
+});
+
+describe('dragging an event', () => {
+  it('moves by days and snapped minutes, keeping its length, or resizes only its end', () => {
+    const e = { start: '2026-11-12T09:00', end: '2026-11-12T10:00' };
+    expect(dragged(e, 1, 37, false)).toEqual({ start: '2026-11-13T09:30', end: '2026-11-13T10:30' });
+    expect(dragged(e, 0, -100, false)).toEqual({ start: '2026-11-12T07:15', end: '2026-11-12T08:15' });
+    expect(dragged(e, 0, 50, true)).toEqual({ start: '2026-11-12T09:00', end: '2026-11-12T10:45' });
+    expect(dragged(e, 0, -120, true)).toEqual({ start: '2026-11-12T09:00', end: '2026-11-12T09:15' });
+    expect(snapMinutes(608)).toBe(615);
+  });
+});
+
+describe('dropping an event on another day', () => {
+  it('keeps a timed event\'s time and an all-day event\'s length', () => {
+    expect(movedByDays({ start: '2026-11-10T09:30', end: '2026-11-10T10:00', allDay: false }, 2)).toEqual({ start: '2026-11-12T09:30', end: '2026-11-12T10:00' });
+    // Stored, an all-day event ends the day after; the editor sends its last day.
+    expect(movedByDays({ start: '2026-11-10', end: '2026-11-13', allDay: true }, -1)).toEqual({ start: '2026-11-09', end: '2026-11-11' });
+    expect(draftEnd({ end: '2026-11-13', allDay: true })).toBe('2026-11-12');
+    expect(draftEnd({ end: '2026-11-13T10:00', allDay: false })).toBe('2026-11-13T10:00');
   });
 });
