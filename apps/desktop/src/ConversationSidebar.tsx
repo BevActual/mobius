@@ -6,6 +6,9 @@ import { activityBoard } from './activity-board';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { ReviewActions } from './ReviewBar';
 import { Turns } from './Rewind';
+import { botFromConversation, mayTouch } from './bot-view';
+import { modeOf } from './approval-modes';
+import { usePreferences } from './usePreferences';
 
 interface Props {
   /** Open Settings › Schedules. */
@@ -47,7 +50,7 @@ function readCollapsed(): string[] {
 
 const ACTIVITY_TEXT = { working: 'Working…', needs_you: 'Needs you' } as const;
 
-function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived }: { conversation: ConversationInfo; current: boolean; onSelect: () => void; onDelete: () => Promise<string | null>; onArchive?: (archived: boolean) => void; isArchived?: boolean }) {
+function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived, onMakeBot }: { conversation: ConversationInfo; current: boolean; onSelect: () => void; onDelete: () => Promise<string | null>; onArchive?: (archived: boolean) => void; isArchived?: boolean; onMakeBot?: () => void }) {
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   return (
@@ -66,6 +69,11 @@ function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived 
         </span>
       ) : (
         <>
+          {onMakeBot && (
+            <button type="button" className="clist-delete" aria-label={`Make ${conversation.title} a bot`} title="Make this a bot" onClick={onMakeBot}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="7" width="11" height="8.5" rx="2.5" /><path d="M10 7V4.5M8 11h.01M12 11h.01" /></svg>
+            </button>
+          )}
           {onArchive && (
             <button type="button" className="clist-delete" aria-label={`${isArchived ? 'Unarchive' : 'Archive'} ${conversation.title}`} title={isArchived ? 'Bring back' : 'Put away'} onClick={() => onArchive(!isArchived)}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14v3H3zM4 8v8h12V8M8 11h4" /></svg>
@@ -85,10 +93,21 @@ function BotForm({ initial, submitLabel, onSubmit, onCancel }: { initial: BotDra
   const [draft, setDraft] = useState(initial);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // How it starts: when you ask, or also at a time of day (a schedule, as in Settings › Schedules).
+  const [starts, setStarts] = useState<'ask' | 'schedule'>('ask');
+  const [time, setTime] = useState('08:00');
+  const [days, setDays] = useState<'weekdays' | 'daily'>('weekdays');
+  const preferences = usePreferences();
+  const canSchedule = submitLabel === 'Create' && window.mobius.schedules !== undefined;
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
-    setProblem(await onSubmit(draft));
+    let error = await onSubmit(draft);
+    if (!error && canSchedule && starts === 'schedule') {
+      const made = await window.mobius.schedules!.add({ title: draft.name.trim(), prompt: draft.instructions.trim() || draft.name.trim(), time, days: days === 'daily' ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5], enabled: true }).catch(() => null);
+      if (!made || !made.ok) error = made && !made.ok ? made.error : 'The bot was made, but its schedule was not.';
+    }
+    setProblem(error);
     setSaving(false);
   };
   return (
@@ -96,6 +115,20 @@ function BotForm({ initial, submitLabel, onSubmit, onCancel }: { initial: BotDra
       <label>Name<input type="text" value={draft.name} maxLength={MAX_BOT_NAME} autoFocus onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
       <label>Instructions<textarea rows={4} value={draft.instructions} maxLength={MAX_BOT_INSTRUCTIONS} placeholder="How this bot should behave. Added to the usual instructions." onChange={(e) => setDraft({ ...draft, instructions: e.target.value })} /></label>
       <label>Model<input type="text" value={draft.model} spellCheck={false} placeholder="The one in settings" onChange={(e) => setDraft({ ...draft, model: e.target.value })} /></label>
+      {canSchedule && (
+        <fieldset className="botform-starts">
+          <legend>How it starts</legend>
+          <label className="botform-choice"><input type="radio" name="bot-starts" checked={starts === 'ask'} onChange={() => setStarts('ask')} />When you ask</label>
+          <label className="botform-choice"><input type="radio" name="bot-starts" checked={starts === 'schedule'} onChange={() => setStarts('schedule')} />Also on a schedule</label>
+          {starts === 'schedule' && (
+            <span className="botform-when">
+              <select aria-label="Which days" value={days} onChange={(e) => setDays(e.target.value as typeof days)}><option value="weekdays">Weekdays</option><option value="daily">Every day</option></select>
+              <input type="time" aria-label="At" value={time} required onChange={(e) => setTime(e.target.value)} />
+            </span>
+          )}
+        </fieldset>
+      )}
+      <p className="botform-touch"><b>What it may touch</b> {mayTouch(preferences.value.appAccess, modeOf(preferences.value.approvalMode).name)} Change it in Settings › Safety.</p>
       {problem && <span className="field-error" role="alert">{problem}</span>}
       <span className="botform-actions">
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
@@ -248,6 +281,14 @@ function ActivityBoard({ conversations, active, onSelect, onDelete, onOpenSchedu
 
 export function ConversationSidebar({ conversations: everything, archived = [], onArchive, active, canStartNew, onNew, onSelect, onDelete, pin, bots, mode, onMode, onOpenBot, onNewWithBot, onCreateBot, onUpdateBot, onRemoveBot, onMoveBot, onOpenSchedules }: Props) {
   const [adding, setAdding] = useState(false);
+  // A bot being made from a conversation: the form opens filled in from it.
+  const [fromConversation, setFromConversation] = useState<BotDraft | null>(null);
+  const makeBot = async (conversation: ConversationInfo) => {
+    const history = await window.mobius.agent.history(conversation.id).catch(() => []);
+    const first = history.find((m) => m.role === 'user');
+    setFromConversation(botFromConversation(conversation.title, first && first.role === 'user' ? first.text : null));
+    onMode('bots');
+  };
   const [collapsed, setCollapsed] = useState<string[]>(readCollapsed);
   const [query, setQuery] = useState('');
   const toggle = (id: string) => setCollapsed((now) => {
@@ -288,8 +329,8 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
         <ActivityBoard conversations={conversations} active={active} onSelect={onSelect} onDelete={onDelete} onOpenSchedules={onOpenSchedules} />
       ) : mode === 'bots' ? (
         <>
-          {adding && (
-            <BotForm initial={{ name: '', instructions: '', model: '' }} submitLabel="Create" onCancel={() => setAdding(false)} onSubmit={async (draft) => { const r = await onCreateBot(draft); if (!r.ok) return r.error; setAdding(false); onNewWithBot(r.bot.id); onMode('sessions'); return null; }} />
+          {(adding || fromConversation) && (
+            <BotForm key={fromConversation ? `from:${fromConversation.name}` : 'new'} initial={fromConversation ?? { name: '', instructions: '', model: '' }} submitLabel="Create" onCancel={() => { setAdding(false); setFromConversation(null); }} onSubmit={async (draft) => { const r = await onCreateBot(draft); if (!r.ok) return r.error; setAdding(false); setFromConversation(null); onNewWithBot(r.bot.id); onMode('sessions'); return null; }} />
           )}
           <ul className="clist" role="list" aria-label="Bots">
             {bots.map((bot, index) => (
@@ -326,7 +367,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
                 {!shut && (
                   <ul className="clist" role="list">
                     {rows.map((conversation) => (
-                      <Row key={conversation.id} conversation={conversation} current={conversation.id === active} onSelect={() => onSelect(conversation.id)} onDelete={() => onDelete(conversation.id)} {...(onArchive ? { onArchive: (on: boolean) => onArchive(conversation.id, on) } : {})} />
+                      <Row key={conversation.id} conversation={conversation} current={conversation.id === active} onSelect={() => onSelect(conversation.id)} onDelete={() => onDelete(conversation.id)} {...(onArchive ? { onArchive: (on: boolean) => onArchive(conversation.id, on) } : {})} onMakeBot={() => void makeBot(conversation)} />
                     ))}
                   </ul>
                 )}

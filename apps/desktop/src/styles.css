@@ -2247,3 +2247,11 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 
 /* Every question for the person reads the same, in every mode: Needs you. */
 .approval-head { margin: 0 0 2px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.02em; color: var(--accent); }
+
+/* A bot's form: how it starts, and what it may touch. */
+.botform-starts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0; padding: 0; border: 0; font-size: var(--fs-sm); }
+.botform-starts legend { padding: 0; margin-bottom: 2px; font-weight: var(--fw-medium); }
+.botform-choice { display: inline-flex; align-items: center; gap: 4px; }
+.botform-when { display: inline-flex; gap: 6px; flex-basis: 100%; }
+.botform-touch { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
+.botform-touch b { color: var(--ink); font-weight: var(--fw-medium); }

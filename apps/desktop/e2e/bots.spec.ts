@@ -238,3 +238,21 @@ test('bots can be moved up and down, Mobius stays first, and the order is kept',
   await tab('Bots').click();
   await expect.poll(names).toEqual(['Mobius', 'Gamma', 'Alpha', 'Beta']);
 });
+
+test('a conversation can be made a bot: its form is filled in from it, says what it may touch, and it can start on a schedule', async () => {
+  await start([says(['Here is your week.'])]);
+  await openApp('Agent');
+  await say('Look at my tasks and calendar and plan the week');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Here is your week.');
+  await tab('Sessions').click();
+  await list().getByRole('button', { name: /^Make .* a bot$/ }).first().click();
+  const form = list().getByRole('form', { name: 'New bot' });
+  await expect(tab('Bots')).toHaveAttribute('aria-selected', 'true');
+  await expect(form.getByRole('textbox').nth(1)).toHaveValue(/Look at my tasks and calendar and plan the week/);
+  await expect(form).toContainText('What it may touch');
+  await form.getByRole('textbox').first().fill('Week planner');
+  await form.getByLabel('Also on a schedule').check();
+  await form.getByLabel('At').fill('07:30');
+  await form.getByRole('button', { name: 'Create' }).click();
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.schedules?.list() ?? Promise.resolve([]))).map((s) => `${s.title} ${s.time}`)).toContain('Week planner 07:30');
+});
