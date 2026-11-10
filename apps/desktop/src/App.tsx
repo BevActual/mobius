@@ -3,7 +3,7 @@ import { MenuBar } from './MenuBar';
 import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type MailContent, type SidebarMode } from '@mobius/shared';
-import { appName, isAvailable, type AppId, noteOpened, APPS } from './apps';
+import { appName, askAbout, isAvailable, type AppId, noteOpened, APPS } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
 import { databaseOutline, noteContext, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
@@ -1365,7 +1365,7 @@ export function App() {
             void conversation.send(text, []);
           }}>
             <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
-            <input name="ask" type="text" aria-label="Ask Mobius" placeholder={`Ask about ${inBrowser ? 'this page' : inNotes ? 'this note' : 'your tasks'}`} autoComplete="off" disabled={!settings?.configured} />
+            <input name="ask" type="text" aria-label="Ask Mobius" placeholder={askAbout(app)} autoComplete="off" disabled={!settings?.configured} />
             {activity && <span className="ask-working" role="status" aria-label="Agent activity">{activity.label}</span>}
           </form>
         )}

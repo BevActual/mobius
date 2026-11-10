@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { APP_GROUPS, APPS, noteOpened, recentApps, type AppId } from './apps';
+import { APP_GROUPS, APPS, askAbout, noteOpened, recentApps, type AppId } from './apps';
 
 describe('apps', () => {
+  it('the ask box names what is open in each app, not another app’s things', () => {
+    expect(askAbout('mail')).toBe('Ask about your mail');
+    expect(askAbout('browser')).toBe('Ask about this page');
+    expect(askAbout('search')).toBe('Ask Mobius');
+  });
+
   it('every app belongs to one of the groups the hub shows', () => {
     for (const app of APPS) expect(APP_GROUPS).toContain(app.group);
   });

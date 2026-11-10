@@ -51,3 +51,11 @@ export function noteOpened(id: AppId): void {
   if (!isAvailable(id)) return;
   try { window.localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...recentApps(8).filter((other) => other !== id)])); } catch { /* Not kept. */ }
 }
+
+/** What the ask box in the title row offers to talk about, for the app that is open. */
+const ASK_ABOUT: Partial<Record<AppId, string>> = {
+  browser: 'this page', notes: 'this note', tasks: 'your tasks', mail: 'your mail', calendar: 'your calendar', docs: 'this document',
+  sheets: 'this sheet', slides: 'these slides', reader: 'this article', research: 'this research', code: 'this code', canvas: 'this board',
+  database: 'this database', design: 'this design', photo: 'this picture', video: 'this video', studio: 'this song', terminal: 'this terminal',
+};
+export const askAbout = (id: AppId): string => (ASK_ABOUT[id] ? `Ask about ${ASK_ABOUT[id]}` : 'Ask Mobius');

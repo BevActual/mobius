@@ -186,6 +186,8 @@ export function Rail({ app, expanded, onToggle, create, counts, menus, chrome, m
             {menus}
             {toggle}
           </div>
+          {/* The page's controls stay where they were, above Mobius, so the address does not jump when Mobius opens. */}
+          {(showOwn || asking) && chrome && <div className="rail-chrome">{chrome}</div>}
           {asking && mobius && (
             <div className="rail-ask">
               <div className="rail-ask-bar">
@@ -195,7 +197,6 @@ export function Rail({ app, expanded, onToggle, create, counts, menus, chrome, m
               {mobius.panel}
             </div>
           )}
-          {(showOwn || asking) && chrome && <div className="rail-chrome">{chrome}</div>}
           {showOwn && <div className="rail-new">{createButton}</div>}
         </>
       ) : (
