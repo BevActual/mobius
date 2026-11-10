@@ -2141,3 +2141,18 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .start-tile-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); }
 .start-reading { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .start-reading button { width: 100%; padding: 8px 10px; border-radius: 8px; text-align: left; color: inherit; }
+
+/* The sidebar's head is the app switcher: the open app's tile and name; pressed, the same column lists the apps. */
+.rail-head { display: flex; align-items: center; gap: 2px; min-height: calc(var(--context) - var(--sp-1)); }
+.rail[data-expanded] .rail-switch { flex: 1; min-width: 0; height: 34px; gap: 9px; padding: 0 6px; }
+.rail[data-expanded] .rail-switch .rail-label { flex: 0 1 auto; font-size: var(--fs-lg, 15px); font-weight: var(--fw-semibold); letter-spacing: -0.01em; }
+.rail[data-expanded] .rail-switch svg.rail-switch-tile { width: 24px; height: 24px; padding: 4.5px; border-radius: 7px; color: #fff; stroke-width: 1.9; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); flex: none; }
+.rail[data-expanded] .rail-switch svg.rail-switch-grid { width: 24px; height: 24px; padding: 3.5px; color: var(--muted); flex: none; }
+.rail[data-expanded] .rail-switch svg.rail-switch-caret { width: 14px; height: 14px; color: var(--muted); flex: none; transition: transform 0.18s var(--ease); }
+.rail[data-expanded] .rail-switch[aria-expanded="true"] svg.rail-switch-caret { transform: rotate(180deg); }
+.rail[data-expanded] .rail-switch[data-working] { color: var(--ink); }
+.rail[data-expanded] .rail-switch[data-changed]::before { order: 0; margin-left: 0; }
+.rail-new { margin: 2px 0 var(--sp-2); }
+.rail[data-face="apps"] ul.rail-apps, .rail[data-face="app"] ul.rail-apps { margin-top: 2px; }
+.rail[data-face="apps"] .rail-end { margin-top: auto; }
+@media (prefers-reduced-motion: reduce) { .rail[data-expanded] .rail-switch svg.rail-switch-caret { transition: none; } }

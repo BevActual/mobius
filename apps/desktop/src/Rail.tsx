@@ -1,7 +1,7 @@
 import { Reorder, motion } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Activity } from './activity';
-import type { AppId } from './apps';
+import { appName, type AppId } from './apps';
 import type { Favourite } from '@mobius/shared';
 
 /** One icon per app, shared by the rail and the app hub. */
@@ -51,7 +51,10 @@ interface Props {
   profile?: string;
   onProfiles?: () => void;
   app: AppId;
-  /** The full sidebar: apps by name, the open app's own list under them. Otherwise a narrow rail of icons. */
+  /**
+   * The full sidebar belongs to the open app: its name in the head, New, then its own list. The head is the app
+   * switcher: press it and the same column lists the apps instead. Otherwise a narrow rail of icons.
+   */
   expanded: boolean;
   onToggle: () => void;
   /** The New button: what is worth starting in the app you are in. */
@@ -85,7 +88,7 @@ interface Props {
 }
 
 /**
- * The app rail: one column that ties the apps together. The highlight slides to the app you are in, the app the agent
+ * The sidebar: one column that belongs to the app you are in, and turns into the list of apps from its head. The highlight slides to the app you are in, the app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
 export function Rail({ app, expanded, onToggle, create, counts, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles }: Props) {
@@ -123,18 +126,61 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
     [next[at], next[to]] = [next[to]!, next[at]!];
     onApps?.(next);
   };
+  // The full sidebar has two faces: the open app's own (New, pinned, its list) and the apps. An app with no list
+  // of its own shows the apps under New, so the column is never empty.
+  const [face, setFace] = useState<'app' | 'apps'>('app');
+  const switching = expanded && face === 'apps';
+  const showOwn = expanded && !switching && !settingsOpen;
+  const showApps = !showOwn || !children;
+  useEffect(() => { setFace('app'); }, [app, settingsOpen, expanded]);
+  useEffect(() => {
+    if (!switching) return undefined;
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape' && !menuRef.current) setFace('app'); };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [switching]);
+  const title = settingsOpen ? 'Settings' : appName(app);
+  // Seen from inside one app: is anything happening in another?
+  const elsewhereWorking = activity !== null && activity.app !== null && activity.app !== app;
+  const elsewhereChanged = [...changed].some((id) => id !== app);
+  const toggle = (
+    <button type="button" className="rail-btn rail-toggle" aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'} aria-expanded={expanded} title={expanded ? 'Collapse sidebar' : 'Expand sidebar'} onClick={onToggle}>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2" /><path d="M8 4v12" /></svg>
+    </button>
+  );
+  const createButton = (
+    <button type="button" className="rail-btn rail-create" aria-label="Create" title={create.label} onClick={create.run}>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
+      {expanded && <span className="rail-label" aria-hidden="true">{create.label}</span>}
+    </button>
+  );
   return (
-    <nav className="rail" aria-label="Apps" data-expanded={expanded || undefined}>
-      <div className="rail-top">
-        <button type="button" className="rail-btn rail-toggle" aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'} aria-expanded={expanded} title={expanded ? 'Collapse sidebar' : 'Expand sidebar'} onClick={onToggle}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2" /><path d="M8 4v12" /></svg>
-        </button>
-        <button type="button" className="rail-btn rail-create" aria-label="Create" title={create.label} onClick={create.run}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
-          {expanded && <span className="rail-label" aria-hidden="true">{create.label}</span>}
-        </button>
-      </div>
-      <Reorder.Group as="ul" axis="y" role="list" className="rail-apps" values={order} onReorder={(next: AppId[]) => { if (onApps) setDragOrder(next); }}>
+    <nav className="rail" aria-label="Apps" data-expanded={expanded || undefined} data-face={expanded ? (switching ? 'apps' : 'app') : undefined}>
+      {expanded ? (
+        <>
+          <div className="rail-head">
+            <button type="button" className="rail-btn rail-switch" data-app-switcher aria-label={switching ? `Back to ${title}` : `Switch app. Current: ${title}`} aria-expanded={switching} title={switching ? `Back to ${title}` : 'Switch app'}
+              data-working={(!switching && elsewhereWorking) || undefined} data-changed={(!switching && elsewhereChanged) || undefined}
+              onClick={() => setFace(switching ? 'app' : 'apps')}>
+              {switching
+                ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
+                : settingsOpen
+                  ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
+                  : <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-tile" style={{ background: `var(--app-${app})` }}>{APP_ICONS[app]}</svg>}
+              <span className="rail-label" aria-hidden="true">{switching ? 'Apps' : title}</span>
+              <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-caret"><path d="m7 8.5 3 3 3-3" /></svg>
+            </button>
+            {toggle}
+          </div>
+          {showOwn && <div className="rail-new">{createButton}</div>}
+        </>
+      ) : (
+        <div className="rail-top">
+          {toggle}
+          {createButton}
+        </div>
+      )}
+      {showApps && <Reorder.Group as="ul" axis="y" role="list" className="rail-apps" values={order} onReorder={(next: AppId[]) => { if (onApps) setDragOrder(next); }}>
         {listed.map(({ id, name }) => {
           const here = app === id && !settingsOpen;
           const working = activity !== null && (activity.app === id || (id === 'agent' && activity.app === null && app !== 'agent'));
@@ -172,7 +218,7 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
             </Reorder.Item>
           );
         })}
-      </Reorder.Group>
+      </Reorder.Group>}
       {menu && (
         <div ref={menuRef} className="rail-menu" role="menu" aria-label={`${RAIL_APPS.find((a) => a.id === menu.id)?.name ?? ''} in the sidebar`} style={{ left: menu.x, top: menu.y }}>
           <button type="button" role="menuitem" className="popmenu-item" disabled={order.indexOf(menu.id) === 0} onClick={() => { move(menu.id, -1); setMenu(null); }}>Move up</button>
@@ -181,7 +227,7 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
           {onEditApps && <button type="button" role="menuitem" className="popmenu-item" onClick={() => { setMenu(null); onEditApps(); }}>Edit sidebar…</button>}
         </div>
       )}
-      {expanded && favourites.length > 0 && (
+      {showOwn && favourites.length > 0 && (
         <section className="rail-pinned" aria-label="Pinned">
           <h2 className="rail-pinned-title">Pinned</h2>
           <Reorder.Group as="ul" axis="y" role="list" values={pinOrder} onReorder={(next: Favourite[]) => { if (onReorderFavourites) setPinDrag(next); }}>
@@ -217,7 +263,7 @@ export function Rail({ app, expanded, onToggle, create, counts, children, onOpen
           </Reorder.Group>
         </section>
       )}
-      {expanded && children && <div className="rail-app">{children}</div>}
+      {showOwn && children && <div className="rail-app">{children}</div>}
       <div className="rail-end">
         {profile && onProfiles && (
           <button type="button" className="rail-btn rail-profile" aria-label={`Profile: ${profile}. Change profile`} title={`Profile: ${profile}`} onClick={onProfiles}>

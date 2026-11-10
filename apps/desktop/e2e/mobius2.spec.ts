@@ -66,9 +66,13 @@ test('leaving the browser for another app hides the page, and coming back shows 
   await start();
   const shown = async () => (await views(mobius!.app)).filter((v) => v.visible).length;
   await expect.poll(shown).toBe(1);
+  // The apps are one press away, in the sidebar's head.
+  await shell().locator('.rail[data-face="app"] [data-app-switcher]').click();
   await shell().getByRole('button', { name: 'Notes', exact: true }).click();
   await expect(shell().locator('.note-editor')).toBeVisible();
   await expect.poll(shown).toBe(0);
+  // The apps are one press away, in the sidebar's head.
+  await shell().locator('.rail[data-face="app"] [data-app-switcher]').click();
   await shell().getByRole('button', { name: 'Browser', exact: true }).click();
   await expect.poll(shown).toBe(1);
 });
