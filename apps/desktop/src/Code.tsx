@@ -1,3 +1,4 @@
+import { FromMobius } from './FromMobius';
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
@@ -80,6 +81,7 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
           </ul>
         </nav>
       )}
+      {code.project && <FromMobius items={[...(changed ?? [])].filter((c) => c.startsWith(`${code.project}/`)).map((c) => c.slice(code.project!.length + 1)).map((path) => ({ key: path, name: path.split('/').pop() ?? path, ...(path.includes('/') ? { where: path.split('/').slice(0, -1).join('/') } : {}), current: code.open?.path === path, onOpen: () => void code.openFile(path) }))} />}
     </aside>
   );
 }

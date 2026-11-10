@@ -1,3 +1,4 @@
+import { FromMobius } from './FromMobius';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { changedShots, cutLength, freshShotId, locate, parseCut, shotLength, shotStart, timecode, type Shot } from './cut-format';
 import { useFileReview } from './useFileReview';
@@ -66,6 +67,7 @@ export function VideoSidebar({ video, pin, changed }: { video: VideoState; pin?:
           </ul>
         </section>
       )}
+      <FromMobius items={video.projects.filter((p) => changed?.has(p.name)).map((p) => ({ key: p.name, name: p.name, current: video.project === p.name, onOpen: () => void video.open(p.name) }))} />
     </aside>
   );
 }

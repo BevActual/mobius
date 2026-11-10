@@ -2474,3 +2474,71 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .context-ring svg { flex: none; }
 .context-ring-track { fill: none; stroke: currentColor; stroke-opacity: 0.25; stroke-width: 1.6; }
 .context-ring-fill { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+
+/* ── Sidebars, one shape in every app (HIG): a floating material panel, 13px rows of 30px, a soft tinted selection,
+   11px section headers that fold, quiet counts on the right, visible keyboard focus. ── */
+:root { interpolate-size: allow-keywords; --side-select: color-mix(in srgb, var(--accent) 14%, transparent); --side-hover: color-mix(in srgb, var(--ink) 5%, transparent); }
+/* The panel is drawn inside the column, so the layout and its widths stay as they were. */
+.rail[data-expanded] { position: relative; isolation: isolate; background: transparent; border-right: 0; padding: 12px 10px 14px 16px; }
+.rail[data-expanded]::before, .dock.left:not([data-floating]) > .side { border: 0.5px solid var(--hairline); border-radius: 18px; background: var(--sidebar); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06); }
+.rail[data-expanded]::before { content: ""; position: absolute; z-index: -1; inset: 8px 0 8px 8px; pointer-events: none; }
+.dock.left:not([data-floating]) { background: transparent; border-right: 0; padding: 8px 0 8px 8px; }
+.dock.left:not([data-floating]) > .side { padding: 6px 6px 8px; overflow: hidden auto; }
+@media (prefers-color-scheme: dark) { .rail[data-expanded]::before, .dock.left:not([data-floating]) > .side { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35); } }
+.dock.left[data-floating] { border-radius: 18px; border: 0.5px solid var(--hairline); }
+.rail-app { margin-top: 4px; padding-top: 0; border-top: 0; }
+.rail[data-expanded] .rail-end { border-top: 0; }
+:is(.rail-app, .dock.left) .side { font-size: 13px; padding: 0 2px; }
+
+/* Section headers: 11px semibold grey, with a fold chevron. */
+:is(.rail-app, .dock.left) .side-head { height: 28px; margin: 8px 0 2px; padding: 0 4px 0 8px; }
+:is(.rail-app, .dock.left) .side-head:first-child { margin-top: 2px; }
+:is(.rail-app, .dock.left) :is(.side-title, .from-mobius-title), .rail-pinned-title { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.01em; color: var(--muted); }
+[data-fold] { cursor: default; border-radius: 6px; user-select: none; }
+[data-fold]::after { content: ""; width: 9px; height: 9px; flex: none; background: currentColor; opacity: 0; transform: rotate(90deg); transition: transform 0.2s var(--ease), opacity 0.15s var(--ease);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M3.5 1.5 7 5l-3.5 3.5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M3.5 1.5 7 5l-3.5 3.5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+[data-fold][aria-expanded="false"]::after { transform: rotate(0deg); opacity: 1; }
+:is(.side-head, .from-mobius, .rail-pinned):hover [data-fold]::after, [data-fold]:focus-visible::after { opacity: 1; }
+[data-fold]:hover { color: var(--ink); }
+
+/* What a header folds: about 200ms, and at once with reduced motion. */
+[data-fold-body] { transition: height 0.2s var(--ease), flex-grow 0.2s var(--ease), opacity 0.2s var(--ease); }
+[data-fold-body][data-folded] { height: 0 !important; min-height: 0 !important; flex-grow: 0 !important; margin-block: 0 !important; padding-block: 0 !important; opacity: 0; overflow: clip; visibility: hidden;
+  transition: height 0.2s var(--ease), flex-grow 0.2s var(--ease), opacity 0.15s var(--ease), visibility 0s linear 0.2s; }
+@media (prefers-reduced-motion: reduce) { [data-fold-body], [data-fold-body][data-folded], [data-fold]::after { transition: none; } }
+
+/* Rows: 30px, 13px, a soft tinted selection rather than a bar, a subtle hover. */
+:is(.rail-app, .dock.left) :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row) { min-height: 30px; height: auto; padding-block: 0; font-size: 13px; border-radius: 8px; }
+:is(.rail-app, .dock.left) .note-row { min-height: 30px; padding-block: 5px; font-size: 13px; border-radius: 8px; }
+:is(.rail-app, .dock.left) :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item, .side-new-row):hover:not([aria-current="page"]) { background: var(--side-hover); }
+:is(.rail-app, .dock.left) :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item)[aria-current="page"],
+:is(.rail-app, .dock.left) .clist-item:has(> [aria-current="page"]) { background: var(--side-select); color: var(--ink); font-weight: 500; }
+:is(.rail-app, .dock.left) :is(.list-count, .note-count) { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+:is(.rail-app, .dock.left) .list-divider { height: 0.5px; margin: 6px 8px; background: var(--hairline); }
+:is(.rail-app, .dock.left) .side-new-row { gap: 8px; padding: 0 8px; }
+:is(.rail-app, .dock.left) .side-starts { padding: 2px 8px 6px 32px; }
+:is(.rail-app, .dock.left) .side-search { height: 28px; margin: 0 4px 6px; padding: 0 10px; font-size: 13px; border-radius: 8px; }
+
+/* One icon style: 16px line icons, 1.6 stroke. */
+:is(.rail-app, .dock.left) :is(.side-new-row, .list-row, .note-row, .files-row, .side-actions) svg:not([data-app]) { width: 16px; height: 16px; stroke-width: 1.6; }
+:is(.rail-app, .dock.left) .side-actions .strip-btn { width: 26px; min-width: 26px; height: 26px; border-radius: 7px; color: var(--muted); }
+:is(.rail-app, .dock.left) .side-actions .strip-btn:hover { background: var(--side-hover); color: var(--ink); }
+
+/* From Mobius, after the app's own places. */
+:is(.rail-app, .dock.left) .from-mobius { margin-top: 8px; }
+:is(.rail-app, .dock.left) .from-mobius > .from-mobius-title { height: 28px; padding: 0 8px; }
+
+/* Keyboard focus that can be seen, in light and dark. */
+.rail :focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
+
+/* A new chat: a calm greeting in the middle, and three starters as plain text under it. */
+.chat .empty { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.chat .empty .greeting { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.chat .empty .greeting-note { margin: 0; font-size: 12px; color: var(--muted); max-width: 32ch; }
+.empty-starters:empty { display: none; }
+.starters { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 14px; }
+.starter { height: 28px; padding: 0 10px; border-radius: 8px; font-size: 13px; color: var(--accent); background: transparent; }
+.starter:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.starter:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 0; }
+

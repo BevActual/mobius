@@ -191,7 +191,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
     if (!editor || editor.isDestroyed || docs.text === known.current) return;
     known.current = docs.text;
     editor.chain().setMeta('mobius-load', true).setContent(docs.text, { contentType: 'markdown', emitUpdate: false }).run();
-    if (autoFocus) editor.commands.focus('end');
+    // Not while a dialog is open (the launcher): a page that loads late must not take the keys from it.
+    if (autoFocus && !document.querySelector('dialog[open]')) editor.commands.focus('end');
     // A new document opens at its end; one changed elsewhere keeps the place as far as it can.
   }, [editor, docs.text, path]); // eslint-disable-line react-hooks/exhaustive-deps
   const outline = useEditorState({ editor, selector: ({ editor: e }) => headingsOf(e) }) ?? [];
