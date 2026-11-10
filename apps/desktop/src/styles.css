@@ -1052,10 +1052,11 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 
 /* Review and undo: what the last turn changed, above the message box. */
 .review-strip { margin: 0 0 8px; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--field); font-size: var(--fs-sm); animation: app-in var(--dur-med) var(--ease); }
-.review-head { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.review-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-height: 28px; }
 .review-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
 .review-strip[data-state="undone"] { padding: 8px 12px; color: var(--muted); }
-.review-summary { flex: 1; min-width: 0; font-weight: var(--fw-medium); }
+.review-summary { flex: 1 0 auto; min-width: 0; white-space: nowrap; font-weight: var(--fw-medium); }
+.review-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 .review-btn { height: 26px; padding: 0 10px; border-radius: var(--radius-pill); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .review-btn:hover, .review-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .review-btn[data-kind="keep"] { background: var(--accent); color: var(--on-accent); }

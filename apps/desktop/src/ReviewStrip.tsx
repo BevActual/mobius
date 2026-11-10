@@ -136,8 +136,10 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
       <div className="review-head">
         <span className="review-dot" aria-hidden="true" />
         <span className="review-summary">Changed {files.length === 1 ? '1 item' : `${files.length} items`}</span>
-        <button type="button" className="review-btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : 'Review'}</button>
-        <ReviewActions onKeep={keep} onDiscard={undoAll} discardTitle={`Put everything back as it was (${modKey()}+Backspace)`} keepTitle={`Keep these changes (${modKey()}+Enter)`} />
+        <span className="review-actions">
+          <button type="button" className="review-btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : 'Review'}</button>
+          <ReviewActions onKeep={keep} onDiscard={undoAll} discardTitle={`Put everything back as it was (${modKey()}+Backspace)`} keepTitle={`Keep these changes (${modKey()}+Enter)`} />
+        </span>
       </div>
       {open && (
         <ul className="review-list">
