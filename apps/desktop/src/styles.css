@@ -2244,3 +2244,6 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .turn-rewind { grid-column: 1 / -1; justify-self: start; height: 22px; padding: 0 8px; font-size: var(--fs-xs); }
 .turn-confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: var(--fs-xs); }
 .turn-confirm > span { flex: 1 0 100%; }
+
+/* Every question for the person reads the same, in every mode: Needs you. */
+.approval-head { margin: 0 0 2px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.02em; color: var(--accent); }

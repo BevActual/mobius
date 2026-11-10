@@ -413,6 +413,26 @@ fn reach_review(w: &mut World, turn: &mut Turn, step: Step) -> (u64, ChatRequest
     }
 }
 
+/// Paying, sending, deleting and running commands ask in every mode: in Act a floor goes to the person, never to the
+/// reviewer, and in Propose and Ask first it is asked as well.
+#[test]
+fn a_floor_is_asked_of_the_person_in_every_mode_and_never_reviewed() {
+    for mode in [ApprovalMode::Manual, ApprovalMode::Propose, ApprovalMode::Smart] {
+        let mut w = world(10);
+        w.core.register_tool(ToolSpec::new("demo.run", "Runs a command.", "process.exec").unwrap(), Box::new(|_| Ok(json!({ "ran": true })))).unwrap();
+        w.core.register_tool(ToolSpec::new("demo.delete", "Deletes a file.", "fs.delete").unwrap(), Box::new(|_| Ok(json!({ "gone": true })))).unwrap();
+        w.core.set_approval_mode(mode).unwrap();
+        for tool in ["demo.run", "demo.delete"] {
+            let provider = ScriptedProvider::new(vec![calls("", vec![call("c1", tool, json!({}))]), text("Done.")]);
+            let (mut turn, step) = w.engine.start(&w.core, vec![], "go", 1);
+            match drive(&mut w, &mut turn, &provider, step) {
+                Step::AwaitApproval { request_id } => assert!(w.core.is_once_only(request_id), "{mode:?} {tool}: allow once only"),
+                other => panic!("{mode:?} {tool}: expected the person to be asked, got {other:?}"),
+            }
+        }
+    }
+}
+
 fn verdict(word: &str) -> Result<Completion, ProviderError> {
     text(word)
 }

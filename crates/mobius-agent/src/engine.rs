@@ -531,7 +531,10 @@ impl Engine {
                     return step;
                 }
                 Executed::Park(request_id) => {
-                    if core.approval_mode() == ApprovalMode::Smart && !core.is_person_only(request_id) {
+                    // In Act a reviewer model may answer for the person, but never for a floor (running commands,
+                    // deleting files, reading secrets, clicking or typing in a page) or an app set to always ask: those
+                    // stop as Needs you, every time.
+                    if core.approval_mode() == ApprovalMode::Smart && !core.is_person_only(request_id) && !core.is_once_only(request_id) {
                         let request = review_request(turn.setup.model.as_deref().unwrap_or(&self.config.model), &call);
                         turn.parked = Some(Parked { request_id, once_only: core.is_once_only(request_id), reviewing: true, call, remaining: queue });
                         return Step::Review { request_id, request };

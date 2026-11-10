@@ -116,12 +116,26 @@ test('with smart approvals a reviewer approves a clearly safe open without askin
 });
 
 test('with smart approvals a DENY asks the person, who can allow it once but never always', async () => {
-  await start([callsTool('browser-click', { text: 'More' }), says(['DENY']), says(['Clicked.'])]);
+  await start([callsTool('browser-open', { url: fixture.origin + '/second' }), says(['DENY']), says(['Opened.'])]);
+  await setMode('smart');
+  await expect.poll(coreMode).toBe('smart');
+  await say('open');
+  await expect(card()).toBeVisible();
+  await expect(card()).toContainText('Needs you');
+  await expect(card().getByRole('button', { name: 'Always allow' })).toHaveCount(0);
+  await card().getByRole('button', { name: 'Allow once' }).click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Opened.');
+});
+
+test('in Act, clicking in a page is never left to the reviewer: it stops as Needs you, allow once only', async () => {
+  await start([callsTool('browser-click', { text: 'More' }), says(['Clicked.'])]);
   await setMode('smart');
   await expect.poll(coreMode).toBe('smart');
   await say('click');
-  await expect(card()).toBeVisible();
+  await expect(card()).toContainText('Needs you');
   await expect(card().getByRole('button', { name: 'Always allow' })).toHaveCount(0);
+  // The reviewer was not asked: the only call to the model so far is the turn itself.
+  expect(model!.requests).toHaveLength(1);
   await card().getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant').last()).toHaveText('Clicked.');
 });

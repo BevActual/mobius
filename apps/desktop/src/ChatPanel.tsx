@@ -208,6 +208,7 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
       )}
       {item.status === 'waiting' && item.requestId !== undefined && (
         <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`}>
+          <p className="approval-head">Needs you</p>
           <p className="approval-text">{(() => { const plain = describeAction(item.name, item.args); return plain ? <>Mobius wants to {plain}. <span className="approval-tool">{item.name}</span></> : <>Mobius wants to use <strong>{item.name}</strong>.</>; })()}{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
           {(() => {
             // In plain words first, as the Approvals board asks: the text it would write, the statement it would run.
