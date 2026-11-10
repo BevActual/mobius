@@ -177,11 +177,11 @@ impl Projects {
             return Err("What should the bot do?".into());
         }
         self.change(|all| {
-            if all.iter().any(|p| p.threads.iter().any(|t| *t == side.conversation) || p.sides.iter().any(|s| s.conversation == side.conversation)) {
+            if all.iter().any(|p| p.threads.contains(&side.conversation) || p.sides.iter().any(|s| s.conversation == side.conversation)) {
                 return Err("That conversation is in a project already.".into());
             }
             let p = all.iter_mut().find(|p| p.id == id).ok_or("That project is not there.")?;
-            if !p.threads.iter().any(|t| *t == side.parent) {
+            if !p.threads.contains(&side.parent) {
                 return Err("A side thread is asked from one of the project's threads.".into());
             }
             if p.sides.len() >= MAX_THREADS {

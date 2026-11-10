@@ -8,6 +8,8 @@ use std::process::{Command, Stdio};
 /// Never snapshotted: build output, caches, environments, other version control, big binaries.
 pub const DEFAULT_EXCLUDES: &[&str] = &[
     "node_modules/", "dist/", "build/", "target/", "out/", ".next/", ".nuxt/", "__pycache__/", "*.pyc", ".cache/", ".venv/", "venv/", ".git/", ".hg/", ".svn/",
+    // An app's own record of the versions it kept (Docs, Research, Reading): theirs, not part of what a turn changed.
+    ".versions/",
     "*.so", "*.dylib", "*.dll", "*.o", "*.a", "*.jar", "*.class", "*.exe", "*.obj", "*.mp4", "*.mov", "*.mkv", "*.webm", "*.zip", "*.tar", "*.gz", "*.7z", "*.rar",
 ];
 
@@ -127,6 +129,16 @@ impl Checkpoints {
             let info = self.store.join("info");
             std::fs::create_dir_all(&info).map_err(|e| Error::Git(e.to_string()))?;
             std::fs::write(info.join("exclude"), DEFAULT_EXCLUDES.join("\n") + "\n").map_err(|e| Error::Git(e.to_string()))?;
+        } else {
+            // A store made before an exclude was added gets it too.
+            let file = self.store.join("info").join("exclude");
+            let now = std::fs::read_to_string(&file).unwrap_or_default();
+            let missing: Vec<&str> = DEFAULT_EXCLUDES.iter().copied().filter(|e| !now.lines().any(|l| l.trim() == *e)).collect();
+            if !missing.is_empty() {
+                let _ = std::fs::create_dir_all(self.store.join("info"));
+                let gap = if now.is_empty() || now.ends_with('\n') { "" } else { "\n" };
+                let _ = std::fs::write(&file, format!("{now}{gap}{}\n", missing.join("\n")));
+            }
         }
         let id = folder_id(&folder);
         Ok((folder, id))

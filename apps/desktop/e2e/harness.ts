@@ -1,4 +1,4 @@
-import { chromium, expect, type Page } from '@playwright/test';
+import { chromium, expect, test, type Page } from '@playwright/test';
 import { spawn, execSync } from 'node:child_process';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -160,12 +160,16 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
     stdio: ['ignore', 'ignore', process.env.MOBIUS_TAURI_LOG ? fs.openSync(process.env.MOBIUS_TAURI_LOG, 'a') : 'ignore'],
   });
   let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | null = null;
+  // How long each phase of starting takes, printed per test, so a slow machine shows where the time goes.
+  const started = Date.now();
+  const phase = (what: string, since: number) => console.log(`[e2e timing] ${test.info().titlePath.slice(1).join(" › ")}: ${what} ${Date.now() - since} ms`);
   // A fresh machine (CI) starts its first web view slowly; MOBIUS_E2E_START_MS gives it longer than the usual 15 seconds.
   const waitMs = Number(process.env.MOBIUS_E2E_START_MS) > 0 ? Number(process.env.MOBIUS_E2E_START_MS) : 15_000;
   for (const until = Date.now() + waitMs; Date.now() < until && !browser;) {
     await new Promise((resolve) => setTimeout(resolve, 150));
     browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`).catch(() => null);
   }
+  phase("debugging port", started);
   if (!browser) {
     child.kill();
     throw new Error('the Tauri shell did not start');
@@ -179,7 +183,9 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
     }
     throw new Error('shell window did not appear');
   })();
+  phase("shell window", started);
   await shell.waitForLoadState('domcontentloaded');
+  phase("page loaded", started);
   // Playwright takes over downloads by default; the shell must see them itself.
   const session = await browser.newBrowserCDPSession();
   await session.send('Browser.setDownloadBehavior' as never, { behavior: 'default' } as never).catch(() => undefined);
@@ -190,16 +196,23 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
     shell,
     userData,
     close: async (closeOptions = {}) => {
+      const closing = Date.now();
       // Ask the shell to end itself first, so what the page stored (its saved choices) is written out as in a normal quit.
-      await testHook(handle, 'quit', []).catch(() => undefined);
-      for (let i = 0; i < 50 && child.exitCode === null; i++) await new Promise((resolve) => setTimeout(resolve, 100));
+      // The app can end before the page answers this call, and then the answer never comes: wait for it a moment at
+      // most, then watch the process itself.
+      await Promise.race([testHook(handle, 'quit', []).catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 2000))]);
+      for (let i = 0; i < 100 && child.exitCode === null; i++) await new Promise((resolve) => setTimeout(resolve, 50));
+      phase(child.exitCode === null ? "quit (did not end; killed)" : "quit", closing);
       await browser?.close().catch(() => undefined);
-      if (child.pid) {
+      // Only when the app did not end by itself (taskkill is the fallback, not the way out).
+      const killed = child.exitCode === null;
+      if (killed && child.pid) {
         try { execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: 'ignore' }); } catch { child.kill(); }
       }
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      if (killed) await new Promise((resolve) => setTimeout(resolve, 400));
       // WebView2 can hold its files for a moment after it ends: keep trying for a few seconds.
       if (!closeOptions.keepUserData) removeTestData(userData);
+      phase("close", closing);
     },
   };
 }
