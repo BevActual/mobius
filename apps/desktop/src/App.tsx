@@ -737,7 +737,7 @@ export function App() {
             ) : inPhoto ? (
               <PhotoSidebar photos={photos} pin={pinNode} changed={turnMarks.photos} />
             ) : inDesign ? (
-              <DesignSidebar designs={designs} pin={pinNode} changed={turnMarks.designs} />
+              <DesignSidebar designs={designs} pin={pinNode} changed={turnMarks.designs} starts={startsFor('design')} onStart={startWithMobius} />
             ) : inReview ? (
               <ReviewSidebar review={review} pin={pinNode} />
             ) : inTerminal ? (
