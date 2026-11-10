@@ -526,8 +526,6 @@ export function App() {
   const [selectionMenu, setSelectionMenu] = useState(false);
   // A menu from the toolbar is open: the web page shows as a picture under it, as under the other menus.
   const [menuOpen, setMenuOpen] = useState(false);
-  // Below this width the menus fold into one button, so the toolbar keeps its room.
-  const compactMenus = useNarrowWindow(1200);
   const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen);
   const [cover, setCover] = useState<{ url: string | null } | null>(null);
   useEffect(() => {
@@ -1302,7 +1300,9 @@ export function App() {
           {findOpen && active && <FindBar key={active.id} tabId={active.id} focusToken={finding} onClose={() => setFindOpen(false)} />}
         </div>
   );
-  const menuBar = nativeMenus ? null : <MenuBar menus={menus} compact={wide || compactMenus} onOpenChange={setMenuOpen} />;
+  // The menus live in the sidebar, as one Menu button: in its head when it is full, at the top of the folded rail.
+  // Nothing sits on top of the page but its title row.
+  const menuBar = nativeMenus ? null : <MenuBar menus={menus} compact onOpenChange={setMenuOpen} />;
   // Try another, from any review bar: Mobius is told its change was put back and asked to do it differently.
   const tryAnother = settings?.configured && !conversation.state.busy
     ? () => { if (!shows('agent')) setChatOpen(true); void conversation.send(TRY_ANOTHER_ASK, []); }
@@ -1328,7 +1328,7 @@ export function App() {
         counts={{ browser: browser.tabs.length, tasks: dueToday }}
         create={createFor(app)}
         createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'] as AppId[]).includes(app)}
-        menus={wide ? menuBar : null}
+        menus={menuBar}
         chrome={wide && inBrowser && !settingsOpen ? browserChrome : null}
         mobius={wide && hasRight && !settingsOpen ? {
           shown: chatInSide && chatOpen,
@@ -1355,7 +1355,6 @@ export function App() {
           {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
-          {!wide && menuBar}
         </div>
         <div className="toolbar-place" data-browser={(inBrowser && !wide) || undefined}>
           <h1 className="strip-title">{place}</h1>

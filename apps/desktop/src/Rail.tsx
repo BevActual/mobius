@@ -230,6 +230,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
       ) : (
         <div className="rail-top">
           {toggle}
+          {menus}
           {createButton}
         </div>
       )}
