@@ -69,6 +69,14 @@ pub struct CheckParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct SignInParams {
+    conversation: String,
+    #[serde(default)]
+    site: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SetModeParams {
     mode: String,
 }
@@ -288,6 +296,33 @@ fn dispatch(core: &mut Core, extension: &mut dyn Extension, method: &str, params
             let params: ResolveParams = parse_params(params)?;
             core.resolve(params.request_id, params.approve, params.duration)?;
             Ok(json!({}))
+        }
+        // Sign in once per task: what a conversation is signed in to, a new sign-in, Sign out now, and the task's end.
+        "signins.list" => {
+            let p: SignInParams = parse_params(params)?;
+            Ok(json!({ "sites": core.signins.sites(&p.conversation) }))
+        }
+        "signins.has" => {
+            let p: SignInParams = parse_params(params)?;
+            let site = p.site.as_deref().and_then(crate::signins::site_of).ok_or_else(|| RpcError::invalid_params("site must be a web address"))?;
+            Ok(json!({ "signedIn": core.signins.has(&p.conversation, &site), "site": site }))
+        }
+        "signins.add" => {
+            let p: SignInParams = parse_params(params)?;
+            let site = p.site.as_deref().and_then(crate::signins::site_of).ok_or_else(|| RpcError::invalid_params("site must be a web address"))?;
+            core.signins.signed_in(&p.conversation, &site);
+            Ok(json!({ "sites": core.signins.sites(&p.conversation) }))
+        }
+        "signins.sign_out" => {
+            let p: SignInParams = parse_params(params)?;
+            let site = p.site.as_deref().and_then(crate::signins::site_of).ok_or_else(|| RpcError::invalid_params("site must be a web address"))?;
+            core.signins.sign_out(&p.conversation, &site);
+            Ok(json!({ "sites": core.signins.sites(&p.conversation) }))
+        }
+        "signins.end" => {
+            let p: SignInParams = parse_params(params)?;
+            core.signins.task_ended(&p.conversation);
+            Ok(json!({ "sites": [] }))
         }
         "permissions.mode" => Ok(json!({ "mode": core.approval_mode().as_str() })),
         "permissions.set_mode" => {

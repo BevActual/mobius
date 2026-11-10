@@ -479,6 +479,7 @@ impl Bridge {
             }
             ("agent", _) => self.agent_call(method, args),
             ("changes", _) => self.changes_call(method, args),
+            ("signins", _) => Ok(self.signins_call(method, args)),
             ("browser", _) => self.browser_call(method, args),
             ("surface", "setBounds") => {
                 if let Some(b) = self.browser.get() {
@@ -1163,8 +1164,56 @@ impl Bridge {
         }
         let browser = self.browser.get().ok_or("no window is open")?.clone();
         let prefs = self.preference("agentPrivateUrls");
-        let deps = BrowserTools { browser, allow_private: Box::new(move || prefs == Value::Bool(true)) };
-        run_browser_tool(tool, &args, &deps).map(Value::String)
+        let deps = BrowserTools { browser: browser.clone(), allow_private: Box::new(move || prefs == Value::Bool(true)) };
+        let result = run_browser_tool(tool, &args, &deps)?;
+        let conversation = params.get("conversation").and_then(Value::as_str).unwrap_or("");
+        Ok(Value::String(match self.sign_in_needed(&browser, tool, conversation) {
+            Some(site) => format!("{result}\n\nThis page asks for a sign-in to {site}. Mobius never signs in and never sees passwords: stop here, and tell the person you need them to sign in to {site} for this task. They will say when they have."),
+            None => result,
+        }))
+    }
+
+    /// Sign in once per task: after Mobius opened, clicked or typed in a page, whether the page now asks for a password on
+    /// a site this conversation has no sign-in for. If so the window is told, so it can ask the person (Sign in / Not
+    /// now), and the site is returned.
+    fn sign_in_needed(&self, browser: &mobius_browser::tabs::Browser, tool: &str, conversation: &str) -> Option<String> {
+        if conversation.is_empty() || !matches!(tool, "browser.open" | "browser.click" | "browser.type") {
+            return None;
+        }
+        let tab = browser.active_id()?;
+        let url = browser.list().into_iter().find(|t| t.0 == tab).map(|t| t.1)?;
+        let asks = browser.eval(&tab, "!!document.querySelector('input[type=password]')").ok()?.as_bool() == Some(true);
+        if !asks {
+            return None;
+        }
+        let answer = self.core.call("signins.has", json!({ "conversation": conversation, "site": url }), Duration::from_secs(5)).ok()?;
+        if answer["signedIn"] == true {
+            return None;
+        }
+        let site = answer["site"].as_str()?.to_owned();
+        (self.emit)("mobius:signin-needed", json!({ "conversation": conversation, "site": site, "tab": tab }));
+        Some(site)
+    }
+
+    /// The window's side of sign-ins: what the task is signed in to, the person signing in, and Sign out now.
+    fn signins_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str).unwrap_or("");
+        let rpc = match method {
+            "list" => "signins.list",
+            "signedIn" => "signins.add",
+            "signOut" => "signins.sign_out",
+            _ => return json!({ "ok": false, "error": "unknown call" }),
+        };
+        let params = if method == "list" { json!({ "conversation": text(0) }) } else { json!({ "conversation": text(0), "site": text(1) }) };
+        match self.core.call(rpc, params, Duration::from_secs(5)) {
+            Ok(result) => {
+                if method != "list" {
+                    (self.emit)("mobius:signins-changed", json!({ "conversation": text(0) }));
+                }
+                json!({ "ok": true, "sites": result["sites"] })
+            }
+            Err(_) => json!({ "ok": false, "error": "The core is not answering." }),
+        }
     }
 
     /// Tells the core about the tools this application runs. Called each time the core becomes ready.
@@ -2268,6 +2317,8 @@ impl Bridge {
                 let result = self.agent.delete_conversation(c);
                 if result.get("ok") == Some(&Value::Bool(true)) {
                     lock(&self.archive).forget(c);
+                    // The task ended: its sign-ins end with it.
+                    let _ = self.core.call("signins.end", json!({ "conversation": c }), Duration::from_secs(5));
                 }
                 result
             }),

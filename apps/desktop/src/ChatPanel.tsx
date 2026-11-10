@@ -14,6 +14,7 @@ import { relativeTime } from './relative-time';
 import type { SurfaceState } from './surface';
 import { activityOf } from './activity';
 import { SettingsForm } from './settings/ModelForm';
+import { SignInForTask } from './SignIn';
 
 const STATUS_TEXT: Record<ToolStatus, string> = {
   running: 'Running…',
@@ -246,6 +247,8 @@ export interface ChatPanelProps {
   settings: AgentSettings | null;
   coreReady: boolean;
   onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
+  /** Show a browser tab to the person (to sign in themselves). */
+  onShowTab?: (tab: string) => void;
   onStop: () => void;
   onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent. */
@@ -354,7 +357,7 @@ function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty:
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -520,6 +523,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
               <div className="thinking" role="status" aria-label="Mobius is working"><MobiusMark size={22} turning /></div>
             )}
           </div>
+          <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
           <ReviewStrip conversation={state.conversation} busy={state.busy} />
           <TurnHistory conversation={state.conversation} busy={state.busy} />
           <Composer

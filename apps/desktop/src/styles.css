@@ -2255,3 +2255,8 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .botform-when { display: inline-flex; gap: 6px; flex-basis: 100%; }
 .botform-touch { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
 .botform-touch b { color: var(--ink); font-weight: var(--fw-medium); }
+
+/* Sign in once per task: the card that asks, and the line while it lasts. */
+.signin-card { margin: var(--sp-2) 0; }
+.signin-line { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 4px 6px 4px 12px; border-radius: var(--radius-panel); background: var(--field); font-size: var(--fs-xs); color: var(--muted); }
+.signin-line span { flex: 1; min-width: 0; }

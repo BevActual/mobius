@@ -180,3 +180,29 @@ test('per app: Tasks following Propose changes a list without asking, Always ask
   await expect(log().locator('.msg.assistant').last()).toHaveText('Could not.');
   expect(fs.readFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), 'utf8')).not.toContain('Feed the cat');
 });
+
+test('sign in once per task: a page that asks for a password stops as Needs you, the person signs in, and the task does not ask again', async () => {
+  await start([
+    callsTool('browser-open', { url: fixture.origin + '/form' }), says(['I need you to sign in.']),
+    says(['Carrying on.']),
+    callsTool('browser-open', { url: fixture.origin + '/form' }), says(['Opened it again.']),
+  ]);
+  await setMode('propose');
+  await say('open the form');
+  await card().getByRole('button', { name: 'Allow once' }).click();
+  const signIn = shell().getByRole('group', { name: /^Sign in to 127\.0\.0\.1/ });
+  await expect(signIn).toContainText('Needs you');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('I need you to sign in.');
+  await signIn.getByRole('button', { name: 'Sign in' }).click();
+  await signIn.getByRole('button', { name: 'Done, I signed in' }).click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Carrying on.');
+  const line = shell().getByRole('status').filter({ hasText: /Signed in to 127\.0\.0\.1.* for this task/ });
+  await expect(line).toBeVisible();
+  // A later step of the same task does not ask again.
+  await say('open the form again');
+  await card().getByRole('button', { name: 'Allow once' }).click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Opened it again.');
+  await expect(shell().getByRole('group', { name: /^Sign in to/ })).toHaveCount(0);
+  await line.getByRole('button', { name: 'Sign out now' }).click();
+  await expect(line).toHaveCount(0);
+});

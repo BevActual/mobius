@@ -268,7 +268,8 @@ impl Agent {
                     }
                     let id = format!("t{}", self.next_outbound);
                     self.next_outbound += 1;
-                    let request = json!({ "jsonrpc": "2.0", "id": id, "method": "host.tool", "params": { "call_id": call_id, "tool": name, "arguments": arguments } });
+                    let conversation = self.host.conversation_of(turn_id).unwrap_or_default().to_owned();
+                    let request = json!({ "jsonrpc": "2.0", "id": id, "method": "host.tool", "params": { "call_id": call_id, "tool": name, "arguments": arguments, "conversation": conversation } });
                     self.outbound.insert(id, (turn_id, call_id));
                     if !write(&request.to_string()) {
                         return false;

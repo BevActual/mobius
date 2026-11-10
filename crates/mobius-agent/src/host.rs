@@ -253,6 +253,12 @@ impl Host {
         Ok((turn_id, outs))
     }
 
+    /// The conversation a running turn belongs to, for an application tool that works per task (sign-ins).
+    #[must_use]
+    pub fn conversation_of(&self, turn_id: u64) -> Option<&str> {
+        self.active.get(&turn_id).map(|a| a.conversation.as_str())
+    }
+
     pub fn text(&mut self, turn_id: u64, text: &str) -> Vec<Out> {
         match self.active.get(&turn_id) {
             // A summary being written is not part of the answer.

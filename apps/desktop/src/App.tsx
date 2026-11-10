@@ -1204,6 +1204,7 @@ export function App() {
             onSaveSettings={saveSettings}
             focusToken={focusToken}
             incoming={incoming}
+            onShowTab={(tab) => { openApp('browser'); window.mobius.browser.activate(tab); }}
             conversations={conversation.list}
             activeConversation={conversation.id}
             onNewConversation={() => conversation.newConversation()}
@@ -1238,6 +1239,7 @@ export function App() {
             onSaveSettings={saveSettings}
             focusToken={focusToken}
             incoming={incoming}
+            onShowTab={(tab) => { openApp('browser'); window.mobius.browser.activate(tab); }}
             conversations={conversation.list}
             activeConversation={conversation.id}
             onNewConversation={() => conversation.newConversation()}

@@ -137,6 +137,8 @@ pub struct Core {
     store: Store,
     clock: Clock,
     policy: Policy,
+    /// Sign-ins the person made for a task (a conversation), per site. In memory only.
+    pub signins: crate::signins::SignIns,
     tools: HashMap<String, Tool>,
     /// Every live grant. Always grants are mirrored in the store; session and one-time grants live only here.
     grants: Vec<Grant>,
@@ -163,7 +165,7 @@ impl Core {
     fn with_store(store: Store, clock: Clock) -> Result<Self, CoreError> {
         let grants = store.load_grants()?;
         let next_grant_id = store.max_grant_id()? + 1;
-        Ok(Core { store, clock, policy: Policy::default_floors(), tools: HashMap::new(), grants, pending: Vec::new(), once_only: HashSet::new(), person_only: HashSet::new(), answered: VecDeque::new(), next_grant_id, next_request_id: 1 })
+        Ok(Core { store, clock, policy: Policy::default_floors(), signins: crate::signins::SignIns::new(), tools: HashMap::new(), grants, pending: Vec::new(), once_only: HashSet::new(), person_only: HashSet::new(), answered: VecDeque::new(), next_grant_id, next_request_id: 1 })
     }
 
     pub fn register_tool(&mut self, spec: ToolSpec, handler: ToolHandler) -> Result<(), CoreError> {

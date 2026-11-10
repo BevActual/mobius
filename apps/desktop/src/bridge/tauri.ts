@@ -128,6 +128,13 @@ export function createTauriBridge(): MobiusBridge {
       remove: (id) => call('profiles', 'remove', [id], () => ({ ok: false as const, error: 'Not here.' })),
       switch: (id) => call('profiles', 'switch', [id], () => ({ ok: false as const, error: 'Not here.' })),
     },
+    signins: {
+      list: (conversation) => call('signins', 'list', [conversation], () => refused),
+      signedIn: (conversation, site) => call('signins', 'signedIn', [conversation, site], () => refused),
+      signOut: (conversation, site) => call('signins', 'signOut', [conversation, site], () => refused),
+      onNeeded: (listener) => on<{ conversation: string; site: string; tab: string }>('mobius:signin-needed', listener),
+      onChanged: (listener) => on<{ conversation: string }>('mobius:signins-changed', listener),
+    },
     schedules: {
       list: () => call('schedules', 'list', [], () => []),
       add: (draft) => call('schedules', 'add', [draft], () => refused),

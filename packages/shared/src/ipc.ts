@@ -277,6 +277,17 @@ export interface MobiusBridge {
     switch(id: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
   };
   /** Requests to make at a time of day, on chosen days. Each run is a new conversation. */
+  /** Sign in once per task: the sites a conversation's task is signed in to. Only the Tauri shell has it. */
+  signins?: {
+    list(conversation: string): Promise<{ ok: true; sites: string[] } | AgentFailure>;
+    /** The person signed in to `site` for this task. */
+    signedIn(conversation: string, site: string): Promise<{ ok: true; sites: string[] } | AgentFailure>;
+    /** Sign out now. */
+    signOut(conversation: string, site: string): Promise<{ ok: true; sites: string[] } | AgentFailure>;
+    /** A page Mobius drives asks for a sign-in this task has not made. */
+    onNeeded(listener: (needed: { conversation: string; site: string; tab: string }) => void): () => void;
+    onChanged(listener: (change: { conversation: string }) => void): () => void;
+  };
   schedules?: {
     list(): Promise<ScheduleInfo[]>;
     add(draft: ScheduleDraft): Promise<{ ok: true; schedule: ScheduleInfo } | AgentFailure>;
