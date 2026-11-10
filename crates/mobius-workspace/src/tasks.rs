@@ -1,6 +1,7 @@
 //! Tasks: each list is a Markdown file under `<workspace>/tasks`, and each task is a checkbox line in it
 //! (`- [ ] Call the plumber (due 2026-11-12)`), so the lists are ordinary files the person can open anywhere.
-//! Lines that are not tasks are kept as they are. Every change is checked against what the window or the agent last
+//! A task can carry a flag (`(flagged)` after it), notes (lines indented under it), and subtasks (checkbox lines
+//! indented under it). Lines that are not tasks are kept as they are. Every change is checked against what the window or the agent last
 //! saw, so a change made elsewhere is never overwritten, and a checkpoint is taken before the agent changes a list.
 use std::fs;
 use std::path::PathBuf;
@@ -18,6 +19,8 @@ const MAX_TEXT: usize = 500;
 const MAX_LIST: usize = 512 * 1024;
 const MAX_TASKS: usize = 2000;
 const MAX_LISTS: usize = 200;
+const MAX_NOTES: usize = 4000;
+const MAX_BLOCK_LINES: usize = 400;
 
 /// One task line, parsed.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +28,7 @@ pub struct Task {
     pub text: String,
     pub done: bool,
     pub due: Option<String>,
+    pub flagged: bool,
 }
 
 /// `YYYY-MM-DD` with a month 1-12 and a day that month can have (29 February in any year: the person decides).
@@ -63,17 +67,76 @@ pub fn parse_line(line: &str) -> Option<Task> {
         "x" | "X" => true,
         _ => return None,
     };
-    let body = rest.strip_prefix("] ")?.trim();
-    let (text, due) = match body.strip_suffix(')').and_then(|b| b.rsplit_once(" (due ")) {
-        Some((text, date)) if is_date(date) => (text.trim(), Some(date.to_owned())),
-        _ => (body, None),
-    };
-    (!text.is_empty()).then(|| Task { text: text.to_owned(), done, due })
+    let mut body = rest.strip_prefix("] ")?.trim();
+    // What follows the words, in either order: a due date and a flag.
+    let (mut due, mut flagged) = (None, false);
+    loop {
+        if !flagged && let Some(b) = body.strip_suffix("(flagged)").filter(|b| b.ends_with(' ')) {
+            body = b.trim_end();
+            flagged = true;
+            continue;
+        }
+        if due.is_none() && let Some((b, d)) = body.strip_suffix(')').and_then(|b| b.rsplit_once(" (due ")).filter(|(_, d)| is_date(d)) {
+            body = b.trim_end();
+            due = Some(d.to_owned());
+            continue;
+        }
+        break;
+    }
+    (!body.is_empty()).then(|| Task { text: body.to_owned(), done, due, flagged })
 }
 
 pub fn format_line(task: &Task) -> String {
     let due = task.due.as_ref().map(|d| format!(" (due {d})")).unwrap_or_default();
-    format!("- [{}] {}{due}", if task.done { "x" } else { " " }, task.text)
+    let flag = if task.flagged { " (flagged)" } else { "" };
+    format!("- [{}] {}{due}{flag}", if task.done { "x" } else { " " }, task.text)
+}
+
+/// How far a line is indented (a tab counts as four spaces).
+fn indent(line: &str) -> usize {
+    line.chars().take_while(|c| c.is_whitespace()).map(|c| if c == '\t' { 4 } else { 1 }).sum()
+}
+
+/// Where a task's block ends: the task, then every line indented under it (notes, subtasks), up to a blank line.
+fn block_end(lines: &[String], at: usize) -> usize {
+    let own = indent(&lines[at]);
+    let mut end = at + 1;
+    while end < lines.len() && !lines[end].trim().is_empty() && indent(&lines[end]) > own {
+        end += 1;
+    }
+    end
+}
+
+/// The lines of a task's notes, which belong to it and not to one of its subtasks.
+fn note_lines(lines: &[String], at: usize) -> Vec<usize> {
+    let mut sub: Option<usize> = None;
+    let mut out = Vec::new();
+    for (i, line) in lines.iter().enumerate().take(block_end(lines, at)).skip(at + 1) {
+        if parse_line(line).is_some() {
+            sub = Some(indent(line));
+        } else if sub.is_none_or(|s| indent(line) <= s) {
+            out.push(i);
+        }
+    }
+    out
+}
+
+/// A note line as written in the file: a line that would read as a task or a heading is escaped.
+fn note_out(line: &str) -> String {
+    let t = line.trim_end();
+    if t.trim_start().starts_with("- [") || t.trim_start().starts_with('#') { format!("\\{}", t.trim_start()) } else { t.trim_start().to_owned() }
+}
+fn note_in(line: &str) -> &str {
+    let t = line.trim();
+    t.strip_prefix('\\').filter(|r| r.starts_with("- [") || r.starts_with('#')).unwrap_or(t)
+}
+
+/// Notes as the person wrote them: blank lines dropped (a blank line would end the task in Markdown), not too long.
+fn clean_notes(notes: &str) -> Res<Vec<String>> {
+    if notes.chars().count() > MAX_NOTES {
+        return Err("those notes are too long".into());
+    }
+    Ok(notes.lines().map(note_out).filter(|l| !l.is_empty()).collect())
 }
 
 fn list_ok(name: &str) -> bool {
@@ -86,6 +149,8 @@ pub struct Change {
     pub text: Option<String>,
     pub done: Option<bool>,
     pub due: Option<Option<String>>,
+    pub flagged: Option<bool>,
+    pub notes: Option<String>,
 }
 
 pub struct Tasks {
@@ -100,9 +165,9 @@ pub fn tool_descriptions() -> Vec<Value> {
         json!({ "name": "tasks.list", "description": "Read the person's task lists in the Tasks app: every list with its tasks (done or not, and due dates), or one list.", "capability": "tasks.read",
             "input_schema": { "type": "object", "properties": { "list": { "type": "string", "description": "One list to read. Leave out to read them all." } } } }),
         json!({ "name": "tasks.add", "description": "Add a task to one of the person's lists in the Tasks app. Creates the list if it is not there yet.", "capability": "tasks.write", "resource_arg": "list",
-            "input_schema": { "type": "object", "properties": { "list": list, "text": { "type": "string", "description": "What to do, in a few words." }, "due": { "type": "string", "description": "A due date as YYYY-MM-DD, if there is one." } }, "required": ["list", "text"] } }),
-        json!({ "name": "tasks.update", "description": "Change a task in the Tasks app: tick it off, untick it, reword it, or set or clear its due date. The task is found by its exact words and must be in the list only once.", "capability": "tasks.write", "resource_arg": "list",
-            "input_schema": { "type": "object", "properties": { "list": list, "task": { "type": "string", "description": "The task's exact words now." }, "done": { "type": "boolean" }, "text": { "type": "string", "description": "New words for it." }, "due": { "type": "string", "description": "A new due date as YYYY-MM-DD, or an empty text to clear it." } }, "required": ["list", "task"] } }),
+            "input_schema": { "type": "object", "properties": { "list": list, "text": { "type": "string", "description": "What to do, in a few words." }, "due": { "type": "string", "description": "A due date as YYYY-MM-DD, if there is one." }, "flagged": { "type": "boolean", "description": "Flag it as important." } }, "required": ["list", "text"] } }),
+        json!({ "name": "tasks.update", "description": "Change a task in the Tasks app: tick it off, untick it, reword it, set or clear its due date, flag or unflag it, or replace its notes. The task is found by its exact words and must be in the list only once.", "capability": "tasks.write", "resource_arg": "list",
+            "input_schema": { "type": "object", "properties": { "list": list, "task": { "type": "string", "description": "The task's exact words now." }, "done": { "type": "boolean" }, "text": { "type": "string", "description": "New words for it." }, "due": { "type": "string", "description": "A new due date as YYYY-MM-DD, or an empty text to clear it." }, "flagged": { "type": "boolean" }, "notes": { "type": "string", "description": "The task's notes, replacing what is there; an empty text clears them." } }, "required": ["list", "task"] } }),
     ]
 }
 
@@ -175,17 +240,11 @@ impl Tasks {
         Ok(Value::Array(out))
     }
 
-    /// One list: its tasks in file order, each with the line it is on, and the whole file's text as `version` so a
-    /// change can say what it expected.
+    /// One list: its tasks in file order, each with the line it is on, its notes, and the task it is under (`parent`,
+    /// a line) if it is a subtask; and the whole file's text as `version` so a change can say what it expected.
     pub fn read(&self, list: &str) -> Res<Value> {
         let (_, content) = self.load(list)?;
-        let tasks: Vec<Value> = content
-            .lines()
-            .enumerate()
-            .filter_map(|(line, l)| parse_line(l).map(|t| json!({ "line": line, "text": t.text, "done": t.done, "due": t.due })))
-            .take(MAX_TASKS)
-            .collect();
-        Ok(json!({ "list": list, "tasks": tasks, "version": version_of(&content) }))
+        Ok(json!({ "list": list, "tasks": tasks_of(&content), "version": version_of(&content) }))
     }
 
     pub fn create_list(&self, name: &str) -> Res<Value> {
@@ -201,8 +260,66 @@ impl Tasks {
         Ok(json!({ "name": chosen }))
     }
 
-    /// Add a task at the end of a list, creating the list first if needed.
+    /// Give a list a new name: its file is renamed, and its heading too when the heading was its name.
+    pub fn rename_list(&self, list: &str, to: &str) -> Res<Value> {
+        if list == DEFAULT_LIST {
+            return Err(format!("{DEFAULT_LIST} keeps its name"));
+        }
+        let (file, content) = self.load(list)?;
+        let name = file_name_for(to.trim());
+        if !list_ok(&name) || name == DEFAULT_LIST {
+            return Err("that name cannot be used".into());
+        }
+        if name == list {
+            return Ok(json!({ "name": name }));
+        }
+        let target = self.file(&name)?;
+        // A name that differs only in case is the same file on Windows and macOS.
+        if target.exists() && !name.eq_ignore_ascii_case(list) {
+            return Err(format!("there is already a list called {name}"));
+        }
+        let heading = format!("# {list}");
+        let mut lines: Vec<&str> = content.lines().collect();
+        let renamed = format!("# {name}");
+        if lines.first() == Some(&heading.as_str()) {
+            lines[0] = &renamed;
+        }
+        Self::store(&file, &(lines.join("\n") + "\n"))?;
+        fs::rename(&file, &target).map_err(|e| e.to_string())?;
+        Ok(json!({ "name": name }))
+    }
+
+    /// Delete a whole list. Inbox stays. Its text comes back as `text`, so `restore_list` can put it back (Undo).
+    pub fn delete_list(&self, list: &str) -> Res<Value> {
+        if list == DEFAULT_LIST {
+            return Err(format!("{DEFAULT_LIST} cannot be deleted"));
+        }
+        let (file, content) = self.load(list)?;
+        fs::remove_file(&file).map_err(|e| e.to_string())?;
+        Ok(json!({ "name": list, "text": content }))
+    }
+
+    /// Put back a deleted list with the text it had. A list of that name that is there again is never replaced.
+    pub fn restore_list(&self, list: &str, text: &str) -> Res<Value> {
+        if !list_ok(list) || text.len() > MAX_LIST {
+            return Err("that list cannot be put back".into());
+        }
+        let file = self.file(list)?;
+        if file.exists() {
+            return Err(format!("there is already a list called {list}"));
+        }
+        fs::create_dir_all(&self.root).map_err(|e| e.to_string())?;
+        Self::store(&file, text)?;
+        Ok(json!({ "name": list }))
+    }
+
+    /// Add a task at the end of a list (creating the list first if needed), or under a task as a subtask.
     pub fn add(&self, list: &str, text: &str, due: Option<&str>) -> Res<Value> {
+        self.add_with(list, text, due, false, None)
+    }
+
+    /// `under`: the line of the task it goes under and that task's words.
+    pub fn add_with(&self, list: &str, text: &str, due: Option<&str>, flagged: bool, under: Option<(usize, &str)>) -> Res<Value> {
         let text = clean_text(text)?;
         if let Some(d) = due
             && !is_date(d)
@@ -211,16 +328,21 @@ impl Tasks {
         }
         let file = self.file(list)?;
         fs::create_dir_all(&self.root).map_err(|e| e.to_string())?;
-        let mut content = fs::read_to_string(&file).unwrap_or_else(|_| format!("# {list}\n\n"));
+        let content = fs::read_to_string(&file).unwrap_or_else(|_| format!("# {list}\n\n"));
         if content.lines().filter(|l| parse_line(l).is_some()).count() >= MAX_TASKS {
             return Err("that list is full".into());
         }
-        if !content.is_empty() && !content.ends_with('\n') {
-            content.push('\n');
+        let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
+        let task = format_line(&Task { text, done: false, due: due.map(str::to_owned), flagged });
+        match under {
+            Some((at, expect)) => {
+                found(&lines, at, expect)?;
+                let pad = " ".repeat(indent(&lines[at]) + 2);
+                lines.insert(block_end(&lines, at), format!("{pad}{task}"));
+            }
+            None => lines.push(task),
         }
-        content.push_str(&format_line(&Task { text, done: false, due: due.map(str::to_owned) }));
-        content.push('\n');
-        Self::store(&file, &content)?;
+        Self::store(&file, &(lines.join("\n") + "\n"))?;
         self.read(list)
     }
 
@@ -228,12 +350,15 @@ impl Tasks {
     pub fn update(&self, list: &str, line: usize, expect: &str, change: Change) -> Res<Value> {
         let (file, content) = self.load(list)?;
         let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
-        let mut task = lines.get(line).and_then(|l| parse_line(l)).filter(|t| t.text == expect).ok_or("changed elsewhere")?;
+        let mut task = found(&lines, line, expect)?;
         if let Some(text) = change.text {
             task.text = clean_text(&text)?;
         }
         if let Some(done) = change.done {
             task.done = done;
+        }
+        if let Some(flagged) = change.flagged {
+            task.flagged = flagged;
         }
         if let Some(due) = change.due {
             if let Some(d) = &due
@@ -243,27 +368,118 @@ impl Tasks {
             }
             task.due = due;
         }
-        let indent: String = lines[line].chars().take_while(|c| c.is_whitespace()).collect();
-        lines[line] = format!("{indent}{}", format_line(&task));
+        let own: String = lines[line].chars().take_while(|c| c.is_whitespace()).collect();
+        lines[line] = format!("{own}{}", format_line(&task));
+        if let Some(notes) = change.notes {
+            let written = clean_notes(&notes)?;
+            for i in note_lines(&lines, line).into_iter().rev() {
+                lines.remove(i);
+            }
+            let pad = " ".repeat(indent(&lines[line]) + 2);
+            for (n, note) in written.into_iter().enumerate() {
+                lines.insert(line + 1 + n, format!("{pad}{note}"));
+            }
+        }
         Self::store(&file, &(lines.join("\n") + "\n"))?;
         self.read(list)
     }
 
-    /// Delete the task on `line`, which must still say `expect`.
+    /// Delete the task on `line` (which must still say `expect`) with its notes and subtasks. What was taken out comes
+    /// back as `removed` (`line` and `text`), so it can be put back with `restore`.
     pub fn remove(&self, list: &str, line: usize, expect: &str) -> Res<Value> {
         let (file, content) = self.load(list)?;
-        let mut lines: Vec<&str> = content.lines().collect();
-        lines.get(line).and_then(|l| parse_line(l)).filter(|t| t.text == expect).ok_or("changed elsewhere")?;
-        lines.remove(line);
+        let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
+        found(&lines, line, expect)?;
+        let taken: Vec<String> = lines.drain(line..block_end(&lines, line)).collect();
+        Self::store(&file, &(lines.join("\n") + "\n"))?;
+        let mut out = self.read(list)?;
+        out["removed"] = json!({ "line": line, "text": taken.join("\n") });
+        Ok(out)
+    }
+
+    /// Put back what `remove` took out, at the line it was on (or the end, if the list is shorter now).
+    pub fn restore(&self, list: &str, line: usize, text: &str) -> Res<Value> {
+        let (file, content) = self.load(list)?;
+        let block: Vec<&str> = text.lines().collect();
+        let ok = !block.is_empty()
+            && block.len() <= MAX_BLOCK_LINES
+            && block.first().is_some_and(|l| parse_line(l).is_some())
+            && block.iter().all(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'));
+        if !ok {
+            return Err("that cannot be put back".into());
+        }
+        let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
+        let at = line.min(lines.len());
+        for (n, l) in block.iter().enumerate() {
+            lines.insert(at + n, (*l).to_owned());
+        }
         Self::store(&file, &(lines.join("\n") + "\n"))?;
         self.read(list)
     }
 
-    /// Delete every ticked-off task in a list.
+    /// Move the task on `line` (with its notes and subtasks) to just before another task, `before` (its line and
+    /// words), in this list or `to`, or to the end of `to`. A moved subtask becomes a task of its own.
+    pub fn move_task(&self, list: &str, line: usize, expect: &str, to: &str, before: Option<(usize, &str)>) -> Res<Value> {
+        let (file, content) = self.load(list)?;
+        let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
+        found(&lines, line, expect)?;
+        let end = block_end(&lines, line);
+        let own = indent(&lines[line]);
+        let target_is_top = |ls: &[String], at: usize, words: &str| -> Res<()> {
+            found(ls, at, words)?;
+            if tasks_of(&ls.join("\n")).iter().any(|t| t["line"] == at && !t["parent"].is_null()) {
+                return Err("a task can only go before a task that is not under another".into());
+            }
+            Ok(())
+        };
+        if to == list {
+            if let Some((at, words)) = before {
+                target_is_top(&lines, at, words)?;
+                if (line..end).contains(&at) {
+                    return Err("a task cannot go inside itself".into());
+                }
+            }
+        }
+        let block: Vec<String> = lines.drain(line..end).map(|l| dedent(&l, own)).collect();
+        if to == list {
+            let at = match before {
+                Some((at, _)) if at > line => at - (end - line),
+                Some((at, _)) => at,
+                None => lines.len(),
+            };
+            lines.splice(at..at, block);
+            Self::store(&file, &(lines.join("\n") + "\n"))?;
+            return self.read(list);
+        }
+        let (other, theirs) = self.load(to)?;
+        let mut there: Vec<String> = theirs.lines().map(str::to_owned).collect();
+        let at = match before {
+            Some((at, words)) => {
+                target_is_top(&there, at, words)?;
+                at
+            }
+            None => there.len(),
+        };
+        there.splice(at..at, block);
+        Self::store(&other, &(there.join("\n") + "\n"))?;
+        Self::store(&file, &(lines.join("\n") + "\n"))?;
+        self.read(to)
+    }
+
+    /// Delete every ticked-off task in a list, with its notes and subtasks.
     pub fn clear_done(&self, list: &str) -> Res<Value> {
         let (file, content) = self.load(list)?;
-        let kept: Vec<&str> = content.lines().filter(|l| !parse_line(l).is_some_and(|t| t.done)).collect();
-        Self::store(&file, &(kept.join("\n") + "\n"))?;
+        let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
+        let mut at = 0;
+        while at < lines.len() {
+            if parse_line(&lines[at]).is_some_and(|t| t.done) {
+                let end = block_end(&lines, at);
+                lines.drain(at..end);
+            } else {
+                at += 1;
+            }
+        }
+        Self::store(&file, &(lines.join("\n") + "\n"))?;
         self.read(list)
     }
 
@@ -289,7 +505,7 @@ impl Tasks {
             "tasks.add" => {
                 let words = text("text").ok_or("text must be text")?;
                 self.checkpoint(&format!("before the agent added a task to {list}"));
-                self.add(list, words, text("due").filter(|d| !d.is_empty()))?
+                self.add_with(list, words, text("due").filter(|d| !d.is_empty()), args.get("flagged").and_then(Value::as_bool).unwrap_or(false), None)?
             }
             "tasks.update" => {
                 let wanted = text("task").ok_or("task must be text")?;
@@ -304,6 +520,8 @@ impl Tasks {
                     text: text("text").map(str::to_owned),
                     done: args.get("done").and_then(Value::as_bool),
                     due: text("due").map(|d| (!d.is_empty()).then(|| d.to_owned())),
+                    flagged: args.get("flagged").and_then(Value::as_bool),
+                    notes: text("notes").map(str::to_owned),
                 };
                 self.checkpoint(&format!("before the agent changed a task in {list}"));
                 let line = usize::try_from(found["line"].as_u64().unwrap_or(0)).unwrap_or(0);
@@ -321,6 +539,69 @@ impl Tasks {
     fn checkpoint(&self, why: &str) {
         let _ = self.checkpoints.snapshot(&self.workspace, why);
     }
+}
+
+/// The task on `at`, if it still says `expect`.
+fn found(lines: &[String], at: usize, expect: &str) -> Res<Task> {
+    lines.get(at).and_then(|l| parse_line(l)).filter(|t| t.text == expect).ok_or_else(|| "changed elsewhere".to_owned())
+}
+
+/// A line with `by` columns of indent taken off (as much as it has).
+fn dedent(line: &str, by: usize) -> String {
+    let mut left = by;
+    let mut rest = line;
+    while left > 0 {
+        match rest.chars().next() {
+            Some('\t') => { left = left.saturating_sub(4); rest = &rest[1..]; }
+            Some(c) if c.is_whitespace() => { left -= 1; rest = &rest[c.len_utf8()..]; }
+            _ => break,
+        }
+    }
+    rest.to_owned()
+}
+
+/// Every task in a list's text, in order: its line, words, state, notes, and the task it is under.
+fn tasks_of(content: &str) -> Vec<Value> {
+    let mut out: Vec<Value> = Vec::new();
+    // The task a line may belong to, and the top-level task above it, each with its indent.
+    let mut current: Option<(usize, usize)> = None;
+    let mut top: Option<(usize, usize)> = None;
+    for (i, line) in content.lines().enumerate() {
+        if line.trim().is_empty() {
+            (current, top) = (None, None);
+            continue;
+        }
+        let own = indent(line);
+        if let Some(t) = parse_line(line) {
+            if out.len() >= MAX_TASKS {
+                break;
+            }
+            let parent = match top {
+                Some((ind, at)) if own > ind => Some(at),
+                _ => {
+                    top = Some((own, i));
+                    None
+                }
+            };
+            current = Some((own, out.len()));
+            out.push(json!({ "line": i, "text": t.text, "done": t.done, "due": t.due, "flagged": t.flagged, "notes": "", "parent": parent }));
+            continue;
+        }
+        let owner = match (current, top) {
+            (Some((ind, at)), _) if own > ind => Some(at),
+            (_, Some((ind, at))) if own > ind => out.iter().position(|t| t["line"] == at),
+            _ => None,
+        };
+        match owner {
+            Some(at) => {
+                let notes = out[at]["notes"].as_str().unwrap_or("");
+                let joined = if notes.is_empty() { note_in(line).to_owned() } else { format!("{notes}\n{}", note_in(line)) };
+                out[at]["notes"] = Value::String(joined);
+            }
+            None => (current, top) = (None, None),
+        }
+    }
+    out
 }
 
 /// A short fingerprint of a list's text (FNV-1a), enough to tell the window its copy is stale.
@@ -350,7 +631,7 @@ mod tests {
     #[test]
     fn task_lines_read_and_write_the_same_way() {
         let t = parse_line("- [ ] Call the plumber (due 2026-11-12)").unwrap();
-        assert_eq!(t, Task { text: "Call the plumber".into(), done: false, due: Some("2026-11-12".into()) });
+        assert_eq!(t, Task { text: "Call the plumber".into(), done: false, due: Some("2026-11-12".into()), flagged: false });
         assert_eq!(format_line(&t), "- [ ] Call the plumber (due 2026-11-12)");
         assert!(parse_line("  - [X] Done thing").unwrap().done);
         // Not dates, so they stay part of the words.
@@ -472,5 +753,109 @@ mod tests {
         assert!(tasks.run("tasks.update", &json!({ "task": "Cal", "done": true })).unwrap_err().contains("no task"));
         assert!(tasks.run("tasks.delete", &json!({})).is_err());
         assert!(is_task_tool("tasks.add") && !is_task_tool("tasks.delete"));
+    }
+
+    fn lines_of(v: &Value) -> Vec<(u64, String, Value)> {
+        v["tasks"].as_array().unwrap().iter().map(|t| (t["line"].as_u64().unwrap(), t["text"].as_str().unwrap().to_owned(), t["parent"].clone())).collect()
+    }
+
+    #[test]
+    fn a_flag_notes_and_subtasks_are_plain_markdown_under_the_task() {
+        let (dir, tasks) = setup();
+        let file = dir.path().join("work/tasks/Build.md");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "# Build\n\n- [ ] Book the sled (flagged) (due 2026-11-12)\n  Ask Dana for the code.\n  - [ ] Check the trailer\n    It needs new straps.\n  - [x] Call the yard\n  Bring cash.\n- [ ] Pay the deposit\n").unwrap();
+        let read = tasks.read("Build").unwrap();
+        let t = &read["tasks"];
+        assert_eq!((t[0]["flagged"].clone(), t[0]["due"].clone()), (json!(true), json!("2026-11-12")));
+        assert_eq!(t[0]["notes"], "Ask Dana for the code.\nBring cash.");
+        assert_eq!(t[1]["notes"], "It needs new straps.");
+        assert_eq!(lines_of(&read), vec![(2, "Book the sled".into(), Value::Null), (4, "Check the trailer".into(), json!(2)), (6, "Call the yard".into(), json!(2)), (8, "Pay the deposit".into(), Value::Null)]);
+        // Written back in one order, whichever way it was read.
+        assert_eq!(format_line(&parse_line("- [ ] A (flagged) (due 2026-11-12)").unwrap()), "- [ ] A (due 2026-11-12) (flagged)");
+
+        // New notes replace the task's own notes, not its subtasks' notes; a line that would read as a task is escaped.
+        tasks.update("Build", 2, "Book the sled", Change { notes: Some("Code is 4411.\n\n- [ ] not a task".into()), flagged: Some(false), ..Change::default() }).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "# Build\n\n- [ ] Book the sled (due 2026-11-12)\n  Code is 4411.\n  \\- [ ] not a task\n  - [ ] Check the trailer\n    It needs new straps.\n  - [x] Call the yard\n- [ ] Pay the deposit\n");
+        assert_eq!(tasks.read("Build").unwrap()["tasks"][0]["notes"], "Code is 4411.\n- [ ] not a task");
+
+        let after = tasks.add_with("Build", "Load the packs", None, true, Some((2, "Book the sled"))).unwrap();
+        assert_eq!(after["tasks"][3], json!({ "line": 8, "text": "Load the packs", "done": false, "due": null, "flagged": true, "notes": "", "parent": 2 }));
+        assert_eq!(tasks.add_with("Build", "x", None, false, Some((2, "Wrong words"))).unwrap_err(), "changed elsewhere");
+    }
+
+    #[test]
+    fn deleting_a_task_takes_its_notes_and_subtasks_and_undo_puts_them_back() {
+        let (dir, tasks) = setup();
+        let file = dir.path().join("work/tasks/Home.md");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        let text = "# Home\n\n- [ ] Paint\n  White, not grey.\n  - [ ] Buy brushes\n- [x] Sweep\n  - [ ] Under the bed\n- [ ] Rest\n";
+        fs::write(&file, text).unwrap();
+        let gone = tasks.remove("Home", 2, "Paint").unwrap();
+        assert_eq!(gone["removed"], json!({ "line": 2, "text": "- [ ] Paint\n  White, not grey.\n  - [ ] Buy brushes" }));
+        assert_eq!(texts(&gone), ["Sweep", "Under the bed", "Rest"]);
+        tasks.restore("Home", 2, gone["removed"]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), text);
+        for bad in ["", "# Heading", "plain words", "- [ ] ok\n# sneaky heading"] {
+            assert!(tasks.restore("Home", 0, bad).is_err(), "{bad}");
+        }
+        // Clearing the done ones takes their subtasks too.
+        tasks.clear_done("Home").unwrap();
+        assert_eq!(texts(&tasks.read("Home").unwrap()), ["Paint", "Buy brushes", "Rest"]);
+    }
+
+    #[test]
+    fn a_task_moves_with_its_subtasks_within_a_list_and_to_another() {
+        let (dir, tasks) = setup();
+        let file = dir.path().join("work/tasks/Home.md");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "# Home\n\n- [ ] A\n  - [ ] A1\n- [ ] B\n- [ ] C\n").unwrap();
+        tasks.move_task("Home", 2, "A", "Home", Some((5, "C"))).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "# Home\n\n- [ ] B\n- [ ] A\n  - [ ] A1\n- [ ] C\n");
+        tasks.move_task("Home", 5, "C", "Home", Some((2, "B"))).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "# Home\n\n- [ ] C\n- [ ] B\n- [ ] A\n  - [ ] A1\n");
+        // Not before a subtask, and not inside itself.
+        assert!(tasks.move_task("Home", 2, "C", "Home", Some((5, "A1"))).is_err());
+        assert!(tasks.move_task("Home", 4, "A", "Home", Some((4, "A"))).is_err());
+        // A subtask moved to another list stands on its own there.
+        assert!(tasks.move_task("Home", 5, "A1", "Nowhere", None).is_err());
+        tasks.lists().unwrap();
+        let moved = tasks.move_task("Home", 5, "A1", "Inbox", None).unwrap();
+        assert_eq!(moved["list"], "Inbox");
+        tasks.move_task("Home", 2, "C", "Inbox", Some((2, "A1"))).unwrap();
+        assert_eq!(fs::read_to_string(dir.path().join("work/tasks/Inbox.md")).unwrap(), "# Inbox\n\n- [ ] C\n- [ ] A1\n");
+        assert_eq!(fs::read_to_string(&file).unwrap(), "# Home\n\n- [ ] B\n- [ ] A\n");
+    }
+
+    #[test]
+    fn a_list_can_be_renamed_and_deleted_but_inbox_stays() {
+        let (dir, tasks) = setup();
+        tasks.create_list("Groceries").unwrap();
+        tasks.add("Groceries", "Milk", None).unwrap();
+        assert_eq!(tasks.rename_list("Groceries", "Shop").unwrap()["name"], "Shop");
+        assert_eq!(fs::read_to_string(dir.path().join("work/tasks/Shop.md")).unwrap(), "# Shop\n\n- [ ] Milk\n");
+        assert!(!dir.path().join("work/tasks/Groceries.md").exists());
+        tasks.create_list("Work").unwrap();
+        assert!(tasks.rename_list("Shop", "Work").unwrap_err().contains("already"));
+        assert!(tasks.rename_list("Inbox", "Mine").is_err());
+        assert!(tasks.rename_list("Shop", "Inbox").is_err());
+        assert!(tasks.rename_list("Shop", "../x").is_ok_and(|v| v["name"] == "x"));
+        assert!(tasks.delete_list("Inbox").is_err());
+        let gone = tasks.delete_list("x").unwrap();
+        assert!(!dir.path().join("work/tasks/x.md").exists());
+        assert!(tasks.delete_list("x").is_err());
+        // Undo puts it back as it was, but never over a list made since.
+        tasks.restore_list("x", gone["text"].as_str().unwrap()).unwrap();
+        assert_eq!(fs::read_to_string(dir.path().join("work/tasks/x.md")).unwrap(), "# x\n\n- [ ] Milk\n");
+        assert!(tasks.restore_list("x", "anything").is_err());
+        assert!(tasks.restore_list("../y", "anything").is_err());
+    }
+
+    #[test]
+    fn the_agent_can_flag_and_write_notes() {
+        let (dir, tasks) = setup();
+        tasks.run("tasks.add", &json!({ "list": "Inbox", "text": "Call Sam", "flagged": true })).unwrap();
+        tasks.run("tasks.update", &json!({ "list": "Inbox", "task": "Call Sam", "notes": "About the sled." })).unwrap();
+        assert_eq!(fs::read_to_string(dir.path().join("work/tasks/Inbox.md")).unwrap(), "# Inbox\n\n- [ ] Call Sam (flagged)\n  About the sled.\n");
     }
 }

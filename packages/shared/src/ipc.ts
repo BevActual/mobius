@@ -141,11 +141,16 @@ export interface NotesChange { path: string | null; by: 'person' | 'assistant' |
 export const isNotesFailure = (value: unknown): value is NotesFailure =>
   typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === false;
 
-/** One task in a list of the Tasks app: a checkbox line in `tasks/<list>.md`. `line` is where it is in the file. */
-export interface TaskItem { line: number; text: string; done: boolean; due: string | null }
+/**
+ * One task in a list of the Tasks app: a checkbox line in `tasks/<list>.md`. `line` is where it is in the file.
+ * `notes` are the lines indented under it; `parent` is the line of the task it sits under, when it is a subtask.
+ */
+export interface TaskItem { line: number; text: string; done: boolean; due: string | null; flagged?: boolean; notes?: string; parent?: number | null }
 export interface TaskList { list: string; tasks: TaskItem[]; version: string }
 export interface TaskListInfo { name: string; open: number; done: number }
-export interface TaskChange { text?: string; done?: boolean; due?: string | null }
+export interface TaskChange { text?: string; done?: boolean; due?: string | null; flagged?: boolean; notes?: string }
+/** Where a task points: its line and its words, which must still match. */
+export interface TaskAt { line: number; expect: string }
 /** `by` says who changed it, so the window can show the agent's work without stealing focus. */
 export interface TasksChanged { list: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
@@ -484,9 +489,18 @@ export interface MobiusBridge {
     lists(): Promise<TaskListInfo[] | NotesFailure>;
     read(list: string): Promise<TaskList | NotesFailure>;
     createList(name: string): Promise<{ name: string } | NotesFailure>;
-    add(list: string, text: string, due: string | null): Promise<TaskList | NotesFailure>;
+    /** `under`: the task it goes under, as a subtask. */
+    add(list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt }): Promise<TaskList | NotesFailure>;
     update(list: string, line: number, expect: string, change: TaskChange): Promise<TaskList | NotesFailure>;
-    remove(list: string, line: number, expect: string): Promise<TaskList | NotesFailure>;
+    /** Takes its notes and subtasks too; `removed` is what went, for `restore`. */
+    remove(list: string, line: number, expect: string): Promise<(TaskList & { removed?: { line: number; text: string } }) | NotesFailure>;
+    restore?(list: string, line: number, text: string): Promise<TaskList | NotesFailure>;
+    /** To the end of `to`, or before the task `before` there. Answers with `to`. */
+    move?(list: string, line: number, expect: string, to: string, before?: TaskAt): Promise<TaskList | NotesFailure>;
+    renameList?(list: string, to: string): Promise<{ name: string } | NotesFailure>;
+    /** `text` is what the list had, for `restoreList` (Undo). */
+    deleteList?(list: string): Promise<{ name: string; text?: string } | NotesFailure>;
+    restoreList?(list: string, text: string): Promise<{ name: string } | NotesFailure>;
     clearDone(list: string): Promise<TaskList | NotesFailure>;
     onChanged(listener: (change: TasksChanged) => void): () => void;
   };

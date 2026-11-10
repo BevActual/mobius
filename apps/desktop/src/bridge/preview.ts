@@ -1,5 +1,6 @@
 import { tagsIn } from '../note-tags';
 import { linksIn } from '../note-links';
+import { PREVIEW_TASKS } from './preview-tasks';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
 /**
@@ -16,14 +17,6 @@ const day = (offset: number): string => {
 };
 const now = Date.now();
 const hour = 3_600_000;
-
-const TASKS = [
-  { line: 1, text: 'Confirm the build week with everyone', done: true, due: day(0) },
-  { line: 2, text: 'Hold 8 packs at Veltro', done: false, due: day(1) },
-  { line: 3, text: 'Book the sled for Friday', done: false, due: day(2) },
-  { line: 4, text: 'Draft the build budget', done: true, due: day(0) },
-  { line: 5, text: 'Pay the Veltro deposit', done: false, due: null },
-];
 
 const person = (name: string, email: string) => ({ name, email });
 const MAIL = [
@@ -75,8 +68,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,
   'mini.isOpen': () => false,
-  'tasks.lists': () => [{ name: 'P2 build', open: 3, done: 2 }, { name: 'Work', open: 0, done: 0 }, { name: 'Home', open: 0, done: 0 }],
-  'tasks.read': ((list: string) => ({ list, tasks: list === 'P2 build' ? TASKS : [], version: 'preview' })) as never,
+  // Tasks are kept in memory for as long as the preview is open.
+  ...PREVIEW_TASKS,
   'notes.list': () => NOTES(),
   'notes.search': ((query: string) => Object.entries(NOTE_TEXT).filter(([, t]) => t.toLowerCase().includes(query.toLowerCase())).map(([path, t]) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), notebook: path.split('/')[0], line: t.split('\n').find((l) => l.toLowerCase().includes(query.toLowerCase())) ?? '' }))) as never,
   // Typing in a note is kept for as long as the preview is open, so the Markdown it is saved as can be looked at.

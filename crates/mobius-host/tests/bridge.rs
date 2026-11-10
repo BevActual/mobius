@@ -1025,6 +1025,37 @@ fn tasks_are_real_files_the_window_and_the_agent_both_change() {
     assert!(!events.lock().unwrap().iter().any(|(name, _)| name == "mobius:tasks-changed"), "reading changes nothing");
 }
 
+#[test]
+fn a_task_carries_a_flag_notes_and_subtasks_and_moves_between_lists_through_the_bridge() {
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "tasks", "lists", json!([]));
+    let added = call(&b, "tasks", "add", json!(["Inbox", "Book the sled", "", { "flagged": true }]));
+    let line = added["tasks"][0]["line"].clone();
+    let sub = call(&b, "tasks", "add", json!(["Inbox", "Check the trailer", "", { "under": { "line": line, "expect": "Book the sled" } }]));
+    assert_eq!(sub["tasks"][1]["parent"], line);
+    call(&b, "tasks", "update", json!(["Inbox", line, "Book the sled", { "notes": "Ask Dana." }]));
+    let file = dir.path().join("workspace/tasks/Inbox.md");
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "# Inbox\n\n- [ ] Book the sled (flagged)\n  Ask Dana.\n  - [ ] Check the trailer\n");
+    // Deleting hands back what went, and restore puts it back.
+    let gone = call(&b, "tasks", "remove", json!(["Inbox", line, "Book the sled"]));
+    assert_eq!(gone["tasks"], json!([]));
+    call(&b, "tasks", "restore", json!(["Inbox", gone["removed"]["line"], gone["removed"]["text"]]));
+    assert!(std::fs::read_to_string(&file).unwrap().contains("  Ask Dana.\n  - [ ] Check the trailer"));
+    call(&b, "tasks", "createList", json!(["Build"]));
+    events.lock().unwrap().clear();
+    let moved = call(&b, "tasks", "move", json!(["Inbox", line, "Book the sled", "Build"]));
+    assert_eq!(moved["list"], "Build");
+    assert!(events.lock().unwrap().iter().any(|(name, v)| name == "mobius:tasks-changed" && v["list"].is_null()));
+    assert_eq!(call(&b, "tasks", "renameList", json!(["Build", "P2 build"]))["name"], "P2 build");
+    assert_eq!(call(&b, "tasks", "read", json!(["P2 build"]))["tasks"].as_array().unwrap().len(), 2);
+    assert_eq!(call(&b, "tasks", "deleteList", json!(["Inbox"]))["ok"], false);
+    let gone = call(&b, "tasks", "deleteList", json!(["P2 build"]));
+    assert!(!dir.path().join("workspace/tasks/P2 build.md").exists());
+    call(&b, "tasks", "restoreList", json!(["P2 build", gone["text"]]));
+    assert!(std::fs::read_to_string(dir.path().join("workspace/tasks/P2 build.md")).unwrap().contains("Book the sled"));
+    assert_eq!(call(&b, "tasks", "restore", json!(["Inbox", 0, "# not a task"]))["ok"], false);
+}
+
 /// A provider's models endpoint that answers only to one key, and remembers what it was sent.
 fn provider_server(key: &'static str) -> (String, Arc<std::sync::Mutex<Vec<String>>>) {
     use std::io::{Read, Write};

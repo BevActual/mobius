@@ -2065,7 +2065,16 @@ impl Bridge {
             "read" => text(0).ok_or_else(|| "a list is needed".to_owned()).and_then(|l| tasks.read(l)),
             "createList" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| tasks.create_list(n)),
             "add" => match (text(0), text(1)) {
-                (Some(list), Some(words)) => tasks.add(list, words, text(2).filter(|d| !d.is_empty())),
+                (Some(list), Some(words)) => {
+                    // Options: a flag, and the task it goes under ({ line, expect }).
+                    let opts = args.get(3);
+                    let flagged = opts.and_then(|o| o.get("flagged")).and_then(Value::as_bool).unwrap_or(false);
+                    let under = opts.and_then(|o| o.get("under")).and_then(|u| {
+                        let at = u.get("line").and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok())?;
+                        Some((at, u.get("expect").and_then(Value::as_str)?))
+                    });
+                    tasks.add_with(list, words, text(2).filter(|d| !d.is_empty()), flagged, under)
+                }
                 _ => Err("a list and some words are needed".to_owned()),
             },
             "update" => match (text(0), line(1), text(2), args.get(3).and_then(Value::as_object)) {
@@ -2077,7 +2086,13 @@ impl Bridge {
                         Some(Value::String(d)) => Some(Some(d.clone())),
                         Some(_) => return json!({ "ok": false, "message": "a due date is written YYYY-MM-DD" }),
                     };
-                    let change = Change { text: change.get("text").and_then(Value::as_str).map(str::to_owned), done: change.get("done").and_then(Value::as_bool), due };
+                    let change = Change {
+                        text: change.get("text").and_then(Value::as_str).map(str::to_owned),
+                        done: change.get("done").and_then(Value::as_bool),
+                        due,
+                        flagged: change.get("flagged").and_then(Value::as_bool),
+                        notes: change.get("notes").and_then(Value::as_str).map(str::to_owned),
+                    };
                     tasks.update(list, at, expect, change)
                 }
                 _ => Err("that cannot be changed".to_owned()),
@@ -2087,12 +2102,34 @@ impl Bridge {
                 _ => Err("that cannot be removed".to_owned()),
             },
             "clearDone" => text(0).ok_or_else(|| "a list is needed".to_owned()).and_then(|l| tasks.clear_done(l)),
+            "restore" => match (text(0), line(1), text(2)) {
+                (Some(list), Some(at), Some(block)) => tasks.restore(list, at, block),
+                _ => Err("that cannot be put back".to_owned()),
+            },
+            "move" => match (text(0), line(1), text(2), text(3)) {
+                (Some(list), Some(at), Some(expect), Some(to)) => {
+                    let before = args.get(4).and_then(|b| Some((b.get("line").and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok())?, b.get("expect").and_then(Value::as_str)?)));
+                    tasks.move_task(list, at, expect, to, before)
+                }
+                _ => Err("that cannot be moved".to_owned()),
+            },
+            "renameList" => match (text(0), text(1)) {
+                (Some(list), Some(to)) => tasks.rename_list(list, to),
+                _ => Err("a list and a name are needed".to_owned()),
+            },
+            "deleteList" => text(0).ok_or_else(|| "a list is needed".to_owned()).and_then(|l| tasks.delete_list(l)),
+            "restoreList" => match (text(0), text(1)) {
+                (Some(list), Some(content)) => tasks.restore_list(list, content),
+                _ => Err("that list cannot be put back".to_owned()),
+            },
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
             Ok(value) => {
                 if method != "lists" && method != "read" {
-                    let list = value.get("list").or_else(|| value.get("name")).cloned().unwrap_or(Value::Null);
+                    // A move or a rename touches two lists: the window reads them all again.
+                    let both = matches!(method, "move" | "renameList" | "deleteList" | "restoreList");
+                    let list = if both { Value::Null } else { value.get("list").or_else(|| value.get("name")).cloned().unwrap_or(Value::Null) };
                     (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "person" }));
                 }
                 value

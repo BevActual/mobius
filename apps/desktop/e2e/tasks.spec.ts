@@ -121,3 +121,69 @@ test('a suggestion in Tasks attaches the open list, so the agent sees what is on
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Start with the report.');
   expect(JSON.stringify(model!.requests.at(-1)?.messages ?? [])).toContain('Write the report');
 });
+
+test('details beside the list: notes, a flag, subtasks and another list, all plain Markdown in the file', async () => {
+  fs.mkdirSync(path.dirname(file('Home')), { recursive: true });
+  fs.writeFileSync(file('Home'), '# Home\n\n- [ ] Paint the door\n- [ ] Fix the tap\n');
+  fs.writeFileSync(file('Garden'), '# Garden\n\n');
+  await start();
+  await lists().getByRole('button', { name: /^Home/ }).click();
+  await page().getByRole('button', { name: 'Details for Paint the door' }).click({ force: true });
+  const details = page().getByRole('complementary', { name: 'Details' });
+  await details.getByRole('textbox', { name: 'Notes' }).fill('White, not grey.');
+  await details.getByRole('switch', { name: 'Flagged' }).check();
+  await details.getByRole('textbox', { name: 'New subtask' }).fill('Buy brushes');
+  await details.getByRole('textbox', { name: 'New subtask' }).press('Enter');
+  await expect(details.getByRole('checkbox', { name: 'Buy brushes' })).toBeVisible();
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toBe('# Home\n\n- [ ] Paint the door (flagged)\n  White, not grey.\n  - [ ] Buy brushes\n- [ ] Fix the tap\n');
+  // The row shows the note, the flag and how many subtasks are done; Flagged gathers it.
+  const row = todo().locator('.task', { hasText: 'Paint the door' }).first();
+  await expect(row.locator('.task-note')).toHaveText('White, not grey.');
+  await expect(row.getByRole('img', { name: 'Flagged' })).toBeVisible();
+  await expect(row.locator('.task-subcount')).toHaveText('0 of 1');
+  await details.getByRole('combobox', { name: 'List' }).selectOption('Garden');
+  await expect.poll(() => fs.readFileSync(file('Garden'), 'utf8')).toBe('# Garden\n\n- [ ] Paint the door (flagged)\n  White, not grey.\n  - [ ] Buy brushes\n');
+  expect(fs.readFileSync(file('Home'), 'utf8')).toBe('# Home\n\n- [ ] Fix the tap\n');
+  await lists().getByRole('button', { name: /^Flagged/ }).click();
+  await expect(shell().locator('.strip-title')).toHaveText('Flagged');
+  await expect(todo().getByRole('checkbox', { name: 'Paint the door' })).toBeVisible();
+});
+
+test('a date said in words becomes the due date, and a deleted task or list comes back with Undo', async () => {
+  fs.mkdirSync(path.dirname(file('Home')), { recursive: true });
+  fs.writeFileSync(file('Home'), '# Home\n\n- [ ] Paint the door\n  White, not grey.\n- [ ] Fix the tap\n');
+  await start();
+  await lists().getByRole('button', { name: /^Home/ }).click();
+  const field = page().getByRole('textbox', { name: 'New task', exact: true });
+  await field.fill('Call the plumber tomorrow');
+  await expect(page().getByRole('button', { name: /^Due Tomorrow/ })).toBeVisible();
+  await field.press('Enter');
+  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Call the plumber (due ${tomorrow})`);
+  // Taking the chip back keeps the words as they were typed.
+  await field.fill('Read Friday');
+  await page().getByRole('button', { name: /^Due .*Keep “Friday” as words/ }).click();
+  await field.press('Enter');
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [ ] Read Friday\n');
+
+  await page().getByRole('button', { name: 'Details for Paint the door' }).click({ force: true });
+  await page().getByRole('button', { name: 'Delete task' }).click();
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).not.toContain('Paint the door');
+  await page().getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [ ] Paint the door\n  White, not grey.\n- [ ] Fix the tap\n');
+
+  await lists().getByRole('button', { name: 'More for Home' }).click({ force: true });
+  await shell().getByRole('menuitem', { name: 'Rename…' }).click();
+  await shell().getByRole('textbox', { name: 'New name for Home' }).fill('House');
+  await shell().getByRole('textbox', { name: 'New name for Home' }).press('Enter');
+  await expect(shell().locator('.strip-title')).toHaveText('House');
+  expect(fs.existsSync(file('Home'))).toBe(false);
+  await lists().getByRole('button', { name: 'More for House' }).click({ force: true });
+  await shell().getByRole('menuitem', { name: 'Delete list…' }).click();
+  await shell().getByRole('alertdialog', { name: 'Delete House?' }).getByRole('button', { name: 'Delete' }).click();
+  await expect.poll(() => fs.existsSync(file('House'))).toBe(false);
+  await expect(shell().locator('.strip-title')).toHaveText('Today');
+  await page().getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => fs.existsSync(file('House'))).toBe(true);
+  await expect(shell().locator('.strip-title')).toHaveText('House');
+});
