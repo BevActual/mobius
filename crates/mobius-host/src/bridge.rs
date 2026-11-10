@@ -176,6 +176,9 @@ pub struct Bridge {
     boards: mobius_workspace::notes::Notes,
     research: mobius_workspace::notes::Notes,
     reading: mobius_workspace::notes::Notes,
+    /// The Wiki app's pages, and the changes offered to it that wait.
+    wiki: mobius_workspace::notes::Notes,
+    wiki_incoming: crate::wiki::Incoming,
     databases: crate::database::Databases,
     songs: mobius_workspace::notes::Notes,
     photos: mobius_workspace::photos::Photos,
@@ -326,6 +329,8 @@ impl Bridge {
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
             research: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "research"),
             reading: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "reading"),
+            wiki: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "wiki"),
+            wiki_incoming: crate::wiki::Incoming::new(data_dir.join("wiki-incoming.json")),
             databases: crate::database::Databases::new(&data_dir.join("workspace")),
             sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
@@ -406,6 +411,25 @@ impl Bridge {
                     Err(e) => failed(e),
                 })
             }
+            ("memory", "keep") => Ok(match arg(0).as_str().map(|t| self.memory.keep(t, arg(1).as_bool().unwrap_or(true))) {
+                Some(Ok(_)) => {
+                    (self.emit)("mobius:memory-changed", Value::Null);
+                    json!({ "ok": true })
+                }
+                Some(Err(e)) => failed(e),
+                None => failed("That is not something Mobius remembers."),
+            }),
+            ("memory", "restore") => {
+                // Undo of Not true: the fact comes back as it was, still Mobius's.
+                let s = |i: usize| arg(i).as_str().unwrap_or("");
+                Ok(match self.memory.remember_with(s(0), s(1), s(2)) {
+                    Ok(_) => {
+                        (self.emit)("mobius:memory-changed", Value::Null);
+                        json!({ "ok": true })
+                    }
+                    Err(e) => failed(e),
+                })
+            }
             ("memory", "forget") => Ok(match arg(0).as_str().map(|t| self.memory.forget(t)) {
                 Some(Ok(_)) => {
                     (self.emit)("mobius:memory-changed", Value::Null);
@@ -454,6 +478,8 @@ impl Bridge {
             // Reader keeps pages the person chose to read later; fetching one is their request, not the agent's.
             ("reading", "fetch") => Ok(crate::web::fetch_article(arg(0).as_str().unwrap_or("")).unwrap_or_else(|e| json!({ "ok": false, "message": e }))),
             ("reading", _) => Ok(self.notes_call(&self.reading, "mobius:reading-changed", method, args)),
+            ("wiki", "versions" | "incoming" | "offer" | "keepChange" | "declineChange" | "undoChange") => Ok(self.wiki_call(method, args)),
+            ("wiki", _) => Ok(self.notes_call(&self.wiki, "mobius:wiki-changed", method, args)),
             ("databases", _) => Ok(self.databases_call(method, args)),
             ("terminal", _) => Ok(self.terminal_call(method, args)),
             ("sheets", _) => Ok(self.sheets_call(method, args)),
@@ -1618,6 +1644,74 @@ impl Bridge {
     /// The Notes app. Every answer is either the data asked for or `{ ok: false, message }`; a save that would
     /// overwrite a change made elsewhere also says `conflict: true` so the window can reload the page.
     /// The Notes app, and Docs, which keeps its documents the same way in another folder.
+    /// The Wiki app beyond its pages: a page's earlier versions, and the changes offered to the wiki.
+    fn wiki_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let changed = |by: &str| (self.emit)("mobius:wiki-changed", json!({ "path": null, "by": by }));
+        let page_text = |page: &str| self.wiki.read(page).ok().and_then(|p| p["content"].as_str().map(str::to_owned));
+        let write = |page: &str, content: &str| -> Result<(), String> {
+            if page_text(page).is_none() {
+                let (notebook, title) = page.split_once('/').ok_or("That is not a wiki page.")?;
+                let _ = self.wiki.create_notebook(notebook);
+                self.wiki.create_page(notebook, title.trim_end_matches(".md"))?;
+            }
+            let base = self.wiki.read(page).ok().and_then(|p| p["modified"].as_u64());
+            self.wiki.save(page, content, base).map(|_| ())
+        };
+        let result: Result<Value, String> = match method {
+            // Each checkpoint where the page was different from the one after it: its earlier versions.
+            "versions" => text(0).filter(|p| !p.contains("..")).ok_or_else(|| "a page is needed".to_owned()).and_then(|page| {
+                let path = format!("wiki/{page}");
+                let mut out: Vec<Value> = Vec::new();
+                let mut last: Option<String> = page_text(page);
+                for (id, when) in self.workspace.history(40)? {
+                    let Ok(Some(then)) = self.workspace.read_at(&id, &path) else { continue };
+                    if last.as_deref() != Some(then.as_str()) {
+                        out.push(json!({ "checkpoint": id, "whenMs": when * 1000, "content": then }));
+                        last = Some(then);
+                    }
+                    if out.len() >= 20 {
+                        break;
+                    }
+                }
+                Ok(json!(out))
+            }),
+            "incoming" => Ok(self.wiki_incoming.list()),
+            "offer" => text(1).ok_or_else(|| "a line is needed".to_owned()).and_then(|line| self.wiki_incoming.offer(text(0).unwrap_or("your wiki"), text(2), line)).inspect(|_| changed("person")),
+            "keepChange" => text(0).ok_or_else(|| "a change is needed".to_owned()).and_then(|id| {
+                let change = self.wiki_incoming.take(id)?;
+                // Edit first: the person's own words for the line, if they changed it.
+                let line = text(1).map(str::trim).filter(|t| !t.is_empty()).unwrap_or(&change.text).to_owned();
+                let before = page_text(&change.page).unwrap_or_default();
+                if let Err(e) = write(&change.page, &crate::wiki::with_line(&before, &line)) {
+                    let _ = self.wiki_incoming.put_back(change);
+                    return Err(e);
+                }
+                changed("person");
+                Ok(json!({ "ok": true, "change": change, "line": line }))
+            }),
+            "declineChange" => text(0).ok_or_else(|| "a change is needed".to_owned()).and_then(|id| self.wiki_incoming.take(id)).map(|change| {
+                changed("person");
+                json!({ "ok": true, "change": change })
+            }),
+            "undoChange" => match (args.first().cloned().and_then(|c| serde_json::from_value::<crate::wiki::Change>(c).ok()), text(1)) {
+                (Some(change), kept) => {
+                    if let Some(line) = kept {
+                        let now = page_text(&change.page).unwrap_or_default();
+                        let _ = write(&change.page, &crate::wiki::without_line(&now, line));
+                    }
+                    self.wiki_incoming.put_back(change).map(|()| {
+                        changed("person");
+                        json!({ "ok": true })
+                    })
+                }
+                _ => Err("That change cannot be undone.".to_owned()),
+            },
+            _ => Err("unknown".to_owned()),
+        };
+        result.unwrap_or_else(|message| json!({ "ok": false, "message": message }))
+    }
+
     fn notes_call(&self, notes: &mobius_workspace::notes::Notes, event: &str, method: &str, args: &[Value]) -> Value {
         let text = |i: usize| args.get(i).and_then(Value::as_str);
         let result = match method {

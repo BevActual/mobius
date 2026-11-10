@@ -1,0 +1,236 @@
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import type { MemoryCategory, MemoryItem, WikiChange, WikiVersion } from '@mobius/shared';
+import type { NotesState } from './useNotes';
+
+/** Where the Wiki is: your own How I work page, the changes waiting for this wiki, or one of its pages. */
+export type WikiPlace = { kind: 'mine' } | { kind: 'shared' } | { kind: 'page' };
+
+/** The changes offered to the wiki, kept here so the sidebar can count them and the page can act on them. */
+export function useWikiIncoming() {
+  const api = window.mobius.wiki;
+  const [waiting, setWaiting] = useState<WikiChange[]>([]);
+  const load = useCallback(async () => {
+    const got = await api?.incoming?.().catch(() => null);
+    setWaiting(Array.isArray(got) ? got : []);
+  }, [api]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => api?.onChanged(() => void load()), [api, load]);
+  return { waiting, load };
+}
+export type WikiIncoming = ReturnType<typeof useWikiIncoming>;
+
+export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: NotesState; place: WikiPlace; onPlace: (p: WikiPlace) => void; incoming: WikiIncoming; pin?: ReactNode }) {
+  const [naming, setNaming] = useState(false);
+  const [title, setTitle] = useState('');
+  const create = async () => {
+    const name = title.trim() || 'New page';
+    if (!wiki.notebooks.some((n) => n.name === 'Pages')) await wiki.createNotebook('Pages');
+    await wiki.createPage('Pages', name);
+    setNaming(false); setTitle(''); onPlace({ kind: 'page' });
+  };
+  const row = (label: string, current: boolean, onClick: () => void, count?: number) => (
+    <li>
+      <button type="button" className="list-row" aria-current={current ? 'page' : undefined} onClick={onClick}>
+        <span className="list-name">{label}</span>
+        {count ? <span className="list-count">{count}</span> : null}
+      </button>
+    </li>
+  );
+  return (
+    <aside className="side wiki-side" aria-label="Wiki sidebar">
+      <div className="side-head">
+        <span className="side-title">Wiki</span>
+        <span className="side-actions">
+          {pin}
+          <button type="button" className="strip-btn" aria-label="New page" title="New page" onClick={() => setNaming(true)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
+          </button>
+        </span>
+      </div>
+      {naming && (
+        <form className="notes-name" onSubmit={(e) => { e.preventDefault(); void create(); }}>
+          <input autoFocus aria-label="Page title" placeholder="Page title" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
+        </form>
+      )}
+      <nav className="task-lists" aria-label="Wiki">
+        <ul role="list">
+          {row('How I work', place.kind === 'mine', () => onPlace({ kind: 'mine' }))}
+          {row('Shared with this wiki', place.kind === 'shared', () => onPlace({ kind: 'shared' }), incoming.waiting.length)}
+        </ul>
+      </nav>
+      <nav className="task-lists wiki-pages" aria-label="Pages">
+        <ul role="list">
+          {wiki.notebooks.flatMap((nb) => nb.pages.map((pg) => (
+            <li key={pg.path}>
+              <button type="button" className="list-row" aria-current={place.kind === 'page' && wiki.page?.path === pg.path ? 'page' : undefined} onClick={() => { void wiki.open(pg.path, pg.title); onPlace({ kind: 'page' }); }}>
+                <span className="list-name">{pg.title}</span>
+                <span className="list-count">{nb.name}</span>
+              </button>
+            </li>
+          )))}
+        </ul>
+      </nav>
+    </aside>
+  );
+}
+
+/**
+ * Your wiki: How I work, the page only you and your Mobius see. It is what Mobius remembers about you, from the same
+ * store Journey shows: what Mobius learned is dashed until you Keep it, or say Not true (it is forgotten). A line can
+ * be shared to this wiki, where it waits like any other change.
+ */
+export function HowIWork() {
+  const api = window.mobius.memory;
+  const [items, setItems] = useState<MemoryItem[]>([]);
+  const [undo, setUndo] = useState<{ label: string; run: () => Promise<unknown> } | null>(null);
+  const [adding, setAdding] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const load = useCallback(async () => { setItems(await api?.items().catch(() => []) ?? []); }, [api]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => api?.onChange(() => void load()), [api, load]);
+  if (!api) return <section className="skills-page empty" aria-label="How I work"><p className="note-empty">Your wiki is not available here.</p></section>;
+  const done = async (r: { ok: boolean; error?: string } | undefined, next: { label: string; run: () => Promise<unknown> } | null) => {
+    if (r && !r.ok) { setProblem(r.error ?? 'That could not be done.'); return; }
+    setProblem(null); setUndo(next); await load();
+  };
+  const keep = (m: MemoryItem) => api.keep?.(m.text, true).then((r) => done(r, { label: `Kept “${m.text}”.`, run: () => api.keep!(m.text, false) }));
+  const notTrue = (m: MemoryItem) => api.forget(m.text).then((r) => done(r, { label: `Forgot “${m.text}”.`, run: () => api.restore!(m.text, m.category, m.source) }));
+  const share = async (m: MemoryItem) => {
+    const r = await window.mobius.wiki?.offer?.('your wiki', m.text).catch(() => null);
+    if (!r || ('ok' in r && r.ok === false)) { setProblem('That line could not be shared.'); return; }
+    setUndo({ label: `Shared “${m.text}” with this wiki. It waits there until it is kept.`, run: async () => { if ('id' in r) await window.mobius.wiki?.declineChange?.(r.id); } });
+  };
+  return (
+    <section className="skills-page wiki-page" aria-label="How I work">
+      <h1 className="ext-title">How I work</h1>
+      <p className="wiki-private">Only you and your Mobius see this page.</p>
+      {undo && (
+        <p className="cal-undo" role="status">
+          <span>{undo.label}</span>
+          <button type="button" className="review-btn" onClick={() => { const u = undo; setUndo(null); void u.run().then(load); }}>Undo</button>
+        </p>
+      )}
+      {problem && <p className="field-error" role="alert">{problem}</p>}
+      {items.length === 0 && <p className="note-empty">Nothing yet. What you add here, and what Mobius learns and you keep, is how Mobius knows how you work.</p>}
+      <ul className="wiki-lines" role="list" aria-label="How I work">
+        {items.map((m) => (
+          <li key={m.text} className="wiki-line" data-proposed={m.learned || undefined} aria-label={m.learned ? `${m.text}, Mobius learned this` : m.text}>
+            <span className="wiki-line-text">{m.text}</span>
+            {m.learned ? (
+              <span className="wiki-line-actions">
+                <span className="wiki-learned">Mobius learned this{m.source ? ` · ${m.source}` : ''}</span>
+                <button type="button" className="review-btn" onClick={() => void notTrue(m)}>Not true</button>
+                <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep(m)}>Keep</button>
+              </span>
+            ) : (
+              <span className="wiki-line-actions">
+                <button type="button" className="review-btn" title="Offer this line to the wiki others share" onClick={() => void share(m)}>Share</button>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <form className="wiki-add" onSubmit={(e) => { e.preventDefault(); const t = adding.trim(); if (!t) return; void api.add(t, 'prefs' as MemoryCategory).then((r) => done(r, null)).then(() => setAdding('')); }}>
+        <input aria-label="Add a line" placeholder="Add how you work, in one line" value={adding} onChange={(e) => setAdding(e.target.value)} />
+      </form>
+    </section>
+  );
+}
+
+/** Shared with this wiki: changes offered by people, your own wiki and Mobius, each Decline / Edit first / Keep, then Undo. */
+export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
+  const api = window.mobius.wiki;
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [undo, setUndo] = useState<{ label: string; change: WikiChange; line: string | null } | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  if (!api?.incoming) return <section className="skills-page empty" aria-label="Shared with this wiki"><p className="note-empty">The wiki is not available here.</p></section>;
+  const keep = async (c: WikiChange, text?: string) => {
+    const r = await api.keepChange!(c.id, text).catch(() => null);
+    if (!r || !r.ok) { setProblem(r && !r.ok ? r.message : 'That could not be kept.'); return; }
+    setEditing(null); setProblem(null);
+    setUndo({ label: `Kept on ${pageName(c.page)}.`, change: c, line: r.line });
+    await incoming.load();
+  };
+  const decline = async (c: WikiChange) => {
+    const r = await api.declineChange!(c.id).catch(() => null);
+    if (!r || !r.ok) { setProblem(r && !r.ok ? r.message : 'That could not be declined.'); return; }
+    setUndo({ label: 'Declined.', change: c, line: null });
+    await incoming.load();
+  };
+  const undoLast = async () => {
+    if (!undo) return;
+    await api.undoChange!(undo.change, undo.line).catch(() => null);
+    setUndo(null);
+    await incoming.load();
+  };
+  return (
+    <section className="skills-page wiki-page" aria-label="Shared with this wiki">
+      <h1 className="ext-title">Shared with this wiki</h1>
+      {undo && <p className="cal-undo" role="status"><span>{undo.label}</span><button type="button" className="review-btn" onClick={() => void undoLast()}>Undo</button></p>}
+      {problem && <p className="field-error" role="alert">{problem}</p>}
+      {incoming.waiting.length === 0 && <p className="note-empty">Nothing is waiting.</p>}
+      <ul className="wiki-lines" role="list" aria-label="Waiting">
+        {incoming.waiting.map((c) => (
+          <li key={c.id} className="wiki-line wiki-change" data-proposed aria-label={`From ${c.from}: ${c.text}`}>
+            <span className="wiki-from">From {c.from} · for {pageName(c.page)}</span>
+            {editing?.id === c.id ? (
+              <form className="wiki-edit" onSubmit={(e) => { e.preventDefault(); void keep(c, editing.text); }}>
+                <input autoFocus aria-label="Edit the line" value={editing.text} onChange={(e) => setEditing({ id: c.id, text: e.target.value })} />
+                <button type="button" className="review-btn" onClick={() => setEditing(null)}>Cancel</button>
+                <button type="submit" className="review-btn" data-kind="keep">Keep</button>
+              </form>
+            ) : (
+              <>
+                <span className="wiki-line-text">{c.text}</span>
+                <span className="wiki-line-actions">
+                  <button type="button" className="review-btn" onClick={() => void decline(c)}>Decline</button>
+                  <button type="button" className="review-btn" onClick={() => setEditing({ id: c.id, text: c.text })}>Edit first</button>
+                  <button type="button" className="review-btn" data-kind="keep" onClick={() => void keep(c)}>Keep</button>
+                </span>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+const pageName = (path: string) => path.split('/').pop()?.replace(/\.md$/, '') ?? path;
+
+/** A page's earlier versions, from the workspace checkpoints: look at one, and put it back. */
+export function WikiVersions({ wiki }: { wiki: NotesState }) {
+  const path = wiki.page?.path ?? null;
+  const [open, setOpen] = useState(false);
+  const [versions, setVersions] = useState<WikiVersion[]>([]);
+  const [shown, setShown] = useState<WikiVersion | null>(null);
+  useEffect(() => {
+    if (!open || !path) return;
+    let live = true;
+    void window.mobius.wiki?.versions?.(path).then((v) => { if (live) setVersions(Array.isArray(v) ? v : []); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [open, path, wiki.text]);
+  if (!path || !window.mobius.wiki?.versions) return null;
+  const when = (ms: number) => new Date(ms).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  return (
+    <div className="wiki-versions">
+      <button type="button" className="btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>Versions</button>
+      {open && (
+        <section className="wiki-versions-list" aria-label="Versions">
+          {versions.length === 0 && <p className="note-empty">No earlier versions yet.</p>}
+          <ul role="list">
+            {versions.map((v) => (
+              <li key={v.checkpoint}><button type="button" className="list-row" aria-current={shown?.checkpoint === v.checkpoint ? 'true' : undefined} onClick={() => setShown(v)}>{when(v.whenMs)}</button></li>
+            ))}
+          </ul>
+          {shown && (
+            <div className="wiki-version">
+              <pre aria-label="That version">{shown.content}</pre>
+              <button type="button" className="btn" onClick={() => { wiki.edit(shown.content); setShown(null); setOpen(false); }}>Put this version back</button>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}

@@ -116,6 +116,12 @@ impl Workspace {
         }
     }
 
+    /// The checkpoints kept, newest first: id and when (seconds).
+    pub fn history(&self, limit: usize) -> Res<Vec<(String, u64)>> {
+        let root = self.real_root()?;
+        Ok(self.checkpoints.list(&root, limit).map_err(|e| e.to_string())?.into_iter().map(|c| (c.id, c.when)).collect())
+    }
+
     /// Files added, changed or removed since `checkpoint`.
     pub fn changed_since(&self, checkpoint: &str) -> Res<Vec<String>> {
         let root = self.real_root()?;
@@ -287,6 +293,18 @@ mod tests {
     }
     fn call(ws: &Workspace, name: &str, args: Value) -> Res<Value> {
         ws.run(name, &args).map(|s| serde_json::from_str(&s).unwrap())
+    }
+
+    #[test]
+    fn the_history_lists_checkpoints_newest_first_and_each_holds_the_file_as_it_was() {
+        let (_d, ws) = setup();
+        call(&ws, "files.write", json!({ "path": "wiki/Pages/A.md", "content": "one" })).unwrap();
+        let first = ws.mark("turn").unwrap().unwrap();
+        call(&ws, "files.write", json!({ "path": "wiki/Pages/A.md", "content": "two" })).unwrap();
+        let second = ws.mark("turn").unwrap().unwrap();
+        let ids: Vec<String> = ws.history(10).unwrap().into_iter().map(|(id, _)| id).collect();
+        assert!(ids.len() >= 2 && ids[0] == second && ids.contains(&first), "{ids:?}");
+        assert_eq!(ws.read_at(&first, "wiki/Pages/A.md").unwrap().as_deref(), Some("one"));
     }
 
     #[test]

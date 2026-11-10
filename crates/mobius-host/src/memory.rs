@@ -41,18 +41,25 @@ pub struct Item {
     pub text: String,
     pub category: String,
     pub source: String,
+    /// The person kept what Mobius learned (or wrote it themself): it is no longer shown as learned.
+    pub kept: bool,
 }
+
+/// Where a fact the person wrote themself says it came from.
+pub const YOURS: &str = "you added it";
 
 impl Item {
     fn line(&self) -> String {
-        if self.category.is_empty() && self.source.is_empty() {
+        if self.category.is_empty() && self.source.is_empty() && !self.kept {
             format!("- {}\n", self.text)
         } else {
-            format!("- {} <!-- {} · {} -->\n", self.text, if self.category.is_empty() { "you" } else { &self.category }, self.source)
+            format!("- {} <!-- {} · {}{} -->\n", self.text, if self.category.is_empty() { "you" } else { &self.category }, self.source, if self.kept { " · kept" } else { "" })
         }
     }
     pub fn to_json(&self) -> Value {
-        json!({ "text": self.text, "category": if self.category.is_empty() { "you" } else { &self.category }, "source": self.source })
+        // Learned: Mobius noticed it and the person has not kept it yet. A line written by hand, or by the person, is theirs.
+        let learned = !self.kept && !self.source.is_empty() && self.source != YOURS;
+        json!({ "text": self.text, "category": if self.category.is_empty() { "you" } else { &self.category }, "source": self.source, "learned": learned })
     }
 }
 
@@ -62,9 +69,12 @@ fn parse_line(line: &str) -> Option<Item> {
         Some(at) if line.ends_with("-->") => (line[..at].trim(), line[at + 4..line.len() - 3].trim()),
         _ => (line, ""),
     };
-    let (category, source) = meta.split_once('·').map_or((meta.trim(), ""), |(c, s)| (c.trim(), s.trim()));
+    let mut parts = meta.split('·').map(str::trim);
+    let category = parts.next().unwrap_or("");
+    let source = parts.next().unwrap_or("");
+    let kept = parts.next() == Some("kept");
     let category = if CATEGORIES.contains(&category) { category } else { "" };
-    clean(text).map(|text| Item { text, category: category.to_owned(), source: clean(source).unwrap_or_default() })
+    clean(text).map(|text| Item { text, category: category.to_owned(), source: clean(source).unwrap_or_default(), kept })
 }
 
 pub struct Memory {
@@ -126,7 +136,7 @@ impl Memory {
         if items.len() >= MAX_ITEMS {
             return Err(format!("memory is full ({MAX_ITEMS} facts); forget one first"));
         }
-        items.push(Item { text, category: category.to_owned(), source });
+        items.push(Item { text, category: category.to_owned(), source, kept: false });
         self.save(&items)?;
         Ok("Remembered.".into())
     }
@@ -147,6 +157,17 @@ impl Memory {
         }
         self.save(&items)?;
         Ok("Changed.".into())
+    }
+
+    /// The person kept a fact Mobius learned (on), or undid that (off).
+    pub fn keep(&self, text: &str, on: bool) -> Result<String, String> {
+        let text = clean(text).ok_or("give the exact words of the memory")?;
+        let _one = self.lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut items = self.items();
+        let item = items.iter_mut().find(|i| i.text.eq_ignore_ascii_case(&text)).ok_or("nothing remembered has those words")?;
+        item.kept = on;
+        self.save(&items)?;
+        Ok(if on { "Kept." } else { "Not kept." }.into())
     }
 
     pub fn forget(&self, text: &str) -> Result<String, String> {
@@ -225,8 +246,8 @@ mod tests {
         m.remember("Uses metric units").unwrap();
         let text = std::fs::read_to_string(&m.file).unwrap();
         assert!(text.contains("- Likes boutique hotels <!-- prefs · Browser, June -->\n- Rui runs the terrace venue <!-- people · Mail -->\n- Uses metric units\n"), "{text}");
-        assert_eq!(m.items()[0], Item { text: "Likes boutique hotels".into(), category: "prefs".into(), source: "Browser, June".into() });
-        assert_eq!(m.items()[2].to_json(), json!({ "text": "Uses metric units", "category": "you", "source": "" }));
+        assert_eq!(m.items()[0], Item { text: "Likes boutique hotels".into(), category: "prefs".into(), source: "Browser, June".into(), kept: false });
+        assert_eq!(m.items()[2].to_json(), json!({ "text": "Uses metric units", "category": "you", "source": "", "learned": false }));
         assert_eq!(m.list()[1], "Rui runs the terrace venue", "the agent sees the facts, not the marks");
         assert!(m.instructions().contains("- Rui runs the terrace venue\n"));
         m.edit("rui runs the terrace venue", "Rui runs the terrace venue; prefers email", "people").unwrap();
@@ -234,6 +255,22 @@ mod tests {
         assert!(m.edit("Likes boutique hotels", "Uses metric units", "").is_err());
         m.forget("Likes boutique hotels").unwrap();
         assert_eq!(m.items().len(), 2);
+    }
+
+    #[test]
+    fn what_mobius_learned_is_marked_until_the_person_keeps_it_and_their_own_lines_are_theirs() {
+        let (_d, m) = memory();
+        m.remember_with("Answers mail in the morning", "prefs", "Mail").unwrap();
+        m.remember_with("Vegetarian", "you", YOURS).unwrap();
+        assert_eq!(m.items()[0].to_json()["learned"], true);
+        assert_eq!(m.items()[1].to_json()["learned"], false, "what the person added is theirs");
+        m.keep("answers mail in the morning", true).unwrap();
+        assert_eq!(m.items()[0].to_json()["learned"], false);
+        assert!(std::fs::read_to_string(&m.file).unwrap().contains("- Answers mail in the morning <!-- prefs · Mail · kept -->"));
+        assert_eq!(m.items()[0].source, "Mail", "where it was noticed stays");
+        m.keep("Answers mail in the morning", false).unwrap();
+        assert_eq!(m.items()[0].to_json()["learned"], true, "undo");
+        assert!(m.keep("nothing", true).is_err());
     }
 
     #[test]

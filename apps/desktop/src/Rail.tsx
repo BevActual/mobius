@@ -25,6 +25,7 @@ export const APP_ICONS: Record<string, ReactNode> = {
   code: <><path d="m7 6-4 4 4 4M13 6l4 4-4 4M11 4.5l-2 11" /></>,
   docs: <><path d="M5.5 3h6l3 3v11h-9z" /><path d="M11.5 3v3h3M7.5 9.5h5M7.5 12h5M7.5 14.5h3" /></>,
   research: <><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4.5 4.5M6.5 8.5h4M8.5 6.5v4" /></>,
+  wiki: <><path d="M5 4.5h7.5l2.5 2.5v8.5H5z" /><path d="M7.5 8.5h5M7.5 11h5M7.5 13.5h3" /></>,
   reader: <><path d="M10 5.5C8.5 4.3 6.3 4 3.5 4.5v11c2.8-.5 5 0 6.5 1 1.5-1 3.7-1.5 6.5-1v-11c-2.8-.5-5-.2-6.5 1z" /><path d="M10 5.5v11" /></>,
   database: <><ellipse cx="10" cy="5.5" rx="6" ry="2.5" /><path d="M4 5.5v9c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-9M4 10c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5" /></>,
   terminal: <><rect x="3" y="4" width="14" height="12" rx="2" /><path d="m6.5 8 2.5 2-2.5 2M10.5 13h3" /></>,

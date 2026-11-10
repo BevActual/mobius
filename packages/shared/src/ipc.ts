@@ -154,7 +154,11 @@ export interface TasksChanged { list: string | null; by: 'person' | 'assistant' 
 export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; readOnly?: boolean }
 /** What Mobius remembers, sorted as Journey shows it: about you, preferences, projects, people, learned skills. */
 export type MemoryCategory = 'you' | 'prefs' | 'work' | 'people' | 'skills';
-export interface MemoryItem { text: string; category: MemoryCategory; source: string }
+export interface MemoryItem { text: string; category: MemoryCategory; source: string; /** Mobius noticed it and you have not kept it yet: shown dashed in How I work. */ learned?: boolean }
+/** A change offered to the Wiki: a line for a page, waiting in Shared with this wiki until it is kept or declined. */
+export interface WikiChange { id: string; from: string; page: string; text: string; whenMs: number }
+/** A wiki page as it was at a checkpoint. */
+export interface WikiVersion { checkpoint: string; whenMs: number; content: string }
 /** Someone in an email's From, To or Cc. */
 export interface MailPerson { name: string; email: string }
 /** A message in the Mail app's list. `box` is inbox or sent; `category` is sorted on this computer. */
@@ -310,6 +314,10 @@ export interface MobiusBridge {
     add(text: string, category: MemoryCategory): Promise<{ ok: true } | AgentFailure>;
     edit(old: string, text: string, category: MemoryCategory): Promise<{ ok: true } | AgentFailure>;
     forget(text: string): Promise<{ ok: true } | AgentFailure>;
+    /** Keep what Mobius learned (or undo that). */
+    keep?(text: string, on: boolean): Promise<{ ok: true } | AgentFailure>;
+    /** Undo of Not true: the fact comes back as it was. */
+    restore?(text: string, category: MemoryCategory, source: string): Promise<{ ok: true } | AgentFailure>;
     /** The agent remembered or forgot something, or it was forgotten in Settings. */
     onChange(listener: () => void): () => void;
   };
@@ -556,6 +564,17 @@ export interface MobiusBridge {
   };
   /** The Docs app: documents kept like notes, as Markdown in `docs/<folder>/<doc>.md`. Only the Tauri shell has it. */
   docs?: NonNullable<MobiusBridge['notes']>;
+  /** The Wiki app: pages kept like notes, as Markdown in `wiki/<folder>/<page>.md`, and the changes offered to it. */
+  wiki?: NonNullable<MobiusBridge['notes']> & {
+    versions?(path: string): Promise<WikiVersion[] | NotesFailure>;
+    incoming?(): Promise<WikiChange[]>;
+    offer?(from: string, text: string, page?: string): Promise<WikiChange | NotesFailure>;
+    /** Keep a change: its line (or `text`, edited first) is added to its page. */
+    keepChange?(id: string, text?: string): Promise<{ ok: true; change: WikiChange; line: string } | NotesFailure>;
+    declineChange?(id: string): Promise<{ ok: true; change: WikiChange } | NotesFailure>;
+    /** Undo a keep (`keptLine` is taken back out of the page) or a decline: the change waits again. */
+    undoChange?(change: WikiChange, keptLine: string | null): Promise<{ ok: true } | NotesFailure>;
+  };
   /** The Slides app: decks kept like notes, as Markdown in `slides/<folder>/<deck>.md`. Only the Tauri shell has it. */
   slides?: NonNullable<MobiusBridge['notes']>;
   /** The Video app: projects in `video/`, each with its clips and `cut.json`. Only the Tauri shell has it. */
