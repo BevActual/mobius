@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import type { ConversationInfo, ProjectInfo, ProjectLevel, WikiChange } from '@mobius/shared';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { conversationIdFor, type Bot, type ConversationInfo, type Message, type ProjectInfo, type ProjectLevel, type WikiChange } from '@mobius/shared';
 import { appName, type AppId } from './apps';
 import type { WikiIncoming } from './Wiki';
 
@@ -24,6 +24,19 @@ export function useProjects() {
   }, [api]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => api?.onChanged(() => void load()), [api, load]);
+  // A bot's side thread that finishes reports back: its last answer is kept for the thread it was asked from.
+  const sides = useRef(list);
+  sides.current = list;
+  useEffect(() => window.mobius.agent.onNotification((n) => {
+    if (n.method !== 'agent.event' || !['done', 'failed'].includes(n.params.event.kind)) return;
+    const side = sides.current.flatMap((p) => p.sides ?? []).find((s) => s.conversation === n.params.conversation && !s.report);
+    if (!side) return;
+    void window.mobius.agent.history(side.conversation).then((history: Message[]) => {
+      const last = history.findLast((m) => m.role === 'assistant' && m.text.trim() !== '');
+      const text = last && last.role === 'assistant' ? last.text : n.params.event.kind === 'failed' ? 'It could not finish.' : 'Done.';
+      return api?.report(side.conversation, text);
+    }).then(() => load()).catch(() => undefined);
+  }), [api, load]);
   const failed = (r: unknown): string | null => (r && typeof r === 'object' && 'ok' in r && (r as { ok: unknown }).ok === false ? String((r as { message?: unknown }).message ?? 'That could not be done.') : null);
   const create = async (name: string) => {
     const r = await api?.create(name).catch(() => null);
@@ -35,9 +48,21 @@ export function useProjects() {
   const setRule = async (id: string, app: AppId, level: ProjectLevel | 'follow') => { setProblem(failed(await api?.setRule(id, app, level).catch(() => null))); await load(); };
   const addThread = async (id: string, conversation: string) => { const r = await api?.addThread(id, conversation).catch(() => null); setProblem(failed(r)); await load(); return failed(r) === null; };
   const rename = async (id: string, name: string) => { const r = await api?.rename(id, name).catch(() => null); const why = r ? failed(r) : 'Projects are not available here.'; setProblem(why); await load(); return why === null; };
+  /** Ask a bot, from a project thread, to do something on the side: a conversation of its own, under the project's rules. */
+  const askBot = async (project: ProjectInfo, parent: string, bot: Bot, ask: string) => {
+    const conversation = conversationIdFor(bot.id, crypto.randomUUID());
+    const r = await api?.addSide(project.id, parent, conversation, bot.id, bot.name, ask).catch(() => null);
+    const why = r ? failed(r) : 'Projects are not available here.';
+    setProblem(why);
+    if (why) return false;
+    await load();
+    const sent = await window.mobius.agent.send(conversation, ask).catch(() => null);
+    if (!sent || !sent.ok) { setProblem(sent && !sent.ok ? sent.error : 'The bot could not be asked.'); return false; }
+    return true;
+  };
   const remove = async (id: string) => { await api?.remove(id).catch(() => null); setOpenId(null); await load(); };
   const open = list.find((p) => p.id === openId) ?? list[0] ?? null;
-  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, addThread, remove, problem };
+  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, addThread, askBot, remove, problem };
 }
 export type ProjectsState = ReturnType<typeof useProjects>;
 
@@ -89,6 +114,38 @@ function MoveHere({ projects, project, conversations }: { projects: ProjectsStat
       <option value="">Move a conversation here…</option>
       {free.map((c) => <option key={c.id} value={c.id}>{c.title || 'A conversation'}</option>)}
     </select>
+  );
+}
+
+/**
+ * In a project thread, above the conversation: the bots asked from it to do something on the side, and what each
+ * reported back. Ask a bot starts one.
+ */
+export function SideThreads({ projects, conversation, bots, onOpen }: { projects: ProjectsState; conversation: string; bots: readonly Bot[]; onOpen: (conversation: string) => void }) {
+  const project = projects.list.find((p) => p.threads.includes(conversation));
+  const [bot, setBot] = useState('');
+  const [ask, setAsk] = useState('');
+  const helpers = bots.filter((b) => b.id !== 'main');
+  if (!project) return null;
+  const sides = (project.sides ?? []).filter((s) => s.parent === conversation);
+  if (helpers.length === 0 && sides.length === 0) return null;
+  const chosen = helpers.find((b) => b.id === bot) ?? helpers[0];
+  return (
+    <section className="side-threads" aria-label="Side threads">
+      {sides.map((s) => (
+        <div key={s.conversation} className="side-thread" role="group" aria-label={`From ${s.botName}`} data-working={s.report ? undefined : true}>
+          <span className="side-thread-head">{s.report ? `From ${s.botName}` : `${s.botName} is working on it`} · “{s.ask}”</span>
+          {s.report && <p className="side-thread-report">{s.report}</p>}
+          <button type="button" className="review-btn" onClick={() => onOpen(s.conversation)}>Open</button>
+        </div>
+      ))}
+      {chosen && (
+        <form className="side-thread-ask" onSubmit={(e) => { e.preventDefault(); const t = ask.trim(); if (t) void projects.askBot(project, conversation, chosen, t).then((ok) => { if (ok) setAsk(''); }); }}>
+          <select aria-label="Bot" value={chosen.id} onChange={(e) => setBot(e.target.value)}>{helpers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
+          <input aria-label="Ask a bot" placeholder={`Ask ${chosen.name} to do something on the side`} value={ask} onChange={(e) => setAsk(e.target.value)} />
+        </form>
+      )}
+    </section>
   );
 }
 
@@ -211,7 +268,16 @@ export function ProjectPage({ projects, conversations, incoming, onOpenThread, o
         <h2 className="ext-heading">Chat and threads</h2>
         {threads.length === 0 && <p className="note-empty">No threads yet.</p>}
         <ul className="clist" role="list" aria-label="Threads">
-          {threads.map((t) => <li key={t.id}><button type="button" className="files-row" onClick={() => onOpenThread(t.id)}><span className="ext-name">{t.info?.title || 'New thread'}</span>{t.info && <span className="ext-state">{t.info.messages === 1 ? '1 message' : `${t.info.messages} messages`}</span>}</button></li>)}
+          {threads.map((t) => (
+            <li key={t.id}>
+              <button type="button" className="files-row" onClick={() => onOpenThread(t.id)}><span className="ext-name">{t.info?.title || 'New thread'}</span>{t.info && <span className="ext-state">{t.info.messages === 1 ? '1 message' : `${t.info.messages} messages`}</span>}</button>
+              {(p.sides ?? []).filter((s) => s.parent === t.id).map((s) => (
+                <button key={s.conversation} type="button" className="files-row project-side" onClick={() => onOpenThread(s.conversation)}>
+                  <span className="ext-name">{s.botName}</span><span className="ext-state">{s.report ? 'Reported back' : 'Working'} · {s.ask}</span>
+                </button>
+              ))}
+            </li>
+          ))}
         </ul>
         <div className="project-thread-actions">
           <button type="button" className="btn primary" onClick={() => onNewThread(p.id)}>New thread</button>

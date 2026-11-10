@@ -1717,6 +1717,14 @@ impl Bridge {
                 }),
                 _ => Err("that cannot be set".to_owned()),
             },
+            "addSide" => match (text(0), text(1).filter(|c| agent::is_conversation_id(c)), text(2).filter(|c| agent::is_conversation_id(c)), text(3), text(4), text(5)) {
+                (Some(id), Some(parent), Some(conversation), Some(bot), Some(bot_name), Some(ask)) => p.add_side(id, crate::projects::Side { conversation: conversation.to_owned(), parent: parent.to_owned(), bot: bot.to_owned(), bot_name: bot_name.chars().take(60).collect(), ask: ask.to_owned(), report: None }).map(|project| json!(project)),
+                _ => Err("that side thread cannot be started".to_owned()),
+            },
+            "report" => match (text(0), text(1)) {
+                (Some(conversation), Some(report)) => p.report(conversation, report).map(|project| json!(project)),
+                _ => Err("that report cannot be kept".to_owned()),
+            },
             "addThread" => match (text(0), text(1).filter(|c| agent::is_conversation_id(c))) {
                 (Some(id), Some(conversation)) => p.add_thread(id, conversation).map(|project| json!(project)),
                 _ => Err("that conversation cannot be added".to_owned()),

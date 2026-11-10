@@ -190,3 +190,27 @@ test('a project can be renamed, and its folder and its memory page follow the na
   expect(fs.readFileSync(workspace('wiki', 'Projects', 'Kestrel P3.md'), 'utf8')).toContain('Builds start on Mondays');
   await expect(page.getByRole('list', { name: 'What this project knows' })).toContainText('Builds start on Mondays');
 });
+
+test('a bot asked from a project thread works in a side thread of its own and reports back into the thread', async () => {
+  await start([says(['Hi.']), says(['Three venues: Casa A, Quinta B and Palácio C.'])]);
+  await shell().evaluate(() => (window as unknown as { mobius: { bots: { create(d: { name: string; instructions: string; model: string }): Promise<unknown> } } }).mobius.bots.create({ name: 'Research', instructions: 'Find things out.', model: '' }));
+  await openProjects();
+  await newProject('Kestrel');
+  await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: 'New thread' }).click();
+  await inThread();
+  await say('hi');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Hi.');
+  const sides = shell().getByRole('region', { name: 'Side threads' }).first();
+  await sides.getByRole('combobox', { name: 'Bot' }).selectOption({ label: 'Research' });
+  await sides.getByRole('textbox', { name: 'Ask a bot' }).fill('Find three venues in Lisbon');
+  await sides.getByRole('textbox', { name: 'Ask a bot' }).press('Enter');
+  const report = sides.getByRole('group', { name: 'From Research' });
+  await expect(report).toContainText('From Research · “Find three venues in Lisbon”');
+  await expect(report).toContainText('Three venues: Casa A, Quinta B and Palácio C.');
+  // The side thread is the project's too, under the thread it was asked from.
+  const project = JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0];
+  expect(project.sides).toHaveLength(1);
+  expect(project.sides[0].parent).toBe(project.threads[0]);
+  await openProjects();
+  await expect(shell().getByRole('region', { name: 'Kestrel' }).getByRole('list', { name: 'Threads' })).toContainText('ResearchReported back · Find three venues in Lisbon');
+});

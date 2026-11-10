@@ -2332,3 +2332,14 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .project-thread-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
 .project-title { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .project-title input { font: inherit; font-size: var(--fs-xl); padding: 2px 8px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--field); color: inherit; }
+
+/* A project thread's side threads: bots asked to do something, and what they reported back. */
+.side-threads { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }
+.side-thread { display: grid; gap: 4px; padding: 6px 10px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
+.side-thread[data-working] .side-thread-head { color: var(--muted); }
+.side-thread-head { font-weight: 500; }
+.side-thread-report { margin: 0; white-space: pre-wrap; }
+.side-thread > .review-btn { justify-self: start; }
+.side-thread-ask { display: flex; gap: 6px; }
+.side-thread-ask input { flex: 1; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }
+.project-side { padding-left: var(--sp-6); }

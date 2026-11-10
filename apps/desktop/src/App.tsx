@@ -57,7 +57,7 @@ import { SkillEditor } from './Skills';
 import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
-import { ProjectPage, ProjectsSidebar, useProjects } from './Projects';
+import { ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
 import { HowIWork, SharedQueue, WikiSidebar, WikiVersions, useWikiIncoming, type WikiPlace } from './Wiki';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
@@ -1234,7 +1234,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            {...(inMail ? { appCard: <MailPlanCard onAsk={(text) => void conversation.send(text, [])} onChanged={() => void mail.refresh()} /> } : {})}
+            appCard={inMail ? <MailPlanCard onAsk={(text) => void conversation.send(text, [])} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
@@ -1273,7 +1273,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            {...(inMail ? { appCard: <MailPlanCard onAsk={(text) => void conversation.send(text, [])} onChanged={() => void mail.refresh()} /> } : {})}
+            appCard={inMail ? <MailPlanCard onAsk={(text) => void conversation.send(text, [])} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
