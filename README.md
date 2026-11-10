@@ -1,21 +1,32 @@
 <div align="center">
 
-<img src="docs/readme/mark.png" width="112" alt="The Mobius mark: a glossy twisted ring">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/banner-dark.png">
+  <img src="docs/readme/banner-light.png" alt="Mobius: one app for everything you do on a computer, with an agent inside it">
+</picture>
 
-# Mobius
+<h3>Mail, a browser, notes, sheets, a calendar, a design canvas, a code editor, a music studio.<br>
+One window that changes shape around whichever app you open, and one Mobius that works in all of them.</h3>
 
-**One app for everything you do on a computer, with an agent inside it.**
+<p>
+  <a href="https://claude.ai/artifact/WB1MWLwD8ceZgeJyxMcQRR"><b>Design canvas</b></a> &nbsp;·&nbsp;
+  <a href="https://claude.ai/artifact/Qa2vt5xSFiTUzoCnYQHqRJ"><b>From the canvas to the app</b></a> &nbsp;·&nbsp;
+  <a href="#where-it-stands"><b>Where it stands</b></a> &nbsp;·&nbsp;
+  <a href="#build-it"><b>Build it</b></a>
+</p>
 
-Mail, a browser, notes, sheets, a calendar, a design canvas, a code editor, a music studio.<br>
-One window that changes shape around whichever app you open, and one Mobius that can work in all of them.
-
-[Design canvas](https://claude.ai/artifact/WB1MWLwD8ceZgeJyxMcQRR) · [From the canvas to the app](https://claude.ai/artifact/Qa2vt5xSFiTUzoCnYQHqRJ) · [Build it](#build-it)
+<p>
+  <img alt="Windows first" src="https://img.shields.io/badge/Windows-first-5856D6?style=flat-square">
+  <img alt="Rust core" src="https://img.shields.io/badge/core-Rust-5856D6?style=flat-square">
+  <img alt="Tauri and React" src="https://img.shields.io/badge/shell-Tauri%20%2B%20React-5856D6?style=flat-square">
+  <img alt="Status: in development" src="https://img.shields.io/badge/status-in%20development-8E8E93?style=flat-square">
+</p>
 
 <br>
 
 <img src="docs/readme/desk.png" alt="The Mobius desk: what happened overnight, a morning brief, bots at work, and changes waiting in each app">
 
-<sub>The desk, from the design canvas. With no app open, home is a desk of live cards and a conversation with Mobius.</sub>
+<sub>The desk. With no app open, home is a desk of live cards and a conversation with Mobius.</sub>
 
 </div>
 
@@ -25,12 +36,36 @@ One window that changes shape around whichever app you open, and one Mobius that
 
 Most AI assistants sit beside your apps in a chat box. Mobius turns that around: **the apps are the centre**, and the agent lives inside them.
 
-- **One window, many apps.** Simple apps like Notes and deep ones like a studio built the Ableton way share one shell. The sidebar belongs to the open app, its head is the app switcher, and it morphs in place as you move between apps.
-- **Mobius proposes, you keep.** Anything Mobius writes shows up in place with a dashed edge until you decide. Every app has the same bar: **Keep**, **Discard**, **Try another**, and **Why this** to see its reasoning and sources.
-- **You set how far it goes.** Three modes, cycled with <kbd>Shift</kbd>+<kbd>Tab</kbd>: **Ask first**, **Propose** (the default) and **Act**. Each app can follow the mode, always ask, or be off. Paying, sending, deleting and running commands always ask.
-- **Nothing is final.** Every change has a receipt in Activity, and **Rewind to here** takes your work back to any step.
-- **Bots are apps too.** Turn a conversation into a bot, choose how it starts (a schedule, an email arriving) and what it may touch. Bots report back on the desk.
-- **One look.** One theme, one review bar, one mark for Mobius's work, across every app.
+<table>
+<tr>
+<td width="33%" valign="top">
+<h4>One window, many apps</h4>
+Simple apps like Notes and deep ones like a studio built the Ableton way share one shell. The sidebar belongs to the open app and morphs in place as you move between apps.
+</td>
+<td width="33%" valign="top">
+<h4>Mobius proposes, you keep</h4>
+What Mobius writes shows up in place with a dashed edge until you decide. Every app has the same bar: <b>Keep</b>, <b>Discard</b>, <b>Try another</b>, and <b>Why this</b>.
+</td>
+<td width="33%" valign="top">
+<h4>You set how far it goes</h4>
+<b>Ask first</b>, <b>Propose</b> (the default) or <b>Act</b>, cycled with <kbd>Shift</kbd>+<kbd>Tab</kbd>, and set per app. Paying, sending, deleting and running commands always ask.
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
+<h4>Nothing is final</h4>
+Every change has a receipt in Activity, and <b>Rewind to here</b> takes your work back to any step.
+</td>
+<td width="33%" valign="top">
+<h4>Bots are apps too</h4>
+Turn a conversation into a bot, choose how it starts and what it may touch. Bots report back on the desk.
+</td>
+<td width="33%" valign="top">
+<h4>One look</h4>
+One theme, one review bar and one mark for Mobius's work, in every app.
+</td>
+</tr>
+</table>
 
 <br>
 
