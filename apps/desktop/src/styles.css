@@ -1108,7 +1108,12 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .note-row[data-proposed], .list-row[data-proposed], .task[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
 /* Why this: what was asked, under a proposal's summary. */
 .review-why { display: block; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
-/* New, as the first row of an app's list. */
+/* New, as the first row of an app's list, and under it Mobius's starts: dashed indigo, as Mobius's things are. */
+.side-new { margin: 0 0 4px; }
+.side-starts { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 var(--sp-2) 4px 32px; }
+.side-start { height: 22px; padding: 0 8px; border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: var(--radius-pill); font-size: var(--fs-xs); color: var(--accent); background: transparent; }
+.side-start:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.side-new > .side-new-row { margin: 0; }
 .side-new-row { display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; margin: 0 0 4px; padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--ink); font-size: var(--fs-md); text-align: left; }
 .side-new-row svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; }
 .side-new-row:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
@@ -1353,7 +1358,10 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .cal-suggestion-top b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .cal-suggestion-top span { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
 .cal-suggestion p { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
-.cal-suggestion-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
+.cal-suggestion-actions { display: flex; gap: 2px; justify-content: flex-end; }
+/* The event just deleted, with Undo, for a moment. */
+.cal-undo { display: flex; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-2); padding: 4px 6px 4px 12px; border-radius: var(--radius-panel); background: var(--field); font-size: var(--fs-sm); }
+.cal-undo span { flex: 1; }
 
 /* Docs: a page to write on, its outline beside it, and one row of formatting above. */
 .stage .doc-editor { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--panel); }

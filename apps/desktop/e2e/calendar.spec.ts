@@ -155,8 +155,9 @@ test('the agent suggests an event without asking, and it is added only when the 
   await expect(page().getByRole('button', { name: /^Suggested: Prep slides, 10:00–11:00/ })).toBeVisible();
   expect(fs.existsSync(file('Calendar')) ? fs.readFileSync(file('Calendar'), 'utf8') : '').not.toContain('Prep slides');
 
-  await box.getByRole('article', { name: 'Gym' }).getByRole('button', { name: 'Decline' }).click();
-  await box.getByRole('article', { name: 'Prep slides' }).getByRole('button', { name: 'Add' }).click();
+  // Like every proposal: Discard declines it, Keep adds it.
+  await box.getByRole('article', { name: 'Gym' }).getByRole('button', { name: 'Discard' }).click();
+  await box.getByRole('article', { name: 'Prep slides' }).getByRole('button', { name: 'Keep' }).click();
   await expect(box).toHaveCount(0);
   await expect(page().getByRole('button', { name: /^Prep slides, 10:00–11:00, Calendar/ })).toBeVisible();
   await expect(page().getByRole('button', { name: /Gym/ })).toHaveCount(0);

@@ -76,6 +76,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'changes.before': ((_conversation: string, path: string) => ({ ok: true, text: path.startsWith('tasks/') ? '# P2 build\n\n- [x] Confirm the build week with everyone\n- [ ] Hold 8 packs at Veltro\n- [ ] Book the sled for Friday\n- [x] Draft the build budget\n' : '# Supplier notes\n' })) as never,
   'calendar.calendars': () => ['Kestrel P2', 'Work', 'Home'],
   'calendar.events': () => EVENTS,
+  // Time Mobius suggests, waiting to be kept.
+  'calendar.suggestions': () => [{ id: 's1', calendar: 'Kestrel P2', title: 'Prep the build plan', start: `${day(1)}T14:00`, end: `${day(1)}T15:00`, allDay: false, location: '', notes: '', why: 'your first free hour before the build week call' }],
   'mail.accounts': () => [{ id: 'a1', name: 'Northway', email: 'you@northway.example', lastSyncMs: now, problem: null }],
   'mail.list': () => MAIL,
   // A reply Mobius suggested to Priya, waiting to be kept.

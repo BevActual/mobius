@@ -255,7 +255,8 @@ export interface ChatPanelProps {
   /** False for a floating panel that slid in because the pointer reached the edge: it must not take the keyboard. */
   takeFocus?: boolean;
   /** Material handed over from elsewhere in the window (text selected in a note): added as a chip, then the box is focused. */
-  incoming?: { token: number; item: ContextItem } | null;
+  /** Something to attach, or words to put in the message box (a start from an app's New row). */
+  incoming?: { token: number; item?: ContextItem; text?: string } | null;
   conversations: ConversationInfo[];
   activeConversation: string;
   onNewConversation: () => void;
@@ -408,8 +409,9 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
 
   useEffect(() => {
     if (!incoming) return;
-    const { item } = incoming;
-    setContext((items) => (items.some((i) => i.source === item.source && i.text === item.text) ? items : [...items, item].slice(-5)));
+    const { item, text } = incoming;
+    if (text !== undefined) setDraft(text);
+    if (item) setContext((items) => (items.some((i) => i.source === item.source && i.text === item.text) ? items : [...items, item].slice(-5)));
     queueMicrotask(() => field.current?.focus());
   }, [incoming]);
 

@@ -5,7 +5,7 @@ import { sendCommand } from './commands';
 import { MAIN_BOT_ID, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type MailContent, type SidebarMode } from '@mobius/shared';
 import { appName, askAbout, isAvailable, type AppId, noteOpened, APPS } from './apps';
 import { AnimatePresence, motion } from 'motion/react';
-import { databaseOutline, noteContext, tasksContext, type SurfaceState } from './surface';
+import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
 import { quick } from './motion';
@@ -761,7 +761,7 @@ export function App() {
             ) : inDocs ? (
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} />
             ) : inCalendar ? (
-              <CalendarSidebar calendar={calendar} pin={pinNode} />
+              <CalendarSidebar calendar={calendar} pin={pinNode} onNew={createFor('calendar').run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inTasks ? (
               <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} />
             ) : (
@@ -815,7 +815,11 @@ export function App() {
   // A short message about something done without the agent, such as a task made from a selection.
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
-  const [incoming, setIncoming] = useState<{ token: number; item: ContextItem } | null>(null);
+  const [incoming, setIncoming] = useState<{ token: number; item?: ContextItem; text?: string } | null>(null);
+  /** A start from an app's New row: its words go in the message box, for the person to finish and send. */
+  const startWithMobius = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), text: prompt }); };
+  /** Mobius's starts for the open app: the suggestions that need nothing attached. */
+  const startsFor = (id: AppId) => suggestionsFor({ ...surface, app: id }).filter((s) => !s.attach).slice(0, 2);
   // Pinned favourites: notes and task lists one click away in the sidebar.
   const favourites = appearance.value.favourites ?? [];
   const pinnedNotes = useMemo(() => new Set(favourites.filter((f) => f.kind === 'note').map((f) => f.id)), [favourites]);
@@ -1316,7 +1320,7 @@ export function App() {
         needsYou={needsYou}
         counts={{ browser: browser.tabs.length, tasks: dueToday }}
         create={createFor(app)}
-        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks', 'mail'] as AppId[]).includes(app)}
+        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar'] as AppId[]).includes(app)}
         menus={wide ? menuBar : null}
         chrome={wide && inBrowser && !settingsOpen ? browserChrome : null}
         mobius={wide && hasRight && !settingsOpen ? {

@@ -4,6 +4,8 @@ import type { CalendarDraft, CalendarEvent, CalendarSuggestion } from '@mobius/s
 import { onCommand } from './commands';
 import { addDays, allDayOn, calendarColor, clock, daysFor, eventsOn, isoDay, isoTime, localDate, placeDay, sameDay, step, type CalendarMode } from './calendar-view';
 import type { CalendarState } from './useCalendar';
+import { ReviewActions } from './ReviewBar';
+import { SideNew, type Start } from './SideNew';
 
 const HOUR_PX = 48;
 const MODES: { id: CalendarMode; name: string }[] = [{ id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }];
@@ -83,7 +85,7 @@ function CalendarRow({ calendar, name }: { calendar: CalendarState; name: string
 }
 
 /** The calendars, each with its colour (unticked ones are hidden), grouped by where they are kept. */
-export function CalendarSidebar({ calendar, pin }: { calendar: CalendarState; pin?: ReactNode }) {
+export function CalendarSidebar({ calendar, pin, onNew, starts, onStart }: { calendar: CalendarState; pin?: ReactNode; onNew?: () => void; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [adding, setAdding] = useState(false);
@@ -105,6 +107,7 @@ export function CalendarSidebar({ calendar, pin }: { calendar: CalendarState; pi
         </span>
       </div>
       <div className="calendar-groups">
+        {onNew && <SideNew item="event" onNew={onNew} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />}
         <ul className="calendar-list" role="list" aria-label="Calendars">
           {local.map((c) => <CalendarRow key={c} calendar={calendar} name={c} />)}
         </ul>
@@ -270,7 +273,7 @@ function MonthGrid({ calendar, days, onNew, onOpen }: { calendar: CalendarState;
   );
 }
 
-function EventEditor({ calendar, editing, onClose }: { calendar: CalendarState; editing: Editing; onClose: () => void }) {
+function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: CalendarState; editing: Editing; onClose: () => void; onDeleted?: (event: CalendarEvent) => void }) {
   const original = 'event' in editing ? editing.event : null;
   const startText = 'event' in editing ? editing.event.start : editing.start;
   const initialAllDay = 'event' in editing ? editing.event.allDay : editing.allDay;
@@ -341,7 +344,7 @@ function EventEditor({ calendar, editing, onClose }: { calendar: CalendarState; 
         {original?.repeats && !locked && <p className="cal-editor-note">This event repeats. Changes apply to every time it happens.</p>}
         {calendar.message && <p className="tasks-message" role="alert">{calendar.message}</p>}
         <div className="cal-editor-actions">
-          {original && !locked && <button type="button" className="btn cal-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) onClose(); })}>Delete</button>}
+          {original && !locked && <button type="button" className="btn cal-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete</button>}
           <span className="spacer" />
           <button type="button" className="btn" onClick={onClose}>{locked ? 'Close' : 'Cancel'}</button>
           {!locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
@@ -358,12 +361,12 @@ function suggestedWhen(s: CalendarSuggestion): string {
   return `${day(s.start)}, ${clock(s.start)}–${clock(s.end)}`;
 }
 
-/** What Mobius suggests, as on the design: each with why, and Decline or Add. Nothing is added until Add. */
+/** What Mobius suggests, each with why it suggests it: Keep adds it, Discard declines it, Try another asks again. */
 function Suggestions({ calendar, focus }: { calendar: CalendarState; focus: string | null }) {
   const [busy, setBusy] = useState<string | null>(null);
   const cards = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (focus) cards.current?.querySelector<HTMLElement>(`[data-suggestion="${CSS.escape(focus)}"] button.primary`)?.focus();
+    if (focus) cards.current?.querySelector<HTMLElement>(`[data-suggestion="${CSS.escape(focus)}"] button[data-kind="keep"]`)?.focus();
   }, [focus]);
   if (calendar.suggestions.length === 0) return null;
   const answer = async (id: string, add: boolean) => {
@@ -375,16 +378,15 @@ function Suggestions({ calendar, focus }: { calendar: CalendarState; focus: stri
     <section className="cal-suggestions" aria-label="Suggested by Mobius">
       <div className="cal-suggestions-head">
         <span>Suggested by Mobius</span>
-        <span className="cal-suggestions-note">Nothing is added until you choose Add. Mobius never invites anyone.</span>
+        <span className="cal-suggestions-note">Nothing is added until you keep it. Mobius never invites anyone.</span>
       </div>
       <div className="cal-suggestion-list" ref={cards}>
         {calendar.suggestions.map((s) => (
           <article key={s.id} className="cal-suggestion" data-suggestion={s.id} aria-label={s.title} data-focus={focus === s.id || undefined}>
             <div className="cal-suggestion-top"><b>{s.title}</b><span>{suggestedWhen(s)}</span></div>
-            <p>{s.why}</p>
-            <div className="cal-suggestion-actions">
-              <button type="button" className="btn" disabled={busy === s.id} onClick={() => void answer(s.id, false)}>Decline</button>
-              <button type="button" className="btn primary" disabled={busy === s.id} onClick={() => void answer(s.id, true)}>Add</button>
+            {s.why && <p className="review-why">Why this: {s.why}</p>}
+            <div className="cal-suggestion-actions" aria-busy={busy === s.id || undefined}>
+              <ReviewActions onKeep={() => answer(s.id, true)} onDiscard={() => answer(s.id, false)} keepTitle="Add it to your calendar" discardTitle="Decline it" />
             </div>
           </article>
         ))}
@@ -396,6 +398,15 @@ function Suggestions({ calendar, focus }: { calendar: CalendarState; focus: stri
 /** The Calendar app: a day, a week or a month, events to open and change, and new ones on a double-click. */
 export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarState; newToken?: number }) {
   const [editing, setEditing] = useState<Editing | null>(null);
+  // The event just deleted, for a moment, so it can be put back.
+  const [deleted, setDeleted] = useState<CalendarEvent | null>(null);
+  useEffect(() => { if (!deleted) return undefined; const t = window.setTimeout(() => setDeleted(null), 10_000); return () => window.clearTimeout(t); }, [deleted]);
+  const undoDelete = async () => {
+    if (!deleted) return;
+    const { calendar: into, title, start, end, location, notes } = deleted;
+    setDeleted(null);
+    await calendar.add(into, { title, start, end, location, notes });
+  };
   const [focus, setFocus] = useState<string | null>(null);
   // A suggestion in the grid opens nothing to edit: it points at its card, where it is added or declined.
   const open = (event: Shown) => { if (event.suggestion) setFocus(event.suggestion.id); else setEditing({ event }); };
@@ -419,11 +430,17 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
         <button type="button" className="btn primary" onClick={() => setEditing({ start: sameDay(calendar.anchor, new Date()) ? fresh() : `${isoDay(calendar.anchor)}T09:00`, allDay: false })}>New event</button>
       </header>
       {calendar.message && !editing && <p className="tasks-message" role="alert">{calendar.message}</p>}
+      {deleted && (
+        <p className="cal-undo" role="status">
+          <span>Deleted “{deleted.title}”.</span>
+          <button type="button" className="review-btn" onClick={() => void undoDelete()}>Undo</button>
+        </p>
+      )}
       <Suggestions calendar={calendar} focus={focus} />
       {calendar.mode === 'month'
         ? <MonthGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} />
         : <TimeGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} />}
-      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} />}
+      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={setDeleted} />}
     </section>
   );
 }
