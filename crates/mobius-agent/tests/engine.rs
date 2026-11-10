@@ -96,7 +96,9 @@ fn a_plain_answer_ends_the_turn_and_the_first_request_describes_the_conversation
     assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
     assert!(turn.is_finished());
     assert_eq!(turn.messages().last(), Some(&Message::Assistant { text: "Hello there.".into(), tool_calls: vec![] }));
-    assert_eq!(turn.drain_events(), vec![AgentEvent::Message { text: "Hello there.".into() }, AgentEvent::Done]);
+    let events = turn.drain_events();
+    assert!(matches!(events[0], AgentEvent::Context { used, limit } if used > 0 && limit > used), "each model call says how full the window is: {:?}", events[0]);
+    assert_eq!(events[1..], [AgentEvent::Message { text: "Hello there.".into() }, AgentEvent::Done]);
     assert!(turn.drain_events().is_empty(), "events are handed over once");
 }
 
@@ -115,7 +117,7 @@ fn an_allowed_tool_call_runs_and_its_result_goes_back_to_the_model() {
     let second = &provider.requests()[1];
     assert!(matches!(second.messages.last(), Some(Message::Tool { .. })), "the tool result is the newest message the model sees");
     assert!(second.messages.iter().any(|m| matches!(m, Message::Tool { call_id, .. } if call_id == "c1")));
-    let kinds: Vec<AgentEvent> = turn.drain_events();
+    let kinds: Vec<AgentEvent> = turn.drain_events().into_iter().filter(|e| !matches!(e, AgentEvent::Context { .. })).collect();
     assert_eq!(kinds[0], AgentEvent::Message { text: "Let me check.".into() });
     assert_eq!(kinds[1], AgentEvent::ToolCall { call_id: "c1".into(), name: "demo.echo".into() });
     assert_eq!(kinds[2], AgentEvent::ToolResult { call_id: "c1".into(), name: "demo.echo".into(), is_error: false });

@@ -174,6 +174,8 @@ fn notifications_are_checked_before_the_window_sees_them() {
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "compacted", "messages": 12 }))).is_some());
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "compacted" }))).is_none());
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "compacted", "messages": "12" }))).is_none());
+    assert!(parse_notification("agent.event", &ev(json!({ "kind": "context", "used": 9000, "limit": 40000 }))).is_some());
+    assert!(parse_notification("agent.event", &ev(json!({ "kind": "context", "used": 9000, "limit": 0 }))).is_none());
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "todo", "items": [{ "text": "a", "status": "in_progress" }] }))).is_some());
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "question", "call_id": "q", "question": "Which?", "choices": ["A"] }))).is_some());
     for bad in [

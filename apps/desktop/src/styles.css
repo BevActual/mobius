@@ -2468,3 +2468,9 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 
 /* The time above a group of messages: "Today 9:12". */
 .chat .msg-stamp { align-self: center; margin: 6px 0 2px; font-size: 11px; line-height: 1.3; color: var(--muted, #86868B); text-align: center; font-variant-numeric: tabular-nums; }
+
+/* How full the model's window is: a quiet grey ring with its percent, at the end of the composer's row. */
+.context-ring { display: inline-flex; align-items: center; gap: 4px; margin-right: 2px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; cursor: default; user-select: none; }
+.context-ring svg { flex: none; }
+.context-ring-track { fill: none; stroke: currentColor; stroke-opacity: 0.25; stroke-width: 1.6; }
+.context-ring-fill { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }

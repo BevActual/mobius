@@ -601,6 +601,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
           {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
           <Composer
             takeFocus={takeFocus}
+            contextUse={state.context}
             draft={draft}
             onDraft={setDraft}
             context={context}

@@ -108,6 +108,8 @@ test('"Always allow" is remembered, so the next use does not ask', async () => {
   // Messages sent close together share one time, above the first.
   await expect(log().locator('.msg-stamp')).toHaveCount(1);
   await expect(log().locator('.msg-stamp')).toHaveText(/^Today \d{1,2}[:.]\d{2}/);
+  // The composer says how full the model's window is, once the core has said.
+  await expect(mobius!.shell.getByRole('meter', { name: 'Context used' })).toHaveText(/^\d{1,3}%$/);
 });
 
 test('declining tells the model, and the tool never runs', async () => {
