@@ -11,12 +11,13 @@ import { liveTitle } from './notes-state';
 import { NotesSidebar, type SidebarWords } from './NotesSidebar';
 import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
-import { ReviewActions } from './ReviewBar';
+import { ReviewActions, WhyThis } from './ReviewBar';
+import type { Start } from './SideNew';
 
 export const DOCS_WORDS: SidebarWords = { app: 'Docs', group: 'folder', groups: 'Folders', item: 'document', items: 'documents', about: 'Documents are kept as Markdown files in your workspace, so other apps and the agent can open them too.', defaultGroup: 'Documents' };
 export const DEFAULT_FOLDER = 'Documents';
 
-export function DocsSidebar(props: { docs: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void }) {
+export function DocsSidebar(props: { docs: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const { docs, ...rest } = props;
   return <NotesSidebar notes={docs} words={DOCS_WORDS} {...rest} />;
 }
@@ -284,7 +285,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
           {review && !kept && (
             <div className="note-review doc-review" role="status">
               <span className="review-dot" aria-hidden="true" />
-              <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `Mobius changed ${c.added + c.removed === 1 ? 'one line' : `${c.added + c.removed} lines`} here in its last turn.`; })() : 'Mobius changed this document in its last turn.'}</span>
+              <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `Mobius changed ${c.added + c.removed === 1 ? 'one line' : `${c.added + c.removed} lines`} here in its last turn.`; })() : 'Mobius changed this document in its last turn.'}<WhyThis conversation={review.conversation} /></span>
               <ReviewActions onKeep={keepAll} onDiscard={discardAll} />
             </div>
           )}

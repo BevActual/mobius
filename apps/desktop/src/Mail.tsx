@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailState } from './useMail';
 import { ReviewActions } from './ReviewBar';
+import { SideNew, type Start } from './SideNew';
 
 const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
   { id: 'primary', label: 'Primary' },
@@ -81,7 +82,7 @@ function AccountDialog({ mail, onClose }: { mail: MailState; onClose: () => void
 }
 
 /** Mailboxes, drafts and accounts. */
-export function MailSidebar({ mail, pin }: { mail: MailState; pin?: ReactNode }) {
+export function MailSidebar({ mail, pin, starts, onStart }: { mail: MailState; pin?: ReactNode; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [adding, setAdding] = useState(false);
   const v = mail.view;
   const here = (kind: 'inbox' | 'sent' | 'drafts') => (kind === 'drafts' ? v.kind === 'drafts' : v.kind === 'box' && v.box === kind) ? 'page' : undefined;
@@ -97,10 +98,7 @@ export function MailSidebar({ mail, pin }: { mail: MailState; pin?: ReactNode })
         </span>
       </div>
       <nav className="task-lists" aria-label="Mailboxes">
-        <button type="button" className="side-new-row" aria-label="New message" title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} disabled={mail.accounts.length === 0} onClick={mail.compose}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
-          <span>New message</span>
-        </button>
+        <SideNew item="message" onNew={mail.compose} disabled={mail.accounts.length === 0} title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} {...(mail.accounts.length > 0 && starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
         <ul role="list">
           <li><button type="button" className="list-row" aria-current={here('inbox')} onClick={() => mail.setView({ kind: 'box', box: 'inbox', category: v.kind === 'box' ? v.category : 'primary' })}><span className="list-name">Inbox</span><span className="list-count">{mail.counts.all || ''}</span></button></li>
           <li><button type="button" className="list-row" aria-current={here('drafts')} onClick={() => mail.setView({ kind: 'drafts' })}><span className="list-name">Drafts</span><span className="list-count">{mail.counts.drafts + mail.counts.suggested || ''}</span></button></li>

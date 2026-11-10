@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { NoteHit } from '@mobius/shared';
 import type { NotesState } from './useNotes';
+import { SideNew, type Start } from './SideNew';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
@@ -10,7 +11,7 @@ export interface SidebarWords { app: string; group: string; groups: string; item
 export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'page', items: 'pages', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.' };
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
-export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES_WORDS }: { notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void; words?: SidebarWords }) {
+export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES_WORDS, starts, onStart }: { notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void; words?: SidebarWords; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<NoteHit[] | null>(null);
   const [naming, setNaming] = useState(false);
@@ -73,10 +74,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         <div className="notes-list" role="tree" aria-label={words.groups}>
           {/* New, as the list's first row, in the notebook that is open (or the first). */}
           {(openNotebook || words.defaultGroup) && (
-            <button type="button" className="side-new-row" aria-label={`New ${words.item}`} title={openNotebook ? `New ${words.item} in ${openNotebook}` : `New ${words.item}`} onClick={newItem}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
-              <span>New {words.item}</span>
-            </button>
+            <SideNew item={words.item} onNew={newItem} title={openNotebook ? `New ${words.item} in ${openNotebook}` : `New ${words.item}`} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
           )}
           {notes.notebooks.length === 0 && !naming && (
             <div className="side-empty notes-empty">

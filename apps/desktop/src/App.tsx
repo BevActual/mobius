@@ -725,7 +725,7 @@ export function App() {
                 pin={pinNode}
               />
             ) : inNotes ? (
-              <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} />
+              <NotesSidebar notes={notes} pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />
             ) : inJourney ? (
               <JourneySidebar journey={journey} />
             ) : inSkills ? (
@@ -753,17 +753,17 @@ export function App() {
             ) : inCode ? (
               <CodeSidebar code={code} pin={pinNode} changed={turnMarks.code} />
             ) : inMail ? (
-              <MailSidebar mail={mail} pin={pinNode} />
+              <MailSidebar mail={mail} pin={pinNode} starts={startsFor('mail')} onStart={startWithMobius} />
             ) : inSlides ? (
               <SlidesSidebar slides={slides} pin={pinNode} changed={turnMarks.slides} />
             ) : inSheets ? (
               <SheetsSidebar sheets={sheets} pin={pinNode} changed={turnMarks.sheets} />
             ) : inDocs ? (
-              <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} />
+              <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
               <CalendarSidebar calendar={calendar} pin={pinNode} onNew={createFor('calendar').run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inTasks ? (
-              <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} />
+              <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
           <aside className="side" aria-label="Browser sidebar">
             <div className="side-head">

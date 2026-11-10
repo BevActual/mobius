@@ -6,6 +6,7 @@ import type { TasksState } from './useTasks';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { keepTurn, turnId } from './ReviewStrip';
 import { tasksIn } from './tasks-view';
+import { SideNew, type Start } from './SideNew';
 
 const SMART: { id: SmartView; name: string }[] = [
   { id: 'today', name: 'Today' },
@@ -14,7 +15,7 @@ const SMART: { id: SmartView; name: string }[] = [
 
 /** The lists: two views across every list, then each list with how many tasks are still open. */
 /** `changed`: lists the agent's last turn changed. */
-export function TasksSidebar({ tasks, pin, changed, pinned, onPin }: { tasks: TasksState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (name: string) => void }) {
+export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onStart }: { tasks: TasksState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (name: string) => void; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [naming, setNaming] = useState(false);
   // The menus' New list opens the same naming field.
   useEffect(() => onCommand('new-list', () => setNaming(true)), []);
@@ -35,10 +36,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin }: { tasks: Ta
         </span>
       </div>
       <nav className="task-lists" aria-label="Lists">
-        <button type="button" className="side-new-row" aria-label="New list" title="New list" onClick={() => setNaming(true)}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
-          <span>New list</span>
-        </button>
+        <SideNew item="list" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
         <ul role="list">
           {SMART.map((v) => (
             <li key={v.id}>

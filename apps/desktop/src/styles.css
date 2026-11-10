@@ -1410,7 +1410,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .doc-page .selectedCell::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--accent) 14%, transparent); pointer-events: none; }
 .doc-page p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; color: var(--muted); pointer-events: none; }
 .doc-status { flex-shrink: 0; display: flex; justify-content: flex-end; padding: 4px var(--sp-4); font-size: var(--fs-xs); color: var(--muted); border-top: 1px solid var(--line); background: var(--bg); }
-.doc-review { max-width: 760px; margin: 0 auto var(--sp-3); }
+.doc-review { width: 100%; max-width: 760px; margin: 0 auto var(--sp-3); box-sizing: border-box; }
 .doc-proposals { max-width: 760px; margin: 0 auto var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
 .doc-proposal { padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-group); border: 1.5px dashed color-mix(in srgb, var(--accent) 60%, var(--bg)); background: color-mix(in srgb, var(--accent) 5%, var(--bg)); }
 .doc-proposal p { margin: 0 0 4px; white-space: pre-wrap; }
