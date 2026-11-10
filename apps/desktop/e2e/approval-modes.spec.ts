@@ -43,7 +43,7 @@ const setMode = async (mode: 'manual' | 'propose' | 'smart' | 'off') => {
 };
 const coreMode = async () => (await coreCall<{ mode: string }>(mobius!.app, 'permissions.mode', {})).mode;
 
-test('with approvals off the agent opens a site and clicks without asking; back to manual it asks again', async () => {
+test('with approvals off (from before the three modes) the agent opens a site without asking but a click still asks; back to manual it asks again', async () => {
   await start([callsTool('browser-open', { url: fixture.origin + '/second' }), says(['Opened.']), callsTool('browser-click', { text: 'More' }), says(['Clicked.']), callsTool('browser-tabs'), says(['Listed.'])]);
   await expect.poll(coreMode).toBe('manual');
   await setMode('off');
@@ -52,8 +52,10 @@ test('with approvals off the agent opens a site and clicks without asking; back 
   await expect(log().locator('.msg.assistant')).toHaveText('Opened.');
   await expect(card()).toHaveCount(0);
   await say('click');
+  // Clicking in a page is a floor: it asks in every mode, Off too.
+  await expect(card()).toContainText('Needs you');
+  await card().getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant').last()).toHaveText('Clicked.');
-  await expect(card()).toHaveCount(0);
   await setMode('manual');
   await expect.poll(coreMode).toBe('manual');
   await say('list');

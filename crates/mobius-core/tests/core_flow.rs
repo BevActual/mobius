@@ -460,16 +460,16 @@ fn a_question_says_whether_it_can_only_ever_be_allowed_once() {
 use mobius_core::permissions::ApprovalMode;
 
 #[test]
-fn with_approvals_off_the_assistant_runs_tools_unasked_and_manual_asks_again_afterwards() {
+fn with_approvals_off_the_assistant_runs_tools_unasked_except_the_floors_and_manual_asks_again_afterwards() {
     let mut f = fixture();
     let a = Principal::new(PrincipalKind::Agent, "a").unwrap();
-    pending_id_of(f.core.invoke(&a, "demo.exec", &json!({})).unwrap());
+    pending_id_of(f.core.invoke(&a, "demo.echo", &json!({})).unwrap());
     f.core.set_approval_mode(ApprovalMode::Off).unwrap();
-    for tool in ["demo.exec", "demo.echo"] {
-        assert!(matches!(f.core.invoke(&a, tool, &json!({})).unwrap(), InvokeOutcome::Completed { .. }), "{tool}");
-    }
-    f.core.set_approval_mode(ApprovalMode::Manual).unwrap();
+    assert!(matches!(f.core.invoke(&a, "demo.echo", &json!({})).unwrap(), InvokeOutcome::Completed { .. }));
+    // Running a command is a floor: asked in every mode, Off too.
     pending_id_of(f.core.invoke(&a, "demo.exec", &json!({})).unwrap());
+    f.core.set_approval_mode(ApprovalMode::Manual).unwrap();
+    pending_id_of(f.core.invoke(&a, "demo.echo", &json!({})).unwrap());
 }
 
 #[test]

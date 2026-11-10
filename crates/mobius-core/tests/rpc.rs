@@ -305,12 +305,13 @@ fn the_approval_mode_can_be_read_and_changed_and_only_to_a_known_one() {
 }
 
 #[test]
-fn a_command_is_asked_about_in_manual_mode_and_run_when_approvals_are_off() {
+fn a_command_is_asked_about_in_manual_mode_and_still_when_approvals_are_off() {
     let mut c = core();
     let run = |c: &mut Core| call(c, json!({ "jsonrpc": "2.0", "id": 2, "method": "tools.invoke", "params": { "principal": agent(), "tool": "demo.exec", "args": {} } }));
     assert_eq!(run(&mut c)["result"]["status"], "needs_approval");
     call(&mut c, json!({ "jsonrpc": "2.0", "id": 1, "method": "permissions.set_mode", "params": { "mode": "off" } }));
-    assert_eq!(run(&mut c)["result"]["status"], "completed");
+    // Running a command is a floor: asked in every mode.
+    assert_eq!(run(&mut c)["result"]["status"], "needs_approval");
 }
 
 #[test]

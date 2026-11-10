@@ -27,7 +27,8 @@ pub enum ApprovalMode {
     /// Like manual, but a reviewer model first looks at each question: it can approve that one use, or point out
     /// that it looks dangerous. When it is unsure, or cannot answer, the person is asked.
     Smart,
-    /// Ask about nothing. A standing block the person set still blocks.
+    /// From before the three modes: ask about nothing but the floors, which are asked about in every mode. A
+    /// standing block the person set still blocks.
     Off,
 }
 
@@ -180,8 +181,8 @@ impl Policy {
         } else if self.mode == ApprovalMode::Propose && !floor && principal.kind == PrincipalKind::Agent && is_reversible(capability) {
             // A proposal: the turn's checkpoint puts it back if the person discards it.
             Verdict::Allow { consume: None }
-        } else if self.mode == ApprovalMode::Off {
-            // Nothing is asked about, and no standing block matched.
+        } else if self.mode == ApprovalMode::Off && !floor {
+            // Nothing but the floors is asked about, and no standing block matched.
             Verdict::Allow { consume: None }
         } else {
             Verdict::Ask
@@ -462,11 +463,15 @@ mod tests {
     }
 
     #[test]
-    fn with_approvals_off_nothing_is_asked_about_not_even_a_floor() {
+    fn with_approvals_off_nothing_is_asked_about_but_the_floors() {
         let p = in_mode(ApprovalMode::Off);
         let a = agent("a");
-        for name in ["browser.read", "browser.navigate", "browser.interact", "process.exec", "fs.delete", "secrets.read", "demo.anything"] {
+        for name in ["browser.read", "browser.navigate", "demo.anything"] {
             assert_eq!(p.evaluate(&[], NOW, &a, &cap(name), None), Verdict::Allow { consume: None }, "{name}");
+        }
+        // Running commands, deleting, secrets and clicking or typing in a page ask in every mode, Off too.
+        for name in ["browser.interact", "process.exec", "fs.delete", "secrets.read"] {
+            assert_eq!(p.evaluate(&[], NOW, &a, &cap(name), None), Verdict::Ask, "{name}");
         }
     }
 
