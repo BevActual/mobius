@@ -984,8 +984,10 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .stage[data-split] > .pane { border-top: 2px solid transparent; transition: border-color var(--dur-fast) var(--ease); }
 .stage[data-split] > .pane[data-focused] { border-top-color: var(--accent); }
 .pane-head { flex: none; display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 6px 0 8px; background: var(--panel); border-bottom: 1px solid var(--hairline); container-type: inline-size; }
-/* A narrow pane keeps its name: the header shows only the app it holds, and the sidebar still opens others in it. */
-@container (max-width: 340px) { .pane-app:not([aria-pressed="true"]) { display: none; } }
+/* A pane keeps its name and its buttons: unless it is wide enough for every app's button, the header shows only the
+   app it holds, and the sidebar still opens others in it. */
+@container (max-width: 620px) { .pane-app:not([aria-pressed="true"]) { display: none; } }
+.pane-apps { flex: none; }
 .pane:not([data-focused]) .pane-head { color: var(--muted); }
 .pane-apps { display: inline-flex; align-items: center; gap: 1px; padding: 2px; border-radius: var(--radius-pill); background: var(--field); }
 .pane-app { width: 26px; height: 22px; display: grid; place-items: center; border-radius: var(--radius-pill); color: var(--muted); }

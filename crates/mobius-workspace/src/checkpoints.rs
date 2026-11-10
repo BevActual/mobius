@@ -181,13 +181,19 @@ impl Checkpoints {
         if !is_checkpoint_id(checkpoint) {
             return Err(Error::BadInput("That is not a checkpoint.".into()));
         }
-        let full = self.git(folder, id, &["rev-parse", "--verify", "--quiet", &format!("{checkpoint}^{{commit}}")]).map_err(|_| Error::BadInput("That checkpoint is not there.".into()))?.trim().to_owned();
+        // Once found on this folder's branch, a checkpoint stays there: the branch only ever grows.
+        let memo = format!("{}|{id}|{checkpoint}", self.store.display());
+        if let Some(full) = memo_get(&KNOWN, &memo) {
+            return Ok(full);
+        }
+        let full =self.git(folder, id, &["rev-parse", "--verify", "--quiet", &format!("{checkpoint}^{{commit}}")]).map_err(|_| Error::BadInput("That checkpoint is not there.".into()))?.trim().to_owned();
         // It must belong to this folder: reachable from this folder's branch.
         let tip = self.tip(folder, id).ok_or_else(|| Error::BadInput("This folder has no checkpoints.".into()))?;
         let merge_base = self.git(folder, id, &["merge-base", "--is-ancestor", &full, &tip]);
         if merge_base.is_err() {
             return Err(Error::BadInput("That checkpoint belongs to another folder.".into()));
         }
+        memo_put(&KNOWN, memo, full.clone());
         Ok(full)
     }
 
@@ -244,26 +250,66 @@ impl Checkpoints {
         }
     }
 
-    /// Files that differ between `checkpoint` and the folder now: added, changed or removed since.
     /// Files that differ between two checkpoints.
     pub fn changed_between(&self, folder: &Path, from: &str, to: &str) -> Result<Vec<String>, Error> {
         let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         let a = self.known(&folder, &id, from)?;
         let b = self.known(&folder, &id, to)?;
+        // Two saved states never change, so neither does what differs between them.
+        let memo = format!("{}|{a}|{b}", self.store.display());
+        if let Some(files) = memo_get(&BETWEEN, &memo) {
+            return Ok(files);
+        }
         let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &a, &b])?;
-        Ok(out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect())
+        let files: Vec<String> = out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
+        memo_put(&BETWEEN, memo, files.clone());
+        Ok(files)
     }
 
+    /// Files that differ between `checkpoint` and the folder now: added, changed or removed since.
     pub fn changed_since(&self, folder: &Path, checkpoint: &str) -> Result<Vec<String>, Error> {
+        // Several parts of the window ask this at once after a change (the strip, each app's bar, Activity, Review),
+        // and each answer takes a few git commands, one at a time. An answer worked out after this call arrived saw
+        // the folder as it is for this call too, so it is shared; an older one is not.
+        let asked = std::time::Instant::now();
         let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
+        let memo = format!("{}|{id}|{target}", self.store.display());
+        if let Some((worked_out, files)) = memo_get(&SINCE, &memo) {
+            if worked_out >= asked {
+                return Ok(files);
+            }
+        }
+        let started = std::time::Instant::now();
         self.git(&folder, &id, &["add", "-A", "--", "."])?;
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
         let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &target, &tree])?;
-        Ok(out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect())
+        let files: Vec<String> = out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
+        memo_put(&SINCE, memo, (started, files.clone()));
+        Ok(files)
     }
+}
+
+/// Answers kept between calls: checkpoints already found on a folder's branch, what differs between two checkpoints,
+/// and the latest answer to what changed since a checkpoint, with when it was worked out.
+type Memo<T> = std::sync::Mutex<Option<std::collections::HashMap<String, T>>>;
+static KNOWN: Memo<String> = std::sync::Mutex::new(None);
+static BETWEEN: Memo<Vec<String>> = std::sync::Mutex::new(None);
+static SINCE: Memo<(std::time::Instant, Vec<String>)> = std::sync::Mutex::new(None);
+
+fn memo_get<T: Clone>(memo: &'static Memo<T>, key: &str) -> Option<T> {
+    memo.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().and_then(|m| m.get(key).cloned())
+}
+
+/// Keeps an answer. The memo is emptied now and then, so it cannot grow without end.
+fn memo_put<T>(memo: &'static Memo<T>, key: String, value: T) {
+    let mut guard = memo.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if guard.as_ref().is_some_and(|m| m.len() > 4096) {
+        *guard = None;
+    }
+    guard.get_or_insert_with(std::collections::HashMap::new).insert(key, value);
 }
 
 /// Every checkpoint operation in this process runs one at a time. Notes, Tasks and the agent's file tools each have
@@ -321,6 +367,28 @@ mod tests {
     }
     fn read(folder: &Path, name: &str) -> Option<String> {
         fs::read_to_string(folder.join(name)).ok()
+    }
+
+    #[test]
+    fn many_asking_at_once_share_an_answer_but_never_one_from_before_they_asked() {
+        let s = setup();
+        write(&s.folder, "a.md", "a");
+        let start = s.cp.snapshot(&s.folder, "start").unwrap().unwrap();
+        write(&s.folder, "b.md", "b");
+        let answers: Vec<Vec<String>> = std::thread::scope(|scope| {
+            let asks: Vec<_> = (0..6).map(|_| scope.spawn(|| s.cp.changed_since(&s.folder, &start.id).unwrap())).collect();
+            asks.into_iter().map(|a| a.join().unwrap()).collect()
+        });
+        assert!(answers.iter().all(|a| a == &vec!["b.md".to_owned()]), "{answers:?}");
+        // A change after those answers is seen by the next question, not hidden by the kept answer.
+        write(&s.folder, "c.md", "c");
+        let mut next = s.cp.changed_since(&s.folder, &start.id).unwrap();
+        next.sort();
+        assert_eq!(next, ["b.md", "c.md"]);
+        // And what differs between two saved states is the same however often it is asked.
+        let end = s.cp.snapshot(&s.folder, "end").unwrap().unwrap();
+        assert_eq!(s.cp.changed_between(&s.folder, &start.id, &end.id).unwrap().len(), 2);
+        assert_eq!(s.cp.changed_between(&s.folder, &start.id, &end.id).unwrap().len(), 2);
     }
 
     #[test]
