@@ -401,7 +401,7 @@ impl Notes {
         Ok(json!({ "path": path, "content": content, "modified": modified_ms(&file) }))
     }
 
-    /// Delete a page and its files folder. A checkpoint is taken first, so it can be brought back. Its kept versions
+    /// Delete a page, its files folder and its comments. A checkpoint is taken first, so it can be brought back. Its kept versions
     /// stay in `.versions` on purpose: a page made again with the same name, or put back, has its History still.
     pub fn remove_page(&self, path: &str) -> Res<Value> {
         let file = self.page(path)?;
@@ -411,6 +411,10 @@ impl Notes {
         let folder = self.root.file_name().and_then(|f| f.to_str()).unwrap_or(FOLDER);
         let checkpoint = self.checkpoints.snapshot(&self.workspace, &format!("before deleting {folder}/{path}")).is_ok();
         fs::remove_file(&file).map_err(|e| e.to_string())?;
+        // Comments are about this page's words, so they go with it (a new page of the same name starts without them).
+        if let Some(comments) = self.comments_file(path) {
+            let _ = fs::remove_file(comments);
+        }
         if let Some(files) = self.files_folder(path).filter(|f| f.is_dir()) {
             // Windows refuses for a moment while something else (a virus scan, the search index) has a new file open.
             for wait in [0, 50, 150, 400, 1000] {
@@ -550,7 +554,11 @@ impl Notes {
             let candidate = named(n);
             match fs::OpenOptions::new().write(true).create_new(true).open(folder.join(&candidate)) {
                 Ok(mut f) => {
-                    std::io::Write::write_all(&mut f, &bytes).map_err(|e| e.to_string())?;
+                    if let Err(e) = std::io::Write::write_all(&mut f, &bytes) {
+                        drop(f);
+                        let _ = fs::remove_file(folder.join(&candidate));
+                        return Err(e.to_string());
+                    }
                     break candidate;
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && n < 1000 => n += 1,
@@ -652,7 +660,11 @@ impl Notes {
             let candidate = if n < 2 { format!("{title}.{ext}") } else { format!("{title} {n}.{ext}") };
             match fs::OpenOptions::new().write(true).create_new(true).open(folder.join(&candidate)) {
                 Ok(mut f) => {
-                    std::io::Write::write_all(&mut f, body.as_bytes()).map_err(|e| e.to_string())?;
+                    if let Err(e) = std::io::Write::write_all(&mut f, body.as_bytes()) {
+                        drop(f);
+                        let _ = fs::remove_file(folder.join(&candidate));
+                        return Err(e.to_string());
+                    }
                     break candidate;
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && n < 1000 => n += 1,
@@ -667,8 +679,15 @@ impl Notes {
             let target = folder.join(files_folder_name(made_stem));
             fs::create_dir_all(&target).map_err(|e| e.to_string())?;
             for entry in fs::read_dir(&files).map_err(|e| e.to_string())?.filter_map(Result::ok) {
-                if entry.file_type().is_ok_and(|t| t.is_file()) {
-                    fs::copy(entry.path(), target.join(entry.file_name())).map_err(|e| e.to_string())?;
+                // A file already there (a folder of the same name the person made) is left as it is.
+                if entry.file_type().is_ok_and(|t| t.is_file()) && !target.join(entry.file_name()).exists() {
+                    let bytes = fs::read(entry.path()).map_err(|e| e.to_string())?;
+                    if let Ok(mut f) = fs::OpenOptions::new().write(true).create_new(true).open(target.join(entry.file_name()))
+                        && std::io::Write::write_all(&mut f, &bytes).is_err()
+                    {
+                        drop(f);
+                        let _ = fs::remove_file(target.join(entry.file_name()));
+                    }
                 }
             }
             if made_stem != stem {
@@ -1051,6 +1070,11 @@ mod tests {
         assert!(notes.set_comments("../x.md", &one).is_err());
         notes.set_comments(&path, &json!([])).unwrap();
         assert_eq!(notes.comments(&path).unwrap(), json!([]));
+        // Deleting the page takes its comments; a new page of the same name starts without them.
+        notes.set_comments(&path, &one).unwrap();
+        notes.remove_page(&path).unwrap();
+        let again = notes.create_page("Work", "Plan").unwrap()["path"].as_str().unwrap().to_owned();
+        assert_eq!(notes.comments(&again).unwrap(), json!([]));
         assert_eq!(notes.list().unwrap().as_array().unwrap().len(), 1);
     }
 
@@ -1068,7 +1092,11 @@ mod tests {
         assert_eq!(fs::read_to_string(out.join("Battery pack.md")).unwrap(), "# Battery pack\n\n![cell](Battery%20pack%20files/cell.png)\n");
         let html = notes.export(&path, "html", Some("<h1>Battery pack</h1>")).unwrap();
         assert_eq!(html["saved"], "Exports/Battery pack.html");
+        // A files folder already there under the copy's name keeps what it holds.
+        fs::create_dir_all(out.join("Battery pack 2 files")).unwrap();
+        fs::write(out.join("Battery pack 2 files/cell.png"), b"mine").unwrap();
         assert_eq!(notes.export(&path, "md", None).unwrap()["saved"], "Exports/Battery pack 2.md");
+        assert_eq!(fs::read(out.join("Battery pack 2 files/cell.png")).unwrap(), b"mine");
         assert!(notes.export(&path, "exe", None).is_err());
         assert!(notes.export(&path, "html", None).is_err());
     }
