@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { createPortal } from 'react-dom';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailState } from './useMail';
+import { ReviewActions } from './ReviewBar';
 
 const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
   { id: 'primary', label: 'Primary' },
@@ -93,12 +94,13 @@ export function MailSidebar({ mail, pin }: { mail: MailState; pin?: ReactNode })
           <button type="button" className="strip-btn" aria-label="Get mail" title="Get mail now" disabled={mail.syncing || mail.accounts.length === 0} onClick={() => void mail.sync()}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
           </button>
-          <button type="button" className="strip-btn" aria-label="New message" title="New message" disabled={mail.accounts.length === 0} onClick={mail.compose}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16l1-4L13.5 3.5a1.4 1.4 0 0 1 2 2L7 14zM12 5l2 2" /></svg>
-          </button>
         </span>
       </div>
       <nav className="task-lists" aria-label="Mailboxes">
+        <button type="button" className="side-new-row" aria-label="New message" title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} disabled={mail.accounts.length === 0} onClick={mail.compose}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
+          <span>New message</span>
+        </button>
         <ul role="list">
           <li><button type="button" className="list-row" aria-current={here('inbox')} onClick={() => mail.setView({ kind: 'box', box: 'inbox', category: v.kind === 'box' ? v.category : 'primary' })}><span className="list-name">Inbox</span><span className="list-count">{mail.counts.all || ''}</span></button></li>
           <li><button type="button" className="list-row" aria-current={here('drafts')} onClick={() => mail.setView({ kind: 'drafts' })}><span className="list-name">Drafts</span><span className="list-count">{mail.counts.drafts + mail.counts.suggested || ''}</span></button></li>
@@ -158,15 +160,15 @@ function DraftEditor({ mail, draft }: { mail: MailState; draft: MailDraft }) {
   );
 }
 
-/** A reply Mobius suggested: dashed until the person opens it as their draft or discards it. */
+/** A reply Mobius suggested: dashed until the person keeps it (it opens as their draft), discards it or asks for another. */
 function Suggested({ mail, draft }: { mail: MailState; draft: MailDraft }) {
   return (
     <div className="mail-suggested" aria-label="Suggested reply">
-      <span className="mail-suggested-head">Suggested reply{draft.why ? ` · ${draft.why}` : ''}</span>
+      <span className="mail-suggested-head">Suggested reply</span>
+      {draft.why && <span className="review-why">Why this: {draft.why}</span>}
       <p className="mail-suggested-body">{draft.body}</p>
       <div className="mail-suggested-actions">
-        <button type="button" className="btn" onClick={() => void mail.deleteDraft(draft.id)}>Discard</button>
-        <button type="button" className="btn primary" onClick={() => mail.setEditing({ ...draft, by: 'you' })}>Open as Draft</button>
+        <ReviewActions onKeep={() => mail.setEditing({ ...draft, by: 'you' })} onDiscard={() => mail.deleteDraft(draft.id)} keepTitle="Keep it: it opens as your draft, to change and send" discardTitle="Delete this suggestion" />
         <span>Mobius never sends. You press Send.</span>
       </div>
     </div>

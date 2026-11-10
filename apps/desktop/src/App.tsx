@@ -1316,7 +1316,7 @@ export function App() {
         needsYou={needsYou}
         counts={{ browser: browser.tabs.length, tasks: dueToday }}
         create={createFor(app)}
-        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks'] as AppId[]).includes(app)}
+        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks', 'mail'] as AppId[]).includes(app)}
         menus={wide ? menuBar : null}
         chrome={wide && inBrowser && !settingsOpen ? browserChrome : null}
         mobius={wide && hasRight && !settingsOpen ? {

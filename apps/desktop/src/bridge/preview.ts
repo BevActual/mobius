@@ -78,7 +78,9 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'calendar.events': () => EVENTS,
   'mail.accounts': () => [{ id: 'a1', name: 'Northway', email: 'you@northway.example', lastSyncMs: now, problem: null }],
   'mail.list': () => MAIL,
-  'mail.counts': () => ({ primary: 1, transactions: 0, updates: 0, all: 1, drafts: 0, suggested: 0 }),
+  // A reply Mobius suggested to Priya, waiting to be kept.
+  'mail.drafts': () => [{ id: 'd1', account: 'a1', to: 'priya@northway.example', cc: '', subject: 'Re: P2 build dates', body: 'Hi Priya,\n\nThe build week is the 23rd. I will send the plan to the team today.\n\nThanks', replyTo: 'm1', by: 'mobius', why: 'you asked me to confirm the build week', updatedMs: now }],
+  'mail.counts': () => ({ primary: 1, transactions: 0, updates: 0, all: 1, drafts: 0, suggested: 1 }),
   'mail.read': ((id: string) => { const m = MAIL.find((x) => x.id === id) ?? MAIL[0]!; return { id: m.id, from: m.from, to: m.to, cc: m.cc, subject: m.subject, dateMs: m.dateMs, text: MAIL_TEXT[m.id] ?? '', html: null, attachments: [], category: 'primary' }; }) as never,
 };
 

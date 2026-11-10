@@ -102,7 +102,8 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   await expect(suggested).toContainText('two vegetarians');
   await expect(suggested).toContainText('Mobius never sends. You press Send.');
   expect(servers.sent.length).toBe(0);
-  await suggested.getByRole('button', { name: 'Open as Draft' }).click();
+  // Keep opens it as your draft.
+  await suggested.getByRole('button', { name: 'Keep' }).click();
   await page().getByRole('form', { name: 'Reply' }).getByRole('button', { name: 'Send' }).click();
   await expect.poll(() => servers.sent.length).toBe(1);
   expect(servers.sent[0]).toContain('two vegetarians');
