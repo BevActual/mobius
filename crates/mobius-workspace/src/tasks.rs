@@ -274,8 +274,11 @@ impl Tasks {
             return Ok(json!({ "name": name }));
         }
         let target = self.file(&name)?;
-        // A name that differs only in case is the same file on Windows and macOS.
-        if target.exists() && !name.eq_ignore_ascii_case(list) {
+        // A name that differs only in case is the same file on Windows and macOS, so `exists` says yes there; another
+        // list is in the way only when the folder has a file with exactly that name (as Linux can, beside this one).
+        let wanted = format!("{name}.md");
+        let taken = fs::read_dir(&self.root).map_err(|e| e.to_string())?.filter_map(Result::ok).any(|e| e.file_name().to_string_lossy() == wanted);
+        if taken || (target.exists() && !name.eq_ignore_ascii_case(list)) {
             return Err(format!("there is already a list called {name}"));
         }
         let heading = format!("# {list}");
@@ -461,6 +464,7 @@ impl Tasks {
             None => there.len(),
         };
         there.splice(at..at, block);
+        // The other list is written first on purpose: if the second write fails, the task is in both lists, never lost.
         Self::store(&other, &(there.join("\n") + "\n"))?;
         Self::store(&file, &(lines.join("\n") + "\n"))?;
         self.read(to)
@@ -840,6 +844,15 @@ mod tests {
         assert!(tasks.rename_list("Inbox", "Mine").is_err());
         assert!(tasks.rename_list("Shop", "Inbox").is_err());
         assert!(tasks.rename_list("Shop", "../x").is_ok_and(|v| v["name"] == "x"));
+        // Only the case changes: the same list on any system, but never over another list that differs only in case.
+        assert_eq!(tasks.rename_list("Work", "WORK").unwrap()["name"], "WORK");
+        let case_sensitive = !dir.path().join("work/tasks/work.md").exists();
+        if case_sensitive {
+            fs::write(dir.path().join("work/tasks/work.md"), "# work\n\n- [ ] Keep me\n").unwrap();
+            assert!(tasks.rename_list("WORK", "work").unwrap_err().contains("already"));
+            assert_eq!(fs::read_to_string(dir.path().join("work/tasks/work.md")).unwrap(), "# work\n\n- [ ] Keep me\n");
+            assert!(dir.path().join("work/tasks/WORK.md").exists());
+        }
         assert!(tasks.delete_list("Inbox").is_err());
         let gone = tasks.delete_list("x").unwrap();
         assert!(!dir.path().join("work/tasks/x.md").exists());
