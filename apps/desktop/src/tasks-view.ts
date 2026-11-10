@@ -3,6 +3,16 @@ import type { TaskItem } from '@mobius/shared';
 /** The list every task lands in when no list is named (matches the Rust side). */
 export const DEFAULT_LIST_NAME = 'Inbox';
 
+/** The text of each task in a list's Markdown, done or not, without its due date: "- [ ] Call Sam (due 2026-11-10)". */
+export function tasksIn(markdown: string): ReadonlySet<string> {
+  const found = new Set<string>();
+  for (const line of markdown.split(/\r?\n/)) {
+    const m = /^\s*[-*] \[[ xX]\] (.*?)(?:\s+\(due \d{4}-\d{2}-\d{2}\))?\s*$/.exec(line);
+    if (m && m[1]) found.add(m[1]);
+  }
+  return found;
+}
+
 export type DueTone = 'late' | 'today' | 'soon' | 'later';
 export type SmartView = 'today' | 'scheduled';
 export interface Located { list: string; task: TaskItem }

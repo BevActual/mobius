@@ -52,7 +52,7 @@ const NOTE_TEXT: Record<string, string> = {
   'Home/Groceries.md': '# Groceries\n\n- Oats\n- Coffee\n',
 };
 /** One turn of Mobius's, still waiting to be kept, so the dashed proposals and Why this can be looked at. */
-const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md'] };
+const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md'] };
 
 /** Answers for the calls that must return more than an empty list. Keyed by the call's path. */
 const ANSWERS: Record<string, (...args: never[]) => unknown> = {
@@ -72,7 +72,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'notes.read': ((path: string) => ({ path, content: NOTE_TEXT[path] ?? '', modified: now })) as never,
   'changes.lastTurn': () => ({ checkpoint: TURN.start, files: TURN.files }),
   'changes.turns': () => ({ ok: true, turns: [TURN] }),
-  'changes.before': () => ({ ok: true, text: '# Supplier notes\n' }),
+  // Before the turn: the supplier notes had only their title, and the P2 build list had no deposit task.
+  'changes.before': ((_conversation: string, path: string) => ({ ok: true, text: path.startsWith('tasks/') ? '# P2 build\n\n- [x] Confirm the build week with everyone\n- [ ] Hold 8 packs at Veltro\n- [ ] Book the sled for Friday\n- [x] Draft the build budget\n' : '# Supplier notes\n' })) as never,
   'calendar.calendars': () => ['Kestrel P2', 'Work', 'Home'],
   'calendar.events': () => EVENTS,
   'mail.accounts': () => [{ id: 'a1', name: 'Northway', email: 'you@northway.example', lastSyncMs: now, problem: null }],

@@ -1115,7 +1115,7 @@ export function App() {
       case 'notes':
         return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} review={notes.page && turnMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'tasks':
-        return <TasksPage tasks={tasks} focusToken={taskFocus} />;
+        return <TasksPage tasks={tasks} focusToken={taskFocus} review={tasks.view.kind === 'list' && turnMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} />;
       case 'docs':
         return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} busy={conversation.state.busy} />;
       case 'slides':
@@ -1316,7 +1316,7 @@ export function App() {
         needsYou={needsYou}
         counts={{ browser: browser.tabs.length, tasks: dueToday }}
         create={createFor(app)}
-        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio'] as AppId[]).includes(app)}
+        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks'] as AppId[]).includes(app)}
         menus={wide ? menuBar : null}
         chrome={wide && inBrowser && !settingsOpen ? browserChrome : null}
         mobius={wide && hasRight && !settingsOpen ? {

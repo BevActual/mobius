@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TaskItem } from '@mobius/shared';
-import { dueLabel, smartView, splitDone } from './tasks-view';
+import { dueLabel, smartView, splitDone, tasksIn } from './tasks-view';
 
 const t = (text: string, due: string | null = null, done = false, line = 0): TaskItem => ({ line, text, done, due });
 const today = new Date(2026, 10, 6, 15, 0); // 6 November 2026, afternoon
@@ -27,5 +27,13 @@ describe('lists', () => {
     const lists = { Inbox: [t('late', '2026-11-01'), t('done', '2026-11-06', true), t('later', '2026-12-01')], Work: [t('today', '2026-11-06'), t('none')] };
     expect(smartView('today', lists, today).map((x) => [x.list, x.task.text])).toEqual([['Inbox', 'late'], ['Work', 'today']]);
     expect(smartView('scheduled', lists, today).map((x) => x.task.text)).toEqual(['late', 'today', 'later']);
+  });
+});
+
+describe('what a list had before a turn', () => {
+  it('reads each task by its text, done or not, without its due date', () => {
+    const before = tasksIn('# P2 build\n\n- [ ] Hold 8 packs at Veltro (due 2026-11-10)\n- [x] Order the jig\nNotes about the list\n* [ ] Book the sled\n');
+    expect([...before]).toEqual(['Hold 8 packs at Veltro', 'Order the jig', 'Book the sled']);
+    expect(tasksIn('').size).toBe(0);
   });
 });

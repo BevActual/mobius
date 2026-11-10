@@ -3,6 +3,9 @@ import { onCommand } from './commands';
 import type { TaskItem } from '@mobius/shared';
 import { DEFAULT_LIST_NAME, dueLabel, isoDay, smartView, splitDone, type SmartView } from './tasks-view';
 import type { TasksState } from './useTasks';
+import { ReviewActions, WhyThis } from './ReviewBar';
+import { keepTurn, turnId } from './ReviewStrip';
+import { tasksIn } from './tasks-view';
 
 const SMART: { id: SmartView; name: string }[] = [
   { id: 'today', name: 'Today' },
@@ -29,12 +32,13 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin }: { tasks: Ta
         <span className="side-title">Lists</span>
         <span className="side-actions">
           {pin}
-          <button type="button" className="strip-btn" aria-label="New list" title="New list" onClick={() => setNaming(true)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-          </button>
         </span>
       </div>
       <nav className="task-lists" aria-label="Lists">
+        <button type="button" className="side-new-row" aria-label="New list" title="New list" onClick={() => setNaming(true)}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
+          <span>New list</span>
+        </button>
         <ul role="list">
           {SMART.map((v) => (
             <li key={v.id}>
@@ -49,7 +53,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin }: { tasks: Ta
         <ul role="list" aria-label="My lists">
           {tasks.lists.map((l) => (
             <li key={l.name}>
-              <button type="button" className="list-row" aria-current={current('list', l.name)} onClick={() => tasks.setView({ kind: 'list', name: l.name })}>
+              <button type="button" className="list-row" data-proposed={changed?.has(l.name) || undefined} aria-current={current('list', l.name)} onClick={() => tasks.setView({ kind: 'list', name: l.name })}>
                 <span className="list-name">{l.name}</span>
                 {changed?.has(l.name) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Changed by the agent in its last turn" />}
                 <span className="list-count">{l.open || ''}</span>
@@ -76,7 +80,7 @@ function Due({ due, now }: { due: string; now: Date }) {
   return <span className="task-due" data-tone={tone}>{text}</span>;
 }
 
-function TaskRow({ tasks, list, task, showList, now }: { tasks: TasksState; list: string; task: TaskItem; showList: boolean; now: Date }) {
+function TaskRow({ tasks, list, task, showList, now, proposed = false }: { tasks: TasksState; list: string; task: TaskItem; showList: boolean; now: Date; proposed?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [words, setWords] = useState(task.text);
   const [dating, setDating] = useState(false);
@@ -89,7 +93,7 @@ function TaskRow({ tasks, list, task, showList, now }: { tasks: TasksState; list
     else setWords(task.text);
   };
   return (
-    <li className="task" data-done={task.done || undefined} data-fresh={tasks.isFresh(list, task) || undefined}>
+    <li className="task" data-done={task.done || undefined} data-fresh={tasks.isFresh(list, task) || undefined} data-proposed={proposed || undefined}>
       <button type="button" role="checkbox" aria-checked={task.done} aria-label={task.text} className="task-check" onClick={() => void tasks.change(list, task, { done: !task.done })}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8.5 7 11l5-6" /></svg>
       </button>
@@ -128,8 +132,45 @@ function TaskRow({ tasks, list, task, showList, now }: { tasks: TasksState; list
   );
 }
 
+/**
+ * What Mobius's last turn did to a list, while it waits to be kept: the tasks it added (dashed until kept), and the
+ * review bar's answers. Discard puts the list back as it was before that turn.
+ */
+function useListReview(conversation: string | null, list: string | null) {
+  // The tasks the list had before the turn; null until read. A list the turn made had none.
+  const [before, setBefore] = useState<ReadonlySet<string> | null>(null);
+  const [turn, setTurn] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => {
+    setProblem(null);
+    if (!conversation || !list) { setBefore(null); setTurn(null); return undefined; }
+    let live = true;
+    void (async () => {
+      const last = await window.mobius.changes?.lastTurn(conversation).catch(() => null);
+      const before = await window.mobius.changes?.before(conversation, `tasks/${list}.md`).catch(() => null);
+      if (!live) return;
+      setTurn(last && 'checkpoint' in last ? turnId(conversation, last.checkpoint) : null);
+      setBefore(before && before.ok ? tasksIn(before.text ?? '') : null);
+    })();
+    return () => { live = false; };
+  }, [conversation, list]);
+  return {
+    /** A task Mobius added in that turn. */
+    isNew: (text: string) => before !== null && !before.has(text),
+    problem,
+    keep: () => { if (turn) keepTurn(turn); },
+    discard: async () => {
+      if (!conversation || !list) return null;
+      const result = await window.mobius.changes.undoFile(conversation, `tasks/${list}.md`).catch(() => ({ ok: false as const, error: 'That could not be put back.' }));
+      if (!result.ok) { setProblem(result.error); return result.error; }
+      if (turn) keepTurn(turn);
+      return null;
+    },
+  };
+}
+
 /** The open list or view: a field to add to it at the top, the open tasks, and the completed ones folded away. */
-export function TasksPage({ tasks, focusToken = 0 }: { tasks: TasksState; focusToken?: number }) {
+export function TasksPage({ tasks, focusToken = 0, review = null }: { tasks: TasksState; focusToken?: number; /** Mobius's last turn changed the open list, and it waits to be kept. */ review?: { conversation: string } | null }) {
   const [text, setText] = useState('');
   const [due, setDue] = useState('');
   const [showDone, setShowDone] = useState(false);
@@ -145,6 +186,7 @@ export function TasksPage({ tasks, focusToken = 0 }: { tasks: TasksState; focusT
     : smartView(view.id, tasks.all, now);
   const { open, done } = view.kind === 'list' ? (() => { const s = splitDone(rows.map((r) => r.task)); return { open: s.open.map((task) => ({ list: view.name, task })), done: s.done.map((task) => ({ list: view.name, task })) }; })() : { open: rows, done: [] };
 
+  const proposal = useListReview(review?.conversation ?? null, review && view.kind === 'list' ? view.name : null);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const words = text.trim();
@@ -155,6 +197,14 @@ export function TasksPage({ tasks, focusToken = 0 }: { tasks: TasksState; focusT
 
   return (
     <section className="tasks-page" aria-label={title}>
+      {review && view.kind === 'list' && (
+        <div className="note-review" role="status">
+          <span className="review-dot" aria-hidden="true" />
+          <span className="note-review-text">Mobius changed this list in its last turn.<WhyThis conversation={review.conversation} /></span>
+          <ReviewActions onKeep={proposal.keep} onDiscard={proposal.discard} discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
+          {proposal.problem && <span className="review-problem" role="alert">{proposal.problem}</span>}
+        </div>
+      )}
       <form className="task-new" data-typing={text !== '' || due !== '' || undefined} onSubmit={(e) => void submit(e)}>
         <span className="task-check ghost" aria-hidden="true" />
         <input ref={input} aria-label="New task" placeholder={view.kind === 'list' ? `Add to ${view.name}` : view.id === 'today' ? 'Add something for today' : `Add to ${DEFAULT_LIST_NAME}`} value={text} maxLength={500} onChange={(e) => setText(e.target.value)} />
@@ -162,7 +212,7 @@ export function TasksPage({ tasks, focusToken = 0 }: { tasks: TasksState; focusT
       </form>
       {tasks.message && <p className="tasks-message" role="alert">{tasks.message}</p>}
       <ul className="task-items" role="list" aria-label="To do">
-        {open.map(({ list, task }) => <TaskRow key={`${list}:${task.line}:${task.text}`} tasks={tasks} list={list} task={task} showList={view.kind === 'smart'} now={now} />)}
+        {open.map(({ list, task }) => <TaskRow key={`${list}:${task.line}:${task.text}`} tasks={tasks} list={list} task={task} showList={view.kind === 'smart'} now={now} proposed={review !== null && view.kind === 'list' && proposal.isNew(task.text)} />)}
       </ul>
       {open.length === 0 && done.length === 0 && (
         <p className="tasks-empty">{view.kind === 'smart' ? (view.id === 'today' ? 'Nothing is due today.' : 'Nothing has a date yet.') : 'Type above to add a task, or ask the agent to plan it with you.'}</p>
