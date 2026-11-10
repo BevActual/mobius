@@ -247,9 +247,15 @@ test('approvals can be changed from the message box and match Settings', async (
   await start();
   await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Ask first');
   await shell().getByRole('button', { name: 'Approvals' }).click();
-  await menu('Approvals').getByRole('menuitemradio', { name: /Smart/ }).click();
-  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Smart approvals');
+  await menu('Approvals').getByRole('menuitemradio', { name: /^Act/ }).click();
+  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Act');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('smart');
+  // Shift+Tab in the message box goes on to the next: Ask first, Propose, Act.
+  await composer().press('Shift+Tab');
+  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Ask first');
+  await composer().press('Shift+Tab');
+  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Propose');
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('propose');
 });
 
 test('effort Off tells a model on this computer not to think', async () => {

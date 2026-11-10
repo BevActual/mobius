@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { MobiusMark } from '../MobiusMark';
-import { MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ApprovalModeChoice, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
+import { MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
 import { usePreferences } from '../usePreferences';
 import { filterCatalog } from './model-catalog';
 import { PopMenu } from './PopMenu';
@@ -9,6 +9,7 @@ import { CameraDialog } from './CameraDialog';
 import { MAX_PICTURES, pictureFromFile, pictureFromUrl, pictureOfWindow } from '../picture';
 import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem, type Suggestion, type SurfaceState } from '../surface';
 import { useDictation } from './useDictation';
+import { MODES, modeOf, nextMode } from '../approval-modes';
 
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
   { id: '', label: 'Default' },
@@ -18,11 +19,6 @@ const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
   { id: 'high', label: 'High' },
 ];
 
-const APPROVALS: Array<{ id: ApprovalModeChoice; label: string; hint: string }> = [
-  { id: 'manual', label: 'Manual', hint: 'Ask me before using a tool' },
-  { id: 'smart', label: 'Smart', hint: 'Your model approves what is clearly safe' },
-  { id: 'off', label: 'Off', hint: 'Act without asking' },
-];
 
 const PLAN_FIRST_KEY = 'mobius.planFirst';
 const KIND_NOTE: Record<ModelGroup['kind'], string> = { subscription: 'Plan', provider: 'Key', local: 'On this computer', server: 'Server' };
@@ -125,6 +121,11 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       event.preventDefault();
       submit();
     }
+    // Shift+Tab goes to the next way of working: Ask first, Propose, Act.
+    if (event.key === 'Tab' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      event.preventDefault();
+      void preferences.set({ approvalMode: nextMode(preferences.value.approvalMode) });
+    }
   };
   const onFormKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
     if (event.key === 'Escape' && dictation.state === 'recording') {
@@ -214,7 +215,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
 
   const modelName = settings?.configured || settings?.model ? settings.model : '';
   const effortLabel = EFFORTS.find((e) => e.id === effort)?.label ?? 'Default';
-  const approval = APPROVALS.find((a) => a.id === preferences.value.approvalMode) ?? APPROVALS[0]!;
+  const approval = modeOf(preferences.value.approvalMode);
   const shown = models.state === 'ready' ? filterCatalog(models.catalog.groups, find) : [];
 
   return (
@@ -348,15 +349,15 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
             <svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h1M3 8h1M3 12h1M6.5 4H13M6.5 8H13M6.5 12H13" /></svg>
             <span className="pill-text">Plan first</span>
           </button>
-          <PopMenu label="Approvals" className="pill pill-compact" title={`Approvals: ${approval.label}. ${approval.hint}.`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{approval.id === 'manual' ? 'Ask first' : approval.id === 'smart' ? 'Smart approvals' : 'No approvals'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+          <PopMenu label="Approvals" className="pill pill-compact" title={`${approval.name}: ${approval.hint}. Shift+Tab in the message box changes it.`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{approval.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <>
-                {APPROVALS.map((option) => (
+                {MODES.map((option) => (
                   <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === approval.id} className="popmenu-item" onClick={() => { close(); void preferences.set({ approvalMode: option.id }); }}>
-                    <span>{option.label}</span><span className="popmenu-hint">{option.hint}</span>
+                    <span>{option.name}</span><span className="popmenu-hint">{option.hint}</span>
                   </button>
                 ))}
-                <p className="popmenu-note">Blocked sites and actions stay blocked in every mode. Same setting as Settings › Safety.</p>
+                <p className="popmenu-note">In every mode, paying, sending, deleting and running commands ask first, and what you blocked stays blocked. Shift+Tab in the message box changes it.</p>
               </>
             )}
           </PopMenu>

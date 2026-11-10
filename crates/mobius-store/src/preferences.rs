@@ -43,7 +43,9 @@ static FIELDS: [Field; 12] = [
     Field { name: "keepAwake", default: || json!(false), check: is_flag },
     Field { name: "localContext", default: || json!(DEFAULT_CONTEXT), check: |v| v.as_u64().is_some_and(|n| CONTEXT_SIZES.contains(&n)) && v.is_u64() },
     Field { name: "agentPrivateUrls", default: || json!(false), check: is_flag },
-    Field { name: "approvalMode", default: || json!("manual"), check: |v| one_of(v, &["manual", "smart", "off"]) },
+    // Ask first (manual), Propose (the default) or Act (smart). Off is still understood, for the core and older files,
+    // but a saved off is read as Act: no mode acts without asking about running, deleting or sending.
+    Field { name: "approvalMode", default: || json!("propose"), check: |v| one_of(v, &["manual", "propose", "smart", "off"]) },
     Field { name: "keybindings", default: keys::defaults, check: keys::is_key_bindings },
     Field { name: "reasoningEffort", default: || json!(""), check: |v| one_of(v, &["", "none", "low", "medium", "high"]) },
     Field { name: "dictationModel", default: || json!("whisper-1"), check: is_model_name },
@@ -51,12 +53,30 @@ static FIELDS: [Field; 12] = [
 ];
 
 pub fn open(file: PathBuf) -> Settings {
-    Settings::open(file, &FIELDS)
+    let mut settings = Settings::open(file, &FIELDS);
+    if settings.get()["approvalMode"] == "off" {
+        settings.set(&json!({ "approvalMode": "smart" }));
+    }
+    settings
 }
 
 #[cfg(test)]
 mod access_tests {
     use super::*;
+
+    #[test]
+    fn propose_is_the_default_and_a_saved_off_is_read_as_act() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(open(dir.path().join("fresh.json")).get()["approvalMode"], "propose");
+        let old = dir.path().join("old.json");
+        std::fs::write(&old, r#"{ "approvalMode": "off" }"#).unwrap();
+        assert_eq!(open(old.clone()).get()["approvalMode"], "smart");
+        // And it stays so: the file was rewritten.
+        assert_eq!(open(old).get()["approvalMode"], "smart");
+        let kept = dir.path().join("kept.json");
+        std::fs::write(&kept, r#"{ "approvalMode": "manual" }"#).unwrap();
+        assert_eq!(open(kept).get()["approvalMode"], "manual");
+    }
 
     #[test]
     fn app_access_is_the_known_apps_at_known_levels() {

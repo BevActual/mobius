@@ -1112,7 +1112,8 @@ export function isAppAccess(v: unknown): v is AppAccess {
 /** `none` turns thinking off where the model allows it (models on this computer). */
 export type EffortChoice = '' | 'none' | 'low' | 'medium' | 'high';
 export const DEFAULT_DICTATION_MODEL = 'whisper-1';
-export type ApprovalModeChoice = 'manual' | 'smart' | 'off';
+/** Ask first (manual), Propose, or Act (smart). Off is from before the three modes and reads as Act. */
+export type ApprovalModeChoice = 'manual' | 'propose' | 'smart' | 'off';
 /** The context sizes offered for local models. */
 export const CONTEXT_SIZES: readonly number[] = [4096, 8192, 16384, 32768, 65536];
 export const DEFAULT_CONTEXT = 16384;
@@ -1121,7 +1122,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'manual', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, appAccess: DEFAULT_APP_ACCESS };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, appAccess: DEFAULT_APP_ACCESS };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -1131,7 +1132,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   keepAwake: isFlag,
   localContext: (v): v is number => typeof v === 'number' && CONTEXT_SIZES.includes(v),
   agentPrivateUrls: isFlag,
-  approvalMode: oneOf<ApprovalModeChoice>('manual', 'smart', 'off'),
+  approvalMode: oneOf<ApprovalModeChoice>('manual', 'propose', 'smart', 'off'),
   keybindings: isKeyBindings,
   reasoningEffort: oneOf<EffortChoice>('', 'none', 'low', 'medium', 'high'),
   dictationModel: (v): v is string => isModelName(v),

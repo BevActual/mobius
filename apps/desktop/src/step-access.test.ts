@@ -20,6 +20,8 @@ describe('plan step tags', () => {
     expect(stepTag('Write the note', { ...ask, notes: 'off' }, 'off')?.tag).toBe('Off');
     expect(stepTag('Add the dentist appointment', ask, 'manual'), 'settings from before Calendar ask').toEqual({ app: 'Calendar', tag: 'Asks first' });
     expect(stepTag('Add the dentist appointment', { ...ask, calendar: 'act' }, 'manual')?.tag).toBe('Acts');
+    expect(stepTag('Write the note', ask, 'propose')?.tag).toBe('Proposes');
+    expect(stepTag('Open the site', ask, 'propose')?.tag).toBe('Asks first');
     expect(stepTag('Think', ask, 'manual')).toBeNull();
   });
 });

@@ -78,13 +78,14 @@ export type AppHandle = object;
 
 export interface Launched { app: AppHandle; shell: Page; userData: string; close(options?: { keepUserData?: boolean }): Promise<void> }
 
-export async function launch(startUrl: string, options: { env?: Record<string, string>; userData?: string; /** Leave the agent's keep-out-of-local-addresses rule on, as a real person has it. */ realNetworkRules?: boolean } = {}): Promise<Launched> {
+export async function launch(startUrl: string, options: { env?: Record<string, string>; userData?: string; /** Leave the agent's keep-out-of-local-addresses rule on, as a real person has it. */ realNetworkRules?: boolean; /** Start with the approval mode a new person gets (Propose), instead of Ask first, which most tests are written for. */ newPerson?: boolean } = {}): Promise<Launched> {
   const userData = options.userData ?? fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-e2e-'));
-  // Every fixture page lives on this computer, so the tests start with the agent allowed to use local addresses.
+  // Every fixture page lives on this computer, so the tests start with the agent allowed to use local addresses. They
+  // also start in Ask first, so each tool the agent uses shows its approval, unless the test is about a new person.
   const prefsFile = path.join(userData, 'preferences.json');
   if (!options.realNetworkRules && !fs.existsSync(prefsFile)) {
     fs.mkdirSync(userData, { recursive: true });
-    fs.writeFileSync(prefsFile, JSON.stringify({ agentPrivateUrls: true }));
+    fs.writeFileSync(prefsFile, JSON.stringify(options.newPerson ? { agentPrivateUrls: true } : { agentPrivateUrls: true, approvalMode: 'manual' }));
   }
   return launchTauri(startUrl, userData, options.env ?? {});
 }

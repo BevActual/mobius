@@ -292,7 +292,7 @@ fn dispatch(core: &mut Core, extension: &mut dyn Extension, method: &str, params
         "permissions.mode" => Ok(json!({ "mode": core.approval_mode().as_str() })),
         "permissions.set_mode" => {
             let params: SetModeParams = parse_params(params)?;
-            let mode = ApprovalMode::parse(&params.mode).ok_or_else(|| RpcError::invalid_params("mode must be careful, standard or relaxed"))?;
+            let mode = ApprovalMode::parse(&params.mode).ok_or_else(|| RpcError::invalid_params("mode must be manual, propose, smart or off"))?;
             core.set_approval_mode(mode)?;
             Ok(json!({ "mode": mode.as_str() }))
         }

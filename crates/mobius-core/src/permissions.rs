@@ -18,6 +18,10 @@ pub enum ApprovalMode {
     /// Ask the first time and remember if told to. The floors are asked about every time.
     #[default]
     Manual,
+    /// Mobius makes reversible changes in the workspace (and reads it) without asking: what a turn changed waits as a
+    /// proposal to keep, discard or try another way, since each turn begins with a checkpoint. Everything else is asked
+    /// about as in manual, and the floors every time.
+    Propose,
     /// Like manual, but a reviewer model first looks at each question: it can approve that one use, or point out
     /// that it looks dangerous. When it is unsure, or cannot answer, the person is asked.
     Smart,
@@ -30,6 +34,7 @@ impl ApprovalMode {
     pub fn parse(name: &str) -> Option<Self> {
         match name {
             "manual" => Some(Self::Manual),
+            "propose" => Some(Self::Propose),
             "smart" => Some(Self::Smart),
             "off" => Some(Self::Off),
             _ => None,
@@ -40,6 +45,7 @@ impl ApprovalMode {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Manual => "manual",
+            Self::Propose => "propose",
             Self::Smart => "smart",
             Self::Off => "off",
         }
@@ -146,6 +152,9 @@ impl Policy {
             Verdict::Allow { consume: Some(id) }
         } else if !floor && principal.kind == PrincipalKind::Agent && rule(Effect::Allow) {
             Verdict::Allow { consume: None }
+        } else if self.mode == ApprovalMode::Propose && !floor && principal.kind == PrincipalKind::Agent && is_reversible(capability) {
+            // A proposal: the turn's checkpoint puts it back if the person discards it.
+            Verdict::Allow { consume: None }
         } else if self.mode == ApprovalMode::Off {
             // Nothing is asked about, and no standing block matched.
             Verdict::Allow { consume: None }
@@ -153,6 +162,18 @@ impl Policy {
             Verdict::Ask
         }
     }
+}
+
+/// What Propose lets the agent do without asking: read the workspace and change it in ways a turn's checkpoint puts
+/// back. Deleting files is a floor, and sending, browsing, mail and running commands are not here, so they still ask.
+const REVERSIBLE: [&str; 12] = [
+    "files.read", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
+    "calendar.read", "calendar.write", "skills.read", "document.write",
+];
+
+#[must_use]
+pub fn is_reversible(capability: &Capability) -> bool {
+    REVERSIBLE.contains(&capability.as_str())
 }
 
 /// `None` matches every resource. A pattern ending in `*` matches by prefix (write patterns as `https://host/*`,
@@ -336,6 +357,27 @@ mod tests {
         let g = [grant(1, &a, "browser.read", None, Effect::Allow, Duration::Once)];
         assert_eq!(policy().evaluate(&g, 1_000 + 60_000, &a, &cap("browser.read"), None), Verdict::Ask, "expires_ms is exclusive");
         assert_eq!(policy().evaluate(&g, 1_000 + 59_999, &a, &cap("browser.read"), None), Verdict::Allow { consume: Some(1) });
+    }
+
+    #[test]
+    fn propose_lets_the_agent_change_the_workspace_and_asks_about_the_rest() {
+        let mut p = policy();
+        p.set_mode(ApprovalMode::Propose);
+        let a = agent("mobius");
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Allow { consume: None });
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("tasks.write"), None), Verdict::Allow { consume: None });
+        // Not reversible, or a floor: asked as in manual.
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.navigate"), None), Verdict::Ask);
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.read"), None), Verdict::Ask);
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("fs.delete"), Some("notes/Plan.md")), Verdict::Ask);
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("process.exec"), None), Verdict::Ask);
+        // A block still blocks, and only the agent gets the leeway.
+        let deny = grant(1, &a, "files.write", Some("notes/*"), Effect::Deny, Duration::Always);
+        assert_eq!(p.evaluate(&[deny], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Deny);
+        let plugin = Principal::new(PrincipalKind::Plugin, "x").unwrap();
+        assert_eq!(p.evaluate(&[], NOW, &plugin, &cap("files.write"), Some("notes/Plan.md")), Verdict::Ask);
+        assert_eq!(ApprovalMode::parse("propose"), Some(ApprovalMode::Propose));
+        assert_eq!(ApprovalMode::Propose.as_str(), "propose");
     }
 
     #[test]

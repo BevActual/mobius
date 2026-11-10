@@ -41,5 +41,7 @@ export function stepTag(text: string, access: AppAccess, mode: ApprovalModeChoic
   if (level === 'act') return { app: name, tag: 'Acts' };
   if (mode === 'off') return { app: name, tag: 'Acts' };
   if (level === 'read') return { app: name, tag: 'Reads freely' };
+  // Propose changes the workspace without asking; the browser and mail are not the workspace, so they still ask.
+  if (mode === 'propose' && app !== 'browser' && app !== 'mail') return { app: name, tag: 'Proposes' };
   return { app: name, tag: mode === 'smart' ? 'Asks if unsure' : 'Asks first' };
 }

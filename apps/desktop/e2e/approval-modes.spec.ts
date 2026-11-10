@@ -38,7 +38,7 @@ const say = async (text: string) => {
   await composer().fill(text);
   await composer().press('Enter');
 };
-const setMode = async (mode: 'manual' | 'smart' | 'off') => {
+const setMode = async (mode: 'manual' | 'propose' | 'smart' | 'off') => {
   await shell().evaluate((m) => window.mobius.preferences.set({ approvalMode: m }), mode);
 };
 const coreMode = async () => (await coreCall<{ mode: string }>(mobius!.app, 'permissions.mode', {})).mode;
@@ -61,19 +61,35 @@ test('with approvals off the agent opens a site and clicks without asking; back 
   await card().getByRole('button', { name: 'Decline' }).click();
 });
 
-test('the settings page shows manual, explains off, and the choice survives a restart into the core', async () => {
+test('the settings page shows Ask first, explains Propose, and the choice survives a restart into the core', async () => {
   await start([]);
   await shell().getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
-  await expect(page().getByRole('radio', { name: 'Manual' })).toBeChecked();
+  await expect(page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Ask first' })).toBeChecked();
   await expect(page().getByTestId('approval-mode-help')).toContainText('asked about every time');
-  await page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Off' }).check();
-  await expect(page().getByTestId('approval-mode-help')).toContainText('without asking');
-  await expect.poll(coreMode).toBe('off');
+  await page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Propose' }).check();
+  await expect(page().getByTestId('approval-mode-help')).toContainText('Keep it, Discard it or ask it to Try another way');
+  await expect.poll(coreMode).toBe('propose');
   await mobius!.close({ keepUserData: true });
   mobius = await launch(fixture.origin + '/', { userData });
-  await expect.poll(coreMode).toBe('off');
+  await expect.poll(coreMode).toBe('propose');
+});
+
+test('in Propose a note is written without asking and waits to be kept, while opening a site still asks', async () => {
+  await start([callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.']), callsTool('browser-open', { url: fixture.origin + '/second' }), says(['Opened.'])]);
+  await setMode('propose');
+  await expect.poll(coreMode).toBe('propose');
+  await say('make an ideas page');
+  await expect(log().locator('.msg.assistant')).toHaveText('Made it.');
+  await expect(card()).toHaveCount(0);
+  expect(fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(true);
+  const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
+  await expect(strip.getByRole('button', { name: 'Keep' })).toBeVisible();
+  await strip.getByRole('button', { name: 'Keep' }).click();
+  await say('open the second page');
+  await expect(card()).toBeVisible();
+  await card().getByRole('button', { name: 'Decline' }).click();
 });
 
 test('the shell cannot name a mode that does not exist', async () => {

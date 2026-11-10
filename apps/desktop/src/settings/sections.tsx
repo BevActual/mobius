@@ -24,7 +24,6 @@ import {
   type AgentSettings,
   type AppearanceSettings,
   type BookmarkEntry,
-  type ApprovalModeChoice,
   type ChatFont,
   type ConversationInfo,
   type EffortChoice,
@@ -52,6 +51,7 @@ import { LocalModelsSection } from './LocalModels';
 import { SettingsForm } from './ModelForm';
 import { Empty, Row } from './primitives';
 import { settingPath, type SectionId } from './manifest';
+import { MODES, modeOf } from '../approval-modes';
 
 export interface SectionProps {
   subpage: string;
@@ -148,12 +148,7 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 const FONTS: Array<{ id: ChatFont; label: string }> = [{ id: 'system', label: 'System' }, { id: 'serif', label: 'Serif' }, { id: 'mono', label: 'Monospace' }];
 const DIRECTIONS: Array<{ id: TextDirection; label: string }> = [{ id: 'auto', label: 'Automatic' }, { id: 'ltr', label: 'Left to right' }, { id: 'rtl', label: 'Right to left' }];
 const DENSITIES: Array<{ id: Density; label: string }> = [{ id: 'comfortable', label: 'Comfortable' }, { id: 'compact', label: 'Compact' }];
-const APPROVAL_MODES: Array<{ id: ApprovalModeChoice; label: string }> = [{ id: 'manual', label: 'Manual' }, { id: 'smart', label: 'Smart' }, { id: 'off', label: 'Off' }];
-const APPROVAL_HELP: Record<ApprovalModeChoice, string> = {
-  manual: 'The first use is asked about and you can choose to always allow it. Running commands, deleting files, reading secrets and clicking or typing on a web page are asked about every time.',
-  smart: 'Your model reviews each question first. It approves only what is clearly safe, for that one time. If it thinks something is dangerous you are asked and can allow it once; if it is unsure, or cannot answer, you are asked as usual. What the reviewer sees is the tool and its arguments.',
-  off: 'The agent acts without asking, including running commands and deleting files. Sites and actions you have blocked stay blocked.',
-};
+const APPROVAL_MODES = MODES.map((m) => ({ id: m.id, label: m.name }));
 const SIDEBAR_MODES: Array<{ id: SidebarMode; label: string }> = [{ id: 'attached', label: 'Attached' }, { id: 'floating', label: 'Floating' }];
 const EFFORT_OPTIONS: Array<{ id: EffortChoice; label: string }> = [{ id: '', label: 'Default' }, { id: 'none', label: 'Off' }, { id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }];
 const TOOL_STEPS: Array<{ id: ToolSteps; label: string }> = [{ id: 'show', label: 'Show all' }, { id: 'hide-finished', label: 'Hide finished' }];
@@ -446,9 +441,9 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
   }
   return (
     <>
-      <Row path={path('approval-mode')} title="Approval mode" description="Manual asks before the agent acts. Smart lets a reviewer model approve the clearly safe ones. Off lets it act without asking." highlight={highlight === 'approval-mode'}>
-        <Choice label="Approval mode" name="approval-mode" value={preferences.approvalMode} options={APPROVAL_MODES} onChange={(approvalMode) => void onPreferences({ approvalMode })} />
-        <p className="srow-text" data-testid="approval-mode-help">{APPROVAL_HELP[preferences.approvalMode]}</p>
+      <Row path={path('approval-mode')} title="Approval mode" description="Ask first asks before each tool. Propose changes your workspace without asking and waits for Keep, Discard or Try another. Act does the work, checking each step." highlight={highlight === 'approval-mode'}>
+        <Choice label="Approval mode" name="approval-mode" value={modeOf(preferences.approvalMode).id} options={APPROVAL_MODES} onChange={(approvalMode) => void onPreferences({ approvalMode })} />
+        <p className="srow-text" data-testid="approval-mode-help">{modeOf(preferences.approvalMode).help}</p>
       </Row>
       <Row path={path('app-access')} title="What Mobius may do in each app" description="For each app: off, ask first, read without asking, or act without asking. Risky actions still ask." highlight={highlight === 'app-access'}>
         <div className="access-all" role="group" aria-label="Every app at once">

@@ -61,7 +61,7 @@ fn a_damaged_or_hostile_settings_file_falls_back_one_field_at_a_time() {
 fn preferences_check_each_choice() {
     let dir = tempfile::tempdir().unwrap();
     let mut p = preferences::open(dir.path().join("p.json"));
-    assert_eq!(p.get()["approvalMode"], "manual");
+    assert_eq!(p.get()["approvalMode"], "propose");
     assert_eq!(p.get()["dictationModel"], "whisper-1");
     for bad in [
         json!({ "approvalMode": "yolo" }), json!({ "localContext": 1234 }), json!({ "localContext": 16384.5 }), json!({ "reasoningEffort": "extreme" }),
