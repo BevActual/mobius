@@ -1,7 +1,7 @@
 import { MAX_CONTEXT_ITEM_CHARS, type ContextItem } from '@mobius/shared';
 import type { AppId } from './apps';
 import type { TasksState } from './useTasks';
-import { smartView } from './tasks-view';
+import { smartName, smartView } from './tasks-view';
 
 /**
  * What an application offers the agent where you are: a few things worth asking, each with the context it needs.
@@ -217,8 +217,8 @@ export function tasksContext(tasks: Pick<TasksState, 'view' | 'all'>): { title: 
     const lines = (all[view.name] ?? []).map((t) => `- [${t.done ? 'x' : ' '}] ${t.text}${t.due ? ` (due ${t.due})` : ''}`);
     return { title: view.name, text: `# ${view.name}\n${lines.join('\n')}` };
   }
-  const title = view.id === 'today' ? 'Today' : 'Scheduled';
-  const lines = smartView(view.id, all, new Date()).map(({ list, task }) => `- [ ] ${task.text} (due ${task.due}, in ${list})`);
+  const title = smartName(view.id);
+  const lines = smartView(view.id, all, new Date()).map(({ list, task }) => `- [${task.done ? 'x' : ' '}] ${task.text} (${[task.due ? `due ${task.due}` : '', task.flagged ? 'flagged' : '', `in ${list}`].filter(Boolean).join(', ')})`);
   return { title, text: `# ${title}\n${lines.join('\n')}` };
 }
 
