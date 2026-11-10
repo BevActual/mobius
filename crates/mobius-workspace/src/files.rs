@@ -188,7 +188,8 @@ impl Workspace {
                 let mut entries: Vec<(String, bool, u64)> = fs::read_dir(&folder)
                     .map_err(|_| "that folder is not there".to_owned())?
                     .filter_map(Result::ok)
-                    .filter(|e| !e.file_name().to_string_lossy().eq_ignore_ascii_case(".git"))
+                    // Hidden entries (.git, an app's .versions) are not the person's files.
+                    .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
                     .filter_map(|e| e.metadata().ok().map(|m| (e.file_name().to_string_lossy().into_owned(), m.is_dir(), m.len())))
                     .collect();
                 entries.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.to_lowercase().cmp(&b.0.to_lowercase())));
@@ -226,7 +227,7 @@ impl Workspace {
                     let mut items: Vec<_> = read.filter_map(Result::ok).collect();
                     items.sort_by_key(|e| e.file_name());
                     for entry in items {
-                        if entry.file_name().to_string_lossy().eq_ignore_ascii_case(".git") {
+                        if entry.file_name().to_string_lossy().starts_with('.') {
                             continue;
                         }
                         let Ok(meta) = fs::symlink_metadata(entry.path()) else { continue };
@@ -293,6 +294,23 @@ mod tests {
     }
     fn call(ws: &Workspace, name: &str, args: Value) -> Res<Value> {
         ws.run(name, &args).map(|s| serde_json::from_str(&s).unwrap())
+    }
+
+    #[test]
+    fn hidden_folders_such_as_an_apps_versions_are_not_listed_searched_or_counted_as_a_turns_changes() {
+        let (_d, ws) = setup();
+        call(&ws, "files.write", json!({ "path": "docs/Work/Plan.md", "content": "the plan" })).unwrap();
+        let before = ws.mark("turn").unwrap().unwrap();
+        // What Docs keeps as the person types: beside the documents, in a dot folder.
+        let kept = ws.root().join("docs").join(".versions").join("Work").join("Plan");
+        std::fs::create_dir_all(&kept).unwrap();
+        std::fs::write(kept.join("1.md"), "the plan, earlier").unwrap();
+        let listed = call(&ws, "files.list", json!({ "path": "docs" })).unwrap();
+        assert_eq!(listed["entries"], json!([{ "name": "Work", "type": "folder" }]), "{listed}");
+        let found = call(&ws, "files.search", json!({ "query": "the plan" })).unwrap();
+        assert!(!found.to_string().contains(".versions"), "{found}");
+        assert!(found.to_string().contains("docs/Work/Plan.md"), "{found}");
+        assert_eq!(ws.changed_since(&before).unwrap(), Vec::<String>::new(), "a kept version is not a change the turn made");
     }
 
     #[test]
