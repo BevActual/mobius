@@ -127,16 +127,16 @@ describe('effort and dictation in preferences', () => {
 });
 
 describe('approval mode', () => {
-  it('is manual unless the person chooses, and only manual, smart or off is accepted', () => {
-    expect(DEFAULT_PREFERENCES.approvalMode).toBe('manual');
-    for (const mode of ['manual', 'smart', 'off']) expect(parsePreferencesPatch({ approvalMode: mode })).toEqual({ approvalMode: mode });
+  it('is propose unless the person chooses, and only manual, propose, smart or off is accepted', () => {
+    expect(DEFAULT_PREFERENCES.approvalMode).toBe('propose');
+    for (const mode of ['manual', 'propose', 'smart', 'off']) expect(parsePreferencesPatch({ approvalMode: mode })).toEqual({ approvalMode: mode });
     for (const bad of ['auto', 'yolo', 'never', '', 'Off', 'careful', 'standard', 'relaxed', 3, null, true]) expect(parsePreferencesPatch({ approvalMode: bad }), String(bad)).toBeNull();
   });
 });
 
 describe('preferences changes', () => {
   it('start with alerts on, sounds on and nothing kept awake', () => {
-    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'manual', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', appAccess: { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', research: 'ask', reader: 'ask', code: 'ask', database: 'ask', design: 'ask', canvas: 'ask', photo: 'ask', studio: 'ask', video: 'ask', skills: 'ask' } });
+    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', appAccess: { browser: 'ask', notes: 'ask', docs: 'ask', sheets: 'ask', slides: 'ask', tasks: 'ask', calendar: 'ask', mail: 'ask', research: 'ask', reader: 'ask', code: 'ask', database: 'ask', design: 'ask', canvas: 'ask', photo: 'ask', studio: 'ask', video: 'ask', skills: 'ask' } });
   });
   it('ask in every app until the person chooses otherwise, and accept only the apps it knows at known levels (Calendar may be missing from older settings)', () => {
     expect(parsePreferencesPatch({ appAccess: { browser: 'read', notes: 'act', tasks: 'off' } })).toEqual({ appAccess: { browser: 'read', notes: 'act', tasks: 'off' } });
