@@ -581,9 +581,112 @@ impl Notes {
         let bytes = fs::read(&file).map_err(|e| e.to_string())?;
         Ok(json!({ "dataUrl": format!("data:{kind};base64,{}", to_base64(&bytes)), "size": size }))
     }
+
+    /// Where a page's comments are kept: `<folder>/.comments/<notebook>/<page>.json`, so the page itself stays only
+    /// what was written.
+    fn comments_file(&self, path: &str) -> Option<PathBuf> {
+        let (notebook, file) = page_ok(path, self.ext)?;
+        Some(self.root.join(COMMENTS).join(notebook).join(format!("{}.json", file.strip_suffix(".md")?)))
+    }
+
+    /// A page's comments, as kept: a list of `{ id, quote, text, by, whenMs, resolved }`. None yet is an empty list.
+    pub fn comments(&self, path: &str) -> Res<Value> {
+        self.page(path)?;
+        let file = self.comments_file(path).ok_or("that is not a page")?;
+        match fs::read_to_string(&file) {
+            Ok(text) => serde_json::from_str::<Value>(&text).ok().filter(Value::is_array).map_or_else(|| Ok(json!([])), Ok),
+            Err(_) => Ok(json!([])),
+        }
+    }
+
+    /// Keep a page's comments. Each is checked: a short id, the quoted words it is about, what was said, who said it.
+    pub fn set_comments(&self, path: &str, comments: &Value) -> Res<Value> {
+        let page = self.page(path)?;
+        if !page.is_file() {
+            return Err("that page is not there".into());
+        }
+        let list = comments.as_array().ok_or("comments are a list")?;
+        if list.len() > MAX_COMMENTS {
+            return Err("that page has too many comments".into());
+        }
+        let text = |c: &Value, key: &str, max: usize| c.get(key).and_then(Value::as_str).filter(|t| t.len() <= max).map(str::to_owned);
+        let mut kept = Vec::with_capacity(list.len());
+        for c in list {
+            let id = text(c, "id", 40).filter(|i| !i.is_empty() && i.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-')).ok_or("a comment needs an id")?;
+            let said = text(c, "text", 4000).ok_or("a comment needs its words")?;
+            let quote = text(c, "quote", 1000).unwrap_or_default();
+            let by = text(c, "by", 40).unwrap_or_else(|| "you".into());
+            let when = c.get("whenMs").and_then(Value::as_u64).unwrap_or(0);
+            let resolved = c.get("resolved").and_then(Value::as_bool).unwrap_or(false);
+            kept.push(json!({ "id": id, "quote": quote, "text": said, "by": by, "whenMs": when, "resolved": resolved }));
+        }
+        let file = self.comments_file(path).ok_or("that is not a page")?;
+        if kept.is_empty() {
+            let _ = fs::remove_file(&file);
+        } else {
+            fs::create_dir_all(file.parent().ok_or("that is not a page")?).map_err(|e| e.to_string())?;
+            let temp = file.with_extension("json.mobius-tmp");
+            fs::write(&temp, serde_json::to_string_pretty(&kept).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+            fs::rename(&temp, &file).map_err(|e| e.to_string())?;
+        }
+        Ok(json!({ "path": path, "comments": kept }))
+    }
+
+    /// Save a copy of a page for someone else, in the workspace's `Exports` folder (never replacing a file there):
+    /// `html` is the page as one file with its pictures inside (made by the window), `md` the page's Markdown with its
+    /// files folder copied beside it.
+    pub fn export(&self, path: &str, kind: &str, html: Option<&str>) -> Res<Value> {
+        let page = self.page(path)?;
+        let content = fs::read_to_string(&page).map_err(|_| "that page is not there".to_owned())?;
+        let stem = page.file_stem().and_then(|f| f.to_str()).unwrap_or("Untitled").to_owned();
+        let title = file_name_for(&title_of(&content, &stem));
+        let folder = self.workspace.join(EXPORTS);
+        fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+        let (body, ext) = match kind {
+            "html" => (html.filter(|h| h.len() <= MAX_PAGE * 30).ok_or("there is nothing to export")?.to_owned(), "html"),
+            "md" => (content, "md"),
+            _ => return Err("that kind of export is not known".into()),
+        };
+        let mut n = 1;
+        let name = loop {
+            let candidate = if n < 2 { format!("{title}.{ext}") } else { format!("{title} {n}.{ext}") };
+            match fs::OpenOptions::new().write(true).create_new(true).open(folder.join(&candidate)) {
+                Ok(mut f) => {
+                    std::io::Write::write_all(&mut f, body.as_bytes()).map_err(|e| e.to_string())?;
+                    break candidate;
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && n < 1000 => n += 1,
+                Err(e) => return Err(e.to_string()),
+            }
+        };
+        // A Markdown copy takes its pictures and files along, so its links still work.
+        if ext == "md"
+            && let Some(files) = self.files_folder(path).filter(|f| f.is_dir())
+        {
+            let made_stem = name.strip_suffix(".md").unwrap_or(&name);
+            let target = folder.join(files_folder_name(made_stem));
+            fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+            for entry in fs::read_dir(&files).map_err(|e| e.to_string())?.filter_map(Result::ok) {
+                if entry.file_type().is_ok_and(|t| t.is_file()) {
+                    fs::copy(entry.path(), target.join(entry.file_name())).map_err(|e| e.to_string())?;
+                }
+            }
+            if made_stem != stem {
+                let from = files_folder_name(&stem).replace(' ', "%20");
+                let to = files_folder_name(made_stem).replace(' ', "%20");
+                let fixed = fs::read_to_string(folder.join(&name)).map_err(|e| e.to_string())?.replace(&format!("]({from}/"), &format!("]({to}/"));
+                fs::write(folder.join(&name), fixed).map_err(|e| e.to_string())?;
+            }
+        }
+        Ok(json!({ "path": path, "saved": format!("{EXPORTS}/{name}"), "name": name }))
+    }
 }
 
 const VERSIONS: &str = ".versions";
+const COMMENTS: &str = ".comments";
+/// Where exported copies go, in the workspace, so Files shows them.
+pub const EXPORTS: &str = "Exports";
+const MAX_COMMENTS: usize = 500;
 /// Typing saves every moment; a version is kept at most this often.
 const KEEP_EVERY_MS: u64 = 5 * 60 * 1000;
 const MAX_KEPT: usize = 50;
@@ -927,6 +1030,47 @@ mod tests {
         let path = wiki.create_page("Team", "Battery").unwrap()["path"].as_str().unwrap().to_owned();
         wiki.save(&path, "# Battery\n\nnew\n", None).unwrap();
         assert!(!dir.path().join("work/wiki/.versions").exists());
+    }
+
+
+    #[test]
+    fn comments_are_kept_beside_the_page_and_checked() {
+        let (_d, notes) = setup();
+        notes.create_notebook("Work").unwrap();
+        let path = notes.create_page("Work", "Plan").unwrap()["path"].as_str().unwrap().to_owned();
+        assert_eq!(notes.comments(&path).unwrap(), json!([]));
+        let one = json!([{ "id": "c1", "quote": "the 23rd", "text": "Is that firm?", "by": "you", "whenMs": 5, "extra": 1 }]);
+        notes.set_comments(&path, &one).unwrap();
+        let back = notes.comments(&path).unwrap();
+        assert_eq!(back[0]["text"], "Is that firm?");
+        assert_eq!(back[0]["resolved"], false);
+        assert!(back[0].get("extra").is_none());
+        assert_eq!(fs::read_to_string(notes.root.join("Work/Plan.md")).unwrap(), "# Plan\n\n");
+        assert!(notes.set_comments(&path, &json!([{ "id": "../x", "text": "no" }])).is_err());
+        assert!(notes.set_comments(&path, &json!([{ "id": "c2" }])).is_err());
+        assert!(notes.set_comments("../x.md", &one).is_err());
+        notes.set_comments(&path, &json!([])).unwrap();
+        assert_eq!(notes.comments(&path).unwrap(), json!([]));
+        assert_eq!(notes.list().unwrap().as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn an_export_is_a_new_file_in_exports_with_the_pages_files_beside_it() {
+        let (dir, notes) = setup();
+        notes.create_notebook("Work").unwrap();
+        let path = notes.create_page("Work", "Battery").unwrap()["path"].as_str().unwrap().to_owned();
+        let pic = notes.attach(&path, "cell.png", &to_base64(b"png")).unwrap()["ref"].as_str().unwrap().to_owned();
+        notes.save(&path, &format!("# Battery pack\n\n![cell]({pic})\n"), None).unwrap();
+        let md = notes.export(&path, "md", None).unwrap();
+        assert_eq!(md["saved"], "Exports/Battery pack.md");
+        let out = dir.path().join("work/Exports");
+        assert_eq!(fs::read(out.join("Battery pack files/cell.png")).unwrap(), b"png");
+        assert_eq!(fs::read_to_string(out.join("Battery pack.md")).unwrap(), "# Battery pack\n\n![cell](Battery%20pack%20files/cell.png)\n");
+        let html = notes.export(&path, "html", Some("<h1>Battery pack</h1>")).unwrap();
+        assert_eq!(html["saved"], "Exports/Battery pack.html");
+        assert_eq!(notes.export(&path, "md", None).unwrap()["saved"], "Exports/Battery pack 2.md");
+        assert!(notes.export(&path, "exe", None).is_err());
+        assert!(notes.export(&path, "html", None).is_err());
     }
 
 }

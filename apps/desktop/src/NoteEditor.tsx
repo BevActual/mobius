@@ -22,6 +22,8 @@ import { countWords } from './Docs';
 import { relativeTime } from './relative-time';
 import { NoteHistory, dayOf } from './NoteHistory';
 import './notes.css';
+import { CommentComposer, CommentList, useNoteComments } from './NoteComments';
+import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { fileMarkdown, noteImage, readFile } from './note-files';
 import { linkTo, linkedFrom, pageOfLink, pagesMatching } from './note-links';
 
@@ -71,6 +73,39 @@ const NoteTags = Extension.create({
           return true;
         },
       },
+    })];
+  },
+});
+
+/** The words that open comments are about, marked in the page. `quotes` is read when the plugin is told to look again. */
+const commentKey = new PluginKey<DecorationSet>('note-comments');
+function commentDecorations(doc: PmNode, quotes: readonly string[]): DecorationSet {
+  const marks: Decoration[] = [];
+  const left = new Set(quotes.filter((q) => q.trim()));
+  doc.descendants((node, pos) => {
+    if (!left.size) return false;
+    if (!node.isTextblock) return true;
+    const text = node.textContent;
+    for (const q of [...left]) {
+      const at = text.indexOf(q);
+      if (at < 0) continue;
+      marks.push(Decoration.inline(pos + 1 + at, pos + 1 + at + q.length, { class: 'note-commented' }));
+      left.delete(q);
+    }
+    return false;
+  });
+  return DecorationSet.create(doc, marks);
+}
+const noteComments = (quotes: () => readonly string[]) => Extension.create({
+  name: 'noteComments',
+  addProseMirrorPlugins() {
+    return [new Plugin<DecorationSet>({
+      key: commentKey,
+      state: {
+        init: (_, state) => commentDecorations(state.doc, quotes()),
+        apply: (tr, old) => (tr.docChanged || tr.getMeta(commentKey) ? commentDecorations(tr.doc, quotes()) : old),
+      },
+      props: { decorations: (state) => commentKey.getState(state) },
     })];
   },
 });
@@ -174,6 +209,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   const openPage = useRef<(page: string) => void>(() => undefined);
   const askForPage = useRef<() => void>(() => undefined);
   const image = useMemo(() => noteImage(() => pathNow.current), []);
+  // Comments on the page, kept beside it; the words they are about are marked in the page.
+  const commentState = useNoteComments(path);
+  const quotesNow = useRef<string[]>([]);
+  quotesNow.current = commentState.comments.filter((c) => !c.resolved).map((c) => c.quote);
+  const commentMarks = useMemo(() => noteComments(() => quotesNow.current), []);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
@@ -184,6 +224,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       Placeholder.configure({ placeholder: ({ node }) => (node.type.name === 'heading' ? 'Title' : 'Start writing, or type # for a tag') }),
       NoteTags,
       image,
+      commentMarks,
     ],
     content: '',
     editorProps: {
@@ -248,6 +289,50 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     else window.requestAnimationFrame(() => { if (editor && !editor.isDestroyed) editor.commands.focus('end'); });
   }, [path, editor]);
   useEffect(() => setSelection(null), [path, source]);
+  const quoteKey = quotesNow.current.join('\u0000');
+  useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(commentKey, true)); }, [editor, quoteKey]);
+  // Writing a comment on the chosen words, where they are.
+  const [composing, setComposing] = useState<{ quote: string; top: number; left: number } | null>(null);
+  useEffect(() => setComposing(null), [path]);
+  const showQuote = (quote: string) => {
+    if (!editor || editor.isDestroyed || sourceNow.current) return;
+    let found: { from: number; to: number } | null = null;
+    editor.state.doc.descendants((node, pos) => {
+      if (found) return false;
+      if (!node.isTextblock) return true;
+      const at = node.textContent.indexOf(quote);
+      if (at >= 0) found = { from: pos + 1 + at, to: pos + 1 + at + quote.length };
+      return false;
+    });
+    if (!found) return;
+    editor.chain().focus().setTextSelection(found).scrollIntoView().run();
+  };
+  // Share: copy the page, save a copy in Exports, or print it (and so save it as a PDF).
+  const [sharing, setSharing] = useState(false);
+  const [shared, setShared] = useState<string | null>(null);
+  useEffect(() => { setSharing(false); setShared(null); }, [path]);
+  useEffect(() => {
+    if (!sharing) return;
+    const away = (e: PointerEvent) => { if (!(e.target as HTMLElement | null)?.closest('.note-share')) setSharing(false); };
+    window.addEventListener('pointerdown', away);
+    return () => window.removeEventListener('pointerdown', away);
+  }, [sharing]);
+  useEffect(() => { if (!shared) return; const t = window.setTimeout(() => setShared(null), 6000); return () => window.clearTimeout(t); }, [shared]);
+  const pageTitle = () => liveTitle(notes.text, notes.page?.title || 'Note');
+  const share = async (how: 'markdown' | 'formatted' | 'html' | 'md' | 'print') => {
+    setSharing(false);
+    const page = pathNow.current;
+    if (!page) return;
+    if (how === 'markdown') { setShared((await copyText(notes.text)) ? 'Copied as Markdown.' : 'The page could not be copied.'); return; }
+    if (how === 'formatted') { setShared((await copyFormatted(editor?.getHTML() ?? notes.text, notes.text)) ? 'Copied as formatted text.' : 'The page could not be copied.'); return; }
+    if (how === 'print') { window.requestAnimationFrame(() => window.print()); return; }
+    const exportIt = window.mobius.notes?.export;
+    if (!exportIt) return;
+    if (notes.status !== 'saved') await new Promise((r) => window.setTimeout(r, 900));
+    const html = how === 'html' ? await pageAsHtml(pageTitle(), editor?.getHTML() ?? '', page) : undefined;
+    const done = await exportIt(page, how, html).catch(() => ({ ok: false as const, message: 'it could not be saved' }));
+    setShared('saved' in done ? `Saved to ${done.saved}.` : `The copy could not be saved: ${done.message}.`);
+  };
   // A page that opens settles in (see notes.css; off with reduced motion).
   const [entering, setEntering] = useState(false);
   useEffect(() => { if (path) setEntering(true); }, [path]);
@@ -424,6 +509,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   };
 
   const tags = useMemo(() => tagsIn(notes.text), [notes.text]);
+  const openComments = commentState.comments.filter((c) => !c.resolved).length;
   const words = useMemo(() => countWords(notes.text.replace(/^# .*$/m, '').replace(/[#>*_`|[\]()-]/g, ' ')), [notes.text]);
   // "Edited" counts on from when the page was last saved, so it is read again every half minute.
   const [now, setNow] = useState(() => Date.now());
@@ -484,6 +570,26 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
             </button>
           </div>
           <span className="spacer" />
+          <div className="note-share">
+            <button type="button" className="doc-tool" aria-label="Share" title="Copy, export or print this page" aria-haspopup="menu" aria-expanded={sharing} onClick={() => setSharing((o) => !o)}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 12.5V3.5M6.8 6.5 10 3.3l3.2 3.2M6.5 9H5.5A1.5 1.5 0 0 0 4 10.5v5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 14.5 9h-1" /></svg>
+            </button>
+            {sharing && (
+              <div className="note-share-menu" role="menu" aria-label="Share" onKeyDown={(e) => { if (e.key === 'Escape') setSharing(false); }}>
+                <button type="button" role="menuitem" autoFocus onClick={() => void share('formatted')}>Copy</button>
+                <button type="button" role="menuitem" onClick={() => void share('markdown')}>Copy as Markdown</button>
+                {window.mobius.notes?.export && (
+                  <>
+                    <hr />
+                    <button type="button" role="menuitem" onClick={() => void share('html')}>Export as web page</button>
+                    <button type="button" role="menuitem" onClick={() => void share('md')}>Export as Markdown</button>
+                  </>
+                )}
+                <hr />
+                <button type="button" role="menuitem" onClick={() => void share('print')}>Print or save as PDF…</button>
+              </div>
+            )}
+          </div>
           {window.mobius.notes?.versions && (
             <button type="button" className="doc-tool" aria-label="History" title="Earlier versions of this page" onClick={() => setHistory(true)}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.8 10a6.2 6.2 0 1 0 1.9-4.5M3.5 3.5v3h3M10 6.5V10l2.5 1.6" /></svg>
@@ -520,6 +626,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           {(insertProblem ?? recording.problem) && <span className="review-problem" role="alert">{insertProblem ?? recording.problem}</span>}
         </div>
       )}
+      {shared && !history && <div className="note-restored note-shared" role="status"><span>{shared}</span><button type="button" className="review-btn" onClick={() => setShared(null)}>OK</button></div>}
       {restored && !history && (
         <div className="note-restored" role="status">
           <span>Restored the version from {restored.label}.</span>
@@ -560,6 +667,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
         <p className="note-meta">
           {edited && <span>Edited {edited.toLowerCase() === 'just now' ? 'just now' : edited}</span>}
           <span>{words === 1 ? '1 word' : `${words} words`}</span>
+          {openComments > 0 && <span>{openComments === 1 ? '1 comment' : `${openComments} comments`}</span>}
           {tags.map((tag) => (
             <button key={tag} type="button" className="note-meta-tag" title={`Show every note tagged #${tag}`} onClick={() => showTag(tag)}>#{tag}</button>
           ))}
@@ -583,6 +691,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
         ) : (
           <EditorContent editor={editor} className="note-paper" />
         )}
+        {!source && <CommentList state={commentState} text={editor?.state.doc.textContent ?? ''} onShow={showQuote} />}
         {backlinks.length > 0 && (
           <section className="note-backlinks" aria-label="Linked from">
             <h2>Linked from</h2>
@@ -601,6 +710,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       </div>
       {selection && onSelection && (
         <div className="selection-bar" role="toolbar" aria-label="Selected text" style={{ top: selection.top, left: selection.left }}>
+          {commentState.available && (
+            <button type="button" className="selection-btn" data-action="comment" title="Comment on these words"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => { setComposing({ quote: selection.text.trim(), top: selection.top + 76, left: selection.left }); setSelection(null); }}>
+              Comment
+            </button>
+          )}
           {ACTIONS.map((action) => (
             <button key={action.id} type="button" className="selection-btn" data-action={action.id} title={action.title}
               onPointerDown={(e) => e.preventDefault()}
@@ -609,6 +725,10 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
             </button>
           ))}
         </div>
+      )}
+      {composing && (
+        <CommentComposer quote={composing.quote} top={composing.top} left={composing.left} add={commentState.add} onDone={() => setComposing(null)}
+          onAsk={onSelection ? (quote, said) => onSelection('ask', `${quote}\n\nMy comment on it: ${said}`) : undefined} />
       )}
     </section>
   );

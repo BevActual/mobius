@@ -292,3 +292,48 @@ test('[[ links another note, the link opens it, and that note lists where it is 
   await linked.getByRole('button', { name: /Plan/ }).click();
   await expect(text().locator('h1')).toHaveText('Plan');
 });
+
+test('a comment on chosen words is kept beside the page, marks the words, and can be resolved', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nThe price hold lasts until Friday.\n');
+  await start();
+  await side().getByRole('button', { name: 'Plan', exact: true }).click();
+  await text().getByText('The price hold lasts until Friday.').dblclick({ position: { x: 5, y: 8 } });
+  await shell().getByRole('toolbar', { name: 'Selected text' }).getByRole('button', { name: 'Comment' }).click();
+  const composer = shell().getByRole('dialog', { name: 'New comment' });
+  await composer.getByRole('textbox', { name: 'Comment' }).fill('Is that firm?');
+  await composer.getByRole('button', { name: 'Comment' }).click();
+  const comments = shell().getByRole('region', { name: 'Comments' });
+  await expect(comments.getByRole('listitem')).toHaveCount(1);
+  await expect(comments).toContainText('Is that firm?');
+  await expect(text().locator('.note-commented')).toHaveCount(1);
+  // Kept beside the page; the page itself is only what was written.
+  const kept = path.join(userData, 'workspace', 'notes', '.comments', 'Work', 'Plan.json');
+  await expect.poll(() => fs.existsSync(kept) && JSON.parse(fs.readFileSync(kept, 'utf8'))[0]?.text).toBe('Is that firm?');
+  expect(onDisk('Work', 'Plan.md')).toBe('# Plan\n\nThe price hold lasts until Friday.\n');
+  await comments.getByRole('button', { name: 'Resolve' }).click();
+  await expect(text().locator('.note-commented')).toHaveCount(0);
+  await expect(comments.getByRole('button', { name: 'Show 1 resolved' })).toBeVisible();
+  await expect.poll(() => JSON.parse(fs.readFileSync(kept, 'utf8'))[0]?.resolved).toBe(true);
+});
+
+test('Share exports the page as Markdown, with its pictures, and as one web page', async () => {
+  fs.mkdirSync(file('Work', 'Battery files'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Battery files', 'cell.png'), DOT);
+  fs.writeFileSync(file('Work', 'Battery.md'), '# Battery\n\n![cell](Battery%20files/cell.png)\n');
+  await start();
+  await side().getByRole('button', { name: 'Battery', exact: true }).click();
+  await expect(text().locator('img')).toHaveJSProperty('naturalWidth', 4);
+  const exports = path.join(userData, 'workspace', 'Exports');
+  await format().getByRole('button', { name: 'Share' }).click();
+  await shell().getByRole('menuitem', { name: 'Export as Markdown' }).click();
+  await expect(shell().getByRole('status').filter({ hasText: 'Saved to Exports/Battery.md' })).toBeVisible();
+  expect(fs.readFileSync(path.join(exports, 'Battery.md'), 'utf8')).toBe('# Battery\n\n![cell](Battery%20files/cell.png)\n');
+  expect(fs.readFileSync(path.join(exports, 'Battery files', 'cell.png'))).toEqual(DOT);
+  await format().getByRole('button', { name: 'Share' }).click();
+  await shell().getByRole('menuitem', { name: 'Export as web page' }).click();
+  await expect.poll(() => fs.existsSync(path.join(exports, 'Battery.html'))).toBe(true);
+  const html = fs.readFileSync(path.join(exports, 'Battery.html'), 'utf8');
+  expect(html).toContain('<title>Battery</title>');
+  expect(html).toContain('src="data:image/png;base64,');
+});

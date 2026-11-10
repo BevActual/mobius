@@ -380,6 +380,9 @@ export function createTauriBridge(): MobiusBridge {
       versions: (path) => call('notes', 'versions', [path], () => []),
       attach: (path, name, base64) => call('notes', 'attach', [path, name, base64], () => ({ ok: false as const, message: 'Notes is not available.' })),
       asset: (path, ref) => call('notes', 'asset', [path, ref], () => ({ ok: false as const, message: 'Notes is not available.' })),
+      comments: (path) => call('notes', 'comments', [path], () => []),
+      setComments: (path, comments) => call('notes', 'setComments', [path, comments], () => ({ ok: false as const, message: 'Notes is not available.' })),
+      export: (path, kind, html) => call('notes', 'export', [path, kind, html ?? null], () => ({ ok: false as const, message: 'Notes is not available.' })),
       onChanged: (listener) => on<NotesChange>('mobius:notes-changed', listener),
     },
     docs: {

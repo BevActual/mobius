@@ -161,6 +161,8 @@ export interface WikiChange { id: string; from: string; page: string; text: stri
 /** A page as it was earlier: kept as the person typed, or read from a workspace checkpoint. */
 export interface NoteVersion { whenMs: number; content: string; source?: 'kept' | 'checkpoint'; checkpoint?: string }
 /** A file added beside a page; `ref` is the link to it from the page, `image` whether it shows in the page. */
+/** A comment on a page: the words it is about (`quote`), what was said, and by whom (`you` or `Mobius`). */
+export interface NoteComment { id: string; quote: string; text: string; by: string; whenMs: number; resolved: boolean }
 export interface NoteAttachment { path: string; ref: string; name: string; image: boolean }
 /** A wiki page as it was at a checkpoint. */
 export interface WikiVersion { checkpoint: string; whenMs: number; content: string }
@@ -680,6 +682,11 @@ export interface MobiusBridge {
     attach?(path: string, name: string, base64: string): Promise<NoteAttachment | NotesFailure>;
     /** One of the page's files, as a `data:` address to show. */
     asset?(path: string, ref: string): Promise<{ dataUrl: string; size: number } | NotesFailure>;
+    /** The page's comments, kept beside it (`.comments/`), and keeping them. */
+    comments?(path: string): Promise<NoteComment[] | NotesFailure>;
+    setComments?(path: string, comments: NoteComment[]): Promise<{ path: string; comments: NoteComment[] } | NotesFailure>;
+    /** A copy of the page in the workspace's Exports folder: `html` is made by the window, `md` takes the page's files along. */
+    export?(path: string, kind: 'html' | 'md', html?: string): Promise<{ path: string; saved: string; name: string } | NotesFailure>;
     onChanged(listener: (change: NotesChange) => void): () => void;
   };
   history: {

@@ -1842,6 +1842,16 @@ impl Bridge {
                 (Some(page), Some(reference)) => notes.asset(page, reference),
                 _ => Err("a page and a file are needed".to_owned()),
             },
+            // A page's comments, kept beside it, and a copy of it saved in Exports.
+            "comments" => text(0).ok_or_else(|| "a page is needed".to_owned()).and_then(|p| notes.comments(p)),
+            "setComments" => match (text(0), args.get(1)) {
+                (Some(page), Some(list)) => notes.set_comments(page, list),
+                _ => Err("a page and its comments are needed".to_owned()),
+            },
+            "export" => match (text(0), text(1)) {
+                (Some(page), Some(kind)) => notes.export(page, kind, text(2)),
+                _ => Err("a page and a kind are needed".to_owned()),
+            },
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
