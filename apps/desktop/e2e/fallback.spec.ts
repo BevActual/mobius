@@ -37,7 +37,7 @@ const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mo
 const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
 const openServer = async () => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
   await page().getByRole('tab', { name: 'Server', exact: true }).click();

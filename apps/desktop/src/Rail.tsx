@@ -177,6 +177,12 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
       <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2" /><path d="M8 4v12" /></svg>
     </button>
   );
+  const allApps = (
+    <button type="button" className="rail-btn" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${RAIL_APPS.find((a) => a.id === app)?.name ?? app}`} title="All apps and commands (Ctrl+K)" onClick={() => { setFace('app'); onLauncher(); }}>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
+      {expanded && <span className="rail-label" aria-hidden="true">All apps</span>}
+    </button>
+  );
   const createButton = (
     <button type="button" className="rail-btn rail-create" aria-label="Create" title={create.label} onClick={create.run}>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
@@ -326,6 +332,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
               </li>
             ))}
           </ul>
+          {allApps}
         </section>
       )}
       {!asking && <div className="rail-end">
@@ -335,15 +342,12 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
             {expanded && <span className="rail-label" aria-hidden="true">{profile}</span>}
           </button>
         )}
-        <button type="button" className="rail-btn" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${RAIL_APPS.find((a) => a.id === app)?.name ?? app}`} title="All apps and commands (Ctrl+K)" onClick={onLauncher}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
-          {expanded && <span className="rail-label" aria-hidden="true">All apps</span>}
-        </button>
-        {/* While the switcher shows Mobius's apps, Settings is there. */}
-        {!(switching && ownApps?.some((o) => o.id === 'settings')) && <button type="button" className="rail-btn" aria-label="Settings" aria-current={settingsOpen ? 'page' : undefined} title="Settings (Ctrl+,)" onClick={onSettings}>
+        {/* The full sidebar's foot holds only the profile: All apps is at the end of the switcher, Settings among Mobius's
+            apps. The folded rail has no switcher, so it keeps both. */}
+        {!expanded && allApps}
+        {!expanded && <button type="button" className="rail-btn" aria-label="Settings" aria-current={settingsOpen ? 'page' : undefined} title="Settings (Ctrl+,)" onClick={onSettings}>
           {settingsOpen && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
-          {expanded && <span className="rail-label" aria-hidden="true">Settings</span>}
         </button>}
       </div>}
     </nav>

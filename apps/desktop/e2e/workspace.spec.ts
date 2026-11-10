@@ -56,6 +56,9 @@ test('the rail opens every app, shows where you are, and holds Settings', async 
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
   await railButton('Settings').click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
+  // The foot holds only the profile: Settings is one of Mobius's apps in the switcher, and closes from there too.
+  await expect(rail().locator('.rail-end').getByRole('button', { name: 'Settings', exact: true })).toHaveCount(0);
+  await showApps();
   await railButton('Settings').click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toHaveCount(0);
 });
@@ -133,6 +136,8 @@ test('the app hub shows every app with what is happening in it, starts new thing
   seed();
   fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), `# Inbox\n\n- [ ] Buy tulip bulbs (due 2001-01-01)\n`);
   await start();
+  // All apps is the last row of the switcher.
+  await showApps();
   const opener = shell().getByRole('button', { name: /^Applications/ });
   await opener.click();
   const hub = shell().getByRole('dialog', { name: 'Applications' });

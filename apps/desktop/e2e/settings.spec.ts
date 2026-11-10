@@ -36,7 +36,7 @@ const say = async (text: string) => {
   await composer().press('Enter');
 };
 const openSettings = async () => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await expect(page()).toBeVisible();
 };
 const go = async (section: string, subpage?: string) => {

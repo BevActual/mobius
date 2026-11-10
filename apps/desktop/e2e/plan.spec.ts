@@ -155,7 +155,7 @@ test('Mobius asks before remembering, uses what it remembers next time, and it c
   await say('find me a hotel');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Noted.');
   expect(JSON.stringify(model!.requests.at(-1))).toContain('Prefers boutique hotels');
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   const page = shell().getByRole('region', { name: 'Settings' });
   await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
   await page.getByRole('tab', { name: 'Memory' }).click();
@@ -168,7 +168,7 @@ test('Mobius asks before remembering, uses what it remembers next time, and it c
 
 test('a schedule is made in Settings, kept, and Run now starts it as a conversation of its own', async () => {
   await start([says(['Start with the invoices.'])]);
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   const page = shell().getByRole('region', { name: 'Settings' });
   await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Schedules', exact: true }).click();
   await page.getByRole('button', { name: 'New schedule…' }).click();
@@ -205,7 +205,7 @@ test('the Agent app’s Activity tab shows what finished today, and what is sche
 
 test('profiles: Personal is there, a new one can be made in Settings, and the open one is marked', async () => {
   await start([]);
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   const page = shell().getByRole('region', { name: 'Settings' });
   await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Advanced', exact: true }).click();
   await page.getByRole('tab', { name: 'Profiles' }).click();

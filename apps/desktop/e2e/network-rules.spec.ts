@@ -49,7 +49,7 @@ test('the switch in settings turns the rule off and on', async () => {
   await start([]);
   const allowed = () => shell().evaluate(() => window.mobius.preferences.get().then((p) => p?.agentPrivateUrls));
   expect(await allowed()).toBe(false);
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await page().getByRole('tab', { name: 'Network', exact: true }).click();

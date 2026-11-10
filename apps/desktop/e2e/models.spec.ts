@@ -42,7 +42,7 @@ async function start(options: { slowMs?: number; down?: number; llama?: string |
 const shell = () => mobius!.shell;
 const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const openLocal = async () => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
   await page().getByRole('tab', { name: 'This computer', exact: true }).click();
 };
@@ -144,7 +144,7 @@ test('a downloaded model is run, loaded, used by the agent, and stopped', async 
   await composer.press('Enter');
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('hello', { timeout: 15_000 });
 
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
   await page().getByRole('tab', { name: 'This computer', exact: true }).click();
   await page().getByRole('button', { name: 'Stop Tiny-1B-Q8_0' }).click();

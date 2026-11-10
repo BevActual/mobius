@@ -43,7 +43,7 @@ const notices = (): Promise<Seen[]> => recordedNotices<Seen>(mobius!.app);
 const awake = (): Promise<boolean> => holdingAwake(mobius!.app);
 const openPage = async (section: string, tab: string) => {
   // The Settings button closes Settings when it is already open, so only press it to open.
-  if ((await page().count()) === 0) await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  if ((await page().count()) === 0) await shell().keyboard.press('Control+Comma');
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
   await page().getByRole('tab', { name: tab, exact: true }).click();

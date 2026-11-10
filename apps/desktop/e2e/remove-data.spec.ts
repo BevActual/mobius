@@ -17,7 +17,7 @@ test.afterEach(async () => {
 
 const openAbout = async () => {
   const shell = mobius!.shell;
-  await shell.getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell.keyboard.press('Control+Comma');
   await shell.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'About', exact: true }).click();
 };
 

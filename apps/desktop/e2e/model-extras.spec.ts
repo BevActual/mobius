@@ -15,7 +15,7 @@ test.afterEach(async () => {
 const shell = () => mobius!.shell;
 const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const open = async (tab: string) => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
   await page().getByRole('tab', { name: tab, exact: true }).click();

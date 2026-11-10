@@ -22,7 +22,7 @@ test.afterEach(async () => {
 const page = (): Locator => mobius!.shell.getByRole('region', { name: 'Settings' });
 
 async function openThisComputer(): Promise<Locator> {
-  await mobius!.shell.getByRole('button', { name: 'Settings', exact: true }).click();
+  await mobius!.shell.keyboard.press('Control+Comma');
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
   await page().getByRole('tab', { name: 'This computer', exact: true }).click();
   return page().locator('[data-setting="model.local.engine"]');

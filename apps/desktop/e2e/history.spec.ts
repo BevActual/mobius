@@ -24,7 +24,7 @@ const visit = async (route: string, title: string) => {
   await expect(shell().locator('.tab-title').first()).toHaveText(title);
 };
 const openHistory = async () => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await expect(settings()).toBeVisible();
   await settings().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await settings().getByRole('tab', { name: 'History', exact: true }).click();

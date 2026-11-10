@@ -29,7 +29,7 @@ const launcher = (): Locator => shell().getByRole('combobox', { name: 'Find apps
 const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const keys = (action: string): Locator => page().getByTestId(`keys-${action}`);
 const openKeyboard = async () => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Keyboard', exact: true }).click();
 };

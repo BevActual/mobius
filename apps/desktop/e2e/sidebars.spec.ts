@@ -185,7 +185,7 @@ test('widths and modes survive a restart, and the settings page shows and resets
   await expect(shell().locator('.dock.right')).toBeVisible();
   await expect(shell().getByRole('separator', { name: 'Resize the agent panel' })).toHaveAttribute('aria-valuenow', '500');
 
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   const page = shell().getByRole('region', { name: 'Settings' });
   await expect(page).toBeVisible();
   await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Appearance', exact: true }).click();

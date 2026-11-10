@@ -42,7 +42,7 @@ test('another agent can read the workspace over MCP once allowed, and change fil
   await shell().waitForFunction(() => Boolean((window as unknown as { mobius: { share?: unknown } }).mobius.share));
   await shell().evaluate((p) => (window as unknown as { mobius: { share: { set(c: object): Promise<unknown> } } }).mobius.share.set({ port: p }), port);
 
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Advanced', exact: true }).click();
   await page().getByRole('tab', { name: 'Other apps', exact: true }).click();
   await expect(page().getByLabel('Connect an app')).toHaveCount(0);

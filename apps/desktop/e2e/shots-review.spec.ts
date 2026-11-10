@@ -42,6 +42,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('button', { name: /Show details of/ }).click();
       await shell.waitForTimeout(400);
       await shot('1-browser');
+      await shell.locator('.rail[data-face="app"] [data-app-switcher]').click();
       await shell.getByRole('button', { name: /^Applications/ }).click();
       await shell.waitForTimeout(300);
       await shot('2-launcher');
@@ -91,7 +92,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
       await shell.keyboard.press('Enter');
       await shell.waitForTimeout(300);
-      await shell.getByRole('button', { name: 'Settings', exact: true }).click();
+      await shell.keyboard.press('Control+Comma');
       const page = shell.getByRole('region', { name: 'Settings' });
       await shell.waitForTimeout(800);
       await shot('3b-settings-opened');

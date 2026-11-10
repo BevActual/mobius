@@ -25,7 +25,7 @@ const visit = async (route: string, title: string) => {
 };
 const star = () => shell().getByRole('button', { name: /^(Bookmark this page|Remove bookmark)$/ });
 const openBookmarks = async () => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await expect(settings()).toBeVisible();
   await settings().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await settings().getByRole('tab', { name: 'Bookmarks', exact: true }).click();

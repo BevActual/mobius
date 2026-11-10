@@ -36,7 +36,7 @@ async function start(): Promise<void> {
   provider = await startModel([says(['from OpenAI'])], { models: ['gpt-b', 'gpt-a'] });
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_PROVIDER: `openai=${provider.url}` } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await shell().keyboard.press('Control+Comma');
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Providers', exact: true }).click();
   await expect(openai()).toBeVisible();
 }
