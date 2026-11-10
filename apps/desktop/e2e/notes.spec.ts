@@ -183,12 +183,13 @@ test('#tags in pages show under Tags, and a tag lists the pages that carry it', 
   await expect(side().getByRole('button', { name: 'Packs', exact: true })).toContainText('Veltro holds the price');
   await tags.getByRole('button', { name: /^#supplier, 2 pages$/i }).click();
   const tagged = side().getByRole('list', { name: /^Pages tagged supplier$/i });
-  await expect(tagged.getByRole('button')).toHaveCount(2);
+  // One row per page (each row also has its pin and delete buttons).
+  await expect(tagged.getByRole('listitem')).toHaveCount(2);
   await tagged.getByRole('button', { name: 'Packs', exact: true }).click();
   // The tags are marked in the page, and listed under its title.
   await expect(text().locator('.note-tag')).toHaveText(['#supplier', '#kestrel/p2']);
   await shell().locator('.note-meta').getByRole('button', { name: '#kestrel/p2' }).click();
-  await expect(side().getByRole('list', { name: 'Pages tagged kestrel/p2' }).getByRole('button')).toHaveCount(1);
+  await expect(side().getByRole('list', { name: 'Pages tagged kestrel/p2' }).getByRole('listitem')).toHaveCount(1);
   await side().getByRole('button', { name: 'Show every page' }).click();
   await expect(side().getByRole('treeitem', { name: 'Work' })).toBeVisible();
 });
