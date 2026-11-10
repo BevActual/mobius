@@ -22,11 +22,17 @@ pub struct Change {
     pub page: String,
     pub text: String,
     pub when_ms: u64,
+    /// Its place in the queue: changes wait in the order they were offered, and Undo puts one back in its place.
+    #[serde(default)]
+    pub seq: u64,
 }
 
 #[derive(Default, Serialize, Deserialize)]
 struct Saved {
     waiting: Vec<Change>,
+    /// The last place given, so a change taken out and put back keeps its place among newer ones.
+    #[serde(default)]
+    last_seq: u64,
 }
 
 pub struct Incoming {
@@ -87,7 +93,9 @@ impl Incoming {
         }
         let mut bytes = [0u8; 4];
         let _ = getrandom::fill(&mut bytes);
-        let change = Change { id: bytes.iter().map(|b| format!("{b:02x}")).collect(), from, page: page.to_owned(), text, when_ms: now_ms() };
+        let seq = saved.waiting.iter().map(|c| c.seq).max().unwrap_or(0).max(saved.last_seq) + 1;
+        saved.last_seq = seq;
+        let change = Change { id: bytes.iter().map(|b| format!("{b:02x}")).collect(), from, page: page.to_owned(), text, when_ms: now_ms(), seq };
         saved.waiting.push(change.clone());
         self.store(&saved)?;
         Ok(json!(change))
@@ -108,7 +116,7 @@ impl Incoming {
         let _one = self.lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut saved = self.load();
         if !saved.waiting.iter().any(|c| c.id == change.id) {
-            let at = saved.waiting.iter().position(|c| c.when_ms > change.when_ms).unwrap_or(saved.waiting.len());
+            let at = saved.waiting.iter().position(|c| c.seq > change.seq).unwrap_or(saved.waiting.len());
             saved.waiting.insert(at, change);
         }
         self.store(&saved)
@@ -157,6 +165,25 @@ mod tests {
         let ids: Vec<String> = q.list().as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap().to_owned()).collect();
         assert_eq!(ids, [a["id"].as_str().unwrap(), b["id"].as_str().unwrap()], "back where it was");
         assert!(q.take("nope").is_err());
+    }
+
+    #[test]
+    fn changes_offered_in_the_same_millisecond_keep_their_order_through_undo() {
+        let dir = tempfile::tempdir().unwrap();
+        let q = Incoming::new(dir.path().join("wiki-incoming.json"));
+        let ids: Vec<String> = (0..4).map(|i| q.offer("Mobius", None, &format!("line {i}")).unwrap()["id"].as_str().unwrap().to_owned()).collect();
+        // Their times may all be the same: the order is their place in the queue, not the clock.
+        let order = |q: &Incoming| -> Vec<String> { q.list().as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap().to_owned()).collect() };
+        for i in [0, 2, 3, 1] {
+            let taken = q.take(&ids[i]).unwrap();
+            q.put_back(taken).unwrap();
+            assert_eq!(order(&q), ids, "put back where it was");
+        }
+        let first = q.take(&ids[0]).unwrap();
+        let last = q.take(&ids[3]).unwrap();
+        q.put_back(last).unwrap();
+        q.put_back(first).unwrap();
+        assert_eq!(order(&q), ids);
     }
 
     #[test]
