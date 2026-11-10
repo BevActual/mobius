@@ -75,6 +75,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'tasks.lists': () => [{ name: 'P2 build', open: 3, done: 2 }, { name: 'Work', open: 0, done: 0 }, { name: 'Home', open: 0, done: 0 }],
   'tasks.read': ((list: string) => ({ list, tasks: list === 'P2 build' ? TASKS : [], version: 'preview' })) as never,
   'notes.list': () => NOTES(),
+  'notes.search': ((query: string) => Object.entries(NOTE_TEXT).filter(([, t]) => t.toLowerCase().includes(query.toLowerCase())).map(([path, t]) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), notebook: path.split('/')[0], line: t.split('\n').find((l) => l.toLowerCase().includes(query.toLowerCase())) ?? '' }))) as never,
   // Typing in a note is kept for as long as the preview is open, so the Markdown it is saved as can be looked at.
   'notes.save': ((path: string, content: string) => { NOTE_TEXT[path] = content; (window as unknown as { savedNote?: string }).savedNote = content; return { path, modified: Date.now() }; }) as never,
   'sheets.list': () => [{ name: 'P2 budget', sheets: ['Sheet 1'] }],

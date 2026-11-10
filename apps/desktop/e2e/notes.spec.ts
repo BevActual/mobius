@@ -177,7 +177,8 @@ test('#tags in pages show under Tags, and a tag lists the pages that carry it', 
   fs.writeFileSync(file('Home', 'Garden.md'), '# Garden\n\nTomatoes, not a #2 tag.\n');
   await start();
   const tags = side().getByRole('treeitem', { name: 'Tags' });
-  await expect(tags.getByRole('button')).toHaveText(['#kestrel/p21', /^#supplier2$/i]);
+  // The section's rows (not its fold button); a tag written in two cases is one tag, with its first spelling.
+  await expect(tags.getByRole('group').getByRole('button')).toHaveText(['#kestrel/p21', /^#supplier2$/i]);
   // Each row says how its page starts.
   await expect(side().getByRole('button', { name: 'Packs', exact: true })).toContainText('Veltro holds the price');
   await tags.getByRole('button', { name: /^#supplier, 2 pages$/i }).click();
