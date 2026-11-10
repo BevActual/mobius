@@ -33,6 +33,10 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
     const made = await notes.createNotebook(name.trim() || cap(words.group));
     if (made) { setNaming(false); setName(''); await notes.createPage(made); }
   };
+  const newItem = () => {
+    if (openNotebook) void notes.createPage(openNotebook);
+    else if (words.defaultGroup) void notes.createNotebook(words.defaultGroup).then((made) => { if (made) void notes.createPage(made); });
+  };
   const toggle = (nb: string) => setClosed((s) => { const n = new Set(s); if (n.has(nb)) n.delete(nb); else n.add(nb); return n; });
 
   return (
@@ -43,12 +47,6 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
           {pin}
           <button type="button" className="strip-btn" aria-label={`New ${words.group}`} title={`New ${words.group}`} onClick={() => setNaming(true)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5zM8 3v14" /><path d="M11 8v4M9 10h4" /></svg>
-          </button>
-          <button type="button" className="strip-btn" aria-label={`New ${words.item}`} title={`New ${words.item}`} disabled={!openNotebook && !words.defaultGroup} onClick={() => {
-            if (openNotebook) void notes.createPage(openNotebook);
-            else if (words.defaultGroup) void notes.createNotebook(words.defaultGroup).then((made) => { if (made) void notes.createPage(made); });
-          }}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
           </button>
         </span>
       </div>
@@ -73,6 +71,13 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         </ul>
       ) : (
         <div className="notes-list" role="tree" aria-label={words.groups}>
+          {/* New, as the list's first row, in the notebook that is open (or the first). */}
+          {(openNotebook || words.defaultGroup) && (
+            <button type="button" className="side-new-row" aria-label={`New ${words.item}`} title={openNotebook ? `New ${words.item} in ${openNotebook}` : `New ${words.item}`} onClick={newItem}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
+              <span>New {words.item}</span>
+            </button>
+          )}
           {notes.notebooks.length === 0 && !naming && (
             <div className="side-empty notes-empty">
               <p>{words.about}</p>
@@ -95,7 +100,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
                   {nb.pages.length === 0 && <li className="side-empty">No {words.items} yet.</li>}
                   {nb.pages.map((pg) => (
                     <li key={pg.path} className="note-item">
-                      <button type="button" className="note-row" aria-current={notes.page?.path === pg.path ? 'page' : undefined} onClick={() => void notes.open(pg.path, pg.title)}>
+                      <button type="button" className="note-row" data-proposed={changed?.has(pg.path) || undefined} aria-current={notes.page?.path === pg.path ? 'page' : undefined} onClick={() => void notes.open(pg.path, pg.title)}>
                         <span className="note-title">{pg.title}</span>
                         {changed?.has(pg.path) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Changed by the agent in its last turn" />}
                       </button>

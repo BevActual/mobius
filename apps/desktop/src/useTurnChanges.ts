@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { KEPT_EVENT, keptTurns, turnId } from './ReviewStrip';
 
 /** What the last agent turn changed, as note page paths and task list names, so Notes and Tasks can mark them. */
 export interface TurnMarks { notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string>; sheets: ReadonlySet<string>; slides: ReadonlySet<string>; /** `project/path` of code files. */ code: ReadonlySet<string>; designs: ReadonlySet<string>; boards: ReadonlySet<string>; research: ReadonlySet<string>; reading: ReadonlySet<string>; /** Database names. */ databases: ReadonlySet<string>; /** `album/photo` whose edits changed. */ photos: ReadonlySet<string>; songs: ReadonlySet<string>; /** Video projects whose cut changed. */ video: ReadonlySet<string>; skills: ReadonlySet<string> }
@@ -45,9 +46,16 @@ export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
   const [marks, setMarks] = useState<TurnMarks>(NONE);
   const load = useCallback(async () => {
     const result = await window.mobius.changes?.lastTurn(conversation).catch(() => null);
-    setMarks(result && 'files' in result ? marksOf(result.files) : NONE);
+    // A kept turn's changes are the person's now: they lose their dashed edge.
+    const id = result && 'files' in result ? turnId(conversation, result.checkpoint) : null;
+    setMarks(result && 'files' in result && !(id && keptTurns().includes(id)) ? marksOf(result.files) : NONE);
   }, [conversation]);
   useEffect(() => { if (!busy) void load(); }, [busy, load]);
+  useEffect(() => {
+    const kept = () => void load();
+    window.addEventListener(KEPT_EVENT, kept);
+    return () => window.removeEventListener(KEPT_EVENT, kept);
+  }, [load]);
   useEffect(() => {
     const again = (change: { by: string }) => { if (change.by === 'person' || change.by === 'undo') void load(); };
     const offNotes = window.mobius.notes?.onChanged(again);

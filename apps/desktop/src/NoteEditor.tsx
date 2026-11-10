@@ -6,7 +6,7 @@ import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from '.
 import type { NotesState } from './useNotes';
 import { CHECKLIST, TABLE, clipBlock, insertBlock, recordingBlock } from './note-insert';
 import { useDictation } from './composer/useDictation';
-import { ReviewActions } from './ReviewBar';
+import { ReviewActions, WhyThis } from './ReviewBar';
 
 /** How long a recording in a note may run: ten minutes. */
 const NOTE_RECORDING_SECONDS = 600;
@@ -148,7 +148,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       {review && !kept && (
         <div className="note-review" role="status">
           <span className="review-dot" aria-hidden="true" />
-          <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in the agent's last turn`; })() : "The agent changed this page in its last turn."}</span>
+          <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in Mobius's last turn`; })() : "Mobius changed this page in its last turn."}<WhyThis conversation={review.conversation} /></span>
           <button type="button" className="review-btn" aria-pressed={diff !== null} onClick={() => (diff ? setDiff(null) : void showChanges())}>{diff ? 'Back to editing' : 'Show changes'}</button>
           <ReviewActions onKeep={keepChanges} onDiscard={undoChanges} discardTitle="Put this page back as it was before that turn" keepTitle="Keep what the agent changed in that turn" />
           {reviewProblem && <span className="review-problem" role="alert">{reviewProblem}</span>}

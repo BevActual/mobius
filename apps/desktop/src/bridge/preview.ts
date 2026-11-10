@@ -42,6 +42,18 @@ const EVENTS = [
   { id: 'e4', calendar: 'Work', title: 'Standup', start: `${day(0)}T09:30`, end: `${day(0)}T09:45`, allDay: false, location: '', notes: '', repeats: true },
 ];
 
+const NOTES = [
+  { name: 'P2 build', pages: [{ path: 'P2 build/Build plan.md', title: 'Build plan', modified: now - 3 * hour }, { path: 'P2 build/Supplier notes.md', title: 'Supplier notes', modified: now - hour }] },
+  { name: 'Home', pages: [{ path: 'Home/Groceries.md', title: 'Groceries', modified: now - 30 * hour }] },
+];
+const NOTE_TEXT: Record<string, string> = {
+  'P2 build/Build plan.md': '# Build plan\n\nThe build week is the 23rd. Packs arrive six weeks from order.\n\n- Confirm the build week with Priya\n- Send the plan to the team\n',
+  'P2 build/Supplier notes.md': '# Supplier notes\n\n## Veltro Cells\n\n- 8 × 60 kWh packs, six weeks from order to the dock\n- The price hold lasts until Friday\n',
+  'Home/Groceries.md': '# Groceries\n\n- Oats\n- Coffee\n',
+};
+/** One turn of Mobius's, still waiting to be kept, so the dashed proposals and Why this can be looked at. */
+const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md'] };
+
 /** Answers for the calls that must return more than an empty list. Keyed by the call's path. */
 const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'core.getStatus': () => 'ready',
@@ -56,6 +68,11 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'mini.isOpen': () => false,
   'tasks.lists': () => [{ name: 'P2 build', open: 3, done: 2 }, { name: 'Work', open: 0, done: 0 }, { name: 'Home', open: 0, done: 0 }],
   'tasks.read': ((list: string) => ({ list, tasks: list === 'P2 build' ? TASKS : [], version: 'preview' })) as never,
+  'notes.list': () => NOTES,
+  'notes.read': ((path: string) => ({ path, content: NOTE_TEXT[path] ?? '', modified: now })) as never,
+  'changes.lastTurn': () => ({ checkpoint: TURN.start, files: TURN.files }),
+  'changes.turns': () => ({ ok: true, turns: [TURN] }),
+  'changes.before': () => ({ ok: true, text: '# Supplier notes\n' }),
   'calendar.calendars': () => ['Kestrel P2', 'Work', 'Home'],
   'calendar.events': () => EVENTS,
   'mail.accounts': () => [{ id: 'a1', name: 'Northway', email: 'you@northway.example', lastSyncMs: now, problem: null }],

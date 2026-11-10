@@ -47,6 +47,8 @@ export const RAIL_APPS: { id: AppId; name: string }[] = [
 ];
 
 interface Props {
+  /** The app's own sidebar list starts with its New row, so the sidebar's New button is left out. */
+  createInList?: boolean;
   /** The open profile's name, when it is not Personal. */
   profile?: string;
   onProfiles?: () => void;
@@ -97,7 +99,7 @@ interface Props {
  * The sidebar: one column that belongs to the app you are in, and turns into the list of apps from its head. The highlight slides to the app you are in, the app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, expanded, onToggle, create, counts, menus, chrome, mobius, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles }: Props) {
+export function Rail({ app, expanded, onToggle, create, createInList = false, counts, menus, chrome, mobius, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles }: Props) {
   // While an app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
   const dragged = useRef(false);
@@ -197,7 +199,7 @@ export function Rail({ app, expanded, onToggle, create, counts, menus, chrome, m
               {mobius.panel}
             </div>
           )}
-          {showOwn && <div className="rail-new">{createButton}</div>}
+          {showOwn && !createInList && <div className="rail-new">{createButton}</div>}
         </>
       ) : (
         <div className="rail-top">

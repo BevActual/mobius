@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 
 /**
  * Asking Mobius for another go at what was just discarded. The app provides it while a conversation can take a new
@@ -8,6 +8,21 @@ export const TryAnotherContext = createContext<(() => void) | null>(null);
 
 /** What Mobius is told when its change is discarded with Try another. */
 export const TRY_ANOTHER_ASK = 'I discarded that change. Try another way.';
+
+/**
+ * "Why this": what was asked in the turn that made a proposal, so the change can be judged against it. Nothing is shown
+ * when the turn had no words (a schedule, say) or the turns cannot be read.
+ */
+export function WhyThis({ conversation }: { conversation: string }) {
+  const [ask, setAsk] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void window.mobius.changes?.turns?.(conversation).then((r) => { if (live) setAsk(r.ok ? r.turns[0]?.ask?.trim() || null : null); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [conversation]);
+  if (!ask) return null;
+  return <span className="review-why" title={ask}>Why this: you asked “{ask.length > 90 ? `${ask.slice(0, 89)}…` : ask}”</span>;
+}
 
 interface Props {
   onKeep: () => unknown;
