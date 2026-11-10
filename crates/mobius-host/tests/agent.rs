@@ -344,7 +344,7 @@ fn what_is_shown_from_the_core_is_filtered_and_trimmed() {
     assert_eq!((rows[0]["activity"].clone(), rows[0]["waiting"].clone()), (json!("working"), json!(1)));
     assert_eq!((rows[1]["activity"].clone(), rows[1]["title"].as_str().unwrap().len()), (json!("idle"), 200));
     let waiting = s.service.waiting("c-one");
-    assert_eq!(waiting, json!([{ "requestId": 3, "callId": "k1", "tool": "browser.read", "arguments": { "url": "x" }, "onceOnly": true }]));
+    assert_eq!(waiting, json!([{ "requestId": 3, "callId": "k1", "tool": "browser.read", "arguments": { "url": "x" }, "onceOnly": true, "origin": null }]));
     let grants = s.service.grants();
     assert_eq!(grants.as_array().unwrap().iter().map(|g| g["id"].as_i64().unwrap()).collect::<Vec<_>>(), vec![1, 6], "only the agent's, only lasting ones, only well formed");
     let activity = s.service.activity(10).to_string();

@@ -210,6 +210,7 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
       {item.status === 'waiting' && item.requestId !== undefined && (
         <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`}>
           <p className="approval-head">Needs you</p>
+          {item.origin && <p className="approval-origin" role="note">Asked by text in {item.origin}, not by you. <span className="approval-why">Why: this came from {item.origin}.</span></p>}
           <p className="approval-text">{(() => { const plain = describeAction(item.name, item.args); return plain ? <>Mobius wants to {plain}. <span className="approval-tool">{item.name}</span></> : <>Mobius wants to use <strong>{item.name}</strong>.</>; })()}{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
           {(() => {
             // In plain words first, as the Approvals board asks: the text it would write, the statement it would run.
@@ -250,6 +251,9 @@ export interface ChatPanelProps {
   /** Show a browser tab to the person (to sign in themselves). */
   onShowTab?: (tab: string) => void;
   onStop: () => void;
+  /** Take over the running task, and hand it back; each resolves with what went wrong, or null. */
+  onTakeOver?: () => Promise<string | null>;
+  onHandBack?: () => Promise<string | null>;
   onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent. */
   onReply: (callId: string, text: string) => Promise<string | null>;
@@ -357,7 +361,20 @@ function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty:
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive }: ChatPanelProps) {
+/** While you have control of a running task: where Mobius paused, Hand back and Stop. */
+function ControlBar({ control, onHandBack, onStop }: { control: { step: number; of?: number }; onHandBack?: () => Promise<string | null>; onStop: () => void }) {
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <div className="control-bar" role="status" aria-label="You have control">
+      <span className="control-text">You have control · Mobius paused at step {control.step}{control.of ? ` of ${control.of}` : ''}</span>
+      {onHandBack && <button type="button" className="btn primary" onClick={() => void onHandBack().then(setProblem)}>Hand back</button>}
+      <button type="button" className="btn" onClick={onStop}>Stop</button>
+      {problem && <span className="field-error" role="alert">{problem}</span>}
+    </div>
+  );
+}
+
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -526,6 +543,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
           <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
           <ReviewStrip conversation={state.conversation} busy={state.busy} />
           <TurnHistory conversation={state.conversation} busy={state.busy} />
+          {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
           <Composer
             takeFocus={takeFocus}
             draft={draft}
@@ -541,6 +559,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
             onEffort={onEffort}
             onSend={(text, items, options) => { onSend(text, items, options); setDraft(''); setContext([]); }}
             onStop={onStop}
+            {...(onTakeOver && !state.control ? { onTakeOver } : {})}
             onModelChanged={onModelChanged}
             onOpenSettings={onOpenSettings}
             fieldRef={field}

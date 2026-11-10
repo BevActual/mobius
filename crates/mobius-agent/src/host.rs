@@ -60,6 +60,10 @@ pub struct Waiting {
     #[ts(type = "unknown")]
     pub arguments: Value,
     pub once_only: bool,
+    /// The request came from something Mobius read, not from the person.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub origin: Option<String>,
 }
 
 /// A question the model put to the person, still open.
@@ -88,6 +92,9 @@ struct Active {
     conversation: String,
     turn: Turn,
     cancel: Arc<AtomicBool>,
+    /// The person took over: the next step waits here until they hand back.
+    theirs: bool,
+    held: Option<Step>,
 }
 
 pub struct Host {
@@ -249,7 +256,7 @@ impl Host {
         let compaction = self.compactions.get(conversation).cloned();
         let (turn, step) = engine.start_from(core, history, compaction, text, turn_id, setup);
         let mut outs = Vec::new();
-        self.settle(Active { conversation: conversation.to_owned(), turn, cancel: Arc::new(AtomicBool::new(false)) }, step, &mut outs);
+        self.settle(Active { conversation: conversation.to_owned(), turn, cancel: Arc::new(AtomicBool::new(false)), theirs: false, held: None }, step, &mut outs);
         Ok((turn_id, outs))
     }
 
@@ -342,6 +349,40 @@ impl Host {
             }
         }
         outs
+    }
+
+    /// The person takes over a running task: Mobius stops at the next safe point (before its next model request or
+    /// tool call) and the apps are theirs until they hand back.
+    pub fn take_over(&mut self, conversation: &str) -> Result<Vec<Out>, HostError> {
+        let turn_id = self.active.iter().find(|(_, a)| a.conversation == conversation).map(|(id, _)| *id).ok_or(HostError::NotWaiting)?;
+        let Some(mut active) = self.active.remove(&turn_id) else { return Err(HostError::NotWaiting) };
+        let mut outs = Vec::new();
+        if active.theirs {
+            self.active.insert(turn_id, active);
+            return Ok(outs);
+        }
+        active.theirs = true;
+        active.turn.note_control(true);
+        self.settle(active, Step::Idle, &mut outs);
+        Ok(outs)
+    }
+
+    /// The person hands back: Mobius reads what is there again, then goes on from where it stopped.
+    pub fn hand_back(&mut self, core: &mut Core, conversation: &str) -> Result<Vec<Out>, HostError> {
+        let turn_id = self.active.iter().find(|(_, a)| a.conversation == conversation && a.theirs).map(|(id, _)| *id).ok_or(HostError::NotWaiting)?;
+        let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) else { return Err(HostError::NotWaiting) };
+        active.theirs = false;
+        active.turn.note_control(false);
+        let step = engine.hand_back(&mut active.turn, core, active.held.take());
+        let mut outs = Vec::new();
+        self.settle(active, step, &mut outs);
+        Ok(outs)
+    }
+
+    /// Whether the person has control of this conversation's task, and where Mobius stopped.
+    #[must_use]
+    pub fn control(&self, conversation: &str) -> Option<(u32, Option<u32>)> {
+        self.active.values().find(|a| a.conversation == conversation && a.theirs).map(|a| a.turn.progress())
     }
 
     pub fn cancel(&mut self, core: &mut Core, conversation: &str) -> Vec<Out> {
@@ -447,7 +488,7 @@ impl Host {
                     return None;
                 }
                 let (request_id, call) = (a.turn.parked_request()?, a.turn.parked_call()?);
-                Some(Waiting { request_id, call_id: call.id.clone(), tool: call.name.clone(), arguments: call.arguments.clone(), once_only: a.turn.parked_once_only() })
+                Some(Waiting { request_id, call_id: call.id.clone(), tool: call.name.clone(), arguments: call.arguments.clone(), once_only: a.turn.parked_once_only(), origin: a.turn.parked_origin().map(str::to_owned) })
             })
             .collect()
     }
@@ -473,6 +514,12 @@ impl Host {
         for event in active.turn.drain_events() {
             let event = serde_json::to_value(&event).unwrap_or(Value::Null);
             outs.push(notification("agent.event", serde_json::json!({ "conversation": active.conversation, "turn": turn_id, "event": event })));
+        }
+        // The person has control: what Mobius would do next waits until they hand back.
+        if active.theirs && matches!(step, Step::CallModel(_) | Step::RunTool { .. } | Step::Review { .. }) {
+            active.held = Some(step);
+            self.active.insert(turn_id, active);
+            return;
         }
         match step {
             Step::CallModel(request) => {

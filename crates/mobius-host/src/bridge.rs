@@ -2321,6 +2321,9 @@ impl Bridge {
                 }
                 Value::Null
             }
+            "takeOver" => conversation().map_or_else(|| json!({ "ok": false, "error": "No such conversation." }), |c| self.agent.control(c, true)),
+            "handBack" => conversation().map_or_else(|| json!({ "ok": false, "error": "No such conversation." }), |c| self.agent.control(c, false)),
+            "control" => conversation().map_or_else(|| json!({ "theirs": false }), |c| self.agent.control_state(c)),
             "history" => conversation().map_or_else(|| json!([]), |c| self.agent.history(c)),
             "waiting" => conversation().map_or_else(|| json!([]), |c| self.agent.waiting(c)),
             "question" => conversation().map_or(Value::Null, |c| self.agent.question(c)),

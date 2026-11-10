@@ -41,6 +41,8 @@ export interface ComposerProps {
   onEffort: (effort: EffortChoice) => void;
   onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
   onStop: () => void;
+  /** While it works: take over, so Mobius pauses at the next safe point and the apps are yours. */
+  onTakeOver?: () => Promise<string | null>;
   /** The model on the server was changed from here. */
   onModelChanged: () => void;
   onOpenSettings: () => void;
@@ -54,7 +56,7 @@ export interface ComposerProps {
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onModelChanged, onOpenSettings, fieldRef, surface, activity }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity }: ComposerProps) {
   // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
   const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
   const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
@@ -368,6 +370,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           <button type="button" className="round ghost" data-recording={dictation.state === 'recording' || undefined} aria-label={dictation.state === 'recording' ? 'Stop dictation' : 'Dictate'} title={dictation.state === 'recording' ? 'Stop and insert the words (Esc cancels)' : 'Dictate'} disabled={!canType || busy || dictation.state === 'transcribing'} onClick={dictation.toggle}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5" /><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17" /></svg>
           </button>
+          {busy && onTakeOver && <button type="button" className="btn take-over" title="Mobius pauses at the next safe point and the apps are yours" onClick={() => void onTakeOver()}>Take over</button>}
           {busy ? (
             <button type="button" className="round stop" aria-label="Stop" title="Stop" onClick={onStop}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1.5" fill="currentColor" stroke="none" /></svg>

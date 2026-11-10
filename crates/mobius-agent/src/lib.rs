@@ -16,3 +16,4 @@ pub mod responses;
 pub mod review;
 pub mod sessions;
 pub mod sse;
+pub mod untrusted;

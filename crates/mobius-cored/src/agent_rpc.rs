@@ -431,6 +431,20 @@ impl Extension for Agent {
                 self.queued.extend(outs);
                 json!({})
             }),
+            "agent.take_over" => params_as::<ConversationParams>(params).and_then(|p| {
+                let outs = self.host.take_over(&p.conversation).map_err(|e| host_error(&e))?;
+                self.queued.extend(outs);
+                Ok(json!({}))
+            }),
+            "agent.hand_back" => params_as::<ConversationParams>(params).and_then(|p| {
+                let outs = self.host.hand_back(core, &p.conversation).map_err(|e| host_error(&e))?;
+                self.queued.extend(outs);
+                Ok(json!({}))
+            }),
+            "agent.control" => params_as::<ConversationParams>(params).map(|p| match self.host.control(&p.conversation) {
+                Some((step, of)) => json!({ "theirs": true, "step": step, "of": of }),
+                None => json!({ "theirs": false }),
+            }),
             "agent.conversations" => Ok(json!(self.host.conversations())),
             "agent.delete" => params_as::<ConversationParams>(params).and_then(|p| {
                 self.host.delete(&p.conversation).map_err(|e| host_error(&e))?;

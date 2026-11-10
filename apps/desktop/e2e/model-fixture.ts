@@ -112,3 +112,6 @@ export async function startModel(replies: ModelReply[], options: ModelOptions = 
     close: () => new Promise((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }),
   };
 }
+
+/** What a tool returned, without the envelope that tells the model it is data (an error keeps its "error: "). */
+export const dataOf = (content: string): string => content.replace(/^(error: )?<<untrusted-data source="[^"]*">>\n/, '$1').replace(/\n<<\/untrusted-data>>$/, '');

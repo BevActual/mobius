@@ -5,4 +5,8 @@ export type AgentEvent = { "kind": "message", text: string, } | { "kind": "tool_
 /**
  * The answer can only be "allow once": there is no standing approval for this kind of action.
  */
-once_only: boolean, } | { "kind": "todo", items: Array<TodoItem>, } | { "kind": "question", call_id: string, question: string, choices: Array<string>, } | { "kind": "compacted", messages: number, } | { "kind": "done" } | { "kind": "failed", message: string, } | { "kind": "cancelled" };
+once_only: boolean, 
+/**
+ * The request came from something Mobius read, not from the person: "Priya's invite “Dinner”".
+ */
+origin?: string, } | { "kind": "todo", items: Array<TodoItem>, } | { "kind": "paused", step: number, of?: number, } | { "kind": "resumed" } | { "kind": "question", call_id: string, question: string, choices: Array<string>, } | { "kind": "compacted", messages: number, } | { "kind": "done" } | { "kind": "failed", message: string, } | { "kind": "cancelled" };

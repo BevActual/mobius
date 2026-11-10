@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { coreCall, coreHistory, crashCore, launch, startFixture, type Fixture, type Launched } from './harness';
-import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
+import { callsTool, dataOf, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -91,7 +91,7 @@ test('a tool call stops for approval, shows what will run, and carries on when a
   await expect(log().locator('.tool')).toContainText('clock.now');
   const second = model!.requests[1]!.messages as Array<{ role: string; content: string }>;
   const result = second.find((m) => m.role === 'tool')!;
-  expect(JSON.parse(result.content).utc).toMatch(/^20\d\d-\d\d-\d\dT/);
+  expect(JSON.parse(dataOf(result.content)).utc).toMatch(/^20\d\d-\d\d-\d\dT/);
 
   await say('and now?');
   await expect(mobius!.shell.getByRole('group', { name: 'Approval needed: clock.now' })).toBeVisible();
@@ -248,7 +248,7 @@ test('while the agent waits for a person, the core still answers other requests'
 
 type Chat = Array<{ role: string; content: string }>;
 const toolResult = (index: number): Record<string, unknown> | string => {
-  const content = (model!.requests[index]!.messages as Chat).findLast((m) => m.role === 'tool')!.content;
+  const content = dataOf((model!.requests[index]!.messages as Chat).findLast((m) => m.role === 'tool')!.content);
   try {
     return JSON.parse(content) as Record<string, unknown>;
   } catch {

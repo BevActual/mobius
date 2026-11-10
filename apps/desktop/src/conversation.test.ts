@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent, Message } from '@mobius/shared';
-import { MAX_RESULT_SHOWN, findToolArguments, findToolResult, appsSeen, initialConversation, replySources, proposedPlan, reduce, type ConversationState } from './conversation';
+import { dataOf, MAX_RESULT_SHOWN, findToolArguments, findToolResult, appsSeen, initialConversation, replySources, proposedPlan, reduce, type ConversationState } from './conversation';
 
 const note = (event: AgentEvent, turn = 1) => ({ type: 'notification' as const, notification: { method: 'agent.event' as const, params: { conversation: 'main', turn, event } } });
 const delta = (text: string, turn = 1) => ({ type: 'notification' as const, notification: { method: 'agent.delta' as const, params: { conversation: 'main', turn, text } } });
@@ -385,5 +385,31 @@ describe('linked from', () => {
       { role: 'assistant', text: 'Done.', tool_calls: [] },
     ])).toEqual(['Mail', 'Notes']);
     expect(linkedFrom([{ role: 'user', text: 'x' }, { role: 'assistant', text: '', tool_calls: [call('files.read', { path: 'notes/a.md' }), call('files.write', { path: 'notes/b.md' })] }])).toEqual([]);
+  });
+});
+
+describe('a request that came from something read', () => {
+  it('keeps where it came from on the waiting tool, from the event and from the pending list', () => {
+    let s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'mail.draft' }));
+    s = reduce(s, note({ kind: 'needs_approval', request_id: 4, call_id: 'c1', tool: 'mail.draft', arguments: {}, once_only: true, origin: 'Priya Nair’s invite “Dinner”' }));
+    expect(s.items.at(-1)).toMatchObject({ status: 'waiting', onceOnly: true, origin: 'Priya Nair’s invite “Dinner”' });
+    const fresh = reduce(run(), { type: 'pending', requests: [{ requestId: 5, callId: 'c2', tool: 'mail.draft', arguments: {}, onceOnly: true, origin: 'a web page (evil.example)' }] });
+    expect(fresh.items.at(-1)).toMatchObject({ requestId: 5, origin: 'a web page (evil.example)' });
+  });
+});
+
+describe('taking over', () => {
+  it('shows where Mobius paused until it is handed back, and a finished turn clears it', () => {
+    let s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'paused', step: 2, of: 3 }));
+    expect(s.control).toEqual({ step: 2, of: 3 });
+    s = reduce(s, note({ kind: 'resumed' }));
+    expect(s.control).toBeNull();
+    s = reduce(s, note({ kind: 'paused', step: 1 }));
+    expect(s.control).toEqual({ step: 1 });
+    s = reduce(s, note({ kind: 'cancelled' }));
+    expect(s.control).toBeNull();
+  });
+  it('a tool answer is shown without the envelope it went to the model in', () => {
+    expect(dataOf('<<untrusted-data source="files.read a">>\n{"x":1}\n<</untrusted-data>>')).toBe('{"x":1}');
   });
 });

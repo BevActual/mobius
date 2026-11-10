@@ -421,7 +421,8 @@ fn a_tool_the_application_runs_is_sent_out_after_approval_and_its_answer_goes_ba
     d.until_event("done");
     let second = server.bodies.lock().unwrap()[1].clone();
     let tool = second["messages"].as_array().unwrap().iter().find(|m| m["role"] == "tool").unwrap().clone();
-    assert_eq!(tool["content"], "{\"tabId\":\"tab-2\"}");
+    let content = tool["content"].as_str().unwrap();
+    assert!(content.starts_with("<<untrusted-data source=\"") && content.contains("\n{\"tabId\":\"tab-2\"}\n"), "read content goes to the model as data: {content}");
     let kinds: Vec<String> = d.call(4, "events.list", json!({ "limit": 100 }))["result"].as_array().unwrap().iter().map(|e| e["kind"].as_str().unwrap().to_owned()).collect();
     assert!(kinds.contains(&"tool.completed".to_owned()));
 }
@@ -440,7 +441,8 @@ fn an_error_from_the_application_reaches_the_model_as_an_error() {
     assert!(skipped.iter().any(|n| n["params"]["event"]["kind"] == "tool_result" && n["params"]["event"]["is_error"] == true));
     let second = server.bodies.lock().unwrap()[1].clone();
     let tool = second["messages"].as_array().unwrap().iter().find(|m| m["role"] == "tool").unwrap().clone();
-    assert_eq!(tool["content"], "error: the page did not load");
+    let content = tool["content"].as_str().unwrap();
+    assert!(content.starts_with("error: <<untrusted-data") && content.contains("the page did not load"), "{content}");
 }
 
 #[test]
@@ -771,7 +773,7 @@ fn a_conversation_can_be_sent_with_its_own_instructions_and_model_and_bad_ones_a
     let first = server.bodies.lock().unwrap()[0].clone();
     assert_eq!(first["model"], "research-model");
     let system = first["messages"][0]["content"].as_str().unwrap();
-    assert!(system.starts_with("You are Mobius") && system.contains("trust:unsure") && system.ends_with("\n\nYou are the research bot."), "added to the usual instructions, not in place of them: {system}");
+    assert!(system.starts_with("You are Mobius") && system.contains("trust:unsure") && system.contains("\n\nYou are the research bot."), "added to the usual instructions, not in place of them: {system}");
     d.call(3, "agent.send", json!({ "conversation": "plain", "text": "hi" }));
     d.until_event("done");
     assert_eq!(server.bodies.lock().unwrap()[1]["model"], "fake-model");

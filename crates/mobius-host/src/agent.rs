@@ -410,6 +410,19 @@ impl AgentService {
         let _ = self.call("agent.cancel", json!({ "conversation": conversation }));
     }
 
+    /// The person takes over the running task, or hands it back. Ok, or what went wrong in words.
+    pub fn control(&self, conversation: &str, theirs: bool) -> Value {
+        match self.call(if theirs { "agent.take_over" } else { "agent.hand_back" }, json!({ "conversation": conversation })) {
+            Ok(_) => json!({ "ok": true }),
+            Err(_) => json!({ "ok": false, "error": if theirs { "Nothing is running to take over." } else { "There is nothing to hand back." } }),
+        }
+    }
+
+    /// Whether the person has control of the conversation's task, and the step Mobius stopped at.
+    pub fn control_state(&self, conversation: &str) -> Value {
+        self.call("agent.control", json!({ "conversation": conversation })).unwrap_or_else(|_| json!({ "theirs": false }))
+    }
+
     pub fn history(&self, conversation: &str) -> Value {
         match self.call("agent.history", json!({ "conversation": conversation })) {
             Ok(v @ Value::Array(_)) => v,
@@ -457,7 +470,7 @@ impl AgentService {
             rows.iter()
                 .filter_map(|row| {
                     let (request_id, call_id, tool) = (row.get("request_id")?.as_u64()?, row.get("call_id")?.as_str()?, row.get("tool")?.as_str()?);
-                    Some(json!({ "requestId": request_id, "callId": call_id, "tool": tool, "arguments": row.get("arguments").cloned().unwrap_or(Value::Null), "onceOnly": row.get("once_only") == Some(&Value::Bool(true)) }))
+                    Some(json!({ "requestId": request_id, "callId": call_id, "tool": tool, "arguments": row.get("arguments").cloned().unwrap_or(Value::Null), "onceOnly": row.get("once_only") == Some(&Value::Bool(true)), "origin": row.get("origin").cloned().unwrap_or(Value::Null) }))
                 })
                 .collect(),
         )
@@ -738,7 +751,7 @@ fn valid_event(e: &Value) -> bool {
         Some("message") => s("text"),
         Some("tool_call") => s("call_id") && s("name"),
         Some("tool_result") => s("call_id") && s("name") && e.get("is_error").is_some_and(Value::is_boolean),
-        Some("needs_approval") => e.get("request_id").is_some_and(Value::is_u64) && s("call_id") && s("tool") && e.get("arguments").is_some() && e.get("once_only").is_none_or(Value::is_boolean),
+        Some("needs_approval") => e.get("request_id").is_some_and(Value::is_u64) && s("call_id") && s("tool") && e.get("arguments").is_some() && e.get("once_only").is_none_or(Value::is_boolean) && e.get("origin").is_none_or(|o| o.as_str().is_some_and(|o| o.chars().count() <= 300)),
         Some("failed") => s("message"),
         Some("compacted") => e.get("messages").is_some_and(Value::is_u64),
         Some("todo") => e.get("items").and_then(Value::as_array).is_some_and(|items| {
@@ -748,7 +761,8 @@ fn valid_event(e: &Value) -> bool {
             s("call_id") && e.get("question").and_then(Value::as_str).is_some_and(|q| !q.is_empty() && q.chars().count() <= 1000)
                 && e.get("choices").and_then(Value::as_array).is_some_and(|c| c.len() <= 6 && c.iter().all(|c| c.as_str().is_some_and(|c| c.chars().count() <= 200)))
         }
-        Some("done" | "cancelled") => true,
+        Some("done" | "cancelled" | "resumed") => true,
+        Some("paused") => e.get("step").is_some_and(Value::is_u64) && e.get("of").is_none_or(Value::is_u64),
         _ => false,
     }
 }

@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use mobius_agent::engine::{AgentEvent, Engine, EngineConfig, Step, Turn, TurnSetup};
 use mobius_agent::message::{Message, ToolCall};
 use mobius_agent::provider::{ChatRequest, Completion, Provider, ProviderError, ScriptedProvider, StopReason};
+use mobius_agent::untrusted;
 use mobius_core::core::{Core, ToolSpec};
 use mobius_core::model::{Duration, Principal, PrincipalKind};
 use mobius_core::permissions::ApprovalMode;
@@ -85,7 +86,7 @@ fn a_plain_answer_ends_the_turn_and_the_first_request_describes_the_conversation
     assert_eq!(turn.id, 7);
     let request: ChatRequest = match &step { Step::CallModel(r) => r.clone(), other => panic!("{other:?}") };
     assert_eq!(request.model, "test-model");
-    assert_eq!(request.system, "You are a test.");
+    assert_eq!(request.system, with_rule("You are a test."));
     assert_eq!(request.messages.len(), 3);
     assert_eq!(request.messages[2], Message::user("hi"));
     let names: Vec<&str> = request.tools.iter().map(|t| t.name.as_str()).collect();
@@ -129,7 +130,7 @@ fn a_tool_that_needs_approval_parks_the_turn_and_resumes_when_approved() {
     assert_eq!(turn.parked_request(), Some(request_id));
     assert_eq!(w.core.pending().len(), 1);
     assert_eq!(w.runs.load(Ordering::SeqCst), 0, "nothing ran before approval");
-    assert!(turn.drain_events().contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false }));
+    assert!(turn.drain_events().contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false, origin: None }));
 
     w.core.resolve(request_id, true, Duration::Once).unwrap();
     let step = w.engine.on_approval(&mut turn, &mut w.core, request_id, true);
@@ -219,6 +220,7 @@ fn a_huge_tool_result_is_cut_down_before_it_reaches_the_model() {
     let (mut turn, step) = w.engine.start(&w.core, vec![], "go", 1);
     drive(&mut w, &mut turn, &provider, step);
     let content = &tool_messages(&turn)[0].1;
+    let content = untrusted::unwrap(content).unwrap().1;
     assert!(content.len() < 40_000, "{}", content.len());
     assert!(content.ends_with("[truncated]"));
 }
@@ -298,7 +300,7 @@ fn a_tool_run_by_the_application_is_handed_out_and_its_result_continues_the_turn
 
     let step = w.engine.on_tool_result(&mut turn, &mut w.core, "r1", Ok("{\"title\":\"Home\"}".to_owned()));
     assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
-    assert_eq!(tool_messages(&turn), [("r1".to_owned(), "{\"title\":\"Home\"}".to_owned(), false)]);
+    assert_eq!(tool_messages(&turn), [("r1".to_owned(), untrusted::wrap("demo.remote", &json!({}), "{\"title\":\"Home\"}"), false)]);
     assert_eq!(turn.dispatched_call(), None);
     assert!(turn.drain_events().contains(&AgentEvent::ToolResult { call_id: "r1".into(), name: "demo.remote".into(), is_error: false }));
     let kinds: Vec<String> = w.core.events(0, 100).unwrap().into_iter().map(|e| e.kind).collect();
@@ -315,7 +317,8 @@ fn an_application_tool_that_failed_is_an_error_the_model_can_see() {
     expect_run(step);
     let step = w.engine.on_tool_result(&mut turn, &mut w.core, "r1", Err("the page did not load".to_owned()));
     drive(&mut w, &mut turn, &provider, step);
-    assert_eq!(tool_messages(&turn), [("r1".to_owned(), "the page did not load".to_owned(), true)]);
+    assert_eq!(untrusted::unwrap(&tool_messages(&turn)[0].1).unwrap().1, "the page did not load");
+    assert!(tool_messages(&turn)[0].2);
     let kinds: Vec<String> = w.core.events(0, 100).unwrap().into_iter().map(|e| e.kind).collect();
     assert!(kinds.contains(&"tool.failed".to_owned()));
 }
@@ -393,6 +396,7 @@ fn a_huge_answer_from_the_application_is_cut_down() {
     let step = w.engine.on_tool_result(&mut turn, &mut w.core, "r1", Ok("x".repeat(200_000)));
     drive(&mut w, &mut turn, &provider, step);
     let content = &tool_messages(&turn)[0].1;
+    let content = untrusted::unwrap(content).unwrap().1;
     assert!(content.len() < 40_000 && content.ends_with("[truncated]"));
 }
 
@@ -479,7 +483,7 @@ fn a_deny_from_the_reviewer_asks_the_person_who_can_allow_it_once_but_never_alwa
     assert_eq!(step, Step::AwaitApproval { request_id });
     assert!(!turn.is_reviewing());
     assert!(turn.parked_once_only());
-    assert!(turn.drain_events().contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: true }));
+    assert!(turn.drain_events().contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: true, origin: None }));
     assert_eq!(w.runs.load(Ordering::SeqCst), 0, "a deny does not run anything");
     assert!(w.core.resolve(request_id, true, Duration::Always).is_err());
     w.core.resolve(request_id, true, Duration::Once).unwrap();
@@ -503,7 +507,7 @@ fn unsure_wordy_empty_or_failed_reviews_all_ask_the_person_normally() {
         assert_eq!(step, Step::AwaitApproval { request_id }, "{answer:?}");
         assert!(!turn.parked_once_only(), "an unsure review does not narrow the answer");
         let events = turn.drain_events();
-        assert!(events.contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false }));
+        assert!(events.contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false, origin: None }));
         assert_eq!(w.runs.load(Ordering::SeqCst), 0);
         assert!(!format!("{events:?}").contains("SECRET-DETAIL"));
     }
@@ -568,13 +572,13 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
     let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, images: vec![] };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
-    assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", "You are the research bot."));
+    assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", with_rule("You are the research bot.").as_str()));
     let (_, review) = reach_review(&mut w, &mut turn, step);
     assert_eq!(review.model, "research-model", "the reviewer is the bot's model too");
     // The usual setup is untouched for the next turn.
     let (_t, usual) = w.engine.start(&w.core, vec![], "again", 2);
     let Step::CallModel(second) = &usual else { panic!("{usual:?}") };
-    assert_eq!((second.model.as_str(), second.system.as_str()), ("test-model", "You are a test."));
+    assert_eq!((second.model.as_str(), second.system.as_str()), ("test-model", with_rule("You are a test.").as_str()));
 }
 
 #[test]
@@ -582,10 +586,10 @@ fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
     let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, images: vec![] });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
-    assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", "You are a test."));
+    assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", with_rule("You are a test.").as_str()));
     let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, images: vec![] });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
-    assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", "S"));
+    assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", with_rule("S").as_str()));
 }
 
 // ---- the plan and questions for the person --------------------------------------------------------------------
@@ -635,7 +639,7 @@ fn a_plan_only_turn_offers_only_the_plan_and_questions_and_runs_nothing_else() {
     // The next turn is the usual one again.
     let (_t, usual) = w.engine.start(&w.core, vec![], "start", 2);
     let Step::CallModel(r) = &usual else { panic!("{usual:?}") };
-    assert!(r.tools.iter().any(|t| t.name == "demo.echo") && r.system == "You are a test.");
+    assert!(r.tools.iter().any(|t| t.name == "demo.echo") && r.system == with_rule("You are a test."));
 }
 
 #[test]
@@ -686,4 +690,8 @@ fn stopping_while_a_question_is_open_closes_it() {
     let bad = ScriptedProvider::new(vec![calls("", vec![call("q2", "ask.person", json!({ "question": "" }))]), text("ok")]);
     let (mut turn, step) = w.engine.start(&w.core, vec![], "go", 2);
     assert_eq!(drive(&mut w, &mut turn, &bad, step), Step::Done, "a question with no words is refused, not shown");
+}
+
+fn with_rule(system: &str) -> String {
+    format!("{system}\n\n{}", untrusted::ENVELOPE_RULE)
 }

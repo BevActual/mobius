@@ -277,6 +277,19 @@ impl Core {
     }
 
     pub fn invoke(&mut self, principal: &Principal, tool: &str, args: &Value) -> Result<InvokeOutcome, CoreError> {
+        self.invoke_guarded(principal, tool, args, false)
+    }
+
+    /// The capability a tool needs, when the tool is known.
+    #[must_use]
+    pub fn capability_of(&self, tool: &str) -> Option<Capability> {
+        self.tools.get(tool).map(|t| t.spec.capability.clone())
+    }
+
+    /// As `invoke`, but with `person_only` nothing standing lets it through (no grant for longer than once, no rule,
+    /// no approval mode): the person is asked, only "allow once" answers, and no reviewer model answers for them. For a
+    /// call whose arguments came from something read rather than from the person. A block still blocks.
+    pub fn invoke_guarded(&mut self, principal: &Principal, tool: &str, args: &Value, person_only: bool) -> Result<InvokeOutcome, CoreError> {
         principal.validate()?;
         let (capability, resource_arg, by_origin, external) = {
             let tool = self.tools.get(tool).ok_or_else(|| CoreError::UnknownTool(tool.to_owned()))?;
@@ -295,7 +308,7 @@ impl Core {
                 _ => return Err(CoreError::InvalidArgs(format!("`{key}` is required and must be a string"))),
             },
         };
-        match self.decide(principal, &capability, resource.as_deref(), true)? {
+        match self.decide_guarded(principal, &capability, resource.as_deref(), true, person_only)? {
             Decision::Allow => {
                 self.log("tool.started", Some(principal), Some(capability.as_str()), resource.as_deref(), json!({ "tool": tool }))?;
                 if external {
@@ -391,9 +404,23 @@ impl Core {
     }
 
     fn decide(&mut self, principal: &Principal, capability: &Capability, resource: Option<&str>, consume: bool) -> Result<Decision, CoreError> {
+        self.decide_guarded(principal, capability, resource, consume, false)
+    }
+
+    fn decide_guarded(&mut self, principal: &Principal, capability: &Capability, resource: Option<&str>, consume: bool, person_only: bool) -> Result<Decision, CoreError> {
         let now = (self.clock)();
         self.grants.retain(|g| g.expires_ms.is_none_or(|expires| now < expires));
-        let verdict = self.policy.evaluate(&self.grants, now, principal, capability, resource);
+        let verdict = match self.policy.evaluate(&self.grants, now, principal, capability, resource) {
+            // Only the person's answer for this one use counts.
+            Verdict::Allow { consume: None } | Verdict::Ask if person_only && principal.kind != crate::model::PrincipalKind::Person => {
+                let once = self.grants.iter().find(|g| {
+                    g.principal == *principal && g.capability == *capability && g.effect == Effect::Allow && g.duration == Duration::Once
+                        && crate::permissions::resource_matches(g.resource.as_deref(), resource)
+                });
+                once.map_or(Verdict::AskPerson, |g| Verdict::Allow { consume: Some(g.id) })
+            }
+            other => other,
+        };
         match verdict {
             Verdict::Allow { consume: used } => {
                 if consume && let Some(id) = used {

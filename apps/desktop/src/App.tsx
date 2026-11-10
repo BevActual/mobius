@@ -1207,6 +1207,8 @@ export function App() {
             onSend={(text, items, options) => void conversation.send(expandSlash(text, skills.names), items, options)}
             onDrive={driveTasks}
             onStop={conversation.stop}
+            onTakeOver={conversation.takeOver}
+            onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
             onReply={conversation.reply}
             onSaveSettings={saveSettings}
@@ -1242,6 +1244,8 @@ export function App() {
             onSend={(text, items, options) => void conversation.send(expandSlash(text, skills.names), items, options)}
             onDrive={driveTasks}
             onStop={conversation.stop}
+            onTakeOver={conversation.takeOver}
+            onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
               onReply={conversation.reply}
             onSaveSettings={saveSettings}

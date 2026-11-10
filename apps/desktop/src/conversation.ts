@@ -13,7 +13,7 @@ export type ToolStatus = 'running' | 'waiting' | 'done' | 'failed' | 'declined' 
 export type Item =
   | { kind: 'user'; id: string; text: string; attachments?: ContextItem[]; images?: string[] }
   | { kind: 'assistant'; id: string; text: string; streaming: boolean }
-  | { kind: 'tool'; id: string; callId: string; name: string; status: ToolStatus; requestId?: number; args?: unknown; onceOnly?: boolean }
+  | { kind: 'tool'; id: string; callId: string; name: string; status: ToolStatus; requestId?: number; args?: unknown; onceOnly?: boolean; /** What it was read in, when the request came from there and not from the person. */ origin?: string }
   | { kind: 'error'; id: string; text: string }
   /** Something the person should know that is not part of the conversation itself. */
   | { kind: 'notice'; id: string; text: string }
@@ -29,6 +29,8 @@ export interface ConversationState {
   busy: boolean;
   turn: number | null;
   nextId: number;
+  /** You took over the running task: Mobius paused at this step (of this many, when it has a plan). */
+  control?: { step: number; of?: number } | null;
 }
 
 export type ConversationAction =
@@ -44,7 +46,8 @@ export type ConversationAction =
   | { type: 'question-failed'; callId: string }
   | { type: 'reset-busy' }
   | { type: 'rewound' }
-  | { type: 'switch'; conversation: string };
+  | { type: 'switch'; conversation: string }
+  | { type: 'control'; control: { step: number; of?: number } | null };
 
 export const initialConversation = (conversation: string): ConversationState => ({ conversation, items: [], busy: false, turn: null, nextId: 1 });
 
@@ -92,7 +95,7 @@ const cancelOpenTools = (items: Item[]): Item[] =>
     : item.kind === 'question' && (item.status === 'open' || item.status === 'sending') ? { ...item, status: 'cancelled' as const }
     : item);
 
-const finished = (state: ConversationState): ConversationState => ({ ...state, busy: false, turn: null, items: settleStreaming(state.items) });
+const finished = (state: ConversationState): ConversationState => ({ ...state, busy: false, turn: null, control: null, items: settleStreaming(state.items) });
 
 function fromHistory(state: ConversationState, messages: Message[]): ConversationState {
   let next: ConversationState = { ...state, items: [], nextId: 1 };
@@ -142,6 +145,8 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
       );
     case 'switch':
       return initialConversation(action.conversation);
+    case 'control':
+      return { ...state, control: action.control };
     case 'reset-busy':
       return finished({ ...state, items: cancelOpenTools(state.items) });
     case 'loaded':
@@ -163,7 +168,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
       for (const request of action.requests) {
         const known = next.items.some((item) => item.kind === 'tool' && item.callId === request.callId);
         if (!known) next = withItem(next, (id) => ({ kind: 'tool', id, callId: request.callId, name: request.tool, status: 'running' }));
-        next = updateTool(next, (item) => item.callId === request.callId, (item) => ({ ...item, status: 'waiting', requestId: request.requestId, args: request.arguments, onceOnly: request.onceOnly }));
+        next = updateTool(next, (item) => item.callId === request.callId, (item) => ({ ...item, status: 'waiting', requestId: request.requestId, args: request.arguments, onceOnly: request.onceOnly, ...(request.origin ? { origin: request.origin } : {}) }));
         next = { ...next, busy: true };
       }
       return next;
@@ -211,13 +216,17 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         case 'needs_approval': {
           const known = base.items.some((item) => item.kind === 'tool' && item.callId === event.call_id);
           const withTool = known ? base : withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.tool, status: 'running' }));
-          return updateTool(withTool, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'waiting', requestId: event.request_id, args: event.arguments, onceOnly: event.once_only === true }));
+          return updateTool(withTool, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'waiting', requestId: event.request_id, args: event.arguments, onceOnly: event.once_only === true, ...(event.origin ? { origin: event.origin } : {}) }));
         }
         case 'tool_result': {
           const known = base.items.some((item) => item.kind === 'tool' && item.callId === event.call_id);
           const withTool = known ? base : withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: 'running' }));
           return updateTool(withTool, (item) => item.callId === event.call_id, (item) => (item.status === 'declined' ? item : { ...item, status: event.is_error ? 'failed' : 'done' }));
         }
+        case 'paused':
+          return { ...base, control: { step: event.step, ...(typeof event.of === 'number' ? { of: event.of } : {}) } };
+        case 'resumed':
+          return { ...base, control: null };
         case 'compacted':
           return withItem(base, (id) => ({ kind: 'notice', id, text: 'Earlier messages were summarised to make room for the model. They are still here for you.' }));
         case 'done':
@@ -233,12 +242,16 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
 
 export const MAX_RESULT_SHOWN = 4000;
 
+/** A tool's answer without the envelope that tells the model it is data. */
+export const dataOf = (content: string): string => content.replace(/^<<untrusted-data source="[^"]*">>\n/, '').replace(/\n<<\/untrusted-data>>$/, '');
+
 /** What a tool call returned, from the saved messages. The newest one wins when a server reused the call id. */
 export function findToolResult(messages: Message[], callId: string): { text: string; isError: boolean; truncated: boolean } | null {
   const message = messages.findLast((m) => m.role === 'tool' && m.call_id === callId);
   if (!message || message.role !== 'tool') return null;
-  const truncated = message.content.length > MAX_RESULT_SHOWN;
-  return { text: truncated ? message.content.slice(0, MAX_RESULT_SHOWN) : message.content, isError: message.is_error, truncated };
+  const content = dataOf(message.content);
+  const truncated = content.length > MAX_RESULT_SHOWN;
+  return { text: truncated ? content.slice(0, MAX_RESULT_SHOWN) : content, isError: message.is_error, truncated };
 }
 
 /** What a tool call was asked to do, from the saved messages. */

@@ -12,6 +12,9 @@ export interface Conversation {
   /** `plan` asks for a plan only: the agent proposes steps and nothing runs until they are started. */
   send(text: string, context?: ContextItem[], options?: { plan?: boolean; images?: string[] }): Promise<void>;
   stop(): void;
+  /** Take over the running task, and hand it back. Resolve with what went wrong, or null. */
+  takeOver(): Promise<string | null>;
+  handBack(): Promise<string | null>;
   /** Resolves with an explanation when the answer could not be used, otherwise null. */
   answer(requestId: number, approve: boolean, duration: Duration): Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent, otherwise null. */
@@ -77,11 +80,12 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, id);
     let live = true;
-    void Promise.all([window.mobius.agent.history(id), window.mobius.agent.waiting(id), window.mobius.agent.question(id), refresh()]).then(([messages, requests, question]) => {
+    void Promise.all([window.mobius.agent.history(id), window.mobius.agent.waiting(id), window.mobius.agent.question(id), window.mobius.agent.control?.(id).catch(() => null) ?? Promise.resolve(null), refresh()]).then(([messages, requests, question, control]) => {
       if (!live) return;
       dispatch({ type: 'loaded', messages });
       dispatch({ type: 'pending', requests });
       dispatch({ type: 'question-open', question });
+      if (control?.theirs && typeof control.step === 'number') dispatch({ type: 'control', control: { step: control.step, ...(typeof control.of === 'number' ? { of: control.of } : {}) } });
     });
     return () => {
       live = false;
@@ -117,6 +121,15 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   const stop = useCallback(() => {
     if (sending.current === active.current) stopWanted.current = active.current;
     void window.mobius.agent.cancel(active.current);
+  }, []);
+
+  const takeOver = useCallback(async () => {
+    const result = await window.mobius.agent.takeOver?.(active.current).catch(() => null);
+    return result?.ok ? null : result && !result.ok ? result.error : 'Taking over is not available here.';
+  }, []);
+  const handBack = useCallback(async () => {
+    const result = await window.mobius.agent.handBack?.(active.current).catch(() => null);
+    return result?.ok ? null : result && !result.ok ? result.error : 'Handing back is not available here.';
   }, []);
 
   const answer = useCallback(async (requestId: number, approve: boolean, duration: Duration) => {
@@ -196,5 +209,5 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     [],
   );
 
-  return { state, id, list, send, stop, answer, reply, retry, edit, toolDetails, newConversation, startFresh, select, remove, refresh };
+  return { state, id, list, send, stop, takeOver, handBack, answer, reply, retry, edit, toolDetails, newConversation, startFresh, select, remove, refresh };
 }

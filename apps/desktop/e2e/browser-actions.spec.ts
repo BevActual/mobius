@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { launch, runInPage, startFixture, views, type Fixture, type Launched } from './harness';
-import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
+import { dataOf, callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -38,7 +38,7 @@ const outText = async () => {
 /** What the model was told the last tool did. */
 const lastToolMessage = (): string => {
   const messages = model!.requests.at(-1)!.messages as Array<{ role: string; content: string }>;
-  return messages.filter((m) => m.role === 'tool').at(-1)?.content ?? '';
+  return dataOf(messages.filter((m) => m.role === 'tool').at(-1)?.content ?? '');
 };
 
 test('typing into a field and submitting asks first, shows what it will do, and then does it', async () => {
