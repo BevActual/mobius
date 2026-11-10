@@ -2260,3 +2260,10 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .signin-card { margin: var(--sp-2) 0; }
 .signin-line { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 4px 6px 4px 12px; border-radius: var(--radius-panel); background: var(--field); font-size: var(--fs-xs); color: var(--muted); }
 .signin-line span { flex: 1; min-width: 0; }
+
+/* From Mobius: after a sidebar's own places, what Mobius made or changed there, dashed until kept. */
+.from-mobius { margin-top: var(--sp-3); padding-top: var(--sp-2); border-top: 1px solid var(--hairline); }
+.from-mobius-title { display: block; padding: 0 var(--sp-2) 4px; color: var(--accent); }
+.from-mobius ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.from-mobius .note-row { padding-left: var(--sp-2); }
+.from-mobius .note-sub { margin-left: auto; font-size: var(--fs-xs); color: var(--muted); }

@@ -4,6 +4,7 @@ import { cellName, changedCells, columnName, isError, isNumeric, parseCsv, paste
 import type { SheetsState } from './useSheets';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
+import { FromMobius } from './FromMobius';
 
 /** The workbooks, each with its sheets. */
 export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheets: SheetsState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
@@ -46,6 +47,7 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
             </li>
           ))}
         </ul>
+        <FromMobius items={sheets.workbooks.filter((w) => changed?.has(w.name)).map((w) => ({ key: w.name, name: w.name, current: here?.workbook === w.name, onOpen: () => void sheets.open(w.name, w.sheets[0] ?? 'Sheet 1') }))} />
       </nav>
     </aside>
   );

@@ -3,6 +3,7 @@ import { onCommand } from './commands';
 import type { NoteHit } from '@mobius/shared';
 import type { NotesState } from './useNotes';
 import { SideNew, type Start } from './SideNew';
+import { FromMobius } from './FromMobius';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
@@ -118,6 +119,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
               )}
             </div>
           ))}
+          <FromMobius items={notes.notebooks.flatMap((nb) => nb.pages.filter((pg) => changed?.has(pg.path)).map((pg) => ({ key: pg.path, name: pg.title, where: nb.name, current: notes.page?.path === pg.path, onOpen: () => void notes.open(pg.path, pg.title) })))} />
         </div>
       )}
     </aside>

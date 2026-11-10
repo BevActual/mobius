@@ -7,6 +7,7 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { keepTurn, turnId } from './ReviewStrip';
 import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
+import { FromMobius } from './FromMobius';
 
 const SMART: { id: SmartView; name: string }[] = [
   { id: 'today', name: 'Today' },
@@ -62,6 +63,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
             </li>
           ))}
         </ul>
+        <FromMobius items={tasks.lists.filter((l) => changed?.has(l.name)).map((l) => ({ key: l.name, name: l.name, current: current('list', l.name) === 'page', onOpen: () => tasks.setView({ kind: 'list', name: l.name }) }))} />
         {naming && (
           <form className="notes-name" onSubmit={(e) => void submit(e)}>
             <input autoFocus aria-label="List name" placeholder="List name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
