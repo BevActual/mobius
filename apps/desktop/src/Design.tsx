@@ -130,6 +130,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const [pan, setPan] = useState({ x: 40, y: 40 });
   const [drag, setDrag] = useState<Drag | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const lastPress = useRef<{ id: string; t: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [space, setSpace] = useState(false);
   const copied = useRef<{ frame: string; nodes: DesignNode[] } | null>(null);
@@ -404,6 +405,17 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const startMove = (e: ReactPointerEvent, id: string, frame: string | null) => {
     if (e.button !== 0 || tool !== 'move' || space) return;
     e.stopPropagation();
+    // A second press on a text layer soon after the first starts typing on it. This is counted here rather than left
+    // to a double-click event, which a slow page can lose between the two presses.
+    const last = lastPress.current;
+    lastPress.current = { id, t: e.timeStamp, x: e.clientX, y: e.clientY };
+    if (last && last.id === id && e.timeStamp - last.t < 450 && Math.abs(e.clientX - last.x) + Math.abs(e.clientY - last.y) < 6 && findNode(doc, id)?.node?.type === 'text') {
+      lastPress.current = null;
+      setSelected([id]);
+      // Opened once the press is over, so the focus the press moves does not close the field straight away.
+      window.addEventListener('pointerup', () => setEditing(id), { once: true });
+      return;
+    }
     const ids = selected.includes(id) && !e.shiftKey ? selected : e.shiftKey ? (selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]) : [id];
     if (!selected.includes(id) || e.shiftKey) pick(id, e.shiftKey);
     if (e.shiftKey && selected.includes(id)) return;
@@ -504,7 +516,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   <span className="design-frame-name" style={{ fontSize: 12 / zoom, top: -18 / zoom }} onPointerDown={(e) => startMove(e, f.id, null)} onDoubleClick={() => setRenaming(f.id)}>{f.name}</span>
                   <div className="design-clip" style={{ borderRadius: f.radius }}>
                     {f.children.map((n) => (
-                      <div key={n.id} className="design-node" data-type={n.type} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onDoubleClick={() => { if (n.type === 'text') setEditing(n.id); }}>
+                      <div key={n.id} className="design-node" data-type={n.type} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onDoubleClick={() => { if (n.type === 'text' && editing !== n.id) setEditing(n.id); }}>
                         {n.type === 'text' && editing !== n.id ? n.text : null}
                       </div>
                     ))}
@@ -519,7 +531,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                     const q = live(t);
                     return (
                       <div className="design-handles" style={handleBox(t, at!.node !== null)}>
-                        {HANDLES.map((h) => <span key={h} className="design-handle" data-handle={h} onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); setDrag({ kind: 'resize', id: t.id, handle: h, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0, keep: e.shiftKey }); }} aria-hidden="true" />)}
+                        {HANDLES.filter((h) => handleShown(h, q.w * zoom, q.h * zoom)).map((h) => <span key={h} className="design-handle" data-handle={h} onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); setDrag({ kind: 'resize', id: t.id, handle: h, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0, keep: e.shiftKey }); }} aria-hidden="true" />)}
                         {drag && (drag.kind === 'move' || drag.kind === 'resize') && <span className="design-size">{drag.kind === 'move' ? `${q.x}, ${q.y}` : `${q.w} × ${q.h}`}</span>}
                       </div>
                     );
@@ -669,6 +681,16 @@ function AlignBar({ onAlign, onSpread }: { onAlign: (how: AlignHow) => void; onS
 function RenameField({ name, onDone }: { name: string; onDone: (name: string | null) => void }) {
   const [text, setText] = useState(name);
   return <input className="design-rename" aria-label="Layer name" autoFocus value={text} maxLength={80} onFocus={(e) => e.target.select()} onChange={(e) => setText(e.target.value)} onBlur={() => onDone(text.trim() || null)} onKeyDown={(e) => { if (e.key === 'Enter') onDone(text.trim() || null); if (e.key === 'Escape') onDone(null); }} />;
+}
+
+/**
+ * Whether a handle is drawn for a layer this big on screen. On a small layer the middle handles would sit over the
+ * layer itself and catch the press meant for it, so, as in Figma, only the corners stay.
+ */
+function handleShown(h: string, w: number, height: number): boolean {
+  if (h === 'n' || h === 's') return w >= 40 && height >= 24;
+  if (h === 'e' || h === 'w') return height >= 40 && w >= 24;
+  return true;
 }
 
 /** Text typed straight on the canvas (double-click a text layer, or Enter): Escape or a click away keeps it. */
