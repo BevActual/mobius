@@ -57,7 +57,7 @@ function Lane({ track, bars, proposed, zoom }: { track: Track; bars: number; pro
 /** How the piano roll is being pressed on: a note moved or stretched, a box drawn, or a click that may add a note. */
 type Gesture =
   | { kind: 'move'; x: number; y: number; db: number; dr: number; moved: boolean; hit: number; wasPicked: boolean; shift: boolean }
-  | { kind: 'stretch'; x: number; dl: number }
+  | { kind: 'stretch'; x: number; dl: number; these: Picked }
   | { kind: 'empty'; x: number; y: number; beat: number; row: number; box: boolean; shift: boolean };
 
 /** One song: transport, tracks laid out by bar, and the chosen track's notes on a piano roll to draw, move and stretch. */
@@ -273,7 +273,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       const r = noteEl.getBoundingClientRect();
       const wasPicked = picked.has(i);
       if (!wasPicked) setPicked(e.shiftKey ? new Set([...picked, i]) : new Set([i]));
-      if (e.clientX > r.right - 6 && r.width > 10) { setGesture({ kind: 'stretch', x: e.clientX, dl: 0 }); if (!wasPicked && !e.shiftKey) setPicked(new Set([i])); return; }
+      if (target.closest('.studio-note-end') || (e.clientX > r.right - 6 && r.width > 10)) { const these = wasPicked ? picked : new Set([i]); setPicked(these); setGesture({ kind: 'stretch', x: e.clientX, dl: 0, these }); return; }
       previewNote(track.instrument, n.pitch, n.velocity);
       setGesture({ kind: 'move', x: e.clientX, y: e.clientY, db: 0, dr: 0, moved: false, hit: i, wasPicked, shift: e.shiftKey });
       return;
@@ -312,7 +312,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       else if (!g.moved && g.wasPicked && g.shift) setPicked(new Set([...picked].filter((i) => i !== g.hit)));
       else if (!g.moved && g.wasPicked && !g.shift) setPicked(new Set([g.hit]));
     } else if (g.kind === 'stretch') {
-      if (g.dl !== 0) setNotes((n) => stretchNotes(n, picked, g.dl, total, Math.min(grid, 0.25)));
+      if (g.dl !== 0) setNotes((n) => stretchNotes(n, g.these, g.dl, total, Math.min(grid, 0.25)));
     } else if (g.box) {
       const p = at(e);
       const box = { b0: g.beat, b1: p.beat, r0: g.row, r1: p.row };
@@ -496,7 +496,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                           aria-pressed={isPicked}
                           aria-label={`${r.label} at beat ${n.start + 1}, ${n.length} beats`}
                           style={{ left, width, transform: isPicked && dragShift ? `translateY(${dragShift.dr * ROW_H}px)` : undefined, ['--vel' as string]: n.velocity }}
-                        />
+                        >{width > 10 && <span className="studio-note-end" aria-hidden="true" />}</span>
                       );
                     })}
                   </div>
