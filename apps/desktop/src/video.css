@@ -100,6 +100,6 @@
 .video-clip:hover .strip-btn, .video-clip .strip-btn:focus-visible { opacity: 1; }
 .video-clip .strip-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
 
-@container (max-width: 760px) { .video-top { grid-template-columns: minmax(0, 1fr) 220px; } }
-@media (max-width: 900px) { .video-top { grid-template-columns: minmax(0, 1fr); } .video-inspector { display: none; } }
+/* A narrow window keeps the inspector, narrower: trimming and titling need it. */
+@media (max-width: 1100px) { .video-top { grid-template-columns: minmax(0, 1fr) 200px; } .video-hud .video-time { font-size: 12px; } }
 @media (prefers-reduced-motion: reduce) { .video-play { transition: none; } }

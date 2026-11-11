@@ -879,7 +879,8 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
           </button>
         </p>
       )}
-      {asking && <SuggestionPopover calendar={calendar} id={asking.id} at={asking.at} onClose={() => setAsking(null)} />}
+      {/* Closing one suggestion never closes the next: its answer can finish after another was opened. */}
+      {asking && <SuggestionPopover key={asking.id} calendar={calendar} id={asking.id} at={asking.at} onClose={() => { const id = asking.id; setAsking((a) => (a?.id === id ? null : a)); }} />}
       {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} />}
     </section>
   );
