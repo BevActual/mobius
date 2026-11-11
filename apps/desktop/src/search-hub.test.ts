@@ -53,7 +53,7 @@ describe('one place to find everything', () => {
   });
   it('finds what the creative apps keep, under Made', () => {
     const made: HubSources = { ...sources(), designFolders: [{ name: 'Trip app', pages: [{ path: 'Trip app/Home.json', title: 'Home', modified: 900 }] }], songFolders: [{ name: 'Songs', pages: [{ path: 'Songs/Night Drive.json', title: 'Night Drive', modified: 10 }] }], albums: [{ name: 'Lisbon', photos: [{ path: 'Lisbon/coast.jpg', name: 'coast.jpg', modified: 20 }] }], videoProjects: ['Offsite recap'], codeProjects: [{ name: 'offsite-planner', modified: 30 }] };
-    expect(hubResults(made, '', 'made').map((r) => r.where)).toEqual(['Design › Trip app', 'Code', 'Photo › Lisbon', 'Studio › Songs', 'Video']);
+    expect(hubResults(made, '', 'made').map((r) => r.where)).toEqual(['Design › Trip app', 'Code', 'Photo › Lisbon', 'Music › Songs', 'Video']);
     expect(hubResults(made, 'offsite', 'all').filter((r) => r.kind === 'made').map((r) => r.target)).toEqual([{ app: 'code', project: 'offsite-planner' }, { app: 'video', project: 'Offsite recap' }]);
     expect(hubResults(made, 'lisbon', 'made')[0]!.target).toEqual({ app: 'photo', path: 'Lisbon/coast.jpg' });
   });

@@ -113,7 +113,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Add drums', prompt: 'Add a drums track to this song that fits its tempo: kick, snare on 2 and 4, closed hats in eighths, a small fill in the last bar. Leave the other tracks as they are.', attach: 'note' },
             { label: 'Describe a part…', prompt: 'In this song, ', attach: 'note' },
           ]
-        : [{ label: 'Start a song', prompt: 'Make a song in my Studio, 8 bars, with chords and a melody, that feels ' }];
+        : [{ label: 'Start a song', prompt: 'Make a song in Music, 8 bars, with chords and a melody, that feels ' }];
     case 'photo':
       return state.photo
         ? [

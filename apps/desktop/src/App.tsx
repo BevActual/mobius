@@ -861,9 +861,9 @@ export function App() {
       void navigator.clipboard?.readText().then((text) => document.execCommand('insertText', false, text)).catch(() => document.execCommand('paste'));
       return;
     }
-    // Canvas and Design keep their own history: what the menu's Undo means there, outside a text field.
+    // Canvas, Design and Slides keep their own history: what the menu's Undo means there, outside a text field.
     const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement || (document.activeElement as HTMLElement | null)?.isContentEditable;
-    if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign) && !typing) { sendCommand(command); return; }
+    if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign || inSlides) && !typing) { sendCommand(command); return; }
     document.execCommand(command);
   };
   const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice') => { setSettingsSection(section); setSettingsOpen(true); };
@@ -1340,7 +1340,7 @@ export function App() {
         onToggle={toggleWide}
         onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); if (id === 'agent') setSideMode('sessions'); openApp(id); }}
         ownApps={[
-          { id: 'bots', name: 'Bots', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
+          { id: 'bots', name: 'Agents', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
           { id: 'activity', name: 'Activity', current: !settingsOpen && app === 'agent' && sideMode === 'activity', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } },
           { id: 'extensions', name: 'Extensions', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
           { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },

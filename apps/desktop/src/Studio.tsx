@@ -9,7 +9,7 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
 import './studio.css';
 
-export const STUDIO_WORDS: SidebarWords = { app: 'Studio', group: 'folder', groups: 'Folders', item: 'song', items: 'songs', about: 'Songs are kept as JSON files in your workspace: tracks of notes, never audio, so the agent can read and write them like a score.', defaultGroup: 'Songs' };
+export const STUDIO_WORDS: SidebarWords = { app: 'Music', group: 'folder', groups: 'Folders', item: 'song', items: 'songs', about: 'Songs are kept as JSON files in your workspace: tracks of notes, never audio, so the agent can read and write them like a score.', defaultGroup: 'Songs' };
 
 export function StudioSidebar(props: { songs: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; starts?: readonly import('./SideNew').Start[]; onStart?: (prompt: string) => void }) {
   const { songs, ...rest } = props;
@@ -192,12 +192,12 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
 
   if (!songs.page) {
     return (
-      <section className="studio-page empty" aria-label="Studio">
+      <section className="studio-page empty" aria-label="Music">
         <div className="studio-empty"><span className="studio-empty-icon" aria-hidden="true"><Icon d="M8 15.5V5l8-1.5v10M8 15.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM16 13.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z" /></span><p>Choose a song on the left, or make a new one.</p><span>Songs are notes, never audio, so Mobius can read and write them like a score.</span></div>
       </section>
     );
   }
-  if (!song) return <section className="studio-page empty" aria-label="Studio"><p className="note-empty">This song could not be read ({parsed && 'error' in parsed ? parsed.error : 'unknown'}).</p></section>;
+  if (!song) return <section className="studio-page empty" aria-label="Music"><p className="note-empty">This song could not be read ({parsed && 'error' in parsed ? parsed.error : 'unknown'}).</p></section>;
 
   const track = song.tracks.find((t) => t.id === selected) ?? song.tracks[0] ?? null;
   const total = song.bars * BEATS_PER_BAR;
@@ -356,7 +356,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const velocity = pickedNotes.length ? pickedNotes.reduce((a, n) => a + n.velocity, 0) / pickedNotes.length : null;
 
   return (
-    <section className="studio-page" aria-label="Studio">
+    <section className="studio-page" aria-label="Music">
       <div className="studio-transport" role="toolbar" aria-label="Transport">
         <div className="studio-buttons">
           <button type="button" className="studio-tbtn" aria-label="Go to start" title="Go to start (Return)" onClick={() => seek(0)}><Icon d={ICONS.start} fill /></button>

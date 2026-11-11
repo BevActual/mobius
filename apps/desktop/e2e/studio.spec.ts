@@ -37,7 +37,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await shell().keyboard.press('Control+k');
-  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Studio');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Music');
   await shell().keyboard.press('Enter');
   await shell().getByRole('button', { name: 'Night Drive', exact: true }).click();
   await expect(tracks().getByRole('listitem', { name: 'Keys' })).toBeVisible();

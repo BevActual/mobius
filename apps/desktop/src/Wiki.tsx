@@ -47,9 +47,9 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
     </li>
   );
   return (
-    <aside className="side wiki-side" aria-label="Wiki sidebar">
+    <aside className="side wiki-side" aria-label="Knowledge sidebar">
       <div className="side-head">
-        <span className="side-title">Wiki</span>
+        <span className="side-title">Knowledge</span>
         <span className="side-actions">
           {pin}
           <button type="button" className="strip-btn" aria-label="New page" title="New page" onClick={() => setNaming(true)}>
@@ -62,10 +62,10 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
           <input autoFocus aria-label="Page title" placeholder="Page title" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
         </form>
       )}
-      <nav className="task-lists" aria-label="Wiki">
+      <nav className="task-lists" aria-label="Knowledge">
         <ul role="list">
           {row('How I work', place.kind === 'mine', () => onPlace({ kind: 'mine' }))}
-          {row('Shared with this wiki', place.kind === 'shared', () => onPlace({ kind: 'shared' }), incoming.waiting.length)}
+          {row('Shared with Knowledge', place.kind === 'shared', () => onPlace({ kind: 'shared' }), incoming.waiting.length)}
         </ul>
       </nav>
       <nav className="task-lists wiki-pages" aria-label="Pages">
@@ -102,7 +102,7 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
   const load = useCallback(async () => { setItems(await api?.items().catch(() => []) ?? []); }, [api]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => api?.onChange(() => void load()), [api, load]);
-  if (!api) return <section className="skills-page empty" aria-label="How I work"><p className="note-empty">Your wiki is not available here.</p></section>;
+  if (!api) return <section className="skills-page empty" aria-label="How I work"><p className="note-empty">Knowledge is not available here.</p></section>;
   const done = async (r: { ok: boolean; error?: string } | undefined, next: { label: string; run: () => Promise<unknown> } | null) => {
     if (r && !r.ok) { setProblem(r.error ?? 'That could not be done.'); return; }
     setProblem(null); setUndo(next); await load();
@@ -110,9 +110,9 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
   const keep = (m: MemoryItem) => api.keep?.(m.text, true).then((r) => done(r, { label: `Kept “${m.text}”.`, run: () => api.keep!(m.text, false) }));
   const notTrue = (m: MemoryItem) => api.forget(m.text).then((r) => done(r, { label: `Forgot “${m.text}”.`, run: () => api.restore!(m.text, m.category, m.source) }));
   const share = async (m: MemoryItem) => {
-    const r = await window.mobius.wiki?.offer?.('your wiki', m.text).catch(() => null);
+    const r = await window.mobius.wiki?.offer?.('your knowledge', m.text).catch(() => null);
     if (!r || ('ok' in r && r.ok === false)) { setProblem('That line could not be shared.'); return; }
-    setUndo({ label: `Shared “${m.text}” with this wiki. It waits there until it is kept.`, run: async () => { if ('id' in r) await window.mobius.wiki?.declineChange?.(r.id); } });
+    setUndo({ label: `Shared “${m.text}” with Knowledge. It waits there until it is kept.`, run: async () => { if ('id' in r) await window.mobius.wiki?.declineChange?.(r.id); } });
   };
   return (
     <section className="skills-page wiki-page" aria-label="How I work">
@@ -161,7 +161,7 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
                 {m.source && m.source !== 'you added it' && <span className="wiki-from-line">From {m.source}</span>}
                 <button type="button" className="review-btn" onClick={() => setEditing({ old: m.text, text: m.text, category: m.category })}>Edit</button>
                 <button type="button" className="review-btn" aria-label={`Forget: ${m.text}`} onClick={() => void api.forget(m.text).then((r) => done(r, { label: `Forgot “${m.text}”.`, run: () => api.restore!(m.text, m.category, m.source) }))}>Forget</button>
-                <button type="button" className="review-btn" title="Offer this line to the wiki others share" onClick={() => void share(m)}>Share</button>
+                <button type="button" className="review-btn" title="Offer this line to the Knowledge others share" onClick={() => void share(m)}>Share</button>
               </span>
             )}
           </li>
@@ -182,7 +182,7 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [undo, setUndo] = useState<{ label: string; change: WikiChange; line: string | null } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  if (!api?.incoming) return <section className="skills-page empty" aria-label="Shared with this wiki"><p className="note-empty">The wiki is not available here.</p></section>;
+  if (!api?.incoming) return <section className="skills-page empty" aria-label="Shared with Knowledge"><p className="note-empty">Knowledge is not available here.</p></section>;
   const keep = async (c: WikiChange, text?: string) => {
     const r = await api.keepChange!(c.id, text).catch(() => null);
     if (!r || !r.ok) { setProblem(r && !r.ok ? r.message : 'That could not be kept.'); return; }
@@ -203,15 +203,15 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
     await incoming.load();
   };
   return (
-    <section className="skills-page wiki-page" aria-label="Shared with this wiki">
-      <h1 className="ext-title">Shared with this wiki</h1>
+    <section className="skills-page wiki-page" aria-label="Shared with Knowledge">
+      <h1 className="ext-title">Shared with Knowledge</h1>
       {undo && <p className="cal-undo" role="status"><span>{undo.label}</span><button type="button" className="review-btn" onClick={() => void undoLast()}>Undo</button></p>}
       {problem && <p className="field-error" role="alert">{problem}</p>}
       {incoming.waiting.length === 0 && <p className="note-empty">Nothing is waiting.</p>}
       <ul className="wiki-lines" role="list" aria-label="Waiting">
         {incoming.waiting.map((c) => (
-          <li key={c.id} className="wiki-line wiki-change" data-proposed aria-label={`From ${c.from}: ${c.text}`}>
-            <span className="wiki-from">From {c.from} · for {pageName(c.page)}</span>
+          <li key={c.id} className="wiki-line wiki-change" data-proposed aria-label={`From ${fromName(c.from)}: ${c.text}`}>
+            <span className="wiki-from">From {fromName(c.from)} · for {pageName(c.page)}</span>
             {editing?.id === c.id ? (
               <form className="wiki-edit" onSubmit={(e) => { e.preventDefault(); void keep(c, editing.text); }}>
                 <input autoFocus aria-label="Edit the line" value={editing.text} onChange={(e) => setEditing({ id: c.id, text: e.target.value })} />
@@ -272,4 +272,9 @@ export function WikiVersions({ wiki }: { wiki: NotesState }) {
       )}
     </div>
   );
+}
+
+/** Who offered a change, in today's words: lines shared before Knowledge was renamed say they came from "your wiki". */
+function fromName(from: string): string {
+  return from === 'your wiki' ? 'your knowledge' : from;
 }

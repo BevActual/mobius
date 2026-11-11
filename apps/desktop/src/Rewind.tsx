@@ -4,7 +4,7 @@ import { describeChange } from './ReviewStrip';
 
 const APP_OF_KIND: Record<string, string> = {
   Note: 'Notes', Doc: 'Docs', Deck: 'Slides', Sheet: 'Sheets', Tasks: 'Tasks', Calendar: 'Calendar', Code: 'Code', Design: 'Design',
-  Board: 'Canvas', Report: 'Research', Article: 'Reader', Database: 'Database', Photo: 'Photo', Song: 'Studio', Cut: 'Video', Skill: 'Skills', File: 'Files',
+  Board: 'Canvas', Report: 'Research', Article: 'Reader', Database: 'Database', Photo: 'Photo', Song: 'Music', Cut: 'Video', Skill: 'Skills', File: 'Files',
 };
 
 /** The apps a set of workspace files belong to, each once, in the order first seen. */

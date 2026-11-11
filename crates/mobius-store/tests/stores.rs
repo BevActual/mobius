@@ -230,7 +230,7 @@ fn mobius_cannot_be_changed_removed_moved_or_copied() {
     assert!(b.update(MAIN_ID, &draft("Other")).is_err());
     assert!(b.remove(MAIN_ID).is_err());
     assert!(b.move_bot(MAIN_ID, "down").is_err());
-    assert_eq!(b.create(&draft("mobius")).unwrap_err(), "There is already a bot called \"mobius\".");
+    assert_eq!(b.create(&draft("mobius")).unwrap_err(), "There is already an agent called \"mobius\".");
 }
 
 #[test]

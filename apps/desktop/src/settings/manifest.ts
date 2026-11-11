@@ -231,7 +231,7 @@ const SECTIONS: readonly SettingsSection[] = [
     description: 'What Mobius remembers between conversations.',
     subpages: [
       { id: 'memory', label: 'Memory', rows: [
-        row('remembered', 'What Mobius remembers', 'Short facts Mobius keeps between conversations. It asks before remembering unless you chose otherwise. Forget any of them here.', 'memory', 'remember', 'forget', 'wiki', 'how I work', 'facts', 'personal', 'learned'),
+        row('remembered', 'What Mobius remembers', 'Short facts Mobius keeps between conversations. It asks before remembering unless you chose otherwise. Forget any of them here.', 'memory', 'remember', 'forget', 'knowledge', 'wiki', 'how I work', 'facts', 'personal', 'learned'),
       ] },
     ],
   },

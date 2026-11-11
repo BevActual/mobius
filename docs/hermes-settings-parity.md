@@ -137,6 +137,6 @@ tools (one registry, both ways). Not started.
 | Reasoning effort | Default/Low/Medium/High; sent only when chosen; never to the reviewer; also in Settings → Model | done |
 | Voice dictation | records, sends to the server's speech endpoint, inserts the words; Esc cancels; says plainly when the server has none; model name in Settings → Model | done |
 | Send / stop | one button; Stop while working (no separate pause) | done |
-| Sessions and Bots sidebar | Agent app list switches Sessions / Bots; bots have a name, added instructions and optional model; sessions are grouped under their bot; removing a bot removes its sessions after asking | done |
+| Sessions and Agents sidebar | Agent app list switches Sessions / Agents (called Bots before); agents have a name, added instructions and optional model; sessions are grouped under their bot; removing a bot removes its sessions after asking | done |
 | Bot per platform (gateway groups, filters, profile switcher) | - | not copied: Mobius has no messaging platforms or profiles yet |
 | Floating / auto-hide / attached sidebars, resizable | Appearance → Layout | done |

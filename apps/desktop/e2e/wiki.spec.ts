@@ -35,7 +35,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 }
 async function openWiki(): Promise<void> {
   await shell().keyboard.press('Control+k');
-  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Wiki');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Knowledge');
   await shell().keyboard.press('Enter');
 }
 
@@ -68,12 +68,12 @@ test('a line shared from How I work waits in Shared with this wiki: Edit first, 
   await openWiki();
   const mine = shell().getByRole('region', { name: 'How I work' });
   await mine.getByRole('listitem', { name: 'Vegetarian', exact: true }).getByRole('button', { name: 'Share' }).click();
-  await expect(mine.getByRole('status')).toContainText('Shared “Vegetarian” with this wiki');
-  const side = shell().getByRole('navigation', { name: 'Wiki' });
-  await expect(side.getByRole('button', { name: /Shared with this wiki/ })).toContainText('1');
-  await side.getByRole('button', { name: /Shared with this wiki/ }).click();
-  const queue = shell().getByRole('region', { name: 'Shared with this wiki' });
-  const change = queue.getByRole('listitem', { name: 'From your wiki: Vegetarian' });
+  await expect(mine.getByRole('status')).toContainText('Shared “Vegetarian” with Knowledge');
+  const side = shell().getByRole('navigation', { name: 'Knowledge' });
+  await expect(side.getByRole('button', { name: /Shared with Knowledge/ })).toContainText('1');
+  await side.getByRole('button', { name: /Shared with Knowledge/ }).click();
+  const queue = shell().getByRole('region', { name: 'Shared with Knowledge' });
+  const change = queue.getByRole('listitem', { name: 'From your knowledge: Vegetarian' });
   await expect(change).toHaveAttribute('data-proposed');
   await change.getByRole('button', { name: 'Edit first' }).click();
   await change.getByRole('textbox', { name: 'Edit the line' }).fill('Vegetarian, no fish');
@@ -152,7 +152,7 @@ test('what Mobius would like to remember waits in How I work until the person sa
   expect(fs.readFileSync(memory(), 'utf8')).toContain('- Prefers vegetarian options at team meals <!-- prefs · Mail from Rui -->');
 });
 
-test('Journey is gone from the apps: looking for it finds How I work in the Wiki', async () => {
+test('Journey is gone from the apps: looking for it finds How I work in Knowledge', async () => {
   await start();
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Journey');

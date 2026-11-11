@@ -81,10 +81,10 @@ impl Incoming {
     /// A change offered to the wiki. It waits until the person keeps or declines it.
     pub fn offer(&self, from: &str, page: Option<&str>, text: &str) -> Result<Value, String> {
         let text = clean(text).ok_or("A change is one line of up to 600 characters.")?;
-        let from = clean(from).unwrap_or_else(|| "your wiki".to_owned());
+        let from = clean(from).unwrap_or_else(|| "your knowledge".to_owned());
         let page = page.filter(|p| !p.is_empty()).unwrap_or(SHARED_PAGE);
         if !page_ok(page) {
-            return Err("That is not a wiki page.".into());
+            return Err("That is not a Knowledge page.".into());
         }
         let _one = self.lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut saved = self.load();

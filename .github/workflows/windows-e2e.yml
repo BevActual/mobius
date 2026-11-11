@@ -19,9 +19,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  e2e:
+  # The suite is split by file across three machines that run at once, so a full run takes about a third as long.
+  shard:
+    name: e2e shard ${{ matrix.shard }}/3
     runs-on: windows-latest
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -61,18 +67,38 @@ jobs:
           Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess } | ForEach-Object { Write-Host "listening: $($_.LocalAddress):$($_.LocalPort) (process $($_.OwningProcess))" }
           if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
           Get-Process msedgewebview2, mobius-cored -ErrorAction SilentlyContinue | Stop-Process -Force
-      - name: Run the end-to-end suite
+      - name: Run the end-to-end suite (this machine's share)
         working-directory: apps/desktop
         env:
           MOBIUS_SHELL: tauri
           MOBIUS_E2E_START_MS: '60000'
           MOBIUS_TAURI_LOG: ${{ github.workspace }}\shell.log
-        run: npx playwright test ${{ inputs.spec }}
+        run: npx playwright test --shard=${{ matrix.shard }}/3 ${{ inputs.spec }}
       - if: failure()
         uses: actions/upload-artifact@v5
         with:
-          name: e2e-results
+          name: e2e-results-${{ matrix.shard }}
           path: |
             apps/desktop/test-results
             shell.log
           retention-days: 7
+      # Screenshots of every app, light and dark, from e2e/screens.spec.ts (on whichever machine ran it), for design review.
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: screens-${{ matrix.shard }}
+          path: apps/desktop/screens
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # One result for the whole suite, under the name the checks have always used. A run replaced by a newer push reports
+  # nothing, rather than a failure for code that was never tested.
+  e2e:
+    if: ${{ !cancelled() }}
+    needs: shard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed
+        run: |
+          echo "shards: ${{ needs.shard.result }}"
+          test "${{ needs.shard.result }}" = "success"

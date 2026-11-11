@@ -81,7 +81,7 @@ test('a project is a place: its rules, its memory page in the Wiki, its threads 
   await expect.poll(() => JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0].rules).toEqual({ docs: 'act' });
   expect(fs.existsSync(path.join(userData, 'workspace', 'projects', 'Kestrel'))).toBe(true);
   expect(fs.existsSync(path.join(userData, 'workspace', 'wiki', 'Projects', 'Kestrel.md'))).toBe(true);
-  await page.getByRole('button', { name: 'Open in Wiki' }).click();
+  await page.getByRole('button', { name: 'Open in Knowledge' }).click();
   await expect(shell().getByRole('textbox', { name: 'Document text' })).toBeVisible();
   await openProjects();
   await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: 'Open in Files' }).click();
@@ -218,9 +218,9 @@ test('a bot asked from a project thread works in a side thread of its own and re
   await say('hi');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Hi.');
   const sides = shell().getByRole('region', { name: 'Side threads' }).first();
-  await sides.getByRole('combobox', { name: 'Bot' }).selectOption({ label: 'Research' });
-  await sides.getByRole('textbox', { name: 'Ask a bot' }).fill('Find three venues in Lisbon');
-  await sides.getByRole('textbox', { name: 'Ask a bot' }).press('Enter');
+  await sides.getByRole('combobox', { name: 'Agent' }).selectOption({ label: 'Research' });
+  await sides.getByRole('textbox', { name: 'Ask an agent' }).fill('Find three venues in Lisbon');
+  await sides.getByRole('textbox', { name: 'Ask an agent' }).press('Enter');
   const report = sides.getByRole('group', { name: 'From Research' });
   await expect(report).toContainText('From Research · “Find three venues in Lisbon”');
   await expect(report).toContainText('Three venues: Casa A, Quinta B and Palácio C.');
