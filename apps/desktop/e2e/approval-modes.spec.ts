@@ -24,7 +24,7 @@ test.afterEach(async () => {
 
 async function start(replies: ModelReply[]): Promise<Launched> {
   model = await startModel(replies);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   return mobius;
 }
@@ -74,7 +74,7 @@ test('the settings page shows Ask first, explains Propose, and the choice surviv
   await expect(page().getByTestId('approval-mode-help')).toContainText('Keep it, Discard it or ask it to Try another way');
   await expect.poll(coreMode).toBe('propose');
   await mobius!.close({ keepUserData: true });
-  mobius = await launch(fixture.origin + '/', { userData });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData });
   await expect.poll(coreMode).toBe('propose');
 });
 

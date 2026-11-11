@@ -9,7 +9,7 @@ let mobius: Launched | undefined;
 test.beforeEach(async () => {
   fixture = await startFixture();
   model = await startModel([says(['ok'])]);
-  mobius = await launch(fixture.origin + '/', { env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'chat-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'chat-model' } });
 });
 test.afterEach(async () => {
   await mobius?.close();

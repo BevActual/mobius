@@ -28,7 +28,7 @@ test.afterEach(async () => {
 async function start(): Promise<Launched> {
   broken = await startModel([]);
   backup = await startModel([says(['From the backup model.'])]);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: broken.url, MOBIUS_AGENT_MODEL: 'first-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: broken.url, MOBIUS_AGENT_MODEL: 'first-model' } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   return mobius;
 }
@@ -81,7 +81,7 @@ test('the second model is remembered across a restart, and can be switched off',
   await expect(page().getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
   await mobius!.close({ keepUserData: true });
   // Start again with nothing seeded, so what comes back is what was saved.
-  mobius = await launch(fixture.origin + '/', { userData });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openServer();
   await expect(page().getByRole('switch', { name: 'Use a second model when the first cannot answer' })).toBeChecked();

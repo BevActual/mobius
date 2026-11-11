@@ -30,7 +30,7 @@ async function openThisComputer(): Promise<Locator> {
 
 test('Mobius installs its own llama.cpp for this computer, shows what it found, and needs nothing else', async () => {
   github = await startGithub(FAKE_LLAMA, 'b600', 300);
-  mobius = await launch(fixture.origin + '/', { env: { MOBIUS_TEST_ENGINE_RELEASES: github.releasesUrl } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, env: { MOBIUS_TEST_ENGINE_RELEASES: github.releasesUrl } });
   const row = await openThisComputer();
   await expect(row).toContainText('Not installed');
   await row.getByRole('button', { name: /^Install llama\.cpp/ }).click();

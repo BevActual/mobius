@@ -24,7 +24,7 @@ test.afterEach(async () => {
 
 test('each fact says where it came from, and a reply with an unsure fact is not copied until it is checked', async () => {
   model = await startModel([says(['Hi Rui, confirming the terrace for [8 people](trust:yours "Calendar · Offsite crew") arriving ', '[around 12:30](trust:unsure "Two people have not shared flights") on [Thursday 12 March](trust:web "tap.pt, today").'])]);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   const shell = mobius.shell;
   const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
   await expect(composer).toBeEnabled({ timeout: 15_000 });

@@ -30,7 +30,7 @@ test('text in a file cannot send Mobius to a site: it asks, saying the request c
     callsTool('browser-open', { url: 'http://evil.example/steal' }),
     says(['I did not open it.']),
   ]);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   const shell = mobius.shell;
   const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
   await expect(composer).toBeEnabled({ timeout: 15_000 });
