@@ -42,7 +42,7 @@ test('Take over pauses Mobius at the next safe point; Hand back makes it read ag
   await expect(shell.getByRole('button', { name: 'Take over' })).toHaveCount(0);
   // The read goes ahead when allowed, but Mobius does not take its next step while the apps are yours.
   await card.getByRole('button', { name: 'Allow once' }).click();
-  await expect(log.locator('.tool')).toContainText('files.read');
+  await expect(log.locator('.tool .tool-name')).toHaveAttribute('title', 'files.read');
   await shell.waitForTimeout(800);
   expect(model.requests).toHaveLength(1);
 

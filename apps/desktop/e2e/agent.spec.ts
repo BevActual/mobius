@@ -88,7 +88,8 @@ test('a tool call stops for approval, shows what will run, and carries on when a
   await card.getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('It is noon.');
   await expect(card).toHaveCount(0);
-  await expect(log().locator('.tool')).toContainText('clock.now');
+  // The row reads as a sentence where there is one; the tool's own name is its tooltip.
+  await expect(log().locator('.tool .tool-name')).toHaveAttribute('title', 'clock.now');
   const second = model!.requests[1]!.messages as Array<{ role: string; content: string }>;
   const result = second.find((m) => m.role === 'tool')!;
   expect(JSON.parse(dataOf(result.content)).utc).toMatch(/^20\d\d-\d\d-\d\dT/);
