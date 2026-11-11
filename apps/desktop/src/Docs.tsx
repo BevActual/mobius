@@ -19,11 +19,12 @@ import { untitledHeading } from './NoteEditor';
 import { EmptyState } from './EmptyState';
 import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
+import type { NoteComment } from '@mobius/shared';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import type { Start } from './SideNew';
 import { tidyMarkdown } from './note-insert';
 import { fileMarkdown, noteImage, readFile } from './note-files';
-import { CommentComposer, CommentList, useNoteComments } from './NoteComments';
+import { CommentComposer, CommentList, commentLine, useNoteComments } from './NoteComments';
 import { NoteHistory, dayOf } from './NoteHistory';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
@@ -40,7 +41,8 @@ export function DocsSidebar(props: { docs: NotesState; pin: ReactNode; changed?:
 }
 
 /** What Mobius's writing tools do: each is a request to the agent, about the selection or the whole document. */
-export type WritingTool = 'proofread' | 'friendlier' | 'shorter' | 'summarise';
+/** `comment` asks Mobius to answer a comment: its selection is the comment thread, as commentLine writes it. */
+export type WritingTool = 'proofread' | 'friendlier' | 'shorter' | 'summarise' | 'comment';
 export const WRITING_TOOLS: { id: WritingTool; label: string }[] = [
   { id: 'proofread', label: 'Proofread' },
   { id: 'friendlier', label: 'Rewrite · friendlier' },
@@ -300,11 +302,13 @@ type ShareHow = 'markdown' | 'formatted' | 'html' | 'md' | 'print';
  * earlier version back; Share copies, exports or prints it. A document the agent changed shows those changes as
  * proposals to keep or discard.
  */
-export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false }: {
+export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, busy = false }: {
   docs: NotesState;
   autoFocus?: boolean;
   review?: { conversation: string } | null;
   onTool?: (tool: WritingTool, selection: string | null) => void;
+  /** The open document's comments, as they change, so Mobius knows they are there. */
+  onComments?: (comments: NoteComment[]) => void;
   busy?: boolean;
 }) {
   const path = docs.page?.path ?? null;
@@ -322,6 +326,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
   const quotesNow = useRef<string[]>([]);
   quotesNow.current = commentState.comments.filter((c) => !c.resolved).map((c) => c.quote);
   const commentMarks = useMemo(() => docComments(() => quotesNow.current), []);
+  useEffect(() => { onComments?.(commentState.comments); }, [commentState.comments, onComments]);
+  const askAbout = onTool ? (c: NoteComment) => onTool('comment', commentLine(c, commentState.comments)) : undefined;
   // The selection bar sits just above the chosen words.
   const [selection, setSelection] = useState<{ text: string; top: number; left: number; below: number } | null>(null);
   // The bar for selected words sits just above them; a comment on them opens just below them, so neither hides them.
@@ -682,7 +688,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
                 onContextMenu={(e) => { if (!editor) return; e.preventDefault(); setEditMenu({ x: e.clientX, y: e.clientY }); }} />
               {margin && (
                 <aside className="doc-margin" aria-label="Comments on this document">
-                  <CommentList state={commentState} text={editor?.state.doc.textContent ?? ''} onShow={showQuote} />
+                  <CommentList state={commentState} text={editor?.state.doc.textContent ?? ''} onShow={showQuote} {...(askAbout ? { onAsk: askAbout } : {})} />
                 </aside>
               )}
             </div>
@@ -707,7 +713,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
         </div>
       )}
       {editMenu && createPortal(<ContextMenu x={editMenu.x} y={editMenu.y} label="Edit" items={editItems()} onClose={() => setEditMenu(null)} />, document.body)}
-      {composing && <CommentComposer quote={composing.quote} top={composing.top} left={composing.left} add={commentState.add} onDone={() => setComposing(null)} />}
+      {composing && <CommentComposer quote={composing.quote} top={composing.top} left={composing.left} add={commentState.add} onDone={() => setComposing(null)}
+        {...(onTool ? { onAsk: (quote: string, text: string) => onTool('comment', commentLine({ id: '', quote, text, by: 'you', whenMs: 0, resolved: false }, [])) } : {})} />}
       {note && <div className="doc-toast" role="status"><span>{note}</span><button type="button" className="review-btn" onClick={() => setNote(null)}>OK</button></div>}
       <footer className="doc-status">
         <span>{chosenWords ? `${chosenWords} of ${stats.words} words` : stats.words === 1 ? '1 word' : `${stats.words} words`}</span>

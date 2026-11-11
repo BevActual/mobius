@@ -48,6 +48,23 @@ export function useNoteComments(path: string | undefined, kind: 'notes' | 'docs'
 }
 export type NoteCommentsState = ReturnType<typeof useNoteComments>;
 
+const who = (by: string) => (by === 'you' ? 'Me' : by);
+
+const flat = (s: string, n: number) => s.replace(/\s+/g, ' ').slice(0, n);
+
+/** One comment thread as a line for Mobius: its id, who wrote it, the words it is about, what was said, and the replies. */
+export function commentLine(c: NoteComment, comments: NoteComment[]): string {
+  const replies = comments.filter((r) => r.replyTo === c.id).map((r) => `\n    - ${who(r.by)}: ${flat(r.text, 400)}`).join('');
+  return `- ${c.id ? `[${c.id}] ` : ''}${who(c.by)}${c.quote ? ` on “${flat(c.quote, 200)}”` : ''}: ${flat(c.text, 600)}${replies}`;
+}
+
+/** The open comments on a page, for Mobius, or '' when there are none. */
+export function commentsOutline(comments: NoteComment[], page: string): string {
+  const open = comments.filter((c) => !c.resolved && (!c.replyTo || !comments.some((p) => p.id === c.replyTo)));
+  if (!open.length) return '';
+  return `Open comments on ${page} (not part of its text; answer one with comments.reply, page ${page} and its id):\n${open.map((c) => commentLine(c, comments)).join('\n')}`;
+}
+
 /** Writing a comment on the chosen words: Comment keeps it; Ask Mobius keeps it and hands it to Mobius too. */
 export function CommentComposer({ quote, top, left, onDone, onAsk, add }: { quote: string; top: number; left: number; onDone: () => void; onAsk?: (quote: string, text: string) => void; add: NoteCommentsState['add'] }) {
   const [text, setText] = useState('');
@@ -78,7 +95,7 @@ export function CommentComposer({ quote, top, left, onDone, onAsk, add }: { quot
 }
 
 /** The page's comments under it: open ones first, each with what it is about; resolved ones folded away. */
-export function CommentList({ state, text, onShow }: { state: NoteCommentsState; text: string; onShow: (quote: string) => void }) {
+export function CommentList({ state, text, onShow, onAsk }: { state: NoteCommentsState; text: string; onShow: (quote: string) => void; onAsk?: (c: NoteComment) => void }) {
   const [showResolved, setShowResolved] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(t); }, []);
@@ -97,6 +114,7 @@ export function CommentList({ state, text, onShow }: { state: NoteCommentsState;
           <span className="note-comment-who">{c.by === 'you' ? 'You' : c.by} · {relativeTime(c.whenMs, Math.max(now, c.whenMs))}</span>
         </button>
         <span className="note-comment-tools">
+          {onAsk && !c.resolved && <button type="button" className="note-comment-tool" title="Have Mobius answer this comment" onClick={() => onAsk(c)}>Ask Mobius</button>}
           <button type="button" className="note-comment-tool" onClick={() => void state.resolve(c.id, !c.resolved)}>{c.resolved ? 'Reopen' : 'Resolve'}</button>
           <button type="button" className="note-comment-tool" aria-label={`Delete the comment “${c.text.slice(0, 40)}”`} onClick={() => void state.remove(c.id)}>Delete</button>
         </span>
