@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { EmptyState } from './EmptyState';
 import { FromMobius } from './FromMobius';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
@@ -108,10 +110,10 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
       )}
       {menu && (
         <FileMenu x={menu.x} y={menu.y} label={menu.path} onClose={() => setMenu(null)} items={[
-          { label: 'Open', run: () => void code.openFile(menu.path) },
-          { label: 'Copy path', run: () => void navigator.clipboard?.writeText(`${code.project}/${menu.path}`).catch(() => {}) },
+          { action: 'open', label: 'Open', run: () => void code.openFile(menu.path) },
+          { action: 'copy', label: 'Copy path', run: () => void navigator.clipboard?.writeText(`${code.project}/${menu.path}`).catch(() => {}) },
           { label: 'New file beside it', run: () => { setNaming('file'); setName(menu.path.split('/').slice(0, -1).concat('').join('/')); } },
-          { label: 'Delete…', danger: true, run: () => setRemoving(menu.path) },
+          { action: 'delete', label: 'Delete…', danger: true, separated: true, run: () => setRemoving(menu.path) },
         ]} />
       )}
       {code.project && <FromMobius items={[...(changed ?? [])].filter((c) => c.startsWith(`${code.project}/`)).map((c) => c.slice(code.project!.length + 1)).map((path) => ({ key: path, name: path.split('/').pop() ?? path, ...(path.includes('/') ? { where: path.split('/').slice(0, -1).join('/') } : {}), current: code.open?.path === path, onOpen: () => void code.openFile(path) }))} />}
@@ -119,30 +121,11 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
   );
 }
 
-/** A file's right-click menu, kept inside the sidebar. */
-function FileMenu({ x, y, label, items, onClose }: { x: number; y: number; label: string; items: { label: string; run: () => void; danger?: boolean }[]; onClose: () => void }) {
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    box.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) onClose(); };
-    window.addEventListener('mousedown', away);
-    return () => window.removeEventListener('mousedown', away);
-  }, [onClose]);
-  const side = typeof document !== 'undefined' ? document.querySelector('.code-side')?.getBoundingClientRect() : undefined;
-  const left = side ? Math.max(side.left + 4, Math.min(x, side.right - 204)) : x;
-  return (
-    <div ref={box} className="code-menu" role="menu" aria-label={label} style={{ left, top: Math.min(y, window.innerHeight - 160) }} onKeyDown={(e) => {
-      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        const all = [...(box.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
-        const at = all.indexOf(document.activeElement as HTMLElement);
-        all[(at + (e.key === 'ArrowDown' ? 1 : all.length - 1)) % all.length]?.focus();
-      }
-    }}>
-      {items.map((it) => <button key={it.label} type="button" role="menuitem" data-danger={it.danger || undefined} onClick={() => { onClose(); it.run(); }}>{it.label}</button>)}
-    </div>
-  );
+/** A file's right-click menu: the shared one, opened from a point inside the sidebar. */
+function FileMenu({ x, y, label, items, onClose }: { x: number; y: number; label: string; items: ContextMenuItem[]; onClose: () => void }) {
+  const side = document.querySelector('.code-side')?.getBoundingClientRect();
+  const left = side ? Math.max(side.left + 4, Math.min(x, side.right - 214)) : x;
+  return createPortal(<ContextMenu x={left} y={y} label={label} items={items} onClose={onClose} />, document.body);
 }
 
 /** The project's branch and what changed since its last commit, with Commit and Push. Mobius asks before either. */
