@@ -81,10 +81,10 @@ test('notes are moved, stretched, picked with a box and deleted, and Undo takes 
   await shell().mouse.up();
   await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.start === 5)).toEqual({ pitch: 66, start: 5, length: 1, velocity: 0.8 });
   // Stretched by a beat from its end.
-  box = (await roll.getByLabel('F#4 at beat 6, 1 beats').boundingBox())!;
-  await shell().mouse.move(box.x + box.width - 2, box.y + 5);
+  box = (await roll.getByLabel('F#4 at beat 6, 1 beats').locator('.studio-note-end').boundingBox())!;
+  await shell().mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await shell().mouse.down();
-  await shell().mouse.move(box.x + box.width + 40, box.y + 5, { steps: 5 });
+  await shell().mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 5 });
   await shell().mouse.up();
   await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 66)?.length).toBe(2);
   await shell().keyboard.press('Control+z');
