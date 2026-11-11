@@ -29,6 +29,8 @@ npm run app                 # build everything and open the real window, to try 
 npm run dev                 # the interface alone in a browser at 127.0.0.1:5180 (no Rust behind it)
 npm test                    # Rust tests, then TypeScript unit tests
 npm run e2e                 # builds the shell and drives the real app with Playwright (hidden window)
+                            # one spec: npm run build -w @mobius/desktop, cargo build --workspace --bins, then
+                            # npx playwright test e2e/x.spec.ts in apps/desktop (in that order: the shell carries the interface)
 npm run gen:types           # regenerate TypeScript types from the Rust types
 npm run check:types         # fail if the generated types are stale
 npm run typecheck
