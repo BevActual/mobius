@@ -88,7 +88,7 @@ impl Checkpoints {
 
     fn git(&self, folder: &Path, id: &str, args: &[&str]) -> Result<String, Error> {
         let index = self.store.join("indexes").join(id);
-        let output = Command::new("git")
+        let output = quiet(Command::new("git"))
             .args(["-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.quotepath=false", "-c", "core.hooksPath=NUL", "-c", "gc.auto=0"])
             .args(args)
             .env("GIT_DIR", &self.store)
@@ -122,7 +122,7 @@ impl Checkpoints {
             return Err(Error::BadFolder("The checkpoint store cannot be inside the folder it protects.".into()));
         }
         if !self.store.join("HEAD").exists() {
-            let init = Command::new("git").args(["init", "--bare", "--quiet"]).arg(&self.store).stdin(Stdio::null()).output().map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { Error::NoGit } else { Error::Git(e.to_string()) })?;
+            let init = quiet(Command::new("git")).args(["init", "--bare", "--quiet"]).arg(&self.store).stdin(Stdio::null()).output().map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { Error::NoGit } else { Error::Git(e.to_string()) })?;
             if !init.status.success() {
                 return Err(Error::Git(String::from_utf8_lossy(&init.stderr).trim().to_owned()));
             }
@@ -329,6 +329,14 @@ fn memo_put<T>(memo: &'static Memo<T>, key: String, value: T) {
 /// whose mark failed that way had nothing to review or undo. An operation that calls another keeps the lock it has.
 static STORE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 thread_local! { static HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+
+/// Git run with no console window of its own. The app's window has no console, so on Windows each run would otherwise
+/// open one: slow on a busy computer, and a window flashing up at the start of every turn. As every other git run here.
+fn quiet(mut command: Command) -> Command {
+    #[cfg(windows)]
+    std::os::windows::process::CommandExt::creation_flags(&mut command, 0x0800_0000);
+    command
+}
 
 struct OneAtATime(Option<std::sync::MutexGuard<'static, ()>>);
 

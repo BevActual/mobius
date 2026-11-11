@@ -89,6 +89,18 @@ fn wait_for_marks(marking: &(Mutex<u32>, std::sync::Condvar)) {
     }
 }
 
+/// Says in the log when something the turn or the window waits on took long (a second or more), so a slow step on a
+/// slow computer can be told from one that hangs.
+fn slow(what: &str, step: &str, started: std::time::Instant) {
+    // MOBIUS_SLOW_MS lowers the bar, to see every step when looking into one (0 logs them all).
+    static BAR: OnceLock<u64> = OnceLock::new();
+    let bar = *BAR.get_or_init(|| std::env::var("MOBIUS_SLOW_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(1000));
+    let took = started.elapsed();
+    if took.as_millis() >= u128::from(bar) {
+        eprintln!("[slow] {what} {step}: {} ms", took.as_millis());
+    }
+}
+
 fn now_ms() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64)
 }
@@ -1076,7 +1088,9 @@ impl Bridge {
             return Err("method not found".into());
         }
         // Nothing runs before the checkpoint at the start of the turn is taken.
+        let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
+        slow("tool", "waiting for the checkpoint before the turn", waited);
         let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
@@ -2701,6 +2715,14 @@ impl Bridge {
         };
         // What a turn changed is counted from its start, once that is saved.
         wait_for_marks(&self.marking);
+        let started = std::time::Instant::now();
+        let out = self.changes_answer(method, conversation, args);
+        slow("changes", method, started);
+        out
+    }
+
+    fn changes_answer(&self, method: &str, conversation: &str, args: &[Value]) -> Out {
+        let arg = |i: usize| args.get(i).unwrap_or(&Value::Null);
         if let Some(out) = self.older_turns_call(method, conversation, args) {
             return Ok(out);
         }
@@ -2784,7 +2806,10 @@ impl Bridge {
                         let (marks, history, marking, data_dir) = (Arc::clone(&self.turn_marks), Arc::clone(&self.turn_history), Arc::clone(&self.marking), self.data_dir.clone());
                         let (conversation, text) = (r.conversation.clone(), r.text.clone());
                         std::thread::spawn(move || {
-                            match workspace.mark("before the agent's turn") {
+                            let started = std::time::Instant::now();
+                            let marked = workspace.mark("before the agent's turn");
+                            slow("turn", "checkpoint before the turn", started);
+                            match marked {
                                 Ok(Some(mark)) => {
                                     let mut marks = lock(&marks);
                                     marks.insert(conversation.clone(), mark.clone());
