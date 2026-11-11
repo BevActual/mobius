@@ -66,8 +66,13 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
   const [open, setOpen] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [undone, setUndone] = useState(false);
+  // Only the latest read counts: an earlier one (when the strip appeared, before the turn) can come back last on a busy
+  // computer, and would say nothing changed.
+  const reads = useRef(0);
   const load = useCallback(async () => {
+    const n = ++reads.current;
     const result = await window.mobius.changes?.lastTurn(conversation).catch(() => null);
+    if (n !== reads.current) return;
     const changes = isChanges(result) ? result : null;
     const id = turnId(conversation, changes?.checkpoint ?? null);
     setTurn(id);
