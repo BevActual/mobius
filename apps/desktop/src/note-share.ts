@@ -14,11 +14,11 @@ ul[data-type=taskList]{list-style:none;padding-left:2px}ul[data-type=taskList] l
  * The page as one web page to send or keep: its formatted text, with its pictures inside it (so nothing is left
  * behind) and links to other notes kept as their words.
  */
-export async function pageAsHtml(title: string, bodyHtml: string, page: string): Promise<string> {
+export async function pageAsHtml(title: string, bodyHtml: string, page: string, kind: 'notes' | 'docs' = 'notes'): Promise<string> {
   const doc = new DOMParser().parseFromString(`<main>${bodyHtml}</main>`, 'text/html');
   for (const img of [...doc.querySelectorAll('img')]) {
     const src = img.getAttribute('src') ?? '';
-    const url = await fileAddress(page, src);
+    const url = await fileAddress(page, src, kind);
     if (url) img.setAttribute('src', url);
     else img.remove();
   }

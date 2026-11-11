@@ -12,12 +12,12 @@ export function quoteAt(text: string, quote: string): number | null {
 }
 
 /** The open page's comments: read when the page opens, kept beside it when they change. */
-export function useNoteComments(path: string | undefined) {
+export function useNoteComments(path: string | undefined, kind: 'notes' | 'docs' = 'notes') {
   const [comments, setComments] = useState<NoteComment[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const now = useRef(comments);
   now.current = comments;
-  const api = window.mobius.notes;
+  const api = window.mobius[kind];
   const available = !!(api?.comments && api.setComments);
   useEffect(() => {
     let live = true;

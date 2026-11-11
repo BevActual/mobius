@@ -90,3 +90,42 @@ test('a writing tool asks Mobius, and its changes show as proposals that can be 
   await expect(proposals).toHaveCount(0);
   await expect(page()).toContainText('We need a few days away, together, to plan next year.');
 });
+
+test('a comment on chosen words, a link to another document, and Share all work in a document', async () => {
+  fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
+  fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
+  fs.writeFileSync(file('Work/Venues.md'), '# Venues\n\nThe lodge, or the farm.\n');
+  await start();
+  await shell().getByRole('tree', { name: 'Folders' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await expect(page()).toContainText('We have been talking');
+
+  // A comment: kept beside the document, its words marked in the page.
+  await page().getByText('Arrive on the 12th').dblclick({ position: { x: 5, y: 8 } });
+  await shell().getByRole('toolbar', { name: 'Selected text' }).getByRole('button', { name: 'Comment' }).click();
+  const composer = shell().getByRole('dialog', { name: 'New comment' });
+  await composer.getByRole('textbox', { name: 'Comment' }).fill('Or the 11th?');
+  await composer.getByRole('button', { name: 'Comment' }).click();
+  await expect(shell().getByRole('region', { name: 'Comments' })).toContainText('Or the 11th?');
+  await expect(page().locator('.note-commented')).toHaveCount(1);
+  const kept = path.join(userData, 'workspace', 'docs', '.comments', 'Work', 'Offsite brief.json');
+  await expect.poll(() => fs.existsSync(kept) && JSON.parse(fs.readFileSync(kept, 'utf8'))[0]?.text).toBe('Or the 11th?');
+
+  // A link to another document, chosen by its name; it is kept as a plain Markdown link and opens that document.
+  await page().getByText('Plan on the 13th').click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(', see ');
+  await editor().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Link' }).click();
+  await shell().getByRole('combobox', { name: 'Link to' }).fill('venu');
+  await expect(shell().getByRole('option', { name: /Venues/ })).toBeVisible();
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8'), { timeout: 5000 }).toContain('- Plan on the 13th, see [Venues](Venues.md)');
+
+  // Share: a copy saved in Exports.
+  await editor().getByRole('button', { name: 'Share' }).click();
+  await shell().getByRole('menuitem', { name: 'Export as Markdown' }).click();
+  await expect(shell().getByRole('status').filter({ hasText: 'Saved to Exports/Offsite brief.md' })).toBeVisible();
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'Exports', 'Offsite brief.md'), 'utf8')).toContain('[Venues](Venues.md)');
+
+  await page().getByRole('link', { name: 'Venues' }).click();
+  await expect(page()).toContainText('The lodge, or the farm.');
+});

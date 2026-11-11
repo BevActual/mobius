@@ -6,6 +6,7 @@ import { relativeTime } from './relative-time';
 import type { NotesState } from './useNotes';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
+import { RowMark } from './RowMark';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
@@ -72,7 +73,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
             <span className="note-title">{pg.title}</span>
             {sub && <span className="note-sub" id={subId}>{sub}</span>}
           </span>
-          {changed?.has(pg.path) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Changed by the agent in its last turn" />}
+          <RowMark changed={changed?.has(pg.path) === true} />
         </button>
         {onPin && <button type="button" className="note-delete note-pin" aria-pressed={pinned?.has(pg.path) ?? false} aria-label={pinned?.has(pg.path) ? `Unpin ${pg.title}` : `Pin ${pg.title} to the sidebar`} title={pinned?.has(pg.path) ? 'Unpin' : 'Pin to the top of the list and the sidebar'} onClick={() => onPin(pg.path, pg.title)}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
