@@ -184,6 +184,8 @@ const SECTIONS: readonly SettingsSection[] = [
     label: 'About',
     description: 'What is installed.',
     subpages: [{ id: 'app', label: 'This app', rows: [
+      row('software-update', 'Software Update', 'The version running, and Check for Updates.', 'update', 'updates', 'upgrade', 'new version', 'check for updates', 'version', 'install'),
+      row('auto-update', 'Automatically install updates', 'Install a downloaded update the next time Mobius quits.', 'automatic', 'auto update', 'updates', 'install'),
       row('versions', 'Versions', 'Mobius, its core, and the parts it runs on.', 'version', 'engine', 'chromium', 'build'),
       row('data-folder', 'Data folder', 'Where settings, approvals and conversations are stored on this computer.', 'path', 'folder', 'files'),
       row('core-status', 'Core status', 'Whether the part that makes decisions and keeps records is running.', 'health', 'running', 'restart'),

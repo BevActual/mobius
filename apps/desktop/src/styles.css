@@ -2744,3 +2744,8 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .btn.danger, .btn.link.danger { color: #c4271c; }
 @media (prefers-color-scheme: dark) { .btn.danger, .btn.link.danger { color: #ff6961; } }
 .prow-confirm { display: inline-flex; align-items: center; gap: 6px; }
+
+/* An update is downloaded: a small capsule in the toolbar, never a dialog. */
+.update-notice { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; margin-right: 4px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.update-notice:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.update-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }

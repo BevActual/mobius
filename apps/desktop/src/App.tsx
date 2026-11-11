@@ -17,6 +17,7 @@ import { Launcher } from './Launcher';
 import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
 import { useSideFolds } from './side-fold';
+import { UpdateNotice } from './UpdateNotice';
 import { CommentButton, CommentLayer, CommentsGroup, useCommentThreads, useOpenComments } from './Comments';
 import type { Side } from './resize';
 import { useAgentSettings } from './useAgentSettings';
@@ -1407,6 +1408,7 @@ export function App() {
           {!narrow && <button type="button" className="strip-btn" data-split-toggle aria-pressed={split} aria-label={split ? 'Close split view' : 'Split view'} title={withKeys(split ? 'Show one app' : 'Show two apps side by side', bindings.splitView)} onClick={toggleSplit}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="6.5" height="11" rx="2" /><rect x="11" y="4.5" width="6.5" height="11" rx="2" /></svg>
           </button>}
+          <UpdateNotice />
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
           {hasRight && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={chatOpen} aria-label="Show agent" title="Show or hide the agent" onClick={() => { setChatOpen((open) => !open); setFocusToken((n) => n + 1); }}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { MobiusMark } from '../MobiusMark';
 import { ChatModelPopUp, FallbackPopUp } from './ModelDefaults';
+import { SoftwareUpdate } from './SoftwareUpdate';
 import {
   type SavedServer,
   CHAT_TEXT_RANGE,
@@ -883,7 +884,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   return <tr><th scope="row">{label}</th><td>{children}</td></tr>;
 }
 
-export function AboutSection({ subpage, highlight, coreStatus }: SectionProps) {
+export function AboutSection({ subpage, highlight, coreStatus, preferences, onPreferences }: SectionProps) {
   const load = useCallback(() => window.mobius.app.about(), []);
   const { value: about } = useLoaded<AboutInfo | null>(load, null);
   const STATUS: Record<CoreStatus, string> = { starting: 'Starting', ready: 'Running', restarting: 'Restarting', failed: 'Not running' };
@@ -896,6 +897,7 @@ export function AboutSection({ subpage, highlight, coreStatus }: SectionProps) {
           <p className="about-line">{about?.app ? `Version ${about.app}` : 'An agent and the apps it works in.'}</p>
         </div>
       </div>
+      <SoftwareUpdate highlight={highlight} preferences={preferences} onPreferences={onPreferences} />
       <Row path={rowPath('about', subpage, 'versions')} title="Versions" description="Mobius, its core, and the parts it runs on." highlight={highlight === 'versions'}>
         <table className="stable" aria-label="Versions">
           <tbody>
