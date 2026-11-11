@@ -13,10 +13,9 @@ export function DownloadsButton({ entries }: { entries: DownloadEntry[] }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
   const seen = useRef(new Set(entries.map((e) => e.id)));
-  // Downloads already there when the window opens are only listed; one that starts later opens the popover.
-  const since = useRef(Date.now());
+  // Downloads already listed when the sidebar appears stay closed; one that arrives after opens the popover.
   useEffect(() => {
-    const fresh = Date.now() - since.current > 1500 && entries.some((e) => !seen.current.has(e.id));
+    const fresh = entries.some((e) => !seen.current.has(e.id));
     seen.current = new Set(entries.map((e) => e.id));
     if (fresh) setOpen(true);
     if (entries.length === 0) setOpen(false);
