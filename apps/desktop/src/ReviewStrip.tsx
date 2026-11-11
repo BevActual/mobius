@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnChanges, TurnRecord } from '@mobius/shared';
 import { ReviewActions } from './ReviewBar';
+import { changeTarget } from './actions';
+import type { HubTarget } from './search-hub';
 
 /** How a workspace path reads to a person: notes and task lists by name, other files by their path. */
 export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' | 'Tasks' | 'Calendar' | 'Code' | 'Design' | 'Board' | 'Report' | 'Article' | 'Database' | 'Photo' | 'Song' | 'Cut' | 'Skill' | 'File'; name: string } {
@@ -26,15 +28,44 @@ export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 
 
 const isChanges = (value: unknown): value is TurnChanges => typeof value === 'object' && value !== null && 'files' in value;
 
-/** Turns whose changes were kept, so the strip does not come back for them. A few, on this computer only. */
+/**
+ * What a Keep covers: one app's changes in a turn (Keep on the Tasks bar keeps the tasks, not the calendar events or a
+ * sheet the person never saw), or the whole turn ('all': the strip under the conversation, which says so).
+ */
+export type KeepScope = 'all' | 'notes' | 'docs' | 'slides' | 'sheets' | 'tasks' | 'calendar' | 'design' | 'canvas' | 'research' | 'reader' | 'database' | 'studio' | 'photo' | 'video' | 'code' | 'skills';
+/** The workspace folders each app's changes are in. */
+const SCOPE_FOLDERS: Record<Exclude<KeepScope, 'all'>, string> = { notes: 'notes/', docs: 'docs/', slides: 'slides/', sheets: 'sheets/', tasks: 'tasks/', calendar: 'calendar/', design: 'designs/', canvas: 'boards/', research: 'research/', reader: 'reading/', database: 'databases/', studio: 'studio/', photo: 'photos/', video: 'video/', code: 'code/', skills: 'skills/' };
+
+/** Turns (or one app's part of a turn, as "turn|tasks") whose changes were kept, so they are not offered again. A few, on this computer only. */
 const KEPT_KEY = 'mobius.keptTurns';
-const MAX_KEPT = 50;
-export const keptTurns = (): string[] => { try { const v: unknown = JSON.parse(window.localStorage.getItem(KEPT_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } };
-/** Keep a turn's changes, wherever that was said (the strip or a note), and let every place showing them know. */
-export const keepTurn = (id: string) => {
-  try { window.localStorage.setItem(KEPT_KEY, JSON.stringify([...keptTurns().filter((x) => x !== id), id].slice(-MAX_KEPT))); } catch { /* Not kept. */ }
+const MAX_KEPT = 100;
+const keptEntries = (): string[] => { try { const v: unknown = JSON.parse(window.localStorage.getItem(KEPT_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } };
+/** Turns kept as a whole, or (given an app) kept for that app. */
+export const keptTurns = (scope: KeepScope = 'all'): string[] => keptEntries().flatMap((e) => {
+  const [id, app] = e.split('|') as [string, string | undefined];
+  return app === undefined || (scope !== 'all' && app === scope) ? [id] : [];
+});
+/** Whether this file's change in that turn was kept, as part of the whole turn or of its app's part. */
+export const fileKept = (id: string, path: string): boolean => keptEntries().some((e) => {
+  const [turn, app] = e.split('|') as [string, string | undefined];
+  return turn === id && (app === undefined || path.startsWith(SCOPE_FOLDERS[app as Exclude<KeepScope, 'all'>] ?? '\u0000'));
+});
+/**
+ * Keep a turn's changes (all of them, or one app's), wherever that was said, and let every place showing them know.
+ * An app's own bar passes its scope; without one the whole turn is kept.
+ */
+export const keepTurn = (id: string, scope: KeepScope = 'all') => {
+  const entry = scope === 'all' ? id : `${id}|${scope}`;
+  try { window.localStorage.setItem(KEPT_KEY, JSON.stringify([...keptEntries().filter((x) => x !== entry), entry].slice(-MAX_KEPT))); } catch { /* Not kept. */ }
   window.dispatchEvent(new CustomEvent(KEPT_EVENT, { detail: id }));
 };
+/** The apps a list of changed files belongs to, by name, in the order they first appear: "Tasks, Calendar, Sheets". */
+export function appsOf(paths: readonly string[]): string[] {
+  const NAMES: Record<string, string> = { Note: 'Notes', Doc: 'Docs', Deck: 'Slides', Sheet: 'Sheets', Tasks: 'Tasks', Calendar: 'Calendar', Code: 'Code', Design: 'Design', Board: 'Canvas', Report: 'Research', Article: 'Reader', Database: 'Database', Photo: 'Photo', Song: 'Music', Cut: 'Video', Skill: 'Extensions', File: 'Files' };
+  const out: string[] = [];
+  for (const p of paths) { const name = NAMES[describeChange(p).kind] ?? 'Files'; if (!out.includes(name)) out.push(name); }
+  return out;
+}
 export const KEPT_EVENT = 'mobius:kept';
 /** The id a turn's changes are kept under. */
 export const turnId = (conversation: string, checkpoint: string | null) => (checkpoint ? `${conversation}:${checkpoint}` : null);
@@ -60,10 +91,11 @@ const isTyping = (target: EventTarget | null): boolean => {
  */
 const modKey = () => (window.mobius?.platform === 'darwin' ? 'Cmd' : 'Ctrl');
 
-export function ReviewStrip({ conversation, busy }: { conversation: string; busy: boolean }) {
+export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
   const [files, setFiles] = useState<string[]>([]);
   const [turn, setTurn] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  // Open from the start: what the turn changed is listed, each one a link to it.
+  const [open, setOpen] = useState(true);
   const [problem, setProblem] = useState<string | null>(null);
   const [undone, setUndone] = useState(false);
   // Only the latest read counts: an earlier one (when the strip appeared, before the turn) can come back last on a busy
@@ -76,9 +108,10 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
     const changes = isChanges(result) ? result : null;
     const id = turnId(conversation, changes?.checkpoint ?? null);
     setTurn(id);
-    setFiles(changes && !(id && keptTurns().includes(id)) ? changes.files : []);
+    // What is left of the turn: an app's own Keep takes its part away, the rest stays here.
+    setFiles(changes && !(id && keptTurns().includes(id)) ? changes.files.filter((f) => !(id && fileKept(id, f))) : []);
   }, [conversation]);
-  useEffect(() => { setOpen(false); setUndone(false); setProblem(null); }, [conversation]);
+  useEffect(() => { setOpen(true); setUndone(false); setProblem(null); }, [conversation]);
   // Kept from a note's own bar: the strip goes too.
   useEffect(() => {
     const kept = () => void load();
@@ -112,7 +145,7 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
   };
 
   const keep = useCallback(() => {
-    if (turn) keepTurn(turn);
+    if (turn) keepTurn(turn, 'all');
     setFiles([]);
     setOpen(false);
   }, [turn]);
@@ -147,7 +180,8 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
           <svg className="review-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
         </button>
         <span className="review-actions">
-          <ReviewActions only="keep" onKeep={keep} onDiscard={undoAll} keepTitle={`Keep these changes (${modKey()}+Enter)`} />
+          {/* This one keeps everything the turn changed, so it says so, and in which apps. */}
+          <ReviewActions only="keep" onKeep={keep} onDiscard={undoAll} keepText={appsOf(files).length > 1 ? 'Keep all' : 'Keep'} keepLabel={`Keep all changes from this turn (${appsOf(files).join(', ')})`} keepTitle={`Keep all changes from this turn: ${appsOf(files).join(', ')} (${modKey()}+Enter)`} />
         </span>
       </div>
       {open && (
@@ -157,7 +191,7 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
             return (
               <li key={path} className="review-item">
                 <span className="review-kind">{kind}</span>
-                <span className="review-name" title={path}>{name}</span>
+                {(() => { const target = onOpenItem ? changeTarget(path) : null; return target ? <button type="button" className="review-name link-btn" title={`Open ${name} (${path})`} onClick={() => onOpenItem?.(target)}>{name}</button> : <span className="review-name" title={path}>{name}</span>; })()}
                 <button type="button" className="review-btn" aria-label={`Undo the change to ${name}`} onClick={() => void run(() => window.mobius.changes.undoFile(conversation, path))}>Undo</button>
               </li>
             );
@@ -166,7 +200,7 @@ export function ReviewStrip({ conversation, busy }: { conversation: string; busy
       )}
       {open && (
         <div className="review-more">
-          <ReviewActions only="others" onKeep={keep} onDiscard={undoAll} discardTitle={`Put everything back as it was (${modKey()}+Backspace)`} />
+          <ReviewActions only="others" onKeep={keep} onDiscard={undoAll} discardText={appsOf(files).length > 1 ? 'Discard all' : 'Discard'} discardLabel={`Discard all changes from this turn (${appsOf(files).join(', ')})`} discardTitle={`Put everything this turn changed back as it was: ${appsOf(files).join(', ')} (${modKey()}+Backspace)`} />
         </div>
       )}
       {problem && <p className="review-problem" role="alert">{problem}</p>}

@@ -40,13 +40,16 @@ interface Props {
   /** Names that say what the buttons act on, for a bar that sits among others (a list of conversations). */
   keepLabel?: string;
   discardLabel?: string;
+  /** The buttons' words, when they act on more than one app's changes ("Keep all"). */
+  keepText?: string;
+  discardText?: string;
 }
 
 /**
  * The one review bar's answers, the same in every app: Keep, Discard, and Try another (discard, then ask Mobius to do
  * it differently). Keep is the filled one, at the end.
  */
-export function ReviewActions({ onKeep, onDiscard, keepTitle, discardTitle, keepLabel, discardLabel, only }: Props & { /** Just Keep, or just Try another and Discard (a compact row keeps those inside Review). */ only?: 'keep' | 'others' }) {
+export function ReviewActions({ onKeep, onDiscard, keepTitle, discardTitle, keepLabel, discardLabel, keepText = 'Keep', discardText = 'Discard', only }: Props & { /** Just Keep, or just Try another and Discard (a compact row keeps those inside Review). */ only?: 'keep' | 'others' }) {
   const tryAnother = useContext(TryAnotherContext);
   const [busy, setBusy] = useState(false);
   const again = async () => {
@@ -62,8 +65,8 @@ export function ReviewActions({ onKeep, onDiscard, keepTitle, discardTitle, keep
   return (
     <>
       {only !== 'keep' && tryAnother && <button type="button" className="review-btn" data-kind="again" disabled={busy} title="Put it back and ask Mobius to do it another way" onClick={() => void again()}>Try another</button>}
-      {only !== 'keep' && <button type="button" className="review-btn" disabled={busy} title={discardTitle} aria-label={discardLabel} onClick={() => void onDiscard()}>Discard</button>}
-      {only !== 'others' && <button type="button" className="review-btn" data-kind="keep" disabled={busy} title={keepTitle} aria-label={keepLabel} onClick={() => void onKeep()}>Keep</button>}
+      {only !== 'keep' && <button type="button" className="review-btn" disabled={busy} title={discardTitle} aria-label={discardLabel} onClick={() => void onDiscard()}>{discardText}</button>}
+      {only !== 'others' && <button type="button" className="review-btn" data-kind="keep" disabled={busy} title={keepTitle} aria-label={keepLabel} onClick={() => void onKeep()}>{keepText}</button>}
     </>
   );
 }
