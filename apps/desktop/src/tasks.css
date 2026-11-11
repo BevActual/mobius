@@ -214,3 +214,6 @@
 .task-tools .strip-btn[aria-pressed="true"] { background: transparent; }
 .task-inspector-foot .btn.danger { background: transparent; border-color: transparent; color: var(--danger); font-weight: var(--fw-medium); }
 .task-inspector-foot .btn.danger:hover { background: var(--danger-wash); }
+
+/* The tasks line up under the add row, at the same width. */
+.tasks-main > .task-items { margin-left: auto; margin-right: auto; }

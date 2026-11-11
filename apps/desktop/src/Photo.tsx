@@ -59,8 +59,9 @@ export function PhotoSidebar({ photos, pin, changed }: { photos: PhotosState; pi
               <button type="button" className="list-row photo-album-row" aria-current={a.name === photos.album ? 'page' : undefined} onClick={() => photos.showAlbum(a.name)}>
                 <svg className="photo-album-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2.5" /><path d="M2.5 13l4-4 3.5 3.5 2.5-2.5 5 5" /></svg>
                 <span className="list-name">{a.name}</span>
-                <RowMark changed={a.photos.some((p) => changed?.has(p.path))} changedTitle="Edited by Mobius in its last turn" />
-                <span className="photo-album-count">{a.photos.length}</span>
+                {a.photos.some((p) => changed?.has(p.path))
+                  ? <RowMark changed changedTitle="Edited by Mobius in its last turn" />
+                  : <span className="photo-album-count">{a.photos.length}</span>}
               </button>
             </li>
           ))}

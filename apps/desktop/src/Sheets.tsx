@@ -47,7 +47,7 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
               <button type="button" className="list-row" data-proposed={changed?.has(w.name) || undefined} aria-current={here?.workbook === w.name ? 'page' : undefined} onClick={() => void sheets.open(w.name, here?.workbook === w.name ? here.sheet : w.sheets[0] ?? 'Sheet 1')}>
                 <span className="list-name">{w.name}</span>
                 <RowMark changed={changed?.has(w.name) === true} changedTitle="Changed by Mobius in its last turn" />
-                <span className="list-count">{w.sheets.length > 1 ? w.sheets.length : ''}</span>
+                {!changed?.has(w.name) && <span className="list-count">{w.sheets.length > 1 ? w.sheets.length : ''}</span>}
               </button>
             </li>
           ))}
