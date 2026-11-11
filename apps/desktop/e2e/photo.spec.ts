@@ -31,7 +31,7 @@ test.afterEach(async () => {
 const shell = () => mobius!.shell;
 function album() { return path.join(userData, 'workspace', 'photos', 'Lisbon'); }
 const editsFile = () => path.join(album(), 'coastline.png.edits.json');
-const panel = (): Locator => shell().getByRole('complementary', { name: 'Adjustments' });
+const panel = (): Locator => shell().getByRole('tabpanel', { name: 'Adjustments' });
 
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
@@ -56,7 +56,35 @@ test('adjustments are kept beside the photo, which never changes, and Export sav
   await shell().getByRole('button', { name: 'Export' }).click();
   await expect(shell().getByRole('status').filter({ hasText: 'Saved as coastline edited.jpg' })).toBeVisible();
   expect(fs.readFileSync(path.join(album(), 'coastline edited.jpg')).subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
-  await expect(shell().getByRole('navigation', { name: 'Albums' }).getByRole('button', { name: /coastline edited\.jpg/ })).toBeVisible();
+  // Escape goes back to the album, which now has the exported picture in it.
+  await shell().getByRole('img', { name: 'The photo with edits' }).click();
+  await shell().keyboard.press('Escape');
+  const grid = shell().getByRole('list', { name: 'Photos in Lisbon' });
+  await expect(grid.getByRole('button', { name: 'coastline edited.jpg' })).toBeVisible();
+  await grid.getByRole('button', { name: 'coastline.png' }).click();
+  await expect(shell().getByRole('img', { name: 'The photo with edits' })).toBeVisible();
+});
+
+test('a filter and a turn are kept with the edits, and undo takes them back one at a time', async () => {
+  await start();
+  const read = () => (fs.existsSync(editsFile()) ? JSON.parse(fs.readFileSync(editsFile(), 'utf8')) : null);
+  await shell().getByRole('tab', { name: 'Filters' }).click();
+  await shell().getByRole('radiogroup', { name: 'Filters' }).getByRole('radio', { name: 'Mono' }).click();
+  await expect.poll(() => read()?.adjustments[0]).toMatchObject({ id: 'filter', name: 'Mono', saturation: -100 });
+  await shell().getByRole('tab', { name: 'Crop' }).click();
+  const crop = shell().getByRole('tabpanel', { name: 'Crop' });
+  await crop.getByRole('button', { name: 'Rotate left' }).click();
+  await expect.poll(() => read()?.geometry?.turns).toBe(1);
+  await crop.getByRole('button', { name: 'Done' }).click();
+  await shell().getByRole('img', { name: 'The photo with edits' }).click();
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => read()?.geometry).toBeUndefined();
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => read()?.adjustments).toEqual([]);
+  await shell().keyboard.press('Control+Shift+z');
+  await expect.poll(() => read()?.adjustments[0]?.name).toBe('Mono');
+  // The photo itself never changes.
+  expect(fs.readFileSync(path.join(album(), 'coastline.png'))).toEqual(PNG);
 });
 
 test('Mobius adds an adjustment to the edits, shown dashed, and it is kept or discarded', async () => {
