@@ -574,7 +574,8 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const here = hereOf(surface);
   const [hereOff, setHereOff] = useState<string | null>(null);
   const hereShown = here && here.key !== hereOff ? here : null;
-  const inView = hereShown?.what ?? null;
+  // A page in the browser is seen (it can be added from Add context) but does not go by itself.
+  const inView = hereShown?.what ?? (surface?.app === 'browser' && surface.hasPage ? 'this page' : null);
   const sees = inView ? `Sees ${inView}` : seen.length > 0 ? `Has used ${seen.join(' · ')}` : null;
 
   useLayoutEffect(() => {
