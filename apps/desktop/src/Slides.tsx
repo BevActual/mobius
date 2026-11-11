@@ -180,7 +180,9 @@ const typing = (t: EventTarget | null) => t instanceof HTMLElement && (['INPUT',
 export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { slides: NotesState; review?: { conversation: string } | null; onTool?: (tool: SlidesTool, slide: number) => void; busy?: boolean }) {
   const path = deck.page?.path ?? null;
   const slides = useMemo(() => parseDeck(deck.text), [deck.text]);
-  const [at, setAt] = useState(0);
+  // The slide shown. If the deck is briefly shorter (read again from disk mid-edit), the choice is kept, not moved.
+  const [chosen, setAt] = useState(0);
+  const at = Math.max(0, Math.min(chosen, slides.length - 1));
   const [playing, setPlaying] = useState<number | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [layoutsAt, setLayoutsAt] = useState<DOMRect | null>(null);
@@ -190,13 +192,15 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const [formatOpen, setFormatOpen] = useState(() => { try { return localStorage.getItem(FORMAT_KEY) !== '0'; } catch { return true; } });
   const saved = slides[Math.min(at, slides.length - 1)]!;
   // The slide being typed in, as typed: an empty new bullet line stays until the person leaves the slide.
-  const [draft, setDraft] = useState<Slide | null>(null);
+  // It belongs to one slide of one deck: once another slide is shown, it no longer stands in for that one.
+  const [drafted, setDrafted] = useState<{ path: string | null; at: number; slide: Slide } | null>(null);
+  const draft = drafted && drafted.path === path && drafted.at === at ? drafted.slide : null;
+  const setDraft = (slide: Slide | null) => setDrafted(slide ? { path, at, slide } : null);
   const current = draft ?? saved;
   const navRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { setDraft(null); }, [at, path]);
   useEffect(() => setAt(0), [path]);
-  useEffect(() => { if (at > slides.length - 1) setAt(slides.length - 1); }, [slides.length, at]);
   useEffect(() => { try { localStorage.setItem(FORMAT_KEY, formatOpen ? '1' : '0'); } catch { /* the choice is only for this session */ } }, [formatOpen]);
 
   // Undo and redo for the whole deck; a run of typing in one field undoes together.
