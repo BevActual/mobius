@@ -1326,6 +1326,7 @@ export function App() {
               onModelChanged={() => void reloadSettings()}
             pin={pinned}
             place={appName(app)}
+            menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
           />
   );
@@ -1526,9 +1527,8 @@ export function App() {
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
             {chatPanel(<>
               <button type="button" className="head-icon" data-pinned-beside aria-label="Unpin from beside" title="Put Mobius back in the sidebar" onClick={() => setChatPlace('sidebar')}>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /><path d="M4 4l12 12" /></svg>
               </button>
-              {pin('right')}
             </>)}
             {resizer('right', 'Resize the agent panel')}
           </div>

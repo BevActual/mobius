@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { DEFAULT_APPEARANCE, type AppearanceSettings } from '@mobius/shared';
+import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from '@mobius/shared';
 
 export function useAppearance(): { value: AppearanceSettings; loaded: boolean; set(change: Partial<AppearanceSettings>): Promise<void> } {
   const [value, setValue] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
@@ -8,10 +8,11 @@ export function useAppearance(): { value: AppearanceSettings; loaded: boolean; s
     let live = true;
     void window.mobius.appearance.get().then((initial) => {
       if (!live) return;
-      if (initial) setValue(initial);
+      const got = parseAppearance(initial);
+      if (got) setValue(got);
       setLoaded(true);
     });
-    const off = window.mobius.appearance.onChange((next) => live && setValue(next));
+    const off = window.mobius.appearance.onChange((next) => { const got = parseAppearance(next); if (live && got) setValue(got); });
     return () => {
       live = false;
       off();
@@ -30,7 +31,8 @@ export function useAppearance(): { value: AppearanceSettings; loaded: boolean; s
   }, [value.chatFont, value.textDirection, value.density, value.toolSteps]);
   const set = useCallback(async (change: Partial<AppearanceSettings>) => {
     setValue((current) => ({ ...current, ...change }));
-    const next = await window.mobius.appearance.set(change);
+    // Only a reply that is the look replaces it: a failed save keeps what is shown.
+    const next = parseAppearance(await window.mobius.appearance.set(change).catch(() => null));
     if (next) setValue(next);
   }, []);
   return { value, loaded, set };

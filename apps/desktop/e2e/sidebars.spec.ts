@@ -93,7 +93,9 @@ test('the pin button switches between floating and attached, and the choice is k
   await expect(left()).not.toHaveAttribute('data-floating', /.*/);
   expect(await leftEdge()).toBeGreaterThan(200);
 
-  await agentPanel().getByRole('button', { name: 'Float the agent panel' }).click();
+  // Floating is in the All chats menu, so the head keeps three icons.
+  await agentPanel().getByRole('button', { name: 'All chats' }).click();
+  await agentPanel().getByRole('menuitem', { name: 'Float the agent panel' }).click();
   await expect.poll(async () => (await appearance()).rightSidebar).toBe('floating');
   await expect(right()).toHaveAttribute('data-floating', 'true');
 });

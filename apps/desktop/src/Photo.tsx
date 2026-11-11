@@ -1,3 +1,4 @@
+import { RowMark } from './RowMark';
 import { FromMobius } from './FromMobius';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
@@ -47,7 +48,7 @@ export function PhotoSidebar({ photos, pin, changed }: { photos: PhotosState; pi
                 <li key={p.path}>
                   <button type="button" className="list-row" aria-current={photos.open?.path === p.path ? 'page' : undefined} onClick={() => void photos.openPhoto(p.path)}>
                     <span className="list-name">{p.name}</span>
-                    {changed?.has(p.path) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Edited by the agent in its last turn" />}
+                    <RowMark changed={changed?.has(p.path) === true} changedTitle="Edited by Mobius in its last turn" />
                     {p.edited && <span className="photo-edited" title="Has edits">●</span>}
                   </button>
                 </li>

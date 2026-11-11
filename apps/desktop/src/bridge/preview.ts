@@ -54,12 +54,16 @@ const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filte
 /** One turn of Mobius's, still waiting to be kept, so the dashed proposals and Why this can be looked at. */
 const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv'] };
 
+let previewLook = { ...DEFAULT_APPEARANCE };
+
 /** Answers for the calls that must return more than an empty list. Keyed by the call's path. */
 const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'core.getStatus': () => 'ready',
   'files.list': (path: string) => ({ path, truncated: false, entries: path === '' ? [{ name: 'docs', type: 'folder' }, { name: 'notes', type: 'folder' }, { name: 'sheets', type: 'folder' }, { name: 'tasks', type: 'folder' }, { name: 'README.md', type: 'file', bytes: 2048 }] : path === 'notes' ? [{ name: 'P2 build', type: 'folder' }, { name: 'Home', type: 'folder' }] : path === 'notes/P2 build' ? [{ name: 'Build plan.md', type: 'file', bytes: 620 }, { name: 'Supplier notes.md', type: 'file', bytes: 410 }] : [] }),
   'extensions.connectors': () => ({ running: ['github'], failed: [{ server: 'linear', error: 'The command was not found' }], problem: null }),
-  'appearance.get': () => DEFAULT_APPEARANCE,
+  // The look is kept for the session, so choices in the preview stick and a change never answers with a failure.
+  'appearance.get': () => ({ ...previewLook }),
+  'appearance.set': ((change: Partial<typeof DEFAULT_APPEARANCE>) => { previewLook = { ...previewLook, ...change }; return { ...previewLook }; }) as never,
   'preferences.get': () => DEFAULT_PREFERENCES,
   'agent.getSettings': () => ({ baseUrl: 'https://portal.example/v1', model: 'Balanced', system: '', configured: true, hasKey: true, maxSteps: 24, keyStorage: 'session', fallbackBaseUrl: '', fallbackModel: '' }),
   'agent.question': () => null,

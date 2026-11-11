@@ -1,6 +1,6 @@
 import { DEFAULT_KEYBINDINGS } from './keys';
 import { describe, expect, it } from 'vitest';
-import { CONTEXT_SIZES, DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, parseContextSize, parsePreferencesPatch, parseActivityLimit, parseAppearancePatch, parseConfigureRequest, parseGrantId } from './ipc';
+import { CONTEXT_SIZES, DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, parseContextSize, parsePreferencesPatch, parseActivityLimit, parseAppearance, parseAppearancePatch, parseConfigureRequest, parseGrantId } from './ipc';
 
 describe('appearance changes', () => {
   it('accepts any of the three settings alone or together, and drops anything else', () => {
@@ -181,5 +181,16 @@ describe('a second model in a configure request', () => {
   });
   it('drops unknown fields inside it', () => {
     expect(parseConfigureRequest({ ...base, fallback: { baseUrl: 'https://b.example/v1', model: 'n', evil: 1 } })).toEqual({ ...base, fallback: { baseUrl: 'https://b.example/v1', model: 'n' } });
+  });
+});
+
+describe('a reply that is the look', () => {
+  it('is taken whole, over the defaults', () => {
+    expect(parseAppearance({ ...DEFAULT_APPEARANCE, theme: 'dark', agentPlace: 'beside' })).toEqual({ ...DEFAULT_APPEARANCE, theme: 'dark', agentPlace: 'beside' });
+  });
+  it('is never a failure or a bad value, so a failed save cannot wipe the look', () => {
+    expect(parseAppearance({ ok: false, error: 'This is the preview: nothing is saved.' })).toBeNull();
+    expect(parseAppearance(null)).toBeNull();
+    expect(parseAppearance({ theme: 'purple' })).toBeNull();
   });
 });

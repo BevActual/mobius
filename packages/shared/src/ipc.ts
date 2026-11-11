@@ -1213,6 +1213,15 @@ export function parseAppearancePatch(value: unknown): Partial<AppearanceSettings
   return parsePatch(APPEARANCE_CHECKS, value);
 }
 
+/**
+ * A reply that really is the look: its known choices, each checked, over the defaults. Anything else (a failure such as
+ * { ok: false, error }, or a choice out of range) is null, so it can never replace the look the window has.
+ */
+export function parseAppearance(value: unknown): AppearanceSettings | null {
+  const patch = parseAppearancePatch(value);
+  return patch ? { ...DEFAULT_APPEARANCE, ...patch } : null;
+}
+
 /** Choices about how Mobius behaves around you, as opposed to how it looks. */
 export interface PreferencesSettings {
   /** Tell me when the agent is waiting for my answer and Mobius is in the background. */

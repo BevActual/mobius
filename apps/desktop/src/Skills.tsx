@@ -1,3 +1,4 @@
+import { RowMark } from './RowMark';
 import { FromMobius } from './FromMobius';
 import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -51,7 +52,7 @@ export function SkillsSidebar({ skills, pin, changed, places }: { skills: Skills
             <li key={s.name}>
               <button type="button" className="list-row skill-row" aria-current={skills.open?.name === s.name ? 'page' : undefined} onClick={() => void skills.openSkill(s.name)}>
                 <span className="list-name">/{s.name}</span>
-                {changed?.has(s.name) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Changed by the agent in its last turn" />}
+                <RowMark changed={changed?.has(s.name) === true} changedTitle="Changed by Mobius in its last turn" />
                 <span className="list-count">v{s.version}</span>
               </button>
             </li>

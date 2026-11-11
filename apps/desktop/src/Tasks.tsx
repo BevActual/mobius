@@ -1,3 +1,4 @@
+import { RowMark } from './RowMark';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem } from '@mobius/shared';
@@ -117,7 +118,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
                     onContextMenu={(e) => { if (l.name !== DEFAULT_LIST_NAME) { e.preventDefault(); setMenu(l.name); } }}>
                     <ListIcon name={l.name} />
                     <span className="list-name">{l.name}</span>
-                    {changed?.has(l.name) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Changed by the agent in its last turn" />}
+                    <RowMark changed={changed?.has(l.name) === true} changedTitle="Changed by Mobius in its last turn" />
                     <span className="list-count">{l.open || ''}</span>
                   </button>
                   {onPin && <button type="button" className="list-pin" aria-pressed={pinned?.has(l.name) ?? false} aria-label={pinned?.has(l.name) ? `Unpin ${l.name}` : `Pin ${l.name} to the sidebar`} title={pinned?.has(l.name) ? 'Unpin from the sidebar' : 'Pin to the sidebar'} onClick={() => onPin(l.name)}>
