@@ -89,13 +89,15 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   await results.getByRole('button', { name: /Groceries/ }).click();
   await expect(text().locator('h1')).toHaveText('Groceries');
   await side().getByRole('searchbox', { name: 'Search notes' }).fill('');
-  await side().getByRole('button', { name: 'Delete Groceries' }).click();
+  // Delete is in the row's menu, then asked once more in the row.
+  await side().getByRole('button', { name: 'Groceries', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: /^Delete/ }).click();
   await side().getByRole('button', { name: 'Confirm delete Groceries' }).click();
   await expect(side().getByRole('button', { name: 'Groceries', exact: true })).toHaveCount(0);
   expect(fs.existsSync(file('Home', 'Groceries.md'))).toBe(false);
   // Opening a page does not rewrite it: the file stays as it was written.
   expect(onDisk('Home', 'Garden.md')).toBe('# Garden\n- tomatoes\n');
-  await expect(shell().getByText('Choose a page, or make a new one.')).toBeVisible();
+  await expect(shell().getByRole('region', { name: 'No page open' })).toBeVisible();
 });
 
 test('the agent panel sits beside a note, and a change the agent makes shows up in the open page', async () => {
@@ -268,7 +270,8 @@ test('a picture added to a page is kept beside it, linked in its Markdown, and s
   await expect(text().locator('figure[data-missing="true"]')).toBeVisible();
   // Deleting the page takes its files with it.
   await side().getByRole('button', { name: 'Battery', exact: true }).click();
-  await side().getByRole('button', { name: 'Delete Battery' }).click();
+  await side().getByRole('button', { name: 'Battery', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Battery' }).getByRole('menuitem', { name: /^Delete/ }).click();
   await side().getByRole('button', { name: 'Confirm delete Battery' }).click();
   await expect.poll(() => fs.existsSync(file('Work', 'Battery files'))).toBe(false);
 });

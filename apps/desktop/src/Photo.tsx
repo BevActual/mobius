@@ -1,5 +1,6 @@
 import { RowMark } from './RowMark';
 import { FromMobius } from './FromMobius';
+import { EmptyState } from './EmptyState';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import {
@@ -158,11 +159,7 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
   if (!album) {
     return (
       <section className="photo-page empty" aria-label="Photo" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-        <div className="photo-empty">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2.5" /><path d="M2.5 13l4-4 3.5 3.5 2.5-2.5 5 5" /></svg>
-          <h2>No albums yet</h2>
-          <p>Make an album, then drop pictures on the window to add them.</p>
-        </div>
+        <EmptyState app="photo" title="No albums yet" line="Make an album, then drop pictures on the window to add them." action={{ label: 'New album', run: () => void photos.createAlbum('Album').then((made) => { if (made) photos.showAlbum(made); }) }} />
       </section>
     );
   }
@@ -179,11 +176,7 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
       </header>
       {photos.message && <p className="tasks-message" role="alert">{photos.message}</p>}
       {list.length === 0 ? (
-        <div className="photo-empty">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2.5" /><path d="M2.5 13l4-4 3.5 3.5 2.5-2.5 5 5" /></svg>
-          <h2>No photos in {album.name}</h2>
-          <p>Drop pictures on the window, or use Add photos.</p>
-        </div>
+        <EmptyState app="photo" title={`No photos in ${album.name}`} line="Drop pictures on the window to add them." action={{ label: 'Add photos', run: () => picker.current?.click() }} />
       ) : (
         <ul ref={grid} className="photo-grid" role="list" aria-label={`Photos in ${album.name}`} onKeyDown={onKey}>
           {list.map((p) => {
@@ -192,7 +185,7 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
               <li key={p.path}>
                 <button type="button" className="photo-tile" aria-label={p.name} aria-current={photos.open?.path === p.path ? 'true' : undefined} title={p.name} onClick={() => void photos.openPhoto(p.path)}>
                   {src ? <img src={src} alt="" draggable={false} /> : <span className="photo-tile-wait" />}
-                  {p.edited && <span className="photo-tile-badge" title="Edited"><Icon d="M4 10.5l3.5 3.5L16 5.5" /></span>}
+                  {p.edited && <span className="photo-tile-badge glass-clear" title="Edited"><Icon d="M4 10.5l3.5 3.5L16 5.5" /></span>}
                 </button>
               </li>
             );
@@ -231,7 +224,7 @@ export function PhotoEditor({ photos, review }: { photos: PhotosState; review?: 
     const album = photos.album ?? photos.albums[0]?.name;
     if (files.length && album) void photos.addFiles(album, files);
   };
-  if (!photos.available) return <section className="photo-page empty" aria-label="Photo"><p className="note-empty">Photo is not available here.</p></section>;
+  if (!photos.available) return <section className="photo-page empty" aria-label="Photo"><EmptyState app="photo" title="Photo is not available here" /></section>;
   if (photos.browsing || !photos.open) return <PhotoGrid photos={photos} onDrop={onDrop} />;
   return <PhotoView photos={photos} review={review} onDrop={onDrop} />;
 }
@@ -490,8 +483,8 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
       {photos.message && <p className="tasks-message" role="alert">{photos.message}</p>}
       <div className="photo-body">
         <div className="photo-stage" data-zoomed={zoomed || undefined} data-cropping={cropping || undefined}>
-          {!cropping && at > 0 && <button type="button" className="photo-step prev" aria-label="Previous photo" title="Previous photo (←)" onClick={() => go(-1)}><Icon d="M12.5 4.5L7 10l5.5 5.5" /></button>}
-          {!cropping && at >= 0 && at < order.length - 1 && <button type="button" className="photo-step next" aria-label="Next photo" title="Next photo (→)" onClick={() => go(1)}><Icon d="M7.5 4.5L13 10l-5.5 5.5" /></button>}
+          {!cropping && at > 0 && <button type="button" className="photo-step prev glass-clear" aria-label="Previous photo" title="Previous photo (←)" onClick={() => go(-1)}><Icon d="M12.5 4.5L7 10l5.5 5.5" /></button>}
+          {!cropping && at >= 0 && at < order.length - 1 && <button type="button" className="photo-step next glass-clear" aria-label="Next photo" title="Next photo (→)" onClick={() => go(1)}><Icon d="M7.5 4.5L13 10l-5.5 5.5" /></button>}
           <div className="photo-frame" ref={frame} onDoubleClick={() => { if (!cropping) setZoomed((z) => !z); }}>
             <canvas ref={shown} className="photo-canvas" role="img" aria-label={before ? 'The photo before edits' : 'The photo with edits'} />
             {sel && area && area.kind !== 'all' && !before && !cropping && (

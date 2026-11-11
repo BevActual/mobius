@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { BookmarkEntry, BrowserTabState, DownloadEntry, HistoryEntry } from '@mobius/shared';
 import { DownloadsButton } from './DownloadsList';
 import { FindBar } from './FindBar';
@@ -21,13 +21,15 @@ const TAB_DRIVER_TITLE = { reading: 'Mobius is reading this tab', mobius: 'Mobiu
 
 /** One tab's row: a click shows it, a middle click closes it, a right click opens its menu, and it can be dragged. */
 function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: BrowserTabState, x: number, y: number) => void; drag: TabDrag }) {
+  const still = useReducedMotion() ?? false;
   const site = hostOf(tab.url);
   return (
     <motion.li
       layout="position"
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, transition: quick }}
+      // A new tab grows into the list and a closed one folds away; under Reduce Motion they only fade.
+      initial={still ? { opacity: 0 } : { opacity: 0, height: 0, overflow: 'hidden' }}
+      animate={still ? { opacity: 1 } : { opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } }}
+      exit={still ? { opacity: 0, transition: quick } : { opacity: 0, height: 0, overflow: 'hidden', transition: { ...quick, duration: 0.18 } }}
       className="tab"
       aria-current={tab.active ? 'page' : undefined}
       data-pinned={tab.pinned ? 'true' : undefined}
@@ -243,12 +245,14 @@ export function BrowserChrome({ active, saved, pagePinned, onTogglePagePin, sele
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
           </button>
         </div>
+        <div className="cap-group" role="group" aria-label="This page">
         <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
         </button>
         <button type="button" className="strip-btn" data-page-pin aria-pressed={pagePinned} aria-label={pagePinned ? 'Unpin this page from the sidebar' : 'Pin this page to the sidebar'} title={pagePinned ? 'Unpin from the sidebar' : 'Pin to the sidebar'} disabled={!active || !/^https?:/.test(active.url)} onClick={onTogglePagePin}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 3.5h5l-.8 4.2 2.8 2.8H5.5l2.8-2.8zM10 10.5v6" /></svg>
         </button>
+        </div>
         <div className="selection-menu-wrap">
           <button type="button" className="strip-btn" data-selection-ask aria-haspopup="menu" aria-expanded={selectionMenu} aria-label="Selected text" title="Do something with the text selected on this page" disabled={!active || !/^https?:/.test(active.url)} onClick={() => setSelectionMenu((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h8M4 9h5M4 13h4" /><path d="M14.5 9.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>

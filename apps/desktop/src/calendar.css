@@ -8,6 +8,9 @@
 .calendar-page .cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 10px var(--sp-4); }
 .cal-head-start, .cal-head-end { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .cal-head-start { flex: 1 0 auto; }
+/* Back, Today and Forward are one control, in the same capsule as the Browser's back and forward. */
+.calendar-page .cal-step > .btn { height: 26px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; font-weight: var(--fw-medium); }
+.calendar-page .cal-step > .btn:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .cal-head-end { flex: 1 1 280px; justify-content: flex-end; gap: var(--sp-2); }
 .cal-head-end > .btn { flex: none; white-space: nowrap; }
 .calendar-page .cal-head .segmented button { min-width: 64px; }
@@ -87,7 +90,9 @@
 .calendar-page .cal-undo span { overflow: hidden; text-overflow: ellipsis; }
 
 /* The editor: title and place up top, then the times as one grouped inset list. */
-.cal-editor { gap: var(--sp-3); }
+.cal-editor { gap: var(--sp-3); border-radius: var(--sheet-radius); }
+/* Inside the sheet, groups follow its corner: its radius less the padding that insets them. */
+.cal-editor .cal-editor-group { border-radius: calc(var(--sheet-radius) - var(--sp-4)); }
 .cal-editor .cal-editor-place { background: transparent !important; padding-left: 0 !important; color: var(--muted) !important; min-height: 24px !important; }
 .cal-editor .cal-editor-title { background: transparent !important; padding-left: 0 !important; font-size: var(--fs-xl) !important; border-radius: 0 !important; border-bottom: 1px solid var(--line) !important; }
 .cal-editor .cal-editor-title:focus-visible, .cal-editor .cal-editor-place:focus-visible { outline: none; border-bottom-color: var(--accent) !important; }
@@ -157,3 +162,7 @@
 .cal-editor .cal-field-days button:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .cal-editor .cal-field-days button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent, #fff); font-weight: 600; }
 .cal-suggest-pop .review-why { white-space: normal; overflow: visible; text-overflow: clip; font-size: var(--fs-sm); color: var(--ink); }
+
+/* A suggestion kept turns solid where it is, then becomes the event. */
+.calendar-page .cal-event[data-suggested] { transition: background-color var(--dur-med) var(--ease), border-color var(--dur-med) var(--ease), color var(--dur-med) var(--ease); }
+.calendar-page .cal-event[data-suggested][data-keeping] { border-style: solid; border-width: 0 0 0 3px; border-color: var(--event); background: color-mix(in srgb, var(--event) 15%, var(--bg)); color: color-mix(in srgb, var(--event) 55%, var(--ink)); }

@@ -7,11 +7,19 @@ import type { NotesState } from './useNotes';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { RowMark } from './RowMark';
+import { createPortal } from 'react-dom';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
 /** The words for Notes; Docs passes its own, since it keeps documents in folders the same way. */
 export interface SidebarWords { app: string; group: string; groups: string; item: string; items: string; about: string; /** Made when something is created before any group exists. */ defaultGroup?: string }
+/** A new page in `group`, or the first folder, or a folder made with the default name when there is none. */
+export function newItemIn(notes: NotesState, group: string | null | undefined, fallback?: string): void {
+  const into = group || notes.notebooks[0]?.name;
+  if (into) void notes.createPage(into);
+  else if (fallback) void notes.createNotebook(fallback).then((made) => { if (made) void notes.createPage(made); });
+}
 export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'page', items: 'pages', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.' };
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
@@ -40,6 +48,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   const [name, setName] = useState('');
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; page: NotePage } | null>(null);
   const openNotebook = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name;
 
   useEffect(() => {
@@ -54,10 +63,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
     const made = await notes.createNotebook(name.trim() || cap(words.group));
     if (made) { setNaming(false); setName(''); await notes.createPage(made); }
   };
-  const newItem = () => {
-    if (openNotebook) void notes.createPage(openNotebook);
-    else if (words.defaultGroup) void notes.createNotebook(words.defaultGroup).then((made) => { if (made) void notes.createPage(made); });
-  };
+  const newItem = () => newItemIn(notes, openNotebook, words.defaultGroup);
   const toggle = (nb: string) => setClosed((s) => { const n = new Set(s); if (n.has(nb)) n.delete(nb); else n.add(nb); return n; });
 
 
@@ -67,7 +73,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
     const sub = [where, when, pg.preview].filter(Boolean).join(' · ');
     const subId = `note-sub-${key.replace(/[^\w-]/g, '_')}`;
     return (
-      <li key={key} className="note-item">
+      <li key={key} className="note-item" onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg }); }}>
         <button type="button" className="note-row" data-proposed={changed?.has(pg.path) || undefined} aria-current={notes.page?.path === pg.path ? 'page' : undefined} aria-label={pg.title} aria-describedby={sub ? subId : undefined} onClick={() => void notes.open(pg.path, pg.title)}>
           <span className="note-lines">
             <span className="note-title">{pg.title}</span>
@@ -78,12 +84,9 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         {onPin && <button type="button" className="note-delete note-pin" aria-pressed={pinned?.has(pg.path) ?? false} aria-label={pinned?.has(pg.path) ? `Unpin ${pg.title}` : `Pin ${pg.title} to the sidebar`} title={pinned?.has(pg.path) ? 'Unpin' : 'Pin to the top of the list and the sidebar'} onClick={() => onPin(pg.path, pg.title)}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
         </button>}
-        {confirming === pg.path ? (
-          <button type="button" className="note-delete confirm" aria-label={`Confirm delete ${pg.title}`} onClick={() => { setConfirming(null); void notes.remove(pg.path); }} onBlur={() => setConfirming(null)}>Delete</button>
-        ) : (
-          <button type="button" className="note-delete" aria-label={`Delete ${pg.title}`} title={`Delete ${words.item}`} onClick={() => setConfirming(pg.path)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2M6.5 6l.7 10h5.6l.7-10" /></svg>
-          </button>
+        {/* Delete is in the row's menu, not on hover; choosing it asks once more, here in the row. */}
+        {confirming === pg.path && (
+          <button type="button" autoFocus className="note-delete confirm" aria-label={`Confirm delete ${pg.title}`} onClick={() => { setConfirming(null); void notes.remove(pg.path); }} onBlur={() => setConfirming(null)} onKeyDown={(e) => { if (e.key === 'Escape') setConfirming(null); }}>Delete</button>
         )}
       </li>
     );
@@ -187,6 +190,14 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
           )))}
           <FromMobius items={notes.notebooks.flatMap((nb) => nb.pages.filter((pg) => changed?.has(pg.path)).map((pg) => ({ key: pg.path, name: pg.title, where: nb.name, current: notes.page?.path === pg.path, onOpen: () => void notes.open(pg.path, pg.title) })))} />
         </div>
+      )}
+      {menu && createPortal(
+        <ContextMenu x={menu.x} y={menu.y} label={menu.page.title} onClose={() => setMenu(null)} items={([
+          { action: 'open', run: () => void notes.open(menu.page.path, menu.page.title) },
+          ...(onPin ? [{ action: pinned?.has(menu.page.path) ? 'unpin' : 'pin', run: () => onPin(menu.page.path, menu.page.title) }] : []),
+          { action: 'delete', label: `Delete ${words.item}…`, danger: true, run: () => setConfirming(menu.page.path) },
+        ] as ContextMenuItem[])} />,
+        document.body,
       )}
     </aside>
   );

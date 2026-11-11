@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { NotesSidebar, type SidebarWords } from './NotesSidebar';
+import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
+import { EmptyState } from './EmptyState';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { changedIds, contrast, freshId, nextFramePlace, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
 import type { NotesState } from './useNotes';
@@ -370,7 +371,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onUp); };
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!designs.page) return <section className="design-page empty" aria-label="Design"><p className="note-empty">Choose a design on the left, or make a new one.</p></section>;
+  if (!designs.page) return <section className="design-page empty" aria-label="Design"><EmptyState app="design" label="No design open" title={designs.notebooks.some((n) => n.pages.length) ? 'No design open' : 'No designs yet'} line="Choose one on the left, or start a new one." action={{ label: 'New design', run: () => newItemIn(designs, null, DESIGN_WORDS.defaultGroup) }} /></section>;
   if (!doc) {
     return (
       <section className="design-page empty" aria-label="Design">

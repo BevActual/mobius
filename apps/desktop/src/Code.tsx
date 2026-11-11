@@ -1,3 +1,4 @@
+import { EmptyState } from './EmptyState';
 import { FromMobius } from './FromMobius';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
@@ -607,8 +608,8 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
     return () => window.removeEventListener('keydown', onKey);
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!code.available) return <section className="code-page empty" aria-label="Code"><p className="note-empty">Code is not available here.</p></section>;
-  if (!code.project) return <section className="code-page empty" aria-label="Code"><p className="note-empty">Make a project to start: a folder of files Mobius can read, suggest changes to and test.</p></section>;
+  if (!code.available) return <section className="code-page empty" aria-label="Code"><EmptyState app="code" title="Code is not available here" /></section>;
+  if (!code.project) return <section className="code-page empty" aria-label="Code"><EmptyState app="code" title="No project open" line="A project is a folder of files Mobius can read, suggest changes to and test." action={{ label: 'New project', run: () => void code.createProject('Project') }} /></section>;
   const lang = code.open ? langOf(code.open.path) : 'plain';
   return (
     <section className="code-page" aria-label="Code">

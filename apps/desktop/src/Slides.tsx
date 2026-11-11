@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { NotesSidebar, type SidebarWords } from './NotesSidebar';
+import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
+import { EmptyState } from './EmptyState';
 import { SLIDE_STYLES, blankSlide, changedSlides, parseDeck, writeDeck, type Slide, type SlideStyle } from './slides-format';
 import { LAYOUTS, clock, dropIndex, jumpTarget, moveSlide, movedTo, talkMinutes, type Layout } from './slides-view';
 import type { NotesState } from './useNotes';
@@ -161,7 +162,7 @@ function SlideMenu({ x, y, items, onClose }: { x: number; y: number; items: { la
   return createPortal(
     <>
       <div className="slides-scrim" onMouseDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
-      <div ref={box} className="slides-menu" role="menu" aria-label="Slide" style={{ top: Math.min(y, window.innerHeight - 220), left: Math.min(x, window.innerWidth - 220) }} onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
+      <div ref={box} className="slides-menu glass" role="menu" aria-label="Slide" style={{ top: Math.min(y, window.innerHeight - 220), left: Math.min(x, window.innerWidth - 220) }} onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
         {items.map((it, n) => it.label === '-' ? <div key={`sep${n}`} className="slides-menu-sep" /> : (
           <button key={it.label} type="button" role="menuitem" disabled={it.disabled} data-danger={it.danger || undefined} onClick={() => { onClose(); it.run(); }}>
             <span>{it.label}</span>{it.keys && <kbd>{it.keys}</kbd>}
@@ -179,7 +180,9 @@ const typing = (t: EventTarget | null) => t instanceof HTMLElement && (['INPUT',
 export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { slides: NotesState; review?: { conversation: string } | null; onTool?: (tool: SlidesTool, slide: number) => void; busy?: boolean }) {
   const path = deck.page?.path ?? null;
   const slides = useMemo(() => parseDeck(deck.text), [deck.text]);
-  const [at, setAt] = useState(0);
+  // The slide shown. If the deck is briefly shorter (read again from disk mid-edit), the choice is kept, not moved.
+  const [chosen, setAt] = useState(0);
+  const at = Math.max(0, Math.min(chosen, slides.length - 1));
   const [playing, setPlaying] = useState<number | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [layoutsAt, setLayoutsAt] = useState<DOMRect | null>(null);
@@ -189,13 +192,15 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const [formatOpen, setFormatOpen] = useState(() => { try { return localStorage.getItem(FORMAT_KEY) !== '0'; } catch { return true; } });
   const saved = slides[Math.min(at, slides.length - 1)]!;
   // The slide being typed in, as typed: an empty new bullet line stays until the person leaves the slide.
-  const [draft, setDraft] = useState<Slide | null>(null);
+  // It belongs to one slide of one deck: once another slide is shown, it no longer stands in for that one.
+  const [drafted, setDrafted] = useState<{ path: string | null; at: number; slide: Slide } | null>(null);
+  const draft = drafted && drafted.path === path && drafted.at === at ? drafted.slide : null;
+  const setDraft = (slide: Slide | null) => setDrafted(slide ? { path, at, slide } : null);
   const current = draft ?? saved;
   const navRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { setDraft(null); }, [at, path]);
   useEffect(() => setAt(0), [path]);
-  useEffect(() => { if (at > slides.length - 1) setAt(slides.length - 1); }, [slides.length, at]);
   useEffect(() => { try { localStorage.setItem(FORMAT_KEY, formatOpen ? '1' : '0'); } catch { /* the choice is only for this session */ } }, [formatOpen]);
 
   // Undo and redo for the whole deck; a run of typing in one field undoes together.
@@ -317,7 +322,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   if (!deck.page) {
     return (
       <section className="slides-page empty" aria-label="Deck">
-        <p className="note-empty">{deck.notebooks.length ? 'Choose a deck, or make a new one.' : 'Make a deck to start: New deck in the sidebar.'}</p>
+        <EmptyState app="slides" label="No deck open" title={deck.notebooks.some((n) => n.pages.length) ? 'No deck open' : 'No decks yet'} line="Choose one on the left, or start a new one." action={{ label: 'New deck', run: () => newItemIn(deck, null, SLIDES_WORDS.defaultGroup) }} />
       </section>
     );
   }

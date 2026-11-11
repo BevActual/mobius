@@ -162,6 +162,63 @@ function Due({ due, now }: { due: string; now: Date }) {
 
 const FlagGlyph = () => <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 16.5V4.5c2.6-1.4 4.6 1.1 7.5-.2v6.4c-2.9 1.3-4.9-1.2-7.5.2" /></svg>;
 
+const HOLD_MS = 1000;
+/**
+ * Completing a task, as Reminders does: the check fills and the row stays a moment, so a second click takes it back,
+ * then the row folds away and the task is marked done. Under Reduce Motion the row only fades.
+ */
+function useCompleting(commit: () => Promise<unknown> | void) {
+  const [on, setOn] = useState(false);
+  const row = useRef<HTMLLIElement>(null);
+  const timer = useRef<number | null>(null);
+  const done = useRef(commit);
+  done.current = commit;
+  const pending = useRef(false);
+  const finish = () => {
+    if (!pending.current) return;
+    pending.current = false;
+    // If the row is still shown once saved (a view that keeps completed tasks), show it again.
+    void Promise.resolve(done.current()).finally(() => {
+      const li = row.current;
+      if (!li) return;
+      li.getAnimations().forEach((a) => { a.onfinish = null; a.oncancel = null; a.cancel(); });
+      li.style.overflow = '';
+      setOn(false);
+    });
+  };
+  const leave = () => {
+    timer.current = null;
+    const li = row.current;
+    if (!li || typeof li.animate !== 'function') return finish();
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const slow = parseFloat(getComputedStyle(li).getPropertyValue('--dur-med')) || 0;
+    const frames: Keyframe[] = still
+      ? [{ opacity: 1 }, { opacity: 0 }]
+      : [{ height: `${li.offsetHeight}px`, opacity: 1, transform: 'none' }, { height: '0px', opacity: 0, transform: 'translateX(24px)' }];
+    li.style.overflow = 'hidden';
+    const a = li.animate(frames, { duration: still ? 200 : Math.max(slow, 1) * 1.5, easing: 'cubic-bezier(0.2, 0, 0, 1)', fill: 'forwards' });
+    a.onfinish = finish;
+    a.oncancel = finish;
+  };
+  const toggle = () => {
+    if (pending.current) {
+      pending.current = false;
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = null;
+      row.current?.getAnimations().forEach((a) => { a.onfinish = null; a.oncancel = null; a.cancel(); });
+      if (row.current) row.current.style.overflow = '';
+      setOn(false);
+      return;
+    }
+    pending.current = true;
+    setOn(true);
+    timer.current = window.setTimeout(leave, HOLD_MS);
+  };
+  // Leaving the view mid-way still completes the task.
+  useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); finish(); }, []);
+  return { on, row, toggle };
+}
+
 interface RowProps {
   tasks: TasksState; list: string; task: TaskItem; subtasks?: TaskItem[]; showList: boolean; now: Date; proposed?: boolean;
   /** Dragging rows to reorder: only in a list, only top-level tasks. */
@@ -174,6 +231,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const [dating, setDating] = useState(false);
   const [dropBefore, setDropBefore] = useState(false);
   const field = useRef<HTMLInputElement>(null);
+  const completing = useCompleting(() => tasks.change(list, task, { done: true }));
   useEffect(() => { if (editing) field.current?.select(); }, [editing]);
   const finish = (keep: boolean) => {
     setEditing(false);
@@ -185,7 +243,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const note = (task.notes ?? '').split('\n')[0] ?? '';
   const subsDone = subtasks.filter((s) => s.done).length;
   return (
-    <li className="task" data-done={task.done || undefined} data-fresh={tasks.isFresh(list, task) || undefined} data-proposed={proposed || undefined} data-picked={isPicked || undefined}
+    <li ref={completing.row} className="task" data-done={task.done || completing.on || undefined} data-fresh={tasks.isFresh(list, task) || undefined} data-proposed={proposed || undefined} data-picked={isPicked || undefined}
       data-color={listColor(list)} data-sub={task.parent != null || undefined} data-drop={dropBefore || undefined}
       draggable={reorder && !editing && !dating}
       onDragStart={(e) => { e.dataTransfer.setData(DRAG, JSON.stringify({ list, line: task.line, text: task.text })); e.dataTransfer.effectAllowed = 'move'; }}
@@ -198,7 +256,8 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
         if (d && moving) { e.preventDefault(); e.stopPropagation(); void tasks.move(d.list, moving, list, task); }
       } : undefined}>
       <div className="task-line">
-        <button type="button" role="checkbox" aria-checked={task.done} aria-label={task.text} className="task-check" onClick={() => void tasks.change(list, task, { done: !task.done })}>
+        <button type="button" role="checkbox" aria-checked={task.done || completing.on} aria-label={task.text} className="task-check"
+          onClick={() => { if (task.done) void tasks.change(list, task, { done: false }); else completing.toggle(); }}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8.5 7 11l5-6" /></svg>
         </button>
         <div className="task-body">

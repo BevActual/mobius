@@ -65,7 +65,13 @@ export function useVideo() {
       if (lengths[key] !== undefined) continue;
       const el = document.createElement(c.kind === 'audio' ? 'audio' : 'video');
       el.preload = 'metadata';
-      el.onloadedmetadata = () => { setLengths((was) => ({ ...was, [key]: Math.round(el.duration * 100) / 100 })); el.removeAttribute('src'); };
+      const got = () => { setLengths((was) => ({ ...was, [key]: Math.round(el.duration * 100) / 100 })); el.removeAttribute('src'); };
+      // Some files (recorded WebM, for one) only know their length once read to the end: seek there and ask again.
+      el.onloadedmetadata = () => {
+        if (Number.isFinite(el.duration)) { got(); return; }
+        el.ondurationchange = () => { if (Number.isFinite(el.duration)) { el.ondurationchange = null; got(); } };
+        el.currentTime = 1e7;
+      };
       el.onerror = () => setLengths((was) => ({ ...was, [key]: 0 }));
       void playable(c.name).then((src) => { el.src = src; });
     }
