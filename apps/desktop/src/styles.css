@@ -217,6 +217,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .msg-chips { justify-content: flex-end; margin: 2px 0 6px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 6px; border-radius: var(--radius-control); background: var(--soft); font-size: var(--fs-sm); }
 .chips .chip { padding-right: 2px; }
+.chip-adding { align-self: flex-start; margin: 0; color: var(--muted); }
 .chip-kind { color: var(--muted); font-size: var(--fs-xs); }
 .chip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .chip-remove { display: grid; place-items: center; width: 18px; height: 18px; border-radius: var(--radius-small); color: var(--muted); }
@@ -2744,3 +2745,30 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .btn.danger, .btn.link.danger { color: #c4271c; }
 @media (prefers-color-scheme: dark) { .btn.danger, .btn.link.danger { color: #ff6961; } }
 .prow-confirm { display: inline-flex; align-items: center; gap: 6px; }
+
+/* An update is downloaded: a small capsule in the toolbar, never a dialog. */
+.update-notice { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 var(--sp-3); margin-right: var(--sp-1); border: 0; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.update-notice:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.update-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+/* Listening: a level meter of five bars; reading a reply aloud, and why it could not. */
+.level-meter { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; margin-right: 6px; }
+.level-meter > span { width: 3px; border-radius: 1.5px; background: color-mix(in srgb, var(--accent) 25%, transparent); transition: background 80ms linear; }
+.level-meter > span:nth-child(1) { height: 4px; } .level-meter > span:nth-child(2) { height: 6px; } .level-meter > span:nth-child(3) { height: 8px; } .level-meter > span:nth-child(4) { height: 10px; } .level-meter > span:nth-child(5) { height: 12px; }
+.level-meter > span[data-on] { background: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .level-meter > span { transition: none; } }
+.msg-voice-problem { margin: 2px 0 6px; font-size: 12px; color: var(--muted); }
+
+/* Messages queued while Mobius works, above the message box. */
+.msg-queue { flex: none; margin: 0 0 var(--sp-2); padding: var(--sp-2) var(--sp-2) var(--sp-1) var(--sp-3); border: 1px dashed color-mix(in srgb, var(--ink) 18%, transparent); border-radius: var(--radius-panel); background: var(--soft); font-size: var(--fs-sm); }
+.msg-queue-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-1); color: var(--muted); }
+.msg-queue-title { flex: 1; min-width: 0; }
+.msg-queue-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.msg-queue-item { display: flex; align-items: center; gap: var(--sp-1); min-height: 28px; }
+.msg-queue-remove { width: 24px; height: 24px; }
+.msg-queue-head .link-btn { padding: 2px var(--sp-1); margin: -2px calc(-1 * var(--sp-1)); border-radius: var(--radius-small); }
+.msg-queue .msg-action { padding: 0 var(--sp-2); }
+.msg-queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-queue-more { color: var(--muted); }
+.msg-queue-edit { flex: 1; min-width: 0; display: flex; }
+.msg-queue-edit input { flex: 1; min-width: 0; font: inherit; height: 24px; padding: 0 var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: inherit; }

@@ -10,6 +10,7 @@ import { CameraDialog } from './CameraDialog';
 import { MAX_PICTURES, pictureFromFile, pictureFromUrl, pictureOfWindow } from '../picture';
 import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem, type Suggestion, type SurfaceState } from '../surface';
 import { useDictation } from './useDictation';
+import { holdsHere, isHoldToTalk } from './hold-to-talk';
 import { MODES, modeOf, nextMode } from '../approval-modes';
 
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
@@ -29,6 +30,10 @@ type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: Mode
 export interface ComposerProps {
   /** In an empty conversation: where three starters go, as plain text under the greeting, instead of chips here. */
   startersIn?: HTMLElement | null;
+  /** While Mobius works, Enter puts the message in the queue above the box, sent when the turn ends. */
+  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
+  /** Settings, Voice, for when nothing is set up to listen. */
+  onOpenVoice?: () => void;
   /** Suggestions are for starting: once the conversation has begun there are none. */
   started?: boolean;
   /** How full the model's window is, when the core has said: a small ring with its percent. */
@@ -63,7 +68,7 @@ export interface ComposerProps {
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity, contextUse, startersIn, started = false }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity, contextUse, startersIn, started = false, onOpenVoice, onQueue }: ComposerProps) {
   // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
   const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
   const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
@@ -102,7 +107,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   });
   const listening = dictation.state !== 'idle';
   const shownProblem = problem ?? dictation.problem;
-  const canSend = canType && !busy && !listening && draft.trim().length > 0;
+  const canSend = canType && !busy && !listening && !adding && draft.trim().length > 0;
+  const canQueue = canType && busy && !listening && !adding && draft.trim().length > 0 && onQueue !== undefined;
 
   useLayoutEffect(() => {
     const element = fieldRef.current;
@@ -111,18 +117,55 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     element.style.height = `${Math.min(element.scrollHeight, 168)}px`;
   }, [draft, fieldRef]);
 
+  // Hold to talk: while the shortcut (Ctrl+Space unless changed in Settings, Keyboard) is held with the keyboard in this
+  // panel, listen; on letting go, the words go into the box, not sent.
+  const formRef = useRef<HTMLFormElement>(null);
+  const holding = useRef(false);
+  const holdKeys = preferences.value.keybindings;
+  const { hold, letGo } = dictation;
+  useEffect(() => {
+    const down = (event: globalThis.KeyboardEvent) => {
+      if (!isHoldToTalk(holdKeys, { code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey })) return;
+      if (!holding.current && !holdsHere(document.activeElement, formRef.current)) return;
+      event.preventDefault();
+      if (event.repeat || holding.current || !canType || busy) return;
+      holding.current = true;
+      hold();
+    };
+    const up = () => {
+      if (!holding.current) return;
+      holding.current = false;
+      letGo();
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', up);
+    };
+  }, [holdKeys, hold, letGo, canType, busy]);
+
   useEffect(() => {
     if (!busy) return;
     dictation.cancel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
+  // Enter while a page or file is still being read sends once it is attached, so the message never goes without it.
+  const sendWhenAdded = useRef(false);
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
-    if (!canSend) return;
+    if (adding && canType && !listening && draft.trim().length > 0) {
+      sendWhenAdded.current = true;
+      return;
+    }
+    if (!canSend && !canQueue) return;
     setProblem(null);
     const options = { ...(planFirst ? { plan: true } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
-    onSend(draft, context, Object.keys(options).length > 0 ? options : undefined);
+    if (canSend) onSend(draft, context, Object.keys(options).length > 0 ? options : undefined);
+    else onQueue?.(draft, context, Object.keys(options).length > 0 ? options : undefined);
     setPictures([]);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -154,18 +197,28 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     const result = kind === 'page' ? await window.mobius.context.page() : await window.mobius.context.file();
     setAdding(false);
     if (!result.ok) {
+      // It could not be attached: say so and let the person decide, rather than sending without it.
+      sendWhenAdded.current = false;
       setProblem(result.error);
       return;
     }
     const item = result.item;
     if (item === null) return;
     if (total(context) + item.text.length > MAX_CONTEXT_TOTAL_CHARS) {
+      sendWhenAdded.current = false;
       setProblem('That is too much to attach to one message along with what is already attached.');
       return;
     }
     onContext([...context, item]);
     fieldRef.current?.focus();
   };
+
+  useEffect(() => {
+    if (adding || !sendWhenAdded.current) return;
+    sendWhenAdded.current = false;
+    submit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adding, context]);
 
   const suggestions = surface && !started && canType && !busy && !listening && draft === '' ? suggestionsFor(surface) : [];
   const suggest = async (s: Suggestion) => {
@@ -228,7 +281,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const shown = models.state === 'ready' ? filterCatalog(models.catalog.groups, find) : [];
 
   return (
-    <form className="composer" onSubmit={submit} onKeyDown={onFormKeyDown} data-listening={listening || undefined} data-working={activity ? (activity.needsYou ? 'you' : 'agent') : undefined}>
+    <form ref={formRef} className="composer" onSubmit={submit} onKeyDown={onFormKeyDown} data-listening={listening || undefined} data-working={activity ? (activity.needsYou ? 'you' : 'agent') : undefined}>
       {activity && (
         <div className="working" role="status" aria-label="Agent activity" aria-live="polite">
           <MobiusMark size={16} turning={!activity.needsYou} className="working-mark" />
@@ -270,6 +323,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           ))}
         </ul>
       )}
+      {adding && <p className="chip chip-adding" role="status">Attaching…</p>}
       {context.length > 0 && (
         <ul className="chips" aria-label="Attached to this message">
           {context.map((item, index) => (
@@ -291,7 +345,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
         value={draft}
         disabled={!canType}
         autoFocus={takeFocus}
-        placeholder={canType ? 'Message Mobius' : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
+        placeholder={canType ? (busy && onQueue ? 'Queue a message for when Mobius finishes' : 'Message Mobius') : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={onKeyDown}
         onPaste={(event) => {
@@ -381,7 +435,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
         </div>
         <div className="composer-actions">
           {contextUse && <ContextRing used={contextUse.used} limit={contextUse.limit} />}
-          {dictation.state === 'recording' && <span className="rec" role="status" aria-label={`Recording ${clock(dictation.seconds)}`}><span className="rec-dot" aria-hidden="true" />{clock(dictation.seconds)}</span>}
+          {dictation.state === 'recording' && <span className="rec" role="status" aria-label={`Listening ${clock(dictation.seconds)}`}><LevelMeter level={dictation.level} />{clock(dictation.seconds)}</span>}
           {dictation.state === 'transcribing' && <span className="rec" role="status">Turning speech into text…</span>}
           <button type="button" className="round ghost" data-recording={dictation.state === 'recording' || undefined} aria-label={dictation.state === 'recording' ? 'Stop dictation' : 'Dictate'} title={dictation.state === 'recording' ? 'Stop and insert the words (Esc cancels)' : 'Dictate'} disabled={!canType || busy || dictation.state === 'transcribing'} onClick={dictation.toggle}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5" /><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17" /></svg>
@@ -398,7 +452,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           )}
         </div>
       </div>
-      {shownProblem && <p className="composer-problem" role="alert">{shownProblem}</p>}
+      {shownProblem && <p className="composer-problem" role="alert">{shownProblem}{!problem && dictation.setup && onOpenVoice && <> <button type="button" className="link-btn" onClick={() => { dictation.clearProblem(); onOpenVoice(); }}>Voice settings</button></>}</p>}
     </form>
   );
 }
@@ -424,4 +478,13 @@ function ContextRing({ used, limit }: { used: number; limit: number }) {
 /** The mark beside the chosen item of a menu, as macOS menus have. */
 function Check({ on }: { on: boolean }) {
   return <svg className="popmenu-check" viewBox="0 0 12 12" aria-hidden="true">{on && <path d="M2.5 6.5 5 9l4.5-6" />}</svg>;
+}
+
+/** How loud the microphone is now: five bars, as the system shows it while listening. */
+function LevelMeter({ level }: { level: number }) {
+  return (
+    <span className="level-meter" aria-hidden="true">
+      {[0.08, 0.2, 0.35, 0.5, 0.7].map((at) => <span key={at} data-on={level > at || undefined} />)}
+    </span>
+  );
 }

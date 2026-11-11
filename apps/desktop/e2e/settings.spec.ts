@@ -352,3 +352,19 @@ test('search at the top of the sidebar finds settings by their old names too, an
   await expect(page()).toHaveCount(0);
   await expect(shell().locator('.app')).toHaveAttribute('data-app', 'skills');
 });
+
+test('Software Update: About shows the version and says the updater is off in this build; the switch is kept', async () => {
+  await start([]);
+  await openSettings();
+  await go('About');
+  const status = page().locator('[data-update-state]');
+  await expect(status).toHaveAttribute('data-update-state', 'off');
+  await expect(status).toContainText('off');
+  await expect(page().getByRole('button', { name: 'Check for Updates' })).toBeDisabled();
+  const auto = page().getByRole('switch', { name: 'Automatically install updates' });
+  await expect(auto).toBeChecked();
+  await auto.uncheck();
+  await expect.poll(() => JSON.parse(fs.readFileSync(path.join(mobius!.userData, 'preferences.json'), 'utf8')).autoUpdate).toBe(false);
+  // Nothing in the toolbar: there is no update waiting.
+  await expect(shell().getByRole('button', { name: /Restart to install/ })).toHaveCount(0);
+});

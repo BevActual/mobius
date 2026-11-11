@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { isVoiceUrl, type ListenWith, type PreferencesSettings, type SpeakWith } from '@mobius/shared';
+import { localStatusText } from './voice-status';
 import { settingPath } from './manifest';
 import { Row } from './primitives';
-import { AdvancedSection, AppearanceSection, SafetySection, type SectionProps } from './sections';
+import { AdvancedSection, AppearanceSection, SafetySection, Toggle, type SectionProps } from './sections';
 
 const LISTEN: ReadonlyArray<{ id: ListenWith; label: string }> = [
   { id: 'chat', label: 'Chat server' },
@@ -64,6 +65,26 @@ function TestButton({ job, label }: { job: 'listen' | 'speak'; label: string }) 
   );
 }
 
+/** One line under the address: Ready, or Not running with how to start one. Checked when the address changes, and on asking. */
+function LocalStatus({ job, url }: { job: 'listen' | 'speak'; url: string }) {
+  const [status, setStatus] = useState<{ ready: boolean; url: string } | 'checking' | null>(null);
+  const check = useCallback(async () => {
+    setStatus('checking');
+    const r = await window.mobius.voice?.local?.(job).catch(() => null);
+    setStatus(r && r.ok ? { ready: r.ready, url: r.url } : null);
+  }, [job]);
+  useEffect(() => { void check(); }, [check, url]);
+  if (status === null) return null;
+  return (
+    <div className="inline-form">
+      {status === 'checking'
+        ? <span className="srow-text" role="status">Checking…</span>
+        : <span className={status.ready ? 'field-ok' : 'field-error'} role="status" data-testid={`voice-local-${job}`}>{localStatusText(job, status.ready, status.url)}</span>}
+      {status !== 'checking' && !status.ready && <button type="button" className="link-btn" onClick={() => void check()}>Check again</button>}
+    </div>
+  );
+}
+
 /** Who listens when you dictate, and who speaks answers aloud: each with its own service and a fallback. */
 export function VoiceSection({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
   const path = (row: string) => settingPath('voice', subpage, row);
@@ -86,10 +107,14 @@ export function VoiceSection({ subpage, highlight, settings, preferences, onPref
         {local && (
           <Row path={path('speak-url')} title="Speech server on this computer" description="Its address, in OpenAI's audio format, as Kokoro serves it." highlight={highlight === 'speak-url'}>
             <TextField label="Speaking server address" value={preferences.speakUrl} valid={isVoiceUrl} problem={urlProblem} onSave={(speakUrl) => set({ speakUrl })} />
+            <LocalStatus job="speak" url={preferences.speakUrl} />
           </Row>
         )}
         <Row path={path('speak-fallback')} title="If that cannot speak" description="What to try next." highlight={highlight === 'speak-fallback'}>
           <PopUp label="If that cannot speak" value={preferences.speakFallback} options={SPEAK} onChange={(speakFallback) => set({ speakFallback })} />
+        </Row>
+        <Row path={path('read-aloud')} title="Read replies aloud" description="Each new reply is read as it arrives. Esc, or a new message, stops it. Every reply also has Speak." highlight={highlight === 'read-aloud'}>
+          <Toggle label="Read replies aloud" checked={preferences.readAloud} onChange={(readAloud) => set({ readAloud })} />
         </Row>
         <Row path={path('speak-test')} title="Try speaking" description="Ask the chosen server whether it answers." highlight={highlight === 'speak-test'}>
           <TestButton job="speak" label="Try speaking" />
@@ -112,6 +137,7 @@ export function VoiceSection({ subpage, highlight, settings, preferences, onPref
       {local && (
         <Row path={path('listen-url')} title="Speech server on this computer" description="Its address, in OpenAI's audio format, as faster-whisper serves it." highlight={highlight === 'listen-url'}>
           <TextField label="Listening server address" value={preferences.listenUrl} valid={isVoiceUrl} problem={urlProblem} onSave={(listenUrl) => set({ listenUrl })} />
+          <LocalStatus job="listen" url={preferences.listenUrl} />
         </Row>
       )}
       <Row path={path('listen-fallback')} title="If that cannot listen" description="What to try next." highlight={highlight === 'listen-fallback'}>

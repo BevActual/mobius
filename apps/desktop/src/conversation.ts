@@ -33,6 +33,8 @@ export interface ConversationState {
   control?: { step: number; of?: number } | null;
   /** How full the model's window was at its last request, as the core estimated it, in tokens. */
   context?: { used: number; limit: number };
+  /** How the last turn ended: well, failed, or stopped. */
+  ended?: 'done' | 'failed' | 'cancelled';
 }
 
 export type ConversationAction =
@@ -97,7 +99,7 @@ const cancelOpenTools = (items: Item[]): Item[] =>
     : item.kind === 'question' && (item.status === 'open' || item.status === 'sending') ? { ...item, status: 'cancelled' as const }
     : item);
 
-const finished = (state: ConversationState): ConversationState => ({ ...state, busy: false, turn: null, control: null, items: settleStreaming(state.items) });
+const finished = (state: ConversationState, ended: 'done' | 'failed' | 'cancelled'): ConversationState => ({ ...state, busy: false, turn: null, control: null, ended, items: settleStreaming(state.items) });
 
 function fromHistory(state: ConversationState, messages: Message[]): ConversationState {
   let next: ConversationState = { ...state, items: [], nextId: 1 };
@@ -138,7 +140,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
     case 'sent':
       return { ...withItem(state, (id) => ({ kind: 'user', id, text: action.text, ...(action.context && action.context.length > 0 ? { attachments: action.context } : {}), ...(action.images && action.images.length > 0 ? { images: action.images } : {}), at: action.at ?? Date.now() })), busy: true, turn: action.turn ?? null };
     case 'send-failed':
-      return finished(withItem(state, (id) => ({ kind: 'error', id, text: action.message })));
+      return finished(withItem(state, (id) => ({ kind: 'error', id, text: action.message })), 'failed');
     case 'answered':
       return updateTool(
         state,
@@ -150,7 +152,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
     case 'control':
       return { ...state, control: action.control };
     case 'reset-busy':
-      return finished({ ...state, items: cancelOpenTools(state.items) });
+      return finished({ ...state, items: cancelOpenTools(state.items) }, 'cancelled');
     case 'loaded':
       return state.busy ? state : fromHistory(state, action.messages);
     case 'answer-failed':
@@ -234,11 +236,11 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         case 'compacted':
           return withItem(base, (id) => ({ kind: 'notice', id, text: 'Earlier messages were summarised to make room for the model. They are still here for you.' }));
         case 'done':
-          return finished(base);
+          return finished(base, 'done');
         case 'failed':
-          return finished(withItem(base, (id) => ({ kind: 'error', id, text: event.message, failed: true })));
+          return finished(withItem(base, (id) => ({ kind: 'error', id, text: event.message, failed: true })), 'failed');
         case 'cancelled':
-          return finished({ ...base, items: cancelOpenTools(base.items) });
+          return finished({ ...base, items: cancelOpenTools(base.items) }, 'cancelled');
       }
     }
   }
