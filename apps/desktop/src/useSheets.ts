@@ -30,8 +30,11 @@ export function useSheets() {
     return list && !isNotesFailure(list) ? list : [];
   }, [api]);
 
+  // Whether a sheet is being read, so a workbook offered while one is on its way does not take its place.
+  const loading = useRef(0);
   const open = useCallback(async (workbook: string, sheet: string) => {
-    const got = await api?.read(workbook, sheet);
+    loading.current++;
+    const got = await api?.read(workbook, sheet).finally(() => { loading.current--; });
     if (!got) return false;
     if (isNotesFailure(got)) { setMessage(got.message); return false; }
     live.current = got;
@@ -52,9 +55,20 @@ export function useSheets() {
       const last = remembered();
       const found = last && list.find((w) => w.name === last.workbook && w.sheets.includes(last.sheet));
       if (found && last) void open(last.workbook, last.sheet);
+      // With nothing remembered, a lone workbook opens, so a first visit never lands on an empty window.
+      else if (list.length === 1) void open(list[0]!.name, list[0]!.sheets[0] ?? 'Sheet 1');
     });
     return api?.onChanged((change) => {
-      void refresh();
+      const listed = refresh();
+      // A workbook Mobius made or changed opens when none is open, so it can be seen and reviewed.
+      if (change.by === 'assistant' && change.workbook && !live.current) {
+        const name = change.workbook;
+        void listed.then((list) => {
+          const made = list.find((w) => w.name === name);
+          if (made && !live.current) void open(made.name, made.sheets[0] ?? 'Sheet 1');
+        });
+        return;
+      }
       const d = live.current;
       if (!d || (change.workbook && change.workbook !== d.workbook)) return;
       const before = d.cells;
@@ -153,7 +167,13 @@ export function useSheets() {
     if (left) await open(d.workbook, left);
   }, [api, refresh, open]);
 
-  return { available: api !== undefined, workbooks, data, message, fresh, open, set, shift, createWorkbook, addSheet, renameSheet, removeSheet, refresh, reload };
+  /** Opens a workbook only when none is open or on its way: for one Mobius changed, offered on arrival. */
+  const openIfIdle = useCallback((workbook: string, sheet: string) => {
+    if (live.current || loading.current > 0) return;
+    void open(workbook, sheet);
+  }, [open]);
+
+  return { available: api !== undefined, openIfIdle, workbooks, data, message, fresh, open, set, shift, createWorkbook, addSheet, renameSheet, removeSheet, refresh, reload };
 }
 
 export type SheetsState = ReturnType<typeof useSheets>;

@@ -1341,6 +1341,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .calendar-row:hover { background: var(--soft); }
 .calendar-row input { appearance: none; width: 14px; height: 14px; margin: 0; border-radius: 4px; border: 2px solid var(--swatch); background: var(--swatch); cursor: pointer; }
 .calendar-row input:not(:checked) { background: transparent; }
+/* A white tick on the colour, so a shown calendar never reads as an empty box. */
+.calendar-row input:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.5 7.2 6 9.6l4.6-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-size: 100% 100%; }
 .calendar-row input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .calendar-side-note { margin: auto var(--sp-3) var(--sp-3); font-size: var(--fs-xs); color: var(--muted); }
 .cal-editor-backdrop { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(0, 0, 0, 0.18); }
@@ -2548,10 +2550,6 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 /* A row's own menu (right-click): out of the way, for what is easy to regret. */
 .mail-account { position: relative; border-radius: 8px; }
 .mail-account:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
-.row-menu { position: absolute; z-index: 40; right: 4px; top: 100%; min-width: 160px; padding: 4px; border-radius: 10px; border: 0.5px solid var(--hairline); background: var(--bg); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16); }
-.row-menu-item { display: flex; width: 100%; height: 28px; align-items: center; padding: 0 10px; border-radius: 6px; font-size: 13px; color: var(--ink); text-align: left; }
-.row-menu-item:hover, .row-menu-item:focus-visible { background: var(--side-select); outline: 0; }
-.row-menu-item[data-danger] { color: #c4271c; }
 
 /* Selection is a soft fill, never a dashed edge; what Mobius changed and is waiting has a small indigo dot. */
 :is(.rail-app, .dock.left) .side :is(.note-row, .list-row, .clist-item, .files-row)[data-proposed] { outline: none; }
@@ -2703,8 +2701,8 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 /* Gateways: an empty state, and red text for what is easy to regret. */
 .gateways-empty { padding: 6px 0 4px; }
 .gateways-empty-title { margin: 0; font-size: 13px; font-weight: 500; }
-.btn.danger, .btn.link.danger { color: #c4271c; }
-@media (prefers-color-scheme: dark) { .btn.danger, .btn.link.danger { color: #ff6961; } }
+.btn.link.danger { color: #c4271c; }
+@media (prefers-color-scheme: dark) { .btn.link.danger { color: #ff6961; } }
 .prow-confirm { display: inline-flex; align-items: center; gap: 6px; }
 
 /* An update is downloaded: a small capsule in the toolbar, never a dialog. */
@@ -2832,7 +2830,7 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 
 .glass,
 html .context-strip, html .launcher, html .hub, html .popmenu-list, html .convo-menu, html .rail-menu, html .menu-panel,
-html .selection-menu, html .selection-bar, html .tab-menu, html .address-suggestions, html .code-menu, html .code-quick,
+html .selection-menu, html .selection-bar, html .address-suggestions, html .code-quick,
 html .code-bar, html .sheet-menu, html .sheet-suggest, html .note-share-menu, html .note-comment-composer, html .tasks-undo,
 html .doc-editor .doc-toolbar, html .chat.full .composer, html .dock[data-floating] {
   background: var(--glass-tint); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
@@ -2843,7 +2841,7 @@ html .rail[data-expanded]::before, html .dock.left:not([data-floating]) > .side,
   background: var(--glass-tint); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
   box-shadow: var(--glass-edge), var(--panel-shadow);
 }
-html :is(.launcher, .hub, .popmenu-list, .convo-menu, .rail-menu, .menu-panel, .selection-menu, .tab-menu, .code-menu, .sheet-menu) { border: 0; box-shadow: var(--glass-edge), 0 18px 50px rgba(0, 0, 0, 0.22); }
+html :is(.launcher, .hub, .popmenu-list, .convo-menu, .rail-menu, .menu-panel, .selection-menu, .sheet-menu) { border: 0; box-shadow: var(--glass-edge), 0 18px 50px rgba(0, 0, 0, 0.22); }
 /* No glass on glass: what sits on the sidebar or the panel is not glass again. */
 :is(.rail-app, .dock.left, .rail[data-expanded]) :is(.settings-nav, .side) { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border: 0; }
 
@@ -2892,6 +2890,7 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
 /* The shared context menu (ContextMenu.tsx): glass, the standard actions' icons, Delete in red. */
 .context-menu { position: fixed; z-index: 950; display: flex; flex-direction: column; min-width: 200px; padding: 5px; border-radius: 14px; box-shadow: var(--glass-edge), 0 18px 50px rgba(0, 0, 0, 0.22); }
 .context-menu-item { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: calc(14px - 5px); font-size: var(--fs-md); color: var(--ink); text-align: left; }
+.context-menu-keys { margin-left: auto; padding: 0 0 0 16px; border: 0; background: none; font: inherit; font-size: var(--fs-xs); color: var(--muted); }
 .context-menu-item:hover:not(:disabled), .context-menu-item:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
 .context-menu-item[data-danger] { color: var(--danger); }
 .context-menu-item[data-separated] { margin-top: 5px; position: relative; }

@@ -1,5 +1,5 @@
 import { chromium, expect, test, type Page } from '@playwright/test';
-import { spawn, execSync } from 'node:child_process';
+import { spawn, execSync, execFileSync } from 'node:child_process';
 import http from 'node:http';
 import net from 'node:net';
 import type { AddressInfo } from 'node:net';
@@ -335,8 +335,9 @@ function endLeftovers(shellExe: string, userData: string): string {
   // (which took longer than the time allowed on CI, so nothing was ended and the next test started slowly).
   const quote = (text: string) => text.replace(/'/g, "''");
   const script = [
-    `$ProgressPreference = 'SilentlyContinue'; $folder = '${quote(path.dirname(shellExe))}\\'; $data = '${quote(userData)}'; $out = @()`,
-    "Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith($folder, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { $out += \"$($_.ProcessName) $($_.Id) (from the build)\"; Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }",
+    `$ProgressPreference = 'SilentlyContinue'; $began = Get-Date; $folder = '${quote(path.dirname(shellExe))}\\'; $data = '${quote(userData)}'; $out = @()`,
+    // Only what started before this search: a search that runs late must never end the next test's app.
+    "Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith($folder, [StringComparison]::OrdinalIgnoreCase) -and $_.StartTime -lt $began } | ForEach-Object { $out += \"$($_.ProcessName) $($_.Id) (from the build)\"; Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }",
     "$like = $data.Replace('\\', '\\\\').Replace(\"'\", \"\\'\")",
     "Get-CimInstance Win32_Process -Filter \"CommandLine LIKE '%$like%'\" -Property ProcessId,Name,CommandLine -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -ne $PID } | ForEach-Object { $c = [string]$_.CommandLine; $out += \"$($_.Name) $($_.ProcessId): \" + $c.Substring(0, [Math]::Min(160, $c.Length)); Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
     "$out -join ' | '",
@@ -344,7 +345,9 @@ function endLeftovers(shellExe: string, userData: string): string {
   const encoded = Buffer.from(script, 'utf16le').toString('base64');
   const began = Date.now();
   try {
-    return execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { encoding: 'utf8', timeout: 20_000 }).trim();
+    // PowerShell itself, not through cmd.exe: on the time limit Node ends the process it started, and through cmd.exe
+    // that was cmd alone, so PowerShell carried on and ended the next test's app (from this same build) seconds later.
+    return execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], { encoding: 'utf8', timeout: 20_000, windowsHide: true }).trim();
   } catch (e) {
     return `the search for them failed after ${Date.now() - began} ms (${String((e as Error).message).split('\n')[0]!.slice(0, 120)})`;
   }

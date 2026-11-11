@@ -90,7 +90,3 @@
 .code-side .code-confirm div { display: flex; justify-content: flex-end; gap: 6px; }
 .code-side .code-confirm .btn { height: 26px; }
 
-.code-menu { position: fixed; z-index: 901; display: grid; min-width: 190px; padding: 5px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
-.code-menu button { height: 26px; padding: 0 10px; border-radius: 6px; text-align: left; font-size: var(--fs-md, 13px); color: var(--ink); cursor: default; }
-.code-menu button:hover, .code-menu button:focus-visible { background: var(--accent); color: var(--on-accent, #fff); outline: none; }
-.code-menu button[data-danger]:not(:hover):not(:focus-visible) { color: var(--danger); }

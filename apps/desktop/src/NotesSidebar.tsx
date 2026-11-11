@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { NoteHit, NotePage } from '@mobius/shared';
 import { hasTag, onShowTag, tagCounts } from './note-tags';
@@ -20,7 +20,7 @@ export function newItemIn(notes: NotesState, group: string | null | undefined, f
   if (into) void notes.createPage(into);
   else if (fallback) void notes.createNotebook(fallback).then((made) => { if (made) void notes.createPage(made); });
 }
-export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'page', items: 'pages', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.' };
+export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'page', items: 'pages', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.', defaultGroup: 'Notes' };
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
 /**
@@ -32,6 +32,15 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   const [tag, setTag] = useState<string | null>(null);
   useEffect(() => (withTags ? onShowTag((t) => { setQuery(''); setTag(t); }) : undefined), [withTags]);
   const allPages = useMemo(() => notes.notebooks.flatMap((nb) => nb.pages.map((pg) => ({ ...pg, notebook: nb.name }))), [notes.notebooks]);
+  // A page Mobius changed in its last turn opens when none is, once, so a visit after asking lands on it.
+  const offered = useRef(false);
+  useEffect(() => {
+    if (offered.current || notes.page || !changed?.size) return;
+    const made = allPages.filter((pg) => changed.has(pg.path)).sort((a, b) => b.modified - a.modified)[0];
+    if (!made) return;
+    offered.current = true;
+    notes.openIfIdle(made.path, made.title);
+  }, [changed, allPages]); // eslint-disable-line react-hooks/exhaustive-deps
   const tagList = useMemo(() => (withTags ? tagCounts(allPages) : []), [withTags, allPages]);
   const pinnedPages = useMemo(() => allPages.filter((pg) => pinned?.has(pg.path)), [allPages, pinned]);
   const tagged = useMemo(() => (tag ? allPages.filter((pg) => hasTag(pg.tags, tag)).sort((a, b) => b.modified - a.modified) : []), [tag, allPages]);

@@ -15,6 +15,7 @@ import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from './line-diff';
 import { liveTitle } from './notes-state';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
+import { untitledHeading } from './NoteEditor';
 import { EmptyState } from './EmptyState';
 import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
@@ -374,7 +375,11 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
     known.current = docs.text;
     editor.chain().setMeta('mobius-load', true).setContent(docs.text, { contentType: 'markdown', emitUpdate: false }).run();
     // Not while a dialog is open (the launcher): a page that loads late must not take the keys from it.
-    if (autoFocus && !document.querySelector('dialog[open]')) editor.commands.focus('end');
+    if (autoFocus && !document.querySelector('dialog[open]')) {
+      // A new document: its title is chosen, so what is typed first names it.
+      const at = untitledHeading(editor);
+      if (at) editor.chain().focus().setTextSelection(at).run(); else editor.commands.focus('end');
+    }
   }, [editor, docs.text, path]); // eslint-disable-line react-hooks/exhaustive-deps
   const quoteKey = quotesNow.current.join('\u0000');
   useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(commentKey, true)); }, [editor, quoteKey]);
@@ -556,7 +561,9 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
     );
   }
   const title = liveTitle(docs.text, docs.page.title || path?.split('/')[1]?.replace(/\.md$/, '') || '');
-  const showing = review && !kept && diff;
+  // A document Mobius wrote from nothing is shown as the page itself, outlined, not as a list of added lines.
+  const wholeNew = Boolean(review && !kept && diff && before === null);
+  const showing = review && !kept && diff && !wholeNew;
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
@@ -624,7 +631,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
             {review && !kept && (
               <div ref={reviewBar} className="note-review doc-review" role="status">
                 <span className="review-dot" aria-hidden="true" />
-                <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `Mobius changed ${c.added + c.removed === 1 ? 'one line' : `${c.added + c.removed} lines`} here in its last turn.`; })() : 'Mobius changed this document in its last turn.'}<WhyThis conversation={review.conversation} /></span>
+                <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return wholeNew ? 'Mobius wrote this document in its last turn.' : `Mobius changed ${c.added + c.removed === 1 ? 'one line' : `${c.added + c.removed} lines`} here in its last turn.`; })() : 'Mobius changed this document in its last turn.'}<WhyThis conversation={review.conversation} /></span>
                 <ReviewActions
                   onKeep={async () => { const page = reviewBar.current?.parentElement; await Promise.all([settleKept(reviewBar.current), settleKept(page?.querySelector('.doc-proposals'))]); await keepAll(); }}
                   onDiscard={async () => { const paper = reviewBar.current?.parentElement?.querySelector('.doc-sheet'); await Promise.all([settleGone(paper), settleGone(reviewBar.current?.parentElement?.querySelector('.doc-proposals'))]); await discardAll(); settleIn(paper); }} />
@@ -632,7 +639,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
             )}
             {problem && <p className="tasks-message" role="alert">{problem}</p>}
             {showing && <Proposals diff={diff} onDiscard={discardOne} />}
-            <div className="doc-sheet">
+            <div className="doc-sheet" data-new={wholeNew || undefined}>
               <EditorContent editor={editor} className="doc-paper" />
               {margin && (
                 <aside className="doc-margin" aria-label="Comments on this document">

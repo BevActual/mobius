@@ -440,4 +440,13 @@ describe('how a turn ended', () => {
     const opened = reduce(initialConversation('main'), { type: 'loaded', messages: [{ role: 'user', text: 'go' }], onOpen: true });
     expect(opened.items.map((i) => i.kind)).toEqual(['user']);
   });
+  it('a read made for the conversation shown before a switch does not fill the one switched to', () => {
+    // Started blank (the last conversation is not reopened): the last one's read comes back after the switch.
+    const fresh = reduce(initialConversation('old'), { type: 'switch', conversation: 'new' });
+    const late = reduce(fresh, { type: 'loaded', messages: [{ role: 'user', text: 'hello there' }], onOpen: true, conversation: 'old' });
+    expect(late).toBe(fresh);
+    // The new conversation's own read still applies.
+    const own = reduce(late, { type: 'loaded', messages: [], onOpen: true, conversation: 'new' });
+    expect(own.items).toEqual([]);
+  });
 });

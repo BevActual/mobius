@@ -74,15 +74,10 @@
 .list-more { flex: none; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
 .list-more svg { width: 16px; height: 16px; fill: currentColor; }
 .list-item:hover .list-more, .list-more:focus-visible, .list-more[aria-expanded="true"] { opacity: 1; }
-.list-menu { position: absolute; z-index: 20; top: calc(100% - 2px); right: 4px; min-width: 160px; padding: 5px; display: grid; border: 0.5px solid var(--line); border-radius: 10px; background: var(--bg); box-shadow: var(--shadow-2); animation: tasks-pop var(--dur-fast) var(--ease); }
-.list-menu button { height: 26px; padding: 0 10px; border-radius: 6px; text-align: left; font-size: var(--fs-md); }
-.list-menu button:hover, .list-menu button:focus-visible { background: var(--accent); color: var(--on-accent); outline: none; }
-.list-menu .danger { color: var(--danger); }
 .list-rename { flex: 1; }
 .list-confirm { position: absolute; z-index: 20; top: calc(100% + 2px); left: 4px; right: 4px; padding: 12px; border: 0.5px solid var(--line); border-radius: 12px; background: var(--bg); box-shadow: var(--shadow-2); animation: tasks-pop var(--dur-fast) var(--ease); }
 .list-confirm p { margin: 0 0 10px; font-size: var(--fs-sm); line-height: 1.4; }
 .list-confirm-actions { display: flex; justify-content: flex-end; gap: 6px; }
-.btn.danger { color: var(--danger); }
 @keyframes tasks-pop { from { opacity: 0; transform: translateY(-3px) scale(0.98); } to { opacity: 1; transform: none; } }
 
 /* ---------- Page ---------- */
@@ -204,7 +199,7 @@
 @keyframes tasks-up { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .task-inspector, .tasks-undo, .list-menu, .list-confirm, .task-when { animation: none; }
+  .task-inspector, .tasks-undo, .list-confirm, .task-when { animation: none; }
   .task-line, .task-items .task-check, .tasks-side .smart-tile { transition: none; }
 }
 @media (max-width: 900px) {
@@ -216,3 +211,8 @@
 
 /* The tasks line up under the add row, at the same width. */
 .tasks-main > .task-items { margin-left: auto; margin-right: auto; }
+/* Where a task went when it will not show in this view. */
+.task-new:has(.task-went) { flex-wrap: wrap; }
+.task-went { flex-basis: 100%; display: flex; align-items: center; gap: var(--sp-2); margin: 2px 0 0 33px; color: var(--muted); font-size: var(--fs-sm); animation: tasks-pop var(--dur-med) var(--ease); }
+.task-went > span { flex: 1; min-width: 0; }
+@media (prefers-reduced-motion: reduce) { .task-went { animation: none; } }

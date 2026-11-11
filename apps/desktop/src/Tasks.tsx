@@ -1,4 +1,6 @@
 import { RowMark } from './RowMark';
+import { createPortal } from 'react-dom';
+import { ContextMenu } from './ContextMenu';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem } from '@mobius/shared';
@@ -43,7 +45,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
   // The page's own Mobius starts fill the message box the same way.
   useEffect(() => { if (onStart) tasks.ask.current = onStart; }, [onStart, tasks.ask]);
   const [name, setName] = useState('');
-  const [menu, setMenu] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ name: string; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
@@ -55,12 +57,6 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
     event.preventDefault();
     if (await tasks.createList(name.trim() || 'List')) { setNaming(false); setName(''); }
   };
-  useEffect(() => {
-    if (!menu) return undefined;
-    const close = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.list-menu, .list-more')) setMenu(null); };
-    window.addEventListener('mousedown', close);
-    return () => window.removeEventListener('mousedown', close);
-  }, [menu]);
   const drop = (list: string) => ({
     onDragOver: (e: DragEvent) => { if (isTaskDrag(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropOn(list); } },
     onDragLeave: () => setDropOn((d) => (d === list ? null : d)),
@@ -115,7 +111,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
               ) : (
                 <>
                   <button type="button" className="list-row" data-proposed={changed?.has(l.name) || undefined} aria-current={current('list', l.name)} onClick={() => tasks.setView({ kind: 'list', name: l.name })}
-                    onContextMenu={(e) => { if (l.name !== DEFAULT_LIST_NAME) { e.preventDefault(); setMenu(l.name); } }}>
+                    onContextMenu={(e) => { if (l.name !== DEFAULT_LIST_NAME) { e.preventDefault(); setMenu({ name: l.name, x: e.clientX, y: e.clientY }); } }}>
                     <ListIcon name={l.name} />
                     <span className="list-name">{l.name}</span>
                     <RowMark changed={changed?.has(l.name) === true} changedTitle="Changed by Mobius in its last turn" />
@@ -125,15 +121,16 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
                   </button>}
                   {l.name !== DEFAULT_LIST_NAME && (
-                    <button type="button" className="list-more" aria-label={`More for ${l.name}`} aria-haspopup="menu" aria-expanded={menu === l.name} title="More" onClick={() => setMenu((m) => (m === l.name ? null : l.name))}>
+                    <button type="button" className="list-more" aria-label={`More for ${l.name}`} aria-haspopup="menu" aria-expanded={menu?.name === l.name} title="More" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m?.name === l.name ? null : { name: l.name, x: r.left, y: r.bottom + 4 })); }}>
                       <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
                     </button>
                   )}
-                  {menu === l.name && (
-                    <div className="list-menu" role="menu" aria-label={l.name} onKeyDown={(e) => { if (e.key === 'Escape') setMenu(null); }}>
-                      <button type="button" role="menuitem" autoFocus onClick={() => { setMenu(null); setRenaming(l.name); }}>Rename…</button>
-                      <button type="button" role="menuitem" className="danger" onClick={() => { setMenu(null); setDeleting(l.name); }}>Delete list…</button>
-                    </div>
+                  {menu?.name === l.name && createPortal(
+                    <ContextMenu x={menu.x} y={menu.y} label={l.name} onClose={() => setMenu((m) => (m?.name === l.name ? null : m))} items={[
+                      { action: 'rename', label: 'Rename…', run: () => setRenaming(l.name) },
+                      { action: 'delete', label: 'Delete list…', danger: true, separated: true, run: () => setDeleting(l.name) },
+                    ]} />,
+                    document.body,
                   )}
                 </>
               )}
@@ -445,6 +442,9 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
   const input = useRef<HTMLInputElement>(null);
   const typing = useRef(text);
   typing.current = text;
+  // A task added where it will not show (Today, for one due tomorrow) says where it went, with a way there.
+  const [went, setWent] = useState<{ text: string; when: string } | null>(null);
+  useEffect(() => { if (!went) return; const t = window.setTimeout(() => setWent(null), 6000); return () => window.clearTimeout(t); }, [went]);
   useEffect(() => { if (focusToken) input.current?.focus(); }, [focusToken]);
   const now = new Date();
   const said = literal || due ? null : parseWhen(text, now);
@@ -457,7 +457,9 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
     const typed = { text, due, literal };
     setText(''); setDue(''); setLiteral(false);
     input.current?.focus();
-    if (!(await tasks.add(target, words, date)) && typing.current === '') { setText(typed.text); setDue(typed.due); setLiteral(typed.literal); }
+    const added = await tasks.add(target, words, date);
+    if (!added && typing.current === '') { setText(typed.text); setDue(typed.due); setLiteral(typed.literal); }
+    if (added && tasks.view.kind === 'smart' && tasks.view.id === 'today' && date && date > isoDay(now)) setWent({ text: words, when: dueLabel(date, now).text });
   };
   return (
     <form className="task-new" data-typing={text !== '' || due !== '' || undefined} onSubmit={(e) => void submit(e)}>
@@ -471,6 +473,12 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
         </button>
       )}
       <input type="date" className="task-date" aria-label="Due date for the new task" value={due} onChange={(e) => setDue(e.target.value)} />
+      {went && (
+        <p className="task-went" role="status">
+          <span>{`“${went.text}” is due ${went.when}, so it is in Scheduled.`}</span>
+          <button type="button" className="review-btn" onClick={() => { setWent(null); tasks.setView({ kind: 'smart', id: 'scheduled' }); }}>Show</button>
+        </p>
+      )}
     </form>
   );
 }

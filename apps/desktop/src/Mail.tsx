@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { ContextMenu } from './ContextMenu';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailState } from './useMail';
 import { ReviewActions } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
+import { EmptyState } from './EmptyState';
 
 const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
   { id: 'primary', label: 'Primary' },
@@ -84,7 +86,8 @@ function AccountDialog({ mail, onClose }: { mail: MailState; onClose: () => void
 /** Mailboxes, drafts and accounts. */
 export function MailSidebar({ mail, pin, starts, onStart }: { mail: MailState; pin?: ReactNode; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [adding, setAdding] = useState(false);
-  const [accountMenu, setAccountMenu] = useState<string | null>(null);
+  const [accountMenu, setAccountMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
   const v = mail.view;
   const here = (kind: 'inbox' | 'sent' | 'drafts') => (kind === 'drafts' ? v.kind === 'drafts' : v.kind === 'box' && v.box === kind) ? 'page' : undefined;
   return (
@@ -109,13 +112,23 @@ export function MailSidebar({ mail, pin, starts, onStart }: { mail: MailState; p
         <ul role="list" aria-label="Mail accounts">
           {mail.accounts.map((a) => (
             <li key={a.id} className="mail-account" tabIndex={0} title={`${a.email}: right-click for more`}
-              onContextMenu={(e) => { e.preventDefault(); setAccountMenu(a.id); }}
-              onKeyDown={(e) => { if (e.key === 'Escape') setAccountMenu(null); }}>
+              onContextMenu={(e) => { e.preventDefault(); setAccountMenu({ id: a.id, x: e.clientX, y: e.clientY }); }}
+              onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setAccountMenu({ id: a.id, x: r.left + 12, y: r.bottom }); } }}>
               <span className="list-name">{a.email}</span>
               {/* Removing an account is in a menu of its own (right-click), so it is not hit by mistake. */}
-              {accountMenu === a.id && (
-                <div className="row-menu" role="menu" aria-label={`${a.email} menu`} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setAccountMenu(null); }}>
-                  <button type="button" role="menuitem" autoFocus className="row-menu-item" data-danger aria-label={`Remove ${a.email}`} onClick={() => { setAccountMenu(null); void mail.removeAccount(a.id); }}>Remove account</button>
+              {accountMenu?.id === a.id && createPortal(
+                <ContextMenu x={accountMenu.x} y={accountMenu.y} label={`${a.email} menu`} onClose={() => setAccountMenu((m) => (m?.id === a.id ? null : m))} items={[
+                  { action: 'delete', label: 'Remove account…', danger: true, run: () => setRemoving(a.id) },
+                ]} />,
+                document.body,
+              )}
+              {removing === a.id && (
+                <div className="list-confirm" role="alertdialog" aria-label={`Remove ${a.email}?`}>
+                  <p>Remove {a.email} from Mobius? Its mail stays with your provider.</p>
+                  <div className="list-confirm-actions">
+                    <button type="button" className="btn" autoFocus onClick={() => setRemoving(null)}>Cancel</button>
+                    <button type="button" className="btn danger" onClick={() => { setRemoving(null); void mail.removeAccount(a.id); }}>Remove</button>
+                  </div>
                 </div>
               )}
               {a.problem && <p className="calendar-account-problem" role="alert">{a.problem}</p>}
@@ -267,6 +280,7 @@ function Row({ m, on, onOpen }: { m: MailMessage; on: boolean; onOpen: () => voi
 /** The Mail app: categories, the list, and the message or draft open beside it. */
 export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply?: (m: MailContent) => void }) {
   const v = mail.view;
+  const [adding, setAdding] = useState(false);
   // E archives, R replies, H puts the open message off until tomorrow at 8:00. Not while typing, and not with Ctrl or Alt.
   const keys = useRef(mail);
   keys.current = mail;
@@ -283,11 +297,12 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  if (!mail.available) return <section className="mail-page empty" aria-label="Mail"><p className="note-empty">Mail is not available here.</p></section>;
+  if (!mail.available) return <section className="mail-page empty" aria-label="Mail"><EmptyState app="mail" title="Mail is not available here" /></section>;
   if (mail.accounts.length === 0) {
     return (
       <section className="mail-page empty" aria-label="Mail">
-        <p className="note-empty">Add a mail account in the sidebar to see your mail here. Mobius reads and drafts; only you send.</p>
+        <EmptyState app="mail" title="No mail account yet" line="Add one to see your mail here. Mobius reads and drafts; only you send." action={{ label: 'Add an account', run: () => setAdding(true) }} />
+        {adding && <AccountDialog mail={mail} onClose={() => setAdding(false)} />}
       </section>
     );
   }
@@ -326,7 +341,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
         {mail.message && <p className="tasks-message" role="alert">{mail.message}</p>}
         {mail.editing ? <DraftEditor key={mail.editing.id || 'new'} mail={mail} draft={mail.editing} />
           : mail.open ? <Reader mail={mail} content={mail.open} {...(onDraftReply ? { onDraftReply } : {})} />
-            : <p className="note-empty">Choose a message.</p>}
+            : <EmptyState app="mail" label="No message open" title="No message open" line="Choose one in the list." />}
       </div>
     </section>
   );

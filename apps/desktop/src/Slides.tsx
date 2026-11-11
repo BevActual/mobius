@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
@@ -155,25 +156,6 @@ function LayoutMenu({ anchor, onPick, onClose }: { anchor: DOMRect; onPick: (l: 
   );
 }
 
-/** A slide's right-click menu in the navigator. */
-function SlideMenu({ x, y, items, onClose }: { x: number; y: number; items: { label: string; keys?: string; danger?: boolean; disabled?: boolean; run: () => void }[]; onClose: () => void }) {
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => { box.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus(); }, []);
-  return createPortal(
-    <>
-      <div className="slides-scrim" onMouseDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
-      <div ref={box} className="slides-menu glass" role="menu" aria-label="Slide" style={{ top: Math.min(y, window.innerHeight - 220), left: Math.min(x, window.innerWidth - 220) }} onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
-        {items.map((it, n) => it.label === '-' ? <div key={`sep${n}`} className="slides-menu-sep" /> : (
-          <button key={it.label} type="button" role="menuitem" disabled={it.disabled} data-danger={it.danger || undefined} onClick={() => { onClose(); it.run(); }}>
-            <span>{it.label}</span>{it.keys && <kbd>{it.keys}</kbd>}
-          </button>
-        ))}
-      </div>
-    </>,
-    document.body,
-  );
-}
-
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable);
 
 /** The open deck: slides down the side, the one chosen to edit at 16:9, its presenter notes, a Format inspector, and Play. */
@@ -184,7 +166,6 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const [chosen, setAt] = useState(0);
   const at = Math.max(0, Math.min(chosen, slides.length - 1));
   const [playing, setPlaying] = useState<number | null>(null);
-  const [toolsOpen, setToolsOpen] = useState(false);
   const [layoutsAt, setLayoutsAt] = useState<DOMRect | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; i: number } | null>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
@@ -327,15 +308,13 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
     );
   }
   const proposing = review && !kept && changed.size > 0;
-  const menuFor = (i: number) => [
-    { label: 'New slide', keys: '', run: () => insertAt(i + 1, LAYOUTS[1]!.make()) },
-    { label: 'Duplicate', keys: 'Ctrl+D', run: () => duplicate(i) },
-    { label: '-', run: () => {} },
-    { label: 'Move up', keys: 'Alt+↑', disabled: i === 0, run: () => moveTo(i, i - 1) },
+  const menuFor = (i: number): ContextMenuItem[] => [
+    { label: 'New slide', run: () => insertAt(i + 1, LAYOUTS[1]!.make()) },
+    { action: 'duplicate', keys: 'Ctrl+D', run: () => duplicate(i) },
+    { label: 'Move up', keys: 'Alt+↑', disabled: i === 0, run: () => moveTo(i, i - 1), separated: true },
     { label: 'Move down', keys: 'Alt+↓', disabled: i === slides.length - 1, run: () => moveTo(i, i + 2) },
     { label: 'Play from here', run: () => setPlaying(i) },
-    { label: '-', run: () => {} },
-    { label: 'Delete slide', keys: 'Delete', danger: true, disabled: slides.length <= 1, run: () => remove(i) },
+    { action: 'delete', label: 'Delete slide', keys: 'Delete', danger: true, disabled: slides.length <= 1, run: () => remove(i), separated: true },
   ];
   return (
     <section className="slides-page" aria-label={`Deck: ${deck.page.title}`} onKeyDown={onPageKey}>
@@ -358,21 +337,6 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
         <button type="button" className="slides-tool icon" aria-label="Duplicate slide" title="Duplicate (Ctrl+D)" onClick={() => duplicate()}><Icon d={ICON.duplicate} /></button>
         <button type="button" className="slides-tool icon" aria-label="Delete slide" title="Delete slide" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
         <span className="spacer" />
-        {onTool && (
-          <div className="doc-writing">
-            <button type="button" className="slides-tool mobius" aria-haspopup="menu" aria-expanded={toolsOpen} disabled={busy} onClick={() => setToolsOpen((o) => !o)}>Ask Mobius</button>
-            {toolsOpen && createPortal(
-              <>
-                <div className="doc-writing-scrim" onMouseDown={() => setToolsOpen(false)} />
-                <div className="doc-writing-menu" role="menu" aria-label="Ask Mobius" style={{ top: 96, right: 16, left: 'auto' }}>
-                  <p className="doc-writing-sees">Sees: this deck</p>
-                  {TOOLS.map((t) => <button key={t.id} type="button" role="menuitem" onClick={() => { setToolsOpen(false); onTool(t.id, at); }}>{t.label}</button>)}
-                </div>
-              </>,
-              document.body,
-            )}
-          </div>
-        )}
         <button type="button" className="slides-tool icon" aria-label="Format" title="Format" aria-pressed={formatOpen} onClick={() => setFormatOpen((o) => !o)}><Icon d={ICON.format} /></button>
         <button type="button" className="slides-play-btn" title="Play from this slide (Ctrl+Enter)" onClick={() => setPlaying(at)}><Icon d={ICON.play} /><span>Play</span></button>
       </div>
@@ -434,6 +398,15 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
                 ))}
               </div>
             </section>
+            {onTool && (
+              <section className="slides-section" aria-label="Ask Mobius">
+                {/* The one place in the deck to hand Mobius a job; anything else goes in the Ask field above. */}
+                <div className="slides-section-title">Ask Mobius to</div>
+                <div className="slides-layout-list">
+                  {TOOLS.map((t) => <button key={t.id} type="button" className="slides-chip" disabled={busy} onClick={() => onTool(t.id, at)}>{t.label}</button>)}
+                </div>
+              </section>
+            )}
             <section className="slides-section">
               <div className="slides-section-title">Start again from a layout</div>
               <div className="slides-layout-list">
@@ -459,7 +432,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
         )}
       </div>
       {layoutsAt && <LayoutMenu anchor={layoutsAt} onPick={pickLayout} onClose={() => setLayoutsAt(null)} />}
-      {menu && <SlideMenu x={menu.x} y={menu.y} items={menuFor(menu.i)} onClose={() => setMenu(null)} />}
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={`Slide ${menu.i + 1}`} items={menuFor(menu.i)} onClose={() => setMenu(null)} />, document.body)}
       {playing !== null && <Play slides={slides} start={Math.min(playing, slides.length - 1)} onClose={() => setPlaying(null)} />}
     </section>
   );

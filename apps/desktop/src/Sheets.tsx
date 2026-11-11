@@ -1,5 +1,6 @@
 import { RowMark } from './RowMark';
 import { EmptyState } from './EmptyState';
+import { ContextMenu } from './ContextMenu';
 import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
@@ -12,11 +13,27 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 
+const NEW_WORKBOOK = 'mobius-sheets-new-workbook';
+/** Whether a sidebar is shown to ask for the name; with the sidebar hidden, the workbook is made as "Workbook". */
+let namers = 0;
+
 /** The workbooks, each with its sheets. */
 export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheets: SheetsState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
+  // Every New workbook asks for its name here, with "Workbook" chosen so typing replaces it.
+  const startNaming = () => { setName('Workbook'); setNaming(true); };
+  // A workbook Mobius changed in its last turn opens when none is, once, so a visit after asking lands on it.
+  const offered = useRef(false);
+  useEffect(() => {
+    if (offered.current || here || !changed?.size) return;
+    const book = sheets.workbooks.find((w) => changed.has(w.name));
+    if (!book) return;
+    offered.current = true;
+    sheets.openIfIdle(book.name, book.sheets[0] ?? 'Sheet 1');
+  }, [changed, sheets.workbooks]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const go = () => startNaming(); namers++; window.addEventListener(NEW_WORKBOOK, go); return () => { namers--; window.removeEventListener(NEW_WORKBOOK, go); }; }, []);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (await sheets.createWorkbook(name.trim() || 'Workbook')) { setNaming(false); setName(''); }
@@ -35,11 +52,11 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
       </div>
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
-          <input autoFocus aria-label="Workbook name" placeholder="Workbook name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
+          <input autoFocus onFocus={(e) => e.currentTarget.select()} aria-label="Workbook name" placeholder="Workbook name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
           <button type="submit" className="btn primary">Create</button>
         </form>
       )}
-      <SideNew item="workbook" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
+      <SideNew item="workbook" onNew={startNaming} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
       <input className="side-search" type="search" aria-label="Search sheets" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
       <nav className="task-lists" aria-label="Workbooks">
         {sheets.workbooks.length === 0 && !naming && <p className="side-empty">No workbooks yet.</p>}
@@ -71,6 +88,8 @@ type Edit = { at: Pos; text: string; where: 'cell' | 'bar'; caret: number };
 const ROW_H = 24;
 const HEAD_H = 22;
 const COL_W = 104;
+/** The widest a column grows to fit its words by itself. */
+const FIT_MAX = 260;
 const REF_COLORS = ['#0a84ff', '#ff9f0a', '#30d158', '#bf5af2', '#ff375f', '#64d2ff'];
 const keep = (e: { preventDefault: () => void }) => e.preventDefault();
 
@@ -90,7 +109,23 @@ function writeKept<T>(key: string, place: string, value: T | undefined) {
 /** A first row of words over rows with numbers reads as a header, until the person says otherwise. */
 function looksLikeHeader(values: readonly (readonly string[])[]): boolean {
   const first = values[0] ?? [];
-  return first.some((v) => v !== '') && first.every((v) => v === '' || numberIn(v) === null) && values.slice(1).some((row) => row.some((v) => numberIn(v) !== null));
+  if (!first.some((v) => v !== '') || !first.every((v) => v === '' || numberIn(v) === null)) return false;
+  const rest = values.slice(1).filter((row) => row.some((v) => v !== ''));
+  if (rest.some((row) => row.some((v) => numberIn(v) !== null))) return true;
+  // A table of words: a first row of two or more short labels over at least two rows reads as a header too.
+  const labels = first.filter((v) => v !== '');
+  return labels.length >= 2 && labels.every((v) => v.length <= 24) && rest.length >= 2;
+}
+/** Each column's width to fit what is in it, between the usual width and a wide one; worked out once per sheet as read. */
+const fits = new WeakMap<object, { header: boolean; widths: number[] }>();
+function fittedWidths(values: readonly (readonly string[])[], header: boolean): number[] {
+  const kept = fits.get(values);
+  if (kept && kept.header === header) return kept.widths;
+  const rows = values.slice(0, 400);
+  const cols = Math.max(0, ...rows.map((r) => r.length));
+  const widths = Array.from({ length: cols }, (_, c) => Math.round(Math.min(FIT_MAX, Math.max(COL_W, ...rows.map((r, i) => textWidth(r[c] ?? '', header && i === 0) + 18)))));
+  fits.set(values, { header, widths });
+  return widths;
 }
 let measurer: CanvasRenderingContext2D | null = null;
 function textWidth(text: string, bold = false): number {
@@ -258,7 +293,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   if (!data) {
     return (
       <section className="sheet-page empty" aria-label="Sheet">
-        <EmptyState app="sheets" label="No workbook open" title={sheets.workbooks.length ? 'No workbook open' : 'No workbooks yet'} line="Choose one on the left, or start a new one." action={{ label: 'New workbook', run: () => void sheets.createWorkbook('Workbook') }} />
+        <EmptyState app="sheets" label="No workbook open" title={sheets.workbooks.length ? 'No workbook open' : 'No workbooks yet'} line="Choose one on the left, or start a new one." action={{ label: 'New workbook', run: () => { if (namers > 0) window.dispatchEvent(new Event(NEW_WORKBOOK)); else void sheets.createWorkbook('Workbook'); } }} />
       </section>
     );
   }
@@ -267,7 +302,9 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const width = Math.min(52, Math.max(10, used.cols + 3, focus.c + 2, fillTo ? fillTo.c + 2 : 0));
   const height = Math.max(40, used.rows + 20, focus.r + 10, fillTo ? fillTo.r + 5 : 0);
   const headerOn = header ?? looksLikeHeader(data.values);
-  const colWidth = (c: number) => widths[c] ?? COL_W;
+  // A column the person has not sized fits its words, so names and labels are not cut short.
+  const fitted = fittedWidths(data.values, headerOn);
+  const colWidth = (c: number) => widths[c] ?? fitted[c] ?? COL_W;
   const steps = history.current.get(place) ?? { undo: [], redo: [] };
   history.current.set(place, steps);
 
@@ -725,7 +762,9 @@ function SheetTabs({ sheets, status }: { sheets: SheetsState; status: ReactNode 
   const data = sheets.data!;
   const [renaming, setRenaming] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ sheet: string; x: number; y: number } | null>(null);
+  const rename = (s: string) => { setRenaming(s); setName(s); };
   return (
     <div className="sheet-foot">
       <div className="sheet-tabs" role="tablist" aria-label="Sheets">
@@ -734,14 +773,27 @@ function SheetTabs({ sheets, status }: { sheets: SheetsState; status: ReactNode 
             <input autoFocus className="sheet-tab-name" aria-label="Sheet name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} onBlur={() => setRenaming(null)} onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
           </form>
         ) : (
-          <button key={s} type="button" role="tab" aria-selected={s === data.sheet} className="sheet-tab" title="Double-click to rename" onClick={() => void sheets.open(data.workbook, s)} onDoubleClick={() => { setRenaming(s); setName(s); }}>{s}</button>
+          <button key={s} type="button" role="tab" aria-selected={s === data.sheet} className="sheet-tab" title="Double-click to rename; right-click for more" onClick={() => void sheets.open(data.workbook, s)} onDoubleClick={() => rename(s)}
+            onContextMenu={(e) => { e.preventDefault(); setMenu({ sheet: s, x: e.clientX, y: e.clientY }); }}>{s}</button>
         )))}
         <button type="button" className="sheet-tab-add" aria-label="New sheet" title="New sheet" onClick={() => void sheets.addSheet(`Sheet ${data.sheets.length + 1}`)}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg>
         </button>
-        {data.sheets.length > 1 && (confirm
-          ? <button type="button" className="sheet-tab-delete" data-sure onClick={() => { setConfirm(false); void sheets.removeSheet(data.sheet); }} onBlur={() => setConfirm(false)}>Delete {data.sheet}</button>
-          : <button type="button" className="sheet-tab-delete" onClick={() => setConfirm(true)}>Delete sheet…</button>)}
+        {confirm && data.sheets.includes(confirm) && (
+          <span className="sheet-tab-confirm" role="alertdialog" aria-label={`Delete ${confirm}?`}>
+            <span>Delete “{confirm}” and its cells?</span>
+            <button type="button" className="btn" autoFocus onClick={() => setConfirm(null)}>Cancel</button>
+            <button type="button" className="btn danger" onClick={() => { const s = confirm; setConfirm(null); void sheets.removeSheet(s); }}>Delete</button>
+          </span>
+        )}
+        {menu && createPortal(
+          <ContextMenu x={menu.x} y={menu.y} label={menu.sheet} onClose={() => setMenu(null)} items={[
+            { action: 'open', label: 'Open', run: () => void sheets.open(data.workbook, menu.sheet) },
+            { action: 'rename', label: 'Rename…', run: () => rename(menu.sheet) },
+            { action: 'delete', label: 'Delete sheet…', danger: true, separated: true, disabled: data.sheets.length <= 1, run: () => setConfirm(menu.sheet) },
+          ]} />,
+          document.body,
+        )}
       </div>
       {status && <div className="sheet-status" role="status" aria-label="Selection">{status}</div>}
     </div>

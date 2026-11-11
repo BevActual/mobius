@@ -71,7 +71,7 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
         const ended = notification.method === 'agent.event' && ['done', 'failed', 'cancelled'].includes(notification.params.event.kind);
         if (ended && notification.params.conversation === active.current && !stateNow.current.items.some((item) => item.kind === 'user')) {
           const id = active.current;
-          void window.mobius.agent.history(id).then((messages) => { if (active.current === id) dispatch({ type: 'loaded', messages }); });
+          void window.mobius.agent.history(id).then((messages) => { if (active.current === id) dispatch({ type: 'loaded', messages, conversation: id }); });
         }
       }),
     [refresh],
@@ -85,7 +85,7 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
       if (!live) return;
       // On a busy computer this can come back after a whole turn has been sent and answered here; it is then older than
       // what is shown, and the reducer leaves it (it once took the reply and the review strip away).
-      dispatch({ type: 'loaded', messages, onOpen: true });
+      dispatch({ type: 'loaded', messages, onOpen: true, conversation: id });
       dispatch({ type: 'pending', requests });
       dispatch({ type: 'question-open', question });
       if (control?.theirs && typeof control.step === 'number') dispatch({ type: 'control', control: { step: control.step, ...(typeof control.of === 'number' ? { of: control.of } : {}) } });

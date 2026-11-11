@@ -46,7 +46,11 @@ export type ConversationAction =
    * What was saved, read from the core. `onOpen`: read when the conversation was opened, so it is older than anything
    * that has happened here since (a turn sent and finished while it was being read) and must not replace it.
    */
-  | { type: 'loaded'; messages: Message[]; onOpen?: boolean }
+  /**
+   * `conversation`: the one it was read for. A read started for the conversation shown before a switch can come back
+   * after it, and must not fill the new one (it once kept a blank start showing the last conversation).
+   */
+  | { type: 'loaded'; messages: Message[]; onOpen?: boolean; conversation?: string }
   | { type: 'pending'; requests: AgentWaiting[] }
   | { type: 'answer-failed'; requestId: number }
   | { type: 'question-open'; question: { callId: string; question: string; choices: string[] } | null }
@@ -158,6 +162,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
     case 'reset-busy':
       return finished({ ...state, items: cancelOpenTools(state.items) }, 'cancelled');
     case 'loaded':
+      if (action.conversation !== undefined && action.conversation !== state.conversation) return state;
       return state.busy || (action.onOpen && state.nextId !== 1) ? state : fromHistory(state, action.messages);
     case 'answer-failed':
       return updateTool(

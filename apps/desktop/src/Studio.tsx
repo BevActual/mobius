@@ -390,7 +390,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           </select>
         </label>
       </div>
-      <div className="studio-arrange" style={{ ['--head' as string]: `${HEAD_W}px` }}>
+      <div className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px` }}>
         <div className="studio-ruler-row">
           <div className="studio-ruler-head">{song.tracks.length === 1 ? '1 track' : `${song.tracks.length} tracks`}</div>
           <div
