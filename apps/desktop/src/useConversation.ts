@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { MAIN_BOT_ID, botOfConversation, conversationIdFor, splitContext, type ContextItem, type ConversationInfo, type CoreStatus, type Duration } from '@mobius/shared';
+import { preferencesSettled } from './usePreferences';
 import { findToolArguments, findToolResult, initialConversation, reduce, type ConversationState } from './conversation';
 
 const STORAGE_KEY = 'mobius.conversation';
@@ -107,6 +108,8 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
       const id = active.current;
       sending.current = id;
       const extra = { ...(options.plan ? { plan: true } : {}), ...(images.length > 0 ? { images } : {}) };
+      // A choice made just before sending (the effort, say) reaches the core first.
+      await preferencesSettled();
       const result = await window.mobius.agent.send(id, text, context, Object.keys(extra).length > 0 ? extra : undefined);
       sending.current = null;
       if (!result.ok) dispatch({ type: 'send-failed', message: result.error });

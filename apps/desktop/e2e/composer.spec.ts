@@ -101,6 +101,8 @@ test('the effort is chosen from the menu, kept, and sent with the next request',
   await expect(log().locator('.msg.assistant')).toHaveText('ok');
   expect(model!.requests.at(-1)?.reasoning_effort).toBe('high');
   await shell().getByRole('button', { name: 'Model' }).click();
+  // Chosen and sent at once, with the choice slow to save: the message still goes with what was chosen.
+  await shell().evaluate(() => { const real = window.mobius.preferences.set; window.mobius.preferences.set = async (change) => { await new Promise((r) => setTimeout(r, 800)); return real(change); }; });
   await menu('Model').getByRole('group', { name: 'Thinking' }).getByRole('menuitemradio', { name: /Default/ }).click();
   await say('relax');
   await expect(log().locator('.msg.assistant').last()).toHaveText('ok again');

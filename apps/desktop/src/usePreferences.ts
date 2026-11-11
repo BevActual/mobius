@@ -3,6 +3,13 @@ import { DEFAULT_PREFERENCES, type PreferencesSettings } from '@mobius/shared';
 
 /** The saved preferences, read before the interface is first drawn (see main.tsx), so it starts with them. */
 let preloaded: PreferencesSettings | null = null;
+
+// Changes on their way to the host. A message waits for them (see preferencesSettled), so a choice made just before
+// sending, such as the effort, is the one the message is sent with.
+const pending = new Set<Promise<unknown>>();
+export async function preferencesSettled(): Promise<void> {
+  while (pending.size > 0) await Promise.allSettled([...pending]);
+}
 export async function preloadPreferences(): Promise<void> {
   preloaded = (await window.mobius.preferences.get().catch(() => null)) ?? null;
 }
@@ -33,7 +40,9 @@ export function usePreferences(): { value: PreferencesSettings; loaded: boolean;
   }, []);
   const set = useCallback(async (change: Partial<PreferencesSettings>) => {
     setValue((current) => ({ ...current, ...change }));
-    const next = await window.mobius.preferences.set(change);
+    const writing = window.mobius.preferences.set(change);
+    pending.add(writing);
+    const next = await writing.finally(() => pending.delete(writing));
     if (next) setValue(next);
   }, []);
   return { value, loaded, set };
