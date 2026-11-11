@@ -4,14 +4,16 @@
  */
 
 /* The head: back, Today and forward at the start; the view in the middle; quick add and New event at the end. */
-.calendar-page .cal-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: var(--sp-3); padding: 10px var(--sp-4); border-bottom: 1px solid var(--line); }
+/* A row that wraps rather than overlaps: in a narrow window the quick add and New event go to a second line. */
+.calendar-page .cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 10px var(--sp-4); border-bottom: 1px solid var(--line); }
 .cal-head-start, .cal-head-end { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.cal-head-end { justify-content: flex-end; gap: var(--sp-2); }
+.cal-head-start { flex: 1 0 auto; }
+.cal-head-end { flex: 1 1 280px; justify-content: flex-end; gap: var(--sp-2); }
 .cal-head-end > .btn { flex: none; white-space: nowrap; }
 .calendar-page .cal-head .segmented button { min-width: 64px; }
 
 /* Quick add: one line, said in words; what it will add shows underneath before Enter. */
-.cal-quick { position: relative; display: flex; align-items: center; gap: 6px; flex: 0 1 260px; min-width: 120px; height: 30px; padding: 0 10px; border-radius: var(--radius-pill); background: var(--field); border: 1px solid transparent; }
+.cal-quick { position: relative; display: flex; align-items: center; gap: 6px; flex: 0 1 260px; min-width: 0; height: 30px; padding: 0 10px; border-radius: var(--radius-pill); background: var(--field); border: 1px solid transparent; }
 .cal-quick:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); background: var(--bg); }
 .cal-quick > svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; }
 .cal-quick input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; font: inherit; font-size: var(--fs-sm); color: inherit; outline: none; }
