@@ -3,7 +3,7 @@ import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactEl
 import type { Activity } from './activity';
 import { useSideFolds } from './side-fold';
 import { appName, type AppId } from './apps';
-import type { Favourite } from '@mobius/shared';
+import { describeCombo, type Favourite } from '@mobius/shared';
 
 /** One icon per app, shared by the rail and the app hub. */
 export const APP_ICONS: Record<string, ReactNode> = {
@@ -102,6 +102,9 @@ interface Props {
   needsYou: number;
   onLauncher: () => void;
   onSettings: () => void;
+  /** The person's shortcuts for All apps and Settings, shown in the tooltips; nothing until they are known. */
+  launcherKeys?: string;
+  settingsKeys?: string;
   settingsOpen: boolean;
   /** The apps to list, in order (the person's choice). */
   apps?: readonly AppId[];
@@ -123,7 +126,7 @@ interface Props {
  * The sidebar: one column that belongs to the app you are in, and turns into the list of apps from its head. The highlight slides to the app you are in, the app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, expanded, onToggle, create, createInList = false, ownApps, counts, menus, chrome, mobius, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles, switcherToken = 0 }: Props) {
+export function Rail({ app, expanded, onToggle, create, createInList = false, ownApps, counts, menus, chrome, mobius, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, launcherKeys = '', settingsKeys = '', settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles, switcherToken = 0 }: Props) {
   // While an app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
   const dragged = useRef(false);
@@ -194,7 +197,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
     </button>
   );
   const allApps = (
-    <button type="button" className="rail-btn" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${RAIL_APPS.find((a) => a.id === app)?.name ?? app}`} title="All apps and commands (Ctrl+K)" onClick={() => { setFace('app'); onLauncher(); }}>
+    <button type="button" className="rail-btn" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${RAIL_APPS.find((a) => a.id === app)?.name ?? app}`} title={withKeys('All apps and commands', launcherKeys)} onClick={() => { setFace('app'); onLauncher(); }}>
       <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
       {expanded && <span className="rail-label" aria-hidden="true">All apps</span>}
     </button>
@@ -377,11 +380,16 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
         {/* The full sidebar's foot holds only the profile: All apps is at the end of the switcher, Settings among Mobius's
             apps. The folded rail has no switcher, so it keeps both. */}
         {!expanded && allApps}
-        {!expanded && <button type="button" className="rail-btn" aria-label="Settings" aria-current={settingsOpen ? 'page' : undefined} title="Settings (Ctrl+,)" onClick={onSettings}>
+        {!expanded && <button type="button" className="rail-btn" aria-label="Settings" aria-current={settingsOpen ? 'page' : undefined} title={withKeys('Settings', settingsKeys)} onClick={onSettings}>
           {settingsOpen && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
         </button>}
       </div>}
     </nav>
   );
+}
+
+/** A tooltip with the person's keys for it, as this computer writes them; just the words when there are none. */
+function withKeys(text: string, binding: string): string {
+  return binding ? `${text} (${describeCombo(binding, window.mobius.platform)})` : text;
 }

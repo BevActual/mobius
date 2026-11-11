@@ -119,6 +119,8 @@ test('the choices survive a restart', async () => {
   await mobius!.close({ keepUserData: true });
   mobius = await launch(fixture.origin + '/', { userData });
   await expect.poll(async () => (await prefs()).keybindings.settings).toBe('mod+alt+s');
+  // The window takes shortcuts once it has read the saved ones; the file being right is not enough on a slow start.
+  await expect(shell().locator('.app[data-keys-ready]')).toBeAttached({ timeout: 15_000 });
   await shell().keyboard.press('Control+Alt+s');
   await expect(page()).toBeVisible();
 });

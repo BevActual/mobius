@@ -14,6 +14,7 @@ import { modeOf } from './approval-modes';
 import { stampLabel, startsGroup } from './time-stamps';
 import { useSpeech } from './useSpeech';
 import { isSpeaking, readAloudNow } from './speech';
+import { EMPTY_QUEUE, afterTurn, clearQueue, editQueued, enqueue, removeQueued, resumeQueue, type MessageQueue, type Queued } from './message-queue';
 import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import type { SurfaceState } from './surface';
@@ -409,6 +410,26 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   const [starterSlot, setStarterSlot] = useState<HTMLDivElement | null>(null);
   // Reading replies aloud: a Speak button on each, and, when chosen in Settings, Voice, each new reply by itself.
   const { speech, speak, stop: stopSpeaking, dismiss: dismissSpeech } = useSpeech();
+  // Messages written while Mobius works: kept above the box and sent in order as each turn ends. Stop keeps them, paused.
+  const [queue, setQueue] = useState<MessageQueue>(EMPTY_QUEUE);
+  const queueWasBusy = useRef(state.busy);
+  const sendQueued = useRef<(item: Queued) => void>(() => undefined);
+  sendQueued.current = (item) => onSend(item.text, item.context, item.options);
+  useEffect(() => {
+    const before = queueWasBusy.current;
+    queueWasBusy.current = state.busy;
+    const step = afterTurn(queue, before, state.busy, state.ended);
+    if (step.queue !== queue) setQueue(step.queue);
+    if (step.send) sendQueued.current(step.send);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.busy, state.ended]);
+  // A queue belongs to its conversation: another one starts without it.
+  useEffect(() => { setQueue((q) => clearQueue(q)); }, [state.conversation]);
+  const sendNextQueued = () => {
+    const step = resumeQueue(queue, state.busy);
+    setQueue(step.queue);
+    if (step.send) sendQueued.current(step.send);
+  };
   const wasBusy = useRef(state.busy);
   const lastRead = useRef<string | null>(null);
   useEffect(() => {
@@ -651,6 +672,15 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
           <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
           <TurnHistory conversation={state.conversation} busy={state.busy} />
           {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
+          {queue.items.length > 0 && (
+            <QueuePanel
+              queue={queue}
+              onEdit={(id, text) => setQueue((q) => editQueued(q, id, text))}
+              onRemove={(id) => setQueue((q) => removeQueued(q, id))}
+              onClear={() => setQueue((q) => clearQueue(q))}
+              onSendNext={sendNextQueued}
+            />
+          )}
           <Composer
             takeFocus={takeFocus}
             contextUse={state.context}
@@ -669,6 +699,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
             effort={effort}
             onEffort={onEffort}
             onSend={(text, items, options) => { onSend(text, items, options); setDraft(''); setContext([]); }}
+            onQueue={(text, items, options) => { setQueue((q) => enqueue(q, text, items, options)); setDraft(''); setContext([]); }}
             onStop={onStop}
             {...(onTakeOver && !state.control ? { onTakeOver } : {})}
             onModelChanged={onModelChanged}
@@ -680,5 +711,40 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
         </>
       )}
     </Shell>
+  );
+}
+
+/** The messages waiting for Mobius to finish, each one editable and removable, with Clear queue (and Send next after Stop). */
+function QueuePanel({ queue, onEdit, onRemove, onClear, onSendNext }: { queue: MessageQueue; onEdit: (id: number, text: string) => void; onRemove: (id: number) => void; onClear: () => void; onSendNext: () => void }) {
+  const [editing, setEditing] = useState<{ id: number; text: string } | null>(null);
+  const save = () => { if (editing) onEdit(editing.id, editing.text); setEditing(null); };
+  return (
+    <section className="msg-queue" aria-label="Queued messages">
+      <div className="msg-queue-head">
+        <span className="msg-queue-title">{queue.paused ? `Stopped: ${queue.items.length} waiting` : `Sent when Mobius finishes: ${queue.items.length} waiting`}</span>
+        {queue.paused && <button type="button" className="link-btn" onClick={onSendNext}>Send next</button>}
+        <button type="button" className="link-btn" onClick={onClear}>Clear queue</button>
+      </div>
+      <ol className="msg-queue-list">
+        {queue.items.map((item, index) => (
+          <li key={item.id} className="msg-queue-item">
+            {editing?.id === item.id ? (
+              <form className="msg-queue-edit" onSubmit={(e) => { e.preventDefault(); save(); }}>
+                <input type="text" aria-label={`Edit queued message ${index + 1}`} value={editing.text} autoFocus onChange={(e) => setEditing({ id: item.id, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setEditing(null); } }} onBlur={save} />
+              </form>
+            ) : (
+              <>
+                <span className="msg-queue-text" title={item.text}>{item.text}</span>
+                {(item.context.length > 0 || item.options?.images?.length) ? <span className="msg-queue-more" aria-label="With attachments">+</span> : null}
+                <button type="button" className="msg-action" aria-label={`Edit queued message ${index + 1}`} onClick={() => setEditing({ id: item.id, text: item.text })}>Edit</button>
+              </>
+            )}
+            <button type="button" className="chip-remove" aria-label={`Remove queued message ${index + 1}`} onMouseDown={(e) => e.preventDefault()} onClick={() => { setEditing(null); onRemove(item.id); }}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

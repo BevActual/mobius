@@ -673,8 +673,11 @@ export function App() {
     [openLauncher, openSettings, openFind, newTab, active, toggleSplit, toggleMini],
   );
 
-  // The same shortcuts when the shell itself has the keyboard (pages are handled by the main process).
+  // The same shortcuts when the shell itself has the keyboard (pages are handled by the main process). Not before the saved
+  // shortcuts are known: until then the defaults would answer keys the person may have given to something else.
+  const keysReady = preferences.loaded;
   useEffect(() => {
+    if (!keysReady) return;
     const onKey = (event: KeyboardEvent) => {
       const action = actionForPress(bindings, { code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey });
       if (action === 'launcher') { event.preventDefault(); openLauncher(); }
@@ -690,7 +693,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation]);
+  }, [keysReady, bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -1322,7 +1325,7 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
@@ -1350,6 +1353,7 @@ export function App() {
           panel: chatInSide && chatOpen ? chatPanel(null) : null,
         } : null}
         onLauncher={openHub}
+        {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
         switcherToken={switcherToken}
         onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
         settingsOpen={settingsOpen}

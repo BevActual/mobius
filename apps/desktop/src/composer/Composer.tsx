@@ -30,6 +30,8 @@ type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: Mode
 export interface ComposerProps {
   /** In an empty conversation: where three starters go, as plain text under the greeting, instead of chips here. */
   startersIn?: HTMLElement | null;
+  /** While Mobius works, Enter puts the message in the queue above the box, sent when the turn ends. */
+  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
   /** Settings, Voice, for when nothing is set up to listen. */
   onOpenVoice?: () => void;
   /** Suggestions are for starting: once the conversation has begun there are none. */
@@ -66,7 +68,7 @@ export interface ComposerProps {
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity, contextUse, startersIn, started = false, onOpenVoice }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity, contextUse, startersIn, started = false, onOpenVoice, onQueue }: ComposerProps) {
   // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
   const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
   const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
@@ -106,6 +108,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const listening = dictation.state !== 'idle';
   const shownProblem = problem ?? dictation.problem;
   const canSend = canType && !busy && !listening && draft.trim().length > 0;
+  const canQueue = canType && busy && !listening && draft.trim().length > 0 && onQueue !== undefined;
 
   useLayoutEffect(() => {
     const element = fieldRef.current;
@@ -152,10 +155,11 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
-    if (!canSend) return;
+    if (!canSend && !canQueue) return;
     setProblem(null);
     const options = { ...(planFirst ? { plan: true } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
-    onSend(draft, context, Object.keys(options).length > 0 ? options : undefined);
+    if (canSend) onSend(draft, context, Object.keys(options).length > 0 ? options : undefined);
+    else onQueue?.(draft, context, Object.keys(options).length > 0 ? options : undefined);
     setPictures([]);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -324,7 +328,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
         value={draft}
         disabled={!canType}
         autoFocus={takeFocus}
-        placeholder={canType ? 'Message Mobius' : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
+        placeholder={canType ? (busy && onQueue ? 'Queue a message for when Mobius finishes' : 'Message Mobius') : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={onKeyDown}
         onPaste={(event) => {
