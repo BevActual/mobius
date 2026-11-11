@@ -60,4 +60,9 @@ const ASK_ABOUT: Partial<Record<AppId, string>> = {
   sheets: 'this sheet', slides: 'these slides', reader: 'this article', research: 'this research', code: 'this code', canvas: 'this board',
   database: 'this database', design: 'this design', photo: 'this picture', video: 'this video', studio: 'this song', terminal: 'this terminal',
 };
-export const askAbout = (id: AppId): string => (ASK_ABOUT[id] ? `Ask about ${ASK_ABOUT[id]}` : 'Ask Mobius');
+/** `open` says whether the app has one thing open: with none, "this document" would point at nothing. */
+export const askAbout = (id: AppId, open = true): string => {
+  const about = ASK_ABOUT[id];
+  if (!about || (!open && /^th(is|ese) /.test(about))) return 'Ask Mobius';
+  return `Ask about ${about}`;
+};

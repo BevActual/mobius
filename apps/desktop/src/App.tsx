@@ -1077,6 +1077,8 @@ export function App() {
   const launcherCommands = menus.flatMap((m) => m.items.flatMap((i) => (i.kind === 'item' && !i.disabled && !i.id.startsWith('go-') && !['undo', 'redo', 'cut', 'copy', 'paste', 'select-all', 'launcher', 'all-apps'].includes(i.id)
     ? [{ id: `${m.id}-${i.id}`, label: i.label.replace(/…$/, ''), detail: [m.label, i.keys ? describeCombo(i.keys, window.mobius.platform) : ''].filter(Boolean).join(' · '), run: i.run }]
     : [])));
+  // And everything you can start (New document, New deck…), wherever you are: the menus only hold the open app's.
+  for (const a of createActions) if (!launcherCommands.some((c) => c.label === a.label)) launcherCommands.push({ id: `new-${a.id}`, label: a.label, detail: appName(a.app), run: a.run });
   // On macOS the menus go in the system menu bar; elsewhere they are drawn in the toolbar.
   const nativeMenus = window.mobius.platform === 'darwin' && window.mobius.menu !== undefined;
   const menusNow = useRef(menus);
@@ -1500,7 +1502,7 @@ export function App() {
             void conversation.send(text, []);
           }}>
             <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
-            <input name="ask" type="text" aria-label="Ask Mobius" placeholder={settingsOpen ? 'Ask about settings' : askAbout(app)} autoComplete="off" disabled={!settings?.configured} />
+            <input name="ask" type="text" aria-label="Ask Mobius" placeholder={settingsOpen ? 'Ask about settings' : askAbout(app, !!surface.note || (inBrowser && surface.hasPage) || (inSheets && !!sheets.data) || (inPhoto && !!photos.open) || (inVideo && !!video.project) || (inCode && !!code.open))} autoComplete="off" disabled={!settings?.configured} />
             {activity && <span className="ask-working" role="status" aria-label="Agent activity">{activity.label}</span>}
           </form>
         )}

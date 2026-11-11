@@ -210,7 +210,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
     </button>
   );
   const switcher = (
-        <button type="button" className="rail-btn rail-switch" data-app-switcher aria-label={switching ? `Back to ${title}` : `Switch app. Current: ${title}`} aria-expanded={switching} title={switching ? `Back to ${title}` : 'Switch app'}
+        <button type="button" className="rail-btn rail-switch" data-app-switcher aria-label={switching ? `Back to ${title}` : `Switch app. Current: ${title}`} aria-expanded={switching} title={switching ? undefined : 'Switch app'}
           data-working={(!switching && elsewhereWorking) || undefined} data-changed={(!switching && elsewhereChanged) || undefined}
           onClick={() => setFace(switching ? 'app' : 'apps')}>
           {switching
