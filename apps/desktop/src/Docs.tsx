@@ -19,15 +19,17 @@ import { untitledHeading } from './NoteEditor';
 import { EmptyState } from './EmptyState';
 import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
+import type { NoteComment } from '@mobius/shared';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import type { Start } from './SideNew';
 import { tidyMarkdown } from './note-insert';
 import { fileMarkdown, noteImage, readFile } from './note-files';
-import { CommentComposer, CommentList, useNoteComments } from './NoteComments';
+import { CommentComposer, CommentList, commentLine, useNoteComments } from './NoteComments';
 import { NoteHistory, dayOf } from './NoteHistory';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { docStats, activeHeading } from './docs-view';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import './docs.css';
 
 export const DOCS_WORDS: SidebarWords = { app: 'Docs', group: 'folder', groups: 'Folders', item: 'document', items: 'documents', about: 'Documents are kept as Markdown files in your workspace, so other apps and the agent can open them too.', defaultGroup: 'Documents' };
@@ -39,7 +41,8 @@ export function DocsSidebar(props: { docs: NotesState; pin: ReactNode; changed?:
 }
 
 /** What Mobius's writing tools do: each is a request to the agent, about the selection or the whole document. */
-export type WritingTool = 'proofread' | 'friendlier' | 'shorter' | 'summarise';
+/** `comment` asks Mobius to answer a comment: its selection is the comment thread, as commentLine writes it. */
+export type WritingTool = 'proofread' | 'friendlier' | 'shorter' | 'summarise' | 'comment';
 export const WRITING_TOOLS: { id: WritingTool; label: string }[] = [
   { id: 'proofread', label: 'Proofread' },
   { id: 'friendlier', label: 'Rewrite · friendlier' },
@@ -299,11 +302,13 @@ type ShareHow = 'markdown' | 'formatted' | 'html' | 'md' | 'print';
  * earlier version back; Share copies, exports or prints it. A document the agent changed shows those changes as
  * proposals to keep or discard.
  */
-export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false }: {
+export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, busy = false }: {
   docs: NotesState;
   autoFocus?: boolean;
   review?: { conversation: string } | null;
   onTool?: (tool: WritingTool, selection: string | null) => void;
+  /** The open document's comments, as they change, so Mobius knows they are there. */
+  onComments?: (comments: NoteComment[]) => void;
   busy?: boolean;
 }) {
   const path = docs.page?.path ?? null;
@@ -321,8 +326,21 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
   const quotesNow = useRef<string[]>([]);
   quotesNow.current = commentState.comments.filter((c) => !c.resolved).map((c) => c.quote);
   const commentMarks = useMemo(() => docComments(() => quotesNow.current), []);
+  useEffect(() => { onComments?.(commentState.comments); }, [commentState.comments, onComments]);
+  const askAbout = onTool ? (c: NoteComment) => onTool('comment', commentLine(c, commentState.comments)) : undefined;
   // The selection bar sits just above the chosen words.
-  const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null);
+  const [selection, setSelection] = useState<{ text: string; top: number; left: number; below: number } | null>(null);
+  // The bar for selected words sits just above them; a comment on them opens just below them, so neither hides them.
+  // Placed again when the mouse comes up, as a triple-click can settle its selection only then.
+  const placeSelection = (e: Editor) => {
+    const { from, to, empty } = e.state.selection;
+    const box = section.current?.getBoundingClientRect();
+    const text = empty ? '' : e.state.doc.textBetween(from, to, '\n');
+    if (!box || text.trim().length < 2 || !e.view.hasFocus()) { setSelection(null); return; }
+    const at = e.view.coordsAtPos(from);
+    const end = e.view.coordsAtPos(to);
+    setSelection({ text, top: Math.max(8, at.top - box.top - 44), left: Math.min(Math.max(8, at.left - box.left - 40), Math.max(8, box.width - 380)), below: end.bottom - box.top + 10 });
+  };
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
@@ -367,14 +385,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
       known.current = md;
       docs.edit(md);
     },
-    onSelectionUpdate: ({ editor: e }) => {
-      const { from, to, empty } = e.state.selection;
-      const box = section.current?.getBoundingClientRect();
-      const text = empty ? '' : e.state.doc.textBetween(from, to, '\n');
-      if (!box || text.trim().length < 2 || !e.isFocused) { setSelection(null); return; }
-      const at = e.view.coordsAtPos(from);
-      setSelection({ text, top: Math.max(8, at.top - box.top - 44), left: Math.min(Math.max(8, at.left - box.left - 40), Math.max(8, box.width - 380)) });
-    },
+    onSelectionUpdate: ({ editor: e }) => placeSelection(e),
     onBlur: () => setSelection(null),
   });
   // The document's text, from the store: put into the editor when it did not come from the editor itself.
@@ -409,6 +420,26 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
   const openComments = commentState.comments.filter((c) => !c.resolved).length;
   const [commentsOpen, setCommentsOpen] = useState(true);
   const [composing, setComposing] = useState<{ quote: string; top: number; left: number } | null>(null);
+  // The page's own right-click menu, in place of the web view's (which offers Inspect Element and the like).
+  const [editMenu, setEditMenu] = useState<{ x: number; y: number } | null>(null);
+  const editItems = (): ContextMenuItem[] => {
+    if (!editor) return [];
+    const { from, to, empty } = editor.state.selection;
+    const words = empty ? '' : editor.state.doc.textBetween(from, to, '\n');
+    const box = section.current?.getBoundingClientRect();
+    const items: ContextMenuItem[] = [
+      { action: 'cut', disabled: !words, run: () => { void navigator.clipboard?.writeText(words).then(() => editor.chain().focus().deleteSelection().run()).catch(() => {}); } },
+      { action: 'copy', disabled: !words, run: () => { void navigator.clipboard?.writeText(words).catch(() => {}); editor.commands.focus(); } },
+      { action: 'paste', run: () => { void navigator.clipboard?.readText().then((t) => { if (t) editor.chain().focus().insertContent(t, { contentType: 'markdown' }).run(); }).catch(() => editor.commands.focus()); } },
+    ];
+    if (words.trim().length >= 2 && own && commentState.available && box) {
+      const end = editor.view.coordsAtPos(to);
+      const at = editor.view.coordsAtPos(from);
+      items.push({ label: 'Comment', separated: true, run: () => { setComposing({ quote: words.trim(), top: end.bottom - box.top + 10, left: Math.min(Math.max(8, at.left - box.left - 40), Math.max(8, box.width - 380)) }); setCommentsOpen(true); } });
+    }
+    if (words.trim()) items.push({ label: 'Link…', separated: items.length === 3, run: () => setLinking('') });
+    return items;
+  };
   useEffect(() => { setComposing(null); setSelection(null); }, [path]);
   const showQuote = (quote: string) => {
     if (!editor || editor.isDestroyed) return;
@@ -653,10 +684,11 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
             {problem && <p className="tasks-message" role="alert">{problem}</p>}
             {showing && <Proposals diff={diff} onDiscard={discardOne} render={renderMarkdown} />}
             <div className="doc-sheet" data-new={wholeNew || undefined}>
-              <EditorContent editor={editor} className="doc-paper" />
+              <EditorContent editor={editor} className="doc-paper" onMouseUp={() => { if (editor) window.setTimeout(() => placeSelection(editor), 0); }}
+                onContextMenu={(e) => { if (!editor) return; e.preventDefault(); setEditMenu({ x: e.clientX, y: e.clientY }); }} />
               {margin && (
                 <aside className="doc-margin" aria-label="Comments on this document">
-                  <CommentList state={commentState} text={editor?.state.doc.textContent ?? ''} onShow={showQuote} />
+                  <CommentList state={commentState} text={editor?.state.doc.textContent ?? ''} onShow={showQuote} {...(askAbout ? { onAsk: askAbout } : {})} />
                 </aside>
               )}
             </div>
@@ -667,7 +699,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
         <div className="selection-bar doc-selection" role="toolbar" aria-label="Selected text" style={{ top: selection.top, left: selection.left }}>
           {own && commentState.available && (
             <button type="button" className="selection-btn" data-action="comment" title="Comment on these words" onPointerDown={keep}
-              onClick={() => { setComposing({ quote: selection.text.trim(), top: selection.top + 76, left: selection.left }); setCommentsOpen(true); setSelection(null); }}>Comment</button>
+              onClick={() => { setComposing({ quote: selection.text.trim(), top: selection.below, left: selection.left }); setCommentsOpen(true); setSelection(null); }}>Comment</button>
           )}
           <button type="button" className="selection-btn" title="Link these words to a web page or another document" onPointerDown={keep} onClick={() => { setLinking(''); setSelection(null); }}>Link</button>
           {onTool && (
@@ -680,7 +712,9 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
           )}
         </div>
       )}
-      {composing && <CommentComposer quote={composing.quote} top={composing.top} left={composing.left} add={commentState.add} onDone={() => setComposing(null)} />}
+      {editMenu && createPortal(<ContextMenu x={editMenu.x} y={editMenu.y} label="Edit" items={editItems()} onClose={() => setEditMenu(null)} />, document.body)}
+      {composing && <CommentComposer quote={composing.quote} top={composing.top} left={composing.left} add={commentState.add} onDone={() => setComposing(null)}
+        {...(onTool ? { onAsk: (quote: string, text: string) => onTool('comment', commentLine({ id: '', quote, text, by: 'you', whenMs: 0, resolved: false }, [])) } : {})} />}
       {note && <div className="doc-toast" role="status"><span>{note}</span><button type="button" className="review-btn" onClick={() => setNote(null)}>OK</button></div>}
       <footer className="doc-status">
         <span>{chosenWords ? `${chosenWords} of ${stats.words} words` : stats.words === 1 ? '1 word' : `${stats.words} words`}</span>

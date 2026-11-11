@@ -81,6 +81,8 @@
 .doc-margin .note-comments { width: auto; margin: 0; padding: 0; border: 0; }
 .doc-margin .note-comments h2 { padding: 0 6px 4px; }
 .doc-margin .note-comment { background: var(--bg); border-radius: 10px; box-shadow: 0 0 0 0.5px var(--hairline, var(--line)), 0 1px 3px rgba(0, 0, 0, 0.06); }
+.doc-margin .note-comment { flex-direction: column; align-items: stretch; gap: 2px; }
+.doc-margin .note-comment-tools { justify-content: flex-end; margin: 0 -4px -4px 0; }
 @container (max-width: 1080px) {
   .doc-sheet { flex-direction: column; align-items: center; }
   .doc-sheet > .doc-paper { width: 100%; }

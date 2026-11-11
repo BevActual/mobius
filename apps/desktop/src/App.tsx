@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { MenuBar } from './MenuBar';
 import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type SidebarMode } from '@mobius/shared';
+import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS } from './apps';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
@@ -395,10 +396,17 @@ export function App() {
   // The start page's own title says it is there even where its loading never reports done (WebKitGTK).
   const onStartPage = active !== undefined && active.url === '' && (!active.loading || active.title === 'New tab');
   const saved = active !== undefined && bookmarks.some((b) => b.url === active.url);
+  // The open document's open comments go with it to Mobius, so it knows they are there.
+  const [docComments, setDocComments] = useState<{ page: string; outline: string }>({ page: '', outline: '' });
+  const docsPath = docs.page?.path ?? '';
+  const onDocComments = useCallback((comments: NoteComment[]) => {
+    const outline = commentsOutline(comments, `docs/${docsPath}`);
+    setDocComments((was) => (was.page === docsPath && was.outline === outline ? was : { page: docsPath, outline }));
+  }, [docsPath]);
   const surface: SurfaceState = {
     app,
     hasPage: active !== undefined && /^https?:/.test(active.url),
-    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs' } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : inCanvas && boards.page ? { path: boards.page.path, title: boards.page.title, text: boards.text, folder: 'boards' } : inResearch && research.page && !askingResearch ? { path: research.page.path, title: liveTitle(research.text, research.page.title), text: research.text, folder: 'research' } : inReader && reading.page ? { path: reading.page.path, title: reading.page.title, text: reading.text, folder: 'reading' } : inTerminal && lastTerminal ? { path: lastTerminal.cwd || '~', title: `Terminal: ${lastTerminal.command}`.slice(0, 120), text: `$ ${lastTerminal.command}   (in ~/${lastTerminal.cwd})\n${lastTerminal.result!.output.slice(-20_000)}\n${lastTerminal.result!.passed ? 'Exit code 0' : `Exit code ${lastTerminal.result!.code ?? 'none'}${lastTerminal.result!.timedOut ? ' (stopped: too long)' : ''}`}`, folder: 'terminal' } : inDatabase && databases.open ? { path: `${databases.open}.sqlite`, title: `Database ${databases.open}`, text: databaseOutline(databases.open, databases.list.find((d) => d.name === databases.open)?.tables ?? []), folder: 'databases' } : null,
+    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs', ...(docComments.page === docs.page.path && docComments.outline ? { extra: docComments.outline } : {}) } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : inCanvas && boards.page ? { path: boards.page.path, title: boards.page.title, text: boards.text, folder: 'boards' } : inResearch && research.page && !askingResearch ? { path: research.page.path, title: liveTitle(research.text, research.page.title), text: research.text, folder: 'research' } : inReader && reading.page ? { path: reading.page.path, title: reading.page.title, text: reading.text, folder: 'reading' } : inTerminal && lastTerminal ? { path: lastTerminal.cwd || '~', title: `Terminal: ${lastTerminal.command}`.slice(0, 120), text: `$ ${lastTerminal.command}   (in ~/${lastTerminal.cwd})\n${lastTerminal.result!.output.slice(-20_000)}\n${lastTerminal.result!.passed ? 'Exit code 0' : `Exit code ${lastTerminal.result!.code ?? 'none'}${lastTerminal.result!.timedOut ? ' (stopped: too long)' : ''}`}`, folder: 'terminal' } : inDatabase && databases.open ? { path: `${databases.open}.sqlite`, title: `Database ${databases.open}`, text: databaseOutline(databases.open, databases.list.find((d) => d.name === databases.open)?.tables ?? []), folder: 'databases' } : null,
     tasks: inTasks ? tasksContext(tasks) : null,
     mail: inMail && mail.open ? { id: mail.open.id, title: `Email: ${mail.open.subject || '(no subject)'}`, text: `From: ${mail.open.from.name} <${mail.open.from.email}>\nSubject: ${mail.open.subject}\nDate: ${mail.open.dateMs ? new Date(mail.open.dateMs).toString() : ''}\n\n${mail.open.text}` } : null,
     cut: inVideo && video.project ? { title: `Video: ${video.project}`, source: `video/${video.project}/cut.json`, text: `Clips in video/${video.project}/ (never change them):\n${video.clips.map((c) => `- ${c.name}${c.kind === 'audio' ? ' (sound)' : ''}: ${video.lengthOf(c.name) ?? '?'} s`).join('\n') || '(none yet)'}\n\nThe cut, video/${video.project}/cut.json:\n${writeCut(video.cut)}` } : null,
@@ -1158,7 +1166,7 @@ export function App() {
     if (!page) return;
     const title = liveTitle(docs.text, page.title || appName('docs')).slice(0, 120) || 'Document';
     const where = `docs/${page.path}`;
-    const item: ContextItem = { kind: 'file', title: selection ? `${title} (selection)` : title, source: where, text: (selection ?? docs.text).slice(0, MAX_CONTEXT_ITEM_CHARS) };
+    const item: ContextItem = { kind: 'file', title: selection && tool !== 'comment' ? `${title} (selection)` : title, source: where, text: (tool === 'comment' ? docs.text : selection ?? docs.text).slice(0, MAX_CONTEXT_ITEM_CHARS) };
     const what = selection ? `the attached passage from my document "${title}"` : `my document "${title}"`;
     const inPlace = `Make the changes in the document itself (${where}) with files.edit, change nothing else, and keep it Markdown.`;
     const prompt = {
@@ -1166,6 +1174,7 @@ export function App() {
       friendlier: `Rewrite ${what} so it reads friendlier and warmer, keeping its meaning and my voice. ${inPlace}`,
       shorter: `Make ${what} about half as long, with the same meaning. ${inPlace}`,
       summarise: `Summarise ${what} in a few short lines. Do not change the document.`,
+      comment: `Answer this comment on "${title}" with comments.reply (page ${where}; its id is in brackets, or find it with comments.list):\n${selection ?? ''}\nIf it asks for a change, make it with files.edit and say in the reply what you changed.`,
     }[tool];
     const ready = settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy;
     if (!shows('agent')) setChatOpen(true);
@@ -1248,7 +1257,7 @@ export function App() {
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && turnMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} />;
       case 'docs':
-        return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} busy={conversation.state.busy} />;
+        return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
       case 'slides':
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':

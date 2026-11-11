@@ -22,7 +22,8 @@ export interface SurfaceState {
   /** A web page is showing in the browser. */
   hasPage: boolean;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
-  note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' | 'terminal' } | null;
+  /** `extra` is what is said about it, such as its open comments, sent after its text. */
+  note: { path: string; title: string; text: string; extra?: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' | 'terminal' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
@@ -203,8 +204,10 @@ export function databaseOutline(name: string, tables: { name: string; rows: numb
 }
 
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' | 'terminal' }): ContextItem {
-  return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
+export function noteContext(note: { path: string; title: string; text: string; extra?: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' | 'terminal' }): ContextItem {
+  // What is said about the page (its open comments) goes after it, and is never cut off by a long page.
+  const extra = note.extra ? `\n\n---\n${note.extra.slice(0, MAX_CONTEXT_ITEM_CHARS / 4)}` : '';
+  return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS - extra.length) + extra };
 }
 
 /** A prompt that ends with a space is a start for you to finish, not something to send at once. */
