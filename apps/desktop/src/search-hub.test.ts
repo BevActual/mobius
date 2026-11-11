@@ -26,6 +26,11 @@ describe('one place to find everything', () => {
     expect(found.map((r) => r.key)).toEqual(['p:https://plumbers.test/', 'c:b', 'n:Work/Plan.md', 't:Inbox:2']);
     expect(hubResults(s, 'example', 'page')).toHaveLength(1);
   });
+  it('a page found by what it says shows the line that matched, and the first notebook is not named twice', () => {
+    const s = { ...sources(), noteHits: [{ path: 'Notes/Untitled.md', title: 'Untitled', notebook: 'Notes', line: '  Plant tulips before the frost. ' }] };
+    const [hit] = hubResults(s, 'tulips', 'note');
+    expect([hit?.where, hit?.line]).toEqual(['Notes', 'Plant tulips before the frost.']);
+  });
   it('a filter keeps only that kind, and every result knows which app opens it', () => {
     const notes = hubResults(sources(), '', 'note');
     expect(notes.map((r) => r.target)).toEqual([{ app: 'notes', path: 'Work/Plan.md', title: 'Plan' }]);

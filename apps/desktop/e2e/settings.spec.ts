@@ -66,6 +66,18 @@ test('Settings opens as an app: its sections in the sidebar, the page name in th
   await expect(page()).toBeVisible();
 });
 
+test('an app chosen from the launcher while Settings is open is the one that shows', async () => {
+  await start([]);
+  await openSettings();
+  await go('Keyboard');
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Tasks');
+  await shell().keyboard.press('Enter');
+  await expect(page()).toHaveCount(0);
+  await expect(shell().locator('.app')).toHaveAttribute('data-app', 'tasks');
+  await expect(shell().locator('.strip-title')).not.toHaveText('Keyboard');
+});
+
 test('the sections are the ones Mobius has, in order, and each shows its own page', async () => {
   await start([]);
   await openSettings();

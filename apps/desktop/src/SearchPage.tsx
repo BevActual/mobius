@@ -120,6 +120,7 @@ export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFo
                       {[when, r.where].filter(Boolean).join(' · ')}
                       {due && <span className="task-due" data-tone={due.tone}> · {due.text}</span>}
                     </span>
+                    {r.line && r.line !== r.title && <span className="search-line">{r.line}</span>}
                   </span>
                 </button>
               </li>

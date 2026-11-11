@@ -732,6 +732,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .search-row.ask { margin-bottom: var(--sp-1); }
 .search-text { min-width: 0; display: grid; gap: 1px; }
 .search-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-medium); }
+.search-line { display: block; font-size: var(--fs-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 .search-empty { margin-top: var(--sp-6); text-align: center; color: var(--muted); }
 .search-row[data-done] .search-title { color: var(--muted); text-decoration: line-through; }
@@ -2909,3 +2910,7 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
    from the app's name. */
 .rail[data-expanded] .rail-switch { position: relative; }
 .rail[data-expanded] .rail-switch[data-changed]::before { position: absolute; order: 0; top: 2px; left: 26px; margin: 0; box-shadow: 0 0 0 2px var(--glass-solid); }
+
+/* A search result is two lines (the page, then where and the line that matched), each cut short rather than widening the sidebar. */
+.notes-list[aria-label="Search results"] .note-row { display: grid; justify-items: start; }
+.notes-list[aria-label="Search results"] :is(.note-title, .note-sub) { max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

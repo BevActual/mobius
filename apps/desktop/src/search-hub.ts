@@ -30,6 +30,8 @@ export interface HubResult {
   where: string;
   /** When it last changed or was visited (ms), if known. */
   when: number | null;
+  /** The line that matched, for a search through what pages say, so you can tell why it came up. */
+  line?: string;
   /** A due date (YYYY-MM-DD), for tasks. */
   due?: string | null;
   done?: boolean;
@@ -86,6 +88,11 @@ const host = (url: string) => { try { return new URL(url).host; } catch { return
  * With no query: what changed most recently, across every app (open tasks only when Tasks is the filter, since they
  * have no time of their own). With a query: everything that matches every word, names that start with it first.
  */
+/** "Notes › Work", or just "Notes" when the folder has the app's own name (the first notebook is called Notes). */
+function within(label: string, folder: string): string {
+  return folder && folder.toLowerCase() !== label.toLowerCase() ? `${label} › ${folder}` : label;
+}
+
 export function hubResults(sources: HubSources, query: string, filter: HubFilter): HubResult[] {
   const ws = words(query);
   const searching = ws.length > 0;
@@ -100,17 +107,17 @@ export function hubResults(sources: HubSources, query: string, filter: HubFilter
   }
   if (want('note')) {
     if (searching) {
-      for (const h of sources.noteHits) out.push({ key: `n:${h.path}`, kind: 'note', title: h.title, where: `Notes › ${h.notebook}`, when: modifiedOf(sources.notebooks, h.path), target: { app: 'notes', path: h.path, title: h.title } });
+      for (const h of sources.noteHits) out.push({ key: `n:${h.path}`, kind: 'note', title: h.title, where: within('Notes', h.notebook), when: modifiedOf(sources.notebooks, h.path), ...(h.line.trim() ? { line: h.line.trim() } : {}), target: { app: 'notes', path: h.path, title: h.title } });
     } else {
-      for (const nb of sources.notebooks) for (const p of nb.pages) out.push({ key: `n:${p.path}`, kind: 'note', title: p.title, where: `Notes › ${nb.name}`, when: p.modified, target: { app: 'notes', path: p.path, title: p.title } });
+      for (const nb of sources.notebooks) for (const p of nb.pages) out.push({ key: `n:${p.path}`, kind: 'note', title: p.title, where: within('Notes', nb.name), when: p.modified, target: { app: 'notes', path: p.path, title: p.title } });
     }
   }
   if (want('doc')) {
     for (const [app, label, hits, folders] of [['docs', 'Docs', sources.docHits, sources.docFolders], ['slides', 'Slides', sources.deckHits, sources.deckFolders]] as const) {
       if (searching) {
-        for (const h of hits ?? []) out.push({ key: `${app}:${h.path}`, kind: 'doc', title: h.title, where: `${label} › ${h.notebook}`, when: modifiedOf(folders ?? [], h.path), target: { app, path: h.path, title: h.title } });
+        for (const h of hits ?? []) out.push({ key: `${app}:${h.path}`, kind: 'doc', title: h.title, where: within(label, h.notebook), when: modifiedOf(folders ?? [], h.path), ...(h.line.trim() ? { line: h.line.trim() } : {}), target: { app, path: h.path, title: h.title } });
       } else {
-        for (const nb of folders ?? []) for (const p of nb.pages) out.push({ key: `${app}:${p.path}`, kind: 'doc', title: p.title, where: `${label} › ${nb.name}`, when: p.modified, target: { app, path: p.path, title: p.title } });
+        for (const nb of folders ?? []) for (const p of nb.pages) out.push({ key: `${app}:${p.path}`, kind: 'doc', title: p.title, where: within(label, nb.name), when: p.modified, target: { app, path: p.path, title: p.title } });
       }
     }
   }
@@ -123,7 +130,7 @@ export function hubResults(sources: HubSources, query: string, filter: HubFilter
   if (want('made')) {
     const add = (r: HubResult, text: string) => { if (!searching || matches(text, ws)) out.push(r); };
     for (const [app, label, folders] of [['design', 'Design', sources.designFolders], ['canvas', 'Canvas', sources.boardFolders], ['research', 'Research', sources.researchFolders], ['reader', 'Reader', sources.readingFolders], ['studio', 'Music', sources.songFolders]] as const) {
-      for (const nb of folders ?? []) for (const p of nb.pages) add({ key: `${app}:${p.path}`, kind: 'made', title: p.title, where: `${label} › ${nb.name}`, when: p.modified, target: { app, path: p.path, title: p.title } }, `${p.title} ${nb.name}`);
+      for (const nb of folders ?? []) for (const p of nb.pages) add({ key: `${app}:${p.path}`, kind: 'made', title: p.title, where: within(label, nb.name), when: p.modified, target: { app, path: p.path, title: p.title } }, `${p.title} ${nb.name}`);
     }
     for (const a of sources.albums ?? []) for (const p of a.photos) add({ key: `photo:${p.path}`, kind: 'made', title: p.name, where: `Photo › ${a.name}`, when: p.modified, target: { app: 'photo', path: p.path } }, `${p.name} ${a.name}`);
     for (const v of sources.videoProjects ?? []) add({ key: `video:${v}`, kind: 'made', title: v, where: 'Video', when: null, target: { app: 'video', project: v } }, v);
@@ -140,7 +147,7 @@ export function hubResults(sources: HubSources, query: string, filter: HubFilter
     for (const [list, items] of Object.entries(sources.tasks)) {
       for (const t of items) {
         if (searching ? !matches(t.text, ws) : t.done) continue;
-        out.push({ key: `t:${list}:${t.line}`, kind: 'task', title: t.text, where: `Tasks › ${list}`, when: null, due: t.due, done: t.done, target: { app: 'tasks', list } });
+        out.push({ key: `t:${list}:${t.line}`, kind: 'task', title: t.text, where: within('Tasks', list), when: null, due: t.due, done: t.done, target: { app: 'tasks', list } });
       }
     }
   }

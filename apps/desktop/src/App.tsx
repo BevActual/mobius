@@ -358,7 +358,8 @@ export function App() {
     return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offMail?.(); offCalendar?.(); offDesigns?.(); offBoards?.(); offResearch?.(); offReading?.(); offDatabases?.(); };
   }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
-  const openApp = useCallback((id: AppId) => { if (isAvailable(id)) setApp(id); }, []);
+  // Going to an app leaves Settings (from the launcher, a shortcut or a link), so the app chosen is the one showing.
+  const openApp = useCallback((id: AppId) => { if (isAvailable(id)) { setApp(id); setSettingsOpen(false); } }, []);
   // However an app was opened (the sidebar, the hub, a shortcut, a pinned item), it goes to the top of Recent.
   useEffect(() => noteOpened(app), [app]);
   const needsYou = conversation.list.reduce((sum, c) => sum + c.waiting, 0);
