@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isNotesFailure, type BookmarkEntry, type HistoryEntry } from '@mobius/shared';
+import { tileHue, tileLetter } from './browser-view';
 
 const host = (url: string): string => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } };
 
@@ -16,11 +17,14 @@ export function frequentSites(entries: readonly HistoryEntry[], limit = 8): { ur
   return [...by.values()].sort((a, b) => b.count - a.count || a.first - b.first).slice(0, limit).map(({ url, title, site }) => ({ url, title, site }));
 }
 
+/** What the start page says at the top, by the time of day. */
+export const greeting = (hour: number): string => (hour < 5 ? 'Good evening' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening');
+
 function Tile({ url, title, onOpen }: { url: string; title: string; onOpen: (url: string) => void }) {
   const site = host(url);
   return (
     <button type="button" className="start-tile" title={url} onClick={() => onOpen(url)}>
-      <span className="start-tile-mark" aria-hidden="true">{(site.replace(/^[^a-z0-9]+/i, '')[0] ?? '?').toUpperCase()}</span>
+      <span className="start-tile-mark" aria-hidden="true" style={{ ['--hue' as string]: tileHue(site) }}>{tileLetter(site)}</span>
       <span className="start-tile-title">{title || site}</span>
     </button>
   );
@@ -48,7 +52,10 @@ export function StartPage({ onOpen, onRead }: { onOpen: (url: string) => void; o
   return (
     <section className="start-page" aria-label="New tab">
       <div className="start-inner">
-        <p className="start-hint">Type an address or a question in the bar above, or start from here.</p>
+        <header className="start-head">
+          <h1 className="start-greeting">{greeting(new Date().getHours())}</h1>
+          <p className="start-hint">Type an address or a question in the bar, or start from here.</p>
+        </header>
         {favourites.length > 0 && (
           <section aria-label="Favourites">
             <h2 className="start-heading">Favourites</h2>
@@ -65,7 +72,7 @@ export function StartPage({ onOpen, onRead }: { onOpen: (url: string) => void; o
           <section aria-label="Reading list">
             <h2 className="start-heading">Reading list</h2>
             <ul className="start-reading">
-              {reading.map((r) => <li key={r.path}><button type="button" onClick={() => onRead(r.path, r.title)}>{r.title}</button></li>)}
+              {reading.map((r) => <li key={r.path}><button type="button" onClick={() => onRead(r.path, r.title)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4.5h4.5A1.5 1.5 0 0 1 10 6v10a1.5 1.5 0 0 0-1.5-1.5H4zM16 4.5h-4.5A1.5 1.5 0 0 0 10 6v10a1.5 1.5 0 0 1 1.5-1.5H16z" /></svg><span>{r.title}</span></button></li>)}
             </ul>
           </section>
         )}
