@@ -239,7 +239,7 @@ export function tasksItem(tasks: { title: string; text: string }): ContextItem {
 
 /**
  * What is open where you are, which goes with every message as a chip you can remove: the note, list, sheet, email,
- * file, photo, cut or page. Without it the agent only knew which app you were in by guessing.
+ * file, photo or cut (not a web page). Without it the agent only knew which app you were in by guessing.
  */
 export interface Here {
   /** Changes when another item is opened, so a chip removed for one item comes back for the next. */
@@ -248,8 +248,8 @@ export interface Here {
   label: string;
   /** How the panel says it: "this sheet". */
   what: string;
-  /** The item itself, or null for the browser's page, which is read when the message goes. */
-  item: ContextItem | null;
+  /** The item itself: what goes with the message. */
+  item: ContextItem;
 }
 
 const NOTE_WORDS: Record<string, string> = { docs: 'document', slides: 'deck', designs: 'design', studio: 'song', boards: 'board', research: 'report', reading: 'article', databases: 'database', terminal: 'terminal' };
@@ -263,7 +263,7 @@ export function hereOf(s: SurfaceState | undefined): Here | null {
   if (s.photo) return { key: `photo:${s.photo.source}`, label: s.photo.title, what: 'this photo', item: sheetItem(s.photo) };
   if (s.cut) return { key: `cut:${s.cut.source}`, label: s.cut.title, what: 'this cut', item: sheetItem(s.cut) };
   if (s.code) return { key: `code:${s.code.source}`, label: s.code.title, what: 'this file', item: sheetItem(s.code) };
-  if (s.app === 'browser' && s.hasPage) return { key: 'page', label: 'This page', what: 'this page', item: null };
+  // Not the browser's page: a page can be long and is not yours, so it goes only when asked for (Add context › This page).
   return null;
 }
 

@@ -6,7 +6,8 @@ describe('what is open goes with the message', () => {
     const sheet = hereOf({ app: 'sheets', hasPage: false, note: null, sheet: { title: 'Kestrel › Costs', source: 'sheets/Kestrel/Costs.csv', text: 'D2: 1200' } });
     expect([sheet?.what, sheet?.label, sheet?.item?.source]).toEqual(['this sheet', 'Kestrel › Costs', 'sheets/Kestrel/Costs.csv']);
     expect(hereOf({ app: 'docs', hasPage: false, note: { path: 'P2.md', title: 'P2', text: '# P2', folder: 'docs' } })?.what).toBe('this document');
-    expect(hereOf({ app: 'browser', hasPage: true, note: null })).toMatchObject({ what: 'this page', item: null });
+    // A web page goes only when asked for, from Add context.
+    expect(hereOf({ app: 'browser', hasPage: true, note: null })).toBeNull();
   });
   it('an app with nothing open sends nothing', () => {
     expect(hereOf({ app: 'sheets', hasPage: false, note: null, sheet: null })).toBeNull();

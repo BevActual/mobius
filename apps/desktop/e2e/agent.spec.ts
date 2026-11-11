@@ -51,7 +51,10 @@ test('a message gets a streamed answer, and the model sees the system prompt and
   expect(body.model).toBe('fake-model');
   const messages = body.messages as Array<{ role: string; content: string }>;
   expect(messages[0]!.role).toBe('system');
+  // Just the question: the page open in the browser goes only when added.
   expect(messages.at(-1)).toEqual({ role: 'user', content: 'Say hello' });
+  // And the standing instructions: say what changed from what the tools gave back.
+  expect(messages[0]!.content).toContain('never report a change');
 });
 
 test('Enter sends, Shift+Enter adds a line, and a blank message cannot be sent', async () => {

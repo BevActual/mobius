@@ -162,12 +162,6 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   /** The message's attachments with what is open here first, unless it is already among them. */
   const withHere = async (items: ContextItem[]): Promise<ContextItem[]> => {
     if (!here) return items;
-    if (here.item === null) {
-      if (items.some((i) => i.kind === 'page')) return items;
-      // The page is read as the message goes; one that cannot be read does not stop the message.
-      const result = await window.mobius.context.page().catch(() => null);
-      return result?.ok && result.item ? [result.item, ...items].slice(0, MAX_CONTEXT_ITEMS) : items;
-    }
     const item = here.item;
     if (items.some((i) => i.source === item.source)) return items;
     return [withSelection(item, selected()), ...items].slice(0, MAX_CONTEXT_ITEMS);
@@ -353,7 +347,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       {adding && <p className="chip chip-adding" role="status">Attaching…</p>}
       {(context.length > 0 || here) && (
         <ul className="chips" aria-label="Attached to this message">
-          {here && !context.some((c) => (here.item ? c.source === here.item.source : c.kind === 'page')) && (
+          {here && !context.some((c) => c.source === here.item.source) && (
             <li className="chip" data-here title={`Goes with your message: ${here.what}. Remove it to send without.`}>
               <span className="chip-kind" aria-hidden="true">{here.what.replace(/^this /, '').replace(/^./, (c) => c.toUpperCase())}</span>
               <span className="chip-title">{here.label}</span>
