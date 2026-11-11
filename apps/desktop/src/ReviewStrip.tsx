@@ -181,7 +181,8 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
       <div className="review-head">
         <span className="review-dot" aria-hidden="true" />
         <button type="button" className="review-toggle" aria-expanded={open} title={open ? 'Hide what changed' : 'See what changed'} onClick={() => setOpen((o) => !o)}>
-          <span className="review-summary">{files.length === 1 ? '1 change' : `${files.length} changes`}</span>
+          {/* Where the changes are, so a change in an app not on screen is not missed: "4 changes in Tasks, Calendar". */}
+          <span className="review-summary">{files.length === 1 ? '1 change' : `${files.length} changes`}{` in ${appsOf(files).join(', ')}`}</span>
           <span className="review-sep" aria-hidden="true">·</span>
           <span>Review</span>
           <svg className="review-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>

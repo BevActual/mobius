@@ -85,7 +85,7 @@ test('Try another puts the change back and asks Mobius to do it another way', as
   const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
   // One bar, the same everywhere: Try another, Discard, Keep.
   // A card from the start: the count, Keep, each change as a link to it, then Try another and Discard.
-  await expect(strip.getByRole('button', { name: /changes? ?· ?Review/ })).toHaveAttribute('aria-expanded', 'true');
+  await expect(strip.getByRole('button', { name: /changes? in Notes ·? ?Review/ })).toHaveAttribute('aria-expanded', 'true');
   await expect(strip.getByRole('button', { name: 'Discard' })).toBeVisible();
   await strip.getByRole('button', { name: 'Try another' }).click();
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(false);
