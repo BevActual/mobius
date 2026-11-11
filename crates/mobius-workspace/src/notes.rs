@@ -30,6 +30,32 @@ pub struct Notes {
     keeps_versions: bool,
 }
 
+/// Remove a folder: now, or, while Windows still has something in it open (a virus scan or the search index reading a new
+/// file can hold it for seconds), moved out of the way at once into the hidden `.trash` beside it and removed as soon as
+/// Windows lets go, so the page's files never outlive the page where the person can see them.
+fn remove_dir_soon(dir: &Path, trash: &Path) {
+    for wait in [0, 50, 150] {
+        std::thread::sleep(std::time::Duration::from_millis(wait));
+        if fs::remove_dir_all(dir).is_ok() || !dir.exists() {
+            return;
+        }
+    }
+    let _ = fs::create_dir_all(trash);
+    let stamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("files");
+    let parked = trash.join(format!("{stamp}-{name}"));
+    let left = if fs::rename(dir, &parked).is_ok() { parked } else { dir.to_path_buf() };
+    std::thread::spawn(move || {
+        for wait in [250, 500, 1000, 2000, 4000, 8000, 15000] {
+            std::thread::sleep(std::time::Duration::from_millis(wait));
+            if fs::remove_dir_all(&left).is_ok() || !left.exists() {
+                return;
+            }
+        }
+        eprintln!("[mobius] could not remove {} (still in use)", left.display());
+    });
+}
+
 fn markdown_starter(title: &str) -> String {
     format!("# {title}\n\n")
 }
@@ -416,13 +442,7 @@ impl Notes {
             let _ = fs::remove_file(comments);
         }
         if let Some(files) = self.files_folder(path).filter(|f| f.is_dir()) {
-            // Windows refuses for a moment while something else (a virus scan, the search index) has a new file open.
-            for wait in [0, 50, 150, 400, 1000] {
-                std::thread::sleep(std::time::Duration::from_millis(wait));
-                if fs::remove_dir_all(&files).is_ok() || !files.exists() {
-                    break;
-                }
-            }
+            remove_dir_soon(&files, &self.root.join(".trash"));
         }
         Ok(json!({ "removed": path, "checkpoint": checkpoint }))
     }
@@ -1101,4 +1121,31 @@ mod tests {
         assert!(notes.export(&path, "html", None).is_err());
     }
 
+}
+
+#[cfg(all(test, windows))]
+mod remove_soon_tests {
+    use super::remove_dir_soon;
+    use std::os::windows::fs::OpenOptionsExt;
+
+    #[test]
+    fn a_files_folder_held_open_by_another_program_is_removed_as_soon_as_it_is_let_go() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = dir.path().join("Work").join("Battery files");
+        std::fs::create_dir_all(&files).unwrap();
+        std::fs::write(files.join("cell.png"), b"png").unwrap();
+        // As a virus scan can: the new file open for reading, sharing reading only, so neither it nor its folder can go yet.
+        let held = std::fs::OpenOptions::new().read(true).share_mode(1).open(files.join("cell.png")).unwrap();
+        remove_dir_soon(&files, &dir.path().join(".trash"));
+        // Longer than the old code waited before giving up for good.
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+        drop(held);
+        let trash = dir.path().join(".trash");
+        for _ in 0..80 {
+            let parked = std::fs::read_dir(&trash).map(|d| d.count()).unwrap_or(0);
+            if !files.exists() && parked == 0 { return; }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        panic!("the files folder was not removed once the file was let go");
+    }
 }
