@@ -29,8 +29,10 @@ function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: Bro
     <motion.li
       layout="position"
       // A new tab grows into the list and a closed one folds away; under Reduce Motion they only fade.
+      // The row always ends at its full height: Reduce Motion can be learned after the row started growing (the first
+      // read of it may come late), and an end without a height would leave the row stopped part way, a few pixels tall.
       initial={still ? { opacity: 0 } : { opacity: 0, height: 0, overflow: 'hidden' }}
-      animate={still ? { opacity: 1 } : { opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } }}
+      animate={{ opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' }, ...(still ? { transition: { height: { duration: 0 } } } : {}) }}
       exit={still ? { opacity: 0, transition: quick } : { opacity: 0, height: 0, overflow: 'hidden', transition: { ...quick, duration: 0.18 } }}
       className="tab"
       aria-current={tab.active ? 'page' : undefined}
