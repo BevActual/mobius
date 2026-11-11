@@ -185,6 +185,12 @@ export function App() {
   const setApp = useCallback((id: AppId) => {
     const { panes: [a, b], focused: f } = panesNow.current;
     if (b !== null && (f === 0 ? b : a) === id) { setFocused(f === 0 ? 1 : 0); return; }
+    // The conversation stays in a split: another app goes in the other pane, which then has the focus.
+    if (b !== null && (f === 0 ? a : b) === 'agent' && id !== 'agent') {
+      setPanes(f === 0 ? [a, id] : [id, b]);
+      setFocused(f === 0 ? 1 : 0);
+      return;
+    }
     setPanes(f === 0 ? [id, b] : [a, id]);
   }, []);
   const [share, setShare] = useState(loadShare);
