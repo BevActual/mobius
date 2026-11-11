@@ -85,6 +85,30 @@ function LocalStatus({ job, url }: { job: 'listen' | 'speak'; url: string }) {
   );
 }
 
+/**
+ * Models by task, for voice: who listens and who speaks, beside the chat and quick models. The servers, voices and
+ * fallbacks stay in Voice; these are the same choices.
+ */
+export function VoiceModelRows({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
+  const path = (row: string) => settingPath('model', subpage, row);
+  const cannot = preferences.listenWith === 'chat' ? chatCannotListen(settings?.baseUrl ?? '') : null;
+  const listening = preferences.listenWith === 'off' ? null : preferences.listenWith === 'elevenlabs' ? 'ElevenLabs Scribe' : preferences.dictationModel;
+  const speaking = preferences.speakWith === 'off' ? null : preferences.speakWith === 'elevenlabs' ? 'ElevenLabs' : `${preferences.speakModel}${preferences.speakVoice ? `, ${preferences.speakVoice}` : ''}`;
+  return (
+    <>
+      <Row path={path('listen')} title="Listen" description="Turns your speech into text when you dictate. Its server, model and fallback are in Voice." highlight={highlight === 'listen'}>
+        <PopUp label="Listen with" value={preferences.listenWith} options={LISTEN} onChange={(listenWith) => void onPreferences({ listenWith })} />
+        {listening && <p className="srow-text">Model: {listening}</p>}
+        {cannot && <p className="srow-note" role="note">{cannot} Choose This computer or ElevenLabs.</p>}
+      </Row>
+      <Row path={path('speak')} title="Speak" description="Reads replies aloud. Its server, voice and fallback are in Voice." highlight={highlight === 'speak'}>
+        <PopUp label="Speak with" value={preferences.speakWith} options={SPEAK} onChange={(speakWith) => void onPreferences({ speakWith })} />
+        {speaking && <p className="srow-text">Voice: {speaking}</p>}
+      </Row>
+    </>
+  );
+}
+
 /** Who listens when you dictate, and who speaks answers aloud: each with its own service and a fallback. */
 export function VoiceSection({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
   const path = (row: string) => settingPath('voice', subpage, row);

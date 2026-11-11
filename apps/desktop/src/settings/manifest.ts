@@ -63,6 +63,8 @@ const SECTIONS: readonly SettingsSection[] = [
         row('second-model', 'Second model', 'Asked when the first is busy, down or cannot be reached.', 'fallback', 'backup', 'failover', 'second model', 'outage', 'rate limit'),
         row('chat-model', 'Chat model', 'The model Mobius talks to, from the services connected in Gateways.', 'model', 'chat model', 'default model', 'which model', 'switch model', 'gpt', 'claude', 'qwen', 'llama'),
         row('quick-model', 'Quick model', 'For quick jobs, like checking a step in Act mode before it runs.', 'quick', 'fast model', 'small model', 'reviewer', 'smart approval', 'models by task', 'task model', 'cheap model'),
+        row('listen', 'Listen', 'Turns your speech into text when you dictate.', 'speech to text', 'stt', 'dictation', 'transcribe', 'models by task', 'voice model'),
+        row('speak', 'Speak', 'Reads replies aloud.', 'text to speech', 'tts', 'read aloud', 'models by task', 'voice model'),
         row('effort', 'Effort', 'How hard the model is asked to think. Also in the message box. Only models that can reason use it.', 'reasoning', 'thinking', 'low', 'medium', 'high', 'effort'),
       ] },
       { id: 'local', label: 'This computer', rows: [

@@ -5,7 +5,7 @@ import { AboutSection, AdvancedSection, AppearanceSection, BrowserSection, Keybo
 import { ProvidersSection } from './ProviderKeys';
 import { SchedulesSection } from './Schedules';
 import { PageBoundary } from './PageBoundary';
-import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection } from './Voice';
+import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection, VoiceModelRows } from './Voice';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
 
@@ -16,7 +16,8 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   privacy: PrivacySection,
   extensions: ExtensionsSettings,
   appearance: AppearanceSection,
-  model: ModelSection,
+  // Models by task: chat, second and quick models, then who listens and who speaks.
+  model: (props) => <><ModelSection {...props} />{props.subpage !== 'local' && <VoiceModelRows {...props} />}</>,
   providers: ProvidersSection,
   safety: SafetySection,
   schedules: SchedulesSection,
