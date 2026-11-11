@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { KEPT_EVENT, keptTurns, turnId } from './ReviewStrip';
 
 /** What the last agent turn changed, as note page paths and task list names, so Notes and Tasks can mark them. */
@@ -44,8 +44,13 @@ export function marksOf(files: readonly string[]): TurnMarks {
 /** Read when a turn ends, when another conversation is shown, and after anything is put back. */
 export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
   const [marks, setMarks] = useState<TurnMarks>(NONE);
+  // Only the latest read counts: one made before the turn (on opening, say) can come back after the one made when it
+  // ended on a busy computer, and would take every dashed edge away (canvas.spec:139 once saw that).
+  const reads = useRef(0);
   const load = useCallback(async () => {
+    const n = ++reads.current;
     const result = await window.mobius.changes?.lastTurn(conversation).catch(() => null);
+    if (n !== reads.current) return;
     // A kept turn's changes are the person's now: they lose their dashed edge.
     const id = result && 'files' in result ? turnId(conversation, result.checkpoint) : null;
     setMarks(result && 'files' in result && !(id && keptTurns().includes(id)) ? marksOf(result.files) : NONE);
