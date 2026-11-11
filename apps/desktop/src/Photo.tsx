@@ -185,7 +185,7 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
               <li key={p.path}>
                 <button type="button" className="photo-tile" aria-label={p.name} aria-current={photos.open?.path === p.path ? 'true' : undefined} title={p.name} onClick={() => void photos.openPhoto(p.path)}>
                   {src ? <img src={src} alt="" draggable={false} /> : <span className="photo-tile-wait" />}
-                  {p.edited && <span className="photo-tile-badge" title="Edited"><Icon d="M4 10.5l3.5 3.5L16 5.5" /></span>}
+                  {p.edited && <span className="photo-tile-badge glass-clear" title="Edited"><Icon d="M4 10.5l3.5 3.5L16 5.5" /></span>}
                 </button>
               </li>
             );
@@ -483,8 +483,8 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
       {photos.message && <p className="tasks-message" role="alert">{photos.message}</p>}
       <div className="photo-body">
         <div className="photo-stage" data-zoomed={zoomed || undefined} data-cropping={cropping || undefined}>
-          {!cropping && at > 0 && <button type="button" className="photo-step prev" aria-label="Previous photo" title="Previous photo (←)" onClick={() => go(-1)}><Icon d="M12.5 4.5L7 10l5.5 5.5" /></button>}
-          {!cropping && at >= 0 && at < order.length - 1 && <button type="button" className="photo-step next" aria-label="Next photo" title="Next photo (→)" onClick={() => go(1)}><Icon d="M7.5 4.5L13 10l-5.5 5.5" /></button>}
+          {!cropping && at > 0 && <button type="button" className="photo-step prev glass-clear" aria-label="Previous photo" title="Previous photo (←)" onClick={() => go(-1)}><Icon d="M12.5 4.5L7 10l5.5 5.5" /></button>}
+          {!cropping && at >= 0 && at < order.length - 1 && <button type="button" className="photo-step next glass-clear" aria-label="Next photo" title="Next photo (→)" onClick={() => go(1)}><Icon d="M7.5 4.5L13 10l-5.5 5.5" /></button>}
           <div className="photo-frame" ref={frame} onDoubleClick={() => { if (!cropping) setZoomed((z) => !z); }}>
             <canvas ref={shown} className="photo-canvas" role="img" aria-label={before ? 'The photo before edits' : 'The photo with edits'} />
             {sel && area && area.kind !== 'all' && !before && !cropping && (

@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type Form
 import { createPortal } from 'react-dom';
 import type { CalendarDraft, CalendarEvent, CalendarSuggestion } from '@mobius/shared';
 import { onCommand } from './commands';
+import { useMorphIn } from './motion';
+import { settleBy, settleGone } from './settle';
 import { addDays, dayLabel, parseDayText, parseTimeText, timeLabel, weekStart, allDayOn, atMinutes, calendarColor, clock, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
@@ -41,9 +43,11 @@ function AccountDialog({ calendar, onClose }: { calendar: CalendarState; onClose
     setBusy(false);
     if (failed) setProblem(failed); else onClose();
   };
+  const sheet = useRef<HTMLFormElement>(null);
+  useMorphIn(sheet, true);
   return (
     <div className="cal-editor-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <form className="cal-editor" role="dialog" aria-modal="true" aria-label="Add a calendar account" onSubmit={(e) => void submit(e)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+      <form ref={sheet} className="cal-editor" role="dialog" aria-modal="true" aria-label="Add a calendar account" onSubmit={(e) => void submit(e)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
         <h2 className="cal-editor-heading">Add a calendar</h2>
         <label className="cal-editor-row"><span>From</span>
           <select aria-label="Where the calendar is" value={kind} onChange={(e) => { setKind(e.target.value as typeof kind); setProblem(null); }}>
@@ -232,6 +236,7 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       type="button"
       className="cal-event"
       data-suggested={event.suggestion ? true : undefined}
+      data-suggestion={event.suggestion?.id}
       data-all-day={event.allDay || undefined}
       data-fresh={calendar.fresh.has(event.id) || undefined}
       data-compact={compact || undefined}
@@ -625,9 +630,11 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
     setBusy(false);
     if (done) onClose();
   };
+  const sheet = useRef<HTMLFormElement>(null);
+  useMorphIn(sheet, true);
   return (
     <div className="cal-editor-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <form className="cal-editor" role="dialog" aria-modal="true" aria-label={locked ? 'Event' : original ? 'Edit event' : 'New event'} onSubmit={(e) => void save(e)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+      <form ref={sheet} className="cal-editor" role="dialog" aria-modal="true" aria-label={locked ? 'Event' : original ? 'Edit event' : 'New event'} onSubmit={(e) => void save(e)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
         <fieldset className="cal-editor-fields" disabled={locked}>
         <input ref={field} className="cal-editor-title" aria-label="Title" placeholder="New event" value={title} maxLength={200} required onChange={(e) => setTitle(e.target.value)} />
         <input className="cal-editor-place" aria-label="Place" placeholder="Add a place" value={where} maxLength={200} onChange={(e) => setWhere(e.target.value)} />
@@ -693,7 +700,11 @@ function SuggestionPopover({ calendar, id, at, onClose }: { calendar: CalendarSt
   if (!s) return null;
   const answer = async (add: boolean) => {
     setBusy(true);
+    // Kept, the dashed ghost turns solid in place; declined, it fades out. Then the change is made.
+    const ghosts = [...document.querySelectorAll<HTMLElement>(`.calendar-page .cal-event[data-suggestion="${CSS.escape(s.id)}"]`)];
+    await Promise.all(ghosts.map((g) => (add ? settleBy(g, 'data-keeping') : settleGone(g))));
     await (add ? calendar.accept(s.id) : calendar.decline(s.id));
+    ghosts.forEach((g) => g.removeAttribute('data-keeping'));
     setBusy(false);
     onClose();
   };
@@ -835,6 +846,7 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
     <section className="calendar-page" aria-label="Calendar" ref={page}>
       <header className="cal-head">
         <div className="cal-head-start">
+          <div className="cal-step cap-group" role="group" aria-label="Go to">
           <button type="button" className="strip-btn" aria-label="Back" title="Back (←)" onClick={() => calendar.setAnchor(step(calendar.mode, calendar.anchor, -1))}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg>
           </button>
@@ -842,6 +854,7 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
           <button type="button" className="strip-btn" aria-label="Forward" title="Forward (→)" onClick={() => calendar.setAnchor(step(calendar.mode, calendar.anchor, 1))}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
           </button>
+          </div>
         </div>
         <div className="segmented" role="radiogroup" aria-label="View">
           {MODES.map((m) => <button key={m.id} type="button" role="radio" aria-checked={calendar.mode === m.id} title={`${m.name} (${m.name[0]})`} onClick={() => calendar.setMode(m.id)}>{m.name}</button>)}

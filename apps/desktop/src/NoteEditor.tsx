@@ -2,6 +2,7 @@ import { EmptyState } from './EmptyState';
 import { newItemIn } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { settleGone, settleIn, settleKept } from './settle';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
 import { Extension } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -458,6 +459,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
     // Checked again when the page changes: a new turn's change is not kept yet.
   }, [review?.conversation, path, notes.page?.base]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reviewBar = useRef<HTMLDivElement>(null);
   const keepChanges = async () => {
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
@@ -637,11 +639,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
         </div>
       )}
       {review && !kept && !history && (
-        <div className="note-review" role="status">
+        <div ref={reviewBar} className="note-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in Mobius's last turn`; })() : "Mobius changed this page in its last turn."}<WhyThis conversation={review.conversation} /></span>
           <button type="button" className="review-btn" aria-pressed={diff !== null} onClick={() => (diff ? setDiff(null) : void showChanges())}>{diff ? 'Back to editing' : 'Show changes'}</button>
-          <ReviewActions onKeep={keepChanges} onDiscard={undoChanges} discardTitle="Put this page back as it was before that turn" keepTitle="Keep what the agent changed in that turn" />
+          <ReviewActions onKeep={async () => { await settleKept(reviewBar.current); await keepChanges(); }} onDiscard={async () => { const paper = reviewBar.current?.parentElement?.querySelector('.note-paper'); await settleGone(paper); await undoChanges(); settleIn(paper); }} discardTitle="Put this page back as it was before that turn" keepTitle="Keep what the agent changed in that turn" />
           {reviewProblem && <span className="review-problem" role="alert">{reviewProblem}</span>}
         </div>
       )}

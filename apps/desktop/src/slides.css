@@ -69,7 +69,7 @@
 
 /* Menus: layouts to add, and a slide's right-click menu */
 .slides-scrim { position: fixed; inset: 0; z-index: 900; }
-.slides-menu { position: fixed; z-index: 901; display: grid; min-width: 200px; padding: 5px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
+.slides-menu { position: fixed; z-index: 901; display: grid; min-width: 200px; padding: 5px; border-radius: 10px; box-shadow: var(--glass-edge), 0 18px 50px rgba(0, 0, 0, 0.22); }
 .slides-menu button { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 26px; padding: 0 10px; border-radius: 6px; font-size: var(--fs-md, 13px); color: var(--ink); text-align: left; cursor: default; }
 .slides-menu button:hover:not(:disabled), .slides-menu button:focus-visible { background: var(--accent); color: var(--on-accent, #fff); outline: none; }
 .slides-menu button:disabled { opacity: 0.4; }

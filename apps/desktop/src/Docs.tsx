@@ -1,3 +1,4 @@
+import { settleGone, settleIn, settleKept } from './settle';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
@@ -268,12 +269,12 @@ function Proposals({ diff, onDiscard }: { diff: DiffLine[]; onDiscard: (group: n
   return (
     <div className="doc-proposals" aria-label="Changes Mobius made">
       {groups.map((g) => (
-        <div key={g.id} className="doc-proposal">
+        <div key={g.id} className="doc-proposal" data-group={g.id}>
           {g.lines.filter((l) => l.kind === 'removed').length > 0 && <div className="doc-proposal-old">{g.lines.filter((l) => l.kind === 'removed').map((l, i) => <p key={i}>{l.text || ' '}</p>)}</div>}
           {g.lines.filter((l) => l.kind === 'added').length > 0 && <div className="doc-proposal-new">{g.lines.filter((l) => l.kind === 'added').map((l, i) => <p key={i}>{l.text || ' '}</p>)}</div>}
           <div className="doc-proposal-actions">
             <span>Mobius</span>
-            <button type="button" className="btn" onClick={() => onDiscard(g.id)}>Discard</button>
+            <button type="button" className="btn" onClick={(e) => { void settleGone(e.currentTarget.closest('.doc-proposal')).then(() => onDiscard(g.id)); }}>Discard</button>
           </div>
         </div>
       ))}
@@ -522,6 +523,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
     }).catch(() => {});
     return () => { live = false; };
   }, [review?.conversation, kept, path]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reviewBar = useRef<HTMLDivElement>(null);
   const keepAll = async () => {
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
@@ -620,10 +622,12 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
               </div>
             )}
             {review && !kept && (
-              <div className="note-review doc-review" role="status">
+              <div ref={reviewBar} className="note-review doc-review" role="status">
                 <span className="review-dot" aria-hidden="true" />
                 <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `Mobius changed ${c.added + c.removed === 1 ? 'one line' : `${c.added + c.removed} lines`} here in its last turn.`; })() : 'Mobius changed this document in its last turn.'}<WhyThis conversation={review.conversation} /></span>
-                <ReviewActions onKeep={keepAll} onDiscard={discardAll} />
+                <ReviewActions
+                  onKeep={async () => { const page = reviewBar.current?.parentElement; await Promise.all([settleKept(reviewBar.current), settleKept(page?.querySelector('.doc-proposals'))]); await keepAll(); }}
+                  onDiscard={async () => { const paper = reviewBar.current?.parentElement?.querySelector('.doc-sheet'); await Promise.all([settleGone(paper), settleGone(reviewBar.current?.parentElement?.querySelector('.doc-proposals'))]); await discardAll(); settleIn(paper); }} />
               </div>
             )}
             {problem && <p className="tasks-message" role="alert">{problem}</p>}

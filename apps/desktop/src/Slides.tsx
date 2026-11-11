@@ -162,7 +162,7 @@ function SlideMenu({ x, y, items, onClose }: { x: number; y: number; items: { la
   return createPortal(
     <>
       <div className="slides-scrim" onMouseDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
-      <div ref={box} className="slides-menu" role="menu" aria-label="Slide" style={{ top: Math.min(y, window.innerHeight - 220), left: Math.min(x, window.innerWidth - 220) }} onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
+      <div ref={box} className="slides-menu glass" role="menu" aria-label="Slide" style={{ top: Math.min(y, window.innerHeight - 220), left: Math.min(x, window.innerWidth - 220) }} onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
         {items.map((it, n) => it.label === '-' ? <div key={`sep${n}`} className="slides-menu-sep" /> : (
           <button key={it.label} type="button" role="menuitem" disabled={it.disabled} data-danger={it.danger || undefined} onClick={() => { onClose(); it.run(); }}>
             <span>{it.label}</span>{it.keys && <kbd>{it.keys}</kbd>}
