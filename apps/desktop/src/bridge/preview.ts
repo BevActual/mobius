@@ -1,6 +1,7 @@
 import { tagsIn } from '../note-tags';
 import { linksIn } from '../note-links';
 import { PREVIEW_TASKS } from './preview-tasks';
+import { PREVIEW_CALENDAR } from './preview-calendar';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
 /**
@@ -29,13 +30,6 @@ const MAIL_TEXT: Record<string, string> = {
   m2: 'Hello,\n\nEight 60 kWh packs: six weeks from order to your dock. The hold lasts until Friday.\n\nVeltro Cells',
   m3: 'Axion can do Wednesday. Does 10:00 work?\n\nSam',
 };
-
-const EVENTS = [
-  { id: 'e1', calendar: 'Kestrel P2', title: 'Packs arrive', start: `${day(0)}T08:40`, end: `${day(0)}T09:30`, allDay: false, location: 'Dock 2', notes: '', repeats: false },
-  { id: 'e2', calendar: 'Kestrel P2', title: 'Motor call with Sam', start: `${day(1)}T10:00`, end: `${day(1)}T10:30`, allDay: false, location: '', notes: '', repeats: false },
-  { id: 'e3', calendar: 'Kestrel P2', title: 'Crash test', start: `${day(3)}T09:00`, end: `${day(3)}T11:00`, allDay: false, location: 'Northfield sled', notes: '', repeats: false },
-  { id: 'e4', calendar: 'Work', title: 'Standup', start: `${day(0)}T09:30`, end: `${day(0)}T09:45`, allDay: false, location: '', notes: '', repeats: true },
-];
 
 const NOTE_FILES: Record<string, string> = {};
 const NOTE_COMMENTS: Record<string, unknown[]> = { 'P2 build/Supplier notes.md': [{ id: 'c1', quote: 'six weeks from order to the dock', text: 'Can Veltro do five if we pay the deposit this week?', by: 'you', whenMs: Date.now() - 2 * 3_600_000, resolved: false }] };
@@ -107,7 +101,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   // Before the turn: the supplier notes had only their title, and the P2 build list had no deposit task.
   'changes.before': ((_conversation: string, path: string) => ({ ok: true, text: path.startsWith('tasks/') ? '# P2 build\n\n- [x] Confirm the build week with everyone\n- [ ] Hold 8 packs at Veltro\n- [ ] Book the sled for Friday\n- [x] Draft the build budget\n' : path.startsWith('sheets/') ? 'Item,Cost\nPacks,48000\nSled,6500\n' : path.startsWith('docs/') ? '# Build brief\n\nThe P2 build runs the week of the 23rd.\n' : '# Supplier notes\n' })) as never,
   'calendar.calendars': () => ['Kestrel P2', 'Work', 'Home'],
-  'calendar.events': () => EVENTS,
+  // Events are kept in memory for as long as the preview is open.
+  ...PREVIEW_CALENDAR,
   // Time Mobius suggests, waiting to be kept.
   'calendar.suggestions': () => [{ id: 's1', calendar: 'Kestrel P2', title: 'Prep the build plan', start: `${day(1)}T14:00`, end: `${day(1)}T15:00`, allDay: false, location: '', notes: '', why: 'your first free hour before the build week call' }],
   // The model picker: a plan, a key, and a model on this computer.

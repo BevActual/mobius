@@ -55,7 +55,7 @@ test('a calendar file from another app shows in the week, and events are added, 
   await editor.getByRole('checkbox', { name: 'All day' }).check();
   await editor.getByLabel('Start day').fill(today());
   await editor.getByLabel('End day').fill(today());
-  await editor.getByRole('combobox').selectOption('Calendar');
+  await editor.getByRole('combobox', { name: 'Calendar' }).selectOption('Calendar');
   await editor.getByRole('button', { name: 'Add' }).click();
   await expect(editor).toHaveCount(0);
   const plants = page().getByRole('button', { name: /^Water the plants, All day/ });
@@ -85,6 +85,45 @@ test('a calendar file from another app shows in the week, and events are added, 
   await shell().getByRole('list', { name: 'Calendars' }).getByRole('checkbox', { name: 'Work' }).check();
   await page().getByRole('radio', { name: 'Month' }).click();
   await expect(page().locator('.cal-month-cell[data-today]').getByRole('button', { name: /^Team standup/ })).toBeVisible();
+});
+
+test('an event typed in words is set to repeat, then dragged an hour later, and every time it happens moves', async () => {
+  await start();
+  await page().getByRole('radio', { name: 'Day' }).click();
+  const tomorrow = day(new Date(Date.now() + 86_400_000));
+  const quick = page().getByRole('textbox', { name: 'Quick add an event' });
+  await quick.fill('Site walk tomorrow 10am for 30m');
+  await expect(page().getByRole('status').filter({ hasText: 'Site walk' })).toContainText('10:00–10:30');
+  await quick.press('Enter');
+  // The day it is on opens.
+  const walk = (time: string) => page().getByRole('button', { name: new RegExp(`^Site walk, ${time}`) });
+  await expect(walk('10:00–10:30')).toBeVisible();
+  await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain(`DTSTART:${ics(tomorrow)}T100000`);
+
+  await walk('10:00–10:30').click();
+  const editor = shell().getByRole('dialog', { name: 'Edit event' });
+  await editor.getByRole('combobox', { name: 'Repeat' }).selectOption('Every day');
+  await editor.getByRole('button', { name: 'Save' }).click();
+  await expect(editor).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
+
+  // Dragged down an hour (48 pixels), the whole series moves, and Undo is offered.
+  const box = (await walk('10:00–10:30').boundingBox())!;
+  await shell().mouse.move(box.x + box.width / 2, box.y + 8);
+  await shell().mouse.down();
+  await shell().mouse.move(box.x + box.width / 2, box.y + 30, { steps: 4 });
+  await shell().mouse.move(box.x + box.width / 2, box.y + 56, { steps: 4 });
+  await shell().mouse.up();
+  await expect(walk('11:00–11:30')).toBeVisible();
+  await expect(page().getByRole('status').filter({ hasText: 'Moved “Site walk”' })).toBeVisible();
+  await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain(`DTSTART:${ics(tomorrow)}T110000`);
+  expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
+
+  // The next day has it at the new time too; the arrow key goes there.
+  await shell().locator('body').press('ArrowRight');
+  await expect(walk('11:00–11:30')).toBeVisible();
+  await shell().locator('body').press('m');
+  await expect(page().getByRole('radio', { name: 'Month' })).toHaveAttribute('aria-checked', 'true');
 });
 
 test('the agent adds an event from the panel beside the calendar, after asking, and it shows at once', async () => {
@@ -130,7 +169,7 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
 
   // New events go only to calendars that can take them.
   await page().getByRole('button', { name: 'New event' }).click();
-  await expect(shell().getByRole('dialog', { name: 'New event' }).getByRole('combobox')).toHaveCount(0);
+  await expect(shell().getByRole('dialog', { name: 'New event' }).getByRole('combobox', { name: 'Calendar' })).toHaveCount(0);
   await shell().getByRole('dialog', { name: 'New event' }).getByRole('button', { name: 'Cancel' }).click();
 
   await group.getByRole('button', { name: 'Remove Holidays' }).click();

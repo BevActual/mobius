@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type CalendarAccount, type CalendarDraft, type CalendarEvent, type CalendarSource, type CalendarSuggestion, type NotesFailure } from '@mobius/shared';
+import { isNotesFailure, type CalendarAccount, type CalendarDraft, type CalendarEvent, type CalendarSource, type CalendarSuggestion, type NotesFailure, type TaskItem } from '@mobius/shared';
 import { daysFor, hiddenCalendars, isoDay, keepHidden, type CalendarMode } from './calendar-view';
 
 const MODE_KEY = 'mobius.calendar.mode';
+/** Whether tasks with a due date are shown on their days, per device; shown unless turned off. */
+const TASKS_KEY = 'mobius.calendar.tasks';
+/** A task from Tasks with a due date, shown on its day. */
+export interface DueTask { list: string; task: TaskItem }
 const FRESH_MS = 4000;
 function rememberedMode(): CalendarMode {
   try {
@@ -28,6 +32,9 @@ export function useCalendar() {
   const [message, setMessage] = useState('');
   // Events the agent just added or changed, marked for a moment so its work is visible without moving focus.
   const [fresh, setFresh] = useState<Set<string>>(new Set());
+  const [showTasks, setShowTasks] = useState(() => { try { return window.localStorage.getItem(TASKS_KEY) !== 'off'; } catch { return true; } });
+  const toggleTasks = useCallback(() => setShowTasks((on) => { try { window.localStorage.setItem(TASKS_KEY, on ? 'off' : 'on'); } catch { /* Not kept. */ } return !on; }), []);
+  const [due, setDue] = useState<DueTask[]>([]);
   const live = useRef({ mode, anchor, events });
   live.current = { mode, anchor, events };
 
@@ -45,6 +52,26 @@ export function useCalendar() {
   }, [api]);
 
   useEffect(() => { void refresh(); }, [mode, anchor, refresh]);
+
+  /** Every task with a due date, from every list: few enough to read whole, and ticked off here as in Tasks. */
+  const tasksApi = window.mobius.tasks;
+  const loadDue = useCallback(async () => {
+    const lists = await tasksApi?.lists();
+    if (!lists || isNotesFailure(lists)) return;
+    const found: DueTask[] = [];
+    await Promise.all(lists.map(async (l) => {
+      const got = await tasksApi!.read(l.name);
+      if (!isNotesFailure(got)) for (const task of got.tasks) if (task.due) found.push({ list: l.name, task });
+    }));
+    setDue(found);
+  }, [tasksApi]);
+  useEffect(() => { void loadDue(); return tasksApi?.onChanged(() => { void loadDue(); }); }, [tasksApi, loadDue]);
+  const tickTask = useCallback(async (item: DueTask, done: boolean) => {
+    setDue((cur) => cur.map((d) => (d === item ? { ...d, task: { ...d.task, done } } : d)));
+    const result = await tasksApi?.update(item.list, item.task.line, item.task.text, { done });
+    if (result && isNotesFailure(result) && !result.conflict) setMessage(result.message);
+    await loadDue();
+  }, [tasksApi, loadDue]);
   useEffect(() => api?.onChanged((change) => {
     const before = new Set(live.current.events.map((e) => `${e.id}|${e.start}|${e.end}|${e.title}`));
     void refresh().then((after) => {
@@ -57,11 +84,11 @@ export function useCalendar() {
   }), [api, refresh]);
   // The calendars are ordinary files another app may change: read them again when the window comes back.
   useEffect(() => {
-    const again = () => { if (document.visibilityState === 'visible') void refresh(); };
+    const again = () => { if (document.visibilityState === 'visible') { void refresh(); void loadDue(); } };
     window.addEventListener('focus', again);
     document.addEventListener('visibilitychange', again);
     return () => { window.removeEventListener('focus', again); document.removeEventListener('visibilitychange', again); };
-  }, [refresh]);
+  }, [refresh, loadDue]);
 
   const settle = useCallback(async <T extends object>(result: T | NotesFailure | undefined): Promise<T | null> => {
     if (result === undefined) return null;
@@ -110,7 +137,7 @@ export function useCalendar() {
   const readOnly = useCallback((name: string) => sources.some((s) => s.name === name && s.readOnly), [sources]);
 
   const shown = events.filter((e) => !hidden.has(e.calendar));
-  return { available: api !== undefined, calendars, sources, accounts, suggestions, accept, decline, addAccount, removeAccount, sync, syncing, readOnly, mode, setMode, anchor, setAnchor, events: shown, hidden, toggle, message, add, update, remove, createCalendar, fresh, refresh };
+  return { available: api !== undefined, calendars, sources, accounts, suggestions, accept, decline, addAccount, removeAccount, sync, syncing, readOnly, mode, setMode, anchor, setAnchor, events: shown, hidden, toggle, message, add, update, remove, createCalendar, fresh, refresh, showTasks, toggleTasks, due: showTasks ? due : [], tickTask };
 }
 
 export type CalendarState = ReturnType<typeof useCalendar>;
