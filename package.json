@@ -21,9 +21,11 @@
     "test:core": "cargo test --workspace",
     "gen:types": "node scripts/gen-types.mjs",
     "check:types": "node scripts/check-generated.mjs",
-    "app": "npm run app -w @mobius/desktop --"
+    "app": "npm run app -w @mobius/desktop --",
+    "package": "node scripts/package.mjs"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.3",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   },

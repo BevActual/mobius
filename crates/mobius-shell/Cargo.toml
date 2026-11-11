@@ -25,6 +25,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
 arboard = "3"
 tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
 getrandom = "0.3"
 
 [target.'cfg(windows)'.dependencies]

@@ -515,6 +515,10 @@ impl Bridge {
             ("extensions", "connectors") => Ok(self.mcp_status()),
             // Settings, Voice: try the server chosen for listening or speaking, as it is set now.
             ("voice", "test") => Ok(self.voice_test(arg(0).as_str().unwrap_or(""))),
+            // Settings, Voice, This computer: whether a speech server answers at the saved address. Nothing is installed.
+            ("voice", "local") => Ok(self.voice_local(arg(0).as_str().unwrap_or(""))),
+            // Read words aloud with the service chosen for speaking: the window gets the sound, never a key.
+            ("voice", "speak") => Ok(self.speak(arg(0).as_str().unwrap_or(""))),
             // Comments on anything in the workspace, kept per document in `.comments/` (see mobius_workspace::comments).
             ("comments", "list" | "all" | "set") => {
                 let store = mobius_workspace::comments::Comments::new(self.data_dir.join("workspace"));
@@ -1606,9 +1610,74 @@ impl Bridge {
     }
 
     /// Settings > Providers. A key goes in and is never given back; it is only ever sent to its provider's address.
+    /// Turn a recording into words with the service chosen for listening, then its fallback. Nothing chosen says so,
+    /// with `setup` so the window can point to Settings, Voice.
+    fn listen(&self, bytes: &[u8], mime: &str) -> Value {
+        let prefs = lock(&self.preferences).get();
+        let s = |k: &str| prefs[k].as_str().unwrap_or("").to_owned();
+        let (first, fallback, url, model) = (s("listenWith"), s("listenFallback"), s("listenUrl"), s("dictationModel"));
+        let model = if model.is_empty() { "whisper-1".to_owned() } else { model };
+        let mut last = json!({ "ok": false, "error": "Listening is off. Choose who listens in Settings, Voice.", "setup": true });
+        for with in crate::voice::order(&first, &fallback) {
+            let got = match with {
+                "chat" => self.agent.transcribe(bytes, mime, &model),
+                "local" => crate::voice::transcribe_local(&url, &model, bytes, mime),
+                "elevenlabs" => match (self.providers.key("elevenlabs"), self.providers.address("elevenlabs")) {
+                    (Some(key), Some(base)) => crate::voice::transcribe_elevenlabs(&base, &key, &model, bytes, mime),
+                    _ => json!({ "ok": false, "error": "Add an ElevenLabs key in Gateways to listen with it.", "setup": true }),
+                },
+                _ => continue,
+            };
+            if got["ok"] == true {
+                return got;
+            }
+            last = got;
+        }
+        last
+    }
+
+    /// Read words aloud with the service chosen for speaking, then its fallback.
+    fn speak(&self, text: &str) -> Value {
+        let text: String = text.trim().chars().take(crate::voice::MAX_SPEAK_CHARS).collect();
+        if text.is_empty() {
+            return failed("There is nothing to read.");
+        }
+        let prefs = lock(&self.preferences).get();
+        let s = |k: &str| prefs[k].as_str().unwrap_or("").to_owned();
+        let (first, fallback, url, model, voice) = (s("speakWith"), s("speakFallback"), s("speakUrl"), s("speakModel"), s("speakVoice"));
+        let mut last = json!({ "ok": false, "error": "Speaking is off. Choose who speaks in Settings, Voice.", "setup": true });
+        for with in crate::voice::order(&first, &fallback) {
+            let got = match with {
+                "local" => crate::voice::speak_local(&url, &model, &voice, &text),
+                "elevenlabs" => match (self.providers.key("elevenlabs"), self.providers.address("elevenlabs")) {
+                    (Some(key), Some(base)) => crate::voice::speak_elevenlabs(&base, &key, &model, &voice, &text),
+                    _ => json!({ "ok": false, "error": "Add an ElevenLabs key in Gateways to speak with it.", "setup": true }),
+                },
+                _ => continue,
+            };
+            if got["ok"] == true {
+                return got;
+            }
+            last = got;
+        }
+        last
+    }
+
     /// Whether the server chosen for a voice job answers: the chat model's server (listening only), a speech server on
     /// this computer that speaks OpenAI's audio format, or ElevenLabs with its key from Gateways. The key is only ever
     /// sent to ElevenLabs's own address, and never put in the answer.
+    fn voice_local(&self, job: &str) -> Value {
+        let prefs = lock(&self.preferences).get();
+        let url = match job {
+            "listen" => prefs["listenUrl"].as_str().unwrap_or("").to_owned(),
+            "speak" => prefs["speakUrl"].as_str().unwrap_or("").to_owned(),
+            _ => return failed("That is not a voice job."),
+        };
+        let http: ureq::Agent = ureq::Agent::config_builder().max_redirects(0).http_status_as_error(false).timeout_global(Some(Duration::from_secs(3))).build().into();
+        let ready = !url.is_empty() && http.get(&format!("{}/models", url.trim_end_matches('/'))).call().is_ok_and(|r| r.status().is_success());
+        json!({ "ok": true, "ready": ready, "url": url })
+    }
+
     fn voice_test(&self, job: &str) -> Value {
         let prefs = lock(&self.preferences).get();
         let (with, url) = match job {
@@ -2747,10 +2816,7 @@ impl Bridge {
                 None => failed("That model cannot be used."),
             },
             "transcribe" => match agent::parse_recording(arg(0), arg(1)) {
-                Some((bytes, mime)) => {
-                    let model = self.preference("dictationModel");
-                    self.agent.transcribe(&bytes, mime, model.as_str().unwrap_or("whisper-1"))
-                }
+                Some((bytes, mime)) => self.listen(&bytes, mime),
                 None => failed("That recording cannot be used."),
             },
             "cancel" => {

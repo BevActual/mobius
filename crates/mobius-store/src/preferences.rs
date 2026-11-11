@@ -53,7 +53,7 @@ fn is_voice_name(v: &Value) -> bool {
 pub const LISTEN_WITH: [&str; 4] = ["chat", "local", "elevenlabs", "off"];
 pub const SPEAK_WITH: [&str; 3] = ["local", "elevenlabs", "off"];
 
-static FIELDS: [Field; 20] = [
+static FIELDS: [Field; 22] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -75,6 +75,10 @@ static FIELDS: [Field; 20] = [
     Field { name: "speakUrl", default: || json!("http://127.0.0.1:8880/v1"), check: is_voice_url },
     Field { name: "speakModel", default: || json!("kokoro"), check: is_model_name },
     Field { name: "speakVoice", default: || json!(""), check: is_voice_name },
+    // Install updates on their own, at the next quit, once they are downloaded. Checking and downloading always happen.
+    Field { name: "autoUpdate", default: || json!(true), check: is_flag },
+    // Read new replies aloud with the service chosen for speaking. Off until chosen.
+    Field { name: "readAloud", default: || json!(false), check: is_flag },
     Field { name: "appAccess", default: app_access_default, check: is_app_access },
 ];
 
@@ -82,6 +86,11 @@ pub fn open(file: PathBuf) -> Settings {
     let mut settings = Settings::open(file, &FIELDS);
     if settings.get()["approvalMode"] == "off" {
         settings.set(&json!({ "approvalMode": "smart" }));
+    }
+    let bindings = settings.get()["keybindings"].clone();
+    let renewed = keys::renew(&bindings);
+    if renewed != bindings {
+        settings.set(&json!({ "keybindings": renewed }));
     }
     let access = settings.get()["appAccess"].clone();
     let renewed = renew_app_access(&access);
@@ -163,5 +172,22 @@ mod voice_tests {
         assert_eq!(again.get()["speakVoice"], "Rachel");
         assert!(!is_voice_url(&json!("ftp://x")) && !is_voice_url(&json!("http://a b")) && is_voice_url(&json!("https://api.example/v1")));
         assert!(!one_of(&json!("whisper"), &LISTEN_WITH));
+    }
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::*;
+
+    #[test]
+    fn updates_install_by_themselves_until_the_person_says_otherwise() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("preferences.json");
+        let mut p = open(file.clone());
+        assert_eq!(p.get()["autoUpdate"], true);
+        p.set(&json!({ "autoUpdate": false }));
+        assert_eq!(open(file.clone()).get()["autoUpdate"], false);
+        p.set(&json!({ "autoUpdate": "yes" }));
+        assert_eq!(open(file).get()["autoUpdate"], false, "only true or false is kept");
     }
 }

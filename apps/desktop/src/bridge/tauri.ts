@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import type { UpdateInfo } from '@mobius/shared';
 import {
   DEFAULT_APPEARANCE,
   DEFAULT_PREFERENCES,
@@ -245,8 +246,16 @@ export function createTauriBridge(): MobiusBridge {
       addThread: (id, conversation) => call('projects', 'addThread', [id, conversation], () => ({ ok: false as const, message: 'Projects are not available.' })),
       onChanged: (listener) => on<null>('mobius:projects-changed', () => listener()),
     },
+    updates: {
+      get: () => call('updates', 'get', [], () => ({ state: 'off' as const, status: 'Updates are not available here.', current: '' })),
+      check: () => call('updates', 'check', [], () => ({ state: 'off' as const, status: 'Updates are not available here.', current: '' })),
+      restart: () => call('updates', 'restart', [], () => ({ ok: false as const, error: 'Updates are not available here.' })),
+      onChange: (listener) => on<UpdateInfo>('mobius:updates', listener),
+    },
     voice: {
       test: (job) => call('voice', 'test', [job], () => ({ ok: false as const, error: 'Voice is not available here.' })),
+      local: (job) => call('voice', 'local', [job], () => ({ ok: false as const, error: 'Voice is not available here.' })),
+      speak: (text) => call('voice', 'speak', [text], () => ({ ok: false as const, error: 'Voice is not available here.' })),
     },
     comments: {
       list: (app, doc) => call('comments', 'list', [app, doc], () => []),

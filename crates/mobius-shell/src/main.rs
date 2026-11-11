@@ -6,6 +6,7 @@ mod secrets;
 mod tray;
 mod menu;
 mod profiles;
+mod updater;
 #[cfg(windows)]
 mod cdp;
 mod engine;
@@ -348,6 +349,10 @@ fn little_mobius(app: &tauri::AppHandle, method: &str, place_file: &std::path::P
 /// The one door from the interface into Rust.
 #[tauri::command]
 async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: String, method: String, args: Vec<Value>) -> Result<Value, Value> {
+    // Software Update is the shell's own: it replaces the shell.
+    if namespace == "updates" {
+        return updater::call(&app, &method).await;
+    }
     if namespace == "profiles" {
         let base = &shell.profiles_base;
         let mut profiles = profiles::Profiles::read(base);
@@ -457,6 +462,7 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![bridge])
         // Video clips for the window's player, streamed in parts as it asks: only clips in a Video project.
         .register_asynchronous_uri_scheme_protocol("media", |ctx, request, responder| {
@@ -563,6 +569,8 @@ fn main() {
             }
             let quit_handle = handle.clone();
             bridge.set_quit(Arc::new(move || quit_handle.exit(0)));
+            app.manage(updater::Updates::new(test_mode));
+            updater::start(&handle);
             app.manage(Shell { bridge: bridge.clone(), mini_place: data_dir.join("little-mobius.json"), tray: std::sync::Mutex::new(None), menu: std::sync::Mutex::new(None), profiles_base: base_dir.clone() });
             // A choice in the macOS menu bar goes to the interface, which runs it.
             handle.on_menu_event(|app, event| menu::on_event(app, event.id().as_ref()));
@@ -714,6 +722,11 @@ fn main() {
                 engines.0.shutdown();
             }
             if matches!(event, tauri::RunEvent::Exit) && let Some(shell) = handle.try_state::<Shell>() {
+                // A downloaded update is installed as Mobius quits, if the person chose that.
+                if let Some(updates) = handle.try_state::<updater::Updates>() {
+                    let auto = shell.bridge.call("preferences", "get", &[]).ok().and_then(|p| p["autoUpdate"].as_bool()).unwrap_or(true);
+                    updates.install_on_quit(auto);
+                }
                 shell.bridge.stop_core();
             }
         }),

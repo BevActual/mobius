@@ -12,6 +12,9 @@ import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
 import { modeOf } from './approval-modes';
 import { stampLabel, startsGroup } from './time-stamps';
+import { useSpeech } from './useSpeech';
+import { isSpeaking, readAloudNow } from './speech';
+import { EMPTY_QUEUE, afterTurn, clearQueue, editQueued, enqueue, removeQueued, resumeQueue, type MessageQueue, type Queued } from './message-queue';
 import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import type { SurfaceState } from './surface';
@@ -290,6 +293,8 @@ export interface ChatPanelProps {
   place?: string;
   /** Put the panel away. */
   onHide?: () => void;
+  /** Settings, Voice: where listening and speaking are chosen. */
+  onOpenVoice?: () => void;
   /** Before the title: the app switcher, when the panel takes the sidebar. */
   lead?: ReactNode;
   /** In the sidebar: "In Notes" opens the app switcher. */
@@ -395,14 +400,51 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [chatsToken, setChatsToken] = useState(0);
   const [contextOpen, setContextOpen] = useState(false);
-  const [starterSlot, setStarterSlot] = useState<HTMLDivElement | null>(null);
   const preferences = usePreferences();
+  const [starterSlot, setStarterSlot] = useState<HTMLDivElement | null>(null);
+  // Reading replies aloud: a Speak button on each, and, when chosen in Settings, Voice, each new reply by itself.
+  const { speech, speak, stop: stopSpeaking, dismiss: dismissSpeech } = useSpeech();
+  // Messages written while Mobius works: kept above the box and sent in order as each turn ends. Stop keeps them, paused.
+  const [queue, setQueue] = useState<MessageQueue>(EMPTY_QUEUE);
+  const queueWasBusy = useRef(state.busy);
+  const sendQueued = useRef<(item: Queued) => void>(() => undefined);
+  sendQueued.current = (item) => onSend(item.text, item.context, item.options);
+  useEffect(() => {
+    const before = queueWasBusy.current;
+    queueWasBusy.current = state.busy;
+    const step = afterTurn(queue, before, state.busy, state.ended);
+    if (step.queue !== queue) setQueue(step.queue);
+    if (step.send) sendQueued.current(step.send);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.busy, state.ended]);
+  // A queue belongs to its conversation: another one starts without it.
+  useEffect(() => { setQueue((q) => clearQueue(q)); }, [state.conversation]);
+  const sendNextQueued = () => {
+    const step = resumeQueue(queue, state.busy);
+    setQueue(step.queue);
+    if (step.send) sendQueued.current(step.send);
+  };
+  const wasBusy = useRef(state.busy);
+  const lastRead = useRef<string | null>(null);
+  useEffect(() => {
+    const busy = state.busy;
+    const before = wasBusy.current;
+    wasBusy.current = busy;
+    // A new message stops whatever is being read.
+    if (busy && !before) stopSpeaking();
+    const last = state.items.findLast((i) => i.kind === 'assistant');
+    const reply = last && last.kind === 'assistant' ? { id: last.id, text: last.text } : null;
+    if (readAloudNow(preferences.value.readAloud, before, busy, reply, lastRead.current) && reply) {
+      lastRead.current = reply.id;
+      void speak(reply.id, withoutMarks(reply.text));
+    }
+  }, [state.busy, state.items, preferences.value.readAloud, speak, stopSpeaking]);
   const [copied, setCopied] = useState<string | null>(null);
   // Not-sure facts the person checked, per reply: a reply with unchecked ones is not copied out of Mobius.
   const [checkedClaims, setCheckedClaims] = useState<Record<string, ReadonlySet<string>>>({});
@@ -589,8 +631,17 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                           ? <span className="msg-gate" title="Click each one marked Not sure to see why, and say when you have checked it">{left === 1 ? 'Check 1 unsure fact before copying' : `Check ${left} unsure facts before copying`}</span>
                           : <button type="button" className="msg-action" aria-label="Copy reply" onClick={() => void copy(item.id, withoutMarks(item.text))}>{copied === item.id ? 'Copied' : 'Copy'}</button>;
                       })()}
+                      <button type="button" className="msg-action" aria-label={isSpeaking(speech, item.id) ? 'Stop reading' : 'Read aloud'} aria-pressed={isSpeaking(speech, item.id)} onClick={() => (isSpeaking(speech, item.id) ? stopSpeaking() : void speak(item.id, withoutMarks(item.text)))}>
+                        {speech.state === 'loading' && speech.id === item.id ? 'Getting the voice…' : isSpeaking(speech, item.id) ? 'Stop' : 'Speak'}
+                      </button>
                       {settled && index === lastAssistant && <button type="button" className="msg-action" aria-label="Try again" onClick={() => void retry()}>Try again</button>}
                     </div>
+                  )}
+                  {speech.state === 'failed' && speech.id === item.id && (
+                    <p className="msg-voice-problem" role="alert">
+                      {speech.error}
+                      {speech.setup && onOpenVoice && <> <button type="button" className="link-btn" onClick={() => { dismissSpeech(); onOpenVoice(); }}>Voice settings</button></>}
+                    </p>
                   )}
                 </Fragment>
               ) : item.kind === 'plan' ? (
@@ -621,9 +672,19 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
           <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
           <TurnHistory conversation={state.conversation} busy={state.busy} />
           {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
+          {queue.items.length > 0 && (
+            <QueuePanel
+              queue={queue}
+              onEdit={(id, text) => setQueue((q) => editQueued(q, id, text))}
+              onRemove={(id) => setQueue((q) => removeQueued(q, id))}
+              onClear={() => setQueue((q) => clearQueue(q))}
+              onSendNext={sendNextQueued}
+            />
+          )}
           <Composer
             takeFocus={takeFocus}
             contextUse={state.context}
+            {...(onOpenVoice ? { onOpenVoice } : {})}
             startersIn={state.items.length === 0 ? starterSlot : null}
             started={state.items.length > 0}
             draft={draft}
@@ -638,6 +699,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
             effort={effort}
             onEffort={onEffort}
             onSend={(text, items, options) => { onSend(text, items, options); setDraft(''); setContext([]); }}
+            onQueue={(text, items, options) => { setQueue((q) => enqueue(q, text, items, options)); setDraft(''); setContext([]); }}
             onStop={onStop}
             {...(onTakeOver && !state.control ? { onTakeOver } : {})}
             onModelChanged={onModelChanged}
@@ -649,5 +711,40 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
         </>
       )}
     </Shell>
+  );
+}
+
+/** The messages waiting for Mobius to finish, each one editable and removable, with Clear queue (and Send next after Stop). */
+function QueuePanel({ queue, onEdit, onRemove, onClear, onSendNext }: { queue: MessageQueue; onEdit: (id: number, text: string) => void; onRemove: (id: number) => void; onClear: () => void; onSendNext: () => void }) {
+  const [editing, setEditing] = useState<{ id: number; text: string } | null>(null);
+  const save = () => { if (editing) onEdit(editing.id, editing.text); setEditing(null); };
+  return (
+    <section className="msg-queue" aria-label="Queued messages">
+      <div className="msg-queue-head">
+        <span className="msg-queue-title">{queue.paused ? `Stopped: ${queue.items.length} waiting` : `Sent when Mobius finishes: ${queue.items.length} waiting`}</span>
+        {queue.paused && <button type="button" className="link-btn" onClick={onSendNext}>Send next</button>}
+        <button type="button" className="link-btn" onClick={onClear}>Clear queue</button>
+      </div>
+      <ol className="msg-queue-list">
+        {queue.items.map((item, index) => (
+          <li key={item.id} className="msg-queue-item">
+            {editing?.id === item.id ? (
+              <form className="msg-queue-edit" onSubmit={(e) => { e.preventDefault(); save(); }}>
+                <input type="text" aria-label={`Edit queued message ${index + 1}`} value={editing.text} autoFocus onChange={(e) => setEditing({ id: item.id, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setEditing(null); } }} onBlur={save} />
+              </form>
+            ) : (
+              <>
+                <span className="msg-queue-text" title={item.text}>{item.text}</span>
+                {(item.context.length > 0 || item.options?.images?.length) ? <span className="msg-queue-more" aria-label="With attachments">+</span> : null}
+                <button type="button" className="msg-action" aria-label={`Edit queued message ${index + 1}`} onClick={() => setEditing({ id: item.id, text: item.text })}>Edit</button>
+              </>
+            )}
+            <button type="button" className="chip-remove" aria-label={`Remove queued message ${index + 1}`} onMouseDown={(e) => e.preventDefault()} onClick={() => { setEditing(null); onRemove(item.id); }}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

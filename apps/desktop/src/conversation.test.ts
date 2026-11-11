@@ -422,3 +422,14 @@ describe('taking over', () => {
     expect(dataOf('<<untrusted-data source="files.read a">>\n{"x":1}\n<</untrusted-data>>')).toBe('{"x":1}');
   });
 });
+
+describe('how a turn ended', () => {
+  it('is kept, so messages waiting to go know whether the turn finished, failed or was stopped', () => {
+    const sent = { type: 'sent' as const, text: 'go', turn: 1 };
+    expect(run(sent, note({ kind: 'done' })).ended).toBe('done');
+    expect(run(sent, note({ kind: 'failed', message: 'no model' })).ended).toBe('failed');
+    expect(run(sent, note({ kind: 'cancelled' })).ended).toBe('cancelled');
+    expect(run(sent, { type: 'reset-busy' }).ended).toBe('cancelled');
+    expect(run(sent, { type: 'send-failed', message: 'offline' }).ended).toBe('failed');
+  });
+});

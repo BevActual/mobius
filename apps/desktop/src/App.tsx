@@ -17,6 +17,7 @@ import { Launcher } from './Launcher';
 import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
 import { useSideFolds } from './side-fold';
+import { UpdateNotice } from './UpdateNotice';
 import { CommentButton, CommentLayer, CommentsGroup, useCommentThreads, useOpenComments } from './Comments';
 import type { Side } from './resize';
 import { useAgentSettings } from './useAgentSettings';
@@ -591,7 +592,7 @@ export function App() {
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
   const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
   const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
@@ -672,8 +673,11 @@ export function App() {
     [openLauncher, openSettings, openFind, newTab, active, toggleSplit, toggleMini],
   );
 
-  // The same shortcuts when the shell itself has the keyboard (pages are handled by the main process).
+  // The same shortcuts when the shell itself has the keyboard (pages are handled by the main process). Not before the saved
+  // shortcuts are known: until then the defaults would answer keys the person may have given to something else.
+  const keysReady = preferences.loaded;
   useEffect(() => {
+    if (!keysReady) return;
     const onKey = (event: KeyboardEvent) => {
       const action = actionForPress(bindings, { code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey });
       if (action === 'launcher') { event.preventDefault(); openLauncher(); }
@@ -689,7 +693,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation]);
+  }, [keysReady, bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -855,7 +859,7 @@ export function App() {
     if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign) && !typing) { sendCommand(command); return; }
     document.execCommand(command);
   };
-  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles') => { setSettingsSection(section); setSettingsOpen(true); };
+  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
     apps: APPS.filter((a) => a.available),
@@ -1282,6 +1286,7 @@ export function App() {
             onPlace={() => { if (showWide) setSwitcherToken((n) => n + 1); else openHub(); }}
             menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
+            onOpenVoice={() => openSettingsAt('voice')}
           />
   );
   // The browser's own controls. With the full sidebar they live in it, under the app's name, and nothing but the
@@ -1320,7 +1325,7 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
@@ -1348,6 +1353,7 @@ export function App() {
           panel: chatInSide && chatOpen ? chatPanel(null) : null,
         } : null}
         onLauncher={openHub}
+        {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
         switcherToken={switcherToken}
         onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
         settingsOpen={settingsOpen}
@@ -1407,6 +1413,7 @@ export function App() {
           {!narrow && <button type="button" className="strip-btn" data-split-toggle aria-pressed={split} aria-label={split ? 'Close split view' : 'Split view'} title={withKeys(split ? 'Show one app' : 'Show two apps side by side', bindings.splitView)} onClick={toggleSplit}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="6.5" height="11" rx="2" /><rect x="11" y="4.5" width="6.5" height="11" rx="2" /></svg>
           </button>}
+          <UpdateNotice />
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
           {hasRight && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={chatOpen} aria-label="Show agent" title="Show or hide the agent" onClick={() => { setChatOpen((open) => !open); setFocusToken((n) => n + 1); }}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>
