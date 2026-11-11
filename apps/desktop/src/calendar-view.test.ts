@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
-import { allDayOn, clock, daysFor, dragged, draftEnd, movedByDays, eventsOn, heading, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { dayLabel, parseDayText, parseTimeText, allDayOn, clock, daysFor, dragged, draftEnd, movedByDays, eventsOn, heading, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -106,5 +106,26 @@ describe('dropping an event on another day', () => {
     expect(movedByDays({ start: '2026-11-10', end: '2026-11-13', allDay: true }, -1)).toEqual({ start: '2026-11-09', end: '2026-11-11' });
     expect(draftEnd({ end: '2026-11-13', allDay: true })).toBe('2026-11-12');
     expect(draftEnd({ end: '2026-11-13T10:00', allDay: false })).toBe('2026-11-13T10:00');
+  });
+});
+
+describe('the event sheet day and time fields', () => {
+  it('read times typed in any of the usual ways', () => {
+    expect(parseTimeText('14:30')).toBe('14:30');
+    expect(parseTimeText('2:30 pm')).toBe('14:30');
+    expect(parseTimeText('2pm')).toBe('14:00');
+    expect(parseTimeText('12am')).toBe('00:00');
+    expect(parseTimeText('1430')).toBe('14:30');
+    expect(parseTimeText('9')).toBe('09:00');
+    expect(parseTimeText('25:00')).toBeNull();
+    expect(parseTimeText('soon')).toBeNull();
+  });
+  it('read days typed as dates or words, and as the sheet shows them', () => {
+    const now = new Date(2026, 10, 11, 9);
+    expect(parseDayText('2026-11-12', now, parseWhen)).toBe('2026-11-12');
+    expect(parseDayText('tomorrow', now, parseWhen)).toBe('2026-11-12');
+    expect(parseDayText('fri', now, parseWhen)).toBe('2026-11-13');
+    expect(parseDayText(dayLabel('2026-12-03'), now, parseWhen)).toBe('2026-12-03');
+    expect(parseDayText('whenever', now, parseWhen)).toBeNull();
   });
 });

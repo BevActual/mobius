@@ -15,15 +15,19 @@ import { FromMobius } from './FromMobius';
 export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheets: SheetsState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
+  const [query, setQuery] = useState('');
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (await sheets.createWorkbook(name.trim() || 'Workbook')) { setNaming(false); setName(''); }
   };
   const here = sheets.data;
+  // Search matches a workbook's name or the name of one of its sheets.
+  const q = query.trim().toLowerCase();
+  const shownBooks = q ? sheets.workbooks.filter((w) => w.name.toLowerCase().includes(q) || w.sheets.some((s) => s.toLowerCase().includes(q))) : sheets.workbooks;
   return (
     <aside className="side sheets-side" aria-label="Sheets sidebar">
       <div className="side-head">
-        <span className="side-title">Workbooks</span>
+        <span className="side-title" title="Workbooks are kept as CSV files in your workspace, one for each sheet, so any spreadsheet app can open them.">Workbooks</span>
         <span className="side-actions">
           {pin}
         </span>
@@ -34,20 +38,18 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
           <button type="submit" className="btn primary">Create</button>
         </form>
       )}
+      <SideNew item="workbook" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
+      <input className="side-search" type="search" aria-label="Search sheets" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
       <nav className="task-lists" aria-label="Workbooks">
-        <SideNew item="workbook" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
-        {sheets.workbooks.length === 0 && !naming && (
-          <div className="side-empty notes-empty">
-            <p>Workbooks are kept as CSV files in your workspace, one for each sheet, so any spreadsheet app can open them.</p>
-          </div>
-        )}
+        {sheets.workbooks.length === 0 && !naming && <p className="side-empty">No workbooks yet.</p>}
+        {query.trim() && shownBooks.length === 0 && <p className="side-empty">No workbooks match.</p>}
         <ul role="list">
-          {sheets.workbooks.map((w) => (
+          {shownBooks.map((w) => (
             <li key={w.name}>
               <button type="button" className="list-row" data-proposed={changed?.has(w.name) || undefined} aria-current={here?.workbook === w.name ? 'page' : undefined} onClick={() => void sheets.open(w.name, here?.workbook === w.name ? here.sheet : w.sheets[0] ?? 'Sheet 1')}>
                 <span className="list-name">{w.name}</span>
                 <RowMark changed={changed?.has(w.name) === true} changedTitle="Changed by Mobius in its last turn" />
-                <span className="list-count">{w.sheets.length > 1 ? w.sheets.length : ''}</span>
+                {!changed?.has(w.name) && <span className="list-count">{w.sheets.length > 1 ? w.sheets.length : ''}</span>}
               </button>
             </li>
           ))}

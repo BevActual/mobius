@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { BookmarkEntry, BrowserTabState, DownloadEntry, HistoryEntry } from '@mobius/shared';
-import { DownloadsList } from './DownloadsList';
+import { DownloadsButton } from './DownloadsList';
 import { FindBar } from './FindBar';
 import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
@@ -161,7 +161,7 @@ function TabMenu({ tab, x, y, tabs, onClose }: { tab: BrowserTabState; x: number
 
 /**
  * The tabs, as Safari's and Arc's sidebars keep them: pinned tabs in their own group above the rest, actions only on the
- * row under the pointer, drag to reorder (or across the line to pin), and a right-click menu. Downloads sit under them.
+ * row under the pointer, drag to reorder (or across the line to pin), and a right-click menu. Downloads open from a button in its head.
  */
 export function BrowserSidebar({ tabs, pin, onNewTab, downloads }: { tabs: readonly BrowserTabState[]; pin: ReactNode; onNewTab: () => void; downloads: DownloadEntry[] }) {
   const [menu, setMenu] = useState<{ tab: BrowserTabState; x: number; y: number } | null>(null);
@@ -177,6 +177,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads }: { tabs: reado
             <span className="side-title">Tabs</span>
             <span className="side-actions">
               {pin}
+              <DownloadsButton entries={downloads} />
               {window.mobius.browser.reopenClosed && (
                 <button type="button" className="strip-btn" aria-label="Reopen closed tab" title="Reopen closed tab (Ctrl+Shift+T)" onClick={() => void window.mobius.browser.reopenClosed?.()}>
                   <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 0 2-4.5M4 3v4h4" /></svg>
@@ -199,7 +200,6 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads }: { tabs: reado
             {open.length === 0 && pinned.length > 0 && <p className="tabs-empty">No other tabs. Press Ctrl+T for a new one.</p>}
           </div>
           {menu && menuTab && <TabMenu tab={menuTab} x={menu.x} y={menu.y} tabs={tabs} onClose={closeMenu} />}
-          <DownloadsList entries={downloads} />
         </aside>
   );
 }
@@ -244,10 +244,10 @@ export function BrowserChrome({ active, saved, pagePinned, onTogglePagePin, sele
           </button>
         </div>
         <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
-          <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={saved}><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
         </button>
         <button type="button" className="strip-btn" data-page-pin aria-pressed={pagePinned} aria-label={pagePinned ? 'Unpin this page from the sidebar' : 'Pin this page to the sidebar'} title={pagePinned ? 'Unpin from the sidebar' : 'Pin to the sidebar'} disabled={!active || !/^https?:/.test(active.url)} onClick={onTogglePagePin}>
-          <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={pagePinned}><path d="M7.5 3.5h5l-.8 4.2 2.8 2.8H5.5l2.8-2.8zM10 10.5v6" /></svg>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 3.5h5l-.8 4.2 2.8 2.8H5.5l2.8-2.8zM10 10.5v6" /></svg>
         </button>
         <div className="selection-menu-wrap">
           <button type="button" className="strip-btn" data-selection-ask aria-haspopup="menu" aria-expanded={selectionMenu} aria-label="Selected text" title="Do something with the text selected on this page" disabled={!active || !/^https?:/.test(active.url)} onClick={() => setSelectionMenu((open) => !open)}>

@@ -58,7 +58,7 @@ const retitle = async (title: string) => {
 
 test('a first notebook and page are real files, and typing is saved as Markdown', async () => {
   await start();
-  await expect(side().getByText('Pages are kept as Markdown files')).toBeVisible();
+  await expect(side().getByText('No pages yet.')).toBeVisible();
   await newNotebook('Work');
   await expect(text()).toBeFocused();
   await expect(text().locator('h1')).toHaveText('Untitled');

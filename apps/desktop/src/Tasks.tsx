@@ -119,7 +119,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
                     <ListIcon name={l.name} />
                     <span className="list-name">{l.name}</span>
                     <RowMark changed={changed?.has(l.name) === true} changedTitle="Changed by Mobius in its last turn" />
-                    <span className="list-count">{l.open || ''}</span>
+                    {!changed?.has(l.name) && <span className="list-count">{l.open || ''}</span>}
                   </button>
                   {onPin && <button type="button" className="list-pin" aria-pressed={pinned?.has(l.name) ?? false} aria-label={pinned?.has(l.name) ? `Unpin ${l.name}` : `Pin ${l.name} to the sidebar`} title={pinned?.has(l.name) ? 'Unpin from the sidebar' : 'Pin to the sidebar'} onClick={() => onPin(l.name)}>
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
