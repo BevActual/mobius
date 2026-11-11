@@ -76,6 +76,8 @@ test('a dark version from Mobius shows dashed, and is kept or discarded', async 
     callsTool('files-write', { path: 'designs/Trip app/Home.json', content: JSON.stringify({ ...DARK, frames: [DARK.frames[0], { ...DARK.frames[1], name: 'Home — Dim' }] }) }),
     says(['Renamed it.']),
   ]);
+  // With Mobius open beside the page the canvas is narrow; a bigger window keeps the change bar clear of the inspector.
+  await resizeWindow(mobius!.app, 1440, 900);
   await shell().getByRole('button', { name: 'Make a dark version' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();

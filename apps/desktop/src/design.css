@@ -88,3 +88,4 @@
 
 /* Mobius's change bar fits the canvas however narrow it is, so Keep and Discard are never under the inspector. */
 .design-page .design-review { max-width: calc(100% - 24px); white-space: normal; flex-wrap: wrap; justify-content: center; }
+.design-page .design-review .review-actions { flex-wrap: wrap; justify-content: center; margin-left: 0; }
