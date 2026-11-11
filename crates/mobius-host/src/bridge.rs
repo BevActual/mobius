@@ -1560,15 +1560,15 @@ impl Bridge {
             matched |= active;
             if signed_in || active {
                 let models: Vec<Value> = crate::providers::subscription_models(s).iter().map(|(id, label)| json!({ "id": id, "label": label })).collect();
-                groups.push(json!({ "kind": "subscription", "id": s.id, "name": s.name, "active": active, "models": models, "error": if signed_in { Value::Null } else { json!("Signed out. Sign in again in Settings > Providers.") } }));
+                groups.push(json!({ "kind": "subscription", "id": s.id, "name": s.name, "address": s.address, "active": active, "models": models, "error": if signed_in { Value::Null } else { json!("Signed out. Sign in again in Settings > Providers.") } }));
             }
         }
-        for (id, name, _address, listed) in providers {
+        for (id, name, address, listed) in providers {
             let active = p.id_for_address(&base) == Some(id);
             matched |= active;
             let ok = listed.get("ok") == Some(&Value::Bool(true));
             let models: Vec<Value> = if ok { listed["models"].as_array().cloned().unwrap_or_default().into_iter().map(|m| json!({ "id": m, "label": m })).collect() } else { Vec::new() };
-            groups.push(json!({ "kind": "provider", "id": id, "name": name, "active": active, "models": models, "error": if ok { Value::Null } else { listed.get("error").cloned().unwrap_or(Value::Null) } }));
+            groups.push(json!({ "kind": "provider", "id": id, "name": name, "address": address, "active": active, "models": models, "error": if ok { Value::Null } else { listed.get("error").cloned().unwrap_or(Value::Null) } }));
         }
         let running_base = local_runtime.pointer("/runtime/baseUrl").and_then(Value::as_str).unwrap_or("");
         let running_id = local_runtime.pointer("/runtime/modelId").and_then(Value::as_str).unwrap_or("");
@@ -1688,6 +1688,13 @@ impl Bridge {
                     (self.emit)("mobius:agent-settings", self.agent.settings());
                     result
                 }
+                // A plan you sign in to as the second model: its own app keeps the sign-in, so there is no key here.
+                "useFallback" => {
+                    let Some(model) = text(1).map(str::trim).filter(|m| !m.is_empty()) else { return failed("Choose a model.") };
+                    let result = self.agent.use_fallback(Some((sub.address, model, None)));
+                    (self.emit)("mobius:agent-settings", self.agent.settings());
+                    result
+                }
                 _ => failed("unknown"),
             };
         }
@@ -1724,6 +1731,28 @@ impl Bridge {
                     return failed("Add a key for this provider first.");
                 }
                 AgentService::models_at(&address, &key)
+            }
+// The second model, from a gateway: its address and key come from the gateway, here, and never from the window.
+            "useFallback" => {
+                let Some(id) = text(0) else { return failed("Choose a gateway.") };
+                if id == "none" {
+                    let result = self.agent.use_fallback(None);
+                    (self.emit)("mobius:agent-settings", self.agent.settings());
+                    return result;
+                }
+                let Some(model) = text(1).map(str::trim).filter(|m| !m.is_empty()) else { return failed("Choose a model.") };
+                let Some(provider) = crate::providers::find(id) else { return failed("That gateway is not known.") };
+                if provider.voice_only {
+                    return failed(format!("{} is for voice only.", provider.name));
+                }
+                let key = p.key(id);
+                if provider.needs_key && key.is_none() {
+                    return failed(format!("Add a key for {} first.", provider.name));
+                }
+                let Some(address) = p.address(id) else { return failed("That gateway is not known.") };
+                let result = self.agent.use_fallback(Some((&address, model, key)));
+                (self.emit)("mobius:agent-settings", self.agent.settings());
+                result
             }
             "use" => {
                 let (Some(id), Some(model)) = (text(0), text(1)) else { return failed("Choose a provider and a model.") };

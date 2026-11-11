@@ -1287,3 +1287,29 @@ fn voice_settings_are_kept_and_the_test_says_what_is_missing_without_any_key_in_
     assert!(list.as_array().unwrap().iter().any(|p| p["id"] == "elevenlabs" && p["voiceOnly"] == true));
     assert_eq!(call(&b, "providers", "use", json!(["elevenlabs", "x"]))["ok"], false);
 }
+
+#[test]
+fn the_second_model_comes_from_a_gateway_with_its_own_key_and_the_first_stays() {
+    let (url, _seen) = provider_server("sk-openai-12345678");
+    let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.redirect_provider_for_tests("openai", &url);
+    // No first model yet: there is nothing to back up.
+    assert_eq!(call(&b, "providers", "useFallback", json!(["openai", "model-b"]))["ok"], false);
+    call(&b, "agent", "configure", json!([{ "baseUrl": "http://127.0.0.1:9/v1", "model": "first", "system": "Be brief." }]));
+    // A gateway without its key is refused.
+    assert_eq!(call(&b, "providers", "useFallback", json!(["openai", "model-b"]))["ok"], false);
+    assert_eq!(call(&b, "providers", "setKey", json!(["openai", "sk-openai-12345678"]))["ok"], true);
+    assert_eq!(call(&b, "providers", "useFallback", json!(["openai", "model-b"]))["ok"], true);
+    let s = call(&b, "agent", "getSettings", json!([]));
+    assert_eq!((s["model"].as_str(), s["fallbackBaseUrl"].as_str(), s["fallbackModel"].as_str(), s["hasFallbackKey"].as_bool(), s["system"].as_str()), (Some("first"), Some(url.as_str()), Some("model-b"), Some(true), Some("Be brief.")));
+    // The catalog says where each gateway is, so the window can show which one the second model uses; never its key.
+    let catalog = call(&b, "providers", "catalog", json!([]));
+    assert!(catalog["groups"].as_array().unwrap().iter().any(|g| g["id"] == "openai" && g["address"] == url.as_str()), "{catalog}");
+    assert!(!catalog.to_string().contains("sk-openai") && !every_file_text(dir.path()).contains("sk-openai-12345678"));
+    // Voice-only gateways and unknown ones are refused; none takes the second model away.
+    assert_eq!(call(&b, "providers", "useFallback", json!(["elevenlabs", "x"]))["ok"], false);
+    assert_eq!(call(&b, "providers", "useFallback", json!(["nope", "x"]))["ok"], false);
+    assert_eq!(call(&b, "providers", "useFallback", json!(["none"]))["ok"], true);
+    assert_eq!(call(&b, "agent", "getSettings", json!([]))["fallbackModel"], "");
+}

@@ -90,3 +90,23 @@ test('a key that is removed is no longer sent, and a provider without one cannot
   // Local servers need no key and say so.
   await expect(page().getByRole('listitem', { name: 'Ollama' })).toContainText('No key needed');
 });
+
+test('the second model is a pop-up of what the gateways offer, with its address and key from the gateway', async () => {
+  await start();
+  await openai().getByRole('button', { name: 'Add a key for OpenAI' }).click();
+  await openai().getByRole('textbox', { name: 'OpenAI API key' }).fill(KEY);
+  await openai().getByRole('button', { name: 'Save key' }).click();
+  await expect(openai()).toContainText('Key saved');
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
+  const second = page().getByRole('combobox', { name: 'Second model' });
+  await expect(second).toHaveValue('none');
+  await expect(second.locator('optgroup[label="OpenAI"] option')).toHaveText(['gpt-a', 'gpt-b']);
+  await second.selectOption({ label: 'gpt-a' });
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.agent.getSettings())).fallbackModel).toBe('gpt-a');
+  const settings = await shell().evaluate(() => window.mobius.agent.getSettings());
+  expect(settings.model).toBe('first-model');
+  expect(settings.hasFallbackKey).toBe(true);
+  await expect(second).toHaveValue('provider|openai|gpt-a');
+  await second.selectOption('none');
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.agent.getSettings())).fallbackModel).toBe('');
+});
