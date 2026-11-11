@@ -25,9 +25,21 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # What the Tauri shell builds against on Linux (WebKitGTK), and the system keyring.
+      # What the Tauri shell builds against on Linux (WebKitGTK), and the system keyring. A mirror that stops
+      # answering once held this step for 40 minutes: each attempt now gives up after a minute without progress
+      # and is tried up to three times, and the step as a whole is capped.
       - name: Install the system libraries
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libdbus-1-dev libssl-dev pkg-config
+        timeout-minutes: 8
+        run: |
+          APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=60 -o Acquire::https::Timeout=60"
+          for attempt in 1 2 3; do
+            if sudo apt-get $APT_OPTS update && sudo apt-get $APT_OPTS install -y libwebkit2gtk-4.1-dev libdbus-1-dev libssl-dev pkg-config; then
+              exit 0
+            fi
+            echo "apt attempt $attempt failed; trying again"
+            sleep $((attempt * 10))
+          done
+          exit 1
       - run: npm ci
       - name: Types
         run: npm run typecheck

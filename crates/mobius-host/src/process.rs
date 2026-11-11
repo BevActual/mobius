@@ -218,17 +218,35 @@ impl Shared {
             });
         }
         let shared = Arc::clone(self);
-        std::thread::spawn(move || match shared.call("core.ping", json!({}), Duration::from_secs(5)) {
-            Ok(_) => {
-                if shared.generation.load(Ordering::SeqCst) == generation && !shared.stopping.load(Ordering::SeqCst) {
-                    shared.set_status(Status::Ready);
-                }
-            }
-            Err(_) => {
-                if shared.generation.load(Ordering::SeqCst) == generation
-                    && let Some(child) = lock(&shared.child).as_mut()
-                {
-                    let _ = child.kill();
+        std::thread::spawn(move || {
+            // A core that is running but slow to answer (a busy or freshly scanned computer) is waited for, asking again
+            // every few seconds, rather than ended: ending it looks like a crash (Windows gives a killed process code 1)
+            // and a few of those in a row gave up on the core for good. Only one that never answers is ended.
+            let began = Instant::now();
+            loop {
+                let left = START_WAIT.saturating_sub(began.elapsed());
+                match shared.call("core.ping", json!({}), left.min(PING_WAIT)) {
+                    Ok(_) => {
+                        if shared.generation.load(Ordering::SeqCst) == generation && !shared.stopping.load(Ordering::SeqCst) {
+                            shared.set_status(Status::Ready);
+                        }
+                        return;
+                    }
+                    Err(CallError::Timeout) if began.elapsed() < START_WAIT && shared.generation.load(Ordering::SeqCst) == generation => {
+                        let running = lock(&shared.child).as_mut().is_some_and(|c| matches!(c.try_wait(), Ok(None)));
+                        if !running {
+                            return;
+                        }
+                    }
+                    Err(_) => {
+                        if shared.generation.load(Ordering::SeqCst) == generation
+                            && let Some(child) = lock(&shared.child).as_mut()
+                        {
+                            shared.log(&format!("the core did not answer within {} s of starting; ending it", began.elapsed().as_secs()));
+                            let _ = child.kill();
+                        }
+                        return;
+                    }
                 }
             }
         });
@@ -283,6 +301,10 @@ impl Shared {
         }
     }
 }
+
+/// How long one startup ping waits, and how long a running core has to answer one before it is ended.
+const PING_WAIT: Duration = Duration::from_secs(5);
+const START_WAIT: Duration = Duration::from_secs(30);
 
 /// The core daemon, run and watched. Dropping it stops the core.
 pub struct CoreProcess {

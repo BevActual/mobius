@@ -42,7 +42,11 @@ export type ConversationAction =
   | { type: 'send-failed'; message: string }
   | { type: 'notification'; notification: AgentNotification }
   | { type: 'answered'; requestId: number; approve: boolean }
-  | { type: 'loaded'; messages: Message[] }
+  /**
+   * What was saved, read from the core. `onOpen`: read when the conversation was opened, so it is older than anything
+   * that has happened here since (a turn sent and finished while it was being read) and must not replace it.
+   */
+  | { type: 'loaded'; messages: Message[]; onOpen?: boolean }
   | { type: 'pending'; requests: AgentWaiting[] }
   | { type: 'answer-failed'; requestId: number }
   | { type: 'question-open'; question: { callId: string; question: string; choices: string[] } | null }
@@ -154,7 +158,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
     case 'reset-busy':
       return finished({ ...state, items: cancelOpenTools(state.items) }, 'cancelled');
     case 'loaded':
-      return state.busy ? state : fromHistory(state, action.messages);
+      return state.busy || (action.onOpen && state.nextId !== 1) ? state : fromHistory(state, action.messages);
     case 'answer-failed':
       return updateTool(
         state,

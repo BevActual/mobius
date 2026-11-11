@@ -83,7 +83,9 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     let live = true;
     void Promise.all([window.mobius.agent.history(id), window.mobius.agent.waiting(id), window.mobius.agent.question(id), window.mobius.agent.control?.(id).catch(() => null) ?? Promise.resolve(null), refresh()]).then(([messages, requests, question, control]) => {
       if (!live) return;
-      dispatch({ type: 'loaded', messages });
+      // On a busy computer this can come back after a whole turn has been sent and answered here; it is then older than
+      // what is shown, and the reducer leaves it (it once took the reply and the review strip away).
+      dispatch({ type: 'loaded', messages, onOpen: true });
       dispatch({ type: 'pending', requests });
       dispatch({ type: 'question-open', question });
       if (control?.theirs && typeof control.step === 'number') dispatch({ type: 'control', control: { step: control.step, ...(typeof control.of === 'number' ? { of: control.of } : {}) } });

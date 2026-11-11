@@ -432,4 +432,12 @@ describe('how a turn ended', () => {
     expect(run(sent, { type: 'reset-busy' }).ended).toBe('cancelled');
     expect(run(sent, { type: 'send-failed', message: 'offline' }).ended).toBe('failed');
   });
+  it('what was saved, read when the conversation opened, does not replace a turn that was sent and answered meanwhile', () => {
+    let s = reduce(initialConversation('main'), { type: 'sent', text: 'make an ideas page' });
+    s = { ...s, busy: false, items: [...s.items, { kind: 'assistant', id: 'i9', text: 'Made it.' }], nextId: 10 } as typeof s;
+    expect(reduce(s, { type: 'loaded', messages: [], onOpen: true })).toBe(s);
+    // Opened with nothing done yet: what was saved is shown.
+    const opened = reduce(initialConversation('main'), { type: 'loaded', messages: [{ role: 'user', text: 'go' }], onOpen: true });
+    expect(opened.items.map((i) => i.kind)).toEqual(['user']);
+  });
 });
