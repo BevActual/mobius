@@ -107,8 +107,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   });
   const listening = dictation.state !== 'idle';
   const shownProblem = problem ?? dictation.problem;
-  const canSend = canType && !busy && !listening && draft.trim().length > 0;
-  const canQueue = canType && busy && !listening && draft.trim().length > 0 && onQueue !== undefined;
+  const canSend = canType && !busy && !listening && !adding && draft.trim().length > 0;
+  const canQueue = canType && busy && !listening && !adding && draft.trim().length > 0 && onQueue !== undefined;
 
   useLayoutEffect(() => {
     const element = fieldRef.current;
@@ -153,8 +153,14 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
+  // Enter while a page or file is still being read sends once it is attached, so the message never goes without it.
+  const sendWhenAdded = useRef(false);
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
+    if (adding && canType && !listening && draft.trim().length > 0) {
+      sendWhenAdded.current = true;
+      return;
+    }
     if (!canSend && !canQueue) return;
     setProblem(null);
     const options = { ...(planFirst ? { plan: true } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
@@ -191,18 +197,28 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     const result = kind === 'page' ? await window.mobius.context.page() : await window.mobius.context.file();
     setAdding(false);
     if (!result.ok) {
+      // It could not be attached: say so and let the person decide, rather than sending without it.
+      sendWhenAdded.current = false;
       setProblem(result.error);
       return;
     }
     const item = result.item;
     if (item === null) return;
     if (total(context) + item.text.length > MAX_CONTEXT_TOTAL_CHARS) {
+      sendWhenAdded.current = false;
       setProblem('That is too much to attach to one message along with what is already attached.');
       return;
     }
     onContext([...context, item]);
     fieldRef.current?.focus();
   };
+
+  useEffect(() => {
+    if (adding || !sendWhenAdded.current) return;
+    sendWhenAdded.current = false;
+    submit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adding, context]);
 
   const suggestions = surface && !started && canType && !busy && !listening && draft === '' ? suggestionsFor(surface) : [];
   const suggest = async (s: Suggestion) => {
@@ -307,6 +323,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           ))}
         </ul>
       )}
+      {adding && <p className="chip chip-adding" role="status">Attaching…</p>}
       {context.length > 0 && (
         <ul className="chips" aria-label="Attached to this message">
           {context.map((item, index) => (

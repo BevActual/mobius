@@ -82,7 +82,7 @@ test('Stop ends the running turn but keeps the queue: Send next goes on, Remove 
   await expect(queue().getByRole('listitem')).toHaveCount(3);
 
   await shell().getByRole('button', { name: 'Stop' }).click();
-  await expect(queue()).toContainText('Stopped: 3 waiting');
+  await expect(queue()).toContainText('Stopped · 3 waiting');
   // Nothing more goes by itself after Stop.
   await shell().waitForTimeout(1500);
   expect(model!.requests).toHaveLength(1);

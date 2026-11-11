@@ -217,6 +217,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .msg-chips { justify-content: flex-end; margin: 2px 0 6px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 6px; border-radius: var(--radius-control); background: var(--soft); font-size: var(--fs-sm); }
 .chips .chip { padding-right: 2px; }
+.chip-adding { align-self: flex-start; margin: 0; color: var(--muted); }
 .chip-kind { color: var(--muted); font-size: var(--fs-xs); }
 .chip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .chip-remove { display: grid; place-items: center; width: 18px; height: 18px; border-radius: var(--radius-small); color: var(--muted); }
@@ -2746,7 +2747,7 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .prow-confirm { display: inline-flex; align-items: center; gap: 6px; }
 
 /* An update is downloaded: a small capsule in the toolbar, never a dialog. */
-.update-notice { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; margin-right: 4px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.update-notice { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 var(--sp-3); margin-right: var(--sp-1); border: 0; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .update-notice:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .update-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 
@@ -2759,12 +2760,15 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .msg-voice-problem { margin: 2px 0 6px; font-size: 12px; color: var(--muted); }
 
 /* Messages queued while Mobius works, above the message box. */
-.msg-queue { flex: none; margin: 0 0 6px; padding: 6px 8px; border: 1px dashed var(--line); border-radius: var(--radius-panel); background: var(--soft); font-size: var(--fs-sm); }
-.msg-queue-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; color: var(--muted); }
+.msg-queue { flex: none; margin: 0 0 var(--sp-2); padding: var(--sp-2) var(--sp-2) var(--sp-1) var(--sp-3); border: 1px dashed color-mix(in srgb, var(--ink) 18%, transparent); border-radius: var(--radius-panel); background: var(--soft); font-size: var(--fs-sm); }
+.msg-queue-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-1); color: var(--muted); }
 .msg-queue-title { flex: 1; min-width: 0; }
 .msg-queue-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.msg-queue-item { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+.msg-queue-item { display: flex; align-items: center; gap: var(--sp-1); min-height: 28px; }
+.msg-queue-remove { width: 24px; height: 24px; }
+.msg-queue-head .link-btn { padding: 2px var(--sp-1); margin: -2px calc(-1 * var(--sp-1)); border-radius: var(--radius-small); }
+.msg-queue .msg-action { padding: 0 var(--sp-2); }
 .msg-queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-queue-more { color: var(--muted); }
 .msg-queue-edit { flex: 1; min-width: 0; display: flex; }
-.msg-queue-edit input { flex: 1; min-width: 0; font: inherit; padding: 2px 6px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: inherit; }
+.msg-queue-edit input { flex: 1; min-width: 0; font: inherit; height: 24px; padding: 0 var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: inherit; }

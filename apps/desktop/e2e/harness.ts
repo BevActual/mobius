@@ -227,6 +227,10 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
   shell.on('console', (message) => { if (message.text().startsWith('[mobius]')) console.log(`[e2e app] ${test.info().titlePath.slice(1).join(' › ')}: ${message.text()}`); });
   await shell.waitForLoadState('domcontentloaded');
   phase("page loaded", started);
+  // Shortcuts work once the window has read the saved ones; a test that presses one straight away waits for that, as a
+  // person who starts typing at once has the presses kept and answered then.
+  await shell.waitForSelector('html[data-keys-ready]', { state: 'attached', timeout: 20_000 }).catch(() => undefined);
+  phase("shortcuts ready", started);
   // Playwright takes over downloads by default; the shell must see them itself.
   const session = await browser.newBrowserCDPSession();
   await session.send('Browser.setDownloadBehavior' as never, { behavior: 'default' } as never).catch(() => undefined);

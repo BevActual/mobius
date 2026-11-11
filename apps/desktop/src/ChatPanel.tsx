@@ -631,8 +631,8 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                           ? <span className="msg-gate" title="Click each one marked Not sure to see why, and say when you have checked it">{left === 1 ? 'Check 1 unsure fact before copying' : `Check ${left} unsure facts before copying`}</span>
                           : <button type="button" className="msg-action" aria-label="Copy reply" onClick={() => void copy(item.id, withoutMarks(item.text))}>{copied === item.id ? 'Copied' : 'Copy'}</button>;
                       })()}
-                      <button type="button" className="msg-action" aria-label={isSpeaking(speech, item.id) ? 'Stop reading' : 'Read aloud'} aria-pressed={isSpeaking(speech, item.id)} onClick={() => (isSpeaking(speech, item.id) ? stopSpeaking() : void speak(item.id, withoutMarks(item.text)))}>
-                        {speech.state === 'loading' && speech.id === item.id ? 'Getting the voice…' : isSpeaking(speech, item.id) ? 'Stop' : 'Speak'}
+                      <button type="button" className="msg-action" aria-busy={(speech.state === 'loading' && speech.id === item.id) || undefined} onClick={() => (isSpeaking(speech, item.id) ? stopSpeaking() : void speak(item.id, withoutMarks(item.text)))}>
+                        {speech.state === 'loading' && speech.id === item.id ? 'Getting the voice…' : isSpeaking(speech, item.id) ? 'Stop reading' : 'Read aloud'}
                       </button>
                       {settled && index === lastAssistant && <button type="button" className="msg-action" aria-label="Try again" onClick={() => void retry()}>Try again</button>}
                     </div>
@@ -721,7 +721,7 @@ function QueuePanel({ queue, onEdit, onRemove, onClear, onSendNext }: { queue: M
   return (
     <section className="msg-queue" aria-label="Queued messages">
       <div className="msg-queue-head">
-        <span className="msg-queue-title">{queue.paused ? `Stopped: ${queue.items.length} waiting` : `Sent when Mobius finishes: ${queue.items.length} waiting`}</span>
+        <span className="msg-queue-title">{queue.paused ? `Stopped · ${queue.items.length} waiting` : `${queue.items.length} waiting · sent when Mobius finishes`}</span>
         {queue.paused && <button type="button" className="link-btn" onClick={onSendNext}>Send next</button>}
         <button type="button" className="link-btn" onClick={onClear}>Clear queue</button>
       </div>
@@ -735,11 +735,11 @@ function QueuePanel({ queue, onEdit, onRemove, onClear, onSendNext }: { queue: M
             ) : (
               <>
                 <span className="msg-queue-text" title={item.text}>{item.text}</span>
-                {(item.context.length > 0 || item.options?.images?.length) ? <span className="msg-queue-more" aria-label="With attachments">+</span> : null}
+                {(item.context.length > 0 || item.options?.images?.length) ? <><span className="msg-queue-more" aria-hidden="true" title="With attachments">+</span><span className="sr-only">, with attachments</span></> : null}
                 <button type="button" className="msg-action" aria-label={`Edit queued message ${index + 1}`} onClick={() => setEditing({ id: item.id, text: item.text })}>Edit</button>
               </>
             )}
-            <button type="button" className="chip-remove" aria-label={`Remove queued message ${index + 1}`} onMouseDown={(e) => e.preventDefault()} onClick={() => { setEditing(null); onRemove(item.id); }}>
+            <button type="button" className="chip-remove msg-queue-remove" aria-label={`Remove queued message ${index + 1}`} title="Remove" onMouseDown={(e) => e.preventDefault()} onClick={() => { setEditing(null); onRemove(item.id); }}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
             </button>
           </li>

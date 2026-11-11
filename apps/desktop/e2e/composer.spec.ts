@@ -172,6 +172,22 @@ test('Edit puts the words back in the box and the attachment back as a chip', as
   await expect(shell().getByRole('list', { name: 'Attached to this message' })).toContainText('Article');
 });
 
+test('Enter while a page is still being attached sends once it is, with the page', async () => {
+  await start([says(['first'])]);
+  await visit('/article', 'Article');
+  // A slow page: reading it takes a while, as a big one does on a busy computer.
+  await shell().evaluate(() => { const real = window.mobius.context.page; window.mobius.context.page = async () => { await new Promise((r) => setTimeout(r, 1500)); return real(); }; });
+  await shell().getByRole('button', { name: 'Add context' }).click();
+  await menu('Add context').getByRole('menuitem', { name: /This page/ }).click();
+  await expect(shell().getByRole('status').filter({ hasText: 'Attaching…' })).toBeVisible();
+  await composer().fill('summarise');
+  await composer().press('Enter');
+  await expect(log().locator('.msg.assistant')).toHaveText('first');
+  expect(JSON.stringify(model!.requests[0]!.messages)).toContain('The article');
+  // Nothing is left behind for the next message.
+  await expect(shell().getByRole('list', { name: 'Attached to this message' })).toHaveCount(0);
+});
+
 test('dictation records, sends the sound to the server\'s speech model, and puts the words in the box', async () => {
   await start([], { transcript: 'hello from my voice' });
   await turnEnded(composer());

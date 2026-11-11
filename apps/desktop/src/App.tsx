@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { MenuBar } from './MenuBar';
 import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type MailContent, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type SidebarMode } from '@mobius/shared';
 import { appName, askAbout, isAvailable, type AppId, noteOpened, APPS } from './apps';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
@@ -18,6 +18,7 @@ import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
 import { useSideFolds } from './side-fold';
 import { UpdateNotice } from './UpdateNotice';
+import { pressOf, takeEarlyKeys } from './early-keys';
 import { CommentButton, CommentLayer, CommentsGroup, useCommentThreads, useOpenComments } from './Comments';
 import type { Side } from './resize';
 import { useAgentSettings } from './useAgentSettings';
@@ -673,25 +674,31 @@ export function App() {
     [openLauncher, openSettings, openFind, newTab, active, toggleSplit, toggleMini],
   );
 
-  // The same shortcuts when the shell itself has the keyboard (pages are handled by the main process). Not before the saved
-  // shortcuts are known: until then the defaults would answer keys the person may have given to something else.
+  // The same shortcuts when the shell itself has the keyboard (pages are handled by the main process). Until the saved
+  // shortcuts are known, presses are kept rather than answered (the defaults would answer keys the person may have given to
+  // something else), then answered with the saved ones: a shortcut pressed as the window opens still works.
   const keysReady = preferences.loaded;
   useEffect(() => {
+    if (keysReady) document.documentElement.dataset.keysReady = 'true';
+  }, [keysReady]);
+  useEffect(() => {
     if (!keysReady) return;
-    const onKey = (event: KeyboardEvent) => {
-      const action = actionForPress(bindings, { code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey });
-      if (action === 'launcher') { event.preventDefault(); openLauncher(); }
-      else if (action === 'address') { event.preventDefault(); address.current?.focus(); address.current?.select(); }
-      else if (action === 'newTab') { event.preventDefault(); newTab(); }
-      else if (action === 'closeTab' && active) { event.preventDefault(); window.mobius.browser.close(active.id); }
-      else if (action === 'settings') { event.preventDefault(); openSettings(); }
-      else if (action === 'find' && app === 'browser') { event.preventDefault(); openFind(); }
-      else if (action === 'splitView') { event.preventDefault(); toggleSplit(); }
-      else if (action === 'littleMobius') { event.preventDefault(); toggleMini(); }
+    const answer = (press: KeyPress, claim: () => void) => {
+      const action = actionForPress(bindings, press);
+      if (action === 'launcher') { claim(); openLauncher(); }
+      else if (action === 'address') { claim(); address.current?.focus(); address.current?.select(); }
+      else if (action === 'newTab') { claim(); newTab(); }
+      else if (action === 'closeTab' && active) { claim(); window.mobius.browser.close(active.id); }
+      else if (action === 'settings') { claim(); openSettings(); }
+      else if (action === 'find' && app === 'browser') { claim(); openFind(); }
+      else if (action === 'splitView') { claim(); toggleSplit(); }
+      else if (action === 'littleMobius') { claim(); toggleMini(); }
       // Stop is fixed (Cmd-period, Ctrl-period elsewhere) unless that press was given to something else.
-      else if (action === null && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.code === 'Period' && conversation.state.busy) { event.preventDefault(); void conversation.stop(); }
+      else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'Period' && conversation.state.busy) { claim(); void conversation.stop(); }
     };
+    const onKey = (event: KeyboardEvent) => answer(pressOf(event), () => event.preventDefault());
     window.addEventListener('keydown', onKey);
+    for (const press of takeEarlyKeys(performance.now())) answer(press, () => undefined);
     return () => window.removeEventListener('keydown', onKey);
   }, [keysReady, bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation]);
 
