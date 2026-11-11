@@ -4,7 +4,7 @@ import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type SidebarMode } from '@mobius/shared';
 import { rememberTitles } from './ReviewStrip';
-import { appName, askAbout, findApp, isAvailable, setInstalledApps, type AppId, noteOpened, APPS } from './apps';
+import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS } from './apps';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
@@ -130,11 +130,14 @@ export function App() {
   const bookmarks = useBookmarks();
   const notes = useNotes();
   const docs = useNotes('docs');
-  const slides = useNotes('slides');
-  const designs = useNotes('designs');
-  const boards = useNotes('boards');
-  const research = useNotes('research');
-  const reading = useNotes('reading');
+  // Apps load when they are first opened, not at start: an app never opened reads nothing (Abilities).
+  const [opened, setOpened] = useState<ReadonlySet<AppId>>(() => new Set(loadPanes().filter((id): id is AppId => id !== null)));
+  const used = (id: AppId) => opened.has(id) && isInstalled(id);
+  const slides = useNotes('slides', used('slides'));
+  const designs = useNotes('designs', used('design'));
+  const boards = useNotes('boards', used('canvas'));
+  const research = useNotes('research', used('research'));
+  const reading = useNotes('reading', used('reader'));
   // Changes are named by the pages' titles as they are now, not the file names they were made with.
   useEffect(() => { rememberTitles('notes', notes.notebooks); }, [notes.notebooks]);
   useEffect(() => { rememberTitles('docs', docs.notebooks); }, [docs.notebooks]);
@@ -145,7 +148,7 @@ export function App() {
   const wikiIncoming = useWikiIncoming();
   const projects = useProjects();
   const [wikiPlace, setWikiPlace] = useState<WikiPlace>({ kind: 'mine' });
-  const databases = useDatabases();
+  const databases = useDatabases(used('database'));
   const terminal = useTerminal();
   const review = useReview(conversation.list, conversation.state.busy);
   const files = useFiles(conversation.state.conversation, conversation.state.busy);
@@ -153,12 +156,12 @@ export function App() {
   const lastTerminal = [...terminal.entries].reverse().find((e) => e.result !== null) ?? null;
   /** New research was chosen: the Research app shows its question form. */
   const [askingResearch, setAskingResearch] = useState(false);
-  const photos = usePhotos();
-  const songs = useNotes('songs');
-  const video = useVideo();
+  const photos = usePhotos(used('photo'));
+  const songs = useNotes('songs', used('studio'));
+  const video = useVideo(used('video'));
   const skills = useSkills();
-  const sheets = useSheets();
-  const code = useCode();
+  const sheets = useSheets(used('sheets'));
+  const code = useCode(used('code'));
   const mail = useMail();
   const tasks = useTasks();
   const calendar = useCalendar();
@@ -188,6 +191,9 @@ export function App() {
   const app: AppId = (focused === 1 ? panes[1] : null) ?? panes[0];
   const split = panes[1] !== null && !narrow;
   const other: AppId | null = split ? (focused === 0 ? panes[1] : panes[0]) : null;
+  useEffect(() => {
+    setOpened((was) => (was.has(app) && (other === null || was.has(other)) ? was : new Set([...was, app, ...(other ? [other] : [])])));
+  }, [app, other]);
   const panesNow = useRef({ panes, focused });
   panesNow.current = { panes, focused };
   /** Open an app in the focused pane. If the other pane already shows it, go there instead. */
@@ -441,6 +447,15 @@ export function App() {
   }, []);
   const activity = activityOf(conversation.state);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
+  // An app Mobius changed things in loads, so its changes show there when the turn ends, even if it was never opened.
+  useEffect(() => {
+    const touched: AppId[] = [];
+    const add = (id: AppId, set: ReadonlySet<string>) => { if (set.size > 0) touched.push(id); };
+    add('slides', turnMarks.slides); add('design', turnMarks.designs); add('canvas', turnMarks.boards); add('research', turnMarks.research);
+    add('reader', turnMarks.reading); add('database', turnMarks.databases); add('photo', turnMarks.photos); add('studio', turnMarks.songs);
+    add('video', turnMarks.video); add('sheets', turnMarks.sheets); add('code', turnMarks.code);
+    if (touched.length > 0) setOpened((was) => (touched.every((id) => was.has(id)) ? was : new Set([...was, ...touched])));
+  }, [turnMarks]);
   // A page the agent opens while you talk to it in the Agent app shows in the browser beside the conversation.
   // Pages opened in earlier turns, or in a conversation just switched to, are already seen.
   const seenPages = useRef<{ conversation: string; calls: Set<string> } | null>(null);

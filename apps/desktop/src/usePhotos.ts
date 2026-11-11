@@ -8,7 +8,7 @@ const SAVE_DELAY_MS = 400;
 export interface OpenPhoto { path: string; dataUrl: string; base: number | null }
 
 /** The Photo app's state: albums, the open photo, its edits as changed here (saved shortly after), and what it looks like. */
-export function usePhotos() {
+export function usePhotos(active = true) {
   const api = window.mobius.photos;
   const [albums, setAlbums] = useState<PhotoAlbum[]>([]);
   const [open, setOpen] = useState<OpenPhoto | null>(null);
@@ -100,6 +100,8 @@ export function usePhotos() {
   }, [load, save]);
 
   useEffect(() => {
+    // Nothing is read until the app is first opened (Abilities: apps load when they are used).
+    if (!active) return undefined;
     void refresh().then((list) => {
       if (live.current.open) return;
       let last: string | null = null;
@@ -113,7 +115,7 @@ export function usePhotos() {
       const now = live.current;
       if (now.open && (c.path === null || c.path === now.open.path) && c.by !== 'person' && now.saved) void load(now.open.path, true);
     });
-  }, [api]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, api]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const createAlbum = useCallback(async (name: string) => {
     const made = await api?.createAlbum(name);

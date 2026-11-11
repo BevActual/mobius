@@ -6,7 +6,7 @@ const LAST_KEY = 'mobius.video.last';
 const SAVE_DELAY_MS = 400;
 
 /** The Video app's state: projects, the open one's cut as changed here (saved shortly after), and its clips' lengths. */
-export function useVideo() {
+export function useVideo(active = true) {
   const api = window.mobius.video;
   const [projects, setProjects] = useState<VideoProject[]>([]);
   const [project, setProject] = useState<string | null>(null);
@@ -95,6 +95,8 @@ export function useVideo() {
   }, [save]);
 
   useEffect(() => {
+    // Nothing is read until the app is first opened (Abilities: apps load when they are used).
+    if (!active) return undefined;
     void refresh().then((list) => {
       if (live.current.project) return;
       let last: string | null = null;
@@ -107,7 +109,7 @@ export function useVideo() {
       const now = live.current;
       if (now.project && (c.project === null || c.project === now.project) && c.by !== 'person' && now.saved) void loadCut(now.project);
     });
-  }, [api]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, api]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const createProject = useCallback(async (name: string) => {
     const made = await api?.createProject(name);

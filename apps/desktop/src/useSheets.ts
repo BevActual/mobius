@@ -14,7 +14,7 @@ function remembered(): Place | null {
 }
 
 /** The Sheets app's state: the workbooks, the open sheet as typed and worked out, and changes shown at once. */
-export function useSheets() {
+export function useSheets(active = true) {
   const api = window.mobius.sheets;
   const [workbooks, setWorkbooks] = useState<WorkbookInfo[]>([]);
   const [data, setData] = useState<SheetData | null>(null);
@@ -50,6 +50,8 @@ export function useSheets() {
   }, [open]);
 
   useEffect(() => {
+    // Nothing is read until the app is first opened (Abilities: apps load when they are used).
+    if (!active) return undefined;
     void refresh().then((list) => {
       if (live.current) return;
       const last = remembered();
@@ -82,7 +84,7 @@ export function useSheets() {
         window.setTimeout(() => setFresh(new Set()), FRESH_MS);
       });
     });
-  }, [api, refresh, open]);
+  }, [active, api, refresh, open]);
 
   // Writes go one after another, each with the version the one before it left, so quick typing never trips over itself.
   const chain = useRef<Promise<unknown>>(Promise.resolve());

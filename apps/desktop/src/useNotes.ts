@@ -21,7 +21,7 @@ export function newestPage<T extends { modified: number }>(pages: readonly T[]):
 }
 
 export type NotesKind = 'notes' | 'docs' | 'slides' | 'designs' | 'songs' | 'boards' | 'research' | 'reading' | 'wiki';
-export function useNotes(kind: NotesKind = 'notes') {
+export function useNotes(kind: NotesKind = 'notes', active = true) {
   const api = window.mobius[kind];
   const remembered = useCallback((): string | null => { try { return window.localStorage.getItem(lastKey(kind)); } catch { return null; } }, [kind]);
   const remember = useCallback((path: string | null) => {
@@ -136,6 +136,8 @@ export function useNotes(kind: NotesKind = 'notes') {
   }, [api]);
 
   useEffect(() => {
+    // Nothing is read until the app is first opened (Abilities: apps load when they are used).
+    if (!active) return undefined;
     // The first list opens the page that was open last, if it is still there and nothing else was opened meanwhile.
     // Docs and Slides open the newest one when none was open, so a first visit never lands on an empty window.
     void refresh().then((list) => {
@@ -160,7 +162,7 @@ export function useNotes(kind: NotesKind = 'notes') {
       if (action === 'reload' && p) void load(p.path, p.title);
       if (action === 'ask') setStatus('conflict');
     });
-  }, [api, refresh, load, remembered, kind]);
+  }, [active, api, refresh, load, remembered, kind]);
 
   // Nothing typed is lost when the window goes away.
   useEffect(() => () => { if (live.current.status === 'unsaved') void save(); }, [save]);

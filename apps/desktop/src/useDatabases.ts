@@ -7,7 +7,7 @@ const remembered = (): string | null => { try { return window.localStorage.getIt
 const keep = (name: string | null) => { try { if (name) window.localStorage.setItem(LAST_KEY, name); else window.localStorage.removeItem(LAST_KEY); } catch { /* Not kept. */ } };
 
 /** The Database app's state: the databases, the open one, the statement typed for it, and what it gave. */
-export function useDatabases() {
+export function useDatabases(active = true) {
   const api = window.mobius.databases;
   const [list, setList] = useState<DbInfo[]>([]);
   const [open, setOpen] = useState<string | null>(null);
@@ -56,6 +56,8 @@ export function useDatabases() {
   }, [refresh, run]);
 
   useEffect(() => {
+    // Nothing is read until the app is first opened (Abilities: apps load when they are used).
+    if (!active) return undefined;
     void refresh().then((got) => {
       if (live.current.open) return;
       const last = remembered();
@@ -68,7 +70,7 @@ export function useDatabases() {
       // Changed by Mobius or another program: what is shown is read again.
       if (now && change.by !== 'person' && (change.name === null || change.name === now) && shown.current) void run(shown.current, now);
     });
-  }, [api]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, api]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const create = useCallback(async (typed: string) => {
     const name = databaseNameFor(typed);

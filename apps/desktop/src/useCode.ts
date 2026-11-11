@@ -17,7 +17,7 @@ export interface CodeTests { command: string | null; suggested: string | null; r
 const NO_TESTS: CodeTests = { command: null, suggested: null, running: false, last: null, by: null };
 
 /** The Code app's state: projects, the open project's files, the open file as typed, and its tests. */
-export function useCode() {
+export function useCode(active = true) {
   const api = window.mobius.code;
   const [projects, setProjects] = useState<{ name: string }[]>([]);
   const [project, setProject] = useState<string | null>(null);
@@ -98,6 +98,8 @@ export function useCode() {
   }, [loadTree, loadTests, openFile]);
 
   useEffect(() => {
+    // Nothing is read until the app is first opened (Abilities: apps load when they are used).
+    if (!active) return undefined;
     void refresh().then((list) => {
       if (live.current.project) return;
       const last = remembered();
@@ -124,7 +126,7 @@ export function useCode() {
       setConsoleRuns((was) => [...was, { command: event.command, result: event.result, by: event.by }].slice(-20));
     });
     return () => { offChanged?.(); offTests?.(); offConsole?.(); };
-  }, [api]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, api]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = useCallback(async () => {
     const now = live.current;
