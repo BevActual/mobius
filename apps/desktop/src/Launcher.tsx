@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BrowserTabState } from '@mobius/shared';
 import { APPS, recentApps, type AppId } from './apps';
 import { APP_ICONS } from './Rail';
@@ -71,7 +71,9 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
     return () => document.removeEventListener('focusin', keep, true);
   }, [open]);
 
-  const items = useMemo<LauncherItem[]>(() => {
+  /** What a query finds, in the order shown. */
+  const listFor = useCallback((text: string): LauncherItem[] => {
+    const query = text;
     const q = query.trim().toLowerCase();
     const has = (text: string) => !q || text.toLowerCase().includes(q);
     const typed = query.trim();
@@ -102,7 +104,8 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
     return list;
-  }, [query, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, commands]);
+  }, [tabs, onNewTab, onActivateTab, onOpenApp, onAsk, commands]);
+  const items = useMemo(() => listFor(query), [listFor, query]);
 
   // Ask Mobius is always the first row, but Enter opens what was found when something was: typing "notes" and
   // pressing Enter opens Notes. With nothing found, Enter asks. Worked out as the list is drawn, so a quick Enter
@@ -140,7 +143,14 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
             else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
-            else if (event.key === 'Enter') { event.preventDefault(); activate(items[selected]); }
+            else if (event.key === 'Enter') {
+              event.preventDefault();
+              // What is in the field now, even if the list has not been drawn for it yet: a quick Enter right after
+              // typing opens what was typed, never what was first in the list before.
+              const typed = event.currentTarget.value;
+              if (typed === query) activate(items[selected]);
+              else { const list = listFor(typed); const first = list.findIndex((item) => item.kind !== 'ask' && !item.disabled); activate(list[first > 0 ? first : 0]); }
+            }
             else if (event.key === 'Escape') { event.preventDefault(); onClose(); }
           }}
         />
