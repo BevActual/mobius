@@ -105,7 +105,7 @@ function useDbReview(review: { conversation: string } | null | undefined, name: 
       if (!review) { setKept(false); return; }
       const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
       const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-      if (live) setKept(id !== null && keptTurns().includes(id));
+      if (live) setKept(id !== null && keptTurns('database').includes(id));
     };
     void check();
     window.addEventListener(KEPT_EVENT, check);
@@ -115,7 +115,7 @@ function useDbReview(review: { conversation: string } | null | undefined, name: 
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
     const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-    if (id) keepTurn(id);
+    if (id) keepTurn(id, 'database');
     setKept(true);
   };
   const discard = async () => {

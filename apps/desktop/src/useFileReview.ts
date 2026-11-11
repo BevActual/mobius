@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { KEPT_EVENT, fileKept, keepTurn, scopeOf, turnId } from './ReviewStrip';
 
 /**
  * What the agent's last turn did to one workspace file: the file as it was before (`null` when the turn made it,
@@ -15,7 +15,8 @@ export function useFileReview(review: { conversation: string } | null | undefine
       if (!review) { setKept(false); return; }
       const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
       const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-      if (live) setKept(id !== null && keptTurns().includes(id));
+      // Kept with the whole turn, or with this app's part of it.
+      if (live) setKept(id !== null && file !== null && fileKept(id, file));
     };
     void check();
     window.addEventListener(KEPT_EVENT, check);
@@ -31,7 +32,8 @@ export function useFileReview(review: { conversation: string } | null | undefine
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
     const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-    if (id) keepTurn(id);
+    // Only this app's part of the turn: what it changed elsewhere still waits in its own app.
+    if (id) keepTurn(id, file ? scopeOf(file) : 'all');
     setKept(true);
   };
   const discard = async () => {

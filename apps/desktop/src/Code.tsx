@@ -550,7 +550,7 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
       if (!review) { setKept(false); return; }
       const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
       const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-      if (live) setKept(id !== null && keptTurns().includes(id));
+      if (live) setKept(id !== null && keptTurns('code').includes(id));
     };
     void check();
     window.addEventListener(KEPT_EVENT, check);
@@ -569,7 +569,7 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
     const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-    if (id) keepTurn(id);
+    if (id) keepTurn(id, 'code');
     setKept(true);
   };
   const discardAll = async () => {

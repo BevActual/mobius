@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { KEPT_EVENT, keptTurns, turnId } from './ReviewStrip';
+import { KEPT_EVENT, fileKept, keptTurns, turnId } from './ReviewStrip';
 
 /** What the last agent turn changed, as note page paths and task list names, so Notes and Tasks can mark them. */
 export interface TurnMarks { notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string>; sheets: ReadonlySet<string>; slides: ReadonlySet<string>; /** `project/path` of code files. */ code: ReadonlySet<string>; designs: ReadonlySet<string>; boards: ReadonlySet<string>; research: ReadonlySet<string>; reading: ReadonlySet<string>; /** Database names. */ databases: ReadonlySet<string>; /** `album/photo` whose edits changed. */ photos: ReadonlySet<string>; songs: ReadonlySet<string>; /** Video projects whose cut changed. */ video: ReadonlySet<string>; skills: ReadonlySet<string> }
@@ -53,7 +53,8 @@ export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
     if (n !== reads.current) return;
     // A kept turn's changes are the person's now: they lose their dashed edge.
     const id = result && 'files' in result ? turnId(conversation, result.checkpoint) : null;
-    setMarks(result && 'files' in result && !(id && keptTurns().includes(id)) ? marksOf(result.files) : NONE);
+    // One app's Keep takes only its own files' dashed edges away.
+    setMarks(result && 'files' in result && !(id && keptTurns().includes(id)) ? marksOf(result.files.filter((f) => !(id && fileKept(id, f)))) : NONE);
   }, [conversation]);
   useEffect(() => { if (!busy) void load(); }, [busy, load]);
   useEffect(() => {

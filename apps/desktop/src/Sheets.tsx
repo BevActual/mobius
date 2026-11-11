@@ -256,7 +256,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
       if (!review) { setKept(false); return; }
       const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
       const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-      if (live) setKept(id !== null && keptTurns().includes(id));
+      if (live) setKept(id !== null && keptTurns('sheets').includes(id));
     };
     void check();
     window.addEventListener(KEPT_EVENT, check);
@@ -276,7 +276,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
     const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-    if (id) keepTurn(id);
+    if (id) keepTurn(id, 'sheets');
     setKept(true);
   };
   const discardAll = async () => {

@@ -508,7 +508,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
       if (!review) { setKept(false); return; }
       const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
       const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-      if (live) setKept(id !== null && keptTurns().includes(id));
+      if (live) setKept(id !== null && keptTurns('docs').includes(id));
     };
     void check();
     window.addEventListener(KEPT_EVENT, check);
@@ -533,7 +533,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
     const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-    if (id) keepTurn(id);
+    if (id) keepTurn(id, 'docs');
     setDiff(null);
     setKept(true);
   };

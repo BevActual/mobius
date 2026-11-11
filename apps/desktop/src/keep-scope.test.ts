@@ -35,3 +35,10 @@ describe('Keep on an app bar keeps only that app\'s changes', () => {
     expect(appsOf(files)).toEqual(['Tasks', 'Calendar', 'Sheets']);
   });
 });
+
+import { scopeOf } from './ReviewStrip';
+describe('a file belongs to the app that shows it', () => {
+  it('by its folder', () => {
+    expect(['tasks/P2 build.md', 'docs/P2.md', 'boards/Plan.json', 'drafts/x.txt'].map(scopeOf)).toEqual(['tasks', 'docs', 'canvas', 'all']);
+  });
+});

@@ -330,12 +330,12 @@ function useListReview(conversation: string | null, list: string | null) {
     /** A task Mobius added in that turn. */
     isNew: (text: string) => before !== null && !before.has(text),
     problem,
-    keep: () => { if (turn) keepTurn(turn); },
+    keep: () => { if (turn) keepTurn(turn, 'tasks'); },
     discard: async () => {
       if (!conversation || !list) return null;
       const result = await window.mobius.changes.undoFile(conversation, `tasks/${list}.md`).catch(() => ({ ok: false as const, error: 'That could not be put back.' }));
       if (!result.ok) { setProblem(result.error); return result.error; }
-      if (turn) keepTurn(turn);
+      if (turn) keepTurn(turn, 'tasks');
       return null;
     },
   };

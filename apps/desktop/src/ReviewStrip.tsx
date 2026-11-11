@@ -36,6 +36,13 @@ export type KeepScope = 'all' | 'notes' | 'docs' | 'slides' | 'sheets' | 'tasks'
 /** The workspace folders each app's changes are in. */
 const SCOPE_FOLDERS: Record<Exclude<KeepScope, 'all'>, string> = { notes: 'notes/', docs: 'docs/', slides: 'slides/', sheets: 'sheets/', tasks: 'tasks/', calendar: 'calendar/', design: 'designs/', canvas: 'boards/', research: 'research/', reader: 'reading/', database: 'databases/', studio: 'studio/', photo: 'photos/', video: 'video/', code: 'code/', skills: 'skills/' };
 
+/** The app a workspace file's change belongs to, for that app's own Keep ('all' for a file no app shows). */
+export function scopeOf(path: string): KeepScope {
+  const p = path.replace(/\\/g, '/');
+  const found = (Object.entries(SCOPE_FOLDERS) as [Exclude<KeepScope, 'all'>, string][]).find(([, folder]) => p.startsWith(folder));
+  return found ? found[0] : 'all';
+}
+
 /** Turns (or one app's part of a turn, as "turn|tasks") whose changes were kept, so they are not offered again. A few, on this computer only. */
 const KEPT_KEY = 'mobius.keptTurns';
 const MAX_KEPT = 100;

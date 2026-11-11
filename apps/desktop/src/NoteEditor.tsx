@@ -459,7 +459,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   // The page as it was before the turn; null when the turn made the page.
   const [before, setBefore] = useState<string | null>(null);
   const [reviewProblem, setReviewProblem] = useState<string | null>(null);
-  // Keep is for the whole turn, as in the strip under the conversation; a page of a kept turn shows no bar.
+  // Keep here keeps the turn's notes; the strip under the conversation keeps the whole turn. A kept page shows no bar.
   const [kept, setKept] = useState(false);
   useEffect(() => {
     let live = true;
@@ -467,7 +467,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       if (!review) { setKept(false); return; }
       const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
       const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-      if (live) setKept(id !== null && keptTurns().includes(id));
+      if (live) setKept(id !== null && keptTurns('notes').includes(id));
     };
     void check();
     window.addEventListener(KEPT_EVENT, check);
@@ -479,7 +479,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
     const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
-    if (id) keepTurn(id);
+    if (id) keepTurn(id, 'notes');
     setDiff(null);
     setKept(true);
   };
