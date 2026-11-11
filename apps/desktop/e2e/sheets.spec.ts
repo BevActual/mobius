@@ -66,6 +66,31 @@ test('a workbook of CSV sheets shows its formulas worked out, and typing in a ce
   expect(fs.readFileSync(file('Budget'), 'utf8')).toContain('Hotel,14,320,=B2*C2,=D2/0\n');
 });
 
+test('the open sheet and the chosen cell go with a message, as a chip that can be removed', async () => {
+  await start([says(['Trimmed it.']), says(['Without the sheet.'])]);
+  await cell('D2').click();
+  const chip = shell().locator('.chip[data-here]');
+  await expect(chip).toContainText('Offsite budget › Budget');
+  await expect(shell().getByRole('button', { name: /^Sees this sheet/ })).toBeVisible();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Get this under the cap');
+  await composer.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await expect(log.locator('.msg.assistant').last()).toHaveText('Trimmed it.');
+  const sent = JSON.stringify(model!.requests[0]);
+  expect(sent).toContain('Selected: D2');
+  expect(sent).toContain('D5: 5420 (=SUM(D2:D4))');
+  // Removed, the next message goes without it, and the panel no longer says it sees the sheet.
+  await shell().getByRole('button', { name: 'Remove Offsite budget › Budget' }).click();
+  await expect(chip).toHaveCount(0);
+  await expect(shell().getByRole('button', { name: /^Sees this sheet/ })).toHaveCount(0);
+  await composer.fill('And in general?');
+  await composer.press('Enter');
+  await expect(log.locator('.msg.assistant').last()).toHaveText('Without the sheet.');
+  const second = model!.requests.at(-1)!.messages as Array<{ role: string; content: unknown }>;
+  expect(JSON.stringify(second.filter((m) => m.role === 'user').at(-1))).not.toContain('D5: 5420');
+});
+
 test('the agent adds a column of formulas, its cells are marked, and Discard puts the sheet back', async () => {
   await start([
     callsTool('sheets-read', { workbook: 'Offsite budget', sheet: 'Budget' }),

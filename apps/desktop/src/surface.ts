@@ -236,3 +236,41 @@ export function sheetItem(sheet: { title: string; source: string; text: string }
 export function tasksItem(tasks: { title: string; text: string }): ContextItem {
   return { kind: 'file', title: `Tasks: ${tasks.title}`, source: 'tasks', text: tasks.text.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
+
+/**
+ * What is open where you are, which goes with every message as a chip you can remove: the note, list, sheet, email,
+ * file, photo, cut or page. Without it the agent only knew which app you were in by guessing.
+ */
+export interface Here {
+  /** Changes when another item is opened, so a chip removed for one item comes back for the next. */
+  key: string;
+  /** The chip's words. */
+  label: string;
+  /** How the panel says it: "this sheet". */
+  what: string;
+  /** The item itself, or null for the browser's page, which is read when the message goes. */
+  item: ContextItem | null;
+}
+
+const NOTE_WORDS: Record<string, string> = { docs: 'document', slides: 'deck', designs: 'design', studio: 'song', boards: 'board', research: 'report', reading: 'article', databases: 'database', terminal: 'terminal' };
+
+export function hereOf(s: SurfaceState | undefined): Here | null {
+  if (!s) return null;
+  if (s.note) return { key: `note:${s.note.folder ?? 'notes'}/${s.note.path}`, label: s.note.title || s.note.path, what: `this ${NOTE_WORDS[s.note.folder ?? ''] ?? 'note'}`, item: noteContext(s.note) };
+  if (s.tasks) return { key: `tasks:${s.tasks.title}`, label: s.tasks.title, what: 'this list', item: tasksItem(s.tasks) };
+  if (s.sheet) return { key: `sheet:${s.sheet.source}`, label: s.sheet.title, what: 'this sheet', item: sheetItem(s.sheet) };
+  if (s.mail) return { key: `mail:${s.mail.id}`, label: s.mail.title, what: 'this email', item: mailItem(s.mail) };
+  if (s.photo) return { key: `photo:${s.photo.source}`, label: s.photo.title, what: 'this photo', item: sheetItem(s.photo) };
+  if (s.cut) return { key: `cut:${s.cut.source}`, label: s.cut.title, what: 'this cut', item: sheetItem(s.cut) };
+  if (s.code) return { key: `code:${s.code.source}`, label: s.code.title, what: 'this file', item: sheetItem(s.code) };
+  if (s.app === 'browser' && s.hasPage) return { key: 'page', label: 'This page', what: 'this page', item: null };
+  return null;
+}
+
+/** The item with what is chosen in it, so "this" in the message means the chosen cells or words. */
+export function withSelection(item: ContextItem, selection: string | null): ContextItem {
+  if (!selection) return item;
+  const said = selection.length > 2000 ? `${selection.slice(0, 2000)}…` : selection;
+  const line = /^[A-Z]{1,3}\d+(:[A-Z]{1,3}\d+)?$/.test(said) ? `Selected: ${said}` : `Selected text: "${said}"`;
+  return { ...item, text: `${line}\n\n${item.text}`.slice(0, MAX_CONTEXT_ITEM_CHARS) };
+}

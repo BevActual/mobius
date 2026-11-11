@@ -8,7 +8,8 @@ import { PopMenu } from './PopMenu';
 import type { Activity } from '../activity';
 import { CameraDialog } from './CameraDialog';
 import { MAX_PICTURES, pictureFromFile, pictureFromUrl, pictureOfWindow } from '../picture';
-import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem, type Suggestion, type SurfaceState } from '../surface';
+import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem, withSelection, type Here, type Suggestion, type SurfaceState } from '../surface';
+import { useStageSelection } from '../useStageSelection';
 import { useDictation } from './useDictation';
 import { holdsHere, isHoldToTalk } from './hold-to-talk';
 import { MODES, modeOf, nextMode } from '../approval-modes';
@@ -61,6 +62,9 @@ export interface ComposerProps {
   fieldRef: RefObject<HTMLTextAreaElement | null>;
   /** Where the person is: the message box suggests what is worth asking there. */
   surface?: SurfaceState;
+  /** What is open here, which goes with the message unless removed (shown as the first chip). */
+  here?: Here | null;
+  onRemoveHere?: () => void;
   /** What the agent is doing while it works: the box turns into a live status line with Stop. */
   activity?: Activity | null;
 }
@@ -68,7 +72,7 @@ export interface ComposerProps {
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity, contextUse, startersIn, started = false, onOpenVoice, onQueue }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, started = false, onOpenVoice, onQueue }: ComposerProps) {
   // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
   const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
   const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
@@ -153,6 +157,30 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
+  const selected = useStageSelection(here?.key ?? null);
+  const going = useRef(false);
+  /** The message's attachments with what is open here first, unless it is already among them. */
+  const withHere = async (items: ContextItem[]): Promise<ContextItem[]> => {
+    if (!here) return items;
+    if (here.item === null) {
+      if (items.some((i) => i.kind === 'page')) return items;
+      // The page is read as the message goes; one that cannot be read does not stop the message.
+      const result = await window.mobius.context.page().catch(() => null);
+      return result?.ok && result.item ? [result.item, ...items].slice(0, MAX_CONTEXT_ITEMS) : items;
+    }
+    const item = here.item;
+    if (items.some((i) => i.source === item.source)) return items;
+    return [withSelection(item, selected()), ...items].slice(0, MAX_CONTEXT_ITEMS);
+  };
+  const go = (text: string, items: ContextItem[], options: { plan?: boolean; images?: string[] } | undefined, queue: boolean) => {
+    if (going.current) return;
+    going.current = true;
+    void withHere(items).then((all) => {
+      going.current = false;
+      if (queue) onQueue?.(text, all, options); else onSend(text, all, options);
+    });
+  };
+
   // Enter while a page or file is still being read sends once it is attached, so the message never goes without it.
   const sendWhenAdded = useRef(false);
   const submit = (event?: FormEvent) => {
@@ -164,8 +192,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     if (!canSend && !canQueue) return;
     setProblem(null);
     const options = { ...(planFirst ? { plan: true } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
-    if (canSend) onSend(draft, context, Object.keys(options).length > 0 ? options : undefined);
-    else onQueue?.(draft, context, Object.keys(options).length > 0 ? options : undefined);
+    go(draft, context, Object.keys(options).length > 0 ? options : undefined, !canSend);
     setPictures([]);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -245,7 +272,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     // A photo goes as the picture itself too, for models that read pictures.
     const photo = s.attach === 'photo' && surface?.photo?.picture ? await pictureFromUrl(surface.photo.picture) : null;
     const images = [...pictures, ...(photo ? [photo] : [])].slice(0, MAX_PICTURES);
-    onSend(s.prompt, items, images.length > 0 ? { images } : undefined);
+    go(s.prompt, items, images.length > 0 ? { images } : undefined, false);
     setPictures([]);
   };
 
@@ -324,8 +351,17 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
         </ul>
       )}
       {adding && <p className="chip chip-adding" role="status">Attaching…</p>}
-      {context.length > 0 && (
+      {(context.length > 0 || here) && (
         <ul className="chips" aria-label="Attached to this message">
+          {here && !context.some((c) => (here.item ? c.source === here.item.source : c.kind === 'page')) && (
+            <li className="chip" data-here title={`Goes with your message: ${here.what}. Remove it to send without.`}>
+              <span className="chip-kind" aria-hidden="true">{here.what.replace(/^this /, '').replace(/^./, (c) => c.toUpperCase())}</span>
+              <span className="chip-title">{here.label}</span>
+              <button type="button" className="chip-remove" aria-label={`Remove ${here.label}`} onClick={onRemoveHere}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+              </button>
+            </li>
+          )}
           {context.map((item, index) => (
             <li key={`${item.kind}-${index}-${item.title}`} className="chip" data-kind={item.kind} title={item.source}>
               <span className="chip-kind" aria-hidden="true">{item.kind === 'page' ? 'Page' : item.kind === 'note' ? 'Note' : 'File'}</span>
