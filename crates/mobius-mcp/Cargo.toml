@@ -3,6 +3,8 @@ name = "mobius-mcp"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 description = "Use tools from other programs over MCP (Model Context Protocol), through the same registry as Mobius's own tools."
 

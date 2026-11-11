@@ -4,6 +4,9 @@ A morphing desktop environment for people and agents. Design prototypes live in 
 
 Everything that is not interface is Rust. See `docs/adr/`.
 
+MIT licensed (see [LICENSE](LICENSE)). Windows releases are signed under the [code signing policy](docs/CODE_SIGNING_POLICY.md):
+free code signing provided by SignPath.io, certificate by SignPath Foundation.
+
 ```
 crates/mobius-core       permissions, event log, tools, JSON-RPC protocol
 crates/mobius-cored      the core as a separate process (JSON-RPC over stdin/stdout)
