@@ -2,7 +2,7 @@ import { settleGone, settleIn, settleKept } from './settle';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
-import { Extension } from '@tiptap/core';
+import { Extension, generateHTML } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
 import { TableKit } from '@tiptap/extension-table';
@@ -258,7 +258,7 @@ function Toolbar({ editor, onTool, busy, extras }: {
 }
 
 /** What the agent's last turn changed in this document, as proposals: old text struck, new text marked, each with Discard. */
-function Proposals({ diff, onDiscard }: { diff: DiffLine[]; onDiscard: (group: number) => void }) {
+function Proposals({ diff, onDiscard, render }: { diff: DiffLine[]; onDiscard: (group: number) => void; render: (markdown: string) => string | null }) {
   const ids = changeGroups(diff);
   const groups: { id: number; lines: DiffLine[] }[] = [];
   diff.forEach((line, i) => {
@@ -271,8 +271,16 @@ function Proposals({ diff, onDiscard }: { diff: DiffLine[]; onDiscard: (group: n
     <div className="doc-proposals" aria-label="Changes Mobius made">
       {groups.map((g) => (
         <div key={g.id} className="doc-proposal" data-group={g.id}>
-          {g.lines.filter((l) => l.kind === 'removed').length > 0 && <div className="doc-proposal-old">{g.lines.filter((l) => l.kind === 'removed').map((l, i) => <p key={i}>{l.text || ' '}</p>)}</div>}
-          {g.lines.filter((l) => l.kind === 'added').length > 0 && <div className="doc-proposal-new">{g.lines.filter((l) => l.kind === 'added').map((l, i) => <p key={i}>{l.text || ' '}</p>)}</div>}
+          {(['removed', 'added'] as const).map((kind) => {
+            const lines = g.lines.filter((l) => l.kind === kind).map((l) => l.text);
+            if (lines.length === 0) return null;
+            // Shown as the document shows it, headings, lists and bold included; as lines when it will not read as Markdown.
+            const html = render(lines.join('\n'));
+            const cls = `${kind === 'removed' ? 'doc-proposal-old' : 'doc-proposal-new'}`;
+            return html !== null
+              ? <div key={kind} className={cls} dangerouslySetInnerHTML={{ __html: html }} />
+              : <div key={kind} className={cls}>{lines.map((t, i) => <p key={i}>{t || ' '}</p>)}</div>;
+          })}
           <div className="doc-proposal-actions">
             <span>Mobius</span>
             <button type="button" className="btn" onClick={(e) => { void settleGone(e.currentTarget.closest('.doc-proposal')).then(() => onDiscard(g.id)); }}>Discard</button>
@@ -564,6 +572,11 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
   // A document Mobius wrote from nothing is shown as the page itself, outlined, not as a list of added lines.
   const wholeNew = Boolean(review && !kept && diff && before === null);
   const showing = review && !kept && diff && !wholeNew;
+  // Markdown as this editor would draw it, through its own schema, so nothing outside a document's own kinds of node shows.
+  const renderMarkdown = (markdown: string): string | null => {
+    if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
+    try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
+  };
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
@@ -638,7 +651,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
               </div>
             )}
             {problem && <p className="tasks-message" role="alert">{problem}</p>}
-            {showing && <Proposals diff={diff} onDiscard={discardOne} />}
+            {showing && <Proposals diff={diff} onDiscard={discardOne} render={renderMarkdown} />}
             <div className="doc-sheet" data-new={wholeNew || undefined}>
               <EditorContent editor={editor} className="doc-paper" />
               {margin && (

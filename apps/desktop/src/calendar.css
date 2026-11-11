@@ -180,3 +180,7 @@
 .calendar-page .cal-all-day-cell .cal-event[data-quiet] b { visibility: hidden; }
 /* An event that is also a task in Tasks carries a small tick before its title. */
 .calendar-page .cal-from-tasks { display: inline-block; width: 11px; height: 11px; margin-right: 3px; vertical-align: -1px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: 0.8; }
+/* An event with times that runs over several days is drawn as a bar too, like an all-day one, not as a dot each day. */
+.calendar-page .cal-month-cell .cal-event[data-compact][data-span]:not([data-all-day]) { background: color-mix(in srgb, var(--event) 78%, var(--bg)); color: #fff; padding-left: 6px; }
+.calendar-page .cal-month-cell .cal-event[data-compact][data-span]:not([data-all-day])::before { display: none; }
+.calendar-page .cal-month-cell .cal-event[data-compact][data-span]:not([data-all-day]):hover { background: var(--event); }

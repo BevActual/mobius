@@ -260,6 +260,7 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       data-all-day={event.allDay || undefined}
       data-fresh={calendar.fresh.has(event.id) || undefined}
       data-compact={compact || undefined}
+      data-span={span ? true : undefined}
       data-joins-before={(span && !span.from) || undefined}
       data-joins-after={(span && !span.to) || undefined}
       data-quiet={span?.quiet || undefined}
@@ -490,11 +491,17 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calenda
   );
 }
 
-/** Where `day` falls in an all-day event of several days; undefined for one that is a day long. The title shows on its first day, and again at the start of each week row. */
-function spanOn(e: Shown, day: Date, rowStart: boolean): { from: boolean; to: boolean; quiet: boolean } | undefined {
-  if (!e.allDay) return undefined;
-  const first = localDate(e.start);
-  const last = addDays(localDate(e.end), -1);
+/**
+ * Where `day` falls in an event of several days; undefined for one within a day. The title shows on its first day, and
+ * again at the start of each week row. An event with times joins up too where asked (Month), as a six-day shoot from
+ * Monday morning to Saturday evening is one thing, not six.
+ */
+function spanOn(e: Shown, day: Date, rowStart: boolean, timed = false): { from: boolean; to: boolean; quiet: boolean } | undefined {
+  if (!e.allDay && !timed) return undefined;
+  const first = localDate(isoDay(localDate(e.start)));
+  const end = localDate(e.end);
+  // An all-day end is the day after; a timed one ending at midnight ends the day before.
+  const last = e.allDay || (end.getHours() === 0 && end.getMinutes() === 0) ? addDays(localDate(isoDay(end)), -1) : localDate(isoDay(end));
   if (!(last.getTime() > first.getTime())) return undefined;
   const from = sameDay(day, first);
   return { from, to: sameDay(day, last), quiet: !from && !rowStart };
@@ -512,7 +519,9 @@ function MonthGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calend
       </div>
       <div className="cal-month-grid" style={{ gridTemplateRows: `repeat(${days.length / 7}, minmax(0, 1fr))` }}>
         {days.map((d, i) => {
-          const on = eventsOn(shown, d);
+          // Events of several days go first, earliest first, so each keeps the same row across the days it joins.
+          const many = (e: Shown) => (spanOn(e, d, false, true) ? 1 : 0);
+          const on = eventsOn(shown, d).sort((a, b) => many(b) - many(a) || (many(a) ? a.start.localeCompare(b.start) : 0));
           const tasks = tasksOn(calendar.due, d);
           // Events first, then tasks in the room left; the rest are counted.
           const shownEvents = on.slice(0, CELL_ROWS);
@@ -521,7 +530,7 @@ function MonthGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calend
           return (
             <div key={isoDay(d)} className="cal-month-cell" role="group" aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} data-outside={d.getMonth() !== month || undefined} data-today={sameDay(d, today) || undefined} data-weekend={[0, 6].includes(d.getDay()) || undefined} onDoubleClick={(e) => { if (e.target === e.currentTarget) onNew({ start: `${isoDay(d)}T09:00`, allDay: false }); }} {...drop(d)}>
               <button type="button" className="cal-month-day" title="Open this day" onClick={() => { calendar.setAnchor(d); calendar.setMode('day'); }}>{d.getDate() === 1 ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : d.getDate()}</button>
-              {shownEvents.map((e) => <EventBlock key={keyOf(e)} calendar={calendar} event={e} onOpen={onOpen} compact from={d} span={spanOn(e, d, i % 7 === 0)} />)}
+              {shownEvents.map((e) => <EventBlock key={keyOf(e)} calendar={calendar} event={e} onOpen={onOpen} compact from={d} span={spanOn(e, d, i % 7 === 0, true)} />)}
               {shownTasks.map((t) => <TaskChip key={`${t.list}:${t.task.line}`} calendar={calendar} item={t} />)}
               {hidden > 0 && <button type="button" className="cal-more" onClick={() => { calendar.setAnchor(d); calendar.setMode('day'); }}>{hidden} more</button>}
             </div>
