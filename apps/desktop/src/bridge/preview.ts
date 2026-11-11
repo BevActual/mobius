@@ -5,6 +5,7 @@ import { PREVIEW_CALENDAR } from './preview-calendar';
 import { PREVIEW_DOCS } from './preview-docs';
 import { PREVIEW_SONGS } from './preview-songs';
 import { PREVIEW_BROWSER } from './preview-browser';
+import { PREVIEW_CODE } from './preview-code';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
@@ -66,6 +67,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'agent.getSettings': () => ({ baseUrl: 'https://portal.example/v1', model: 'Balanced', system: '', configured: true, hasKey: true, maxSteps: 24, keyStorage: 'session', fallbackBaseUrl: '', fallbackModel: '' }),
   'agent.question': () => null,
   ...PREVIEW_BROWSER,
+  ...PREVIEW_CODE,
   'bots.get': () => ({ bots: [] }),
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,

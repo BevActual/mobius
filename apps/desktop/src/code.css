@@ -1,0 +1,96 @@
+/* The Code app, as Xcode's editor: a tab bar of open files, a jump bar of where the file is, the lit line under the
+   cursor, a status bar, and the tests and console in a panel that folds away. Rules sit under .code-page or .code-side so
+   they win over the older ones in styles.css. */
+
+/* Tabs of open files */
+.code-page .code-tabs { flex: none; display: flex; align-items: stretch; gap: 0; height: 34px; overflow-x: auto; scrollbar-width: none; background: color-mix(in srgb, var(--ink) 3%, var(--code-bg)); border-bottom: 0.5px solid var(--line); }
+.code-page .code-tabs::-webkit-scrollbar { display: none; }
+.code-page .code-tab { position: relative; flex: 0 0 auto; display: flex; align-items: center; max-width: 220px; border-right: 0.5px solid var(--line); color: var(--muted); }
+.code-page .code-tab[data-current] { background: var(--code-bg); color: var(--ink); }
+.code-page .code-tab[data-current]::after { content: ''; position: absolute; left: 0; right: 0; bottom: -0.5px; height: 1px; background: var(--code-bg); }
+.code-page .code-tab:not([data-current]):hover { background: color-mix(in srgb, var(--ink) 5%, var(--code-bg)); }
+.code-page .code-tab-main { display: flex; align-items: center; gap: 6px; min-width: 0; height: 100%; padding: 0 4px 0 12px; font-size: var(--fs-sm); color: inherit; }
+.code-page .code-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-page .code-tab-close { position: relative; flex: none; width: 20px; height: 20px; margin-right: 6px; display: grid; place-items: center; border-radius: 5px; color: var(--muted); opacity: 0; }
+.code-page .code-tab-close svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.code-page .code-tab[data-current] .code-tab-close, .code-page .code-tab:hover .code-tab-close, .code-page .code-tab-close:focus-visible { opacity: 1; }
+.code-page .code-tab-close:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink); }
+/* Not saved: a dot, which turns into the close button under the pointer. */
+.code-page .code-tab-close[data-unsaved] { opacity: 1; }
+.code-page .code-tab-close[data-unsaved]::before { content: ''; position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--ink); opacity: 0.7; }
+.code-page .code-tab-close[data-unsaved] svg { opacity: 0; }
+.code-page .code-tab-close[data-unsaved]:hover::before, .code-page .code-tab-close[data-unsaved]:focus-visible::before { opacity: 0; }
+.code-page .code-tab-close[data-unsaved]:hover svg, .code-page .code-tab-close[data-unsaved]:focus-visible svg { opacity: 1; }
+
+/* The jump bar: project › folder › file, then Revert and Save. */
+.code-page .code-file-head { min-height: 32px; padding: 3px 10px 3px 12px; border-bottom: 0.5px solid var(--line); background: var(--code-bg); }
+.code-page .code-crumbs { display: flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; }
+.code-page .code-crumbs > svg { flex: none; width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: 0.6; }
+.code-page .code-crumbs .code-path { display: inline-flex; align-items: center; gap: 5px; font: inherit; color: var(--ink); font-weight: 500; }
+.code-page .code-head-actions .btn { height: 24px; padding: 0 10px; font-size: var(--fs-sm); }
+.code-page .code-dirty { white-space: nowrap; }
+
+/* The editor: the lit line, find's marks, the bar above and the status line below. */
+.code-page .code-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.code-page .code-under-line[data-current] { background: color-mix(in srgb, var(--accent) 7%, transparent); margin-left: -4px; padding-left: 4px; margin-right: -16px; }
+.code-page .code-gutter span[data-current] { color: var(--ink); }
+.code-page .code-found { position: absolute; height: 20px; border-radius: 3px; background: color-mix(in srgb, #ffd60a 38%, transparent); pointer-events: none; }
+.code-page .code-found[data-current] { background: color-mix(in srgb, #ffd60a 80%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, #ff9f0a 70%, transparent); }
+.code-page .code-area::selection { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+.code-page .code-bar { position: absolute; top: 8px; right: 18px; z-index: 3; display: flex; align-items: center; gap: 2px; padding: 3px 3px 3px 10px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5); box-shadow: 0 0 0 0.5px var(--line), 0 6px 20px rgba(0, 0, 0, 0.14); }
+.code-page .code-bar input { width: 200px; height: 26px; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); }
+.code-page .code-bar .btn { height: 24px; padding: 0 10px; font-size: var(--fs-sm); }
+.code-page .code-bar .strip-btn { min-width: 26px; height: 26px; }
+.code-page .code-bar-count { min-width: 64px; text-align: right; padding-right: 6px; font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.code-page .code-bar-case { height: 24px; padding: 0 6px; border-radius: 6px; font: 600 11px/1 var(--font); color: var(--muted); }
+.code-page .code-bar-case[aria-pressed="true"] { background: var(--accent); color: var(--on-accent, #fff); }
+.code-page .code-status { flex: none; display: flex; align-items: center; gap: 16px; height: 24px; padding: 0 12px; border-top: 0.5px solid var(--line); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.code-page .code-status-keys { margin-left: auto; opacity: 0.8; }
+
+/* Nothing open yet */
+.code-page .code-none { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--muted); }
+.code-page .code-none p { margin: 0; }
+.code-page .code-none kbd, .code-page .code-head-actions kbd { all: unset; margin-left: 6px; opacity: 0.6; font-size: 11px; }
+
+/* Quick open, as Xcode's Open Quickly: a field and a list, over the editor. */
+.code-page .code-quick-wrap { position: absolute; inset: 0; z-index: 20; display: flex; justify-content: center; align-items: flex-start; padding-top: 72px; background: color-mix(in srgb, #000 8%, transparent); }
+.code-page .code-quick { width: min(560px, calc(100% - 48px)); max-height: 60%; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(28px) saturate(1.6); -webkit-backdrop-filter: blur(28px) saturate(1.6); box-shadow: 0 0 0 0.5px var(--line), 0 18px 48px rgba(0, 0, 0, 0.24); animation: code-pop 140ms var(--ease, ease-out); }
+@keyframes code-pop { from { opacity: 0; transform: translateY(-4px) scale(0.99); } }
+@media (prefers-reduced-motion: reduce) { .code-page .code-quick { animation: none; } }
+.code-page .code-quick input { height: 46px; padding: 0 16px; border: 0; border-bottom: 0.5px solid var(--line); outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 17px; }
+.code-page .code-quick ul { list-style: none; margin: 0; padding: 6px; overflow-y: auto; }
+.code-page .code-quick li { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 7px; cursor: default; }
+.code-page .code-quick li[aria-selected="true"] { background: var(--accent); color: var(--on-accent, #fff); }
+.code-page .code-quick-name { font-size: var(--fs-md, 13px); }
+.code-page .code-quick-where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
+.code-page .code-quick li[aria-selected="true"] .code-quick-where { color: inherit; opacity: 0.8; }
+.code-page .code-quick-none { color: var(--muted); font-size: var(--fs-sm); }
+
+/* The panel under the file */
+.code-page .code-bottom[data-hidden] { max-height: none; }
+.code-page .code-bottom-tabs { align-items: center; justify-content: space-between; padding: 4px 6px 2px 8px; }
+.code-page .code-bottom-tabs [role="tablist"] { display: flex; gap: 2px; }
+.code-page .code-bottom-tabs [role="tab"] { display: inline-flex; align-items: center; gap: 6px; }
+.code-page .code-panel-toggle { min-width: 26px; height: 24px; color: var(--muted); }
+.code-page .code-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.code-page .code-tab-dot[data-state="fail"] { background: var(--danger); }
+
+/* The file list */
+.code-side .code-filter { display: block; width: calc(100% - 24px); margin: 2px 12px 6px; box-sizing: border-box; }
+.code-side .code-tree ul { padding: 0 6px; }
+.code-side .code-file { height: 26px; gap: 5px; font-size: var(--fs-md, 13px); }
+.code-side .code-file[aria-current="page"] { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.code-side .code-caret { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 120ms var(--ease, ease-out); }
+.code-side .code-caret[data-open] { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .code-side .code-caret { transition: none; } }
+.code-side .code-folder { flex: none; width: 15px; height: 15px; fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: var(--accent); stroke-width: 1.3; stroke-linejoin: round; }
+.code-side .code-file:not([data-folder]) .code-badge { margin-left: 17px; }
+.code-side .code-confirm { margin: 8px 12px; padding: 10px; border-radius: 10px; background: var(--field); font-size: var(--fs-sm); }
+.code-side .code-confirm p { margin: 0 0 8px; }
+.code-side .code-confirm div { display: flex; justify-content: flex-end; gap: 6px; }
+.code-side .code-confirm .btn { height: 26px; }
+
+.code-menu { position: fixed; z-index: 901; display: grid; min-width: 190px; padding: 5px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
+.code-menu button { height: 26px; padding: 0 10px; border-radius: 6px; text-align: left; font-size: var(--fs-md, 13px); color: var(--ink); cursor: default; }
+.code-menu button:hover, .code-menu button:focus-visible { background: var(--accent); color: var(--on-accent, #fff); outline: none; }
+.code-menu button[data-danger]:not(:hover):not(:focus-visible) { color: var(--danger); }

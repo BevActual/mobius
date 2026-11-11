@@ -199,3 +199,44 @@ test('a command can keep running, its output shows as it comes, and it stops whe
   await expect(running.getByRole('listitem').filter({ hasText: 'serving' }).getByRole('status')).toHaveText('Stopped');
   await expect(running.getByRole('listitem')).toHaveCount(2);
 });
+
+test('files open as tabs that keep what was typed; quick open, find and comment work from the keys', async () => {
+  await start();
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  await expect(editor).toHaveValue(BUDGET);
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('const typed = splitTotal(');
+  // The bracket closes itself.
+  await expect(editor).toHaveValue(`${BUDGET}const typed = splitTotal()`);
+
+  // Quick open finds the test file by part of its name; the first tab keeps its unsaved text.
+  await shell().keyboard.press('Control+p');
+  await shell().getByRole('combobox', { name: 'File to open' }).fill('btest');
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByRole('textbox', { name: 'Contents of tests/budget.test.js' })).toHaveValue(TEST);
+  const tabs = shell().getByRole('tablist', { name: 'Open files' });
+  await expect(tabs.getByRole('tab')).toHaveText(['JSbudget.js', 'Tbudget.test.js']);
+  await expect(tabs.getByRole('button', { name: 'Close src/budget.js (not saved)' })).toBeVisible();
+  await tabs.getByRole('tab', { name: 'budget.js', exact: false }).first().click();
+  await expect(editor).toHaveValue(`${BUDGET}const typed = splitTotal()`);
+  expect(budget()).toBe(BUDGET);
+
+  // Ctrl+/ comments the line the cursor is on, and Ctrl+Z takes it back.
+  await editor.focus();
+  await shell().keyboard.press('Control+Home');
+  await shell().keyboard.press('ArrowDown');
+  await shell().keyboard.press('Control+/');
+  await expect(editor).toHaveValue(new RegExp('^// Split a total evenly, in cents\\n// export function splitTotal'));
+  await shell().keyboard.press('Control+z');
+  await expect(editor).toHaveValue(`${BUDGET}const typed = splitTotal()`);
+
+  // Find counts the matches; closing the tab drops the unsaved text.
+  await shell().keyboard.press('Control+f');
+  await shell().getByRole('textbox', { name: 'Find in file' }).fill('people');
+  await expect(shell().getByRole('search', { name: 'Find in file' })).toContainText('1 of 3');
+  await shell().keyboard.press('Escape');
+  await tabs.getByRole('button', { name: 'Close src/budget.js (not saved)' }).click();
+  await expect(tabs.getByRole('tab')).toHaveText(['Tbudget.test.js']);
+  expect(budget()).toBe(BUDGET);
+});

@@ -31,8 +31,14 @@ export function useCode() {
   const [processes, setProcesses] = useState<CodeProcess[]>([]);
   /** Commands run in this project, newest last: the person's from the console, and Mobius's when allowed. */
   const [consoleRuns, setConsoleRuns] = useState<{ command: string; result: CodeTestRun | null; by: 'person' | 'assistant' }[]>([]);
-  const live = useRef({ project, open, draft });
-  live.current = { project, open, draft };
+  /** The files open as tabs, in order; the open one is among them. */
+  const [tabs, setTabs] = useState<string[]>([]);
+  /** What was typed in a tab that is not showing and not saved yet, with the version of the file it was typed over. */
+  const stash = useRef(new Map<string, { draft: string; base: number }>());
+  const [stashed, setStashed] = useState<ReadonlySet<string>>(new Set());
+  const live = useRef({ project, open, draft, tabs });
+  live.current = { project, open, draft, tabs };
+  const restash = () => setStashed(new Set(stash.current.keys()));
   const dirty = open !== null && open.text !== null && draft !== open.text;
 
   const refresh = useCallback(async () => {
@@ -55,10 +61,21 @@ export function useCode() {
 
   const openFile = useCallback(async (path: string, name = live.current.project) => {
     if (!api || !name) return false;
+    const was = live.current;
     const got = await api.read(name, path);
     if (isNotesFailure(got)) { setMessage(got.message); return false; }
+    // Moving to another tab keeps what was typed in this one, unsaved, for coming back to.
+    if (was.open && was.open.path !== path && was.project === name && was.open.text !== null && was.draft !== was.open.text) stash.current.set(was.open.path, { draft: was.draft, base: was.open.modified });
+    const kept = stash.current.get(path);
+    stash.current.delete(path);
+    restash();
     setOpen(got);
-    setDraft(got.text ?? '');
+    setDraft(kept && kept.base === got.modified && got.text !== null ? kept.draft : got.text ?? '');
+    setTabs((list) => {
+      if (list.includes(path)) return list;
+      const at = was.open ? list.indexOf(was.open.path) : -1;
+      return at < 0 ? [...list, path] : [...list.slice(0, at + 1), path, ...list.slice(at + 1)];
+    });
     setMessage('');
     setExpanded((was) => new Set([...was, ...parentsOf(path)]));
     keep({ project: name, path });
@@ -69,6 +86,9 @@ export function useCode() {
     setProject(name);
     setOpen(null);
     setDraft('');
+    setTabs([]);
+    stash.current.clear();
+    restash();
     setTests(NO_TESTS);
     setConsoleRuns([]);
     setExpanded(new Set());
@@ -159,6 +179,9 @@ export function useCode() {
     const done = await api.removeFile(now.project, path);
     if (isNotesFailure(done)) { setMessage(done.message); return; }
     if (now.open?.path === path) { setOpen(null); setDraft(''); }
+    setTabs((list) => list.filter((p) => p !== path));
+    stash.current.delete(path);
+    restash();
     await loadTree(now.project);
   }, [api, loadTree]);
 
@@ -232,10 +255,29 @@ export function useCode() {
     await loadTree(now.project);
   }, [api, loadTree]);
 
+  /** Close a tab, dropping what was typed in it; the tab beside it opens when it was the one showing. */
+  const closeTab = useCallback(async (path: string) => {
+    const now = live.current;
+    const at = now.tabs.indexOf(path);
+    const rest = now.tabs.filter((p) => p !== path);
+    stash.current.delete(path);
+    restash();
+    setTabs(rest);
+    if (now.open?.path !== path) return;
+    const next = rest[Math.min(at, rest.length - 1)];
+    if (next && now.project) {
+      // Opening the next one must not keep this tab's draft.
+      live.current = { ...now, open: null, tabs: rest };
+      await openFile(next, now.project);
+    } else { setOpen(null); setDraft(''); }
+  }, [openFile]);
+  /** Whether a file has typing not saved yet, in the tab showing or one behind it. */
+  const unsaved = useCallback((path: string) => stashed.has(path) || (open?.path === path && open.text !== null && draft !== open.text), [stashed, open, draft]);
+
   const toggle = useCallback((folder: string) => setExpanded((was) => { const next = new Set(was); if (next.has(folder)) next.delete(folder); else next.add(folder); return next; }), []);
 
   return {
-    available: api !== undefined, projects, project, entries, open, draft, setDraft, dirty, message, setMessage, expanded, toggle, tests,
+    available: api !== undefined, projects, project, entries, open, draft, setDraft, dirty, tabs, closeTab, unsaved, message, setMessage, expanded, toggle, tests,
     git, commit, push, consoleRuns, runCommand, processes, startProcess, stopProcess, refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests,
   };
 }

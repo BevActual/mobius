@@ -1,11 +1,13 @@
 import { FromMobius } from './FromMobius';
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { cursorAt, deletePair, findAll, indentLines, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
 import { applyGroups, badgeOf, changeGroups, highlight, langOf, lineDiff, testLineKind, type DiffRow, type Lang } from './code-view';
 import type { CodeState } from './useCode';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
+import './code.css';
 
 /** Projects, and the open project's files as a tree, with the ones the agent changed in its last turn marked. */
 export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: CodeState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
@@ -18,11 +20,17 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
     const ok = naming === 'project' ? (await code.createProject(name.trim() || 'Project')) !== null : await code.createFile(name.trim());
     if (ok) { setNaming(null); setName(''); }
   };
-  // A folder is shown when every folder above it is open.
-  const shown = code.entries.filter((e) => {
-    const parts = e.path.split('/');
-    return parts.slice(0, -1).every((_, i) => code.expanded.has(parts.slice(0, i + 1).join('/')));
-  });
+  const [filter, setFilter] = useState('');
+  const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  // A folder is shown when every folder above it is open; a filter shows the files that match and the folders above them.
+  const matching = filter.trim() ? new Set(rankFiles(filter, code.entries.filter((e) => !e.folder).map((e) => e.path), 500)) : null;
+  const shown = matching
+    ? code.entries.filter((e) => (e.folder ? [...matching].some((m) => m.startsWith(`${e.path}/`)) : matching.has(e.path)))
+    : code.entries.filter((e) => {
+      const parts = e.path.split('/');
+      return parts.slice(0, -1).every((_, i) => code.expanded.has(parts.slice(0, i + 1).join('/')));
+    });
   const changedHere = (path: string) => code.project !== null && changed?.has(`${code.project}/${path}`) === true;
   const changedInside = (folder: string) => code.project !== null && [...(changed ?? [])].some((c) => c.startsWith(`${code.project}/${folder}/`));
   return (
@@ -62,16 +70,22 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
           <div className="code-tree-head">
             <span>Files</span>
           </div>
+          <input className="side-search code-filter" type="search" aria-label="Filter files" placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setFilter(''); if (e.key === 'Enter' && matching) { const first = [...matching][0]; if (first) void code.openFile(first); } }} />
           <SideNew item="file" title="New file, in the folder of the open one" onNew={() => { setNaming('file'); setName(code.open ? code.open.path.split('/').slice(0, -1).concat('').join('/') : ''); }} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
           <ul role="tree" aria-label={`Files in ${code.project}`}>
             {shown.map((e) => {
               const name = e.path.split('/').pop() ?? e.path;
-              const isOpen = code.expanded.has(e.path);
+              const isOpen = matching ? true : code.expanded.has(e.path);
               const mark = e.folder ? (changedInside(e.path) && !isOpen) : changedHere(e.path);
               return (
                 <li key={e.path} role="treeitem" aria-expanded={e.folder ? isOpen : undefined} aria-selected={code.open?.path === e.path} aria-label={e.path}>
-                  <button type="button" className="code-file" data-folder={e.folder || undefined} data-proposed={mark || undefined} aria-current={code.open?.path === e.path ? 'page' : undefined} style={{ paddingLeft: 8 + e.depth * 14 }} onClick={() => (e.folder ? code.toggle(e.path) : void code.openFile(e.path))}>
-                    {e.folder ? <span className="code-caret" aria-hidden="true">{isOpen ? '▾' : '▸'}</span> : <span className="code-badge" data-lang={langOf(e.path)} aria-hidden="true">{badgeOf(e.path)}</span>}
+                  <button type="button" className="code-file" data-folder={e.folder || undefined} data-proposed={mark || undefined} aria-current={code.open?.path === e.path ? 'page' : undefined} style={{ paddingLeft: 6 + e.depth * 14 }} onClick={() => (e.folder ? (matching ? undefined : code.toggle(e.path)) : void code.openFile(e.path))} onContextMenu={(ev) => { if (e.folder) return; ev.preventDefault(); setMenu({ path: e.path, x: ev.clientX, y: ev.clientY }); }}>
+                    {e.folder ? (
+                      <>
+                        <svg className="code-caret" data-open={isOpen || undefined} viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
+                        <svg className="code-folder" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h3.6l1.6 1.8H16a1.5 1.5 0 0 1 1.5 1.5v7.2A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z" /></svg>
+                      </>
+                    ) : <span className="code-badge" data-lang={langOf(e.path)} aria-hidden="true">{badgeOf(e.path)}</span>}
                     <span className="code-file-name">{name}</span>
                     {mark && <span className="code-mark" role="img" aria-label="Changed by the agent" title="Changed by Mobius in its last turn">M</span>}
                   </button>
@@ -79,10 +93,54 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
               );
             })}
           </ul>
+          {matching && shown.length === 0 && <p className="side-empty">No file matches “{filter}”.</p>}
+          {removing && (
+            <div className="code-confirm" role="alertdialog" aria-label={`Delete ${removing}?`}>
+              <p>Delete <b>{removing.split('/').pop()}</b>? It is removed from the project folder.</p>
+              <div>
+                <button type="button" className="btn" autoFocus onClick={() => setRemoving(null)}>Cancel</button>
+                <button type="button" className="btn danger" onClick={() => { const p = removing; setRemoving(null); void code.removeFile(p); }}>Delete</button>
+              </div>
+            </div>
+          )}
         </nav>
+      )}
+      {menu && (
+        <FileMenu x={menu.x} y={menu.y} label={menu.path} onClose={() => setMenu(null)} items={[
+          { label: 'Open', run: () => void code.openFile(menu.path) },
+          { label: 'Copy path', run: () => void navigator.clipboard?.writeText(`${code.project}/${menu.path}`).catch(() => {}) },
+          { label: 'New file beside it', run: () => { setNaming('file'); setName(menu.path.split('/').slice(0, -1).concat('').join('/')); } },
+          { label: 'Delete…', danger: true, run: () => setRemoving(menu.path) },
+        ]} />
       )}
       {code.project && <FromMobius items={[...(changed ?? [])].filter((c) => c.startsWith(`${code.project}/`)).map((c) => c.slice(code.project!.length + 1)).map((path) => ({ key: path, name: path.split('/').pop() ?? path, ...(path.includes('/') ? { where: path.split('/').slice(0, -1).join('/') } : {}), current: code.open?.path === path, onOpen: () => void code.openFile(path) }))} />}
     </aside>
+  );
+}
+
+/** A file's right-click menu, kept inside the sidebar. */
+function FileMenu({ x, y, label, items, onClose }: { x: number; y: number; label: string; items: { label: string; run: () => void; danger?: boolean }[]; onClose: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    box.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) onClose(); };
+    window.addEventListener('mousedown', away);
+    return () => window.removeEventListener('mousedown', away);
+  }, [onClose]);
+  const side = typeof document !== 'undefined' ? document.querySelector('.code-side')?.getBoundingClientRect() : undefined;
+  const left = side ? Math.max(side.left + 4, Math.min(x, side.right - 204)) : x;
+  return (
+    <div ref={box} className="code-menu" role="menu" aria-label={label} style={{ left, top: Math.min(y, window.innerHeight - 160) }} onKeyDown={(e) => {
+      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const all = [...(box.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+        const at = all.indexOf(document.activeElement as HTMLElement);
+        all[(at + (e.key === 'ArrowDown' ? 1 : all.length - 1)) % all.length]?.focus();
+      }
+    }}>
+      {items.map((it) => <button key={it.label} type="button" role="menuitem" data-danger={it.danger || undefined} onClick={() => { onClose(); it.run(); }}>{it.label}</button>)}
+    </div>
   );
 }
 
@@ -156,60 +214,240 @@ function Suggestion({ rows, lang, endsWithNewline, onWrite, onKeepAll, onDiscard
   );
 }
 
-/** A plain text area with the coloured lines drawn under it, so it types like any text field and reads like code. */
-function Editor({ code, lang }: { code: CodeState; lang: Lang }) {
+/** Puts an edit in as typing would, so Ctrl+Z takes it back; falls back to setting the text where that is not offered. */
+function put(el: HTMLTextAreaElement, edit: Edit, setDraft: (text: string) => void) {
+  el.focus();
+  let typed = true;
+  if (edit.from !== edit.to || edit.insert !== '') {
+    el.setSelectionRange(edit.from, edit.to);
+    typed = edit.insert === '' ? document.execCommand('delete') : document.execCommand('insertText', false, edit.insert);
+    if (!typed) setDraft(`${el.value.slice(0, edit.from)}${edit.insert}${el.value.slice(edit.to)}`);
+  }
+  // Typed edits change the field at once, so the cursor is placed now, before the next key; a set text waits for React.
+  if (typed) el.setSelectionRange(edit.select[0], edit.select[1]);
+  else requestAnimationFrame(() => el.setSelectionRange(edit.select[0], edit.select[1]));
+}
+
+const LINE = 20;
+const PAD_TOP = 10;
+/** Scrolls the text area so a line sits a third of the way down, as Go to line and Find do. */
+function reveal(el: HTMLTextAreaElement, line: number) {
+  const top = PAD_TOP + (line - 1) * LINE;
+  if (top < el.scrollTop + LINE || top > el.scrollTop + el.clientHeight - 3 * LINE) el.scrollTop = Math.max(0, top - el.clientHeight / 3);
+}
+
+/** Find in the file (Ctrl+F) or go to a line (Ctrl+G), in a bar above the text. */
+function EditorBar({ mode, text, onClose, onFind, onLine }: { mode: 'find' | 'line'; text: string; onClose: () => void; onFind: (query: string, matchCase: boolean, at: number) => void; onLine: (line: number) => void }) {
+  const [query, setQuery] = useState('');
+  const [matchCase, setMatchCase] = useState(false);
+  const [at, setAt] = useState(0);
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => { field.current?.focus(); field.current?.select(); }, [mode]);
+  const count = mode === 'find' ? findAll(text, query, matchCase).length : 0;
+  useEffect(() => { if (mode === 'find') onFind(query, matchCase, count === 0 ? 0 : Math.min(at, count - 1)); }, [query, matchCase, at, count, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lines = text.split('\n').length;
+  if (mode === 'line') {
+    return (
+      <form className="code-bar" role="search" aria-label="Go to line" onSubmit={(e) => { e.preventDefault(); const n = Number.parseInt(query, 10); if (n > 0) onLine(Math.min(n, lines)); }}>
+        <input ref={field} aria-label="Line number" inputMode="numeric" placeholder={`Line, 1 to ${lines}`} value={query} onChange={(e) => setQuery(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }} />
+        <button type="submit" className="btn">Go</button>
+        <button type="button" className="strip-btn" aria-label="Close" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
+      </form>
+    );
+  }
+  const step = (by: number) => { if (count > 0) setAt((i) => (i + by + count) % count); };
+  return (
+    <div className="code-bar" role="search" aria-label="Find in file">
+      <input ref={field} aria-label="Find in file" placeholder="Find in file" value={query} spellCheck={false} onChange={(e) => { setQuery(e.target.value); setAt(0); }} onKeyDown={(e) => {
+        if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
+        else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      }} />
+      <span className="code-bar-count" aria-live="polite">{query ? (count === 0 ? 'No matches' : `${Math.min(at, count - 1) + 1} of ${count}`) : ''}</span>
+      <button type="button" className="code-bar-case" aria-pressed={matchCase} title="Match case" onClick={() => setMatchCase((m) => !m)}>Aa</button>
+      <button type="button" className="strip-btn" aria-label="Previous match" disabled={count === 0} onClick={() => step(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 12 5-5 5 5" /></svg></button>
+      <button type="button" className="strip-btn" aria-label="Next match" disabled={count === 0} onClick={() => step(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg></button>
+      <button type="button" className="strip-btn" aria-label="Close find" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
+    </div>
+  );
+}
+
+/**
+ * A plain text area with the coloured lines drawn under it, so it types like any text field and reads like code. As
+ * Xcode's editor: the line with the cursor is lit, brackets and quotes close themselves, Tab and Shift+Tab indent the
+ * lines picked, Ctrl+/ comments them, Ctrl+F finds and Ctrl+G goes to a line. Every change goes in as typing, so
+ * Ctrl+Z takes it back.
+ */
+function Editor({ code, lang, bar, setBar }: { code: CodeState; lang: Lang; bar: 'find' | 'line' | null; setBar: (bar: 'find' | 'line' | null) => void }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const under = useRef<HTMLDivElement>(null);
+  const gutter = useRef<HTMLDivElement>(null);
   const lines = useMemo(() => code.draft.split('\n'), [code.draft]);
+  const [caret, setCaret] = useState<[number, number]>([0, 0]);
+  const [found, setFound] = useState<{ marks: [number, number][]; at: number }>({ marks: [], at: 0 });
+  const path = code.open?.path ?? '';
+  useEffect(() => { setCaret([0, 0]); setFound({ marks: [], at: 0 }); }, [path]);
+  const track = () => { const el = area.current; if (el) setCaret([el.selectionStart, el.selectionEnd]); };
+  const here = cursorAt(code.draft, caret[1]);
+  const picked = Math.abs(caret[1] - caret[0]);
+
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void code.save(); return; }
     const el = e.currentTarget;
-    if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const mod = e.metaKey || e.ctrlKey;
+    const { selectionStart: s, selectionEnd: end } = el;
+    const text = el.value;
+    let edit: Edit | null = null;
+    if (mod && !e.altKey && e.key.toLowerCase() === 's') { e.preventDefault(); void code.save(); return; }
+    if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); setBar('find'); return; }
+    if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'g') { e.preventDefault(); setBar('line'); return; }
+    if (mod && !e.altKey && (e.key === '/' || e.code === 'Slash')) { e.preventDefault(); edit = toggleComment(text, s, end, lang); }
+    else if (mod && !e.altKey && (e.key === ']' || e.key === '[')) { e.preventDefault(); edit = indentLines(text, s, end, e.key === '['); }
+    else if (e.key === 'Tab' && !mod && !e.altKey) {
       e.preventDefault();
-      const { selectionStart: s, selectionEnd: end } = el;
-      const next = `${code.draft.slice(0, s)}  ${code.draft.slice(end)}`;
-      code.setDraft(next);
-      requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = s + 2; });
-    } else if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
-      // A new line starts as indented as the one above it.
-      const s = el.selectionStart;
-      const lineStart = code.draft.lastIndexOf('\n', s - 1) + 1;
-      const indent = /^[ \t]*/.exec(code.draft.slice(lineStart, s))?.[0] ?? '';
-      if (!indent) return;
-      e.preventDefault();
-      const next = `${code.draft.slice(0, s)}\n${indent}${code.draft.slice(el.selectionEnd)}`;
-      code.setDraft(next);
-      requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = s + 1 + indent.length; });
-    }
+      edit = e.shiftKey || s !== end ? indentLines(text, s, end, e.shiftKey) : { from: s, to: s, insert: '  ', select: [s + 2, s + 2] };
+    } else if (e.key === 'Enter' && !mod && !e.shiftKey && !e.altKey) { e.preventDefault(); edit = newLine(text, s, end); }
+    else if (e.key === 'Backspace' && !mod && !e.altKey) { edit = deletePair(text, s, end); if (edit) e.preventDefault(); }
+    else if (e.key.length === 1 && !mod && !e.altKey) { edit = typePair(text, s, end, e.key); if (edit) e.preventDefault(); }
+    if (edit) put(el, edit, code.setDraft);
   };
+  const onFind = useCallback((query: string, matchCase: boolean, at: number) => {
+    const marks = findAll(code.draft, query, matchCase);
+    setFound({ marks, at });
+    const el = area.current;
+    const hit = marks[at];
+    if (el && hit) { el.setSelectionRange(hit[0], hit[1]); reveal(el, cursorAt(code.draft, hit[0]).line); sync(el); }
+  }, [code.draft]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeBar = () => {
+    setBar(null);
+    setFound({ marks: [], at: 0 });
+    requestAnimationFrame(() => { area.current?.focus(); track(); });
+  };
+  const goLine = (line: number) => {
+    const el = area.current;
+    if (!el) return;
+    const at = lineStart(code.draft, line);
+    setBar(null);
+    el.focus();
+    el.setSelectionRange(at, at);
+    reveal(el, line);
+    sync(el);
+    track();
+  };
+  const sync = (t: HTMLTextAreaElement) => {
+    if (under.current) { under.current.scrollTop = t.scrollTop; under.current.scrollLeft = t.scrollLeft; }
+    if (gutter.current) gutter.current.scrollTop = t.scrollTop;
+  };
+  // Find's marks, drawn in the layer under the text, one box per match on its line (the font is fixed-width).
+  const marks = found.marks.slice(0, 2000).map(([a, b], i) => {
+    const p = cursorAt(code.draft, a);
+    return <span key={a} className="code-found" data-current={i === found.at || undefined} style={{ top: PAD_TOP + (p.line - 1) * LINE, left: `calc(4px + ${p.col - 1}ch)`, width: `${b - a}ch` }} />;
+  });
+
   return (
-    <div className="code-edit">
-      <div className="code-gutter" aria-hidden="true">
-        {lines.map((_, i) => <span key={i}>{i + 1}</span>)}
-      </div>
-      <div className="code-stack">
-        <div className="code-under" ref={under} aria-hidden="true">
-          {lines.map((l, i) => <div key={i} className="code-under-line"><Line text={l} lang={lang} /></div>)}
+    <div className="code-editor">
+      {bar && <EditorBar key={bar} mode={bar} text={code.draft} onClose={closeBar} onFind={onFind} onLine={goLine} />}
+      <div className="code-edit">
+        <div className="code-gutter" ref={gutter} aria-hidden="true">
+          {lines.map((_, i) => <span key={i} data-current={i + 1 === here.line || undefined}>{i + 1}</span>)}
         </div>
-        <textarea
-          ref={area}
-          className="code-area"
-          aria-label={`Contents of ${code.open?.path ?? 'the file'}`}
+        <div className="code-stack">
+          <div className="code-under" ref={under} aria-hidden="true">
+            {marks}
+            {lines.map((l, i) => <div key={i} className="code-under-line" data-current={(i + 1 === here.line && picked === 0) || undefined}><Line text={l} lang={lang} /></div>)}
+          </div>
+          <textarea
+            ref={area}
+            className="code-area"
+            aria-label={`Contents of ${code.open?.path ?? 'the file'}`}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+            wrap="off"
+            value={code.draft}
+            onChange={(e) => { code.setDraft(e.target.value); track(); }}
+            onKeyDown={onKey}
+            onSelect={track}
+            onScroll={(e) => sync(e.currentTarget)}
+          />
+        </div>
+      </div>
+      <footer className="code-status" aria-label="Where the cursor is">
+        <span>Ln {here.line}, Col {here.col}{picked > 0 ? ` (${picked} selected)` : ''}</span>
+        <span>{langName(path)}</span>
+        <span>Spaces: 2</span>
+        <span className="code-status-keys">⌘P Open · ⌘F Find · ⌘G Line · ⌘/ Comment</span>
+      </footer>
+    </div>
+  );
+}
+
+/** Quick open (Ctrl+P): type part of a file's name, then Enter opens it. */
+function QuickOpen({ code, onClose }: { code: CodeState; onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const [lit, setLit] = useState(0);
+  const files = useMemo(() => code.entries.filter((e) => !e.folder).map((e) => e.path), [code.entries]);
+  const found = useMemo(() => rankFiles(query, query ? files : [...code.tabs.filter((t) => t !== code.open?.path), ...files.filter((f) => !code.tabs.includes(f))]), [query, files, code.tabs, code.open?.path]);
+  const choose = (path: string | undefined) => { if (path) void code.openFile(path); onClose(); };
+  return (
+    <div className="code-quick-wrap" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="code-quick" role="dialog" aria-label="Open a file">
+        <input
+          autoFocus
+          aria-label="File to open"
+          placeholder="Open a file by name"
+          value={query}
           spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-          wrap="off"
-          value={code.draft}
-          onChange={(e) => code.setDraft(e.target.value)}
-          onKeyDown={onKey}
-          onScroll={(e) => {
-            const t = e.currentTarget;
-            if (under.current) { under.current.scrollTop = t.scrollTop; under.current.scrollLeft = t.scrollLeft; }
-            const gutter = t.closest('.code-edit')?.querySelector<HTMLElement>('.code-gutter');
-            if (gutter) gutter.scrollTop = t.scrollTop;
+          role="combobox"
+          aria-expanded
+          aria-controls="code-quick-list"
+          aria-activedescendant={found[lit] ? `code-quick-${lit}` : undefined}
+          onChange={(e) => { setQuery(e.target.value); setLit(0); }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setLit((i) => Math.min(found.length - 1, i + 1)); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); setLit((i) => Math.max(0, i - 1)); }
+            else if (e.key === 'Enter') { e.preventDefault(); choose(found[lit]); }
+            else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
           }}
         />
+        <ul id="code-quick-list" role="listbox" aria-label="Files">
+          {found.map((path, i) => {
+            const name = path.split('/').pop() ?? path;
+            const where = path.slice(0, path.length - name.length - 1);
+            return (
+              <li key={path} id={`code-quick-${i}`} role="option" aria-selected={i === lit} onMouseEnter={() => setLit(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(path)}>
+                <span className="code-badge" data-lang={langOf(path)} aria-hidden="true">{badgeOf(path)}</span>
+                <span className="code-quick-name">{name}</span>
+                {where && <span className="code-quick-where">{where}</span>}
+              </li>
+            );
+          })}
+          {found.length === 0 && <li className="code-quick-none" role="presentation">No file matches “{query}”.</li>}
+        </ul>
       </div>
+    </div>
+  );
+}
+
+/** The files open as tabs, as Xcode's and VS Code's tab bars: a dot on one not saved, a middle click closes. */
+function FileTabs({ code }: { code: CodeState }) {
+  if (code.tabs.length === 0) return null;
+  return (
+    <div className="code-tabs" role="tablist" aria-label="Open files">
+      {code.tabs.map((path) => {
+        const name = path.split('/').pop() ?? path;
+        const current = code.open?.path === path;
+        const unsaved = code.unsaved(path);
+        return (
+          <div key={path} className="code-tab" data-current={current || undefined} title={path} onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); void code.closeTab(path); } }}>
+            <button type="button" role="tab" aria-selected={current} className="code-tab-main" onClick={() => { if (!current) void code.openFile(path); }}>
+              <span className="code-badge" data-lang={langOf(path)} aria-hidden="true">{badgeOf(path)}</span>
+              <span className="code-tab-name">{name}</span>
+            </button>
+            <button type="button" className="code-tab-close" data-unsaved={unsaved || undefined} aria-label={`Close ${path}${unsaved ? ' (not saved)' : ''}`} title={unsaved ? 'Not saved: closing drops what was typed' : 'Close'} onClick={() => void code.closeTab(path)}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -298,13 +536,28 @@ function ConsolePanel({ code }: { code: CodeState }) {
   );
 }
 
+const PANEL_KEY = 'mobius.code.panel';
+
 /** The open file: as Mobius changed it (to keep or discard) or as you type it, and the project's tests below. */
 export function CodeEditor({ code, review }: { code: CodeState; review?: { conversation: string } | null }) {
   const file = code.open && code.project ? `code/${code.project}/${code.open.path}` : null;
   const [bottom, setBottom] = useState<'tests' | 'console'>('tests');
+  const [panel, setPanel] = useState(() => { try { return window.localStorage.getItem(PANEL_KEY) !== 'hidden'; } catch { return true; } });
+  const showPanel = (on: boolean) => { setPanel(on); try { window.localStorage.setItem(PANEL_KEY, on ? 'shown' : 'hidden'); } catch { /* Not kept. */ } };
+  const [bar, setBar] = useState<'find' | 'line' | null>(null);
+  const [quick, setQuick] = useState(false);
+  // Ctrl+P opens a file by name from anywhere in the app.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'p' && code.project) { e.preventDefault(); setQuick(true); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [code.project]);
+  useEffect(() => { setBar(null); }, [code.open?.path]);
   // A command Mobius runs shows where it can be seen.
   const runs = code.consoleRuns.length;
-  useEffect(() => { if (runs > 0 && code.consoleRuns[runs - 1]?.by === 'assistant') setBottom('console'); }, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (runs > 0 && code.consoleRuns[runs - 1]?.by === 'assistant') { setBottom('console'); showPanel(true); } }, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
   const [kept, setKept] = useState(false);
   const [before, setBefore] = useState<string | null | undefined>(undefined);
   useEffect(() => {
@@ -362,9 +615,17 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
       <div className="code-main">
         {code.open ? (
           <>
+            <FileTabs code={code} />
             <header className="code-file-head">
-              <span className="code-badge" data-lang={lang} aria-hidden="true">{badgeOf(code.open.path)}</span>
-              <span className="code-path">{code.open.path}</span>
+              <nav className="code-crumbs" aria-label="Where this file is">
+                <span>{code.project}</span>
+                {code.open.path.split('/').map((part, i, parts) => (
+                  <Fragment key={i}>
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
+                    {i === parts.length - 1 ? <span className="code-path"><span className="code-badge" data-lang={lang} aria-hidden="true">{badgeOf(code.open!.path)}</span>{part}</span> : <span>{part}</span>}
+                  </Fragment>
+                ))}
+              </nav>
               {code.dirty && <span className="code-dirty" role="status">Not saved</span>}
               <span className="code-head-actions">
                 {code.dirty && <button type="button" className="btn" onClick={() => code.setDraft(code.open?.text ?? '')}>Revert</button>}
@@ -377,19 +638,28 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
             ) : showSuggestion && rows ? (
               <Suggestion rows={rows} lang={lang} endsWithNewline={code.open.text.endsWith('\n')} onWrite={(t) => void code.write(t)} onKeepAll={() => void keepAll()} onDiscardAll={() => void discardAll()} {...(review ? { conversation: review.conversation } : {})} />
             ) : (
-              <Editor code={code} lang={lang} />
+              <Editor code={code} lang={lang} bar={bar} setBar={setBar} />
             )}
           </>
         ) : (
-          <p className="note-empty">Choose a file on the left.</p>
+          <div className="code-none">
+            <p>Choose a file on the left, or open one by name.</p>
+            <button type="button" className="btn" onClick={() => setQuick(true)}>Open a file… <kbd>⌘P</kbd></button>
+          </div>
         )}
       </div>
-      <div className="code-bottom">
-        <div className="code-bottom-tabs" role="tablist" aria-label="Below the file">
-          <button type="button" role="tab" aria-selected={bottom === 'tests'} onClick={() => setBottom('tests')}>Tests</button>
-          <button type="button" role="tab" aria-selected={bottom === 'console'} onClick={() => setBottom('console')}>Console</button>
+      {quick && <QuickOpen code={code} onClose={() => setQuick(false)} />}
+      <div className="code-bottom" data-hidden={!panel || undefined}>
+        <div className="code-bottom-tabs">
+          <div role="tablist" aria-label="Below the file">
+            <button type="button" role="tab" aria-selected={panel && bottom === 'tests'} onClick={() => { setBottom('tests'); showPanel(true); }}>Tests{code.tests.last && !code.tests.running && <span className="code-tab-dot" data-state={code.tests.last.passed ? 'pass' : 'fail'} aria-hidden="true" />}</button>
+            <button type="button" role="tab" aria-selected={panel && bottom === 'console'} onClick={() => { setBottom('console'); showPanel(true); }}>Console</button>
+          </div>
+          <button type="button" className="strip-btn code-panel-toggle" aria-expanded={panel} aria-label={panel ? 'Hide the panel' : 'Show the panel'} title={panel ? 'Hide the panel' : 'Show the panel'} onClick={() => showPanel(!panel)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d={panel ? 'm5 8 5 5 5-5' : 'm5 12 5-5 5 5'} /></svg>
+          </button>
         </div>
-        {bottom === 'tests' ? <TestsPanel code={code} /> : <ConsolePanel code={code} />}
+        {panel && (bottom === 'tests' ? <TestsPanel code={code} /> : <ConsolePanel code={code} />)}
       </div>
     </section>
   );
