@@ -60,12 +60,7 @@ const SECTIONS: readonly SettingsSection[] = [
     description: 'Which model does what. The services they come from are in Gateways.',
     subpages: [
       { id: 'main', label: 'Defaults', rows: [
-        row('provider', 'Provider', 'Pick a service to fill in its server address.', 'openai', 'openrouter', 'anthropic', 'claude', 'gemini', 'google', 'groq', 'deepseek', 'mistral', 'ollama', 'lm studio', 'cloud', 'service', 'preset'),
-        row('endpoint', 'Server address', 'Where the model is. Any server that speaks the OpenAI chat format works, including local ones.', 'url', 'endpoint', 'local', 'host'),
-        row('model-name', 'Model', 'The model name to ask for.', 'name', 'qwen', 'gpt'),
-        row('api-key', 'API key', 'Stored encrypted by your system when it can. It is never shown again.', 'key', 'secret', 'token', 'password', 'credential'),
-        row('fallback', 'Second model', 'A model to use when the first is busy, down or cannot be reached.', 'fallback', 'backup', 'failover', 'retry', 'second model', 'outage', 'rate limit'),
-        row('instructions', 'Instructions', 'Extra instructions the agent always follows.', 'system prompt', 'persona', 'personality'),
+        row('chat-model', 'Chat model', 'The model Mobius talks to, from the services connected in Gateways.', 'model', 'chat model', 'default model', 'which model', 'switch model', 'gpt', 'claude', 'qwen', 'llama'),
         row('effort', 'Effort', 'How hard the model is asked to think. Also in the message box. Only models that can reason use it.', 'reasoning', 'thinking', 'low', 'medium', 'high', 'effort'),
       ] },
       { id: 'local', label: 'This computer', rows: [
@@ -86,7 +81,14 @@ const SECTIONS: readonly SettingsSection[] = [
     keywords: ['providers', 'provider', 'gateway', 'connect', 'elevenlabs'],
     subpages: [
       { id: 'keys', label: 'API keys', rows: [
-        row('provider-keys', 'Provider keys', 'One key per service, kept in the system\'s secret store and never shown again. A key is only ever sent to its own service. Use a provider to switch the agent to it.', 'keys', 'credentials', 'accounts', 'switch provider', 'services', 'claude', 'gpt', 'grok', 'openrouter', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'hugging face', 'gemini'),
+        row('provider-keys', 'Your gateways', 'One key per service, kept in the system\'s secret store and never shown again. A key is only ever sent to its own service. Use a provider to switch the agent to it.', 'keys', 'credentials', 'accounts', 'switch provider', 'services', 'claude', 'gpt', 'grok', 'openrouter', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'hugging face', 'gemini'),
+        row('custom-server', 'Custom server', 'Any server that speaks the OpenAI chat format, at an address you give.', 'custom', 'server', 'address', 'url', 'endpoint', 'self hosted', 'openai compatible'),
+        row('provider', 'Service', 'Pick a service to fill in its server address.', 'openai', 'openrouter', 'anthropic', 'claude', 'gemini', 'google', 'groq', 'deepseek', 'mistral', 'ollama', 'lm studio', 'cloud', 'service', 'preset'),
+        row('endpoint', 'Server address', 'Where the model is. Any server that speaks the OpenAI chat format works, including local ones.', 'url', 'endpoint', 'local', 'host'),
+        row('model-name', 'Model', 'The model name to ask for.', 'name', 'qwen', 'gpt'),
+        row('api-key', 'API key', 'Stored encrypted by your system when it can. It is never shown again.', 'key', 'secret', 'token', 'password', 'credential'),
+        row('fallback', 'Second model', 'A model to use when the first is busy, down or cannot be reached.', 'fallback', 'backup', 'failover', 'retry', 'second model', 'outage', 'rate limit'),
+        row('instructions', 'Instructions', 'Extra instructions the agent always follows.', 'system prompt', 'persona', 'personality'),
       ] },
     ],
   },

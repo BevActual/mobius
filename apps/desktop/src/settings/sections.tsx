@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { MobiusMark } from '../MobiusMark';
+import { ChatModelPopUp } from './ModelDefaults';
 import {
   type SavedServer,
   CHAT_TEXT_RANGE,
@@ -248,9 +249,9 @@ export function ModelSection({ subpage, highlight, settings, onSaveSettings, pre
   if (!settings) return <Empty>Loading…</Empty>;
   return (
     <>
-      <div className="srow" data-setting={rowPath('model', subpage, 'endpoint')}>
-        <SettingsForm key={`${settings.baseUrl}|${settings.model}|${settings.system}`} settings={settings} onSave={onSaveSettings} />
-      </div>
+      <Row path={rowPath('model', subpage, 'chat-model')} title="Chat model" description="The model Mobius talks to. The services it comes from are in Gateways." highlight={highlight === 'chat-model'}>
+        <ChatModelPopUp localContext={preferences.localContext} />
+      </Row>
       {window.mobius.agent.savedServers && (
         <Row path={rowPath('model', subpage, 'saved-servers')} title="Saved servers" description="Keep model servers under a name and switch between them. Saving keeps the address, the model and, in the system's secret store, the key." highlight={highlight === 'saved-servers'}>
           <SavedServers current={`${settings.baseUrl}|${settings.model}`} />

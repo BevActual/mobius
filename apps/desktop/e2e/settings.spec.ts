@@ -81,6 +81,10 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   await expect(page().getByRole('heading', { name: 'What Mobius remembers' })).toBeVisible();
   await go('Models');
   await expect(page().getByRole('tab')).toHaveText(['Defaults', 'This computer']);
+  // The chat model is a pop-up of what the gateways offer; the server's address is in Gateways, Custom server.
+  await expect(page().getByRole('combobox', { name: 'Chat model' })).toBeVisible();
+  await go('Gateways');
+  await page().getByRole('button', { name: 'Custom server…' }).click();
   await expect(page().getByLabel('Server address')).toHaveValue(model!.url);
   await go('Keyboard');
   await expect(page().getByText('Ctrl+K')).toBeVisible();
@@ -267,7 +271,8 @@ test('Advanced: the step limit is enforced', async () => {
 test('Model: changing the model name is used by the next request', async () => {
   await start([says(['ok'])]);
   await openSettings();
-  await go('Models');
+  await go('Gateways');
+  await page().getByRole('button', { name: 'Custom server…' }).click();
   await page().getByLabel('Model', { exact: true }).fill('another-model');
   await page().getByRole('button', { name: 'Save' }).click();
   await shell().keyboard.press('Escape');

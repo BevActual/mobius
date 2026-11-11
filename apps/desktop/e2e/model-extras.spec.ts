@@ -23,18 +23,21 @@ const open = async (tab: string) => {
 
 test('choosing a provider fills in its address and says where to get a key', async () => {
   mobius = await launch(fixture.origin + '/');
-  await open('Defaults');
+  await openSettings(shell());
+  await expect(page()).toBeVisible();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Gateways', exact: true }).click();
+  await page().getByRole('button', { name: 'Custom server…' }).click();
   const address = page().getByLabel('Server address');
-  await page().getByLabel('Provider').selectOption('openrouter');
+  await page().getByLabel('Service').selectOption('openrouter');
   await expect(address).toHaveValue('https://openrouter.ai/api/v1');
   await expect(page().getByText(/Make a key at openrouter\.ai/)).toBeVisible();
-  await page().getByLabel('Provider').selectOption('ollama');
+  await page().getByLabel('Service').selectOption('ollama');
   await expect(address).toHaveValue('http://127.0.0.1:11434/v1');
   await expect(page().getByText(/No key needed/)).toBeVisible();
   await address.fill('https://my.own.example/v1');
-  await expect(page().getByLabel('Provider')).toHaveValue('other');
+  await expect(page().getByLabel('Service')).toHaveValue('other');
   await address.fill('https://api.groq.com/openai/v1');
-  await expect(page().getByLabel('Provider')).toHaveValue('groq');
+  await expect(page().getByLabel('Service')).toHaveValue('groq');
 });
 
 test('the context size for local models is chosen from a list and remembered', async () => {

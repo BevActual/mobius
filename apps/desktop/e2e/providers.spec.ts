@@ -38,6 +38,9 @@ async function start(): Promise<void> {
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await openSettings(shell());
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Gateways', exact: true }).click();
+  // Nothing is connected yet: the services are under Add Gateway…
+  await expect(page().getByText('No gateways yet')).toBeVisible();
+  await page().getByRole('button', { name: 'Add Gateway…' }).click();
   await expect(openai()).toBeVisible();
 }
 
@@ -78,7 +81,9 @@ test('a key that is removed is no longer sent, and a provider without one cannot
   await openai().getByRole('button', { name: 'Use OpenAI' }).click();
   await openai().getByRole('button', { name: 'Use this model' }).click();
   await expect(openai()).toContainText('In use');
+  // Removing a key asks first.
   await openai().getByRole('button', { name: 'Remove the key for OpenAI' }).click();
+  await openai().getByRole('group', { name: 'Remove the key for OpenAI?' }).getByRole('button', { name: 'Remove' }).click();
   await expect(openai()).toContainText('No key');
   const settings = await shell().evaluate(() => window.mobius.agent.getSettings());
   expect(settings.hasKey).toBe(false);

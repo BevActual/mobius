@@ -3,27 +3,59 @@ import type { AccountInfo, AccountStatus, ProviderInfo } from '@mobius/shared';
 import { Empty, Row } from './primitives';
 import { settingPath } from './manifest';
 import type { SectionProps } from './sections';
+import { SettingsForm } from './ModelForm';
 
-/** Settings > Providers > API keys, after Hermes's Providers page: one row per service, its key, and a switch to it. */
-export function ProvidersSection({ highlight }: SectionProps) {
+/**
+ * Settings > Gateways: the services Mobius is connected to, each with its key (kept in the system's secret store, never
+ * shown again, only ever sent to its own service), and Add Gateway… for the others. Which model does what is in Models.
+ */
+export function ProvidersSection({ highlight, settings, onSaveSettings }: SectionProps) {
+  const [custom, setCustom] = useState(highlight !== null && ['provider', 'endpoint', 'model-name', 'api-key', 'fallback', 'instructions'].includes(highlight));
   return (
-    <Row path={settingPath('providers', 'keys', 'provider-keys')} title="Provider keys" description="One key per service, kept in the system's secret store and never shown again. A key is only ever sent to its own service." highlight={highlight === 'provider-keys'}>
+    <>
+    <Row path={settingPath('providers', 'keys', 'provider-keys')} title="Your gateways" description="The services Mobius can reach. Each key is kept in your system's secret store, never shown again, and only ever sent to its own service." highlight={highlight === 'provider-keys'}>
       <ProviderList />
     </Row>
+    <Row path={settingPath('providers', 'keys', 'custom-server')} title="Custom server" description="Any server that speaks the OpenAI chat format, at an address you give, with its key, instructions and a second model." highlight={highlight === 'custom-server' || custom && highlight !== null}>
+      {!custom ? (
+        <button type="button" className="btn" onClick={() => setCustom(true)}>Custom server…</button>
+      ) : settings ? (
+        <div className="gateway-sheet" role="group" aria-label="Custom server">
+          <SettingsForm key={`${settings.baseUrl}|${settings.model}|${settings.system}`} settings={settings} onSave={onSaveSettings} />
+          <button type="button" className="btn" onClick={() => setCustom(false)}>Done</button>
+        </div>
+      ) : <Empty>Loading…</Empty>}
+    </Row>
+    </>
   );
 }
 
 function ProviderList() {
   const api = window.mobius.providers;
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const reload = useCallback(() => void api?.list().then(setProviders), [api]);
+  const reload = useCallback(() => void api?.list().then((got) => setProviders(Array.isArray(got) ? got : [])), [api]);
   useEffect(() => { reload(); return api?.onChanged(reload); }, [api, reload]);
-  if (!api) return <Empty>Providers are available in the desktop app.</Empty>;
-  const hosted = providers.filter((p) => p.needsKey);
-  const local = providers.filter((p) => !p.needsKey);
+  const [adding, setAdding] = useState(false);
+  if (!api) return <Empty>Gateways are available in the desktop app.</Empty>;
+  const list = Array.isArray(providers) ? providers : [];
+  const connected = list.filter((p) => p.hasKey || p.active);
+  const hosted = list.filter((p) => p.needsKey && !connected.includes(p));
+  const local = list.filter((p) => !p.needsKey && !connected.includes(p));
   return (
     <div className="providers">
       <Accounts onChanged={reload} />
+      {connected.length > 0 ? (
+        <ul className="plist" role="list" aria-label="Connected gateways">
+          {connected.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} />)}
+        </ul>
+      ) : (
+        <div className="gateways-empty">
+          <p className="gateways-empty-title">No gateways yet</p>
+          <p className="srow-desc">Connect a service with its key, sign in to a plan, or use a server on this computer.</p>
+        </div>
+      )}
+      <button type="button" className="btn" aria-expanded={adding} onClick={() => setAdding((a) => !a)}>{adding ? 'Done adding' : 'Add Gateway…'}</button>
+      {adding && <>
       <h4 className="plist-head">With an API key</h4>
       <ul className="plist" role="list" aria-label="Online services">
         {hosted.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} />)}
@@ -32,6 +64,7 @@ function ProviderList() {
       <ul className="plist" role="list" aria-label="Servers on this computer">
         {local.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} />)}
       </ul>
+      </>}
     </div>
   );
 }
@@ -46,6 +79,7 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
   const [model, setModel] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const usable = !p.voiceOnly && (!p.needsKey || p.hasKey);
 
   const saveKey = async () => {
@@ -80,7 +114,14 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
       <span className="prow-actions">
         {p.needsKey && !p.hasKey && open !== 'key' && <button type="button" className="btn" aria-label={`Add a key for ${p.name}`} onClick={() => { setOpen('key'); setProblem(null); }}>Add key</button>}
         {usable && open !== 'use' && <button type="button" className="btn" aria-label={`Use ${p.name}`} onClick={() => void startUse()}>Use…</button>}
-        {p.hasKey && <button type="button" className="btn" aria-label={`Remove the key for ${p.name}`} onClick={() => void api.removeKey(p.id).then(onChanged)}>Remove key</button>}
+        {p.hasKey && !confirming && <button type="button" className="btn link danger" aria-label={`Remove the key for ${p.name}`} onClick={() => setConfirming(true)}>Remove key…</button>}
+        {confirming && (
+          <span className="prow-confirm" role="group" aria-label={`Remove the key for ${p.name}?`}>
+            <span className="prow-note">Remove the key for {p.name}?</span>
+            <button type="button" className="btn danger" onClick={() => { setConfirming(false); void api.removeKey(p.id).then(onChanged); }}>Remove</button>
+            <button type="button" className="btn" onClick={() => setConfirming(false)}>Cancel</button>
+          </span>
+        )}
       </span>
       {open === 'key' && (
         <form className="prow-form" onSubmit={(e) => { e.preventDefault(); void saveKey(); }}>
@@ -111,7 +152,7 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
 function Accounts({ onChanged }: { onChanged: () => void }) {
   const api = window.mobius.providers!;
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
-  const reload = useCallback(() => void api.accounts().then(setAccounts), [api]);
+  const reload = useCallback(() => void api.accounts().then((got) => setAccounts(Array.isArray(got) ? got : [])), [api]);
   useEffect(() => { reload(); return api.onChanged(reload); }, [api, reload]);
   if (accounts.length === 0) return null;
   return (

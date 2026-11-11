@@ -111,6 +111,15 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'models.hardware': () => ({ gpu_name: 'NVIDIA GeForce RTX 4070', vram_total: 12_884_901_888, vram_free: 10_737_418_240, ram_total: 34_359_738_368, ram_free: 17_179_869_184 }),
   'models.status': () => ({ binary: null, runtime: null }),
   'models.local': () => [],
+  // Gateways: one service with a key, one on this computer, and the rest to add.
+  'providers.list': () => [
+    { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', note: 'GPT models.', keyUrl: 'https://platform.openai.com/api-keys', needsKey: true, voiceOnly: false, hasKey: true, active: false, storage: 'keychain' },
+    { id: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1', note: 'Claude models, through their OpenAI-compatible layer.', keyUrl: 'https://console.anthropic.com/settings/keys', needsKey: true, voiceOnly: false, hasKey: false, active: false, storage: 'none' },
+    { id: 'elevenlabs', name: 'ElevenLabs', baseUrl: 'https://api.elevenlabs.io/v1', note: 'Voice only: listening and speaking, in Settings, Voice.', keyUrl: 'https://elevenlabs.io/app/settings/api-keys', needsKey: true, voiceOnly: true, hasKey: false, active: false, storage: 'none' },
+    { id: 'ollama', name: 'Ollama', baseUrl: 'http://127.0.0.1:11434/v1', note: 'Models you run with Ollama on this computer. No key needed.', keyUrl: null, needsKey: false, voiceOnly: false, hasKey: false, active: false, storage: 'none' },
+  ],
+  'providers.accounts': () => [{ id: 'claude', name: 'Claude Code', note: 'Your Claude plan, through Claude Code on this computer.', active: true, kind: 'cli', models: [{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' }] }],
+  'providers.accountStatus': () => ({ installed: true, signedIn: true, account: 'you@example.com' }),
   'providers.catalog': () => ({ current: 'claude-sonnet-5-5', groups: [{ kind: 'subscription', id: 'claude', name: 'Claude plan', active: true, models: [{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' }, { id: 'claude-opus-5-5', label: 'Opus 5.5' }], error: null }, { kind: 'local', id: 'local', name: 'On this computer', active: false, models: [{ id: 'qwen3-8b', label: 'Qwen3 8B' }], error: null }] }),
   'mail.accounts': () => [{ id: 'a1', name: 'Northway', email: 'you@northway.example', lastSyncMs: now, problem: null }],
   'mail.list': () => MAIL,

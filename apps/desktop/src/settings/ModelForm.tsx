@@ -16,6 +16,7 @@ export function SettingsForm({ settings, onSave, onDone }: SettingsFormProps) {
   const [system, setSystem] = useState(settings.system);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [useBackup, setUseBackup] = useState(settings.fallbackModel !== '');
   const [backupUrl, setBackupUrl] = useState(settings.fallbackBaseUrl);
   const [backupModel, setBackupModel] = useState(settings.fallbackModel);
@@ -46,7 +47,7 @@ export function SettingsForm({ settings, onSave, onDone }: SettingsFormProps) {
     <form className="settings" role="form" aria-label="Model settings" onSubmit={(event) => void save(event)}>
       <p className="settings-intro">Connect a model. Any server that speaks the OpenAI chat format works, including ones running on this computer.</p>
       <label className="field">
-        <span>Provider</span>
+        <span>Service</span>
         <select value={provider?.id ?? 'other'} onChange={(event) => { const picked = findProvider(event.target.value); if (picked) { setBaseUrl(picked.baseUrl); setSaved(false); } }}>
           <option value="other">Other (type the address below)</option>
           {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -82,7 +83,7 @@ export function SettingsForm({ settings, onSave, onDone }: SettingsFormProps) {
       {useBackup && (
         <fieldset className="backup" aria-label="Second model">
           <label className="field">
-            <span>Second model provider</span>
+            <span>Second model service</span>
             <select value={backupProvider?.id ?? 'other'} onChange={(event) => { const picked = findProvider(event.target.value); if (picked) setBackupUrl(picked.baseUrl); }}>
               <option value="other">Other (type the address below)</option>
               {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -106,7 +107,14 @@ export function SettingsForm({ settings, onSave, onDone }: SettingsFormProps) {
       {saved && <p className="field-ok" role="status">Saved</p>}
       <div className="settings-actions">
         <button type="submit" className="btn primary" disabled={saving || !baseUrl.trim() || !model.trim() || (useBackup && (!backupUrl.trim() || !backupModel.trim()))}>Save</button>
-        {keyKept && <button type="button" className="btn" disabled={saving} onClick={(event) => void save(event, true)}>Remove saved key</button>}
+        {keyKept && !confirmRemove && <button type="button" className="btn link danger" disabled={saving} onClick={() => setConfirmRemove(true)}>Remove saved key…</button>}
+        {keyKept && confirmRemove && (
+          <span className="prow-confirm" role="group" aria-label="Remove the saved key?">
+            <span className="prow-note">Remove the saved key?</span>
+            <button type="button" className="btn danger" disabled={saving} onClick={(event) => { setConfirmRemove(false); void save(event, true); }}>Remove</button>
+            <button type="button" className="btn" onClick={() => setConfirmRemove(false)}>Cancel</button>
+          </span>
+        )}
         {onDone && <button type="button" className="btn" onClick={onDone}>Cancel</button>}
       </div>
     </form>

@@ -34,7 +34,7 @@ describe('searching settings', () => {
 
   it('finds a setting by its name, wherever it lives', () => {
     expect(top('theme')).toMatchObject({ section: 'appearance', subpage: 'theme', row: 'theme' });
-    expect(top('api key')).toMatchObject({ section: 'model', row: 'api-key' });
+    expect(top('api key')).toMatchObject({ section: 'providers', row: 'api-key' });
     expect(top('shortcuts')).toMatchObject({ section: 'keyboard' });
     expect(top('delete conversation')).toMatchObject({ section: 'sessions' });
     expect(top('gguf')).toMatchObject({ section: 'model', subpage: 'local' });
@@ -43,7 +43,7 @@ describe('searching settings', () => {
     expect(top('llama.cpp')).toMatchObject({ section: 'model', subpage: 'local' });
     expect(top('provider keys')).toMatchObject({ section: 'providers', subpage: 'keys', row: 'provider-keys' });
     expect(top('credentials')).toMatchObject({ section: 'providers' });
-    expect(top('ollama')).toMatchObject({ section: 'model', row: 'provider' });
+    expect(top('ollama')).toMatchObject({ section: 'providers', row: 'provider' });
     expect(top('browsing history')).toMatchObject({ section: 'browser', subpage: 'history' });
     expect(top('serif font')).toMatchObject({ section: 'appearance', row: 'chat-font' });
     expect(top('right to left')).toMatchObject({ section: 'appearance', row: 'text-direction' });
@@ -58,9 +58,9 @@ describe('searching settings', () => {
     expect(searchSettings('providers').some((h) => h.section === 'providers')).toBe(true);
     expect(top('context size')).toMatchObject({ section: 'model', subpage: 'local', row: 'context-size' });
     expect(top('context length')).toMatchObject({ section: 'model', subpage: 'local', row: 'context-size' });
-    expect(top('provider')).toMatchObject({ section: 'providers', row: 'provider-keys' });
+    expect(searchSettings('provider').some((h) => h.section === 'providers' && h.row === 'provider-keys')).toBe(true);
     // A service's name finds Gateways (to connect it) first, then the model picker.
-    expect(searchSettings('openrouter').map((h) => h.section).slice(0, 2)).toEqual(['providers', 'model']);
+    expect(searchSettings('openrouter').every((h) => h.section === 'providers')).toBe(true);
     expect(top('local network')).toMatchObject({ section: 'browser', subpage: 'network', row: 'private-addresses' });
     expect(top('localhost')).toMatchObject({ section: 'browser', row: 'private-addresses' });
     expect(top('approval mode')).toMatchObject({ section: 'safety', subpage: 'approvals', row: 'approval-mode' });
@@ -70,8 +70,8 @@ describe('searching settings', () => {
     expect(top('resize')).toMatchObject({ section: 'appearance', row: 'sidebar-size' });
     expect(top('rebind')).toMatchObject({ section: 'keyboard', row: 'shortcut-list' });
     expect(top('global shortcut')).toMatchObject({ section: 'keyboard', row: 'quick-entry' });
-    expect(top('second model')).toMatchObject({ section: 'model', row: 'fallback' });
-    expect(top('fallback')).toMatchObject({ section: 'model', row: 'fallback' });
+    expect(top('second model')).toMatchObject({ section: 'providers', row: 'fallback' });
+    expect(top('fallback')).toMatchObject({ section: 'providers', row: 'fallback' });
     expect(top('notify me')).toMatchObject({ section: 'notifications', subpage: 'alerts' });
     expect(top('do not disturb')).toMatchObject({ section: 'notifications' });
     expect(top('mute sounds')).toMatchObject({ section: 'notifications', subpage: 'sounds' });
