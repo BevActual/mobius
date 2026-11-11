@@ -66,6 +66,8 @@ import { writeCut } from './cut-format';
 import { usePhotos } from './usePhotos';
 import { editsPathFor } from './photo-edit';
 import { sheetContext } from './sheets-view';
+import { openOnChanges } from './open-on-changes';
+import { toolTarget } from './actions';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { Desk } from './Desk';
 import { APP_ICONS, Rail } from './Rail';
@@ -83,7 +85,7 @@ import { liveTitle, statusText } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
 import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { clipToNotes } from './clip';
-import { loadPanes, savePanes, companionFor, loadShare, saveShare } from './split';
+import { loadPanes, savePanes, companionFor, followPane, loadShare, saveShare } from './split';
 import { TRY_ANOTHER_ASK, TryAnotherContext } from './ReviewBar';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
@@ -680,6 +682,40 @@ export function App() {
     else if (target.app === 'open') openApp(target.id);
     else showPage(target.url);
   };
+  // An app opened while the last turn's changes in it wait for Keep opens on them (once for each set of changes).
+  const openedOnChanges = useRef(new Set<string>());
+  const openTargetNow = useRef(openTarget);
+  openTargetNow.current = openTarget;
+  useEffect(() => {
+    if (conversation.state.busy) return;
+    const showing: Partial<Record<AppId, boolean>> = {
+      notes: !!notes.page && turnMarks.notes.has(notes.page.path),
+      docs: !!docs.page && turnMarks.docs.has(docs.page.path),
+      slides: !!slides.page && turnMarks.slides.has(slides.page.path),
+      sheets: !!sheets.data && turnMarks.sheets.has(sheets.data.workbook),
+      tasks: tasks.view.kind === 'list' && turnMarks.lists.has(tasks.view.name),
+    };
+    const target = openOnChanges(app, turnMarks.files, showing[app] ?? false, openedOnChanges.current);
+    if (target) openTargetNow.current(target);
+    // Only on coming to an app or when a turn's changes arrive, not as its item changes.
+  }, [app, turnMarks, conversation.state.busy]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Follow along: with the conversation in one pane of a split, the other shows each thing Mobius finishes working on.
+  // The conversation keeps the focus, so typing goes on there.
+  const followed = useRef(new Set<string>());
+  useEffect(() => {
+    const last = conversation.state.items.findLast((i) => i.kind === 'tool' && i.status === 'done');
+    if (!last || last.kind !== 'tool' || followed.current.has(last.callId)) return;
+    followed.current.add(last.callId);
+    if (!conversation.state.busy) return;
+    const target = toolTarget(last.name, last.args);
+    const follow = split ? followPane(panes, target) : null;
+    if (!follow || !target) return;
+    const chat: 0 | 1 = follow.pane === 0 ? 1 : 0;
+    panesNow.current = { panes, focused: follow.pane };
+    openTargetNow.current(target);
+    panesNow.current = { panes: panesNow.current.panes, focused: chat };
+    setFocused(chat);
+  }, [conversation.state.items]); // eslint-disable-line react-hooks/exhaustive-deps
   // However Settings closes, the next opening starts at its first page again.
   const closeSettings = useCallback(() => { setSettingsOpen(false); setSettingsSection(undefined); }, []);
   const newTab = useCallback(() => {

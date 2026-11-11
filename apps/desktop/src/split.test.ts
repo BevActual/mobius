@@ -32,3 +32,16 @@ describe('where Mobius opens', () => {
     }
   });
 });
+
+import { followPane } from './split';
+describe('split view follows along', () => {
+  it('the pane beside the conversation shows what Mobius worked on', () => {
+    expect(followPane(['agent', 'browser'], { app: 'tasks' })).toEqual({ pane: 1, app: 'tasks' });
+    expect(followPane(['docs', 'agent'], { app: 'sheets' })).toEqual({ pane: 0, app: 'sheets' });
+  });
+  it('not without the conversation in a pane, not without a split, not for apps that do not pair', () => {
+    expect(followPane(['notes', 'browser'], { app: 'tasks' })).toBeNull();
+    expect(followPane(['agent', null], { app: 'tasks' })).toBeNull();
+    expect(followPane(['agent', 'browser'], { app: 'design' })).toBeNull();
+  });
+});

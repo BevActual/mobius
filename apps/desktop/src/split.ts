@@ -38,3 +38,14 @@ export function savePanes(panes: readonly [AppId, AppId | null]): void {
 
 /** The second app to show when split view opens: the browser beside anything else, notes beside the browser. */
 export const companionFor = (app: AppId): AppId => (app === 'browser' ? 'notes' : 'browser');
+
+/**
+ * Follow along in split view: with the conversation in one pane, the other shows what Mobius just worked on (the list
+ * it added to, the document it wrote), as each step finishes. Only apps that pair in a split; the newest step wins.
+ */
+export function followPane(panes: readonly [AppId, AppId | null], target: { app: string } | null): { pane: 0 | 1; app: AppId } | null {
+  if (!target || panes[1] === null) return null;
+  const chat = panes[0] === 'agent' ? 0 : panes[1] === 'agent' ? 1 : null;
+  if (chat === null || !PAIRABLE.includes(target.app as AppId) || target.app === 'agent') return null;
+  return { pane: chat === 0 ? 1 : 0, app: target.app as AppId };
+}
