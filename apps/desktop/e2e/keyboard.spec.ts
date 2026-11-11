@@ -50,6 +50,7 @@ test('the usual keys work, and the settings page lists them', async () => {
   await expect(keys('launcher')).toHaveText('Ctrl+K');
   await expect(keys('settings')).toHaveText('Ctrl+,');
   await expect(keys('quickEntry')).toHaveText('Not set');
+  await expect(keys('holdToTalk')).toHaveText('Ctrl+Space');
 });
 
 test('a shortcut can be changed, the old keys stop working, and it can be put back', async () => {

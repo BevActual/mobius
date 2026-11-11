@@ -10,6 +10,7 @@ import { CameraDialog } from './CameraDialog';
 import { MAX_PICTURES, pictureFromFile, pictureFromUrl, pictureOfWindow } from '../picture';
 import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem, type Suggestion, type SurfaceState } from '../surface';
 import { useDictation } from './useDictation';
+import { holdsHere, isHoldToTalk } from './hold-to-talk';
 import { MODES, modeOf, nextMode } from '../approval-modes';
 
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
@@ -112,6 +113,36 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     element.style.height = 'auto';
     element.style.height = `${Math.min(element.scrollHeight, 168)}px`;
   }, [draft, fieldRef]);
+
+  // Hold to talk: while the shortcut (Ctrl+Space unless changed in Settings, Keyboard) is held with the keyboard in this
+  // panel, listen; on letting go, the words go into the box, not sent.
+  const formRef = useRef<HTMLFormElement>(null);
+  const holding = useRef(false);
+  const holdKeys = preferences.value.keybindings;
+  const { hold, letGo } = dictation;
+  useEffect(() => {
+    const down = (event: globalThis.KeyboardEvent) => {
+      if (!isHoldToTalk(holdKeys, { code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey })) return;
+      if (!holding.current && !holdsHere(document.activeElement, formRef.current)) return;
+      event.preventDefault();
+      if (event.repeat || holding.current || !canType || busy) return;
+      holding.current = true;
+      hold();
+    };
+    const up = () => {
+      if (!holding.current) return;
+      holding.current = false;
+      letGo();
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', up);
+    };
+  }, [holdKeys, hold, letGo, canType, busy]);
 
   useEffect(() => {
     if (!busy) return;
@@ -230,7 +261,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const shown = models.state === 'ready' ? filterCatalog(models.catalog.groups, find) : [];
 
   return (
-    <form className="composer" onSubmit={submit} onKeyDown={onFormKeyDown} data-listening={listening || undefined} data-working={activity ? (activity.needsYou ? 'you' : 'agent') : undefined}>
+    <form ref={formRef} className="composer" onSubmit={submit} onKeyDown={onFormKeyDown} data-listening={listening || undefined} data-working={activity ? (activity.needsYou ? 'you' : 'agent') : undefined}>
       {activity && (
         <div className="working" role="status" aria-label="Agent activity" aria-live="polite">
           <MobiusMark size={16} turning={!activity.needsYou} className="working-mark" />

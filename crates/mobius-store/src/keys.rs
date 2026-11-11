@@ -1,10 +1,27 @@
 //! Keyboard shortcut bindings, checked the same way as `keys.ts` in the shared package.
 use serde_json::{Map, Value, json};
 
-pub const ACTIONS: [&str; 9] = ["launcher", "address", "newTab", "closeTab", "settings", "find", "quickEntry", "splitView", "littleMobius"];
+pub const ACTIONS: [&str; 10] = ["launcher", "address", "newTab", "closeTab", "settings", "find", "quickEntry", "splitView", "littleMobius", "holdToTalk"];
+/// Actions added later: bindings saved before them leave them out, and they get their default.
+pub const LATER_ACTIONS: [&str; 1] = ["holdToTalk"];
 
 pub fn defaults() -> Value {
-    json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+\\", "littleMobius": "mod+shift+m" })
+    json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+\\", "littleMobius": "mod+shift+m", "holdToTalk": "mod+space" })
+}
+
+/// Bindings saved before an action was added, with it at its default (or none, if another action took that key).
+pub fn renew(v: &Value) -> Value {
+    let Some(map) = v.as_object() else { return v.clone() };
+    let mut out = map.clone();
+    let fallback = defaults();
+    for action in LATER_ACTIONS {
+        if !out.contains_key(action) {
+            let wanted = fallback[action].clone();
+            let taken = out.values().any(|b| *b == wanted);
+            out.insert(action.to_owned(), if taken { json!("") } else { wanted });
+        }
+    }
+    Value::Object(out)
 }
 
 fn is_key(k: &str) -> bool {
@@ -99,12 +116,12 @@ pub fn to_accelerator(binding: &str) -> Option<String> {
 /// Every action is present and well formed, and no two actions share a combination.
 pub fn is_key_bindings(v: &Value) -> bool {
     let Some(map): Option<&Map<String, Value>> = v.as_object() else { return false };
-    if map.len() != ACTIONS.len() || !ACTIONS.iter().all(|a| map.contains_key(*a)) {
+    if map.keys().any(|k| !ACTIONS.contains(&k.as_str())) || !ACTIONS.iter().all(|a| map.contains_key(*a) || LATER_ACTIONS.contains(a)) {
         return false;
     }
     let mut used = std::collections::HashSet::new();
     for a in ACTIONS {
-        let b = &map[a];
+        let Some(b) = map.get(a) else { continue };
         if !is_binding(b) {
             return false;
         }
@@ -224,5 +241,18 @@ mod press_tests {
         assert_eq!(window_action_for(&custom, "alt+g"), Some("find"));
         assert_eq!(window_action_for(&custom, "mod+f"), None);
         assert_eq!(window_action_for(&custom, "mod+shift+space"), None, "quick entry is global, not a window action");
+    }
+
+    #[test]
+    fn bindings_saved_before_hold_to_talk_get_it_unless_its_key_is_taken() {
+        let mut old = defaults();
+        old.as_object_mut().unwrap().remove("holdToTalk");
+        assert!(is_key_bindings(&old), "bindings saved before hold to talk are still read");
+        assert_eq!(renew(&old)["holdToTalk"], "mod+space");
+        let mut taken = old.clone();
+        taken["launcher"] = json!("mod+space");
+        assert_eq!(renew(&taken)["holdToTalk"], "", "a key the person already gave away is not taken back");
+        assert_eq!(renew(&defaults()), defaults());
+        assert_eq!(window_action_for(&defaults(), "mod+space"), None, "hold to talk is the panel's, not forwarded from pages");
     }
 }

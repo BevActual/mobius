@@ -515,6 +515,8 @@ impl Bridge {
             ("extensions", "connectors") => Ok(self.mcp_status()),
             // Settings, Voice: try the server chosen for listening or speaking, as it is set now.
             ("voice", "test") => Ok(self.voice_test(arg(0).as_str().unwrap_or(""))),
+            // Settings, Voice, This computer: whether a speech server answers at the saved address. Nothing is installed.
+            ("voice", "local") => Ok(self.voice_local(arg(0).as_str().unwrap_or(""))),
             // Read words aloud with the service chosen for speaking: the window gets the sound, never a key.
             ("voice", "speak") => Ok(self.speak(arg(0).as_str().unwrap_or(""))),
             // Comments on anything in the workspace, kept per document in `.comments/` (see mobius_workspace::comments).
@@ -1664,6 +1666,18 @@ impl Bridge {
     /// Whether the server chosen for a voice job answers: the chat model's server (listening only), a speech server on
     /// this computer that speaks OpenAI's audio format, or ElevenLabs with its key from Gateways. The key is only ever
     /// sent to ElevenLabs's own address, and never put in the answer.
+    fn voice_local(&self, job: &str) -> Value {
+        let prefs = lock(&self.preferences).get();
+        let url = match job {
+            "listen" => prefs["listenUrl"].as_str().unwrap_or("").to_owned(),
+            "speak" => prefs["speakUrl"].as_str().unwrap_or("").to_owned(),
+            _ => return failed("That is not a voice job."),
+        };
+        let http: ureq::Agent = ureq::Agent::config_builder().max_redirects(0).http_status_as_error(false).timeout_global(Some(Duration::from_secs(3))).build().into();
+        let ready = !url.is_empty() && http.get(&format!("{}/models", url.trim_end_matches('/'))).call().is_ok_and(|r| r.status().is_success());
+        json!({ "ok": true, "ready": ready, "url": url })
+    }
+
     fn voice_test(&self, job: &str) -> Value {
         let prefs = lock(&self.preferences).get();
         let (with, url) = match job {

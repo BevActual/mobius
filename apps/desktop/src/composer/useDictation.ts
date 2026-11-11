@@ -9,7 +9,7 @@ export const MAX_RECORDING_SECONDS = 120;
  * Record from the microphone and turn it into text with the server's speech model. Nothing is kept: the recording goes to the
  * model server the person chose, and only the words come back.
  */
-export function useDictation(onText: (text: string) => void, maxSeconds = MAX_RECORDING_SECONDS): { state: DictationState; seconds: number; level: number; problem: string | null; setup: boolean; toggle: () => void; cancel: () => void; clearProblem: () => void } {
+export function useDictation(onText: (text: string) => void, maxSeconds = MAX_RECORDING_SECONDS): { state: DictationState; seconds: number; level: number; problem: string | null; setup: boolean; toggle: () => void; hold: () => void; letGo: () => void; cancel: () => void; clearProblem: () => void } {
   const [state, setState] = useState<DictationState>('idle');
   const [seconds, setSeconds] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
@@ -24,6 +24,8 @@ export function useDictation(onText: (text: string) => void, maxSeconds = MAX_RE
   const discard = useRef(false);
   const timer = useRef<number | undefined>(undefined);
   const live = useRef(true);
+  // Hold to talk: listening while a key is held. Let go before the microphone was ready, and it stops as soon as it is.
+  const held = useRef<'no' | 'held' | 'let go'>('no');
 
   const release = useCallback(() => {
     if (meter.current) {
@@ -107,6 +109,10 @@ export function useDictation(onText: (text: string) => void, maxSeconds = MAX_RE
       next.start();
       setSeconds(0);
       setState('recording');
+      if (held.current === 'let go') {
+        held.current = 'no';
+        next.stop();
+      }
       timer.current = window.setInterval(() => {
         setSeconds((s) => {
           if (s + 1 >= maxSeconds && recorder.current?.state === 'recording') recorder.current.stop();
@@ -125,12 +131,27 @@ export function useDictation(onText: (text: string) => void, maxSeconds = MAX_RE
     else if (state === 'recording') recorder.current?.stop();
   }, [state, start]);
 
+  const hold = useCallback(() => {
+    if (state !== 'idle') return;
+    held.current = 'held';
+    void start();
+  }, [state, start]);
+
+  const letGo = useCallback(() => {
+    if (held.current === 'no') return;
+    if (recorder.current && recorder.current.state === 'recording') {
+      held.current = 'no';
+      recorder.current.stop();
+    } else held.current = 'let go';
+  }, []);
+
   const cancel = useCallback(() => {
+    held.current = 'no';
     discard.current = true;
     if (recorder.current && recorder.current.state === 'recording') recorder.current.stop();
     else release();
     setState('idle');
   }, [release]);
 
-  return { state, seconds, level, problem, setup, toggle, cancel, clearProblem: () => { setProblem(null); setSetup(false); } };
+  return { state, seconds, level, problem, setup, toggle, hold, letGo, cancel, clearProblem: () => { setProblem(null); setSetup(false); } };
 }

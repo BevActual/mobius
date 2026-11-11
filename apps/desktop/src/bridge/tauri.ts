@@ -254,6 +254,7 @@ export function createTauriBridge(): MobiusBridge {
     },
     voice: {
       test: (job) => call('voice', 'test', [job], () => ({ ok: false as const, error: 'Voice is not available here.' })),
+      local: (job) => call('voice', 'local', [job], () => ({ ok: false as const, error: 'Voice is not available here.' })),
       speak: (text) => call('voice', 'speak', [text], () => ({ ok: false as const, error: 'Voice is not available here.' })),
     },
     comments: {

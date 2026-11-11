@@ -470,6 +470,8 @@ export interface MobiusBridge {
   /** Settings, Voice: try the server chosen for listening or speaking. */
   voice?: {
     test(job: 'listen' | 'speak'): Promise<{ ok: true; message: string } | { ok: false; error: string }>;
+    /** Whether a speech server answers at the address saved for this computer. Nothing is installed or started. */
+    local?(job: 'listen' | 'speak'): Promise<{ ok: true; ready: boolean; url: string } | { ok: false; error: string }>;
     /** Words read aloud with the service chosen for speaking, as a data: URL of the sound. `setup` when nothing is chosen. */
     speak?(text: string): Promise<{ ok: true; audio: string } | { ok: false; error: string; setup?: boolean }>;
   };

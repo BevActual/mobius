@@ -87,6 +87,11 @@ pub fn open(file: PathBuf) -> Settings {
     if settings.get()["approvalMode"] == "off" {
         settings.set(&json!({ "approvalMode": "smart" }));
     }
+    let bindings = settings.get()["keybindings"].clone();
+    let renewed = keys::renew(&bindings);
+    if renewed != bindings {
+        settings.set(&json!({ "keybindings": renewed }));
+    }
     let access = settings.get()["appAccess"].clone();
     let renewed = renew_app_access(&access);
     if renewed != access {

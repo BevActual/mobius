@@ -4,7 +4,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, openSettings, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { says, startModel, type ModelFixture } from './model-fixture';
 
 /** A speech server on this computer, in OpenAI's audio format, as faster-whisper and Kokoro serve it. */
@@ -27,6 +27,7 @@ async function startSpeechServer(transcript: string): Promise<SpeechServer> {
       const body = Buffer.concat(parts);
       heard.push({ path: req.url ?? '', type: String(req.headers['content-type'] ?? ''), text: body.toString('latin1').slice(0, 4000) });
       if (req.url === '/v1/audio/transcriptions') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ text: transcript })); return; }
+      if (req.url === '/v1/models') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ data: [] })); return; }
       if (req.url === '/v1/audio/speech') { res.writeHead(200, { 'content-type': 'audio/wav' }); res.end(SILENCE); return; }
       res.writeHead(404); res.end();
     });
@@ -80,6 +81,20 @@ test('dictation listens with the speech server chosen in Voice and puts the word
   expect(model!.requests).toHaveLength(0);
 });
 
+test('holding Ctrl+Space in the Mobius panel listens until let go, and puts the words in the box', async () => {
+  await start({});
+  await composer().focus();
+  await shell().keyboard.down('Control');
+  await shell().keyboard.down('Space');
+  await expect(shell().getByRole('status', { name: /Listening/ })).toBeVisible();
+  await shell().waitForTimeout(700);
+  await shell().keyboard.up('Space');
+  await shell().keyboard.up('Control');
+  await expect(composer()).toHaveValue('book the terrace for Friday');
+  expect(speech!.heard.map((h) => h.path)).toEqual(['/v1/audio/transcriptions']);
+  expect(model!.requests).toHaveLength(0);
+});
+
 test('Speak reads a reply with the speech server chosen in Voice; Read replies aloud reads new ones by itself', async () => {
   await start({ readAloud: true });
   await composer().fill('Book the terrace');
@@ -104,5 +119,21 @@ test('with nothing chosen to speak, Speak says so and offers Voice settings', as
   await expect(log.getByRole('alert')).toContainText('Speaking is off');
   await log.getByRole('button', { name: 'Voice settings' }).click();
   await expect(shell().locator('.strip-title')).toHaveText('Voice');
-  expect(speech!.heard).toHaveLength(0);
+  // Only Voice's own check of the server on this computer; nothing was read aloud.
+  expect(speech!.heard.filter((h) => !h.path.endsWith('/models'))).toHaveLength(0);
+});
+
+test('Voice, This computer says whether a speech server answers at the saved address', async () => {
+  await start({});
+  await openSettings(shell());
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Voice', exact: true }).click();
+  const status = shell().getByTestId('voice-local-listen');
+  await expect(status).toHaveText(`Ready: the speech server at ${speech!.url} answers.`);
+  // Once it stops, coming back says so, and how to start one. Nothing is installed.
+  await speech!.close();
+  speech = undefined;
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'General', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Voice', exact: true }).click();
+  await expect(status).toContainText('Not running at');
+  await expect(status).toContainText('faster-whisper');
 });
