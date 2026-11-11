@@ -46,7 +46,7 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
   const [model, setModel] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const usable = !p.needsKey || p.hasKey;
+  const usable = !p.voiceOnly && (!p.needsKey || p.hasKey);
 
   const saveKey = async () => {
     setBusy(true);
