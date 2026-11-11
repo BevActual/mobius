@@ -39,7 +39,7 @@ const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
 const openServer = async () => {
   await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   await page().getByRole('tab', { name: 'Defaults', exact: true }).click();
 };
 
@@ -51,7 +51,7 @@ test('a second model answers when the first fails, and the conversation says so'
   await page().getByLabel('Second model name').fill('backup-model');
   await page().getByRole('button', { name: 'Save' }).click();
   await expect(page().getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await shell().keyboard.press('Escape');
 
   await composer().fill('hello');
   await composer().press('Enter');

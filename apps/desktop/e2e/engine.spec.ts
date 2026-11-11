@@ -23,7 +23,7 @@ const page = (): Locator => mobius!.shell.getByRole('region', { name: 'Settings'
 
 async function openThisComputer(): Promise<Locator> {
   await openSettings(mobius!.shell);
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
+  await mobius!.shell.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   await page().getByRole('tab', { name: 'This computer', exact: true }).click();
   return page().locator('[data-setting="model.local.engine"]');
 }

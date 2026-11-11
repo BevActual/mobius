@@ -17,7 +17,7 @@ const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const open = async (tab: string) => {
   await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   await page().getByRole('tab', { name: tab, exact: true }).click();
 };
 

@@ -40,23 +40,27 @@ const openSettings = async () => {
   await expect(page()).toBeVisible();
 };
 const go = async (section: string, subpage?: string) => {
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
   if (subpage) await page().getByRole('tab', { name: subpage, exact: true }).click();
 };
 const visibleViews = async () => (await views(mobius!.app)).filter((v) => v.visible);
 const allowAlways = async (tool: string) => shell().getByRole('group', { name: `Approval needed: ${tool}` }).getByRole('button', { name: 'Always allow' }).click();
 
-test('Settings opens from the panel, hides the native page while open, and closes with Escape or the button', async () => {
+test('Settings opens as an app: its sections in the sidebar, the page name in the title row, the native page hidden, and Escape leaves', async () => {
   await start([]);
   expect(await visibleViews()).toHaveLength(1);
   await openSettings();
-  await expect(page().getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+  await expect(shell().locator('.strip-title')).toHaveText('General');
+  // One sidebar: Settings' search and sections, not the last app's list beside them.
+  await expect(shell().getByRole('navigation', { name: 'Apps' }).getByRole('navigation', { name: 'Settings sections' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toHaveCount(0);
+  await expect(page().getByRole('button', { name: 'Close settings' })).toHaveCount(0);
   expect(await visibleViews()).toHaveLength(0);
   await shell().keyboard.press('Escape');
   await expect(page()).toHaveCount(0);
   await expect.poll(async () => (await visibleViews()).length).toBe(1);
   await openSettings();
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await shell().keyboard.press('Escape');
   await expect(page()).toHaveCount(0);
   await shell().keyboard.press('Control+,');
   await expect(page()).toBeVisible();
@@ -65,7 +69,7 @@ test('Settings opens from the panel, hides the native page while open, and close
 test('the sections are the ones Mobius has, in order, and each shows its own page', async () => {
   await start([]);
   await openSettings();
-  const nav = page().getByRole('navigation', { name: 'Settings sections' });
+  const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
   await expect(nav.getByRole('group').locator('.settings-nav-heading')).toHaveText(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
   await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Conversations', 'Schedules', 'Extensions', 'Advanced', 'About']);
@@ -85,7 +89,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
 test('search finds a setting by what it is about and jumps to it', async () => {
   await start([]);
   await openSettings();
-  const search = page().getByRole('searchbox', { name: 'Search settings' });
+  const search = shell().getByRole('searchbox', { name: 'Search settings' });
   await search.fill('revoke');
   const hit = page().getByRole('button', { name: /Always allowed/ });
   await expect(hit).toBeVisible();
@@ -116,7 +120,7 @@ test('zoom scales the window and the page stays exactly in its slot', async () =
   await go('Appearance', 'Typography');
   await page().getByRole('slider', { name: 'Interface zoom' }).fill('1.25');
   await expect.poll(() => interfaceZoom(mobius!.app)).toBeCloseTo(1.25, 2);
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await shell().keyboard.press('Escape');
   await expect.poll(async () => (await visibleViews()).length).toBe(1);
   const slot = (await shell().getByTestId('surface-slot').boundingBox())!;
   await expect.poll(async () => {
@@ -134,7 +138,7 @@ test('conversation text size changes only the conversation', async () => {
   await openSettings();
   await go('Appearance', 'Typography');
   await page().getByRole('slider', { name: 'Conversation text size' }).fill('1.4');
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await shell().keyboard.press('Escape');
   // The change travels to the main process and back, so it lands a moment after the page closes.
   await expect.poll(() => log().locator('.msg.assistant').evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(before * 1.3);
   expect(await shell().locator('.chat-title, .strip-title').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBe(chrome);
@@ -153,7 +157,7 @@ test('approvals: what you allowed for good is listed, and removing it makes the 
   await list.getByRole('button', { name: /Remove/ }).click();
   await expect(list.getByRole('listitem')).toHaveCount(0);
   await expect(page().getByText('Nothing is always allowed')).toBeVisible();
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await shell().keyboard.press('Escape');
   await say('time again');
   await expect(shell().getByRole('group', { name: 'Approval needed: clock.now' })).toBeVisible();
 });
@@ -255,7 +259,7 @@ test('Advanced: the step limit is enforced', async () => {
   await page().getByRole('spinbutton', { name: 'Steps per request' }).fill('1');
   await page().getByRole('button', { name: 'Save' }).click();
   await expect(page().getByText('Saved')).toBeVisible();
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await shell().keyboard.press('Escape');
   await say('time again');
   await expect(log().getByRole('alert')).toContainText('too many steps');
 });
@@ -266,7 +270,7 @@ test('Model: changing the model name is used by the next request', async () => {
   await go('Models');
   await page().getByLabel('Model', { exact: true }).fill('another-model');
   await page().getByRole('button', { name: 'Save' }).click();
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await shell().keyboard.press('Escape');
   await say('hi');
   await expect(log().locator('.msg.assistant')).toHaveText('ok');
   expect(model!.requests[0]!.model).toBe('another-model');
@@ -296,23 +300,24 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await openSettings();
   await go('Voice', 'Listening');
   // The chat model's server in these tests is a plain OpenAI-format one, so listening through it is offered.
-  await expect(page().getByRole('radiogroup', { name: 'Listen with' }).getByRole('radio', { name: 'Chat server' })).toBeChecked();
-  await page().getByRole('radiogroup', { name: 'Listen with' }).getByRole('radio', { name: 'This computer' }).check();
+  await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveValue('chat');
+  await page().getByRole('combobox', { name: 'Listen with' }).selectOption('local');
   const address = page().getByRole('textbox', { name: 'Listening server address' });
   await address.fill('ftp://nope');
   await expect(page().getByRole('alert')).toContainText('http:// or https://');
   await address.fill('http://127.0.0.1:9/v1');
-  await page().getByRole('button', { name: 'Save listening server address' }).click();
+  await address.press('Enter');
   // Not running: the test says so, with the address.
   await page().getByRole('button', { name: 'Try listening' }).click();
   await expect(page().getByRole('alert')).toContainText('127.0.0.1:9');
   await go('Voice', 'Speaking');
-  await page().getByRole('radiogroup', { name: 'Speak with' }).getByRole('radio', { name: 'ElevenLabs' }).check();
+  await page().getByRole('combobox', { name: 'Speak with' }).selectOption('elevenlabs');
   await expect(page().getByText('ElevenLabs needs its key, added in Gateways.')).toBeVisible();
   await page().getByRole('button', { name: 'Try speaking' }).click();
   await expect(page().getByRole('alert')).toContainText('Gateways');
+  // The field saves itself when you leave it.
   await page().getByRole('textbox', { name: 'Voice', exact: true }).fill('Rachel');
-  await page().getByRole('button', { name: 'Save voice', exact: true }).click();
+  await page().getByRole('textbox', { name: 'Voice', exact: true }).blur();
   await expect.poll(() => JSON.parse(fs.readFileSync(path.join(mobius!.userData, 'preferences.json'), 'utf8')).speakVoice).toBe('Rachel');
 
   const userData = mobius!.userData;
@@ -321,17 +326,17 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openSettings();
   await go('Voice', 'Listening');
-  await expect(page().getByRole('radiogroup', { name: 'Listen with' }).getByRole('radio', { name: 'This computer' })).toBeChecked();
+  await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveValue('local');
   await expect(page().getByRole('textbox', { name: 'Listening server address' })).toHaveValue('http://127.0.0.1:9/v1');
   await go('Voice', 'Speaking');
-  await expect(page().getByRole('radiogroup', { name: 'Speak with' }).getByRole('radio', { name: 'ElevenLabs' })).toBeChecked();
+  await expect(page().getByRole('combobox', { name: 'Speak with' })).toHaveValue('elevenlabs');
   await expect(page().getByRole('textbox', { name: 'Voice', exact: true })).toHaveValue('Rachel');
 });
 
 test('search at the top of the sidebar finds settings by their old names too, and Extensions opens its app', async () => {
   await start([]);
   await openSettings();
-  const search = page().getByRole('navigation', { name: 'Settings sections' }).getByRole('searchbox', { name: 'Search settings' });
+  const search = shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('searchbox', { name: 'Search settings' });
   await search.fill('providers');
   await expect(page().getByRole('list', { name: 'Search results' })).toContainText('Gateways');
   await search.fill('kokoro');

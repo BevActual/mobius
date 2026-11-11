@@ -142,7 +142,6 @@ export function Toggle({ label, checked, onChange }: { label: string; checked: b
   return (
     <label className="switch-line">
       <input type="checkbox" role="switch" aria-label={label} checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      <span>{checked ? 'On' : 'Off'}</span>
     </label>
   );
 }

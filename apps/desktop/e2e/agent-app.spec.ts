@@ -104,7 +104,7 @@ test('settings opens over the Agent app and closes back to it', async () => {
   const page = shell().getByRole('region', { name: 'Settings' });
   await expect(page).toBeVisible();
   // Visible is not enough: the page has to be the thing on top, so a click lands on it and not on the chat behind.
-  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click({ timeout: 3000 });
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click({ timeout: 3000 });
   await expect(page.getByRole('heading', { name: 'Browser', level: 2 })).toBeVisible();
   await shell().keyboard.press('Escape');
   await expect(page).toHaveCount(0);

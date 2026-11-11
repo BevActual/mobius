@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { SETTINGS, findSection, searchSettings, type SectionId } from './manifest';
 import { AboutSection, AdvancedSection, AppearanceSection, BrowserSection, KeyboardSection, NotificationsSection, ModelSection, SafetySection, SessionsSection, type SectionProps } from './sections';
 import { ProvidersSection } from './ProviderKeys';
@@ -47,7 +48,7 @@ const SECTION_GLYPHS: Record<string, string> = {
   about: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M6 5.5v3M6 3.6v0.1',
 };
 
-export function SettingsPage({ onClose, initial, initialSubpage, ...rest }: Passed & { onClose: () => void; initial?: SectionId; initialSubpage?: string }) {
+export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null, onTitle, ...rest }: Passed & { onClose: () => void; initial?: SectionId; initialSubpage?: string; /** The app's sidebar: Settings' search and sections go there, as an app's own list does. */ sidebar?: HTMLElement | null; /** The page's name, for the window's title row. */ onTitle?: (title: string) => void }) {
   const [section, setSection] = useState<SectionId>(initial ?? 'general');
   const [subpage, setSubpage] = useState<string>(() => initialSubpage ?? findSection(initial ?? 'general')?.subpages[0]?.id ?? '');
   const [query, setQuery] = useState('');
@@ -56,10 +57,29 @@ export function SettingsPage({ onClose, initial, initialSubpage, ...rest }: Pass
   const current = findSection(section);
   const hits = useMemo(() => searchSettings(query), [query]);
   const View = VIEWS[section];
+  useEffect(() => { onTitle?.(query.trim() ? 'Search' : current?.label ?? 'Settings'); }, [onTitle, query, current?.label]);
+  const nav = (
+    <nav className="settings-nav" aria-label="Settings sections">
+      {/* As in System Settings: search at the top of the sidebar, then the sections under their headings. */}
+      <input type="search" role="searchbox" className="settings-search" aria-label="Search settings" placeholder="Search" value={query} onChange={(event) => setQuery(event.target.value)} />
+      {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (
+        <div key={group} className="settings-nav-group" role="group" aria-label={group}>
+          {group && <h2 className="settings-nav-heading">{group}</h2>}
+          {SETTINGS.filter((item) => (item.group ?? '') === group).map((item) => (
+            <button key={item.id} type="button" className="settings-nav-item" data-section={item.id} aria-current={item.id === section && !query.trim() ? 'page' : undefined} onClick={() => openSection(item.id)}>
+              {/* A coloured glyph per section, as in System Settings and the Settings board. */}
+              <svg className="settings-nav-icon" viewBox="0 0 12 12" aria-hidden="true"><path d={SECTION_GLYPHS[item.id] ?? 'M6 1.5a4.5 4.5 0 1 0 0.01 0'} /></svg>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      ))}
+    </nav>
+  );
 
   useEffect(() => {
-    root.current?.querySelector<HTMLElement>('[role="searchbox"], input[type="search"]')?.focus();
-  }, []);
+    (sidebar ?? root.current)?.querySelector<HTMLElement>('[role="searchbox"], input[type="search"]')?.focus();
+  }, [sidebar]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !event.defaultPrevented) onClose();
@@ -81,27 +101,8 @@ export function SettingsPage({ onClose, initial, initialSubpage, ...rest }: Pass
 
   return (
     <section ref={root} className="settings-page" role="region" aria-label="Settings">
-      <header className="settings-head">
-        <h1>Settings</h1>
-        <button type="button" className="btn" aria-label="Close settings" onClick={onClose}>Done</button>
-      </header>
       <div className="settings-body">
-        <nav className="settings-nav" aria-label="Settings sections">
-          {/* As in System Settings: search at the top of the sidebar, then the sections under their headings. */}
-          <input type="search" role="searchbox" className="settings-search" aria-label="Search settings" placeholder="Search" value={query} onChange={(event) => setQuery(event.target.value)} />
-          {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (
-            <div key={group} className="settings-nav-group" role="group" aria-label={group}>
-              {group && <h2 className="settings-nav-heading">{group}</h2>}
-              {SETTINGS.filter((item) => (item.group ?? '') === group).map((item) => (
-                <button key={item.id} type="button" className="settings-nav-item" data-section={item.id} aria-current={item.id === section && !query.trim() ? 'page' : undefined} onClick={() => openSection(item.id)}>
-                  {/* A coloured glyph per section, as in System Settings and the Settings board. */}
-                  <svg className="settings-nav-icon" viewBox="0 0 12 12" aria-hidden="true"><path d={SECTION_GLYPHS[item.id] ?? 'M6 1.5a4.5 4.5 0 1 0 0.01 0'} /></svg>
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
+        {sidebar ? createPortal(nav, sidebar) : nav}
         <div className="settings-content">
           {query.trim() ? (
             hits.length === 0 ? (
@@ -131,7 +132,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, ...rest }: Pass
                     ))}
                   </div>
                 )}
-                <PageBoundary key={`${section}.${subpage}`}><View subpage={subpage} highlight={highlight} {...rest} /></PageBoundary>
+                <div className="settings-card"><PageBoundary key={`${section}.${subpage}`}><View subpage={subpage} highlight={highlight} {...rest} /></PageBoundary></div>
               </>
             )
           )}

@@ -45,11 +45,11 @@ const openPage = async (section: string, tab?: string) => {
   // The Settings button closes Settings when it is already open, so only press it to open.
   if ((await page().count()) === 0) await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
   if (tab) await page().getByRole('tab', { name: tab, exact: true }).click();
 };
 const closeSettings = async () => {
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await shell().keyboard.press('Escape');
   await expect(page()).toHaveCount(0);
 };
 
