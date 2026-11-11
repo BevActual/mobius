@@ -28,6 +28,10 @@ const TRUST_MARKS: &str = "When you state a fact the person may act on (a time, 
 [the fact](trust:yours \"where in their apps, e.g. Calendar · Offsite crew\") for what you read in their mail, calendar, files, notes or sheets; \
 [the fact](trust:web \"the site and when\") for what you read on the web; and [the fact](trust:unsure \"why\") for a guess, or anything stale or conflicting. \
 Mark facts only, not whole sentences, and only in what you say to the person: never in what you write into their files, mail or calendar.";
+/// Always added too: what a turn did is said from what the tools gave back, not from what was meant to happen.
+const READ_BACK: &str = "When a tool has changed something (a task, an event, a note, a sheet, a file, a draft), say in one short line what it changed and where, \
+from what the tool returned: \"Added 3 tasks to P2 build\". If a result says it failed or changed less than you asked, say that instead; never report a change \
+the results do not show.";
 const MAX_MODEL_NAME_CHARS: usize = 200;
 const MAX_SYSTEM_PROMPT_CHARS: usize = 8_000;
 /// What a conversation may use for its instructions: the usual ones and a bot's added to them.
@@ -383,7 +387,7 @@ impl Agent {
         self.max_steps = max_steps;
         self.window = window;
         self.host.set_context_window(window);
-        let system = format!("{system}\n\n{TRUST_MARKS}");
+        let system = format!("{system}\n\n{TRUST_MARKS}\n\n{READ_BACK}");
         self.host.configure_with(model, &system, max_steps);
         self.base_system = system;
         Ok(json!({}))
