@@ -383,6 +383,8 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
   const [due, setDue] = useState('');
   const [literal, setLiteral] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const typing = useRef(text);
+  typing.current = text;
   useEffect(() => { if (focusToken) input.current?.focus(); }, [focusToken]);
   const now = new Date();
   const said = literal || due ? null : parseWhen(text, now);
@@ -391,7 +393,11 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
     const words = (said ? said.text : text).trim();
     if (!words) return;
     const date = due || said?.due || defaultDue;
-    if (await tasks.add(target, words, date)) { setText(''); setDue(''); setLiteral(false); input.current?.focus(); }
+    // Cleared at once, so the next task can be typed while this one is written; put back only if it was refused and nothing new was typed.
+    const typed = { text, due, literal };
+    setText(''); setDue(''); setLiteral(false);
+    input.current?.focus();
+    if (!(await tasks.add(target, words, date)) && typing.current === '') { setText(typed.text); setDue(typed.due); setLiteral(typed.literal); }
   };
   return (
     <form className="task-new" data-typing={text !== '' || due !== '' || undefined} onSubmit={(e) => void submit(e)}>

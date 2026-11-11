@@ -45,6 +45,19 @@ export function useTasks() {
   /** Mobius's starts: the sidebar hands over how to fill the message box, for the page's own starts. */
   const ask = useRef<((prompt: string) => void) | null>(null);
 
+  // Changes sent and not yet answered. A reply to an earlier change, or a reload, can land before them;
+  // laying them over what came back keeps a switch or field from flicking back to its old value.
+  const pending = useRef(new Map<number, { list: string; text: string; what: TaskChange }>());
+  const sent = useRef(0);
+  const withPending = useCallback((list: string, tasks: TaskItem[]) => {
+    let out = tasks;
+    for (const p of pending.current.values()) {
+      if (p.list !== list) continue;
+      out = out.map((t) => (t.text === p.text || (p.what.text !== undefined && t.text === p.what.text.trim()) ? { ...t, ...p.what, text: p.what.text !== undefined ? p.what.text.trim() : t.text, due: p.what.due === undefined ? t.due : p.what.due } : t));
+    }
+    return out;
+  }, []);
+
   const setView = useCallback((next: TasksView) => { setViewState(next); setQuery(''); setPicked(null); }, []);
 
   const refresh = useCallback(async (): Promise<Record<string, TaskItem[]>> => {
@@ -55,10 +68,11 @@ export function useTasks() {
       const one = await api!.read(l.name);
       next[l.name] = isNotesFailure(one) ? [] : one.tasks;
     }));
+    for (const l of Object.keys(next)) next[l] = withPending(l, next[l]!);
     setLists(got);
     setAll(next);
     return next;
-  }, [api]);
+  }, [api, withPending]);
 
   useEffect(() => {
     // A remembered list that is gone (deleted, renamed) opens Today instead.
@@ -101,11 +115,11 @@ export function useTasks() {
       return false;
     }
     setMessage('');
-    setAll((cur) => ({ ...cur, [result.list]: result.tasks }));
+    setAll((cur) => ({ ...cur, [result.list]: withPending(result.list, result.tasks) }));
     const open = result.tasks.filter((t) => !t.done).length;
     setLists((cur) => cur.map((l) => (l.name === result.list ? { ...l, open, done: result.tasks.length - open } : l)));
     return true;
-  }, [refresh]);
+  }, [refresh, withPending]);
 
   const add = useCallback(async (list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt }) => {
     if (!(list in live.current)) await refresh();
@@ -116,7 +130,11 @@ export function useTasks() {
     // Shown at once; the reply (or a reload, if it was refused) settles it.
     setAll((cur) => ({ ...cur, [list]: (cur[list] ?? []).map((t) => (t.line === task.line ? { ...t, ...what, due: what.due === undefined ? t.due : what.due } : t)) }));
     if (what.text !== undefined) setPicked((p) => (p && p.list === list && p.text === task.text ? { list, text: what.text!.trim() } : p));
-    return settle(await api?.update(list, task.line, task.text, what));
+    const id = ++sent.current;
+    pending.current.set(id, { list, text: task.text, what });
+    let result: Awaited<ReturnType<NonNullable<typeof api>['update']>> | undefined;
+    try { result = await api?.update(list, task.line, task.text, what); } finally { pending.current.delete(id); }
+    return settle(result);
   }, [api, settle]);
 
   const remove = useCallback(async (list: string, task: TaskItem) => {
