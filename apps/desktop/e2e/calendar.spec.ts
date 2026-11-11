@@ -189,15 +189,22 @@ test('the agent suggests an event without asking, and it is added only when the 
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('I suggested two things.');
   await expect(shell().getByRole('log', { name: 'Conversation' }).getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
 
-  const box = page().getByRole('region', { name: 'Suggested by Mobius' });
-  await expect(box.getByRole('article', { name: 'Prep slides' })).toContainText('Your first free hour before the kickoff.');
-  await expect(page().getByRole('button', { name: /^Suggested: Prep slides, 10:00–11:00/ })).toBeVisible();
+  // Each suggestion is a dashed event; it opens beside itself with why, and Keep, Try another and Discard.
+  const ghost = page().getByRole('button', { name: /^Suggested: Prep slides, 10:00–11:00/ });
+  await expect(ghost).toBeVisible();
   expect(fs.existsSync(file('Calendar')) ? fs.readFileSync(file('Calendar'), 'utf8') : '').not.toContain('Prep slides');
+  await ghost.click();
+  const prep = shell().getByRole('dialog', { name: 'Suggested: Prep slides' });
+  await expect(prep).toContainText('Your first free hour before the kickoff.');
+  await shell().keyboard.press('Escape');
+  await expect(prep).toHaveCount(0);
 
   // Like every proposal: Discard declines it, Keep adds it.
-  await box.getByRole('article', { name: 'Gym' }).getByRole('button', { name: 'Discard' }).click();
-  await box.getByRole('article', { name: 'Prep slides' }).getByRole('button', { name: 'Keep' }).click();
-  await expect(box).toHaveCount(0);
+  await page().getByRole('button', { name: /^Suggested: Gym/ }).click();
+  await shell().getByRole('dialog', { name: 'Suggested: Gym' }).getByRole('button', { name: 'Discard' }).click();
+  await ghost.click();
+  await prep.getByRole('button', { name: 'Keep' }).click();
+  await expect(page().getByRole('button', { name: /^Suggested:/ })).toHaveCount(0);
   await expect(page().getByRole('button', { name: /^Prep slides, 10:00–11:00, Calendar/ })).toBeVisible();
   await expect(page().getByRole('button', { name: /Gym/ })).toHaveCount(0);
   expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('SUMMARY:Prep slides');
