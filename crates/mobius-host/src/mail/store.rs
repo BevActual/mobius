@@ -891,7 +891,9 @@ impl Mail {
         let mut saved = self.lock();
         let reply_to = s("replyTo").filter(|r| !r.is_empty());
         let original = reply_to.as_ref().and_then(|r| saved.messages.iter().find(|m| &m.id == r).cloned());
-        let account = s("account").filter(|a| saved.accounts.iter().any(|x| &x.id == a)).or_else(|| original.as_ref().map(|m| m.account.clone())).or_else(|| saved.accounts.first().map(|a| a.id.clone())).ok_or("Connect a mail account first.")?;
+        let account = s("account").filter(|a| saved.accounts.iter().any(|x| &x.id == a)).or_else(|| original.as_ref().map(|m| m.account.clone())).or_else(|| saved.accounts.first().map(|a| a.id.clone()))
+            // With no account yet the draft is kept here, on this computer, for an account added later to send.
+            .unwrap_or_default();
         let existing = s("id").and_then(|id| saved.drafts.iter().position(|d| d.id == id));
         let to = s("to").or_else(|| original.as_ref().map(|m| if m.mailbox == "sent" { m.to.first().map(|p| p.email.clone()).unwrap_or_default() } else { m.from.email.clone() })).unwrap_or_default();
         let subject = s("subject").or_else(|| original.as_ref().map(|m| if m.subject.to_lowercase().starts_with("re:") { m.subject.clone() } else { format!("Re: {}", m.subject) })).unwrap_or_default();
@@ -931,7 +933,8 @@ impl Mail {
         let (draft, account, original) = {
             let saved = self.lock();
             let d = saved.drafts.iter().find(|d| d.id == id).cloned().ok_or("That draft is gone.")?;
-            let a = saved.accounts.iter().find(|a| a.id == d.account).cloned().ok_or("That draft's account is gone.")?;
+            // A draft kept before any account was added goes from the first one there is now.
+            let a = if d.account.is_empty() { saved.accounts.first().cloned().ok_or("Add a mail account to send this. The draft is kept.")? } else { saved.accounts.iter().find(|a| a.id == d.account).cloned().ok_or("That draft's account is gone.")? };
             let o = d.reply_to.as_ref().and_then(|r| saved.messages.iter().find(|m| &m.id == r).cloned());
             (d, a, o)
         };
@@ -996,7 +999,12 @@ impl Mail {
             }
             "mail.draft" => {
                 let d = self.save_draft(args, "mobius")?;
-                json!({ "draft": d["id"], "note": "Kept as a suggested draft. The person reads it and decides; it is not sent." })
+                let note = if d["account"].as_str().is_some_and(str::is_empty) {
+                    "Kept as a suggested draft in Mail on this computer. No mail account is added yet, so it cannot be sent until the person adds one; it is not sent."
+                } else {
+                    "Kept as a suggested draft. The person reads it and decides; it is not sent."
+                };
+                json!({ "draft": d["id"], "note": note })
             }
             _ => return Err("unknown tool".into()),
         };
@@ -1128,6 +1136,18 @@ mod tests {
     fn drafts_keep_the_words_of_marked_facts_without_the_marks() {
         assert_eq!(without_marks("We are [8 people](trust:yours \"Calendar\") arriving [around 12:30](trust:unsure). See [the site](https://x.example)."), "We are 8 people arriving around 12:30. See [the site](https://x.example).");
         assert_eq!(without_marks("a [b c"), "a [b c");
+    }
+
+    #[test]
+    fn a_draft_is_kept_here_before_any_account_and_sending_asks_for_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let mail = Mail::with_connector(dir.path(), Arc::new(MemorySecrets::new(true)), Mail::plain_connector());
+        let said: Value = serde_json::from_str(&mail.run("mail.draft", &json!({ "to": "priya@example.com", "subject": "Brake kit", "body": "Ordered." })).unwrap()).unwrap();
+        assert!(said["note"].as_str().unwrap().contains("on this computer"), "{said}");
+        let id = said["draft"].as_str().unwrap().to_owned();
+        assert_eq!(mail.drafts().as_array().unwrap().len(), 1, "kept, not refused");
+        assert_eq!(mail.send(&id).unwrap_err().to_string(), "Add a mail account to send this. The draft is kept.");
+        assert_eq!(mail.drafts().as_array().unwrap().len(), 1, "still there after Send could not go");
     }
 
     #[test]

@@ -298,7 +298,8 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   if (!mail.available) return <section className="mail-page empty" aria-label="Mail"><EmptyState app="mail" title="Mail is not available here" /></section>;
-  if (mail.accounts.length === 0) {
+  // With no account and no drafts there is nothing to show; a draft Mobius kept before any account was added is shown.
+  if (mail.accounts.length === 0 && mail.drafts.length === 0) {
     return (
       <section className="mail-page empty" aria-label="Mail">
         <EmptyState app="mail" title="No mail account yet" line="Add one to see your mail here. Mobius reads and drafts; only you send." action={{ label: 'Add an account', run: () => setAdding(true) }} />
@@ -341,7 +342,10 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
         {mail.message && <p className="tasks-message" role="alert">{mail.message}</p>}
         {mail.editing ? <DraftEditor key={mail.editing.id || 'new'} mail={mail} draft={mail.editing} />
           : mail.open ? <Reader mail={mail} content={mail.open} {...(onDraftReply ? { onDraftReply } : {})} />
-            : <EmptyState app="mail" label="No message open" title="No message open" line="Choose one in the list." />}
+            : mail.accounts.length === 0
+              ? <EmptyState app="mail" label="No mail account yet" title="No mail account yet" line="Drafts are kept here on this computer. Add an account to send them." action={{ label: 'Add an account', run: () => setAdding(true) }} />
+              : <EmptyState app="mail" label="No message open" title="No message open" line="Choose one in the list." />}
+        {adding && mail.accounts.length === 0 && <AccountDialog mail={mail} onClose={() => setAdding(false)} />}
       </div>
     </section>
   );
