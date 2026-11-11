@@ -15,7 +15,9 @@ jobs:
   checks:
     # A pull request from a branch here is already checked by its push; one from a fork is checked here.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest became 26.04, whose amd64v3 packages on the Azure mirror time out one by one, so the
+    # system-library install below never finished. Move on deliberately once that image's mirror is healthy.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
