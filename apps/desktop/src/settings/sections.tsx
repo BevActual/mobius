@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { MobiusMark } from '../MobiusMark';
-import { ChatModelPopUp, FallbackPopUp, QuickPopUp } from './ModelDefaults';
+import { ChatModelPopUp, FallbackPopUp, ImagesPopUp, QuickPopUp } from './ModelDefaults';
 import { SoftwareUpdate } from './SoftwareUpdate';
 import {
   type SavedServer,
@@ -258,6 +258,9 @@ export function ModelSection({ subpage, highlight, settings, onSaveSettings, pre
       </Row>
       <Row path={rowPath('model', subpage, 'quick-model')} title="Quick model" description="For quick jobs, like checking a step in Act mode before it runs. A small, fast model fits. Same as chat uses the chat model." highlight={highlight === 'quick-model'}>
         <QuickPopUp quick={preferences.quickModel ?? ''} />
+      </Row>
+      <Row path={rowPath('model', subpage, 'images')} title="Images" description="Makes pictures for Photo, Design and Slides when you ask. Each picture may cost money on that gateway." highlight={highlight === 'images'}>
+        <ImagesPopUp chosen={preferences.imageModel ?? ''} />
       </Row>
       {window.mobius.agent.savedServers && (
         <Row path={rowPath('model', subpage, 'saved-servers')} title="Saved servers" description="Keep model servers under a name and switch between them. Saving keeps the address, the model and, in the system's secret store, the key." highlight={highlight === 'saved-servers'}>

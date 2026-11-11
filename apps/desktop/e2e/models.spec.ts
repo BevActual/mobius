@@ -235,3 +235,11 @@ test('Models has a row for each job: chat, quick, listen and speak, and voice ch
   await expect(page().getByText('Voice: ElevenLabs')).toBeVisible();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).speakWith).toBe('elevenlabs');
 });
+
+test('Images offers nothing until a gateway that makes pictures has a key', async () => {
+  await start();
+  await openSettings(shell());
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
+  await expect(page().getByRole('combobox', { name: 'Image model' })).toHaveValue('none');
+  await expect(page().getByText(/Add a key for OpenAI, OpenRouter/)).toBeVisible();
+});

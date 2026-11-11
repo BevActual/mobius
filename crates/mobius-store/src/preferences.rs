@@ -58,7 +58,7 @@ fn is_quick_model(v: &Value) -> bool {
     v.as_str().is_some_and(|s| s.is_empty() || s.split_once('|').is_some_and(|(id, model)| !id.is_empty() && id.len() <= 40 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') && is_model_name(&json!(model))))
 }
 
-static FIELDS: [Field; 23] = [
+static FIELDS: [Field; 24] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -86,6 +86,8 @@ static FIELDS: [Field; 23] = [
     Field { name: "readAloud", default: || json!(false), check: is_flag },
     Field { name: "appAccess", default: app_access_default, check: is_app_access },
     Field { name: "quickModel", default: || json!(""), check: is_quick_model },
+    // The model that makes pictures: empty (none) or `gateway|model`, as for the quick model.
+    Field { name: "imageModel", default: || json!(""), check: is_quick_model },
 ];
 
 pub fn open(file: PathBuf) -> Settings {

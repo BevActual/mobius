@@ -237,6 +237,8 @@ export function createTauriBridge(): MobiusBridge {
       use: (id, model) => call('providers', 'use', [id, model], () => ({ ok: false as const, error: 'Providers are not available.' })),
       useFallback: (id, model) => call('providers', 'useFallback', model === undefined ? [id] : [id, model], () => ({ ok: false as const, error: 'Providers are not available.' })),
       useQuick: (id, model) => call('providers', 'useQuick', model === undefined ? [id] : [id, model], () => ({ ok: false as const, error: 'Providers are not available.' })),
+      imageModels: () => call('providers', 'imageModels', [], () => ({ choices: [], chosen: '' })),
+      useImages: (id, model) => call('providers', 'useImages', model === undefined ? [id] : [id, model], () => ({ ok: false as const, error: 'Providers are not available.' })),
       onChanged: (listener) => on<null>('mobius:providers-changed', () => listener()),
     },
     projects: {

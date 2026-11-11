@@ -477,7 +477,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 44, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 45, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -522,7 +522,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve", "images.generate"]);
     }
 
     #[derive(Default)]
@@ -1465,4 +1465,65 @@ fn mobius_reads_answers_and_resolves_comments() {
     assert!(events.lock().unwrap().iter().any(|(n, v)| n == "mobius:docs-changed" && v["by"] == "assistant" && v["path"] == page.as_str()));
     assert!(tool("comments.reply", json!({ "page": "sheets/Budget.csv", "id": "c1", "text": "no" })).unwrap_err().contains("Notes"));
     assert!(tool("comments.reply", json!({ "page": full, "id": "c9", "text": "no" })).is_err());
+}
+
+/// Mobius makes a picture with the image model chosen in Models and keeps it in Photo; with none chosen it says where to
+/// choose one, and only gateways with a key are offered.
+#[test]
+fn a_picture_is_made_with_the_chosen_image_model_and_kept_in_photo() {
+    use std::io::{BufRead, BufReader, Read, Write};
+    // A 1×1 PNG.
+    const PNG: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    let seen: Arc<std::sync::Mutex<Vec<(String, String)>>> = Arc::default();
+    let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/v1", site.local_addr().unwrap());
+    let heard = seen.clone();
+    std::thread::spawn(move || {
+        for stream in site.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let (mut length, mut line) = (0usize, String::new());
+            reader.read_line(&mut line).unwrap();
+            loop {
+                let mut header = String::new();
+                reader.read_line(&mut header).unwrap();
+                if header.trim().is_empty() {
+                    break;
+                }
+                if let Some(v) = header.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            heard.lock().unwrap().push((line.clone(), String::from_utf8_lossy(&body).into_owned()));
+            let reply = if line.contains("/images/generations") { format!(r#"{{"data":[{{"b64_json":"{PNG}"}}]}}"#) } else { r#"{"data":[]}"#.to_owned() };
+            let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
+        }
+    });
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.redirect_provider_for_tests("openai", &url);
+    let tool = |args: serde_json::Value| b.host_request("host.tool", &json!({ "tool": "images.generate", "arguments": args }));
+    assert!(tool(json!({ "prompt": "a kite" })).unwrap_err().contains("Settings, Models, Images"));
+    assert_eq!(call(&b, "providers", "imageModels", json!([]))["choices"], json!([]));
+    assert_eq!(call(&b, "providers", "useImages", json!(["openai", "gpt-image-1"]))["ok"], false, "no key yet");
+    assert_eq!(call(&b, "providers", "setKey", json!(["openai", "sk-openai-12345678"]))["ok"], true);
+    let offered = call(&b, "providers", "imageModels", json!([]));
+    assert!(offered["choices"].as_array().unwrap().iter().any(|c| c["model"] == "gpt-image-1"), "{offered}");
+    assert_eq!(call(&b, "providers", "useImages", json!(["openai", "gpt-image-1"]))["ok"], true);
+    assert_eq!(call(&b, "preferences", "get", json!([]))["imageModel"], "openai|gpt-image-1");
+    let made = tool(json!({ "prompt": "A red kite over the hills", "name": "Kite", "shape": "wide" })).unwrap();
+    assert_eq!(made, json!("Made the picture and kept it in Photo as photos/Made by Mobius/Kite.png."));
+    assert!(dir.path().join("workspace/photos/Made by Mobius/Kite.png").is_file());
+    let (line, body) = seen.lock().unwrap().iter().find(|(l, _)| l.contains("/images/generations")).cloned().unwrap();
+    assert!(line.starts_with("POST /v1/images/generations"), "{line}");
+    let sent: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(sent["model"], "gpt-image-1");
+    assert_eq!(sent["size"], "1536x1024");
+    assert!(sent.get("response_format").is_none());
+    assert!(events.lock().unwrap().iter().any(|(n, v)| n == "mobius:photos-changed" && v["by"] == "assistant"));
+    // A second picture of the same name is kept beside the first.
+    tool(json!({ "prompt": "Another kite", "name": "Kite" })).unwrap();
+    assert!(dir.path().join("workspace/photos/Made by Mobius/Kite 2.png").is_file());
 }

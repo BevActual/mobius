@@ -1097,7 +1097,7 @@ impl Bridge {
         let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
         slow("tool", "waiting for the checkpoint before the turn", waited);
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -1188,6 +1188,9 @@ impl Bridge {
         }
         if crate::comments::is_comment_tool(tool) {
             return self.comment_tool(tool, &args).map(Value::String);
+        }
+        if crate::images::is_image_tool(tool) {
+            return self.image_tool(&args).map(Value::String);
         }
         if mobius_workspace::tasks::is_task_tool(tool) {
             let result = self.tasks.run(tool, &args).map(Value::String);
@@ -1444,6 +1447,35 @@ impl Bridge {
         });
     }
 
+    /// The image model chosen in Settings, Models, Images: its gateway's address, its key and its name.
+    fn image_model(&self) -> Result<(String, Option<String>, String), String> {
+        let choice = lock(&self.preferences).get()["imageModel"].as_str().unwrap_or("").to_owned();
+        let (id, model) = choice.split_once('|').ok_or("No image model is chosen. The person can choose one in Settings, Models, Images.")?;
+        let provider = crate::providers::find(id).ok_or("The image model's gateway is not known.")?;
+        let key = self.providers.key(id);
+        if provider.needs_key && key.is_none() {
+            return Err(format!("The key for {} is gone. The person can add it again in Settings, Gateways.", provider.name));
+        }
+        Ok((self.providers.address(id).ok_or("The image model's gateway has no address.")?, key, model.to_owned()))
+    }
+
+    /// Mobius making a picture and keeping it in Photo.
+    fn image_tool(&self, args: &Value) -> Result<String, String> {
+        let text = |k: &str| args.get(k).and_then(Value::as_str).map(str::trim).filter(|t| !t.is_empty());
+        let prompt = text("prompt").filter(|p| p.len() <= 4000).ok_or("prompt must describe the picture")?;
+        let (address, key, model) = self.image_model()?;
+        let picture = crate::images::generate(&address, key.as_deref(), &model, prompt, text("shape").unwrap_or("square"))?;
+        let album = mobius_workspace::notes::file_name_for(text("album").unwrap_or("Made by Mobius"));
+        let known = self.photos.albums()?.as_array().is_some_and(|a| a.iter().any(|x| x["name"] == album.as_str()));
+        if !known {
+            self.photos.create_album(&album)?;
+        }
+        let made = self.photos.add(&album, &crate::images::file_name(text("name"), prompt), &picture)?;
+        let path = made["path"].as_str().unwrap_or("").to_owned();
+        (self.emit)("mobius:photos-changed", json!({ "path": path, "by": "assistant" }));
+        Ok(format!("Made the picture and kept it in Photo as photos/{path}."))
+    }
+
     /// Mobius reading, answering or resolving the comments on a note or document.
     fn comment_tool(&self, tool: &str, args: &Value) -> Result<String, String> {
         let notes_of = |folder: &str| if folder == "notes" { &self.notes } else { &self.docs };
@@ -1480,7 +1512,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -1894,6 +1926,33 @@ impl Bridge {
                 let result = self.restore_quick();
                 (self.emit)("mobius:preferences", lock(&self.preferences).get());
                 result
+            }
+            // Settings, Models, Images: the image models on gateways with a key, and choosing one.
+            "imageModels" => {
+                let choices: Vec<Value> = crate::images::MODELS
+                    .iter()
+                    .filter(|(id, _, _)| crate::providers::find(id).is_some_and(|g| !g.needs_key || p.key(id).is_some()))
+                    .map(|(id, model, label)| json!({ "gateway": id, "gatewayName": crate::providers::find(id).map_or(*id, |g| g.name), "model": model, "label": label }))
+                    .collect();
+                json!({ "choices": choices, "chosen": lock(&self.preferences).get()["imageModel"] })
+            }
+            "useImages" => {
+                let choice = match (text(0), text(1).map(str::trim)) {
+                    (Some("none"), _) => String::new(),
+                    (Some(id), Some(model)) if !model.is_empty() => {
+                        let Some(provider) = crate::providers::find(id) else { return failed("That gateway is not known.") };
+                        if provider.needs_key && p.key(id).is_none() {
+                            return failed(format!("Add a key for {} first.", provider.name));
+                        }
+                        format!("{id}|{model}")
+                    }
+                    _ => return failed("Choose a model."),
+                };
+                if !lock(&self.preferences).set(&json!({ "imageModel": choice })) {
+                    return failed("That model cannot be used.");
+                }
+                (self.emit)("mobius:preferences", lock(&self.preferences).get());
+                json!({ "ok": true })
             }
             "cancelKeySignIn" => {
                 lock(&self.key_sign_in).cancel();

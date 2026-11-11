@@ -167,8 +167,12 @@ export interface WikiChange { id: string; from: string; page: string; text: stri
 /** A page as it was earlier: kept as the person typed, or read from a workspace checkpoint. */
 export interface NoteVersion { whenMs: number; content: string; source?: 'kept' | 'checkpoint'; checkpoint?: string }
 /** A file added beside a page; `ref` is the link to it from the page, `image` whether it shows in the page. */
-/** A comment on a page: the words it is about (`quote`), what was said, and by whom (`you` or `Mobius`). */
-/** `replyTo` is the id of the comment a reply answers: replies sit under it. */
+/** An image model Settings can offer: on a gateway with a key. */
+export interface ImageModelChoice { gateway: string; gatewayName: string; model: string; label: string }
+/**
+ * A comment on a page: the words it is about (`quote`), what was said, and by whom (`you` or `Mobius`). `replyTo` is the
+ * id of the comment a reply answers: replies sit under it.
+ */
 export interface NoteComment { id: string; quote: string; text: string; by: string; whenMs: number; resolved: boolean; replyTo?: string }
 export interface NoteAttachment { path: string; ref: string; name: string; image: boolean }
 /** A wiki page as it was at a checkpoint. */
@@ -466,6 +470,10 @@ export interface MobiusBridge {
     useFallback?(id: string, model?: string): Promise<AgentResult>;
     /** The model for quick jobs, from a gateway (its address and key stay in the core); 'none' gives them to the chat model. */
     useQuick?(id: string, model?: string): Promise<AgentResult>;
+    /** The image models on gateways with a key (Settings, Models, Images), and the one chosen (`gateway|model` or ''). */
+    imageModels?(): Promise<{ choices: ImageModelChoice[]; chosen: string }>;
+    /** Choose the model that makes pictures; 'none' for none. */
+    useImages?(id: string, model?: string): Promise<AgentResult>;
     onChanged(listener: () => void): () => void;
   };
   /** Other apps using Mobius's tools over MCP. Only the Tauri shell has it. */
@@ -1319,6 +1327,8 @@ export interface PreferencesSettings {
   appAccess: AppAccess;
   /** The model for quick jobs (the Act mode's reviewer): `gateway|model`, or empty for the chat model. */
   quickModel: string;
+  /** The model that makes pictures (`gateway|model`), or empty for none. */
+  imageModel: string;
 }
 export interface ProfilesState { current: string; list: { id: string; name: string }[] }
 /** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
@@ -1351,7 +1361,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '' };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '' };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -1377,6 +1387,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   speakVoice: (v): v is string => typeof v === 'string' && [...v].length <= 100 && !/[\u0000-\u001f\u007f]/.test(v),
   appAccess: isAppAccess,
   quickModel: (v): v is string => typeof v === 'string' && (v === '' || /^[A-Za-z0-9-]{1,40}\|[^\r\n]{1,200}$/.test(v)),
+  imageModel: (v): v is string => typeof v === 'string' && (v === '' || /^[A-Za-z0-9-]{1,40}\|[^\r\n]{1,200}$/.test(v)),
 };
 export function parsePreferencesPatch(value: unknown): Partial<PreferencesSettings> | null {
   return parsePatch(PREFERENCES_CHECKS, value);

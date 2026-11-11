@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { ModelCatalog, ModelGroup } from '@mobius/shared';
+import type { ImageModelChoice, ModelCatalog, ModelGroup } from '@mobius/shared';
 import { asCatalog } from '../composer/model-catalog';
 
 /** The value a pop-up keeps for one model: where it comes from, and its name. */
@@ -152,6 +152,45 @@ export function QuickPopUp({ quick, onChanged }: { quick: string; onChanged?: ()
           </optgroup>
         ))}
       </select>
+      {problem && <span className="field-error" role="alert">{problem}</span>}
+    </>
+  );
+}
+
+/**
+ * The model that makes pictures, for Photo, Design and Slides: the image models of the gateways with a key, or None.
+ * Each picture may cost money on that gateway.
+ */
+export function ImagesPopUp({ chosen }: { chosen: string }) {
+  const [choices, setChoices] = useState<ImageModelChoice[] | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const got = await window.mobius.providers?.imageModels?.().catch(() => null);
+    setChoices(got?.choices ?? []);
+  }, []);
+  useEffect(() => { void load(); return window.mobius.providers?.onChanged(() => void load()); }, [load]);
+  if (choices === null) return <span className="srow-text" role="status">Loading models…</span>;
+  const choose = async (key: string) => {
+    setProblem(null);
+    const api = window.mobius.providers;
+    if (!api?.useImages) { setProblem('That cannot be set here.'); return; }
+    const [id, ...rest] = key.split('|');
+    const result = key === 'none' ? await api.useImages('none') : await api.useImages(id ?? '', rest.join('|'));
+    if (!result.ok) setProblem(result.error);
+  };
+  const gateways = [...new Set(choices.map((c) => c.gatewayName))];
+  const value = choices.some((c) => `${c.gateway}|${c.model}` === chosen) ? chosen : 'none';
+  return (
+    <>
+      <select className="popup" aria-label="Image model" value={value} onChange={(e) => void choose(e.target.value)}>
+        <option value="none">None</option>
+        {gateways.map((g) => (
+          <optgroup key={g} label={g}>
+            {choices.filter((c) => c.gatewayName === g).map((c) => <option key={`${c.gateway}|${c.model}`} value={`${c.gateway}|${c.model}`}>{c.label}</option>)}
+          </optgroup>
+        ))}
+      </select>
+      {choices.length === 0 && <p className="srow-text">Add a key for OpenAI, OpenRouter, Together AI or xAI in Gateways to make pictures.</p>}
       {problem && <span className="field-error" role="alert">{problem}</span>}
     </>
   );
