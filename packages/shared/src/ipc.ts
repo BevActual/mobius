@@ -454,6 +454,8 @@ export interface MobiusBridge {
     removeKey(id: string): Promise<void>;
     models(id: string): Promise<{ ok: true; models: string[] } | { ok: false; error: string }>;
     use(id: string, model: string): Promise<AgentResult>;
+    /** The second model, from a gateway (its address and key stay in the core); 'none' takes it away. */
+    useFallback?(id: string, model?: string): Promise<AgentResult>;
     onChanged(listener: () => void): () => void;
   };
   /** Other apps using Mobius's tools over MCP. Only the Tauri shell has it. */
@@ -1090,6 +1092,8 @@ export interface ModelGroup {
   name: string;
   /** The agent is using this group now. */
   active: boolean;
+  /** Where its requests go (never a key), so a second model can be shown as coming from it. */
+  address?: string;
   models: Array<{ id: string; label: string; current?: boolean }>;
   error: string | null;
 }

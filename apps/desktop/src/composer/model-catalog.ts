@@ -32,7 +32,7 @@ export function asCatalog(value: unknown, current = ''): ModelCatalog {
         return typeof r.id === 'string' ? [{ id: r.id, label: typeof r.label === 'string' ? r.label : r.id, ...(r.current === true ? { current: true } : {}) }] : [];
       });
       const kind = KINDS.includes(o.kind as ModelGroup['kind']) ? (o.kind as ModelGroup['kind']) : 'provider';
-      return [{ kind, id: o.id, name: o.name, active: o.active === true, models, error: typeof o.error === 'string' ? o.error : null }];
+      return [{ kind, id: o.id, name: o.name, active: o.active === true, ...(typeof o.address === 'string' ? { address: o.address } : {}), models, error: typeof o.error === 'string' ? o.error : null }];
     }),
   };
 }
