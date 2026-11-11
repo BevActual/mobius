@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 const HOME = {
@@ -100,11 +100,17 @@ test('a dark version from Mobius shows dashed, and is kept or discarded', async 
 
 test('layers are drawn with a tool, picked together, lined up, duplicated and typed on the canvas', async () => {
   await start();
+  // A raw drag presses where things are drawn, so the window is big enough and the drag stays in the part of the
+  // frame the canvas shows.
+  await resizeWindow(mobius!.app, 1440, 900);
   const tree = shell().getByRole('tree', { name: 'Frames and layers' });
   // R, then a drag on the frame, draws a rectangle there.
   await canvas().focus();
   await shell().keyboard.press('r');
-  const frame = (await canvas().getByLabel('Frame Home').boundingBox())!;
+  const whole = (await canvas().getByLabel('Frame Home').boundingBox())!;
+  const view = (await canvas().boundingBox())!;
+  const left = Math.max(whole.x, view.x), top = Math.max(whole.y, view.y);
+  const frame = { x: left, y: top, width: Math.min(whole.x + whole.width, view.x + view.width) - left, height: Math.min(whole.y + whole.height, view.y + view.height) - top };
   await shell().mouse.move(frame.x + frame.width * 0.2, frame.y + frame.height * 0.6);
   await shell().mouse.down();
   await shell().mouse.move(frame.x + frame.width * 0.5, frame.y + frame.height * 0.7, { steps: 5 });
