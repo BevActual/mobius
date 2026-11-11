@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CalendarDraft, CalendarEvent, CalendarSuggestion } from '@mobius/shared';
 import { onCommand } from './commands';
@@ -753,6 +753,28 @@ function QuickAdd({ calendar, into, onAdded }: { calendar: CalendarState; into: 
 type Undoable = { text: string; undo: () => Promise<unknown> };
 
 /** The Calendar app: a day, a week or a month; events to open, drag, stretch and change; new ones swept out or typed in words. */
+/**
+ * Moving through time slides the grid the way you went: later comes in from the right, earlier from the left.
+ * Switching Day, Week and Month crossfades, as does everything under Reduce Motion.
+ */
+function useGridSlide(page: { current: HTMLElement | null }, mode: CalendarMode, first: string) {
+  const was = useRef({ mode, first });
+  useLayoutEffect(() => {
+    const before = was.current;
+    was.current = { mode, first };
+    if (before.mode === mode && before.first === first) return;
+    const grid = page.current?.querySelector<HTMLElement>(':scope > .cal-time, :scope > .cal-month');
+    if (!grid || typeof grid.animate !== 'function') return;
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const by = before.mode !== mode || still ? 0 : first > before.first ? 1 : -1;
+    const ms = parseFloat(getComputedStyle(grid).getPropertyValue('--dur-med')) || 0;
+    grid.animate(
+      by === 0 ? [{ opacity: 0.2 }, { opacity: 1 }] : [{ opacity: 0.4, transform: `translateX(${by * 32}px)` }, { opacity: 1, transform: 'none' }],
+      { duration: still ? 160 : Math.max(ms, 1) * 1.25, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+    );
+  }, [mode, first]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarState; newToken?: number }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [undoable, setUndoable] = useState<Undoable | null>(null);
@@ -785,6 +807,7 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
 
   // Keys as in other calendars: T for today, arrows back and forward, D, W and M for the view, N for a new event.
   const page = useRef<HTMLElement>(null);
+  useGridSlide(page, calendar.mode, days[0] ? isoDay(days[0]) : '');
   const keys = useRef({ calendar, editing, create });
   keys.current = { calendar, editing, create };
   useEffect(() => {

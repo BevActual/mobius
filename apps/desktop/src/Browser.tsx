@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { BookmarkEntry, BrowserTabState, DownloadEntry, HistoryEntry } from '@mobius/shared';
 import { DownloadsButton } from './DownloadsList';
 import { FindBar } from './FindBar';
@@ -21,13 +21,15 @@ const TAB_DRIVER_TITLE = { reading: 'Mobius is reading this tab', mobius: 'Mobiu
 
 /** One tab's row: a click shows it, a middle click closes it, a right click opens its menu, and it can be dragged. */
 function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: BrowserTabState, x: number, y: number) => void; drag: TabDrag }) {
+  const still = useReducedMotion() ?? false;
   const site = hostOf(tab.url);
   return (
     <motion.li
       layout="position"
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, transition: quick }}
+      // A new tab grows into the list and a closed one folds away; under Reduce Motion they only fade.
+      initial={still ? { opacity: 0 } : { opacity: 0, height: 0, overflow: 'hidden' }}
+      animate={still ? { opacity: 1 } : { opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } }}
+      exit={still ? { opacity: 0, transition: quick } : { opacity: 0, height: 0, overflow: 'hidden', transition: { ...quick, duration: 0.18 } }}
       className="tab"
       aria-current={tab.active ? 'page' : undefined}
       data-pinned={tab.pinned ? 'true' : undefined}
