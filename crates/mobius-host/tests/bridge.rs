@@ -477,7 +477,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 41, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 44, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -522,7 +522,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve"]);
     }
 
     #[derive(Default)]
@@ -1443,4 +1443,26 @@ fn changes_after_a_turn_ends_do_not_join_it() {
     assert_eq!(undone["ok"], true, "{undone}");
     assert!(!ws.join("notes/Turn.md").exists(), "the turn's note is put back");
     assert_eq!(std::fs::read_to_string(ws.join("docs/Mine.md")).unwrap(), "# Mine\n", "the person's doc stays");
+}
+
+/// Mobius reads the comments on a document, answers one under it and resolves it; Docs is told so it shows them.
+#[test]
+fn mobius_reads_answers_and_resolves_comments() {
+    let (b, _core, events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "docs", "createNotebook", json!(["Documents"]));
+    let page = call(&b, "docs", "createPage", json!(["Documents", "Release notes"]))["path"].as_str().unwrap().to_owned();
+    call(&b, "docs", "setComments", json!([page, [{ "id": "c1", "quote": "ships in May", "text": "Is May still right?", "by": "you", "whenMs": 1 }]]));
+    let tool = |name: &str, args: serde_json::Value| b.host_request("host.tool", &json!({ "tool": name, "arguments": args }));
+    let all = tool("comments.list", json!({})).unwrap();
+    assert!(all.as_str().unwrap().contains("Is May still right?") && all.as_str().unwrap().contains(&format!("docs/{page}")), "{all}");
+    let full = format!("docs/{page}");
+    assert_eq!(tool("comments.reply", json!({ "page": full, "id": "c1", "text": "Yes, May 14." })).unwrap(), json!(format!("Replied under the comment on {full}.")));
+    assert_eq!(tool("comments.resolve", json!({ "page": full, "id": "c1" })).unwrap(), json!(format!("Resolved the comment on {full}.")));
+    let kept = call(&b, "docs", "comments", json!([page]));
+    assert_eq!(kept[1]["by"], "Mobius");
+    assert_eq!(kept[1]["replyTo"], "c1");
+    assert!(kept.as_array().unwrap().iter().all(|c| c["resolved"] == true));
+    assert!(events.lock().unwrap().iter().any(|(n, v)| n == "mobius:docs-changed" && v["by"] == "assistant" && v["path"] == page.as_str()));
+    assert!(tool("comments.reply", json!({ "page": "sheets/Budget.csv", "id": "c1", "text": "no" })).unwrap_err().contains("Notes"));
+    assert!(tool("comments.reply", json!({ "page": full, "id": "c9", "text": "no" })).is_err());
 }

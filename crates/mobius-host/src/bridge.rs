@@ -1097,7 +1097,7 @@ impl Bridge {
         let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
         slow("tool", "waiting for the checkpoint before the turn", waited);
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -1185,6 +1185,9 @@ impl Bridge {
                 (self.emit)("mobius:memory-changed", Value::Null);
             }
             return result;
+        }
+        if crate::comments::is_comment_tool(tool) {
+            return self.comment_tool(tool, &args).map(Value::String);
         }
         if mobius_workspace::tasks::is_task_tool(tool) {
             let result = self.tasks.run(tool, &args).map(Value::String);
@@ -1441,8 +1444,43 @@ impl Bridge {
         });
     }
 
+    /// Mobius reading, answering or resolving the comments on a note or document.
+    fn comment_tool(&self, tool: &str, args: &Value) -> Result<String, String> {
+        let notes_of = |folder: &str| if folder == "notes" { &self.notes } else { &self.docs };
+        let page = args.get("page").and_then(Value::as_str).map(str::trim).filter(|p| !p.is_empty());
+        let id = || args.get("id").and_then(Value::as_str).map(str::trim).filter(|i| !i.is_empty()).ok_or("id must be a comment's id");
+        if tool == "comments.list" {
+            let Some(page) = page else {
+                let mut all = Vec::new();
+                for folder in crate::comments::FOLDERS {
+                    for mut one in notes_of(folder).all_comments()?.as_array().cloned().unwrap_or_default() {
+                        one["page"] = json!(format!("{folder}/{}", one["page"].as_str().unwrap_or("")));
+                        all.push(one);
+                    }
+                }
+                return Ok(if all.is_empty() { "No page in Notes or Docs has comments.".to_owned() } else { Value::Array(all).to_string() });
+            };
+            let (folder, path) = crate::comments::split(page)?;
+            return notes_of(folder).comments(path).map(|c| c.to_string());
+        }
+        let page = page.ok_or("page must be a page's path")?;
+        let (folder, path) = crate::comments::split(page)?;
+        let result = if tool == "comments.reply" {
+            let words = args.get("text").and_then(Value::as_str).filter(|t| t.len() <= 4000).ok_or("text must be the reply")?;
+            notes_of(folder).reply_to_comment(path, id()?, words, "Mobius", u64::try_from(now_ms()).unwrap_or(0))?
+        } else {
+            notes_of(folder).resolve_comment(path, id()?, args.get("resolved").and_then(Value::as_bool).unwrap_or(true))?
+        };
+        (self.emit)(if folder == "notes" { "mobius:notes-changed" } else { "mobius:docs-changed" }, json!({ "path": path, "by": "assistant" }));
+        Ok(match tool {
+            "comments.reply" => format!("Replied under the comment on {page}."),
+            _ if result["resolved"] == true => format!("Resolved the comment on {page}."),
+            _ => format!("Opened the comment on {page} again."),
+        })
+    }
+
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());

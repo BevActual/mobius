@@ -77,6 +77,7 @@ fn kind_of(tool: &str) -> &'static str {
         "browser" | "web" => "a web page",
         "files" | "notes" | "docs" | "sheets" | "skills" => "a file",
         "bots" => "another agent's answer",
+        "comments" => "a comment on a page",
         "code" | "db" | "tasks" | "memory" | "schedules" => "a tool's answer",
         _ => "another app's answer",
     }

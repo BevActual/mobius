@@ -679,7 +679,12 @@ impl Notes {
             let by = text(c, "by", 40).unwrap_or_else(|| "you".into());
             let when = c.get("whenMs").and_then(Value::as_u64).unwrap_or(0);
             let resolved = c.get("resolved").and_then(Value::as_bool).unwrap_or(false);
-            kept.push(json!({ "id": id, "quote": quote, "text": said, "by": by, "whenMs": when, "resolved": resolved }));
+            let mut one = json!({ "id": id, "quote": quote, "text": said, "by": by, "whenMs": when, "resolved": resolved });
+            // A reply names the comment it answers.
+            if let Some(to) = text(c, "replyTo", 40).filter(|i| !i.is_empty() && i.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-')) {
+                one["replyTo"] = json!(to);
+            }
+            kept.push(one);
         }
         let file = self.comments_file(path).ok_or("that is not a page")?;
         if kept.is_empty() {
@@ -691,6 +696,50 @@ impl Notes {
             fs::rename(&temp, &file).map_err(|e| e.to_string())?;
         }
         Ok(json!({ "path": path, "comments": kept }))
+    }
+
+    /// Answer a comment on a page: the reply is kept under it, about the same words. A reply to a reply answers the
+    /// comment that started the thread.
+    pub fn reply_to_comment(&self, path: &str, id: &str, words: &str, by: &str, when_ms: u64) -> Res<Value> {
+        let mut list = self.comments(path)?.as_array().cloned().unwrap_or_default();
+        let parent = list.iter().find(|c| c["id"] == id).cloned().ok_or("there is no comment with that id on this page")?;
+        let root = parent["replyTo"].as_str().unwrap_or(id).to_owned();
+        let words = words.trim();
+        if words.is_empty() {
+            return Err("a reply needs its words".into());
+        }
+        let new_id = format!("r{when_ms:x}{}", list.len());
+        list.push(json!({ "id": new_id, "quote": parent["quote"], "text": words, "by": by, "whenMs": when_ms, "resolved": false, "replyTo": root }));
+        self.set_comments(path, &Value::Array(list))?;
+        Ok(json!({ "path": path, "id": new_id, "replyTo": root }))
+    }
+
+    /// Resolve a comment, or open it again; its replies go with it.
+    pub fn resolve_comment(&self, path: &str, id: &str, resolved: bool) -> Res<Value> {
+        let mut list = self.comments(path)?.as_array().cloned().unwrap_or_default();
+        let root = list.iter().find(|c| c["id"] == id).map(|c| c["replyTo"].as_str().unwrap_or(id).to_owned()).ok_or("there is no comment with that id on this page")?;
+        for c in &mut list {
+            if c["id"] == root.as_str() || c["replyTo"] == root.as_str() {
+                c["resolved"] = json!(resolved);
+            }
+        }
+        self.set_comments(path, &Value::Array(list))?;
+        Ok(json!({ "path": path, "id": root, "resolved": resolved }))
+    }
+
+    /// Every page with comments, and its comments: for "answer the comments" with no page named.
+    pub fn all_comments(&self) -> Res<Value> {
+        let mut out = Vec::new();
+        for notebook in self.list()?.as_array().cloned().unwrap_or_default() {
+            for page in notebook["pages"].as_array().cloned().unwrap_or_default() {
+                let Some(path) = page["path"].as_str() else { continue };
+                let comments = self.comments(path)?;
+                if comments.as_array().is_some_and(|c| !c.is_empty()) {
+                    out.push(json!({ "page": path, "title": page["title"], "comments": comments }));
+                }
+            }
+        }
+        Ok(Value::Array(out))
     }
 
     /// Save a copy of a page for someone else, in the workspace's `Exports` folder (never replacing a file there):
@@ -1129,6 +1178,31 @@ mod tests {
         let again = notes.create_page("Work", "Plan").unwrap()["path"].as_str().unwrap().to_owned();
         assert_eq!(notes.comments(&again).unwrap(), json!([]));
         assert_eq!(notes.list().unwrap().as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_comment_is_answered_under_it_and_resolved_with_its_replies() {
+        let (_d, notes) = setup();
+        notes.create_notebook("Work").unwrap();
+        let path = notes.create_page("Work", "Plan").unwrap()["path"].as_str().unwrap().to_owned();
+        notes.create_page("Work", "Quiet").unwrap();
+        notes.set_comments(&path, &json!([{ "id": "c1", "quote": "the 23rd", "text": "Is that firm?", "by": "you", "whenMs": 5 }])).unwrap();
+        let reply = notes.reply_to_comment(&path, "c1", " Yes, signed off on Monday. ", "Mobius", 9).unwrap();
+        let first = reply["id"].as_str().unwrap().to_owned();
+        // A reply to the reply joins the same thread.
+        assert_eq!(notes.reply_to_comment(&path, &first, "Thanks", "you", 10).unwrap()["replyTo"], "c1");
+        let back = notes.comments(&path).unwrap();
+        assert_eq!(back.as_array().unwrap().len(), 3);
+        assert_eq!(back[1], json!({ "id": first, "quote": "the 23rd", "text": "Yes, signed off on Monday.", "by": "Mobius", "whenMs": 9, "resolved": false, "replyTo": "c1" }));
+        assert!(notes.reply_to_comment(&path, "c9", "No such", "Mobius", 11).is_err());
+        assert!(notes.reply_to_comment(&path, "c1", "  ", "Mobius", 11).is_err());
+        // Resolving a reply resolves the thread it is in.
+        notes.resolve_comment(&path, &first, true).unwrap();
+        assert!(notes.comments(&path).unwrap().as_array().unwrap().iter().all(|c| c["resolved"] == true));
+        let all = notes.all_comments().unwrap();
+        assert_eq!(all.as_array().unwrap().len(), 1);
+        assert_eq!(all[0]["page"], path.as_str());
+        assert_eq!(all[0]["title"], "Plan");
     }
 
     #[test]

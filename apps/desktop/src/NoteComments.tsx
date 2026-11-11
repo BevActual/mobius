@@ -24,8 +24,11 @@ export function useNoteComments(path: string | undefined, kind: 'notes' | 'docs'
     setComments([]);
     setProblem(null);
     if (!path || !api?.comments) return;
-    void api.comments(path).then((c) => { if (live && Array.isArray(c)) setComments(c); }).catch(() => undefined);
-    return () => { live = false; };
+    const load = () => void api.comments!(path).then((c) => { if (live && Array.isArray(c)) setComments(c); }).catch(() => undefined);
+    load();
+    // Mobius answers and resolves comments too: what it did shows here at once.
+    const stop = api.onChanged?.((change) => { if (change.by !== 'person' && (change.path === null || change.path === path)) load(); });
+    return () => { live = false; stop?.(); };
   }, [path, api]);
   const keep = useCallback(async (next: NoteComment[]) => {
     if (!path || !api?.setComments) return false;
@@ -38,8 +41,9 @@ export function useNoteComments(path: string | undefined, kind: 'notes' | 'docs'
     return false;
   }, [path, api]);
   const add = (quote: string, text: string, by = 'you') => keep([...now.current, { id: newId(), quote: quote.slice(0, 1000), text: text.slice(0, 4000), by, whenMs: Date.now(), resolved: false }]);
-  const resolve = (id: string, resolved = true) => keep(now.current.map((c) => (c.id === id ? { ...c, resolved } : c)));
-  const remove = (id: string) => keep(now.current.filter((c) => c.id !== id));
+  // A thread is resolved, opened again or deleted as one: the comment with its replies.
+  const resolve = (id: string, resolved = true) => keep(now.current.map((c) => (c.id === id || c.replyTo === id ? { ...c, resolved } : c)));
+  const remove = (id: string) => keep(now.current.filter((c) => c.id !== id && c.replyTo !== id));
   return { available, comments, problem, add, resolve, remove };
 }
 export type NoteCommentsState = ReturnType<typeof useNoteComments>;
@@ -78,8 +82,10 @@ export function CommentList({ state, text, onShow }: { state: NoteCommentsState;
   const [showResolved, setShowResolved] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(t); }, []);
-  const open = state.comments.filter((c) => !c.resolved);
-  const resolved = state.comments.filter((c) => c.resolved);
+  const threads = state.comments.filter((c) => !c.replyTo || !state.comments.some((p) => p.id === c.replyTo));
+  const repliesTo = (id: string) => state.comments.filter((c) => c.replyTo === id);
+  const open = threads.filter((c) => !c.resolved);
+  const resolved = threads.filter((c) => c.resolved);
   if (!state.comments.length && !state.problem) return null;
   const card = (c: NoteComment) => {
     const gone = quoteAt(text, c.quote) === null;
@@ -94,6 +100,16 @@ export function CommentList({ state, text, onShow }: { state: NoteCommentsState;
           <button type="button" className="note-comment-tool" onClick={() => void state.resolve(c.id, !c.resolved)}>{c.resolved ? 'Reopen' : 'Resolve'}</button>
           <button type="button" className="note-comment-tool" aria-label={`Delete the comment “${c.text.slice(0, 40)}”`} onClick={() => void state.remove(c.id)}>Delete</button>
         </span>
+        {repliesTo(c.id).length > 0 && (
+          <ul className="note-comment-replies" aria-label="Replies">
+            {repliesTo(c.id).map((r) => (
+              <li key={r.id} className="note-comment-reply" data-by={r.by === 'Mobius' ? 'mobius' : undefined}>
+                <span className="note-comment-text">{r.text}</span>
+                <span className="note-comment-who">{r.by === 'you' ? 'You' : r.by} · {relativeTime(r.whenMs, Math.max(now, r.whenMs))}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </li>
     );
   };

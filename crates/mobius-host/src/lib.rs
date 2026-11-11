@@ -4,6 +4,7 @@
 pub mod updates;
 pub mod voice;
 pub mod access;
+pub mod comments;
 pub mod agent;
 pub mod memory;
 pub mod wiki;

@@ -154,3 +154,7 @@
 .note-editor .note-comments, .note-editor .note-backlinks { box-sizing: border-box; width: 100%; max-width: 720px; padding: 14px var(--sp-8) 0; border-top: 0; background: linear-gradient(var(--hairline), var(--hairline)) no-repeat var(--sp-8) 0 / calc(100% - 2 * var(--sp-8)) 1px; }
 .note-editor .note-backlinks { margin-bottom: 40px; }
 .note-editor .note-backlinks button { margin-left: -10px; width: calc(100% + 20px); }
+/* Replies sit under the comment they answer, indented behind a hairline. */
+.note-comment-replies { list-style: none; margin: 4px 0 0 10px; padding: 0 0 0 10px; border-left: 1px solid var(--hairline, var(--line)); display: grid; gap: 6px; }
+.note-comment-reply { display: grid; gap: 2px; font-size: var(--fs-sm); }
+.note-comment-reply .note-comment-who { color: var(--muted); font-size: var(--fs-xs); }

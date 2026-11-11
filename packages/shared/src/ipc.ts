@@ -168,7 +168,8 @@ export interface WikiChange { id: string; from: string; page: string; text: stri
 export interface NoteVersion { whenMs: number; content: string; source?: 'kept' | 'checkpoint'; checkpoint?: string }
 /** A file added beside a page; `ref` is the link to it from the page, `image` whether it shows in the page. */
 /** A comment on a page: the words it is about (`quote`), what was said, and by whom (`you` or `Mobius`). */
-export interface NoteComment { id: string; quote: string; text: string; by: string; whenMs: number; resolved: boolean }
+/** `replyTo` is the id of the comment a reply answers: replies sit under it. */
+export interface NoteComment { id: string; quote: string; text: string; by: string; whenMs: number; resolved: boolean; replyTo?: string }
 export interface NoteAttachment { path: string; ref: string; name: string; image: boolean }
 /** A wiki page as it was at a checkpoint. */
 export interface WikiVersion { checkpoint: string; whenMs: number; content: string }
