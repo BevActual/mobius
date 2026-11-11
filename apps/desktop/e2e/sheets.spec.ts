@@ -86,3 +86,48 @@ test('the agent adds a column of formulas, its cells are marked, and Discard put
   await expect(cell('E5')).toHaveText('');
   expect(fs.readFileSync(file('Budget'), 'utf8')).not.toContain('Per person');
 });
+
+test('pick a block, fill it down, undo, sort from the menu, and build a formula by clicking cells', async () => {
+  await start();
+  // A dragged block shows its sum in the status line.
+  const from = (await cell('B2').boundingBox())!;
+  const to = (await cell('B3').boundingBox())!;
+  await shell().mouse.move(from.x + 10, from.y + 10);
+  await shell().mouse.down();
+  await shell().mouse.move(to.x + 10, to.y + 10, { steps: 4 });
+  await shell().mouse.up();
+  await expect(shell().getByLabel('Selected cell')).toHaveText('B2:B3');
+  await expect(shell().getByRole('status', { name: 'Selection' })).toContainText('Sum 15');
+
+  // A formula from the function list, with a reference put in by clicking a cell.
+  await cell('E2').click();
+  await shell().keyboard.type('=rou');
+  await expect(shell().getByRole('listbox', { name: 'Functions' }).getByRole('option').first()).toContainText('ROUND');
+  await shell().keyboard.press('Tab');
+  await cell('D2').click();
+  await shell().keyboard.type('/14,0');
+  await shell().keyboard.press('Enter');
+  await expect(cell('E2')).toHaveText('320');
+  await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toContain('Hotel,14,320,=B2*C2,"=ROUND(D2/14,0)"\n');
+
+  // Filled down with Ctrl+D, the reference moving along; Undo takes it back.
+  await cell('E2').click();
+  await shell().keyboard.down('Shift');
+  await shell().keyboard.press('ArrowDown');
+  await shell().keyboard.up('Shift');
+  await shell().keyboard.press('Control+d');
+  await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toContain('Terrace venue,1,620,=B3*C3,"=ROUND(D3/14,0)"\n');
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toContain('Terrace venue,1,620,=B3*C3\n');
+
+  // Sorted by Total, smallest first, from the cell menu; the header and the total row stay put.
+  await cell('D3').click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Cells' }).getByRole('menuitem', { name: 'Sort by D, A to Z' }).click();
+  await expect(cell('A2')).toHaveText('Lunch');
+  await expect(cell('A3')).toHaveText('Terrace venue');
+  await expect(cell('A4')).toHaveText('Hotel');
+  await expect(cell('A5')).toHaveText('Total');
+  await expect(cell('D5')).toHaveText('5420');
+  await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toBe('Item,Qty,Unit,Total\nLunch,=People!B1,40,=B2*C2\nTerrace venue,1,620,=B3*C3\nHotel,14,320,=B4*C4,"=ROUND(D4/14,0)"\nTotal,,,=SUM(D2:D4)\n');
+  await expect(cell('A1')).toHaveText('Item');
+});

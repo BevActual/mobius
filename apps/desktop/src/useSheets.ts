@@ -34,6 +34,7 @@ export function useSheets() {
     const got = await api?.read(workbook, sheet);
     if (!got) return false;
     if (isNotesFailure(got)) { setMessage(got.message); return false; }
+    live.current = got;
     setData(got);
     setMessage('');
     try { window.localStorage.setItem(LAST_KEY, JSON.stringify({ workbook, sheet })); } catch { /* Not kept. */ }
@@ -69,10 +70,18 @@ export function useSheets() {
     });
   }, [api, refresh, open]);
 
+  // Writes go one after another, each with the version the one before it left, so quick typing never trips over itself.
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const inTurn = useCallback(<T,>(job: () => Promise<T>): Promise<T> => {
+    const next = chain.current.then(job, job);
+    chain.current = next.catch(() => undefined);
+    return next;
+  }, []);
+  const put = useCallback((got: SheetData) => { live.current = got; setData(got); }, []);
+
   /** Sets cells, shown at once; a sheet that changed elsewhere meanwhile is read again instead. */
   const set = useCallback(async (cells: CellChange[]) => {
-    const d = live.current;
-    if (!api || !d || cells.length === 0) return false;
+    if (!api || !live.current || cells.length === 0) return false;
     setData((cur) => {
       if (!cur) return cur;
       const grid = cur.cells.map((r) => [...r]);
@@ -84,23 +93,29 @@ export function useSheets() {
       }
       return { ...cur, cells: grid };
     });
-    const got = await api.set(d.workbook, d.sheet, cells, d.version);
-    if (isNotesFailure(got)) {
-      setMessage(got.conflict ? 'This sheet changed somewhere else, so it was read again. Make the change once more.' : got.message);
-      await reload();
-      return false;
-    }
-    setMessage('');
-    setData(got);
-    return true;
-  }, [api, reload]);
+    return inTurn(async () => {
+      const d = live.current;
+      if (!d) return false;
+      const got = await api.set(d.workbook, d.sheet, cells, d.version);
+      if (isNotesFailure(got)) {
+        setMessage(got.conflict ? 'This sheet changed somewhere else, so it was read again. Make the change once more.' : got.message);
+        await reload();
+        return false;
+      }
+      setMessage('');
+      put(got);
+      return true;
+    });
+  }, [api, reload, inTurn, put]);
 
-  const shift = useCallback(async (what: 'row' | 'column', at: number, insert: boolean) => {
+  const shift = useCallback(async (what: 'row' | 'column', at: number, insert: boolean) => inTurn(async () => {
     const d = live.current;
-    if (!api || !d) return;
+    if (!api || !d) return false;
     const got = await api.shift(d.workbook, d.sheet, what, at, insert);
-    if (isNotesFailure(got)) setMessage(got.message); else setData(got);
-  }, [api]);
+    if (isNotesFailure(got)) { setMessage(got.message); return false; }
+    put(got);
+    return true;
+  }), [api, inTurn, put]);
 
   const createWorkbook = useCallback(async (name: string) => {
     const made = await api?.createWorkbook(name);
