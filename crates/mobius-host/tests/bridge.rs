@@ -1395,3 +1395,21 @@ fn the_quick_model_comes_from_a_gateway_and_goes_with_its_key() {
     assert!(last().get("quick").is_none());
     assert_eq!(call(&b, "preferences", "get", json!([]))["quickModel"], "");
 }
+
+/// A thread started in a project tells the model which project it is in; other conversations say nothing of it.
+#[test]
+fn a_project_thread_tells_the_model_its_project() {
+    let (b, core, _events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    let project = call(&b, "projects", "create", json!(["Kestrel P2"]));
+    let id = project["id"].as_str().unwrap_or_else(|| panic!("{project}")).to_owned();
+    assert!(call(&b, "projects", "addThread", json!([id, "c-1"]))["threads"].as_array().is_some());
+    let last = || core.call("test.last_send", json!({}), Duration::from_secs(5)).unwrap();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "plan the build"]))["ok"], true);
+    let system = last()["system"].as_str().unwrap_or("").to_owned();
+    assert!(system.contains("project \"Kestrel P2\"") && system.contains("Projects/Kestrel P2.md"), "{system}");
+    assert_eq!(call(&b, "agent", "send", json!(["c-2", "hello"]))["ok"], true);
+    assert!(!last()["system"].as_str().unwrap_or("").contains("Kestrel"));
+    // Nothing made yet: the project's page lists nothing.
+    assert_eq!(call(&b, "projects", "made", json!([id])), json!([]));
+    assert_eq!(call(&b, "projects", "made", json!(["nope"]))["ok"], false);
+}

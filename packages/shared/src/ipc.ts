@@ -504,6 +504,8 @@ export interface MobiusBridge {
     addSide(id: string, parent: string, conversation: string, bot: string, botName: string, ask: string): Promise<ProjectInfo | NotesFailure>;
     /** A side thread finished: what it found, for the thread it was asked from. */
     report(conversation: string, text: string): Promise<ProjectInfo | NotesFailure>;
+    /** Workspace paths the project's threads made or changed, newest first. */
+    made?(id: string): Promise<string[] | NotesFailure>;
     onChanged(listener: () => void): () => void;
   };
   /** Only the desktop app: the workspace folder as a drive, for the person to look through. */

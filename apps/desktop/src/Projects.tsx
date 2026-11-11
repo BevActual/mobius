@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { conversationIdFor, type Bot, type ConversationInfo, type Message, type ProjectInfo, type ProjectLevel, type WikiChange } from '@mobius/shared';
 import { appName, type AppId } from './apps';
 import type { WikiIncoming } from './Wiki';
+import { changeTarget } from './actions';
 
 /** The apps a project can set a level for, as Settings lists them. */
 const RULE_APPS: readonly AppId[] = ['notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'browser', 'research', 'reader', 'code', 'database', 'design', 'canvas', 'photo', 'studio', 'video', 'skills'];
@@ -220,11 +221,77 @@ function ProjectMemory({ project, incoming, onOpen }: { project: ProjectInfo; in
   );
 }
 
+/** What the project's threads made or changed, newest first, each opening in its app. */
+function ProjectMade({ project, conversations, onOpenMade, onOpenFiles }: { project: ProjectInfo; conversations: readonly ConversationInfo[]; onOpenMade: (path: string) => void; onOpenFiles: () => void }) {
+  const [made, setMade] = useState<string[] | null>(null);
+  // Asked again when a thread grows, since a finished turn may have made something.
+  const growth = conversations.filter((c) => project.threads.includes(c.id)).reduce((n, c) => n + c.messages, 0);
+  useEffect(() => {
+    let live = true;
+    void window.mobius.projects?.made?.(project.id).then((got) => { if (live) setMade(Array.isArray(got) ? got : []); }).catch(() => { if (live) setMade([]); });
+    return () => { live = false; };
+  }, [project.id, growth]);
+  const items = (made ?? []).map((path) => ({ path, target: changeTarget(path) })).filter((m) => m.target !== null);
+  return (
+    <section className="project-card" aria-label="Made in this project">
+      <h2 className="ext-heading">Made in this project</h2>
+      {made !== null && items.length === 0 && <p className="note-empty">Nothing yet. What Mobius makes or changes in this project's threads shows here.</p>}
+      {items.length > 0 && (
+        <ul className="clist" role="list" aria-label="Made in this project">
+          {items.map(({ path, target }) => (
+            <li key={path}><button type="button" className="files-row" onClick={() => onOpenMade(path)}><span className="ext-name">{madeTitle(path)}</span><span className="ext-state">{appName(target!.app)}</span></button></li>
+          ))}
+        </ul>
+      )}
+      <button type="button" className="btn" onClick={onOpenFiles}>Open the project's folder</button>
+    </section>
+  );
+}
+
+/** A made item's name: the file's name without its kind, or the workbook for a sheet. */
+export function madeTitle(path: string): string {
+  const parts = path.replace(/\\/g, '/').split('/');
+  if (parts[0] === 'sheets' && parts[1]) return parts[1];
+  if (parts[0] === 'code' && parts[1]) return parts.slice(1).join('/');
+  return (parts.pop() ?? path).replace(/\.(md|json|csv|sqlite)$/i, '');
+}
+
+/** The project's rules, folded into one line until asked for: most projects keep what Settings says. */
+function ProjectRules({ projects, project: p }: { projects: ProjectsState; project: ProjectInfo }) {
+  const changed = RULE_APPS.filter((app) => (p.rules[app] ?? 'follow') !== 'follow');
+  const [open, setOpen] = useState(false);
+  const summary = changed.length === 0 ? 'As in Settings' : changed.map((app) => `${appName(app)}: ${LEVELS.find((l) => l.id === p.rules[app])?.name ?? ''}`).join(' · ');
+  return (
+    <section className="project-card" aria-label="Rules for this project">
+      <div className="project-rules-head">
+        <h2 className="ext-heading">Rules</h2>
+        <span className="ext-state">{summary}</span>
+        <button type="button" className="btn link" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Done' : 'Change'}</button>
+      </div>
+      {open && (
+        <>
+          <p className="wiki-private">How much Mobius may do in each app here. Paying, sending, deleting and commands always ask.</p>
+          <ul className="project-rules" role="list">
+            {RULE_APPS.map((app) => (
+              <li key={app} className="project-rule">
+                <span>{appName(app)}</span>
+                <select aria-label={`${appName(app)} in ${p.name}`} value={p.rules[app] ?? 'follow'} onChange={(e) => void projects.setRule(p.id, app, e.target.value as ProjectLevel | 'follow')}>
+                  {LEVELS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
 /**
- * A project as a place: what waits on you, its rules (how much Mobius may do in each app there), its memory (a wiki
- * page), its threads and what was made in it (a Files folder).
+ * A project as a place: what waits on you, its threads and what they made first, then its memory (a Knowledge page)
+ * and its rules (how much Mobius may do in each app there), folded into one line.
  */
-export function ProjectPage({ projects, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles }: {
+export function ProjectPage({ projects, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles, onOpenMade }: {
   projects: ProjectsState;
   incoming: WikiIncoming;
   conversations: readonly ConversationInfo[];
@@ -232,6 +299,7 @@ export function ProjectPage({ projects, conversations, incoming, onOpenThread, o
   onNewThread: (project: string) => void;
   onOpenMemory: (project: ProjectInfo) => void;
   onOpenFiles: (project: ProjectInfo) => void;
+  onOpenMade: (path: string) => void;
 }) {
   const p = projects.open;
   if (!projects.available) return <section className="skills-page empty" aria-label="Projects"><p className="note-empty">Projects are not available here.</p></section>;
@@ -249,23 +317,8 @@ export function ProjectPage({ projects, conversations, incoming, onOpenThread, o
           </ul>
         </section>
       )}
-      <section className="project-card" aria-label="Rules for this project">
-        <h2 className="ext-heading">Rules for this project</h2>
-        <p className="wiki-private">How much Mobius may do in each app here. Paying, sending, deleting and commands always ask.</p>
-        <ul className="project-rules" role="list">
-          {RULE_APPS.map((app) => (
-            <li key={app} className="project-rule">
-              <span>{appName(app)}</span>
-              <select aria-label={`${appName(app)} in ${p.name}`} value={p.rules[app] ?? 'follow'} onChange={(e) => void projects.setRule(p.id, app, e.target.value as ProjectLevel | 'follow')}>
-                {LEVELS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <ProjectMemory project={p} incoming={incoming} onOpen={() => onOpenMemory(p)} />
       <section className="project-card" aria-label="Chat and threads">
-        <h2 className="ext-heading">Chat and threads</h2>
+        <h2 className="ext-heading">Threads</h2>
         {threads.length === 0 && <p className="note-empty">No threads yet.</p>}
         <ul className="clist" role="list" aria-label="Threads">
           {threads.map((t) => (
@@ -284,10 +337,9 @@ export function ProjectPage({ projects, conversations, incoming, onOpenThread, o
           <MoveHere projects={projects} project={p} conversations={conversations} />
         </div>
       </section>
-      <section className="project-card" aria-label="Made in this project">
-        <h2 className="ext-heading">Made in this project</h2>
-        <button type="button" className="btn" onClick={() => onOpenFiles(p)}>Open in Files</button>
-      </section>
+      <ProjectMade project={p} conversations={conversations} onOpenMade={onOpenMade} onOpenFiles={() => onOpenFiles(p)} />
+      <ProjectMemory project={p} incoming={incoming} onOpen={() => onOpenMemory(p)} />
+      <ProjectRules projects={projects} project={p} />
     </section>
   );
 }

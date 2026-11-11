@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -72,11 +72,19 @@ async function say(text: string): Promise<void> {
   await composer.press('Enter');
 }
 
+async function openRules(page: Locator): Promise<void> {
+  const change = page.getByRole('region', { name: 'Rules for this project' }).getByRole('button', { name: 'Change' });
+  if (await change.getAttribute('aria-expanded') !== 'true') await change.click();
+}
+
 test('a project is a place: its rules, its memory page in the Wiki, its threads and its files', async () => {
   await start();
   await openProjects();
   await newProject('Kestrel');
   const page = shell().getByRole('region', { name: 'Kestrel' });
+  // The rules sit folded in one line until asked for; the threads and what they made come first.
+  await expect(page.getByRole('region', { name: 'Rules for this project' })).toContainText('As in Settings');
+  await openRules(page);
   await expect(page.getByRole('region', { name: 'Rules for this project' })).toContainText('Paying, sending, deleting and commands always ask.');
   await page.getByRole('combobox', { name: 'Docs in Kestrel' }).selectOption('act');
   await expect.poll(() => JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0].rules).toEqual({ docs: 'act' });
@@ -85,7 +93,7 @@ test('a project is a place: its rules, its memory page in the Wiki, its threads 
   await page.getByRole('button', { name: 'Open in Knowledge' }).click();
   await expect(shell().getByRole('textbox', { name: 'Document text' })).toBeVisible();
   await openProjects();
-  await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: 'Open in Files' }).click();
+  await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: "Open the project's folder" }).click();
   await expect(shell().getByRole('region', { name: 'Files' }).getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › projects › Kestrel');
   await openProjects();
   await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: 'New thread' }).click();
@@ -111,6 +119,7 @@ test('the core counts a project’s rules in its threads only: Act goes ahead th
   await openProjects();
   await newProject('Kestrel');
   const page = shell().getByRole('region', { name: 'Kestrel' });
+  await openRules(page);
   await page.getByRole('combobox', { name: 'Docs in Kestrel' }).selectOption('act');
   await page.getByRole('combobox', { name: 'Browser in Kestrel' }).selectOption('act');
   await expect.poll(() => JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0].rules).toEqual({ browser: 'act', docs: 'act' });
@@ -127,6 +136,7 @@ test('the core counts a project’s rules in its threads only: Act goes ahead th
 
   // Ask first in the project: the person, every time, and only Allow once answers.
   await openProjects();
+  await openRules(shell().getByRole('region', { name: 'Kestrel' }));
   await shell().getByRole('region', { name: 'Kestrel' }).getByRole('combobox', { name: 'Docs in Kestrel' }).selectOption('ask');
   await shell().getByRole('region', { name: 'Kestrel' }).getByRole('navigation', { name: 'Threads' }).or(shell().getByRole('region', { name: 'Kestrel' }).getByRole('list', { name: 'Threads' })).getByRole('button').first().click();
   await expect(log().locator('.msg.assistant').last()).toHaveText('Opened it in the project.');
@@ -177,6 +187,7 @@ test('a conversation started outside can be moved into a project, and from then 
   await openProjects();
   await newProject('Kestrel');
   const page = shell().getByRole('region', { name: 'Kestrel' });
+  await openRules(page);
   await page.getByRole('combobox', { name: 'Docs in Kestrel' }).selectOption('act');
   const move = page.getByRole('combobox', { name: 'Move a conversation into Kestrel' });
   await move.selectOption({ label: 'hello' });

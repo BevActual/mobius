@@ -2343,6 +2343,9 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .project-waiting { border-color: var(--accent); }
 .project-rules { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px var(--sp-3); }
 .project-rule { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.project-rules-head { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; }
+.project-rules-head .ext-heading { margin: 0; }
+.project-rules-head .ext-state { flex: 1; min-width: 0; }
 .project-card > .btn { justify-self: start; }
 
 .project-thread-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
@@ -2412,6 +2415,10 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .chat .review-strip .review-btn { flex: 1; height: 32px; border: 0; border-radius: 999px; background: rgba(120, 120, 128, 0.14); color: var(--text); font-weight: 500; }
 .chat .review-strip .review-btn[data-kind="keep"] { background: #1D1D1F; color: #fff; }
 @media (prefers-color-scheme: dark) { .chat .review-strip .review-btn[data-kind="keep"] { background: #F5F5F7; color: #1D1D1F; } }
+/* Each change's own Undo is a quiet text button at the end of its row, lighter than Keep. */
+.chat .review-strip .review-item .review-name { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat .review-strip .review-item .review-btn { flex: none; height: 26px; padding: 0 8px; background: transparent; color: var(--muted); font-weight: var(--fw-medium); }
+.chat .review-strip .review-item .review-btn:hover, .chat .review-strip .review-item .review-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
 
 /* The message box: rounder, a hairline and a tiny shadow; the controls under it as quiet text. */
 .chat .composer { border-radius: 20px; box-shadow: inset 0 0 0 0.5px var(--line-strong), 0 1px 4px rgba(0, 0, 0, 0.05); }
@@ -2905,6 +2912,8 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
 /* A tool step reads as what it did, in the interface's own type; its status sits by Details at the end of the line. */
 .tool-name[data-plain] { font-family: inherit; font-weight: var(--fw-medium); font-size: var(--fs-md); }
 .tool-line > .tool-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A row that opens its item is a button: it reads left-aligned like the others. */
+.tool-line > button.tool-name { text-align: left; }
 .tool-line > .tool-status { margin-left: 0; }
 
 /* Scroll bars as macOS draws them: thin, quiet, no arrow buttons. */
