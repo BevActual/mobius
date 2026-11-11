@@ -51,7 +51,7 @@ test('the switch in settings turns the rule off and on', async () => {
   expect(await allowed()).toBe(false);
   await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await page().getByRole('tab', { name: 'Network', exact: true }).click();
   const toggle = page().getByRole('switch', { name: 'Let the agent use local addresses' });
   await expect(toggle).not.toBeChecked();

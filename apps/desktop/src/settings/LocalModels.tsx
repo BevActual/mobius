@@ -112,13 +112,14 @@ function useModels() {
 
   const refreshLocal = useCallback(async () => {
     const entries = await window.mobius.models.local();
-    if (live.current) setLocal(entries);
+    // Only a list is a list: a failure or a late answer leaves none, never a page that cannot draw.
+    if (live.current) setLocal(Array.isArray(entries) ? entries : []);
   }, []);
 
   useEffect(() => {
     live.current = true;
     void window.mobius.models.hardware().then((h) => live.current && setHardware(h));
-    void window.mobius.models.status().then((s) => live.current && setSnapshot(s));
+    void window.mobius.models.status().then((s) => live.current && setSnapshot(s && typeof s === 'object' && 'runtime' in s ? s : { binary: null, runtime: null }));
     void refreshLocal();
     const off = window.mobius.models.onEvent((event: ModelsEvent) => {
       if (!live.current) return;
@@ -203,7 +204,8 @@ function useQuickSetup(models: ReturnType<typeof useModels>, engine: ReturnType<
       if (!installed.ok) return fail(installed.error === 'cancelled' ? 'Cancelled.' : installed.error);
     }
     setStep('choosing');
-    const local = await window.mobius.models.local();
+    const listed = await window.mobius.models.local();
+    const local = Array.isArray(listed) ? listed : [];
     let choice = pickModel(local, []);
     if (!choice) {
       const found = await window.mobius.models.discover('');
@@ -218,7 +220,7 @@ function useQuickSetup(models: ReturnType<typeof useModels>, engine: ReturnType<
       const got = await window.mobius.models.download(repo, file);
       if (!got.ok) return fail(got.error === 'cancelled' ? 'Cancelled. Starting again carries on where it stopped.' : got.error);
       const after = await window.mobius.models.local();
-      const entry = after.find((e) => e.model.repo === repo && e.model.file === file);
+      const entry = (Array.isArray(after) ? after : []).find((e) => e.model.repo === repo && e.model.file === file);
       if (!entry) return fail('The download finished but the model was not found.');
       id = entry.model.id;
     } else id = choice.local.model.id;

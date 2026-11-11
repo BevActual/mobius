@@ -4,14 +4,11 @@ import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type MailContent, type SidebarMode } from '@mobius/shared';
 import { appName, askAbout, isAvailable, type AppId, noteOpened, APPS } from './apps';
-import { AnimatePresence, motion } from 'motion/react';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
-import { quick, useMorphIn } from './motion';
+import { useMorphIn } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
-import { DownloadsList } from './DownloadsList';
-import { FindBar } from './FindBar';
 import { useBookmarks } from './useBookmarks';
 import { useArchive } from './useArchive';
 import { useBots } from './useBots';
@@ -22,7 +19,6 @@ import { useAutoHide } from './useAutoHide';
 import { useSideFolds } from './side-fold';
 import { CommentButton, CommentLayer, CommentsGroup, useCommentThreads, useOpenComments } from './Comments';
 import type { Side } from './resize';
-import { SurfaceSlot } from './SurfaceSlot';
 import { useAgentSettings } from './useAgentSettings';
 import { useBrowser } from './useBrowser';
 import { useAppearance } from './useAppearance';
@@ -51,7 +47,7 @@ import { useDatabases } from './useDatabases';
 import { TerminalPage, TerminalSidebar } from './Terminal';
 import { useTerminal } from './useTerminal';
 import { ReviewPage, ReviewSidebar, useReview } from './Review';
-import { StartPage } from './StartPage';
+import { BrowserChrome, BrowserPage, BrowserSidebar } from './Browser';
 import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
@@ -82,7 +78,7 @@ import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
-import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
+import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { clipToNotes } from './clip';
 import { loadPanes, savePanes, companionFor, loadShare, saveShare } from './split';
 import { TRY_ANOTHER_ASK, TryAnotherContext } from './ReviewBar';
@@ -111,8 +107,6 @@ function useNarrowWindow(width: number): boolean {
 const withKeys = (text: string, binding: string) => (binding ? `${text} (${describeCombo(binding, window.mobius.platform)})` : text);
 
 /** Who is using a tab while a task runs, as the tab says it. */
-const TAB_DRIVER = { reading: 'Mobius reading', mobius: 'Mobius', yours: 'Yours' } as const;
-const TAB_DRIVER_TITLE = { reading: 'Mobius is reading this tab', mobius: 'Mobius is using this tab', yours: 'You took over this tab from Mobius' } as const;
 
 export function App() {
   const browser = useBrowser();
@@ -168,6 +162,9 @@ export function App() {
     if (!appearance.value.resumeLast) conversation.startFresh();
   }, [appearance.loaded, appearance.value, conversation]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Settings is an app of its own: its sections fill the sidebar, its page's name the title row.
+  const [settingsSlot, setSettingsSlot] = useState<HTMLDivElement | null>(null);
+  const [settingsTitle, setSettingsTitle] = useState('Settings');
   // Split view: up to two apps side by side. `app` is the focused pane's app, so the toolbar and sidebar follow it.
   // A narrow window has room for one pane, so the other folds away until the window is wide again.
   const narrow = useNarrowWindow(980);
@@ -429,7 +426,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -733,7 +730,7 @@ export function App() {
   ];
   /** The one thing worth starting in the app you are in: the panel's New button changes with it. */
   const createFor = (id: AppId): HubAction => createActions.find((a) => a.app === (id === 'search' ? 'agent' : id)) ?? createActions[0]!;
-  const appSidebar = (pinNode: ReactNode) => (
+  const appSidebar = (pinNode: ReactNode) => settingsOpen ? <div ref={setSettingsSlot} className="settings-side" /> : (
           <>
             {inAgent ? (
               <ConversationSidebar
@@ -812,50 +809,7 @@ export function App() {
             ) : inTasks ? (
               <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
-          <aside className="side" aria-label="Browser sidebar">
-            <div className="side-head">
-              <span className="side-title">Tabs</span>
-              <span className="side-actions">
-                {pinNode}
-                {window.mobius.browser.reopenClosed && (
-                  <button type="button" className="strip-btn" aria-label="Reopen closed tab" title="Reopen closed tab" onClick={() => void window.mobius.browser.reopenClosed?.()}>
-                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 0 2-4.5M4 3v4h4" /></svg>
-                  </button>
-                )}
-                <button type="button" className="strip-btn" aria-label="New tab" title="New tab (Ctrl+T)" onClick={newTab}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-                </button>
-              </span>
-            </div>
-            <ul className="tabs" role="list">
-              <AnimatePresence initial={false}>
-              {browser.tabs.map((tab) => (
-                <motion.li key={tab.id} layout="position" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: quick }} className="tab" aria-current={tab.active ? 'page' : undefined} data-pinned={tab.pinned ? 'true' : undefined}>
-                  <button type="button" className="tab-main" onClick={() => window.mobius.browser.activate(tab.id)}>
-                    {tab.icon ? <img className="tab-icon" src={tab.icon} alt="" width={16} height={16} /> : <span className="tab-icon placeholder" aria-hidden="true" />}
-                    <span className="tab-title">{tab.title}</span>
-                    {tab.driver && <span className="tab-driver" data-driver={tab.driver} title={TAB_DRIVER_TITLE[tab.driver]}>{TAB_DRIVER[tab.driver]}</span>}
-                    {tab.loading && <span className="tab-loading" aria-label="Loading" />}
-                  </button>
-                  {window.mobius.browser.pin && (
-                    <button type="button" className="tab-close tab-pin" aria-label={`${tab.pinned ? 'Unpin' : 'Pin'} ${tab.title}`} aria-pressed={tab.pinned === true} title={tab.pinned ? 'Unpin' : 'Pin'} onClick={() => window.mobius.browser.pin?.(tab.id, !tab.pinned)}>
-                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6l-1 5 3 3H5l3-3-1-5ZM10 11v6" /></svg>
-                    </button>
-                  )}
-                  {window.mobius.browser.duplicate && (
-                    <button type="button" className="tab-close" aria-label={`Duplicate ${tab.title}`} title="Duplicate" onClick={() => void window.mobius.browser.duplicate?.(tab.id)}>
-                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 7h9v9H7zM4 13V4h9" /></svg>
-                    </button>
-                  )}
-                  <button type="button" className="tab-close" aria-label={`Close ${tab.title}`} onClick={() => window.mobius.browser.close(tab.id)}>
-                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
-                  </button>
-                </motion.li>
-              ))}
-              </AnimatePresence>
-            </ul>
-            <DownloadsList entries={downloads} />
-          </aside>
+          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} />
             )}
             <CommentsGroup threads={openComments} onOpen={(t) => { if (t.doc === commentDoc) setCommentFocus(t.id); }} />
           </>
@@ -1160,9 +1114,7 @@ export function App() {
         return (
           <>
             {cover?.url && <img className="page-cover" src={cover.url} alt="" data-testid="page-cover" />}
-            {/* A new tab shows Mobius's own start page; the page view is hidden until an address is opened. */}
-            {onStartPage && <StartPage onOpen={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); }} onRead={(path, title) => { openApp('reader'); void reading.open(path, title); }} />}
-            <SurfaceSlot hidden={launcherOpen || hubOpen || settingsOpen || cover !== null || onStartPage} />
+            <BrowserPage onStartPage={onStartPage} hidden={launcherOpen || hubOpen || settingsOpen || cover !== null || onStartPage} onOpen={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); }} onRead={(path, title) => { openApp('reader'); void reading.open(path, title); }} />
           </>
         );
       case 'notes':
@@ -1335,51 +1287,28 @@ export function App() {
   // The browser's own controls. With the full sidebar they live in it, under the app's name, and nothing but the
   // page's title sits above the page; with the narrow rail they stay in the toolbar.
   const browserChrome = (
-    <div className="strip-middle" role="group" aria-label="Browser">
-          <div className="cap-group">
-            <button type="button" className="strip-btn" aria-label="Back" disabled={!active?.canGoBack} onClick={() => active && window.mobius.browser.back(active.id)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4 6 10l6 6" /></svg>
-            </button>
-            <button type="button" className="strip-btn" aria-label="Forward" disabled={!active?.canGoForward} onClick={() => active && window.mobius.browser.forward(active.id)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" /></svg>
-            </button>
-            <button type="button" className="strip-btn" aria-label="Reload" disabled={!active} onClick={() => active && window.mobius.browser.reload(active.id)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
-            </button>
-          </div>
-          <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
-            <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={saved}><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
-          </button>
-          <button type="button" className="strip-btn" data-page-pin aria-pressed={pagePinned} aria-label={pagePinned ? 'Unpin this page from the sidebar' : 'Pin this page to the sidebar'} title={pagePinned ? 'Unpin from the sidebar' : 'Pin to the sidebar'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => active && togglePin({ kind: 'page', id: active.url, title: active.title || active.url })}>
-            <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={pagePinned}><path d="M7.5 3.5h5l-.8 4.2 2.8 2.8H5.5l2.8-2.8zM10 10.5v6" /></svg>
-          </button>
-          <div className="selection-menu-wrap">
-            <button type="button" className="strip-btn" data-selection-ask aria-haspopup="menu" aria-expanded={selectionMenu} aria-label="Selected text" title="Do something with the text selected on this page" disabled={!active || !/^https?:/.test(active.url)} onClick={() => setSelectionMenu((open) => !open)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h8M4 9h5M4 13h4" /><path d="M14.5 9.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>
-            </button>
-            {selectionMenu && cover !== null && (
-              <SelectionMenu onClose={() => setSelectionMenu(false)} onChoose={(action) => void webSelection(action)} clipTo={clipTarget?.title ?? 'Clippings'} pages={clipPages} onClipTo={clipToPage} />
-            )}
-          </div>
-          <form className="address" onSubmit={submit}>
-            <input
-              ref={address}
-              type="text"
-              aria-label="Address or question"
-              placeholder="Search, enter an address, or ask"
-              spellCheck={false}
-              autoComplete="off"
-              value={draft ?? active?.url ?? ''}
-              onChange={(event) => { setDraft(event.target.value); setNotice(''); }}
-              // From the moment it is focused the text is the person's draft: a page finishing loading meanwhile cannot change it under their typing.
-              onFocus={(event) => { setDraft(event.target.value); event.target.select(); }}
-              onBlur={() => setDraft(null)}
-            />
-            {active?.loading && <span className="spinner" role="status" aria-label="Loading" />}
-          </form>
-          {notice && <span className="notice" role="status">{notice}</span>}
-          {findOpen && active && <FindBar key={active.id} tabId={active.id} focusToken={finding} onClose={() => setFindOpen(false)} />}
-        </div>
+    <BrowserChrome
+      active={active}
+      saved={saved}
+      pagePinned={pagePinned}
+      onTogglePagePin={() => active && togglePin({ kind: 'page', id: active.url, title: active.title || active.url })}
+      selectionMenu={selectionMenu}
+      setSelectionMenu={setSelectionMenu}
+      selectionReady={cover !== null}
+      onSelection={(action) => void webSelection(action)}
+      clipTo={clipTarget?.title ?? 'Clippings'}
+      clipPages={clipPages}
+      onClipTo={clipToPage}
+      address={address}
+      draft={draft}
+      setDraft={setDraft}
+      notice={notice}
+      setNotice={setNotice}
+      onSubmit={submit}
+      findOpen={findOpen}
+      finding={finding}
+      onCloseFind={() => setFindOpen(false)}
+    />
   );
   // The menus live in the sidebar, as one Menu button: in its head when it is full, at the top of the folded rail.
   // Nothing sits on top of the page but its title row.
@@ -1391,7 +1320,7 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
@@ -1431,7 +1360,7 @@ export function App() {
         onReorderFavourites={(next) => void appearance.set({ favourites: next })}
         currentFavourite={settingsOpen ? null : currentFavourite}
       >
-        {showWide && hasAppList && appSidebar(null)}
+        {showWide && (hasAppList || settingsOpen) && appSidebar(null)}
       </Rail>
       <header className="context-strip" data-quiet={showWide || undefined}>
         <div className="strip-left" role="group" aria-label="Window">
@@ -1497,6 +1426,9 @@ export function App() {
             <SettingsPage
               {...(settingsSection === 'layout' ? { initial: 'appearance' as const, initialSubpage: 'layout' } : settingsSection === 'profiles' ? { initial: 'advanced' as const, initialSubpage: 'profiles' } : settingsSection ? { initial: settingsSection } : {})}
               onClose={() => { setSettingsSection(undefined); closeSettings(); }}
+              onOpenApp={(id) => { setSettingsSection(undefined); closeSettings(); openApp(id); }}
+              sidebar={settingsSlot}
+              onTitle={setSettingsTitle}
               settings={settings}
               onSaveSettings={saveSettings}
               appearance={appearance.value}

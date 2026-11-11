@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { MobiusMark } from '../MobiusMark';
+import { ChatModelPopUp } from './ModelDefaults';
 import {
   type SavedServer,
   CHAT_TEXT_RANGE,
@@ -68,6 +69,8 @@ export interface SectionProps {
   onDeleteConversation: (id: string) => Promise<string | null>;
   onRefreshConversations: () => Promise<void>;
   coreStatus: CoreStatus;
+  /** Open an app (Extensions) and leave Settings. */
+  onOpenApp?: (id: 'skills') => void;
 }
 
 const rowPath = (section: SectionId, subpage: string, row: string) => settingPath(section, subpage, row);
@@ -123,7 +126,7 @@ function Slider({ label, value, range, step, onCommit, format }: { label: string
   );
 }
 
-function Choice<T extends string>({ label, name, value, options, onChange }: { label: string; name: string; value: T; options: ReadonlyArray<{ id: T; label: string }>; onChange: (value: T) => void }) {
+export function Choice<T extends string>({ label, name, value, options, onChange }: { label: string; name: string; value: T; options: ReadonlyArray<{ id: T; label: string }>; onChange: (value: T) => void }) {
   return (
     <div className="segmented" role="radiogroup" aria-label={label}>
       {options.map((option) => (
@@ -136,11 +139,10 @@ function Choice<T extends string>({ label, name, value, options, onChange }: { l
   );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+export function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
     <label className="switch-line">
       <input type="checkbox" role="switch" aria-label={label} checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      <span>{checked ? 'On' : 'Off'}</span>
     </label>
   );
 }
@@ -151,6 +153,7 @@ const DENSITIES: Array<{ id: Density; label: string }> = [{ id: 'comfortable', l
 const APPROVAL_MODES = MODES.map((m) => ({ id: m.id, label: m.name }));
 const SIDEBAR_MODES: Array<{ id: SidebarMode; label: string }> = [{ id: 'attached', label: 'Attached' }, { id: 'floating', label: 'Floating' }];
 const EFFORT_OPTIONS: Array<{ id: EffortChoice; label: string }> = [{ id: '', label: 'Default' }, { id: 'none', label: 'Off' }, { id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }];
+const AGENT_PLACES: Array<{ id: 'sidebar' | 'beside'; label: string }> = [{ id: 'sidebar', label: 'In the sidebar' }, { id: 'beside', label: 'Beside the page' }];
 const TOOL_STEPS: Array<{ id: ToolSteps; label: string }> = [{ id: 'show', label: 'Show all' }, { id: 'hide-finished', label: 'Hide finished' }];
 
 export function AppearanceSection({ subpage, highlight, appearance, onAppearance }: SectionProps) {
@@ -198,6 +201,9 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
           <p className="srow-text">Now: list {appearance.leftWidth} px, agent panel {appearance.rightWidth} px.</p>
           <button type="button" className="btn" disabled={appearance.leftWidth === SIDEBAR_WIDTH.left.default && appearance.rightWidth === SIDEBAR_WIDTH.right.default} onClick={() => set({ leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default })}>Reset sizes</button>
         </Row>
+        <Row path={path('agent-place')} title="Where Mobius opens" description="In the sidebar, which turns into Mobius, or pinned beside the page." highlight={highlight === 'agent-place'}>
+          <Choice label="Where Mobius opens" name="agent-place" value={appearance.agentPlace} options={AGENT_PLACES} onChange={(agentPlace) => set({ agentPlace })} />
+        </Row>
         <Row path={path('density')} title="List density" description="How tightly tabs and conversations are packed." highlight={highlight === 'density'}>
           <Choice label="List density" name="density" value={appearance.density} options={DENSITIES} onChange={(density) => set({ density })} />
         </Row>
@@ -225,7 +231,7 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
 
 // ---- Model ---------------------------------------------------------------------------------------------------
 
-function DictationModelField({ value, onSave }: { value: string; onSave: (value: string) => void }) {
+export function DictationModelField({ value, onSave }: { value: string; onSave: (value: string) => void }) {
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
   const valid = isModelName(text);
@@ -243,18 +249,14 @@ export function ModelSection({ subpage, highlight, settings, onSaveSettings, pre
   if (!settings) return <Empty>Loading…</Empty>;
   return (
     <>
-      <div className="srow" data-setting={rowPath('model', subpage, 'endpoint')}>
-        <SettingsForm key={`${settings.baseUrl}|${settings.model}|${settings.system}`} settings={settings} onSave={onSaveSettings} />
-      </div>
+      <Row path={rowPath('model', subpage, 'chat-model')} title="Chat model" description="The model Mobius talks to. The services it comes from are in Gateways." highlight={highlight === 'chat-model'}>
+        <ChatModelPopUp localContext={preferences.localContext} />
+      </Row>
       {window.mobius.agent.savedServers && (
         <Row path={rowPath('model', subpage, 'saved-servers')} title="Saved servers" description="Keep model servers under a name and switch between them. Saving keeps the address, the model and, in the system's secret store, the key." highlight={highlight === 'saved-servers'}>
           <SavedServers current={`${settings.baseUrl}|${settings.model}`} />
         </Row>
       )}
-      <Row path={rowPath('model', subpage, 'dictation-model')} title="Voice dictation" description="The speech model asked for when you dictate a message. It runs on the same server as the chat model." highlight={highlight === 'dictation-model'}>
-        <DictationModelField value={preferences.dictationModel} onSave={(dictationModel) => void onPreferences({ dictationModel })} />
-        <p className="srow-text">Not every server offers one. If yours does not, dictation says so.</p>
-      </Row>
       <Row path={rowPath('model', subpage, 'effort')} title="Effort" description="How hard the model is asked to think. Also in the message box. Only models that can reason use it." highlight={highlight === 'effort'}>
         <Choice label="Effort" name="effort" value={preferences.reasoningEffort} options={EFFORT_OPTIONS} onChange={(reasoningEffort) => void onPreferences({ reasoningEffort })} />
       </Row>

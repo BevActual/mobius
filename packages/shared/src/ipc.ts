@@ -243,6 +243,8 @@ export interface ProviderInfo {
   note: string;
   keyUrl: string | null;
   needsKey: boolean;
+  /** For voice only (ElevenLabs): never a chat model. */
+  voiceOnly?: boolean;
   hasKey: boolean;
   /** The agent is using this provider now. */
   active: boolean;
@@ -456,6 +458,8 @@ export interface MobiusBridge {
   };
   /** Other apps using Mobius's tools over MCP. Only the Tauri shell has it. */
   /** Only the desktop app: projects, each a place with its own rules (counted by the core), threads, memory and files. */
+  /** Settings, Voice: try the server chosen for listening or speaking. */
+  voice?: { test(job: 'listen' | 'speak'): Promise<{ ok: true; message: string } | { ok: false; error: string }> };
   /** Comments on anything in the workspace, kept per document in `.comments/<app>/`. */
   comments?: {
     list(app: string, doc: string): Promise<CommentThread[] | NotesFailure>;
@@ -1173,6 +1177,12 @@ export function parseActivityLimit(value: unknown): number {
 }
 
 /** A model's name as a server knows it: short, one line, nothing odd. */
+export const LISTEN_WITH = ['chat', 'local', 'elevenlabs', 'off'] as const;
+export type ListenWith = (typeof LISTEN_WITH)[number];
+export const SPEAK_WITH = ['local', 'elevenlabs', 'off'] as const;
+export type SpeakWith = (typeof SPEAK_WITH)[number];
+/** A speech server's address: http or https, one line, no spaces, up to 300 characters. */
+export const isVoiceUrl = (v: unknown): v is string => typeof v === 'string' && /^https?:\/\/\S+$/.test(v) && v.length > 8 && v.length <= 300 && !/[\u0000-\u001f\u007f]/.test(v);
 export const isModelName = (v: unknown): v is string => typeof v === 'string' && v.length >= 1 && v.length <= 200 && !/[\u0000-\u001f\u007f]/.test(v);
 const inRange = (v: unknown, range: { min: number; max: number }): v is number => typeof v === 'number' && Number.isFinite(v) && v >= range.min && v <= range.max;
 const oneOf = <T extends string>(...choices: T[]) => (v: unknown): v is T => typeof v === 'string' && (choices as string[]).includes(v);
@@ -1248,6 +1258,20 @@ export interface PreferencesSettings {
   reasoningEffort: EffortChoice;
   /** The speech-to-text model asked for when dictating, on the same server as the chat model. */
   dictationModel: string;
+  /** Who listens (speech to text): the chat model's server, a speech server on this computer, ElevenLabs, or no one. */
+  listenWith: ListenWith;
+  /** Tried when the first cannot listen. */
+  listenFallback: ListenWith;
+  /** The speech server on this computer, in OpenAI's audio format (faster-whisper and the like). */
+  listenUrl: string;
+  /** Who speaks (text to speech). */
+  speakWith: SpeakWith;
+  speakFallback: SpeakWith;
+  /** The speech server on this computer, in OpenAI's audio format (Kokoro and the like). */
+  speakUrl: string;
+  speakModel: string;
+  /** The voice to speak with; empty for the server's own. */
+  speakVoice: string;
   /** How much the agent may do in each app without asking: off, ask (the usual), read, or act. Risky actions still ask. */
   appAccess: AppAccess;
 }
@@ -1282,7 +1306,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, appAccess: DEFAULT_APP_ACCESS };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', appAccess: DEFAULT_APP_ACCESS };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -1296,6 +1320,14 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   keybindings: isKeyBindings,
   reasoningEffort: oneOf<EffortChoice>('', 'none', 'low', 'medium', 'high'),
   dictationModel: (v): v is string => isModelName(v),
+  listenWith: oneOf<ListenWith>(...LISTEN_WITH),
+  listenFallback: oneOf<ListenWith>(...LISTEN_WITH),
+  listenUrl: (v): v is string => isVoiceUrl(v),
+  speakWith: oneOf<SpeakWith>(...SPEAK_WITH),
+  speakFallback: oneOf<SpeakWith>(...SPEAK_WITH),
+  speakUrl: (v): v is string => isVoiceUrl(v),
+  speakModel: (v): v is string => isModelName(v),
+  speakVoice: (v): v is string => typeof v === 'string' && [...v].length <= 100 && !/[\u0000-\u001f\u007f]/.test(v),
   appAccess: isAppAccess,
 };
 export function parsePreferencesPatch(value: unknown): Partial<PreferencesSettings> | null {

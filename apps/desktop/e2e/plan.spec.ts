@@ -160,8 +160,7 @@ test('Mobius asks before remembering, uses what it remembers next time, and it c
   expect(JSON.stringify(model!.requests.at(-1))).toContain('Prefers boutique hotels');
   await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
-  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
-  await page.getByRole('tab', { name: 'Memory' }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Memory', exact: true }).click();
   const list = page.getByRole('list', { name: 'What Mobius remembers' });
   await expect(list).toContainText('Prefers boutique hotels');
   await list.getByRole('button', { name: 'Forget: Prefers boutique hotels' }).click();
@@ -173,7 +172,7 @@ test('a schedule is made in Settings, kept, and Run now starts it as a conversat
   await start([says(['Start with the invoices.'])]);
   await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
-  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Schedules', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Schedules', exact: true }).click();
   await page.getByRole('button', { name: 'New schedule…' }).click();
   const form = page.getByRole('form', { name: 'Schedule' });
   await form.getByLabel('Name').fill('Morning brief');
@@ -210,7 +209,7 @@ test('profiles: Personal is there, a new one can be made in Settings, and the op
   await start([]);
   await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
-  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Advanced', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Advanced', exact: true }).click();
   await page.getByRole('tab', { name: 'Profiles' }).click();
   const list = page.getByRole('list', { name: 'Profiles' });
   await expect(list).toContainText('PersonalOpen now');

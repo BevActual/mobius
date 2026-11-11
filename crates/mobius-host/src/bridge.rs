@@ -513,6 +513,8 @@ impl Bridge {
             ("changes", _) => self.changes_call(method, args),
             ("signins", _) => Ok(self.signins_call(method, args)),
             ("extensions", "connectors") => Ok(self.mcp_status()),
+            // Settings, Voice: try the server chosen for listening or speaking, as it is set now.
+            ("voice", "test") => Ok(self.voice_test(arg(0).as_str().unwrap_or(""))),
             // Comments on anything in the workspace, kept per document in `.comments/` (see mobius_workspace::comments).
             ("comments", "list" | "all" | "set") => {
                 let store = mobius_workspace::comments::Comments::new(self.data_dir.join("workspace"));
@@ -1529,6 +1531,7 @@ impl Bridge {
         let local = self.models.get().map(|m| m.local()).unwrap_or_else(|| json!([]));
         let keyed: Vec<(&'static str, &'static str, String, Option<String>)> = crate::providers::CATALOG
             .iter()
+            .filter(|prov| !prov.voice_only)
             .filter_map(|prov| {
                 let address = p.address(prov.id)?;
                 let key = p.key(prov.id);
@@ -1603,6 +1606,60 @@ impl Bridge {
     }
 
     /// Settings > Providers. A key goes in and is never given back; it is only ever sent to its provider's address.
+    /// Whether the server chosen for a voice job answers: the chat model's server (listening only), a speech server on
+    /// this computer that speaks OpenAI's audio format, or ElevenLabs with its key from Gateways. The key is only ever
+    /// sent to ElevenLabs's own address, and never put in the answer.
+    fn voice_test(&self, job: &str) -> Value {
+        let prefs = lock(&self.preferences).get();
+        let (with, url) = match job {
+            "listen" => (prefs["listenWith"].as_str().unwrap_or("off").to_owned(), prefs["listenUrl"].as_str().unwrap_or("").to_owned()),
+            "speak" => (prefs["speakWith"].as_str().unwrap_or("off").to_owned(), prefs["speakUrl"].as_str().unwrap_or("").to_owned()),
+            _ => return failed("That is not a voice job."),
+        };
+        let reach = |address: &str, header: Option<(&str, String)>| -> Result<u16, String> {
+            let http: ureq::Agent = ureq::Agent::config_builder().max_redirects(0).http_status_as_error(false).timeout_global(Some(Duration::from_secs(6))).build().into();
+            let mut req = http.get(&format!("{}/models", address.trim_end_matches('/')));
+            if let Some((name, value)) = header {
+                req = req.header(name, value);
+            }
+            req.call().map(|r| r.status().as_u16()).map_err(|_| "Mobius could not reach it.".to_owned())
+        };
+        match with.as_str() {
+            "off" => failed("Off: nothing to try."),
+            "chat" => {
+                let base = self.agent.base_url();
+                let lower = base.to_ascii_lowercase();
+                let cannot = crate::providers::SUBSCRIPTIONS.iter().any(|s| s.address.eq_ignore_ascii_case(&base))
+                    || lower.contains("anthropic.com")
+                    || self.providers.id_for_address(&base) == Some("llamacpp");
+                if base.is_empty() {
+                    return failed("No chat model is set up yet. Choose This computer or ElevenLabs for listening.");
+                }
+                if cannot {
+                    return failed("The chat model's server cannot turn speech into text. Choose This computer or ElevenLabs for listening.");
+                }
+                let listed = self.agent.models();
+                if listed["ok"] == true { json!({ "ok": true, "message": "The chat model's server answers. Listening uses its speech model." }) } else { failed("The chat model's server did not answer.") }
+            }
+            "local" => match reach(&url, None) {
+                Ok(status) if (200..300).contains(&status) => json!({ "ok": true, "message": "The speech server on this computer answers." }),
+                Ok(status) => failed(format!("The speech server answered with an error ({status}).")),
+                Err(e) => failed(format!("{e} Is the speech server running at {url}?")),
+            },
+            "elevenlabs" => {
+                let Some(key) = self.providers.key("elevenlabs") else { return failed("Add an ElevenLabs key in Gateways first.") };
+                let address = self.providers.address("elevenlabs").unwrap_or_default();
+                match reach(&address, Some(("xi-api-key", key))) {
+                    Ok(status) if (200..300).contains(&status) => json!({ "ok": true, "message": "ElevenLabs accepted the key." }),
+                    Ok(401 | 403) => failed("ElevenLabs did not accept the key."),
+                    Ok(status) => failed(format!("ElevenLabs answered with an error ({status}).")),
+                    Err(e) => failed(e),
+                }
+            }
+            _ => failed("That is not a voice choice."),
+        }
+    }
+
     fn providers_call(&self, method: &str, args: &[Value]) -> Value {
         let text = |i: usize| args.get(i).and_then(Value::as_str);
         let p = &self.providers;
@@ -1671,6 +1728,9 @@ impl Bridge {
             "use" => {
                 let (Some(id), Some(model)) = (text(0), text(1)) else { return failed("Choose a provider and a model.") };
                 let Some(provider) = crate::providers::find(id) else { return failed("That provider is not known.") };
+                if provider.voice_only {
+                    return failed(format!("{} is for voice only: choose it in Settings, Voice.", provider.name));
+                }
                 let key = p.key(id);
                 if provider.needs_key && key.is_none() {
                     return failed(format!("Add a key for {} first.", provider.name));

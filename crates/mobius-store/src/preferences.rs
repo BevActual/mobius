@@ -38,7 +38,22 @@ pub fn is_app_access(v: &Value) -> bool {
     })
 }
 
-static FIELDS: [Field; 12] = [
+/// A speech server's address: http or https, one line, no spaces, up to 300 characters.
+pub fn is_voice_url(v: &Value) -> bool {
+    v.as_str().is_some_and(|s| (s.starts_with("http://") || s.starts_with("https://")) && s.len() > 8 && s.chars().count() <= 300 && !s.chars().any(|c| c.is_control() || c.is_whitespace()))
+}
+
+/// A voice's name for speaking: empty (the server's own) or up to 100 printable characters.
+fn is_voice_name(v: &Value) -> bool {
+    v.as_str().is_some_and(|s| s.chars().count() <= 100 && !s.chars().any(char::is_control))
+}
+
+/// Who listens (speech to text) and who speaks (text to speech), each with a fallback: the chat model's server,
+/// a speech server on this computer (OpenAI's audio format, as faster-whisper and Kokoro speak it), or ElevenLabs.
+pub const LISTEN_WITH: [&str; 4] = ["chat", "local", "elevenlabs", "off"];
+pub const SPEAK_WITH: [&str; 3] = ["local", "elevenlabs", "off"];
+
+static FIELDS: [Field; 20] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -52,6 +67,14 @@ static FIELDS: [Field; 12] = [
     Field { name: "keybindings", default: keys::defaults, check: keys::is_key_bindings },
     Field { name: "reasoningEffort", default: || json!(""), check: |v| one_of(v, &["", "none", "low", "medium", "high"]) },
     Field { name: "dictationModel", default: || json!("whisper-1"), check: is_model_name },
+    Field { name: "listenWith", default: || json!("chat"), check: |v| one_of(v, &LISTEN_WITH) },
+    Field { name: "listenFallback", default: || json!("off"), check: |v| one_of(v, &LISTEN_WITH) },
+    Field { name: "listenUrl", default: || json!("http://127.0.0.1:8000/v1"), check: is_voice_url },
+    Field { name: "speakWith", default: || json!("off"), check: |v| one_of(v, &SPEAK_WITH) },
+    Field { name: "speakFallback", default: || json!("off"), check: |v| one_of(v, &SPEAK_WITH) },
+    Field { name: "speakUrl", default: || json!("http://127.0.0.1:8880/v1"), check: is_voice_url },
+    Field { name: "speakModel", default: || json!("kokoro"), check: is_model_name },
+    Field { name: "speakVoice", default: || json!(""), check: is_voice_name },
     Field { name: "appAccess", default: app_access_default, check: is_app_access },
 ];
 
@@ -119,5 +142,26 @@ mod access_tests {
         for bad in [json!({}), json!({ "browser": "ask", "notes": "ask" }), json!({ "browser": "ask", "notes": "ask", "tasks": "sometimes" }), json!({ "browser": "ask", "notes": "ask", "tasks": "ask", "fax": "ask" }), json!("ask")] {
             assert!(!is_app_access(&bad), "{bad}");
         }
+    }
+}
+
+#[cfg(test)]
+mod voice_tests {
+    use super::*;
+
+    #[test]
+    fn voice_choices_are_kept_and_checked() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("preferences.json");
+        let mut p = open(file.clone());
+        assert_eq!(p.get()["listenWith"], "chat", "listening starts with the chat model's server");
+        assert_eq!(p.get()["speakWith"], "off", "speaking is off until chosen");
+        p.set(&json!({ "listenWith": "local", "listenUrl": "http://127.0.0.1:9000/v1", "speakWith": "elevenlabs", "speakVoice": "Rachel" }));
+        let again = open(file);
+        assert_eq!(again.get()["listenWith"], "local");
+        assert_eq!(again.get()["listenUrl"], "http://127.0.0.1:9000/v1");
+        assert_eq!(again.get()["speakVoice"], "Rachel");
+        assert!(!is_voice_url(&json!("ftp://x")) && !is_voice_url(&json!("http://a b")) && is_voice_url(&json!("https://api.example/v1")));
+        assert!(!one_of(&json!("whisper"), &LISTEN_WITH));
     }
 }

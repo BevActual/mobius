@@ -193,7 +193,7 @@ test('widths and modes survive a restart, and the settings page shows and resets
   await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
   await expect(page).toBeVisible();
-  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Appearance', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Appearance', exact: true }).click();
   await page.getByRole('tab', { name: 'Layout', exact: true }).click();
   await expect(page.getByRole('radio', { name: 'Floating' }).first()).toBeChecked();
   await expect(page.getByText('list 300 px, agent panel 500 px')).toBeVisible();
