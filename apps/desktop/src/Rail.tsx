@@ -172,7 +172,8 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   const [face, setFace] = useState<'app' | 'apps'>('app');
   const switching = expanded && face === 'apps';
   const asking = expanded && !switching && Boolean(mobius?.shown);
-  const showOwn = expanded && !switching && !settingsOpen && !asking;
+  // Settings is an app too: its sections take the sidebar while it is open.
+  const showOwn = expanded && !switching && !asking;
   const showApps = !asking && (!showOwn || !children);
   useEffect(() => { setFace('app'); }, [app, settingsOpen, expanded]);
   useEffect(() => {
@@ -255,7 +256,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
               }) : mobius.panel}
             </div>
           )}
-          {showOwn && !createInList && <div className="rail-new">{createButton}</div>}
+          {showOwn && !createInList && !settingsOpen && <div className="rail-new">{createButton}</div>}
         </>
       ) : (
         <div className="rail-top">

@@ -31,7 +31,7 @@ const keys = (action: string): Locator => page().getByTestId(`keys-${action}`);
 const openKeyboard = async () => {
   await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Keyboard', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Keyboard', exact: true }).click();
 };
 const prefs = () => shell().evaluate(() => window.mobius.preferences.get());
 const hook = async <T>(fn: (h: { quickEntry: { press(): void; active(): boolean } }) => T): Promise<T> => {

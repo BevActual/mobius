@@ -26,7 +26,7 @@ const visit = async (route: string, title: string) => {
 const openHistory = async () => {
   await openSettings(shell());
   await expect(settings()).toBeVisible();
-  await settings().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await settings().getByRole('tab', { name: 'History', exact: true }).click();
 };
 const pages = (): Locator => settings().getByRole('list', { name: 'Pages you visited' }).getByRole('listitem');
@@ -79,7 +79,7 @@ test('the settings search finds history', async () => {
   await expect(shell().getByRole('textbox', { name: 'Address or question' })).toBeVisible();
   await expect(shell().getByText('Core ready')).toBeVisible();
   await shell().keyboard.press('Control+,');
-  await settings().getByRole('searchbox', { name: 'Search settings' }).fill('clear history');
+  await shell().getByRole('searchbox', { name: 'Search settings' }).fill('clear history');
   await settings().getByRole('button', { name: /Pages you visited/ }).first().click();
   await expect(settings().getByRole('searchbox', { name: 'Search history' })).toBeVisible();
 });

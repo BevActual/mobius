@@ -96,7 +96,7 @@ for (const scheme of ['light', 'dark'] as const) {
       const page = shell.getByRole('region', { name: 'Settings' });
       await shell.waitForTimeout(800);
       await shot('3b-settings-opened');
-      const nav = page.getByRole('navigation', { name: 'Settings sections' });
+      const nav = shell.getByRole('navigation', { name: 'Settings sections' });
       const visit = async (section: string, tab: string | null, name: string) => {
         await nav.getByRole('button', { name: section, exact: true }).click();
         if (tab) await page.getByRole('tab', { name: tab, exact: true }).click();

@@ -27,7 +27,7 @@ const star = () => shell().getByRole('button', { name: /^(Bookmark this page|Rem
 const openBookmarks = async () => {
   await openSettings(shell());
   await expect(settings()).toBeVisible();
-  await settings().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await settings().getByRole('tab', { name: 'Bookmarks', exact: true }).click();
 };
 const saved = (): Locator => settings().getByRole('list', { name: 'Bookmarks' }).getByRole('listitem');

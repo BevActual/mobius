@@ -1260,3 +1260,30 @@ fn a_command_mobius_started_is_listed_read_and_stopped() {
     assert_eq!(list[0]["running"], true);
     call(&b, "code", "stopProcess", json!([1]));
 }
+
+#[test]
+fn voice_settings_are_kept_and_the_test_says_what_is_missing_without_any_key_in_the_answer() {
+    let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    // Off: nothing to try.
+    call(&b, "preferences", "set", json!([{ "speakWith": "off" }]));
+    assert_eq!(call(&b, "voice", "test", json!(["speak"]))["ok"], false);
+    // ElevenLabs without a key says where to add one.
+    call(&b, "preferences", "set", json!([{ "speakWith": "elevenlabs", "speakVoice": "Rachel" }]));
+    let missing = call(&b, "voice", "test", json!(["speak"]));
+    assert!(missing["error"].as_str().unwrap_or("").contains("Gateways"), "{missing}");
+    // A speech server on this computer that is not running says so, with its address.
+    call(&b, "preferences", "set", json!([{ "listenWith": "local", "listenUrl": "http://127.0.0.1:9/v1" }]));
+    let down = call(&b, "voice", "test", json!(["listen"]));
+    assert_eq!(down["ok"], false);
+    assert!(down["error"].as_str().unwrap_or("").contains("127.0.0.1:9"), "{down}");
+    // A bad address is refused, and the choices are kept in preferences.json.
+    call(&b, "preferences", "set", json!([{ "listenUrl": "ftp://nope" }]));
+    let kept: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(dir.path().join("preferences.json")).unwrap()).unwrap();
+    assert_eq!(kept["listenWith"], "local");
+    assert_eq!(kept["listenUrl"], "http://127.0.0.1:9/v1");
+    assert_eq!(kept["speakVoice"], "Rachel");
+    // ElevenLabs is a gateway for voice only: never a chat model.
+    let list = call(&b, "providers", "list", json!([]));
+    assert!(list.as_array().unwrap().iter().any(|p| p["id"] == "elevenlabs" && p["voiceOnly"] == true));
+    assert_eq!(call(&b, "providers", "use", json!(["elevenlabs", "x"]))["ok"], false);
+}
