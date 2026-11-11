@@ -152,3 +152,14 @@ test('a global shortcut another program already has is reported, not hidden', as
   await expect(page().getByTestId('quick-entry-taken')).toBeVisible();
   expect(await hook((h) => h.quickEntry.active())).toBe(false);
 });
+
+test('the launcher opens from the message box too, and starts new things in any app', async () => {
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).first().focus();
+  await shell().keyboard.press('Control+k');
+  await expect(launcher()).toBeFocused();
+  await launcher().fill('new document');
+  await expect(shell().getByRole('option', { name: /New document/ })).toBeVisible();
+  await shell().keyboard.press('Enter');
+  await expect(launcher()).toHaveCount(0);
+  await expect(shell().getByRole('button', { name: /Switch app\. Current: Docs/ })).toBeVisible();
+});

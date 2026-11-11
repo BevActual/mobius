@@ -6,6 +6,8 @@ describe('apps', () => {
     expect(askAbout('mail')).toBe('Ask about your mail');
     expect(askAbout('browser')).toBe('Ask about this page');
     expect(askAbout('search')).toBe('Ask Mobius');
+    expect(askAbout('docs', false)).toBe('Ask Mobius');
+    expect(askAbout('mail', false)).toBe('Ask about your mail');
   });
 
   it('every app belongs to one of the groups the hub shows', () => {

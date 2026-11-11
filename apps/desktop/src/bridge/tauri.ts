@@ -247,6 +247,7 @@ export function createTauriBridge(): MobiusBridge {
       setRule: (id, app, level) => call('projects', 'setRule', [id, app, level], () => ({ ok: false as const, message: 'Projects are not available.' })),
       addSide: (id, parent, conversation, bot, botName, ask) => call('projects', 'addSide', [id, parent, conversation, bot, botName, ask], () => ({ ok: false as const, message: 'Projects are not available.' })),
       report: (conversation, text) => call('projects', 'report', [conversation, text], () => ({ ok: false as const, message: 'Projects are not available.' })),
+      made: (id) => call('projects', 'made', [id], () => []),
       addThread: (id, conversation) => call('projects', 'addThread', [id, conversation], () => ({ ok: false as const, message: 'Projects are not available.' })),
       onChanged: (listener) => on<null>('mobius:projects-changed', () => listener()),
     },

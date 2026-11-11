@@ -167,7 +167,9 @@ export function groupSummary(name: string, argsList: readonly unknown[]): string
 
 /** Where a file a turn changed opens: the note, the list, the sheet, the calendar. */
 export function changeTarget(path: string): HubTarget | null {
-  const p = path.replace(/\\/g, '/');
+  const raw = path.replace(/\\/g, '/');
+  // A page's comments open the page they are on.
+  const p = raw.replace(/^(notes|docs|slides|research|reading)\/\.comments\/(.+)\.json$/i, '$1/$2.md');
   const rest = (prefix: string) => p.slice(prefix.length);
   const titled = (prefix: string, ext: RegExp) => { const r = rest(prefix); return { path: r, title: (r.split('/').pop() ?? r).replace(ext, '') }; };
   if (p.startsWith('notes/')) return { app: 'notes', ...titled('notes/', /\.md$/i) };

@@ -168,7 +168,8 @@ export interface WikiChange { id: string; from: string; page: string; text: stri
 export interface NoteVersion { whenMs: number; content: string; source?: 'kept' | 'checkpoint'; checkpoint?: string }
 /** A file added beside a page; `ref` is the link to it from the page, `image` whether it shows in the page. */
 /** A comment on a page: the words it is about (`quote`), what was said, and by whom (`you` or `Mobius`). */
-export interface NoteComment { id: string; quote: string; text: string; by: string; whenMs: number; resolved: boolean }
+/** `replyTo` is the id of the comment a reply answers: replies sit under it. */
+export interface NoteComment { id: string; quote: string; text: string; by: string; whenMs: number; resolved: boolean; replyTo?: string }
 export interface NoteAttachment { path: string; ref: string; name: string; image: boolean }
 /** A wiki page as it was at a checkpoint. */
 export interface WikiVersion { checkpoint: string; whenMs: number; content: string }
@@ -504,6 +505,8 @@ export interface MobiusBridge {
     addSide(id: string, parent: string, conversation: string, bot: string, botName: string, ask: string): Promise<ProjectInfo | NotesFailure>;
     /** A side thread finished: what it found, for the thread it was asked from. */
     report(conversation: string, text: string): Promise<ProjectInfo | NotesFailure>;
+    /** Workspace paths the project's threads made or changed, newest first. */
+    made?(id: string): Promise<string[] | NotesFailure>;
     onChanged(listener: () => void): () => void;
   };
   /** Only the desktop app: the workspace folder as a drive, for the person to look through. */

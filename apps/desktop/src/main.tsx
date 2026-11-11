@@ -20,6 +20,15 @@ declare global {
 // In the dev server with no shell around it, a stand-in bridge lets the interface be looked at alone.
 if (!installTauriBridge() && import.meta.env.DEV) installPreviewBridge();
 
+// No web page's right-click menu (Back, Reload, Inspect) anywhere in the app: a desktop app's own menus are the only ones.
+// Text keeps it, for Cut, Copy and Paste: a field, editable text, or words the person has selected.
+document.addEventListener('contextmenu', (event) => {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('input, textarea, [contenteditable=""], [contenteditable="true"]')) return;
+  if (window.getSelection()?.isCollapsed === false) return;
+  event.preventDefault();
+});
+
 // Shortcuts pressed before the saved ones are read are kept, and answered once they are (see App).
 startKeepingEarlyKeys();
 

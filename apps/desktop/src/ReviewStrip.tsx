@@ -4,8 +4,29 @@ import { ReviewActions } from './ReviewBar';
 import { changeTarget } from './actions';
 import type { HubTarget } from './search-hub';
 
+/**
+ * Pages' titles as their apps list them ("docs/Documents/Untitled.md" → "Release notes" once it has a heading), so a
+ * change is named by what the page says now rather than the file name it was made with.
+ */
+const knownTitles = new Map<string, string>();
+export function rememberTitles(root: string, notebooks: readonly { pages: readonly { path: string; title: string }[] }[]): void {
+  for (const key of [...knownTitles.keys()]) if (key.startsWith(`${root}/`)) knownTitles.delete(key);
+  for (const nb of notebooks) for (const page of nb.pages) if (page.title) knownTitles.set(`${root}/${page.path}`, page.title);
+}
+
 /** How a workspace path reads to a person: notes and task lists by name, other files by their path. */
-export function describeChange(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' | 'Tasks' | 'Calendar' | 'Code' | 'Design' | 'Board' | 'Report' | 'Article' | 'Database' | 'Photo' | 'Song' | 'Cut' | 'Skill' | 'File'; name: string } {
+export function describeChange(path: string): ReturnType<typeof describeFile> {
+  const p = path.replace(/\\/g, '/');
+  // A page's comments are kept beside it (docs/.comments/Documents/Plan.json): they read as the page's comments.
+  const comments = /^(notes|docs|slides|research|reading)\/\.comments\/(.+)\.json$/i.exec(p);
+  if (comments) { const page = describeChange(`${comments[1]}/${comments[2]}.md`); return { kind: page.kind, name: `Comments on ${page.name}` }; }
+  const title = knownTitles.get(p);
+  const described = describeFile(p);
+  const folder = p.split('/')[1];
+  return title ? { kind: described.kind, name: p.split('/').length === 3 && folder ? `${folder} / ${title}` : title } : described;
+}
+
+function describeFile(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' | 'Tasks' | 'Calendar' | 'Code' | 'Design' | 'Board' | 'Report' | 'Article' | 'Database' | 'Photo' | 'Song' | 'Cut' | 'Skill' | 'File'; name: string } {
   const strip = (p: string) => p.replace(/\.md$/i, '');
   if (path.startsWith('notes/')) return { kind: 'Note', name: strip(path.slice('notes/'.length)).replace('/', ' / ') };
   if (path.startsWith('docs/')) return { kind: 'Doc', name: strip(path.slice('docs/'.length)).replace('/', ' / ') };

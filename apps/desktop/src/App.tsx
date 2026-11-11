@@ -3,6 +3,7 @@ import { MenuBar } from './MenuBar';
 import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type SidebarMode } from '@mobius/shared';
+import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, isAvailable, type AppId, noteOpened, APPS } from './apps';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
@@ -67,7 +68,7 @@ import { usePhotos } from './usePhotos';
 import { editsPathFor } from './photo-edit';
 import { sheetContext } from './sheets-view';
 import { openOnChanges } from './open-on-changes';
-import { toolTarget } from './actions';
+import { changeTarget, toolTarget } from './actions';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { Desk } from './Desk';
 import { APP_ICONS, Rail } from './Rail';
@@ -132,6 +133,12 @@ export function App() {
   const boards = useNotes('boards');
   const research = useNotes('research');
   const reading = useNotes('reading');
+  // Changes are named by the pages' titles as they are now, not the file names they were made with.
+  useEffect(() => { rememberTitles('notes', notes.notebooks); }, [notes.notebooks]);
+  useEffect(() => { rememberTitles('docs', docs.notebooks); }, [docs.notebooks]);
+  useEffect(() => { rememberTitles('slides', slides.notebooks); }, [slides.notebooks]);
+  useEffect(() => { rememberTitles('research', research.notebooks); }, [research.notebooks]);
+  useEffect(() => { rememberTitles('reading', reading.notebooks); }, [reading.notebooks]);
   const wiki = useNotes('wiki');
   const wikiIncoming = useWikiIncoming();
   const projects = useProjects();
@@ -440,7 +447,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -1077,6 +1084,8 @@ export function App() {
   const launcherCommands = menus.flatMap((m) => m.items.flatMap((i) => (i.kind === 'item' && !i.disabled && !i.id.startsWith('go-') && !['undo', 'redo', 'cut', 'copy', 'paste', 'select-all', 'launcher', 'all-apps'].includes(i.id)
     ? [{ id: `${m.id}-${i.id}`, label: i.label.replace(/…$/, ''), detail: [m.label, i.keys ? describeCombo(i.keys, window.mobius.platform) : ''].filter(Boolean).join(' · '), run: i.run }]
     : [])));
+  // And everything you can start (New document, New deck…), wherever you are: the menus only hold the open app's.
+  for (const a of createActions) if (!launcherCommands.some((c) => c.label === a.label)) launcherCommands.push({ id: `new-${a.id}`, label: a.label, detail: appName(a.app), run: a.run });
   // On macOS the menus go in the system menu bar; elsewhere they are drawn in the toolbar.
   const nativeMenus = window.mobius.platform === 'darwin' && window.mobius.menu !== undefined;
   const menusNow = useRef(menus);
@@ -1250,6 +1259,7 @@ export function App() {
             onNewThread={(pid) => { const id = conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()); void projects.addThread(pid, id).then((ok) => { if (ok) { conversation.select(id); openApp('agent'); } }); }}
             onOpenMemory={(p) => { setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(`Projects/${p.name}.md`, p.name); }}
             onOpenFiles={(p) => { files.setPlace({ kind: 'folder', path: `projects/${p.name}` }); openApp('files'); }}
+            onOpenMade={(path) => { const target = changeTarget(path); if (target) openTarget(target); }}
           />
         );
       case 'wiki':
@@ -1499,7 +1509,7 @@ export function App() {
             void conversation.send(text, []);
           }}>
             <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
-            <input name="ask" type="text" aria-label="Ask Mobius" placeholder={settingsOpen ? 'Ask about settings' : askAbout(app)} autoComplete="off" disabled={!settings?.configured} />
+            <input name="ask" type="text" aria-label="Ask Mobius" placeholder={settingsOpen ? 'Ask about settings' : askAbout(app, !!surface.note || (inBrowser && surface.hasPage) || (inSheets && !!sheets.data) || (inPhoto && !!photos.open) || (inVideo && !!video.project) || (inCode && !!code.open))} autoComplete="off" disabled={!settings?.configured} />
             {activity && <span className="ask-working" role="status" aria-label="Agent activity">{activity.label}</span>}
           </form>
         )}

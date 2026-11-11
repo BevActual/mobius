@@ -477,7 +477,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 41, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 44, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -522,7 +522,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve"]);
     }
 
     #[derive(Default)]
@@ -1394,4 +1394,75 @@ fn the_quick_model_comes_from_a_gateway_and_goes_with_its_key() {
     assert_eq!(call(&b, "providers", "useQuick", json!(["none"]))["ok"], true);
     assert!(last().get("quick").is_none());
     assert_eq!(call(&b, "preferences", "get", json!([]))["quickModel"], "");
+}
+
+/// A thread started in a project tells the model which project it is in; other conversations say nothing of it.
+#[test]
+fn a_project_thread_tells_the_model_its_project() {
+    let (b, core, _events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    let project = call(&b, "projects", "create", json!(["Kestrel P2"]));
+    let id = project["id"].as_str().unwrap_or_else(|| panic!("{project}")).to_owned();
+    assert!(call(&b, "projects", "addThread", json!([id, "c-1"]))["threads"].as_array().is_some());
+    let last = || core.call("test.last_send", json!({}), Duration::from_secs(5)).unwrap();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "plan the build"]))["ok"], true);
+    let system = last()["system"].as_str().unwrap_or("").to_owned();
+    assert!(system.contains("project \"Kestrel P2\"") && system.contains("Projects/Kestrel P2.md"), "{system}");
+    assert_eq!(call(&b, "agent", "send", json!(["c-2", "hello"]))["ok"], true);
+    assert!(!last()["system"].as_str().unwrap_or("").contains("Kestrel"));
+    // Nothing made yet: the project's page lists nothing.
+    assert_eq!(call(&b, "projects", "made", json!([id])), json!([]));
+    assert_eq!(call(&b, "projects", "made", json!(["nope"]))["ok"], false);
+}
+
+/// What the person changes after a turn ends is theirs: never listed with the turn, never put back by its Undo.
+#[test]
+fn changes_after_a_turn_ends_do_not_join_it() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let ws = dir.path().join("workspace");
+    std::fs::create_dir_all(ws.join("notes")).unwrap();
+    std::fs::create_dir_all(ws.join("docs")).unwrap();
+    std::fs::write(ws.join("notes/Old.md"), "# Old\n").unwrap();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "write a note"]))["ok"], true);
+    let wait = |what: &dyn Fn() -> bool| {
+        let start = Instant::now();
+        while !what() {
+            assert!(start.elapsed() < Duration::from_secs(20), "timed out");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    // The turn's start is marked, then the turn writes its note and ends.
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"].as_array().is_some_and(|t| !t.is_empty()));
+    std::fs::write(ws.join("notes/Turn.md"), "# Turn\n").unwrap();
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"][0]["ended"] == true);
+    // The person writes their own doc afterwards.
+    std::fs::write(ws.join("docs/Mine.md"), "# Mine\n").unwrap();
+    assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/Turn.md"]));
+    assert_eq!(call(&b, "changes", "undoFile", json!(["c-1", "docs/Mine.md"]))["ok"], false, "not the turn's to put back");
+    let undone = call(&b, "changes", "undo", json!(["c-1"]));
+    assert_eq!(undone["ok"], true, "{undone}");
+    assert!(!ws.join("notes/Turn.md").exists(), "the turn's note is put back");
+    assert_eq!(std::fs::read_to_string(ws.join("docs/Mine.md")).unwrap(), "# Mine\n", "the person's doc stays");
+}
+
+/// Mobius reads the comments on a document, answers one under it and resolves it; Docs is told so it shows them.
+#[test]
+fn mobius_reads_answers_and_resolves_comments() {
+    let (b, _core, events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "docs", "createNotebook", json!(["Documents"]));
+    let page = call(&b, "docs", "createPage", json!(["Documents", "Release notes"]))["path"].as_str().unwrap().to_owned();
+    call(&b, "docs", "setComments", json!([page, [{ "id": "c1", "quote": "ships in May", "text": "Is May still right?", "by": "you", "whenMs": 1 }]]));
+    let tool = |name: &str, args: serde_json::Value| b.host_request("host.tool", &json!({ "tool": name, "arguments": args }));
+    let all = tool("comments.list", json!({})).unwrap();
+    assert!(all.as_str().unwrap().contains("Is May still right?") && all.as_str().unwrap().contains(&format!("docs/{page}")), "{all}");
+    let full = format!("docs/{page}");
+    assert_eq!(tool("comments.reply", json!({ "page": full, "id": "c1", "text": "Yes, May 14." })).unwrap(), json!(format!("Replied under the comment on {full}.")));
+    assert_eq!(tool("comments.resolve", json!({ "page": full, "id": "c1" })).unwrap(), json!(format!("Resolved the comment on {full}.")));
+    let kept = call(&b, "docs", "comments", json!([page]));
+    assert_eq!(kept[1]["by"], "Mobius");
+    assert_eq!(kept[1]["replyTo"], "c1");
+    assert!(kept.as_array().unwrap().iter().all(|c| c["resolved"] == true));
+    assert!(events.lock().unwrap().iter().any(|(n, v)| n == "mobius:docs-changed" && v["by"] == "assistant" && v["path"] == page.as_str()));
+    assert!(tool("comments.reply", json!({ "page": "sheets/Budget.csv", "id": "c1", "text": "no" })).unwrap_err().contains("Notes"));
+    assert!(tool("comments.reply", json!({ "page": full, "id": "c9", "text": "no" })).is_err());
 }

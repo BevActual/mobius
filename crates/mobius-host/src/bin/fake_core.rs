@@ -58,6 +58,7 @@ fn main() {
     let mut out = std::io::stdout();
     let mut lines = stdin.lock().lines();
     let mut last_configure = Value::Null;
+    let mut last_send = Value::Null;
     let mut log: Vec<Value> = Vec::new();
     while let Some(Ok(line)) = lines.next() {
         let Ok(message) = serde_json::from_str::<Value>(&line) else { continue };
@@ -108,6 +109,11 @@ fn main() {
             }
             // What the host last set the agent up with, for tests.
             "test.last_configure" => send(&mut out, &reply(last_configure.clone())),
+            "agent.send" => {
+                last_send = params.clone();
+                send(&mut out, &reply(json!({ "turn": 7 })));
+            }
+            "test.last_send" => send(&mut out, &reply(last_send.clone())),
             "agent.cancel" | "agent.take_over" | "agent.hand_back" | "agent.delete" | "permissions.resolve" | "permissions.revoke" | "agent.set_effort" | "permissions.set_mode" | "tools.register_external" => send(&mut out, &reply(json!({}))),
             m => match canned(m) {
                 Some(result) => send(&mut out, &reply(result)),

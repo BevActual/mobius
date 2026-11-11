@@ -658,7 +658,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in Mobius's last turn`; })() : "Mobius changed this page in its last turn."}<WhyThis conversation={review.conversation} /></span>
           <button type="button" className="review-btn" aria-pressed={diff !== null} onClick={() => (diff ? setDiff(null) : void showChanges())}>{diff ? 'Back to editing' : 'Show changes'}</button>
-          <ReviewActions onKeep={async () => { await settleKept(reviewBar.current); await keepChanges(); }} onDiscard={async () => { const paper = reviewBar.current?.parentElement?.querySelector('.note-paper'); await settleGone(paper); await undoChanges(); settleIn(paper); }} discardTitle="Put this page back as it was before that turn" keepTitle="Keep what the agent changed in that turn" />
+          <ReviewActions onKeep={async () => { await settleKept(reviewBar.current); await keepChanges(); }} onDiscard={async () => { const paper = reviewBar.current?.parentElement?.querySelector('.note-paper'); await settleGone(paper); await undoChanges(); settleIn(paper); }} discardTitle="Put this page back as it was before that turn" keepTitle="Keep what Mobius changed on this page in that turn" />
           {reviewProblem && <span className="review-problem" role="alert">{reviewProblem}</span>}
         </div>
       )}
