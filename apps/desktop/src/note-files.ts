@@ -5,12 +5,12 @@ export const isPageFile = (src: string) => !!src && !/^[a-z][a-z0-9+.-]*:/i.test
 
 /** Files read for the page once, by page and link, so typing does not read them again. */
 const shown = new Map<string, Promise<string | null>>();
-export function fileAddress(page: string, src: string): Promise<string | null> {
+export function fileAddress(page: string, src: string, kind: 'notes' | 'docs' = 'notes'): Promise<string | null> {
   if (!isPageFile(src)) return Promise.resolve(/^https:\/\//i.test(src) || src.startsWith('data:image/') ? src : null);
-  const key = `${page}\n${src}`;
+  const key = `${kind}\n${page}\n${src}`;
   let got = shown.get(key);
   if (!got) {
-    const read = window.mobius.notes?.asset;
+    const read = window.mobius[kind]?.asset;
     got = read ? read(page, src).then((r) => ('dataUrl' in r ? r.dataUrl : null)).catch(() => null) : Promise.resolve(null);
     shown.set(key, got);
     void got.then((v) => { if (v === null) shown.delete(key); });
@@ -35,7 +35,7 @@ export function readFile(file: File): Promise<string> {
 }
 
 /** Pictures in a page: kept in Markdown with the link as written (beside the page), shown from the page's files. */
-export function noteImage(page: () => string | undefined) {
+export function noteImage(page: () => string | undefined, kind: 'notes' | 'docs' = 'notes') {
   return Image.extend({
     addNodeView() {
       return ({ node }) => {
@@ -50,7 +50,7 @@ export function noteImage(page: () => string | undefined) {
           dom.dataset.missing = '';
           const at = page();
           if (!at) return;
-          void fileAddress(at, src).then((url) => {
+          void fileAddress(at, src, kind).then((url) => {
             if (img.dataset.src !== src) return;
             if (url) { img.src = url; delete dom.dataset.missing; }
             else { img.removeAttribute('src'); dom.dataset.missing = 'true'; dom.title = `${src.replace(/%20/g, ' ')} is not there`; }

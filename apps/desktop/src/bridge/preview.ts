@@ -2,6 +2,7 @@ import { tagsIn } from '../note-tags';
 import { linksIn } from '../note-links';
 import { PREVIEW_TASKS } from './preview-tasks';
 import { PREVIEW_CALENDAR } from './preview-calendar';
+import { PREVIEW_DOCS } from './preview-docs';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
 /**
@@ -64,6 +65,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'mini.isOpen': () => false,
   // Tasks are kept in memory for as long as the preview is open.
   ...PREVIEW_TASKS,
+  // Documents are kept in memory for as long as the preview is open.
+  ...PREVIEW_DOCS,
   'notes.list': () => NOTES(),
   'notes.search': ((query: string) => Object.entries(NOTE_TEXT).filter(([, t]) => t.toLowerCase().includes(query.toLowerCase())).map(([path, t]) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), notebook: path.split('/')[0], line: t.split('\n').find((l) => l.toLowerCase().includes(query.toLowerCase())) ?? '' }))) as never,
   // Typing in a note is kept for as long as the preview is open, so the Markdown it is saved as can be looked at.
@@ -89,8 +92,6 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'sheets.read': ((workbook: string, sheet: string) => ({ workbook, sheet, sheets: ['Sheet 1'], version: 'preview',
     cells: [['Item', 'Cost'], ['Packs', '48000'], ['Sled', '6500'], ['Total', '=B2+B3']],
     values: [['Item', 'Cost'], ['Packs', '48000'], ['Sled', '6500'], ['Total', '54500']] })) as never,
-  'docs.list': () => [{ name: 'P2 build', pages: [{ path: 'P2 build/Build brief.md', title: 'Build brief', modified: now - hour }] }],
-  'docs.read': ((path: string) => ({ path, content: '# Build brief\n\nThe P2 build runs the week of the 23rd at Northfield.\n\n## Packs\n\nEight 60 kWh packs from Veltro, six weeks from order.\n', modified: now })) as never,
   'notes.read': ((path: string) => ({ path, content: NOTE_TEXT[path] ?? '', modified: now })) as never,
   'changes.lastTurn': () => ({ checkpoint: TURN.start, files: TURN.files }),
   'changes.turns': () => ({ ok: true, turns: [TURN] }),

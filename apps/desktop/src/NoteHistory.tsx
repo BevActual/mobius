@@ -39,7 +39,7 @@ export function byDay(versions: readonly NoteVersion[], now: number): { day: str
  * A page's History, in place of the page: its earlier versions down the side, the chosen one compared with the page
  * now, and Restore. Restoring is saved like typing, so the page as it is now becomes a version too and can be put back.
  */
-export function NoteHistory({ path, text, onRestore, onClose }: { path: string; text: string; onRestore: (content: string, whenMs: number) => void; onClose: () => void }) {
+export function NoteHistory({ path, text, onRestore, onClose, kind = 'notes' }: { path: string; text: string; onRestore: (content: string, whenMs: number) => void; onClose: () => void; kind?: 'notes' | 'docs' }) {
   const [versions, setVersions] = useState<NoteVersion[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [chosen, setChosen] = useState(0);
@@ -48,7 +48,7 @@ export function NoteHistory({ path, text, onRestore, onClose }: { path: string; 
     let live = true;
     setVersions(null);
     setChosen(0);
-    const read = window.mobius.notes?.versions;
+    const read = window.mobius[kind]?.versions;
     if (!read) { setVersions([]); return; }
     void read(path).then((v) => {
       if (!live) return;

@@ -1,0 +1,121 @@
+/*
+ * Docs, in the manner of Pages: a sheet of paper on a quiet canvas, one calm toolbar of standard controls above it,
+ * the outline to one side and comments in the margin. Everything comes from the theme's tokens, so dark follows.
+ */
+
+/* The canvas and the paper. */
+.doc-editor .doc-body { background: color-mix(in srgb, var(--panel) 80%, var(--bg)); }
+.doc-editor .doc-scroll { padding: 28px var(--sp-6) 96px; scroll-padding-top: 24px; }
+.doc-editor .doc-paper { max-width: 816px; width: 100%; border-radius: 6px; box-shadow: 0 0 0 0.5px var(--hairline, var(--line)), 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 28px rgba(0, 0, 0, 0.06); }
+.doc-editor .doc-page { min-height: min(1056px, 80vh); padding: 72px 88px 96px; font-size: 16.5px; line-height: 1.65; caret-color: var(--accent); }
+.doc-editor .doc-page h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.022em; line-height: 1.15; }
+.doc-editor .doc-page h2 { font-size: 22px; font-weight: 650; letter-spacing: -0.012em; }
+.doc-editor .doc-page h3 { font-size: 17px; font-weight: 600; }
+.doc-editor .doc-page hr { border: 0; height: 1px; margin: 1.6em 0; background: var(--line); }
+.doc-editor .doc-page hr.ProseMirror-selectednode { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 6px; }
+.doc-editor .doc-page ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.doc-editor .doc-page h1.is-empty::before, .doc-editor .doc-page p.is-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; color: var(--muted); pointer-events: none; }
+.doc-editor .doc-page a { text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.doc-editor .doc-page ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
+.doc-editor .doc-page ul[data-type="taskList"] li { display: flex; gap: 10px; align-items: flex-start; }
+.doc-editor .doc-page ul[data-type="taskList"] li > label { flex: none; margin-top: 4px; }
+.doc-editor .doc-page ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
+.doc-editor .doc-page ul[data-type="taskList"] input { appearance: none; width: 16px; height: 16px; margin: 0; border-radius: 50%; border: 1.5px solid var(--muted); cursor: pointer; display: grid; place-items: center; }
+.doc-editor .doc-page ul[data-type="taskList"] input:checked { background: var(--accent); border-color: var(--accent); }
+.doc-editor .doc-page ul[data-type="taskList"] input:checked::after { content: ""; width: 7px; height: 4px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 0 1.8px 1.8px; transform: rotate(-45deg); }
+.doc-editor .doc-page li[data-checked="true"] > div { color: var(--muted); text-decoration: line-through; }
+.doc-editor .doc-page table { border-radius: 8px; overflow: hidden; border-style: hidden; box-shadow: 0 0 0 1px var(--line-strong); }
+.doc-editor .doc-page th { background: color-mix(in srgb, var(--panel) 70%, var(--bg)); }
+.doc-editor .doc-page .note-figure { margin: 16px 0; }
+.doc-editor .doc-page .note-figure img { display: block; max-width: 100%; max-height: 560px; border-radius: 8px; }
+.doc-editor .doc-page .note-figure.ProseMirror-selectednode img { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
+.doc-editor .doc-page .note-figure[data-missing="true"] { display: inline-flex; padding: 10px 14px; border-radius: 10px; background: var(--field); color: var(--muted); font-size: var(--fs-sm); }
+.doc-editor .doc-page .note-figure[data-missing="true"]::before { content: attr(title); }
+.doc-editor .doc-page .note-figure[data-missing="true"] img { display: none; }
+.doc-editor .doc-page .note-commented { background: color-mix(in srgb, #ffcc00 26%, transparent); border-bottom: 2px solid color-mix(in srgb, #ffb300 70%, transparent); }
+
+/* The toolbar: one row, grouped, quiet until used. */
+.doc-editor .doc-toolbar { gap: 1px; padding: 6px var(--sp-3); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; background: color-mix(in srgb, var(--bg) 88%, transparent); border-bottom: 0.5px solid var(--hairline, var(--line)); }
+@supports (backdrop-filter: blur(1px)) { .doc-editor .doc-toolbar { backdrop-filter: blur(20px) saturate(1.6); } }
+.doc-editor .doc-toolbar select { height: 28px; min-width: 112px; font-size: var(--fs-sm); }
+.doc-editor .doc-tool { flex: none; min-width: 30px; height: 28px; border-radius: 7px; color: color-mix(in srgb, var(--ink) 85%, var(--muted)); }
+.doc-editor .doc-tool:disabled { opacity: 0.35; background: none; }
+.doc-editor .doc-tool[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.doc-editor .doc-tool[aria-expanded="true"] { background: var(--soft); }
+.doc-editor .doc-tool-sep { flex: none; height: 16px; margin: 0 5px; background: var(--hairline, var(--line)); }
+.doc-tool-count { position: relative; }
+.doc-count { position: absolute; top: 1px; right: 0; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: #ffb300; color: #1d1d1f; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; }
+.doc-tool-mobius { padding: 0 6px; font-size: var(--fs-sm); font-weight: 600; color: var(--accent); white-space: nowrap; }
+.doc-editor .doc-tool:has(.doc-tool-mobius) { padding: 0 6px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: var(--radius-pill); margin-left: 4px; }
+.doc-editor .doc-tool:has(.doc-tool-mobius):hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* Menus from the toolbar. */
+.doc-menu { gap: 1px; padding: 5px; border: 0.5px solid var(--hairline, var(--line)); box-shadow: 0 10px 32px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.08); }
+.doc-menu button { padding: 5px 10px; border-radius: 6px; font-size: var(--fs-sm); }
+.doc-menu button:hover, .doc-menu button:focus-visible { background: var(--accent); color: var(--on-accent); }
+.doc-menu button:disabled { opacity: 0.4; background: none; color: inherit; }
+.doc-menu button.danger { color: var(--danger); }
+.doc-menu button.danger:hover { background: var(--danger); color: #fff; }
+.doc-menu hr { width: calc(100% - 16px); height: 1px; margin: 4px 8px; border: 0; background: var(--line); }
+
+/* Linking: a field under the toolbar, with the documents whose names match. */
+.doc-linkbar { position: relative; z-index: 4; display: flex; align-items: center; gap: var(--sp-2); padding: 8px var(--sp-3); border-bottom: 0.5px solid var(--hairline, var(--line)); background: var(--bg); }
+.doc-linkbar input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid transparent; background: var(--field); font: inherit; color: inherit; }
+.doc-linkbar input:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); background: var(--bg); }
+.doc-link-pages { position: absolute; top: calc(100% - 2px); left: var(--sp-3); width: min(420px, calc(100% - 24px)); margin: 0; padding: 5px; list-style: none; border-radius: var(--radius-group); background: var(--bg); box-shadow: var(--shadow-3); }
+.doc-link-pages li { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: var(--fs-sm); }
+.doc-link-pages li[aria-selected="true"], .doc-link-pages li:hover { background: var(--accent); color: var(--on-accent); }
+.doc-link-folder { margin-left: auto; font-size: var(--fs-xs); opacity: 0.7; }
+
+/* The outline: the heading you are in is marked. */
+.doc-editor .doc-outline { flex-basis: 220px; padding: 20px 10px; border-right: 0.5px solid var(--hairline, var(--line)); background: var(--bg); }
+.doc-editor .doc-outline-title { padding: 0 8px 8px; text-transform: none; }
+.doc-editor .doc-outline-item { position: relative; padding-top: 5px; padding-bottom: 5px; border-radius: 6px; color: color-mix(in srgb, var(--ink) 80%, var(--muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-editor .doc-outline-item[data-level="1"] { color: var(--ink); }
+.doc-editor .doc-outline-item[aria-current="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+
+/* Comments in the margin beside the page; under it when the window is narrow. */
+.doc-sheet { display: flex; align-items: flex-start; justify-content: center; gap: 16px; }
+.doc-sheet > .doc-paper { flex: 1 1 auto; min-width: 0; margin: 0; }
+.doc-margin { position: sticky; top: 0; flex: 0 0 260px; max-height: calc(100vh - 160px); overflow: auto; }
+.doc-margin .note-comments { width: auto; margin: 0; padding: 0; border: 0; }
+.doc-margin .note-comments h2 { padding: 0 6px 4px; }
+.doc-margin .note-comment { background: var(--bg); border-radius: 10px; box-shadow: 0 0 0 0.5px var(--hairline, var(--line)), 0 1px 3px rgba(0, 0, 0, 0.06); }
+@container (max-width: 1080px) {
+  .doc-sheet { flex-direction: column; align-items: center; }
+  .doc-sheet > .doc-paper { width: 100%; }
+  .doc-margin { position: static; flex: none; width: 100%; max-width: 816px; max-height: none; }
+}
+@container (max-width: 900px) {
+  .doc-editor .doc-page { padding: 48px 48px 72px; }
+  .doc-editor .doc-outline { flex-basis: 170px; }
+}
+
+/* The bar on chosen words, and what was just done. */
+.doc-selection { border: 0.5px solid var(--hairline, var(--line)); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08); }
+.doc-selection .selection-btn:disabled { opacity: 0.4; }
+.selection-sep { width: 1px; height: 16px; margin: 0 2px; background: var(--line); }
+.doc-banner { max-width: 816px; margin: 0 auto 12px; border-radius: var(--radius-group); }
+.doc-toast { position: absolute; z-index: 7; left: 50%; bottom: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px); padding: 5px 5px 5px 14px; border-radius: var(--radius-pill); background: var(--bg); box-shadow: var(--shadow-3); font-size: var(--fs-sm); white-space: nowrap; animation: app-in var(--dur-fast) var(--ease); }
+.doc-toast span { overflow: hidden; text-overflow: ellipsis; }
+
+/* The foot: counts on the left, whether it is saved on the right. */
+.doc-editor .doc-status { gap: 14px; justify-content: flex-start; padding: 5px var(--sp-4); border-top: 0.5px solid var(--hairline, var(--line)); background: var(--bg); font-variant-numeric: tabular-nums; }
+.doc-editor .doc-status .spacer { flex: 1; }
+.doc-saved[data-state="error"], .doc-saved[data-state="conflict"] { color: var(--danger); }
+
+/* No document open. */
+.doc-empty { display: grid; justify-items: center; gap: 10px; color: var(--muted); }
+.doc-empty svg { width: 56px; height: 56px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; opacity: 0.6; }
+.doc-empty .note-empty { margin: 0; }
+
+@media (prefers-reduced-motion: reduce) { .doc-toast { animation: none; } }
+
+/* Printing (and so saving as a PDF): only the paper. */
+@media print {
+  body * { visibility: hidden !important; }
+  .doc-paper, .doc-paper * { visibility: visible !important; }
+  .doc-paper { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; box-shadow: none !important; }
+  .doc-paper .doc-page { padding: 0; min-height: 0; color: #000; }
+  .doc-paper .note-commented { background: none; border: 0; }
+}

@@ -144,7 +144,7 @@ export function useNotes(kind: NotesKind = 'notes') {
   // Nothing typed is lost when the window goes away.
   useEffect(() => () => { if (live.current.status === 'unsaved') void save(); }, [save]);
 
-  return { available: api !== undefined, notebooks, page, text, status, message, open, edit, resolve, createNotebook, createPage, remove, search };
+  return { kind, available: api !== undefined, notebooks, page, text, status, message, open, edit, resolve, createNotebook, createPage, remove, search };
 }
 
 export type NotesState = ReturnType<typeof useNotes>;
