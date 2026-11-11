@@ -73,7 +73,14 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [grid, setGrid] = useState(0.25);
   const [drawLength, setDrawLength] = useState(1);
   const [zoom, setZoom] = useState(1);
-  const [gesture, setGesture] = useState<Gesture | null>(null);
+  const [gesture, setGestureState] = useState<Gesture | null>(null);
+  // The gesture is read back from a ref as well, so a pointer-up that comes before React has drawn the last move still
+  // sees where the drag got to.
+  const gestureRef = useRef<Gesture | null>(null);
+  const setGesture = useCallback((g: Gesture | null) => { gestureRef.current = g; setGestureState(g); }, []);
+  // The last press on a note, so a second press on it soon after takes it out. A double-click event is not used, since
+  // with the pointer captured by the roll it does not reach the note in every engine.
+  const lastPress = useRef<{ i: number; t: number; x: number; y: number } | null>(null);
   const [box, setBox] = useState<{ b0: number; b1: number; r0: number; r1: number } | null>(null);
   const [, setTick] = useState(0);
   const player = useRef<Player | null>(null);
@@ -254,6 +261,15 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     if (noteEl) {
       const i = Number(noteEl.dataset.i);
       const n = notes[i]!;
+      const last = lastPress.current;
+      if (last && last.i === i && e.timeStamp - last.t < 450 && Math.abs(e.clientX - last.x) + Math.abs(e.clientY - last.y) < 6) {
+        lastPress.current = null;
+        setGesture(null);
+        setNotes((ns) => removeNotes(ns, new Set([i])));
+        setPicked(new Set());
+        return;
+      }
+      lastPress.current = { i, t: e.timeStamp, x: e.clientX, y: e.clientY };
       const r = noteEl.getBoundingClientRect();
       const wasPicked = picked.has(i);
       if (!wasPicked) setPicked(e.shiftKey ? new Set([...picked, i]) : new Set([i]));
@@ -265,8 +281,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     const p = at(e);
     setGesture({ kind: 'empty', x: e.clientX, y: e.clientY, beat: p.beat, row: p.row, box: false, shift: e.shiftKey });
   };
-  const onRollMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const g = gesture;
+  const onRollMove = (e: { clientX: number; clientY: number }) => {
+    const g = gestureRef.current;
     if (!g) return;
     if (g.kind === 'move') {
       const db = Math.round((e.clientX - g.x) / rbw / grid) * grid;
@@ -284,17 +300,22 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       }
     }
   };
-  const onRollUp = () => {
-    const g = gesture;
+  const onRollUp = (e: { clientX: number; clientY: number }) => {
+    // Where the pointer let go counts too, in case its last move was never drawn.
+    onRollMove(e);
+    const g = gestureRef.current;
     setGesture(null);
     if (!g || !track) return;
     if (g.kind === 'move') {
+      if (g.moved) lastPress.current = null;
       if (g.moved && (g.db !== 0 || g.dr !== 0)) moveByRows(g.db, g.dr);
       else if (!g.moved && g.wasPicked && g.shift) setPicked(new Set([...picked].filter((i) => i !== g.hit)));
       else if (!g.moved && g.wasPicked && !g.shift) setPicked(new Set([g.hit]));
     } else if (g.kind === 'stretch') {
       if (g.dl !== 0) setNotes((n) => stretchNotes(n, picked, g.dl, total, Math.min(grid, 0.25)));
-    } else if (g.box && box) {
+    } else if (g.box) {
+      const p = at(e);
+      const box = { b0: g.beat, b1: p.beat, r0: g.row, r1: p.row };
       const pitches = [rows[box.r0]!.pitch, rows[box.r1]!.pitch];
       const inside = drums
         ? new Set(notes.flatMap((n, i) => { const r = rowOf(n.pitch); const [a, b] = box.r0 < box.r1 ? [box.r0, box.r1] : [box.r1, box.r0]; return r >= a && r <= b && n.start < Math.max(box.b0, box.b1) && n.start + n.length > Math.min(box.b0, box.b1) ? [i] : []; }))
@@ -475,7 +496,6 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                           aria-pressed={isPicked}
                           aria-label={`${r.label} at beat ${n.start + 1}, ${n.length} beats`}
                           style={{ left, width, transform: isPicked && dragShift ? `translateY(${dragShift.dr * ROW_H}px)` : undefined, ['--vel' as string]: n.velocity }}
-                          onDoubleClick={(e) => { e.stopPropagation(); setNotes((ns) => removeNotes(ns, new Set([j]))); setPicked(new Set()); }}
                         />
                       );
                     })}

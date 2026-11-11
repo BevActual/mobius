@@ -33,6 +33,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 async function openProjects(): Promise<void> {
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Projects');
+  // Enter opens the row that is chosen: wait until that is Projects, as a person sees it before pressing.
+  await expect(shell().getByRole('option', { name: /^Projects/, selected: true })).toBeVisible();
   await shell().keyboard.press('Enter');
   // Twice on CI (never here) the Projects page was not there after this. Say what the window showed instead, so the
   // cause can be seen rather than a test that times out on a closed page.

@@ -333,6 +333,22 @@ impl AgentService {
         self.apply_request(&Configure { base_url: base_url.to_owned(), model: model.to_owned(), api_key: key, clear_key, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true)
     }
 
+    /// Set the second model (asked when the first cannot answer), or none, keeping the first as it is. `key` is the
+    /// second model's own key; `None` means its server needs none.
+    pub fn use_fallback(&self, endpoint: Option<(&str, &str, Option<String>)>) -> Value {
+        let s = lock(&self.saved).clone();
+        if s.base_url.is_empty() {
+            return failed("Choose a chat model first.");
+        }
+        if let Some((_, model, _)) = endpoint
+            && !is_model_name(model)
+        {
+            return failed("That model cannot be used.");
+        }
+        let fallback = endpoint.map(|(base_url, model, key)| FallbackRequest { base_url: base_url.to_owned(), model: model.to_owned(), clear_key: key.is_none(), api_key: key });
+        self.apply_request(&Configure { base_url: s.base_url, model: s.model, api_key: None, clear_key: false, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true)
+    }
+
     /// Stop sending the saved key, if the agent is using this address. Used when a provider's key is removed.
     pub fn drop_key_for(&self, base_url: &str) {
         let s = lock(&self.saved).clone();
