@@ -1,6 +1,6 @@
 //! A stand-in for the core daemon, used only by this crate's tests. It speaks the same one-line JSON-RPC.
 //!
-//! `--never-start` exits at once. It answers `core.ping`, the `agent.*`, `permissions.*` and `events.*` calls the host
+//! `--never-start` exits at once; `--slow-start <ms>` reads nothing for that long (a core on a busy computer). It answers `core.ping`, the `agent.*`, `permissions.*` and `events.*` calls the host
 //! makes with fixed rows (some deliberately malformed), records every other call (`test.log` returns them), and
 //! answers anything else with `{"echo": <method>}`. Special methods: `test.notify`, `test.ask`, `test.fail`,
 //! `test.silent` (never answers) and `test.exit` (dies).
@@ -49,6 +49,10 @@ fn canned(method: &str) -> Option<Value> {
 fn main() {
     if std::env::args().any(|a| a == "--never-start") {
         std::process::exit(3);
+    }
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(ms) = args.iter().position(|a| a == "--slow-start").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<u64>().ok()) {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
     }
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();

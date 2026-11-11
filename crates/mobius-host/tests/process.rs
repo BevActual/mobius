@@ -150,6 +150,16 @@ fn a_crash_fails_the_waiting_call_and_the_core_is_restarted() {
 }
 
 #[test]
+fn a_core_slow_to_answer_when_it_starts_is_waited_for_not_ended() {
+    let seen = Seen::default();
+    // Longer than one ping waits: the host asks again instead of ending it as if it had hung.
+    let core = ready(&["--slow-start", "7000"], &seen, None);
+    assert!(!seen.logs.lock().unwrap().iter().any(|l| l.contains("exited") || l.contains("ending it")), "{:?}", seen.logs.lock().unwrap());
+    assert!(!seen.statuses.lock().unwrap().contains(&Status::Restarting));
+    core.stop();
+}
+
+#[test]
 fn a_core_that_keeps_crashing_ends_up_failed_and_calls_say_so() {
     let seen = Seen::default();
     let core = CoreProcess::start(options(fake(), &["--never-start"], &seen, None));
