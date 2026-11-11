@@ -104,7 +104,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   return (
     <aside className="side notes-side" aria-label={`${words.app} sidebar`}>
       <div className="side-head">
-        <span className="side-title">{words.groups}</span>
+        <span className="side-title" title={words.about}>{words.groups}</span>
         <span className="side-actions">
           {pin}
           <button type="button" className="strip-btn" aria-label={`New ${words.group}`} title={`New ${words.group}`} onClick={() => setNaming(true)}>
@@ -112,6 +112,10 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
           </button>
         </span>
       </div>
+      {/* New first, then Search, then the folders: one order in every app. New goes in the folder that is open (or the first). */}
+      {(openNotebook || words.defaultGroup) && (
+        <SideNew item={words.item} onNew={newItem} title={openNotebook ? `New ${words.item} in ${openNotebook}` : `New ${words.item}`} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
+      )}
       <input className="side-search" type="search" aria-label={`Search ${words.app.toLowerCase()}`} placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
@@ -147,13 +151,9 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         </ul>
       ) : (
         <div className="notes-list" role="tree" aria-label={words.groups}>
-          {/* New, as the list's first row, in the notebook that is open (or the first). */}
-          {(openNotebook || words.defaultGroup) && (
-            <SideNew item={words.item} onNew={newItem} title={openNotebook ? `New ${words.item} in ${openNotebook}` : `New ${words.item}`} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
-          )}
           {notes.notebooks.length === 0 && !naming && (
             <div className="side-empty notes-empty">
-              <p>{words.about}</p>
+              <p>No {words.items} yet.</p>
               <button type="button" className="btn primary" onClick={() => setNaming(true)}>New {words.group}</button>
             </div>
           )}
