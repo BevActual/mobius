@@ -75,7 +75,6 @@
 .slides-menu button:disabled { opacity: 0.4; }
 .slides-menu button[data-danger]:not(:hover):not(:focus-visible) { color: var(--danger); }
 .slides-menu kbd { all: unset; font-size: 11.5px; opacity: 0.55; }
-.slides-menu-sep { height: 0.5px; margin: 4px 8px; background: var(--line); }
 .slides-layouts { grid-template-columns: repeat(3, 120px); gap: 6px; padding: 8px; }
 .slides-layouts button { height: auto; flex-direction: column; align-items: stretch; gap: 4px; padding: 5px; font-size: var(--fs-xs); justify-content: flex-start; }
 .slides-layouts button > span:last-child { text-align: center; }

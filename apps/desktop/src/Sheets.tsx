@@ -1,5 +1,6 @@
 import { RowMark } from './RowMark';
 import { EmptyState } from './EmptyState';
+import { ContextMenu } from './ContextMenu';
 import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
@@ -761,7 +762,9 @@ function SheetTabs({ sheets, status }: { sheets: SheetsState; status: ReactNode 
   const data = sheets.data!;
   const [renaming, setRenaming] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ sheet: string; x: number; y: number } | null>(null);
+  const rename = (s: string) => { setRenaming(s); setName(s); };
   return (
     <div className="sheet-foot">
       <div className="sheet-tabs" role="tablist" aria-label="Sheets">
@@ -770,14 +773,27 @@ function SheetTabs({ sheets, status }: { sheets: SheetsState; status: ReactNode 
             <input autoFocus className="sheet-tab-name" aria-label="Sheet name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} onBlur={() => setRenaming(null)} onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
           </form>
         ) : (
-          <button key={s} type="button" role="tab" aria-selected={s === data.sheet} className="sheet-tab" title="Double-click to rename" onClick={() => void sheets.open(data.workbook, s)} onDoubleClick={() => { setRenaming(s); setName(s); }}>{s}</button>
+          <button key={s} type="button" role="tab" aria-selected={s === data.sheet} className="sheet-tab" title="Double-click to rename; right-click for more" onClick={() => void sheets.open(data.workbook, s)} onDoubleClick={() => rename(s)}
+            onContextMenu={(e) => { e.preventDefault(); setMenu({ sheet: s, x: e.clientX, y: e.clientY }); }}>{s}</button>
         )))}
         <button type="button" className="sheet-tab-add" aria-label="New sheet" title="New sheet" onClick={() => void sheets.addSheet(`Sheet ${data.sheets.length + 1}`)}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg>
         </button>
-        {data.sheets.length > 1 && (confirm
-          ? <button type="button" className="sheet-tab-delete" data-sure onClick={() => { setConfirm(false); void sheets.removeSheet(data.sheet); }} onBlur={() => setConfirm(false)}>Delete {data.sheet}</button>
-          : <button type="button" className="sheet-tab-delete" onClick={() => setConfirm(true)}>Delete sheet…</button>)}
+        {confirm && data.sheets.includes(confirm) && (
+          <span className="sheet-tab-confirm" role="alertdialog" aria-label={`Delete ${confirm}?`}>
+            <span>Delete “{confirm}” and its cells?</span>
+            <button type="button" className="btn" autoFocus onClick={() => setConfirm(null)}>Cancel</button>
+            <button type="button" className="btn danger" onClick={() => { const s = confirm; setConfirm(null); void sheets.removeSheet(s); }}>Delete</button>
+          </span>
+        )}
+        {menu && createPortal(
+          <ContextMenu x={menu.x} y={menu.y} label={menu.sheet} onClose={() => setMenu(null)} items={[
+            { action: 'open', label: 'Open', run: () => void sheets.open(data.workbook, menu.sheet) },
+            { action: 'rename', label: 'Rename…', run: () => rename(menu.sheet) },
+            { action: 'delete', label: 'Delete sheet…', danger: true, separated: true, disabled: data.sheets.length <= 1, run: () => setConfirm(menu.sheet) },
+          ]} />,
+          document.body,
+        )}
       </div>
       {status && <div className="sheet-status" role="status" aria-label="Selection">{status}</div>}
     </div>

@@ -85,9 +85,8 @@
 .sheet-tab-add { width: 26px; height: 26px; flex: none; display: inline-grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--muted); }
 .sheet-tab-add:hover { background: var(--soft); color: var(--ink); }
 .sheet-tab-add svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
-.sheet-tab-delete { height: 26px; margin-left: 6px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: var(--fs-sm); white-space: nowrap; }
-.sheet-tab-delete:hover { background: var(--soft); color: var(--ink); }
-.sheet-tab-delete[data-sure] { background: var(--danger); color: #fff; }
+.sheet-tab-confirm { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; font-size: var(--fs-sm); color: var(--ink); white-space: nowrap; }
+.sheet-tab-confirm .btn { height: 24px; padding: 0 10px; }
 .sheet-status { flex: none; display: flex; gap: 14px; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sheet-status b { color: var(--ink); font-weight: 600; margin-left: 3px; }
 @container (max-width: 640px) { .sheet-status span:nth-child(n+3) { display: none; } }

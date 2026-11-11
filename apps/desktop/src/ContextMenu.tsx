@@ -41,6 +41,8 @@ export interface ContextMenuItem {
   disabled?: boolean;
   /** A line before this item. */
   separated?: boolean;
+  /** Its keyboard shortcut, shown at the right, such as "Ctrl+D". */
+  keys?: string;
 }
 
 /**
@@ -86,6 +88,7 @@ export function ContextMenu({ x, y, label, items, onClose }: { x: number; y: num
         <button key={`${item.action ?? ''}-${item.label ?? ''}-${i}`} type="button" role="menuitem" className="context-menu-item" data-danger={item.danger || undefined} data-separated={item.separated || undefined} disabled={item.disabled} onClick={() => close(item.run)}>
           {item.action ? <ActionIcon action={item.action} /> : <span className="action-icon" aria-hidden="true" />}
           <span>{item.label ?? (item.action ? ACTION_LABELS[item.action] : '')}</span>
+          {item.keys && <kbd className="context-menu-keys">{item.keys}</kbd>}
         </button>
       ))}
     </div>

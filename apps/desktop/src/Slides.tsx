@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
@@ -147,25 +148,6 @@ function LayoutMenu({ anchor, onPick, onClose }: { anchor: DOMRect; onPick: (l: 
           <button key={l.id} ref={i === 0 ? first : undefined} type="button" role="menuitem" onClick={() => onPick(l)}>
             <span className="slides-layout-face"><SlideFace slide={l.make()} /></span>
             <span>{l.name}</span>
-          </button>
-        ))}
-      </div>
-    </>,
-    document.body,
-  );
-}
-
-/** A slide's right-click menu in the navigator. */
-function SlideMenu({ x, y, items, onClose }: { x: number; y: number; items: { label: string; keys?: string; danger?: boolean; disabled?: boolean; run: () => void }[]; onClose: () => void }) {
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => { box.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus(); }, []);
-  return createPortal(
-    <>
-      <div className="slides-scrim" onMouseDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
-      <div ref={box} className="slides-menu glass" role="menu" aria-label="Slide" style={{ top: Math.min(y, window.innerHeight - 220), left: Math.min(x, window.innerWidth - 220) }} onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
-        {items.map((it, n) => it.label === '-' ? <div key={`sep${n}`} className="slides-menu-sep" /> : (
-          <button key={it.label} type="button" role="menuitem" disabled={it.disabled} data-danger={it.danger || undefined} onClick={() => { onClose(); it.run(); }}>
-            <span>{it.label}</span>{it.keys && <kbd>{it.keys}</kbd>}
           </button>
         ))}
       </div>
@@ -326,15 +308,13 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
     );
   }
   const proposing = review && !kept && changed.size > 0;
-  const menuFor = (i: number) => [
-    { label: 'New slide', keys: '', run: () => insertAt(i + 1, LAYOUTS[1]!.make()) },
-    { label: 'Duplicate', keys: 'Ctrl+D', run: () => duplicate(i) },
-    { label: '-', run: () => {} },
-    { label: 'Move up', keys: 'Alt+↑', disabled: i === 0, run: () => moveTo(i, i - 1) },
+  const menuFor = (i: number): ContextMenuItem[] => [
+    { label: 'New slide', run: () => insertAt(i + 1, LAYOUTS[1]!.make()) },
+    { action: 'duplicate', keys: 'Ctrl+D', run: () => duplicate(i) },
+    { label: 'Move up', keys: 'Alt+↑', disabled: i === 0, run: () => moveTo(i, i - 1), separated: true },
     { label: 'Move down', keys: 'Alt+↓', disabled: i === slides.length - 1, run: () => moveTo(i, i + 2) },
     { label: 'Play from here', run: () => setPlaying(i) },
-    { label: '-', run: () => {} },
-    { label: 'Delete slide', keys: 'Delete', danger: true, disabled: slides.length <= 1, run: () => remove(i) },
+    { action: 'delete', label: 'Delete slide', keys: 'Delete', danger: true, disabled: slides.length <= 1, run: () => remove(i), separated: true },
   ];
   return (
     <section className="slides-page" aria-label={`Deck: ${deck.page.title}`} onKeyDown={onPageKey}>
@@ -452,7 +432,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
         )}
       </div>
       {layoutsAt && <LayoutMenu anchor={layoutsAt} onPick={pickLayout} onClose={() => setLayoutsAt(null)} />}
-      {menu && <SlideMenu x={menu.x} y={menu.y} items={menuFor(menu.i)} onClose={() => setMenu(null)} />}
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={`Slide ${menu.i + 1}`} items={menuFor(menu.i)} onClose={() => setMenu(null)} />, document.body)}
       {playing !== null && <Play slides={slides} start={Math.min(playing, slides.length - 1)} onClose={() => setPlaying(null)} />}
     </section>
   );

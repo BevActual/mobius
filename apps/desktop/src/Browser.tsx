@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { BookmarkEntry, BrowserTabState, DownloadEntry, HistoryEntry } from '@mobius/shared';
+import { createPortal } from 'react-dom';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { DownloadsButton } from './DownloadsList';
 import { FindBar } from './FindBar';
 import { quick } from './motion';
@@ -111,55 +113,31 @@ function useTabDrag(tabs: readonly BrowserTabState[]): TabDrag {
   };
 }
 
-/** A tab's right-click menu. It stays inside the sidebar, since the page is drawn over everything beside it. */
+/**
+ * A tab's right-click menu, the shared one. It is kept inside the sidebar, since the page is drawn over everything beside
+ * it, so it opens from a point that leaves room for it there.
+ */
 function TabMenu({ tab, x, y, tabs, onClose }: { tab: BrowserTabState; x: number; y: number; tabs: readonly BrowserTabState[]; onClose: () => void }) {
-  const box = useRef<HTMLDivElement>(null);
-  const [place, setPlace] = useState({ left: x, top: y });
-  useLayoutEffect(() => {
-    const el = box.current;
-    const side = el?.closest('.side')?.getBoundingClientRect();
-    if (!el || !side) return;
-    const r = el.getBoundingClientRect();
-    setPlace({ left: Math.max(side.left + 4, Math.min(x, side.right - r.width - 4)), top: Math.max(8, Math.min(y, window.innerHeight - r.height - 8)) });
-    el.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-  }, [x, y]);
-  useEffect(() => {
-    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) onClose(); };
-    window.addEventListener('mousedown', away);
-    window.addEventListener('blur', onClose);
-    return () => { window.removeEventListener('mousedown', away); window.removeEventListener('blur', onClose); };
-  }, [onClose]);
+  const side = document.querySelector('.side')?.getBoundingClientRect();
+  const left = side ? Math.max(side.left + 4, Math.min(x, side.right - TAB_MENU_W - 4)) : x;
   const others = tabs.filter((t) => t.id !== tab.id && !t.pinned);
   const below = tabs.slice(tabs.findIndex((t) => t.id === tab.id) + 1).filter((t) => !t.pinned);
   const web = /^https?:/i.test(tab.url);
-  const item = (label: string, run: () => void, opts: { disabled?: boolean; danger?: boolean; keys?: string } = {}) => (
-    <button type="button" role="menuitem" className="tab-menu-item" data-danger={opts.danger || undefined} disabled={opts.disabled} onClick={() => { onClose(); run(); }}>
-      <span>{label}</span>{opts.keys && <kbd>{opts.keys}</kbd>}
-    </button>
-  );
-  const move = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    e.preventDefault();
-    const items = [...(box.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
-    const at = items.indexOf(document.activeElement as HTMLButtonElement);
-    items[(at + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
-  };
-  return (
-    <div ref={box} className="tab-menu" role="menu" aria-label={tab.title} style={place} onKeyDown={move}>
-      {window.mobius.browser.pin && item(tab.pinned ? 'Unpin tab' : 'Pin tab', () => window.mobius.browser.pin?.(tab.id, !tab.pinned))}
-      {window.mobius.browser.duplicate && item('Duplicate tab', () => void window.mobius.browser.duplicate?.(tab.id))}
-      {item('Reload', () => window.mobius.browser.reload(tab.id), { disabled: !tab.url })}
-      <div className="tab-menu-sep" role="separator" />
-      {item('Copy link', () => void navigator.clipboard?.writeText(tab.url).catch(() => {}), { disabled: !web })}
-      {item('Bookmark…', () => { window.mobius.browser.activate(tab.id); void window.mobius.bookmarks.toggle(); }, { disabled: !web || !tab.active })}
-      <div className="tab-menu-sep" role="separator" />
-      {item('Close tab', () => window.mobius.browser.close(tab.id), { keys: 'Ctrl+W' })}
-      {item('Close tabs below', () => below.forEach((t) => window.mobius.browser.close(t.id)), { disabled: below.length === 0 })}
-      {item('Close other tabs', () => others.forEach((t) => window.mobius.browser.close(t.id)), { disabled: others.length === 0, danger: true })}
-    </div>
-  );
+  const api = window.mobius.browser;
+  const items: ContextMenuItem[] = [
+    ...(api.pin ? [{ action: tab.pinned ? 'unpin' as const : 'pin' as const, label: tab.pinned ? 'Unpin tab' : 'Pin tab', run: () => api.pin?.(tab.id, !tab.pinned) }] : []),
+    ...(api.duplicate ? [{ action: 'duplicate' as const, label: 'Duplicate tab', run: () => void api.duplicate?.(tab.id) }] : []),
+    { label: 'Reload', run: () => api.reload(tab.id), disabled: !tab.url },
+    { action: 'copy', label: 'Copy link', run: () => void navigator.clipboard?.writeText(tab.url).catch(() => {}), disabled: !web, separated: true },
+    { label: 'Bookmark…', run: () => { api.activate(tab.id); void window.mobius.bookmarks.toggle(); }, disabled: !web || !tab.active },
+    { label: 'Close tab', run: () => api.close(tab.id), separated: true },
+    { label: 'Close tabs below', run: () => below.forEach((t) => api.close(t.id)), disabled: below.length === 0 },
+    { label: 'Close other tabs', run: () => others.forEach((t) => api.close(t.id)), disabled: others.length === 0, danger: true },
+  ];
+  return createPortal(<ContextMenu x={left} y={y} label={tab.title} items={items} onClose={onClose} />, document.body);
 }
+/** About as wide as the tab menu draws, to keep it clear of the page. */
+const TAB_MENU_W = 210;
 
 /**
  * The tabs, as Safari's and Arc's sidebars keep them: pinned tabs in their own group above the rest, actions only on the

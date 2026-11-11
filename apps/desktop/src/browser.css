@@ -37,13 +37,6 @@
 .browser-side .tab[data-drop="after"]::after { bottom: -2px; }
 
 /* A tab's right-click menu. */
-.tab-menu { position: fixed; z-index: 901; display: grid; min-width: 200px; padding: 5px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
-.tab-menu-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-md, 13px); text-align: left; cursor: default; }
-.tab-menu-item:hover:not(:disabled), .tab-menu-item:focus-visible { background: var(--accent); color: var(--on-accent, #fff); outline: none; }
-.tab-menu-item:disabled { opacity: 0.4; }
-.tab-menu-item[data-danger]:not(:hover):not(:focus-visible) { color: var(--danger); }
-.tab-menu-item kbd { all: unset; font-size: 11.5px; opacity: 0.55; }
-.tab-menu-sep { height: 0.5px; margin: 4px 8px; background: var(--line); }
 
 /* The address bar: the site's name at rest, the whole address while editing. */
 .address[data-editing] .address-rest { display: none; }
