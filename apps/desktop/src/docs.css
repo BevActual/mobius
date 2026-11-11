@@ -36,7 +36,6 @@
 
 /* The toolbar: one row, grouped, quiet until used. */
 .doc-editor .doc-toolbar { gap: 1px; padding: 6px var(--sp-3); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; background: color-mix(in srgb, var(--bg) 88%, transparent); border-bottom: 0.5px solid var(--hairline, var(--line)); }
-@supports (backdrop-filter: blur(1px)) { .doc-editor .doc-toolbar { backdrop-filter: blur(20px) saturate(1.6); } }
 .doc-editor .doc-toolbar select { height: 28px; min-width: 112px; font-size: var(--fs-sm); }
 .doc-editor .doc-tool { flex: none; min-width: 30px; height: 28px; border-radius: 7px; color: color-mix(in srgb, var(--ink) 85%, var(--muted)); }
 .doc-editor .doc-tool:disabled { opacity: 0.35; background: none; }

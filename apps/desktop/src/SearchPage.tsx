@@ -33,10 +33,12 @@ interface Props {
   /** The scope, when the sidebar holds it (see SearchSidebar); the page keeps its own otherwise. */
   filter?: HubFilter;
   onFilter?: (filter: HubFilter) => void;
+  /** Show the scope chips under the field: only when the sidebar, which lists the same scopes, is not showing. */
+  chips?: boolean;
 }
 
 /** Search: one box for everything Mobius keeps (conversations, notes, tasks and pages), or a question for the agent. */
-export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFolders, workbooks, made, onOpen, onAsk, canAsk, focusToken, filter: shared, onFilter }: Props) {
+export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFolders, workbooks, made, onOpen, onAsk, canAsk, focusToken, filter: shared, onFilter, chips = true }: Props) {
   const [query, setQuery] = useState('');
   const [own, setOwn] = useState<HubFilter>('all');
   const filter = shared ?? own;
@@ -91,11 +93,11 @@ export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFo
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5" /><path d="m13 13 3.5 3.5" /></svg>
           <input ref={field} type="search" aria-label="Search everything" placeholder="Search conversations, notes, documents, sheets, mail, tasks and pages" value={query} onChange={(e) => setQuery(e.target.value)} />
         </form>
-        <div className="search-filters" role="radiogroup" aria-label="Show">
+        {chips && <div className="search-filters" role="radiogroup" aria-label="Show">
           {FILTERS.map((f) => (
             <button key={f.id} type="button" role="radio" aria-checked={filter === f.id} className="search-filter" onClick={() => setFilter(f.id)}>{f.label}</button>
           ))}
-        </div>
+        </div>}
       </div>
       <div className="search-results">
         {asking && canAsk && (

@@ -37,7 +37,7 @@
 .code-page .code-found { position: absolute; height: 20px; border-radius: 3px; background: color-mix(in srgb, #ffd60a 38%, transparent); pointer-events: none; }
 .code-page .code-found[data-current] { background: color-mix(in srgb, #ffd60a 80%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, #ff9f0a 70%, transparent); }
 .code-page .code-area::selection { background: color-mix(in srgb, var(--accent) 26%, transparent); }
-.code-page .code-bar { position: absolute; top: 8px; right: 18px; z-index: 3; display: flex; align-items: center; gap: 2px; padding: 3px 3px 3px 10px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5); box-shadow: 0 0 0 0.5px var(--line), 0 6px 20px rgba(0, 0, 0, 0.14); }
+.code-page .code-bar { position: absolute; top: 8px; right: 18px; z-index: 3; display: flex; align-items: center; gap: 2px; padding: 3px 3px 3px 10px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 96%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 6px 20px rgba(0, 0, 0, 0.14); }
 .code-page .code-bar input { width: 200px; height: 26px; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); }
 .code-page .code-bar .btn { height: 24px; padding: 0 10px; font-size: var(--fs-sm); }
 .code-page .code-bar .strip-btn { min-width: 26px; height: 26px; }
@@ -54,7 +54,7 @@
 
 /* Quick open, as Xcode's Open Quickly: a field and a list, over the editor. */
 .code-page .code-quick-wrap { position: absolute; inset: 0; z-index: 20; display: flex; justify-content: center; align-items: flex-start; padding-top: 72px; background: color-mix(in srgb, #000 8%, transparent); }
-.code-page .code-quick { width: min(560px, calc(100% - 48px)); max-height: 60%; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(28px) saturate(1.6); -webkit-backdrop-filter: blur(28px) saturate(1.6); box-shadow: 0 0 0 0.5px var(--line), 0 18px 48px rgba(0, 0, 0, 0.24); animation: code-pop 140ms var(--ease, ease-out); }
+.code-page .code-quick { width: min(560px, calc(100% - 48px)); max-height: 60%; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 18px 48px rgba(0, 0, 0, 0.24); animation: code-pop 140ms var(--ease, ease-out); }
 @keyframes code-pop { from { opacity: 0; transform: translateY(-4px) scale(0.99); } }
 @media (prefers-reduced-motion: reduce) { .code-page .code-quick { animation: none; } }
 .code-page .code-quick input { height: 46px; padding: 0 16px; border: 0; border-bottom: 0.5px solid var(--line); outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 17px; }
@@ -90,7 +90,7 @@
 .code-side .code-confirm div { display: flex; justify-content: flex-end; gap: 6px; }
 .code-side .code-confirm .btn { height: 26px; }
 
-.code-menu { position: fixed; z-index: 901; display: grid; min-width: 190px; padding: 5px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
+.code-menu { position: fixed; z-index: 901; display: grid; min-width: 190px; padding: 5px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
 .code-menu button { height: 26px; padding: 0 10px; border-radius: 6px; text-align: left; font-size: var(--fs-md, 13px); color: var(--ink); cursor: default; }
 .code-menu button:hover, .code-menu button:focus-visible { background: var(--accent); color: var(--on-accent, #fff); outline: none; }
 .code-menu button[data-danger]:not(:hover):not(:focus-visible) { color: var(--danger); }

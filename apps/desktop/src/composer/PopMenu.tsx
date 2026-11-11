@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useMorphIn } from '../motion';
 
 interface Props {
   /** Names the button for people using a screen reader. */
@@ -55,6 +56,9 @@ export function PopMenu({ label, trigger, className = 'pill', disabled, title, o
     list[at < 0 ? (event.key === 'ArrowDown' ? 0 : list.length - 1) : next]?.focus();
   };
 
+  // The menu grows out of the button that opened it.
+  const list = useRef<HTMLDivElement>(null);
+  useMorphIn(list, open, 'left');
   return (
     <span className="popmenu" ref={root} onKeyDown={onKeyDown}>
       <button
@@ -75,7 +79,7 @@ export function PopMenu({ label, trigger, className = 'pill', disabled, title, o
         {trigger}
       </button>
       {open && (
-        <div className="popmenu-list" id={id} role="menu" aria-label={label}>
+        <div ref={list} className="popmenu-list" id={id} role="menu" aria-label={label}>
           {children(close)}
         </div>
       )}

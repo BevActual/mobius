@@ -5,7 +5,7 @@
 
 /* The head: back, Today and forward at the start; the view in the middle; quick add and New event at the end. */
 /* A row that wraps rather than overlaps: in a narrow window the quick add and New event go to a second line. */
-.calendar-page .cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 10px var(--sp-4); border-bottom: 1px solid var(--line); }
+.calendar-page .cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 10px var(--sp-4); }
 .cal-head-start, .cal-head-end { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .cal-head-start { flex: 1 0 auto; }
 .cal-head-end { flex: 1 1 280px; justify-content: flex-end; gap: var(--sp-2); }

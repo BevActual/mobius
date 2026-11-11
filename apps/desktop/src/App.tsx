@@ -431,7 +431,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || 'New conversation') : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? (tasks.all[tasks.view.name] ?? []) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
@@ -866,9 +866,9 @@ export function App() {
       void navigator.clipboard?.readText().then((text) => document.execCommand('insertText', false, text)).catch(() => document.execCommand('paste'));
       return;
     }
-    // Canvas, Design and Slides keep their own history: what the menu's Undo means there, outside a text field.
+    // Canvas, Design, Slides and Photo keep their own history: what the menu's Undo means there, outside a text field.
     const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement || (document.activeElement as HTMLElement | null)?.isContentEditable;
-    if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign || inSlides) && !typing) { sendCommand(command); return; }
+    if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign || inSlides || inPhoto) && !typing) { sendCommand(command); return; }
     document.execCommand(command);
   };
   const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice') => { setSettingsSection(section); setSettingsOpen(true); };
@@ -1203,6 +1203,7 @@ export function App() {
             focusToken={searchFocus}
             filter={searchFilter}
             onFilter={setSearchFilter}
+            chips={!(showWide || (hasLeft && leftOpen))}
             canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
             onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}
             onOpen={openTarget}
@@ -1384,7 +1385,7 @@ export function App() {
       </Rail>
       <header className="context-strip" data-quiet={showWide || undefined}>
         <div className="strip-left" role="group" aria-label="Window">
-          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
+          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : inSearch ? 'Show scopes' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
         </div>
@@ -1420,6 +1421,8 @@ export function App() {
             {activity && <span className="ask-working" role="status" aria-label="Agent activity">{activity.label}</span>}
           </form>
         )}
+        {/* Words and icons never share a capsule: the update notice stands on its own, before the icons. */}
+        <div className="strip-texts"><UpdateNotice /></div>
         <div className="strip-right" role="group" aria-label="Applications">
           <button type="button" className="strip-btn" data-mini-toggle aria-pressed={miniOpen} aria-label={miniOpen ? 'Close Little Mobius' : 'Open Little Mobius'} title={withKeys(miniOpen ? 'Close the small agent window' : 'Little Mobius: the agent in a small window above your other apps', bindings.littleMobius)} onClick={toggleMini}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3.5" width="14" height="13" rx="3" /><rect x="9.5" y="9.5" width="5.5" height="5" rx="1.5" /></svg>
@@ -1427,7 +1430,6 @@ export function App() {
           {!narrow && <button type="button" className="strip-btn" data-split-toggle aria-pressed={split} aria-label={split ? 'Close split view' : 'Split view'} title={withKeys(split ? 'Show one app' : 'Show two apps side by side', bindings.splitView)} onClick={toggleSplit}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="6.5" height="11" rx="2" /><rect x="11" y="4.5" width="6.5" height="11" rx="2" /></svg>
           </button>}
-          <UpdateNotice />
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
         </div>
       </header>
