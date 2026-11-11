@@ -561,7 +561,9 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
     );
   }
   const title = liveTitle(docs.text, docs.page.title || path?.split('/')[1]?.replace(/\.md$/, '') || '');
-  const showing = review && !kept && diff;
+  // A document Mobius wrote from nothing is shown as the page itself, outlined, not as a list of added lines.
+  const wholeNew = Boolean(review && !kept && diff && before === null);
+  const showing = review && !kept && diff && !wholeNew;
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
@@ -629,7 +631,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
             {review && !kept && (
               <div ref={reviewBar} className="note-review doc-review" role="status">
                 <span className="review-dot" aria-hidden="true" />
-                <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `Mobius changed ${c.added + c.removed === 1 ? 'one line' : `${c.added + c.removed} lines`} here in its last turn.`; })() : 'Mobius changed this document in its last turn.'}<WhyThis conversation={review.conversation} /></span>
+                <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return wholeNew ? 'Mobius wrote this document in its last turn.' : `Mobius changed ${c.added + c.removed === 1 ? 'one line' : `${c.added + c.removed} lines`} here in its last turn.`; })() : 'Mobius changed this document in its last turn.'}<WhyThis conversation={review.conversation} /></span>
                 <ReviewActions
                   onKeep={async () => { const page = reviewBar.current?.parentElement; await Promise.all([settleKept(reviewBar.current), settleKept(page?.querySelector('.doc-proposals'))]); await keepAll(); }}
                   onDiscard={async () => { const paper = reviewBar.current?.parentElement?.querySelector('.doc-sheet'); await Promise.all([settleGone(paper), settleGone(reviewBar.current?.parentElement?.querySelector('.doc-proposals'))]); await discardAll(); settleIn(paper); }} />
@@ -637,7 +639,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
             )}
             {problem && <p className="tasks-message" role="alert">{problem}</p>}
             {showing && <Proposals diff={diff} onDiscard={discardOne} />}
-            <div className="doc-sheet">
+            <div className="doc-sheet" data-new={wholeNew || undefined}>
               <EditorContent editor={editor} className="doc-paper" />
               {margin && (
                 <aside className="doc-margin" aria-label="Comments on this document">

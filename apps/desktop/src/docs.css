@@ -76,6 +76,7 @@
 /* Comments in the margin beside the page; under it when the window is narrow. */
 .doc-sheet { display: flex; align-items: flex-start; justify-content: center; gap: 16px; }
 .doc-sheet > .doc-paper { flex: 1 1 auto; min-width: 0; margin: 0; }
+.doc-sheet[data-new] > .doc-paper { outline: 1.5px dashed color-mix(in srgb, var(--accent) 60%, var(--bg)); outline-offset: 6px; }
 .doc-margin { position: sticky; top: 0; flex: 0 0 260px; max-height: calc(100vh - 160px); overflow: auto; }
 .doc-margin .note-comments { width: auto; margin: 0; padding: 0; border: 0; }
 .doc-margin .note-comments h2 { padding: 0 6px 4px; }
