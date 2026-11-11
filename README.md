@@ -40,5 +40,19 @@ On GitHub, **Checks** (`.github/workflows/ci.yml`) runs the types, the TypeScrip
 every push and pull request. **Windows end-to-end** (`.github/workflows/windows-e2e.yml`) runs the Playwright suite
 against the real app on Windows for pull requests and pushes to `main`, and by hand for a branch or a few test files.
 
+**Driving the real app from Claude Code.** `apps/desktop/scripts/drive-mcp.mjs` is a dev-only MCP server (stdio) that
+starts the build from this clone (`target/debug`, or `target/release` when asked) and drives its window through the web
+view's debugging port, as the end-to-end tests do: no screen capture or OS permission is needed. Its tools are
+`launch` (a fresh data folder, or a kept one by name; optionally a scripted model's URL), `screenshot`, `snapshot` (the
+accessibility tree), `click` (by role and name, or text), `type`, `press`, `open_app`, `hook` (resize, theme, notices)
+and `close`. It runs in test mode with a data folder of its own; your real data is used only with `realData: true`.
+Build first (`npm run build -w @mobius/desktop`, then `cargo build --workspace --bins`), then register it once:
+
+```
+claude mcp add --scope project mobius-drive -- node apps/desktop/scripts/drive-mcp.mjs
+```
+
+(This writes `.mcp.json` at the root, so any Claude Code session in the clone can use it. Node must be on the PATH.)
+
 
 `npm run app -- --webview` uses the system web view instead of Chromium.
