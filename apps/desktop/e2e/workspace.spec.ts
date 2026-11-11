@@ -79,7 +79,7 @@ test('Search finds notes, tasks and pages in one place and opens each in its own
   await expect(results.getByRole('button')).toHaveCount(2);
   await expect(results).toContainText('Notes › Home');
   await expect(results).toContainText('Tasks › Inbox');
-  await page.getByRole('radio', { name: 'Tasks' }).click();
+  await shell().getByRole('navigation', { name: 'Search in' }).getByRole('button', { name: 'Tasks' }).click();
   await expect(results.getByRole('button')).toHaveCount(1);
   await results.getByRole('button', { name: /Buy tulip bulbs/ }).click();
   await showApps();
@@ -88,7 +88,7 @@ test('Search finds notes, tasks and pages in one place and opens each in its own
 
   await showApps();
   await railButton('Search').click();
-  await page.getByRole('radio', { name: 'All' }).click();
+  await shell().getByRole('navigation', { name: 'Search in' }).getByRole('button', { name: 'All' }).click();
   await page.getByRole('searchbox', { name: 'Search everything' }).fill('frost');
   await page.getByRole('list', { name: 'Results' }).getByRole('button', { name: /Garden/ }).click();
   await expect(shell().getByRole('textbox', { name: 'Note text' })).toContainText('tulips before the frost');
@@ -418,14 +418,27 @@ test('design review: the title bar names the app, nothing claims a page it canno
   const scopes = shell().getByRole('navigation', { name: 'Search in' });
   await expect(scopes.getByRole('button')).toHaveCount(9);
   await scopes.getByRole('button', { name: 'Tasks' }).click();
-  await expect(shell().locator('.search-page').getByRole('radio', { name: 'Tasks' })).toHaveAttribute('aria-checked', 'true');
+  await expect(scopes.getByRole('button', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page');
   await expect(rail().getByRole('button', { name: 'Create' })).toHaveCount(0);
+  // The scopes show once: in the sidebar while it shows, as chips under the field when it is folded away.
+  const chips = shell().locator('.search-page').getByRole('radiogroup', { name: 'Show' });
+  await expect(chips).toHaveCount(0);
+  await rail().getByRole('button', { name: 'Collapse sidebar' }).click();
+  const scopesToggle = shell().getByRole('button', { name: 'Show scopes' });
+  if ((await scopesToggle.getAttribute('aria-pressed')) === 'true') await scopesToggle.click();
+  await expect(chips.getByRole('radio', { name: 'Tasks' })).toHaveAttribute('aria-checked', 'true');
+  await scopesToggle.click();
+  await expect(chips).toHaveCount(0);
+  await rail().getByRole('button', { name: 'Expand sidebar' }).click();
   // The Agent home: what is in your apps is as wide as the message box, and centred with it.
   await open('Agent');
-  const desk = (await shell().locator('.chat.full .desk').boundingBox())!;
-  const box = (await shell().locator('.chat.full .composer').boundingBox())!;
-  expect(Math.abs(desk.width - box.width)).toBeLessThan(12);
-  expect(Math.abs(desk.x + desk.width / 2 - (box.x + box.width / 2))).toBeLessThan(6);
+  // Measured once the page has settled (it grows in as the app opens).
+  const offset = async () => {
+    const desk = (await shell().locator('.chat.full .desk').boundingBox())!;
+    const box = (await shell().locator('.chat.full .composer').boundingBox())!;
+    return Math.max(Math.abs(desk.width - box.width), Math.abs(desk.x + desk.width / 2 - (box.x + box.width / 2)));
+  };
+  await expect.poll(offset).toBeLessThan(2);
   // From Mobius: a filter in the Tasks sidebar, not a second list of the same rows.
   await composer().fill('Remind me to water the plants');
   await composer().press('Enter');

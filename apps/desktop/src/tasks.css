@@ -199,7 +199,6 @@
 
 /* ---------- Undo ---------- */
 .tasks-undo { position: absolute; z-index: 30; left: 50%; bottom: var(--sp-6); transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border: 0.5px solid var(--line); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--bg) 82%, transparent); box-shadow: var(--shadow-2); font-size: var(--fs-md); white-space: nowrap; animation: tasks-up var(--dur-med) var(--ease); }
-@supports (backdrop-filter: blur(1px)) { .tasks-undo { backdrop-filter: blur(20px) saturate(1.6); } }
 .tasks-undo .btn { height: 26px; border-radius: var(--radius-pill); color: var(--accent); font-weight: var(--fw-semibold); }
 .tasks-undo-x { width: 24px; height: 24px; padding: 0; border-radius: 50%; color: var(--muted); }
 @keyframes tasks-up { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }

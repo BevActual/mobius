@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { APP_GROUPS, APPS, recentApps, type AppId, type AppInfo } from './apps';
 import { APP_ICONS } from './Rail';
+import { useMorphIn } from './motion';
 
 export interface HubAction { id: string; label: string; app: AppId; run: () => void }
 
@@ -49,6 +50,8 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
+  // It grows out of the All apps button that opened it, not from the middle of the window.
+  useMorphIn(dialog, open, 'left');
 
   useEffect(() => {
     const el = dialog.current;

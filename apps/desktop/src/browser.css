@@ -37,7 +37,7 @@
 .browser-side .tab[data-drop="after"]::after { bottom: -2px; }
 
 /* A tab's right-click menu. */
-.tab-menu { position: fixed; z-index: 901; display: grid; min-width: 200px; padding: 5px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
+.tab-menu { position: fixed; z-index: 901; display: grid; min-width: 200px; padding: 5px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
 .tab-menu-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-md, 13px); text-align: left; cursor: default; }
 .tab-menu-item:hover:not(:disabled), .tab-menu-item:focus-visible { background: var(--accent); color: var(--on-accent, #fff); outline: none; }
 .tab-menu-item:disabled { opacity: 0.4; }
@@ -58,7 +58,7 @@
 @keyframes address-load { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 @media (prefers-reduced-motion: reduce) { .address-progress::before { animation: none; width: 100%; opacity: 0.5; } .browser-side .tab-loading { animation: none; } }
 
-.address-suggestions { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 900; margin: 0; padding: 5px; list-style: none; border-radius: 12px; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
+.address-suggestions { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 900; margin: 0; padding: 5px; list-style: none; border-radius: 12px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
 .address-suggestion { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 7px; cursor: default; }
 .address-suggestion[aria-selected="true"] { background: var(--accent); color: var(--on-accent, #fff); }
 .address-suggestion svg { flex: none; width: 15px; height: 15px; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }

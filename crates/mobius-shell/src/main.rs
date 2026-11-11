@@ -610,7 +610,10 @@ fn main() {
             let size = window.inner_size()?.to_logical::<f64>(scale);
             #[cfg(target_os = "linux")]
             let _ = WEB_DATA.set(data_dir.join("webview"));
-            let interface_view = WebviewBuilder::new("main", WebviewUrl::default());
+            let interface_view = WebviewBuilder::new("main", WebviewUrl::default())
+                // What the system asks of the interface before it draws: no see-through glass when transparency effects
+                // are off (Windows Settings, Personalization, Colors), as prefers-reduced-transparency may not say.
+                .initialization_script(format!("window.__MOBIUS_SYSTEM__ = {{ reducedTransparency: {} }};", transparency_off()));
             #[cfg(windows)]
             let interface_view = match webview2_args() { Some(args) => interface_view.additional_browser_args(&args), None => interface_view };
             #[cfg(target_os = "linux")]
@@ -731,5 +734,26 @@ fn main() {
             }
         }),
         Err(error) => eprintln!("the Mobius shell could not start: {error}"),
+    }
+}
+
+/// Transparency effects are off in Windows (or MOBIUS_REDUCE_TRANSPARENCY=1 says so, for tests).
+fn transparency_off() -> bool {
+    if std::env::var("MOBIUS_REDUCE_TRANSPARENCY").is_ok_and(|v| v == "1") {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        use windows::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
+        use windows::core::w;
+        let mut value: u32 = 1;
+        let mut size = u32::try_from(std::mem::size_of::<u32>()).unwrap_or(4);
+        // SAFETY: value and size point at a u32 and its size, as RRF_RT_REG_DWORD asks.
+        let read = unsafe { RegGetValueW(HKEY_CURRENT_USER, w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"), w!("EnableTransparency"), RRF_RT_REG_DWORD, None, Some(std::ptr::from_mut(&mut value).cast()), Some(&mut size)) };
+        read.is_ok() && value == 0
+    }
+    #[cfg(not(windows))]
+    {
+        false
     }
 }

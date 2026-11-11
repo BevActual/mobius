@@ -23,6 +23,10 @@ if (!installTauriBridge() && import.meta.env.DEV) installPreviewBridge();
 // Shortcuts pressed before the saved ones are read are kept, and answered once they are (see App).
 startKeepingEarlyKeys();
 
+// No see-through glass when the system asks for none: the shell reads Windows' Transparency effects setting, which
+// prefers-reduced-transparency may not follow.
+if ((window as unknown as { __MOBIUS_SYSTEM__?: { reducedTransparency?: boolean } }).__MOBIUS_SYSTEM__?.reducedTransparency) document.documentElement.dataset.transparency = 'reduced';
+
 // The saved preferences first (a moment, from this computer), so the window opens with the person's shortcuts working.
 await Promise.race([preloadPreferences(), new Promise((resolve) => setTimeout(resolve, 1500))]);
 
