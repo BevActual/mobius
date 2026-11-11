@@ -158,9 +158,9 @@ fn window_for(base_url: &str, model: &str, explicit: Option<u64>, known: &KnownW
 /// The address that means "Claude through the Claude Code CLI on this computer" instead of an HTTP server.
 pub const CLAUDE_CODE_ADDRESS: &str = "claude-code://subscription";
 
-/// The address that means "the ChatGPT plan's Codex endpoint, with the sign-in token as the key".
+/// The address that means "the ChatGPT plan through OpenAI's public Responses API, with the sign-in token as the key".
 pub const CHATGPT_ADDRESS: &str = "chatgpt://subscription";
-pub const CHATGPT_UPSTREAM: &str = "https://chatgpt.com/backend-api/codex";
+pub const CHATGPT_UPSTREAM: &str = "https://api.openai.com/v1";
 
 /// How to run the Claude Code provider. Tests point it at a fake CLI and a fake Anthropic server.
 #[derive(Debug, Clone, Default)]

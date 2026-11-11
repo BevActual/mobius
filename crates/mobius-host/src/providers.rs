@@ -52,7 +52,8 @@ pub struct Subscription {
     pub address: &'static str,
     pub note: &'static str,
     /// How signing in works: `cli` (the service's own app keeps the sign-in) or `device` (a code you enter on the
-    /// service's site; Mobius keeps the token in the system secret store).
+    /// service's site), or `browser` (you sign in on the service's page and come back; Mobius keeps the token in the system
+    /// secret store).
     pub kind: &'static str,
 }
 
@@ -72,12 +73,12 @@ pub const SUBSCRIPTIONS: &[Subscription] = &[
         id: "chatgpt",
         name: "ChatGPT subscription",
         address: CHATGPT_ADDRESS,
-        note: "Your ChatGPT Plus, Pro or Team plan, the way the Codex app uses it. Requests count against the plan's Codex limits. You sign in on OpenAI's site with a code; the sign-in is kept in this computer's secret store and only ever sent to OpenAI.",
-        kind: "device",
+        note: "Your ChatGPT plan, through OpenAI's Sign in with ChatGPT for open-source apps. Requests count against your plan's usage. You sign in on ChatGPT's own page; the sign-in is kept in this computer's secret store and only ever sent to OpenAI.",
+        kind: "browser",
     },
 ];
 
-/// Models the ChatGPT plan's Codex endpoint accepts (after Hermes Agent's list), newest first.
+/// Models to offer for the ChatGPT plan when OpenAI's own list for the account cannot be had, newest first.
 pub const CHATGPT_MODELS: &[(&str, &str)] = &[("gpt-5.5", "GPT-5.5"), ("gpt-5.4", "GPT-5.4"), ("gpt-5.4-mini", "GPT-5.4 mini"), ("gpt-6-sol", "GPT-6 Sol"), ("gpt-6-luna", "GPT-6 Luna")];
 
 pub fn subscription_models(s: &Subscription) -> &'static [(&'static str, &'static str)] {

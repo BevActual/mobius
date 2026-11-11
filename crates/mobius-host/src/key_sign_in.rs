@@ -6,17 +6,14 @@
 //! 3. Send the code and the secret to the service, which returns a key. The key then goes into the secret store,
 //!    the same as a pasted one.
 //!
-//! The callback only listens on 127.0.0.1, only until the sign-in ends, and only accepts the `state` it sent.
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream};
+//! The callback is a `loopback::Callback`.
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
+
+use crate::loopback::{Callback, challenge, random_text};
 
 pub const OPENROUTER: &str = "https://openrouter.ai";
 /// OpenRouter's codes are good for ten minutes.
@@ -42,28 +39,6 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-fn random_text(bytes: usize) -> Result<String, String> {
-    let mut buffer = vec![0u8; bytes];
-    getrandom::fill(&mut buffer).map_err(|e| format!("No randomness for the sign-in: {e}"))?;
-    Ok(URL_SAFE_NO_PAD.encode(buffer))
-}
-
-/// The S256 code challenge for a verifier: base64url of its SHA-256, without padding.
-pub fn challenge(verifier: &str) -> String {
-    URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
-}
-
-fn page(title: &str, text: &str) -> String {
-    format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>{title}</title><style>body{{font:15px system-ui,sans-serif;display:grid;place-items:center;height:90vh;margin:0;color:#222;background:#f5f5f7}}@media(prefers-color-scheme:dark){{body{{color:#eee;background:#1c1c1e}}}}main{{max-width:28rem;text-align:center}}h1{{font-size:20px}}</style></head><body><main><h1>{title}</h1><p>{text}</p></main></body></html>"
-    )
-}
-
-fn respond(stream: &mut TcpStream, status: &str, body: &str) {
-    let head = format!("HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nConnection: close\r\nContent-Length: {}\r\n\r\n", body.len());
-    let _ = stream.write_all(head.as_bytes()).and_then(|()| stream.write_all(body.as_bytes())).and_then(|()| stream.flush());
-}
-
 impl KeySignIn {
     /// `site` is `OPENROUTER` except in tests.
     pub fn new(site: &str) -> KeySignIn {
@@ -83,14 +58,12 @@ impl KeySignIn {
         if let Some((url, _)) = &lock(&self.state).pending {
             return Ok(url.clone());
         }
-        let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("Could not listen for the sign-in: {e}"))?;
-        listener.set_nonblocking(true).map_err(|e| e.to_string())?;
-        let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+        let callback = Callback::listen("/callback")?;
         let verifier = random_text(32)?;
         let state = random_text(16)?;
         let mut url = url::Url::parse(&format!("{}/auth", self.site)).map_err(|e| e.to_string())?;
         url.query_pairs_mut()
-            .append_pair("callback_url", &format!("http://localhost:{port}/callback"))
+            .append_pair("callback_url", &format!("http://localhost:{}/callback", callback.port()))
             .append_pair("code_challenge", &challenge(&verifier))
             .append_pair("code_challenge_method", "S256")
             .append_pair("state", &state)
@@ -104,7 +77,10 @@ impl KeySignIn {
         }
         let me = Arc::clone(self);
         std::thread::spawn(move || {
-            let result = me.wait(&listener, &verifier, &state, &cancel);
+            let result = callback.wait("OpenRouter", &state, &cancel, MAX_WAIT, |query| {
+                let code = query.get("code").filter(|c| !c.is_empty() && c.len() <= 2048).ok_or("OpenRouter sent no sign-in code.")?;
+                me.exchange(code, &verifier)
+            });
             {
                 let mut s = lock(&me.state);
                 s.pending = None;
@@ -121,58 +97,8 @@ impl KeySignIn {
         }
     }
 
-    fn wait(&self, listener: &TcpListener, verifier: &str, state: &str, cancel: &AtomicBool) -> Result<String, String> {
-        let started = Instant::now();
-        loop {
-            if cancel.load(Ordering::SeqCst) {
-                return Err("cancelled".into());
-            }
-            if started.elapsed() > MAX_WAIT {
-                return Err("The sign-in timed out after 10 minutes. Try again.".into());
-            }
-            match listener.accept() {
-                Ok((stream, _)) => {
-                    if let Some(result) = self.answer(stream, verifier, state) {
-                        return result;
-                    }
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(100)),
-                Err(e) => return Err(format!("The sign-in stopped listening: {e}")),
-            }
-        }
-    }
-
-    /// One request to the callback. `None` means the request was not the sign-in (a favicon, a stray page, the wrong
-    /// state), so keep waiting.
-    fn answer(&self, mut stream: TcpStream, verifier: &str, state: &str) -> Option<Result<String, String>> {
-        let _ = stream.set_nonblocking(false);
-        let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
-        let mut line = String::new();
-        BufReader::new(Read::by_ref(&mut stream).take(8 * 1024)).read_line(&mut line).ok()?;
-        let target = line.split_whitespace().nth(1).unwrap_or("");
-        let parsed = url::Url::parse(&format!("http://localhost{target}")).ok().filter(|u| u.path() == "/callback");
-        let Some(parsed) = parsed else {
-            respond(&mut stream, "404 Not Found", &page("Not here", "This address is only for signing in to Mobius."));
-            return None;
-        };
-        let query = |name: &str| parsed.query_pairs().find(|(k, _)| k == name).map(|(_, v)| v.into_owned());
-        if query("state").as_deref() != Some(state) {
-            respond(&mut stream, "400 Bad Request", &page("This sign-in is out of date", "Start the sign-in again from Mobius Settings."));
-            return None;
-        }
-        let Some(code) = query("code").filter(|c| !c.is_empty() && c.len() <= 2048) else {
-            respond(&mut stream, "200 OK", &page("Sign-in cancelled", "You can close this tab and go back to Mobius."));
-            return Some(Err("The sign-in was cancelled.".into()));
-        };
-        let result = self.exchange(&code, verifier);
-        match &result {
-            Ok(_) => respond(&mut stream, "200 OK", &page("You're signed in", "Mobius has its key. You can close this tab and go back to Mobius.")),
-            Err(e) => respond(&mut stream, "200 OK", &page("Sign-in didn't finish", e)),
-        }
-        Some(result)
-    }
-
     fn exchange(&self, code: &str, verifier: &str) -> Result<String, String> {
+        use std::io::Read;
         let body = json!({ "code": code, "code_verifier": verifier, "code_challenge_method": "S256" }).to_string();
         let response = self.agent.post(&format!("{}/api/v1/auth/keys", self.site)).header("Content-Type", "application/json").send(body.as_bytes()).map_err(|e| format!("Could not reach OpenRouter: {e}"))?;
         let status = response.status().as_u16();
@@ -190,6 +116,8 @@ impl KeySignIn {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::net::TcpListener;
     use std::sync::mpsc;
 
     /// A pretend OpenRouter: it gives a key only for the code "good-code" with the verifier that matches the challenge.
@@ -234,12 +162,6 @@ mod tests {
 
     fn param(url: &str, name: &str) -> String {
         url::Url::parse(url).unwrap().query_pairs().find(|(k, _)| k == name).unwrap().1.into_owned()
-    }
-
-    #[test]
-    fn the_challenge_is_base64url_sha256() {
-        // The example from RFC 7636, appendix B.
-        assert_eq!(challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"), "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
     }
 
     #[test]

@@ -202,10 +202,10 @@ function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged
   const [model, setModel] = useState(a.models[0]?.id ?? '');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const device = a.kind === 'device';
+  const browser = a.kind === 'browser';
   const check = useCallback(() => { setStatus(null); void api.accountStatus(a.id).then(setStatus); }, [api, a.id]);
   useEffect(check, [check]);
-  // A device sign-in finishes on the service's site: keep asking quietly while a code is waiting.
+  // A browser sign-in finishes on the service's page: keep asking quietly while it is waiting.
   const waiting = status?.pending ?? null;
   useEffect(() => {
     if (!waiting) return;
@@ -216,7 +216,10 @@ function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged
   const signIn = async () => {
     const r = await api.signIn(a.id);
     setProblem(r.ok ? null : r.error);
-    if (r.ok && device) void api.accountStatus(a.id).then(setStatus);
+    if (r.ok && browser) {
+      if (r.url) void window.mobius.browser.open(r.url);
+      void api.accountStatus(a.id).then(setStatus);
+    }
   };
   const signOut = async () => {
     await api.signOut(a.id);
@@ -231,7 +234,7 @@ function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged
     if (!r.ok) { setProblem(r.error); return; }
     setProblem(null); setChoosing(false); onChanged();
   };
-  const said = status === null ? 'Checking…' : !status.installed ? 'Claude Code is not installed' : status.signedIn ? `Signed in${status.account ? ` as ${status.account}` : ''}` : waiting ? 'Waiting for you to enter the code' : 'Not signed in';
+  const said = status === null ? 'Checking…' : !status.installed ? 'Claude Code is not installed' : status.signedIn ? `Signed in${status.account ? ` as ${status.account}` : ''}` : waiting ? 'Waiting for you to sign in' : 'Not signed in';
   return (
     <li className="prow" aria-label={a.name} data-active={a.active || undefined}>
       <div className="prow-main">
@@ -240,23 +243,22 @@ function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged
       </div>
       <span className="prow-status" role="status" data-has-key={status?.signedIn === true}>{said}</span>
       <span className="prow-actions">
-        {status?.installed && !status.signedIn && !waiting && <button type="button" className="btn" aria-label={`Sign in to ${a.name}`} onClick={() => void signIn()}>Sign in…</button>}
+        {status?.installed && !status.signedIn && !waiting && <button type="button" className="btn" aria-label={`Sign in to ${a.name}`} onClick={() => void signIn()}>{browser ? `Continue with ${a.name.replace(/ subscription$/, '')}` : 'Sign in…'}</button>}
         {waiting && <button type="button" className="btn" onClick={() => void api.cancelSignIn(a.id).then(check)}>Cancel</button>}
-        {device && status?.signedIn && <button type="button" className="btn" aria-label={`Sign out of ${a.name}`} onClick={() => void signOut()}>Sign out</button>}
-        {!device && status !== null && <button type="button" className="btn" aria-label={`Check ${a.name} again`} onClick={check}>Check again</button>}
+        {browser && status?.signedIn && status.manageUsage && <button type="button" className="btn link" onClick={() => void window.mobius.browser.open(status.manageUsage!)}>Manage usage</button>}
+        {browser && status?.signedIn && <button type="button" className="btn" aria-label={`Sign out of ${a.name}`} onClick={() => void signOut()}>Sign out</button>}
+        {!browser && status !== null && <button type="button" className="btn" aria-label={`Check ${a.name} again`} onClick={check}>Check again</button>}
         {status?.signedIn && !choosing && <button type="button" className="btn" aria-label={`Use ${a.name}`} onClick={() => setChoosing(true)}>Use…</button>}
       </span>
       {status && !status.installed && status.hint && <span className="prow-note prow-problem">{status.hint}</span>}
-      {!device && status?.installed && !status.signedIn && <span className="prow-note prow-problem">Sign in opens Claude Code's own sign-in in a window. Come back and choose Check again when it is done.</span>}
+      {!browser && status?.installed && !status.signedIn && <span className="prow-note prow-problem">Sign in opens Claude Code's own sign-in in a window. Come back and choose Check again when it is done.</span>}
       {waiting && (
-        <div className="prow-form device-code" aria-label="Sign-in code">
-          <span className="prow-note">Enter this code on OpenAI's sign-in page:</span>
-          <code className="device-code-value">{waiting.code}</code>
-          <button type="button" className="btn" onClick={() => void navigator.clipboard?.writeText(waiting.code)}>Copy code</button>
-          <button type="button" className="btn primary" onClick={() => void window.mobius.browser.open(waiting.url)}>Open the sign-in page</button>
+        <div className="prow-form" aria-label="Signing in">
+          <span className="prow-note">Finish signing in on {a.name.replace(/ subscription$/, '')}'s page. Mobius picks it up by itself.</span>
+          <button type="button" className="btn link" onClick={() => void window.mobius.browser.open(waiting.url)}>Open the page again</button>
         </div>
       )}
-      {device && !waiting && !status?.signedIn && status?.hint && <span className="field-error prow-problem" role="alert">{status.hint}</span>}
+      {browser && !waiting && !status?.signedIn && status?.hint && <span className="field-error prow-problem" role="alert">{status.hint}</span>}
       {choosing && (
         <form className="prow-form" onSubmit={(e) => { e.preventDefault(); void use(); }}>
           <select aria-label={`${a.name} model`} value={model} onChange={(e) => setModel(e.target.value)}>

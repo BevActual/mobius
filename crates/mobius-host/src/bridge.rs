@@ -233,7 +233,7 @@ pub struct Bridge {
 
 impl Bridge {
     pub fn new(core: Arc<CoreProcess>, data_dir: PathBuf, emit: Emit, secrets: Arc<dyn Secrets>) -> Bridge {
-        let chatgpt = Arc::new(Mutex::new(Arc::new(crate::chatgpt::ChatGpt::new(crate::chatgpt::ISSUER, secrets.clone()))));
+        let chatgpt = Arc::new(Mutex::new(Arc::new(crate::chatgpt::ChatGpt::new(crate::chatgpt::ISSUER, crate::chatgpt::API, secrets.clone()))));
         let calendar_accounts = Arc::new(crate::calendar_accounts::Accounts::new(&data_dir, secrets.clone()));
         let agent = AgentService::new(core.clone(), data_dir.join("agent-settings.json"), secrets.clone());
         let source = chatgpt.clone();
@@ -1469,7 +1469,7 @@ impl Bridge {
     /// Sign in to ChatGPT at this pretend OpenAI. Does nothing unless the test hooks are on.
     pub fn use_chatgpt_for_tests(&self, issuer: &str) {
         if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
-            *lock(&self.chatgpt) = Arc::new(crate::chatgpt::ChatGpt::new(issuer, self.secrets.clone()).with_poll(std::time::Duration::from_millis(200)));
+            *lock(&self.chatgpt) = Arc::new(crate::chatgpt::ChatGpt::new(issuer, &format!("{}/v1", issuer.trim_end_matches('/')), self.secrets.clone()));
         }
     }
 
@@ -1485,7 +1485,7 @@ impl Bridge {
             "signIn" => {
                 let emit = self.emit.clone();
                 match chatgpt.start_sign_in(Arc::new(move |_| emit("mobius:providers-changed", Value::Null))) {
-                    Ok(pending) => json!({ "ok": true, "code": pending.code, "url": pending.url }),
+                    Ok(pending) => json!({ "ok": true, "url": pending.url }),
                     Err(e) => failed(e),
                 }
             }
@@ -1501,10 +1501,11 @@ impl Bridge {
                 (self.emit)("mobius:providers-changed", Value::Null);
                 json!({ "ok": true })
             }
-            "models" => json!({ "ok": true, "models": crate::providers::CHATGPT_MODELS.iter().map(|(id, _)| *id).collect::<Vec<_>>() }),
+            // The account's own list when OpenAI gives it, else the usual ones.
+            "models" => json!({ "ok": true, "models": chatgpt.models().unwrap_or_else(|_| crate::providers::CHATGPT_MODELS.iter().map(|(id, _)| (*id).to_owned()).collect()) }),
             "use" => {
                 let Some(model) = model.map(str::trim).filter(|m| !m.is_empty()) else { return failed("Choose a model.") };
-                if !(model.starts_with("gpt-") || model.starts_with("codex-")) || !model.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_')) {
+                if model.len() > 100 || !model.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | ':' | '/')) {
                     return failed("That is not a ChatGPT model.");
                 }
                 let result = self.agent.use_endpoint(sub.address, model, None);

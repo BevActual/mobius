@@ -230,10 +230,10 @@ export interface CalendarDraft { title?: string; start?: string; end?: string; l
 export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
-export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'device'; models: Array<{ id: string; label: string }> }
-/** A device sign-in waiting for the person to enter `code` at `url`. */
-export interface PendingSignIn { code: string; url: string }
-export interface AccountStatus { installed: boolean; signedIn: boolean; version?: string | null; account?: string | null; hint?: string | null; active?: boolean; pending?: PendingSignIn | null }
+export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'browser'; models: Array<{ id: string; label: string }> }
+/** A browser sign-in waiting for the person to finish it at `url`. */
+export interface PendingSignIn { url: string }
+export interface AccountStatus { installed: boolean; signedIn: boolean; version?: string | null; account?: string | null; hint?: string | null; active?: boolean; pending?: PendingSignIn | null; /** Where the plan's usage limits are seen and changed. */ manageUsage?: string }
 
 /** A model provider in Settings > Providers. The key itself is never sent to the window. */
 export interface ProviderInfo {

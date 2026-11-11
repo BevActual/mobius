@@ -39,20 +39,18 @@ async function openProviders(): Promise<void> {
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Gateways', exact: true }).click();
 }
 
-test('signing in with a code on OpenAI\'s site lets the agent answer on the ChatGPT plan', async () => {
+test('signing in on ChatGPT\'s page lets the agent answer on the ChatGPT plan', async () => {
   first = await startModel([]);
   openai = await startOpenAi(['Hello from ChatGPT.']);
   mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_CHATGPT: openai.url } });
   await openProviders();
   await expect(row().getByRole('status')).toHaveText('Not signed in', { timeout: 15_000 });
-  await row().getByRole('button', { name: 'Sign in to ChatGPT subscription' }).click();
-  // The code to enter is shown; Mobius waits for the person.
-  const code = row().getByLabel('Sign-in code');
-  await expect(code).toContainText('MOBI-2026');
-  await expect(row().getByRole('status')).toHaveText('Waiting for you to enter the code');
+  // The person signs in on ChatGPT's page, which sends the browser back to Mobius.
   openai.approve();
+  await row().getByRole('button', { name: 'Sign in to ChatGPT subscription' }).click();
   await expect(row().getByRole('status')).toHaveText('Signed in as me@chatgpt.example', { timeout: 15_000 });
-  await expect(code).toHaveCount(0);
+  await expect(row().getByLabel('Signing in')).toHaveCount(0);
+  expect(openai.requests.find((r) => r.path.startsWith('/api/accounts/authorize'))!.path).toContain('client_id=dynamic_agent_client');
   // The token is kept in the secret store, never in the settings files.
   for (const file of fs.readdirSync(userData).filter((f) => f.endsWith('.json') && f !== 'test-secrets.json')) {
     expect(fs.readFileSync(path.join(userData, file), 'utf8'), file).not.toContain('refresh-e2e');
@@ -67,10 +65,9 @@ test('signing in with a code on OpenAI\'s site lets the agent answer on the Chat
   await composer().fill('hi');
   await composer().press('Enter');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Hello from ChatGPT.');
-  const call = openai.requests.find((r) => r.path === '/backend-api/codex/responses')!;
-  expect(call.headers['chatgpt-account-id']).toBe('acct-e2e');
+  const call = openai.requests.find((r) => r.path === '/v1/responses')!;
   expect(call.headers.authorization).toMatch(/^Bearer h\./);
-  expect(JSON.parse(call.body)).toMatchObject({ model: 'gpt-5.5', store: false });
+  expect(JSON.parse(call.body)).toMatchObject({ model: 'gpt-5.5', store: false, stream: true });
   expect(first.requests).toHaveLength(0);
 
   // Signing out forgets the sign-in.
@@ -79,14 +76,15 @@ test('signing in with a code on OpenAI\'s site lets the agent answer on the Chat
   await expect(row().getByRole('status')).toHaveText('Not signed in');
 });
 
-test('a sign-in that is waiting for a code can be cancelled', async () => {
+test('a sign-in that is waiting on ChatGPT\'s page can be cancelled', async () => {
   first = await startModel([]);
   openai = await startOpenAi([]);
   mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_CHATGPT: openai.url } });
   await openProviders();
   await row().getByRole('button', { name: 'Sign in to ChatGPT subscription' }).click();
-  await expect(row().getByLabel('Sign-in code')).toContainText('MOBI-2026');
+  await expect(row().getByRole('status')).toHaveText('Waiting for you to sign in', { timeout: 15_000 });
+  await expect(row().getByLabel('Signing in')).toBeVisible();
   await row().getByRole('button', { name: 'Cancel' }).click();
   await expect(row().getByRole('status')).toHaveText('Not signed in', { timeout: 15_000 });
-  await expect(row().getByLabel('Sign-in code')).toHaveCount(0);
+  await expect(row().getByLabel('Signing in')).toHaveCount(0);
 });

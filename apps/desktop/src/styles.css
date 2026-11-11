@@ -553,8 +553,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .btn.link { border-color: transparent; background: none; color: var(--accent); }
 
 /* A device sign-in code: big enough to read across to another device. */
-.device-code { align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
-.device-code-value { font: 600 1.25rem/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 0.08em; padding: var(--sp-1) var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius-control); user-select: all; }
 
 /* The model's plan: a quiet checklist inside the conversation. */
 .plan-card { border: 1px solid var(--line); border-radius: var(--radius-group); padding: var(--sp-2) var(--sp-3); display: grid; gap: var(--sp-1); }

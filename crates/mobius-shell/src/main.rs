@@ -508,7 +508,7 @@ fn main() {
                 }
                 // A pretend OpenAI: its sign-in (for the host) and its ChatGPT endpoint (for the core).
                 if let Ok(openai) = std::env::var("MOBIUS_TEST_CHATGPT") {
-                    args.extend(["--chatgpt-upstream".into(), format!("{}/backend-api/codex", openai.trim_end_matches('/'))]);
+                    args.extend(["--chatgpt-upstream".into(), format!("{}/v1", openai.trim_end_matches('/'))]);
                 }
             }
             let core = Arc::new(CoreProcess::start(Options {

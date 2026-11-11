@@ -836,7 +836,7 @@ fn chatgpt_token() -> String {
 }
 
 #[test]
-fn the_chatgpt_plan_is_spoken_to_in_responses_with_the_sign_in_and_its_account() {
+fn the_chatgpt_plan_is_spoken_to_in_responses_with_the_sign_in() {
     let server = fake(vec![
         vec![
             (json!({ "type": "response.output_item.done", "item": { "type": "function_call", "call_id": "call_1", "name": "clock-now", "arguments": "{}" } }), 0),
@@ -848,7 +848,7 @@ fn the_chatgpt_plan_is_spoken_to_in_responses_with_the_sign_in_and_its_account()
             (json!({ "type": "response.completed", "response": { "status": "completed" } }), 0),
         ],
     ]);
-    let upstream = format!("http://{}/backend-api/codex", server.addr);
+    let upstream = format!("http://{}/v1", server.addr);
     let mut d = Daemon::start(&["--chatgpt-upstream", &upstream]);
     let without = d.call(1, "agent.configure", json!({ "base_url": "chatgpt://subscription", "model": "gpt-5.5" }));
     assert_eq!(without["error"]["code"], -32602, "no sign-in, no ChatGPT: {without}");
@@ -867,9 +867,9 @@ fn the_chatgpt_plan_is_spoken_to_in_responses_with_the_sign_in_and_its_account()
     assert_eq!(bodies[1]["input"][1]["type"], "function_call");
     assert_eq!(bodies[1]["input"][2]["type"], "function_call_output");
     let head = &server.heads.lock().unwrap()[0];
-    assert!(head.starts_with("post /backend-api/codex/responses "), "{head}");
+    assert!(head.starts_with("post /v1/responses "), "{head}");
     assert!(head.contains(&format!("authorization: bearer {}", token.to_lowercase())));
-    assert!(head.contains("chatgpt-account-id: acct-42"));
+    assert!(!head.contains("chatgpt-account-id"), "the public API takes the account from the token");
 }
 
 #[test]
