@@ -2,6 +2,7 @@
   "name": "@mobius/desktop",
   "productName": "Mobius",
   "version": "0.0.0",
+  "license": "MIT",
   "private": true,
   "description": "Mobius desktop shell.",
   "type": "module",

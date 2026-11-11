@@ -358,3 +358,37 @@ test('a narrow window still opens Mobius in the sidebar column at its usual widt
   await expect.poll(async () => Math.round((await rail().boundingBox())!.width)).toBeGreaterThan(240);
   await expect(composer()).toBeVisible();
 });
+
+test('Mobius pinned beside is a card with no line between it and the page, in every app, light and dark', async () => {
+  await start();
+  for (const theme of ['light', 'dark'] as const) {
+    await shell().emulateMedia({ colorScheme: theme });
+    for (const name of ['Docs', 'Notes', 'Mail', 'Browser', 'Sheets', 'Studio', 'Code', 'Design']) {
+      await shell().keyboard.press('Control+k');
+      await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
+      await shell().keyboard.press('Enter');
+      await expect(shell().locator('.app')).toHaveAttribute('data-app', name.toLowerCase());
+      await expect(shell().locator('.dock.right:not([data-floating]) > .chat')).toBeVisible();
+      // Every element whose left or right edge is within a few pixels of where the page meets the card: none draws a line.
+      const lines = await shell().evaluate(() => {
+        const card = document.querySelector('.dock.right:not([data-floating]) > .chat');
+        if (!card) return ['no pinned card'];
+        const edge = card.getBoundingClientRect().left;
+        const visible = (width: string, color: string) => parseFloat(width) > 0 && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(color);
+        const found: string[] = [];
+        for (const el of Array.from(document.querySelectorAll('*'))) {
+          const r = el.getBoundingClientRect();
+          if (r.height < 20) continue;
+          const st = getComputedStyle(el);
+          const label = el.tagName.toLowerCase() + '.' + String(el.className);
+          if (Math.abs(r.left - edge) <= 12 && visible(st.borderLeftWidth, st.borderLeftColor)) found.push('left border on ' + label);
+          if (Math.abs(r.right - edge) <= 12 && visible(st.borderRightWidth, st.borderRightColor)) found.push('right border on ' + label);
+          if (Math.abs(r.left - edge) <= 12 && r.width <= 3 && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(st.backgroundColor)) found.push('hairline ' + label);
+        }
+        return found;
+      });
+      expect(lines, `${name}, ${theme}`).toEqual([]);
+    }
+  }
+});
+
