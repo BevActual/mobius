@@ -217,9 +217,10 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
           // Some servers reuse call ids from one turn to the next, so only a call that is still open counts as the same call.
           const open = base.items.findLast((item) => item.kind === 'tool' && item.callId === event.call_id);
           if (open?.kind === 'tool' && (open.status === 'running' || open.status === 'waiting')) {
-            return updateTool(base, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'running' }));
+            return updateTool(base, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'running', ...(item.args === undefined && event.arguments !== undefined ? { args: event.arguments } : {}) }));
           }
-          return withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: 'running' }));
+          // With its arguments, so the row can say what it acted on.
+          return withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: 'running', ...(event.arguments !== undefined ? { args: event.arguments } : {}) }));
         }
         case 'needs_approval': {
           const known = base.items.some((item) => item.kind === 'tool' && item.callId === event.call_id);

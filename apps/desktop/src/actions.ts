@@ -1,3 +1,4 @@
+import type { HubTarget } from './search-hub';
 /**
  * What an action the agent asks to take means, in plain words, for the approval card: "add “Water the plants” to
  * Inbox in Tasks", not `tasks.add {…}`. The tool's name and arguments are still shown below it for anyone who wants
@@ -56,6 +57,7 @@ export function describeAction(name: string, args: unknown): string | null {
     return time ? `${shown} at ${time}` : shown;
   };
   switch (name) {
+    case 'clock.now': return 'check the time';
     case 'browser.open': return s('url') ? `open ${host(s('url'))} in the browser` : 'open a page in the browser';
     case 'browser.read': return 'read the page open in the browser';
     case 'browser.tabs': return 'see which tabs are open';
@@ -71,7 +73,7 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'tasks.update': return s('task') || s('text') ? `change the task ${quote(s('task') || s('text'))}` : 'change a task';
     case 'mail.search': return s('query') ? `search your mail for ${quote(s('query'), 40)}` : 'look through your mail';
     case 'mail.read': return 'read an email';
-    case 'mail.draft': return s('to') ? `draft an email to ${s('to')}` : 'draft a reply for you to send';
+    case 'mail.draft': return s('to') ? `draft an email to ${s('to')}` : s('reply_to') || s('in_reply_to') ? 'draft a reply for you to send' : 'draft an email';
     case 'sheets.list': return 'see which workbooks there are';
     case 'sheets.read': return s('workbook') ? `read the workbook ${quote(s('workbook'))}` : 'read a workbook';
     case 'sheets.write': {
@@ -104,4 +106,81 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'skills.read': return s('name') ? `read the skill ${quote(s('name'))}` : 'read a skill';
     default: return null;
   }
+}
+
+/**
+ * What a tool would do, always in words, for an approval card: the plain sentence when there is one, otherwise the
+ * tool named without its code name ("use “echo” from the fake server"). The code name stays in a tooltip.
+ */
+export function plainUse(name: string, args: unknown): string {
+  const said = describeAction(name, args);
+  if (said) return said;
+  const parts = name.split('.');
+  if (parts[0] === 'mcp' && parts.length >= 3) return `use “${parts.slice(2).join(' ')}” from the ${parts[1]} server`;
+  return parts.length > 1 ? `use the ${parts[0]} tool “${parts.slice(1).join(' ').replace(/_/g, ' ')}”` : `use “${name.replace(/_/g, ' ')}”`;
+}
+
+/** What a finished tool did, in the past tense: "Added “Order brake kit” to P2 build in Tasks". */
+const PAST: Record<string, string> = { add: 'Added', read: 'Read', write: 'Wrote', change: 'Changed', open: 'Opened', search: 'Searched', draft: 'Drafted', check: 'Checked', see: 'Looked at', suggest: 'Suggested', remember: 'Remembered', forget: 'Forgot', schedule: 'Scheduled', run: 'Ran', start: 'Started', stop: 'Stopped', commit: 'Committed', push: 'Pushed', type: 'Typed', click: 'Clicked', look: 'Looked', use: 'Used' };
+export function pastAction(name: string, args: unknown): string | null {
+  const words = describeAction(name, args);
+  if (!words) return null;
+  const [first, ...rest] = words.split(' ');
+  const past = PAST[first ?? ''];
+  if (!past) return words.charAt(0).toUpperCase() + words.slice(1);
+  // "see which tabs are open" reads as "Looked at which tabs are open".
+  return [past, ...rest].join(' ');
+}
+
+/** Where a tool's result can be opened, when it made or changed one thing a person can look at. */
+export function toolTarget(name: string, args: unknown): HubTarget | null {
+  const a = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>;
+  const s = (key: string): string => (typeof a[key] === 'string' ? (a[key] as string).trim() : '');
+  if (name === 'tasks.add' || name === 'tasks.update' || name === 'tasks.list') return s('list') || name === 'tasks.add' ? { app: 'tasks', list: s('list') || 'Inbox' } : null;
+  if (name === 'sheets.write' || name === 'sheets.read') return s('workbook') ? { app: 'sheets', workbook: s('workbook'), sheet: s('sheet') || 'Sheet 1' } : null;
+  if (name === 'files.write' || name === 'files.edit' || name === 'files.read') {
+    const path = s('path').replace(/\\/g, '/');
+    const title = (path.split('/').pop() ?? path).replace(/\.md$/i, '');
+    for (const app of ['notes', 'docs', 'slides'] as const) if (path.startsWith(`${app}/`) && path.endsWith('.md')) return { app, path: path.slice(app.length + 1), title };
+  }
+  return null;
+}
+
+/** One line for several of the same finished call in a row: "Added 6 tasks to P2 build". */
+export function groupSummary(name: string, argsList: readonly unknown[]): string {
+  const n = argsList.length;
+  const field = (args: unknown, key: string) => (typeof args === 'object' && args !== null && typeof (args as Record<string, unknown>)[key] === 'string' ? ((args as Record<string, unknown>)[key] as string).trim() : '');
+  const same = (key: string) => { const first = field(argsList[0], key); return first && argsList.every((x) => field(x, key) === first) ? first : ''; };
+  switch (name) {
+    case 'tasks.add': return `Added ${n} tasks${same('list') ? ` to ${same('list')}` : ''}`;
+    case 'tasks.update': return `Changed ${n} tasks${same('list') ? ` in ${same('list')}` : ''}`;
+    case 'calendar.add': return `Added ${n} events to the calendar`;
+    case 'files.write': return `Wrote ${n} files`;
+    case 'files.edit': return `Changed ${n} files`;
+    case 'files.read': return `Read ${n} files`;
+    case 'sheets.write': return `Changed ${n} parts of ${same('workbook') ? `“${same('workbook')}”` : 'your sheets'}`;
+    case 'mail.draft': return `Drafted ${n} emails`;
+    default: { const one = pastAction(name, argsList[0]) ?? name; return `${one}, and ${n - 1} more like it`; }
+  }
+}
+
+/** Where a file a turn changed opens: the note, the list, the sheet, the calendar. */
+export function changeTarget(path: string): HubTarget | null {
+  const p = path.replace(/\\/g, '/');
+  const rest = (prefix: string) => p.slice(prefix.length);
+  const titled = (prefix: string, ext: RegExp) => { const r = rest(prefix); return { path: r, title: (r.split('/').pop() ?? r).replace(ext, '') }; };
+  if (p.startsWith('notes/')) return { app: 'notes', ...titled('notes/', /\.md$/i) };
+  if (p.startsWith('docs/')) return { app: 'docs', ...titled('docs/', /\.md$/i) };
+  if (p.startsWith('slides/')) return { app: 'slides', ...titled('slides/', /\.md$/i) };
+  if (p.startsWith('tasks/')) return { app: 'tasks', list: rest('tasks/').replace(/\.md$/i, '') };
+  if (p.startsWith('sheets/')) { const [workbook, sheet] = rest('sheets/').split('/'); return workbook ? { app: 'sheets', workbook, sheet: (sheet ?? 'Sheet 1').replace(/\.csv$/i, '') } : null; }
+  if (p.startsWith('calendar/')) return { app: 'calendar' };
+  if (p.startsWith('designs/')) return { app: 'design', ...titled('designs/', /\.json$/i) };
+  if (p.startsWith('boards/')) return { app: 'canvas', ...titled('boards/', /\.json$/i) };
+  if (p.startsWith('research/')) return { app: 'research', ...titled('research/', /\.md$/i) };
+  if (p.startsWith('reading/')) return { app: 'reader', ...titled('reading/', /\.md$/i) };
+  if (p.startsWith('studio/')) return { app: 'studio', ...titled('studio/', /\.json$/i) };
+  if (p.startsWith('databases/')) return { app: 'database', name: rest('databases/').replace(/\.sqlite$/i, '') };
+  if (p.startsWith('code/')) { const project = rest('code/').split('/')[0]; return project ? { app: 'code', project } : null; }
+  return null;
 }

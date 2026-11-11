@@ -1,3 +1,4 @@
+import type { AppId } from './apps';
 import type { BookmarkEntry, ConversationInfo, HistoryEntry, MailMessage, NoteHit, Notebook, TaskItem, WorkbookInfo } from '@mobius/shared';
 
 /** Everything Mobius keeps, found in one place: conversations, notes, documents and decks, sheets, mail, tasks and pages. */
@@ -20,7 +21,11 @@ export type HubTarget =
   | { app: 'photo'; path: string }
   | { app: 'video'; project: string }
   | { app: 'code'; project: string }
-  | { app: 'browser'; url: string };
+  | { app: 'browser'; url: string }
+  /** The calendar, at a day when given (YYYY-MM-DD). */
+  | { app: 'calendar'; date?: string }
+  /** An app by itself, as it was last left. */
+  | { app: 'open'; id: AppId };
 
 export interface HubResult {
   key: string;

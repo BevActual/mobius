@@ -51,7 +51,14 @@ pub enum Step {
 #[ts(export)]
 pub enum AgentEvent {
     Message { text: String },
-    ToolCall { call_id: String, name: String },
+    /// A call the model made, with its arguments (long text cut short) so the conversation can say what it acted on:
+    /// "Added “Order brake kit”", not "Add a task".
+    ToolCall {
+        call_id: String,
+        name: String,
+        #[ts(type = "unknown")]
+        arguments: serde_json::Value,
+    },
     ToolResult { call_id: String, name: String, is_error: bool },
     NeedsApproval {
         #[ts(type = "number")]
@@ -569,7 +576,7 @@ impl Engine {
     fn run_calls(&self, turn: &mut Turn, core: &mut Core, mut queue: VecDeque<ToolCall>, mut announce: bool) -> Step {
         while let Some(call) = queue.pop_front() {
             if announce {
-                turn.events.push(AgentEvent::ToolCall { call_id: call.id.clone(), name: call.name.clone() });
+                turn.events.push(AgentEvent::ToolCall { call_id: call.id.clone(), name: call.name.clone(), arguments: brief_arguments(&call.arguments) });
             }
             announce = true;
             if call.name == TODO_TOOL {
@@ -718,4 +725,16 @@ fn truncate(mut text: String) -> String {
     text.truncate(cut);
     text.push_str("… [truncated]");
     text
+}
+
+/// A call's arguments for the conversation to show: every string over a few hundred characters (a whole file's text)
+/// cut short, so an event stays small. The model and the tool still get the whole of it.
+fn brief_arguments(value: &serde_json::Value) -> serde_json::Value {
+    const MAX: usize = 300;
+    match value {
+        serde_json::Value::String(text) if text.chars().count() > MAX => serde_json::Value::String(format!("{}…", text.chars().take(MAX).collect::<String>())),
+        serde_json::Value::Array(items) => serde_json::Value::Array(items.iter().take(50).map(brief_arguments).collect()),
+        serde_json::Value::Object(map) => serde_json::Value::Object(map.iter().map(|(k, v)| (k.clone(), brief_arguments(v))).collect()),
+        other => other.clone(),
+    }
 }

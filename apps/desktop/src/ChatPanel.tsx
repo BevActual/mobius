@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
 import { Welcome } from './Welcome';
-import { describeAction, previewArguments } from './actions';
+import { describeAction, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
+import type { HubTarget } from './search-hub';
+import { APPS } from './apps';
 import { stepTag } from './step-access';
 import { usePreferences } from './usePreferences';
 import { ClaimChecks, RichText } from './RichText';
@@ -17,7 +19,7 @@ import { isSpeaking, readAloudNow } from './speech';
 import { EMPTY_QUEUE, afterTurn, clearQueue, editQueued, enqueue, removeQueued, resumeQueue, type MessageQueue, type Queued } from './message-queue';
 import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
-import type { SurfaceState } from './surface';
+import { hereOf, type SurfaceState } from './surface';
 import { activityOf } from './activity';
 import { SettingsForm } from './settings/ModelForm';
 import { SignInForTask } from './SignIn';
@@ -180,7 +182,59 @@ function plainAction(name: string, args: unknown): string | null {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : null;
 }
 
-function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 'tool' }>; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details> }) {
+/** App names ("Tasks · Calendar"), each a link that opens the app, when there is somewhere to open them. */
+function AppLinks({ names, onOpenItem }: { names: readonly string[]; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
+  return (
+    <>
+      {names.map((name, i) => {
+        const id = APPS.find((a) => a.name === name)?.id;
+        return (
+          <Fragment key={name}>
+            {i > 0 && ' · '}
+            {id && onOpenItem ? <button type="button" className="link-btn app-link" title={`Open ${name}`} onClick={() => onOpenItem({ app: 'open', id })}>{name}</button> : name}
+          </Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+/** Three or more of the same finished call in a row, as one line ("Added 6 tasks to P2 build") that opens to show each. */
+function ToolGroup({ items, onAnswer, onDetails, onOpenItem }: { items: Extract<Item, { kind: 'tool' }>[]; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
+  const [open, setOpen] = useState(false);
+  const first = items[0]!;
+  const target = onOpenItem ? toolTarget(first.name, first.args) : null;
+  const sameTarget = target && items.every((i) => JSON.stringify(toolTarget(i.name, i.args)) === JSON.stringify(target));
+  return (
+    <div className="tool tool-group" data-status="done">
+      <div className="tool-line">
+        <span className="tool-dot" aria-hidden="true" />
+        {sameTarget
+          ? <button type="button" className="tool-name link-btn" data-plain title={`Open it (${first.name})`} onClick={() => onOpenItem?.(target)}>{groupSummary(first.name, items.map((i) => i.args))}</button>
+          : <span className="tool-name" data-plain title={first.name}>{groupSummary(first.name, items.map((i) => i.args))}</span>}
+        <button type="button" className="msg-action tool-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : `Show all ${items.length}`}</button>
+      </div>
+      {open && items.map((i) => <ToolRow key={i.id} item={i} onAnswer={onAnswer} onDetails={onDetails} onOpenItem={onOpenItem} />)}
+    </div>
+  );
+}
+
+/** Where each run of three or more of the same finished call starts, and how long it is. */
+function toolRuns(items: readonly Item[]): Map<number, number> {
+  const runs = new Map<number, number>();
+  for (let i = 0; i < items.length;) {
+    const it = items[i]!;
+    let j = i;
+    if (it.kind === 'tool' && it.status === 'done') {
+      while (j + 1 < items.length) { const next = items[j + 1]!; if (next.kind === 'tool' && next.status === 'done' && next.name === it.name) j++; else break; }
+    }
+    if (j - i + 1 >= 3) runs.set(i, j - i + 1);
+    i = j + 1;
+  }
+  return runs;
+}
+
+function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item, { kind: 'tool' }>; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [details, setDetails] = useState<Details | null>(null);
   const [open, setOpen] = useState(false);
@@ -203,7 +257,13 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
       <div className="tool-line">
         <span className="tool-dot" aria-hidden="true" />
         {/* What it did, in words ("Add “Book the film” to Inbox in Tasks"); the tool's own name stays in the tooltip and Details. */}
-        <span className="tool-name" data-plain={plainAction(item.name, item.args) ? true : undefined} title={item.name}>{plainAction(item.name, item.args) ?? item.name}</span>
+        {(() => {
+          const said = (item.status === 'done' ? pastAction(item.name, item.args) : null) ?? plainAction(item.name, item.args);
+          const target = item.status === 'done' && onOpenItem ? toolTarget(item.name, item.args) : null;
+          return target
+            ? <button type="button" className="tool-name link-btn" data-plain title={`Open it (${item.name})`} onClick={() => onOpenItem?.(target)}>{said ?? item.name}</button>
+            : <span className="tool-name" data-plain={said ? true : undefined} title={item.name}>{said ?? item.name}</span>;
+        })()}
         <span className="tool-status">{STATUS_TEXT[item.status]}</span>
         {finished && <button type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details of ${item.name}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}
       </div>
@@ -224,7 +284,7 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
         <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`}>
           <p className="approval-head">Needs you</p>
           {item.origin && <p className="approval-origin" role="note">Asked by text in {item.origin}, not by you. <span className="approval-why">Why: this came from {item.origin}.</span></p>}
-          <p className="approval-text">{(() => { const plain = describeAction(item.name, item.args); return plain ? <>Mobius wants to {plain}. <span className="approval-tool">{item.name}</span></> : <>Mobius wants to use <strong>{item.name}</strong>.</>; })()}{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
+          <p className="approval-text" title={item.name}>Mobius wants to {plainUse(item.name, item.args)}.{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
           {(() => {
             // In plain words first, as the Approvals board asks: the text it would write, the statement it would run.
             const preview = previewArguments(item.name, item.args);
@@ -257,6 +317,8 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
 export interface ChatPanelProps {
   /** Where the person is, for the suggestions the message box offers. */
   surface?: SurfaceState;
+  /** Opens what a finished tool made or changed (a task list, a note, a sheet). */
+  onOpenItem?: (target: HubTarget) => void;
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
@@ -407,7 +469,7 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -506,10 +568,13 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   const waiting = conversations.reduce((n, c) => n + (c.waiting > 0 ? 1 : 0), 0);
   // What Mobius sees here: what is open beside it now ("Sees this note"); failing that, the apps it worked in during
   // this conversation ("Has used Tasks"), which is not what it is looking at.
-  const inView = surface?.note ? `this ${({ docs: 'document', slides: 'deck', designs: 'design', studio: 'song', boards: 'board', research: 'report', reading: 'article', databases: 'database', terminal: 'terminal' } as Record<string, string>)[surface.note.folder ?? ''] ?? 'note'}`
-    : surface?.tasks ? 'this list' : surface?.sheet ? 'this sheet' : surface?.mail ? 'this email' : surface?.photo ? 'this photo' : surface?.cut ? 'this cut' : surface?.code ? 'this file'
-    // A page only in the browser: another app with nothing open does not see the browser's tab.
-    : surface?.app === 'browser' && surface.hasPage ? 'this page' : null;
+  // It says it sees only what actually goes with the message: the chip for what is open here, unless it was removed.
+  const runs = toolRuns(state.items);
+  const inRun = new Set([...runs].flatMap(([at, n]) => Array.from({ length: n - 1 }, (_, k) => at + k + 1)));
+  const here = hereOf(surface);
+  const [hereOff, setHereOff] = useState<string | null>(null);
+  const hereShown = here && here.key !== hereOff ? here : null;
+  const inView = hereShown?.what ?? null;
   const sees = inView ? `Sees ${inView}` : seen.length > 0 ? `Has used ${seen.join(' · ')}` : null;
 
   useLayoutEffect(() => {
@@ -573,7 +638,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
           </button>
           {contextOpen && (
             <div className="chat-context-more" role="group" aria-label="What Mobius sees">
-              {seen.length > 0 && <p className="chat-sees" title="What Mobius has read from or worked in during this conversation"><span className="chat-sees-label">Has used:</span> {seen.join(' · ')}</p>}
+              {seen.length > 0 && <p className="chat-sees" title="What Mobius has read from or worked in during this conversation"><span className="chat-sees-label">Has used:</span> <AppLinks names={seen} onOpenItem={onOpenItem} /></p>}
               <p className="chat-context-rule">What Mobius may do here comes from Settings. <button type="button" className="link-btn" onClick={onOpenSettings}>Change</button></p>
             </div>
           )}
@@ -602,7 +667,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
               <div className="empty">
                 <MobiusMark size={44} turning={!configured} className="empty-mark" />
                 <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
-                {configured && <p className="greeting-note">Mobius asks before it uses a tool, unless you change that below.</p>}
+                {configured && <p className="greeting-note">{modeOf(preferences.value.approvalMode).greeting} You can change that below.</p>}
                 {configured && <div ref={setStarterSlot} className="empty-starters" />}
                 {desk}
               </div>
@@ -633,7 +698,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                   <ClaimChecks.Provider value={{ checked: checkedClaims[item.id] ?? new Set(), check: (key) => setCheckedClaims((cur) => ({ ...cur, [item.id]: new Set([...(cur[item.id] ?? []), key]) })) }}>
                     <div className="msg assistant" data-streaming={item.streaming}><RichText text={item.text} /></div>
                   </ClaimChecks.Provider>
-                  {!item.streaming && item.text !== '' && (() => { const from = replySources(state.items, index); return from.length > 0 ? <p className="msg-sources" title="The apps Mobius used for this reply">Based on {from.join(' · ')}</p> : null; })()}
+                  {!item.streaming && item.text !== '' && (() => { const from = replySources(state.items, index); return from.length > 0 ? <p className="msg-sources" title="The apps Mobius used for this reply">Based on <AppLinks names={from} onOpenItem={onOpenItem} /></p> : null; })()}
                   {!item.streaming && item.text !== '' && onOpenMail && !state.busy && index === state.items.findLastIndex((i) => i.kind === 'assistant') && replySources(state.items, index).includes('Mail') && <MailSources conversation={state.conversation} version={state.items.length} onOpen={onOpenMail} />}
                   {!item.streaming && item.text !== '' && (
                     <div className="msg-actions assistant">
@@ -671,11 +736,13 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                     </div>
                   )}
                 </Fragment>
-              ) : (
-                <ToolRow key={item.id} item={item} onAnswer={onAnswer} onDetails={onDetails} />
+              ) : runs.has(index) ? (
+                <ToolGroup key={item.id} items={state.items.slice(index, index + runs.get(index)!) as Extract<Item, { kind: 'tool' }>[]} onAnswer={onAnswer} onDetails={onDetails} onOpenItem={onOpenItem} />
+              ) : inRun.has(index) ? null : (
+                <ToolRow key={item.id} item={item} onAnswer={onAnswer} onDetails={onDetails} onOpenItem={onOpenItem} />
               ),
             )}
-            {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} />}
+            {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} />}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
               <div className="thinking" role="status" aria-label="Mobius is working"><MobiusMark size={22} turning /></div>
@@ -718,6 +785,8 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
             onOpenSettings={onOpenSettings}
             fieldRef={field}
             surface={surface}
+            here={hereShown}
+            onRemoveHere={() => setHereOff(here?.key ?? null)}
             activity={activityOf(state)}
           />
         </>

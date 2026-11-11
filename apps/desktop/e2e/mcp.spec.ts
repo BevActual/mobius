@@ -48,7 +48,7 @@ test('the model offered a tool from a configured MCP server, and using it asks f
   await expect.poll(async () => (await coreCall<Array<{ name: string }>>(mobius!.app, 'tools.list')).map((t) => t.name), { timeout: 30_000 }).toContain('mcp.fake.echo');
   await say('use it');
   await expect(card()).toBeVisible();
-  await expect(card()).toContainText('mcp.fake');
+  await expect(card()).toContainText('from the fake server');
   await card().getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant').last()).toHaveText('Done.');
   const toolsOffered = JSON.stringify((model!.requests[0] as { tools?: unknown[] }).tools ?? []);

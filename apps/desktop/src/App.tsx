@@ -676,6 +676,8 @@ export function App() {
     else if (target.app === 'photo') { openApp('photo'); void photos.openPhoto(target.path); }
     else if (target.app === 'video') { openApp('video'); void video.open(target.project); }
     else if (target.app === 'code') { openApp('code'); void code.openProject(target.project); }
+    else if (target.app === 'calendar') { openApp('calendar'); if (target.date) { const day = new Date(`${target.date}T12:00:00`); if (!Number.isNaN(day.getTime())) calendar.setAnchor(day); } }
+    else if (target.app === 'open') openApp(target.id);
     else showPage(target.url);
   };
   // However Settings closes, the next opening starts at its first page again.
@@ -1245,6 +1247,7 @@ export function App() {
         return (
           <ChatPanel
             surface={surface}
+            onOpenItem={openTarget}
             variant="full"
             desk={(
               <Desk
@@ -1301,6 +1304,7 @@ export function App() {
           <ChatPanel
               takeFocus={!(rightFloating && peeked)}
               surface={surface}
+              onOpenItem={openTarget}
             state={conversation.state}
             settings={settings}
             coreReady={coreStatus === 'ready'}

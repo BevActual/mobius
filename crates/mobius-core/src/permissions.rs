@@ -205,9 +205,10 @@ impl Policy {
 }
 
 /// What Propose lets the agent do without asking: read the workspace and change it in ways a turn's checkpoint puts
-/// back. Deleting files is a floor, and sending, browsing, mail and running commands are not here, so they still ask.
-const REVERSIBLE: [&str; 12] = [
-    "files.read", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
+/// back, and read what only says something about this computer (the time, the schedules). Deleting files is a floor,
+/// and sending, browsing, mail and running commands are not here, so they still ask.
+const REVERSIBLE: [&str; 14] = [
+    "clock.read", "schedules.read", "files.read", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
     "calendar.read", "calendar.write", "skills.read", "document.write",
 ];
 
@@ -444,6 +445,8 @@ mod tests {
         let a = agent("mobius");
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Allow { consume: None });
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("tasks.write"), None), Verdict::Allow { consume: None });
+        // Reading the time asks nothing in Propose.
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("clock.read"), None), Verdict::Allow { consume: None });
         // Not reversible, or a floor: asked as in manual.
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.navigate"), None), Verdict::Ask);
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.read"), None), Verdict::Ask);

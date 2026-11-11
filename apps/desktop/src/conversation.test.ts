@@ -49,7 +49,7 @@ describe('conversation state', () => {
       { type: 'sent', text: 'go', turn: 1 },
       delta('One moment.'),
       note({ kind: 'message', text: 'One moment.' }),
-      note({ kind: 'tool_call', call_id: 'c1', name: 'clock.now' }),
+      note({ kind: 'tool_call', call_id: 'c1', name: 'clock.now', arguments: {} }),
       note({ kind: 'tool_result', call_id: 'c1', name: 'clock.now', is_error: false }),
       delta('It is noon.'),
       note({ kind: 'message', text: 'It is noon.' }),
@@ -59,14 +59,14 @@ describe('conversation state', () => {
   });
 
   it('follows a tool through waiting for approval to done', () => {
-    let s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'clock.now' }));
+    let s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'clock.now', arguments: {} }));
     expect(s.items.at(-1)).toMatchObject({ kind: 'tool', status: 'running' });
     s = reduce(s, note({ kind: 'needs_approval', request_id: 9, call_id: 'c1', tool: 'clock.now', arguments: { a: 1 }, once_only: false }));
     expect(s.items.at(-1)).toMatchObject({ kind: 'tool', status: 'waiting', requestId: 9, args: { a: 1 } });
     expect(s.busy).toBe(true);
     s = reduce(s, { type: 'answered', requestId: 9, approve: true });
     expect(s.items.at(-1)).toMatchObject({ status: 'running' });
-    s = reduce(s, note({ kind: 'tool_call', call_id: 'c1', name: 'clock.now' }));
+    s = reduce(s, note({ kind: 'tool_call', call_id: 'c1', name: 'clock.now', arguments: {} }));
     expect(s.items.filter((i) => i.kind === 'tool')).toHaveLength(1);
     s = reduce(s, note({ kind: 'tool_result', call_id: 'c1', name: 'clock.now', is_error: false }));
     expect(s.items.at(-1)).toMatchObject({ status: 'done' });
@@ -75,11 +75,11 @@ describe('conversation state', () => {
   it('treats a call id that a server reuses in a later turn as a new call, not the old one', () => {
     const s = run(
       { type: 'sent', text: 'one', turn: 1 },
-      note({ kind: 'tool_call', call_id: 'call_1', name: 'browser.open' }),
+      note({ kind: 'tool_call', call_id: 'call_1', name: 'browser.open', arguments: {} }),
       note({ kind: 'tool_result', call_id: 'call_1', name: 'browser.open', is_error: false }),
       note({ kind: 'done' }),
       { type: 'sent', text: 'two' },
-      note({ kind: 'tool_call', call_id: 'call_1', name: 'browser.read' }, 2),
+      note({ kind: 'tool_call', call_id: 'call_1', name: 'browser.read', arguments: {} }, 2),
       note({ kind: 'needs_approval', request_id: 9, call_id: 'call_1', tool: 'browser.read', arguments: {}, once_only: false }, 2),
     );
     const tools = s.items.filter((i) => i.kind === 'tool');
@@ -87,14 +87,14 @@ describe('conversation state', () => {
   });
 
   it('remembers a decline even though the model is then told about an error', () => {
-    let s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x' }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'x', arguments: {}, once_only: false }), { type: 'answered', requestId: 2, approve: false });
+    let s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x', arguments: {} }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'x', arguments: {}, once_only: false }), { type: 'answered', requestId: 2, approve: false });
     expect(s.items.at(-1)).toMatchObject({ status: 'declined' });
     s = reduce(s, note({ kind: 'tool_result', call_id: 'c1', name: 'x', is_error: true }));
     expect(s.items.at(-1)).toMatchObject({ status: 'declined' });
   });
 
   it('shows a tool that failed as failed', () => {
-    const s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x' }), note({ kind: 'tool_result', call_id: 'c1', name: 'x', is_error: true }));
+    const s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x', arguments: {} }), note({ kind: 'tool_result', call_id: 'c1', name: 'x', is_error: true }));
     expect(s.items.at(-1)).toMatchObject({ kind: 'tool', status: 'failed' });
   });
 
@@ -104,7 +104,7 @@ describe('conversation state', () => {
     expect(s.items.at(-1)).toMatchObject({ kind: 'error', text: 'HTTP 500' });
     expect(s.items.find((i) => i.kind === 'assistant')).toMatchObject({ streaming: false });
 
-    s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x' }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'x', arguments: {}, once_only: false }), note({ kind: 'cancelled' }));
+    s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x', arguments: {} }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'x', arguments: {}, once_only: false }), note({ kind: 'cancelled' }));
     expect(s.busy).toBe(false);
     expect(s.items.at(-1)).toMatchObject({ kind: 'tool', status: 'cancelled' });
   });
@@ -158,7 +158,7 @@ describe('conversation state', () => {
   });
 
   it('shows the answer at once, and puts the question back if the answer could not be used', () => {
-    const waiting = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x' }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'x', arguments: {}, once_only: false }));
+    const waiting = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x', arguments: {} }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'x', arguments: {}, once_only: false }));
     const answered = reduce(waiting, { type: 'answered', requestId: 2, approve: false });
     expect(answered.items.at(-1)).toMatchObject({ status: 'declined' });
     // the result can arrive before the answer's own confirmation does
@@ -181,7 +181,7 @@ describe('conversation state', () => {
   });
 
   it('stops being busy when asked to reset, closing any tool that was still open', () => {
-    const open = run({ type: 'sent', text: 'hi', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x' }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'x', arguments: {}, once_only: false }));
+    const open = run({ type: 'sent', text: 'hi', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x', arguments: {} }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'x', arguments: {}, once_only: false }));
     const s = reduce(open, { type: 'reset-busy' });
     expect(s.busy).toBe(false);
     expect(s.items.at(-1)).toMatchObject({ kind: 'tool', status: 'cancelled' });
@@ -190,7 +190,7 @@ describe('conversation state', () => {
 
 describe('actions that can only be allowed once', () => {
   it('are marked so from the event and after a reload, and everything else is not', () => {
-    const live = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'browser.click' }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'browser.click', arguments: {}, once_only: true }));
+    const live = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'browser.click', arguments: {} }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'browser.click', arguments: {}, once_only: true }));
     expect(live.items.find((i) => i.kind === 'tool')).toMatchObject({ status: 'waiting', onceOnly: true });
     const plain = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'needs_approval', request_id: 3, call_id: 'c2', tool: 'browser.read', arguments: {}, once_only: false }));
     expect(plain.items.find((i) => i.kind === 'tool')).toMatchObject({ onceOnly: false });
@@ -287,7 +287,7 @@ describe('the plan and questions', () => {
   it('shows one plan per turn and updates it in place, without tool steps for it', () => {
     const s = run(
       { type: 'sent', text: 'do it', turn: 1 },
-      note({ kind: 'tool_call', call_id: 't1', name: 'todo.write' }),
+      note({ kind: 'tool_call', call_id: 't1', name: 'todo.write', arguments: {} }),
       plan([['Read', 'in_progress'], ['Write', 'pending']]),
       note({ kind: 'tool_result', call_id: 't1', name: 'todo.write', is_error: false }),
       plan([['Read', 'done'], ['Write', 'in_progress']]),
@@ -299,7 +299,7 @@ describe('the plan and questions', () => {
   });
 
   it('shows a question, waits, and records the answer', () => {
-    let s = run({ type: 'sent', text: 'pick', turn: 1 }, note({ kind: 'tool_call', call_id: 'q1', name: 'ask.person' }), note({ kind: 'question', call_id: 'q1', question: 'Which?', choices: ['A', 'B'] }));
+    let s = run({ type: 'sent', text: 'pick', turn: 1 }, note({ kind: 'tool_call', call_id: 'q1', name: 'ask.person', arguments: {} }), note({ kind: 'question', call_id: 'q1', question: 'Which?', choices: ['A', 'B'] }));
     expect(kinds(s)).toEqual(['user', 'question']);
     expect(s.items[1]).toMatchObject({ status: 'open', question: 'Which?', choices: ['A', 'B'] });
     s = reduce(s, { type: 'question-answered', callId: 'q1', text: 'B' });
@@ -399,7 +399,7 @@ describe('linked from', () => {
 
 describe('a request that came from something read', () => {
   it('keeps where it came from on the waiting tool, from the event and from the pending list', () => {
-    let s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'mail.draft' }));
+    let s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'mail.draft', arguments: {} }));
     s = reduce(s, note({ kind: 'needs_approval', request_id: 4, call_id: 'c1', tool: 'mail.draft', arguments: {}, once_only: true, origin: 'Priya Nair’s invite “Dinner”' }));
     expect(s.items.at(-1)).toMatchObject({ status: 'waiting', onceOnly: true, origin: 'Priya Nair’s invite “Dinner”' });
     const fresh = reduce(run(), { type: 'pending', requests: [{ requestId: 5, callId: 'c2', tool: 'mail.draft', arguments: {}, onceOnly: true, origin: 'a web page (evil.example)' }] });

@@ -119,7 +119,8 @@ fn an_allowed_tool_call_runs_and_its_result_goes_back_to_the_model() {
     assert!(second.messages.iter().any(|m| matches!(m, Message::Tool { call_id, .. } if call_id == "c1")));
     let kinds: Vec<AgentEvent> = turn.drain_events().into_iter().filter(|e| !matches!(e, AgentEvent::Context { .. })).collect();
     assert_eq!(kinds[0], AgentEvent::Message { text: "Let me check.".into() });
-    assert_eq!(kinds[1], AgentEvent::ToolCall { call_id: "c1".into(), name: "demo.echo".into() });
+    // With what it was called with, so the conversation can name it.
+    assert_eq!(kinds[1], AgentEvent::ToolCall { call_id: "c1".into(), name: "demo.echo".into(), arguments: json!({ "text": "ping" }) });
     assert_eq!(kinds[2], AgentEvent::ToolResult { call_id: "c1".into(), name: "demo.echo".into(), is_error: false });
 }
 

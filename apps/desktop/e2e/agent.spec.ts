@@ -83,7 +83,8 @@ test('a tool call stops for approval, shows what will run, and carries on when a
   await say('what time is it');
   const card = mobius!.shell.getByRole('group', { name: 'Approval needed: clock.now' });
   await expect(card).toBeVisible();
-  await expect(card).toContainText('clock.now');
+  await expect(card).toContainText('Mobius wants to check the time.');
+  await expect(card.locator('.approval-text')).toHaveAttribute('title', 'clock.now');
   expect(model!.requests).toHaveLength(1);
   await card.getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('It is noon.');
