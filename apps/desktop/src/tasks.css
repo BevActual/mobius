@@ -216,3 +216,8 @@
 
 /* The tasks line up under the add row, at the same width. */
 .tasks-main > .task-items { margin-left: auto; margin-right: auto; }
+/* Where a task went when it will not show in this view. */
+.task-new:has(.task-went) { flex-wrap: wrap; }
+.task-went { flex-basis: 100%; display: flex; align-items: center; gap: var(--sp-2); margin: 2px 0 0 33px; color: var(--muted); font-size: var(--fs-sm); animation: tasks-pop var(--dur-med) var(--ease); }
+.task-went > span { flex: 1; min-width: 0; }
+@media (prefers-reduced-motion: reduce) { .task-went { animation: none; } }

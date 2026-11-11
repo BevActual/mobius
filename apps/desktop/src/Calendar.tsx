@@ -749,7 +749,6 @@ function QuickAdd({ calendar, into, onAdded }: { calendar: CalendarState; into: 
   };
   return (
     <form className="cal-quick" role="search" aria-label="Quick add" onSubmit={(e) => void submit(e)}>
-      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
       <input ref={field} aria-label="Quick add an event" aria-describedby="cal-quick-hint" placeholder="Lunch fri 1pm" value={text} maxLength={200} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { setText(''); field.current?.blur(); } }} />
       {text.trim() && (
         <p id="cal-quick-hint" className="cal-quick-hint" role="status" data-ok={parsed ? true : undefined}>

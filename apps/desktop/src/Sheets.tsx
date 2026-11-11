@@ -12,11 +12,18 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 
+const NEW_WORKBOOK = 'mobius-sheets-new-workbook';
+/** Whether a sidebar is shown to ask for the name; with the sidebar hidden, the workbook is made as "Workbook". */
+let namers = 0;
+
 /** The workbooks, each with its sheets. */
 export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheets: SheetsState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
+  // Every New workbook asks for its name here, with "Workbook" chosen so typing replaces it.
+  const startNaming = () => { setName('Workbook'); setNaming(true); };
+  useEffect(() => { const go = () => startNaming(); namers++; window.addEventListener(NEW_WORKBOOK, go); return () => { namers--; window.removeEventListener(NEW_WORKBOOK, go); }; }, []);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (await sheets.createWorkbook(name.trim() || 'Workbook')) { setNaming(false); setName(''); }
@@ -35,11 +42,11 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
       </div>
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
-          <input autoFocus aria-label="Workbook name" placeholder="Workbook name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
+          <input autoFocus onFocus={(e) => e.currentTarget.select()} aria-label="Workbook name" placeholder="Workbook name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
           <button type="submit" className="btn primary">Create</button>
         </form>
       )}
-      <SideNew item="workbook" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
+      <SideNew item="workbook" onNew={startNaming} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
       <input className="side-search" type="search" aria-label="Search sheets" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
       <nav className="task-lists" aria-label="Workbooks">
         {sheets.workbooks.length === 0 && !naming && <p className="side-empty">No workbooks yet.</p>}
@@ -258,7 +265,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   if (!data) {
     return (
       <section className="sheet-page empty" aria-label="Sheet">
-        <EmptyState app="sheets" label="No workbook open" title={sheets.workbooks.length ? 'No workbook open' : 'No workbooks yet'} line="Choose one on the left, or start a new one." action={{ label: 'New workbook', run: () => void sheets.createWorkbook('Workbook') }} />
+        <EmptyState app="sheets" label="No workbook open" title={sheets.workbooks.length ? 'No workbook open' : 'No workbooks yet'} line="Choose one on the left, or start a new one." action={{ label: 'New workbook', run: () => { if (namers > 0) window.dispatchEvent(new Event(NEW_WORKBOOK)); else void sheets.createWorkbook('Workbook'); } }} />
       </section>
     );
   }

@@ -181,6 +181,15 @@ function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void 
   );
 }
 
+/** Where the title of a page that is nothing but "# Untitled" is, to choose it; null for any other page. */
+export function untitledHeading(editor: Editor): { from: number; to: number } | null {
+  const doc = editor.state.doc;
+  const first = doc.firstChild;
+  if (!first || first.type.name !== 'heading' || first.textContent.trim() !== 'Untitled') return null;
+  if (doc.textContent.trim() !== first.textContent.trim()) return null;
+  return { from: 1, to: 1 + first.content.size };
+}
+
 /**
  * The open page, saved as you type. It shows as formatted text (headings, lists, checklists you tick, tables, #tags)
  * and is kept as plain Markdown, so the file opens anywhere and the agent's file tools read it as it is. The
@@ -289,7 +298,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   useEffect(() => {
     if (!path || !focusOnOpen.current) return;
     if (sourceNow.current) area.current?.focus();
-    else window.requestAnimationFrame(() => { if (editor && !editor.isDestroyed) editor.commands.focus('end'); });
+    else window.requestAnimationFrame(() => {
+      if (!editor || editor.isDestroyed) return;
+      // A new page: its title is chosen, so what is typed first names it.
+      const at = untitledHeading(editor);
+      if (at) editor.chain().focus().setTextSelection(at).run();
+      else editor.commands.focus('end');
+    });
   }, [path, editor]);
   useEffect(() => setSelection(null), [path, source]);
   const quoteKey = quotesNow.current.join('\u0000');
