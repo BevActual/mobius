@@ -463,6 +463,8 @@ export interface MobiusBridge {
     use(id: string, model: string): Promise<AgentResult>;
     /** The second model, from a gateway (its address and key stay in the core); 'none' takes it away. */
     useFallback?(id: string, model?: string): Promise<AgentResult>;
+    /** The model for quick jobs, from a gateway (its address and key stay in the core); 'none' gives them to the chat model. */
+    useQuick?(id: string, model?: string): Promise<AgentResult>;
     onChanged(listener: () => void): () => void;
   };
   /** Other apps using Mobius's tools over MCP. Only the Tauri shell has it. */
@@ -1312,6 +1314,8 @@ export interface PreferencesSettings {
   readAloud: boolean;
   /** How much the agent may do in each app without asking: off, ask (the usual), read, or act. Risky actions still ask. */
   appAccess: AppAccess;
+  /** The model for quick jobs (the Act mode's reviewer): `gateway|model`, or empty for the chat model. */
+  quickModel: string;
 }
 export interface ProfilesState { current: string; list: { id: string; name: string }[] }
 /** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
@@ -1344,7 +1348,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '' };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -1369,6 +1373,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   readAloud: (v): v is boolean => typeof v === 'boolean',
   speakVoice: (v): v is string => typeof v === 'string' && [...v].length <= 100 && !/[\u0000-\u001f\u007f]/.test(v),
   appAccess: isAppAccess,
+  quickModel: (v): v is string => typeof v === 'string' && (v === '' || /^[A-Za-z0-9-]{1,40}\|[^\r\n]{1,200}$/.test(v)),
 };
 export function parsePreferencesPatch(value: unknown): Partial<PreferencesSettings> | null {
   return parsePatch(PREFERENCES_CHECKS, value);

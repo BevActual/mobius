@@ -54,6 +54,9 @@ struct ConfigureParams {
     /// A second model to use when the first cannot answer.
     #[serde(default)]
     fallback: Option<FallbackParams>,
+    /// A model for quick jobs (the Act mode's reviewer), instead of the chat model.
+    #[serde(default)]
+    quick: Option<FallbackParams>,
 }
 
 #[derive(Deserialize)]
@@ -115,6 +118,8 @@ pub struct Agent {
     provider: Option<Arc<dyn Provider>>,
     /// The second model, and the name to ask it for.
     fallback: Option<(Arc<dyn Provider>, String)>,
+    /// The model for quick jobs, if one is chosen; the chat model answers when it cannot.
+    quick: Option<(Arc<dyn Provider>, String)>,
     model: Option<String>,
     max_steps: u32,
     inbox: SyncSender<Inbox>,
@@ -221,7 +226,7 @@ fn host_error(error: &HostError) -> ExtensionError {
 impl Agent {
     pub fn new(inbox: SyncSender<Inbox>, store: Box<dyn ConversationStore>) -> Result<Self, mobius_core::model::ModelError> {
         let principal = Principal::new(PrincipalKind::Agent, "mobius-agent")?;
-        Ok(Agent { host: Host::with_store(principal, store, Box::new(mobius_core::core::system_clock())), provider: None, fallback: None, model: None, max_steps: DEFAULT_MAX_STEPS, inbox, queued: Vec::new(), outbound: HashMap::new(), next_outbound: 1, claude: ClaudeSetup::default(), windows: KnownWindows::default(), window: None, base_system: String::new() })
+        Ok(Agent { host: Host::with_store(principal, store, Box::new(mobius_core::core::system_clock())), provider: None, fallback: None, quick: None, model: None, max_steps: DEFAULT_MAX_STEPS, inbox, queued: Vec::new(), outbound: HashMap::new(), next_outbound: 1, claude: ClaudeSetup::default(), windows: KnownWindows::default(), window: None, base_system: String::new() })
     }
 
     pub fn set_claude(&mut self, claude: ClaudeSetup) {
@@ -290,6 +295,12 @@ impl Agent {
                     };
                     if let Some((second, second_model)) = self.fallback.clone() {
                         provider = Arc::new(FallbackProvider::new(provider, second, second_model, Box::new(|_, _| {})));
+                    }
+                    // The quick model reviews when there is one, and the chat model when it cannot.
+                    let mut request = request;
+                    if let Some((quick, quick_model)) = self.quick.clone() {
+                        let chat_model = std::mem::replace(&mut request.model, quick_model);
+                        provider = Arc::new(FallbackProvider::new(quick, provider, chat_model, Box::new(|_, _| {})));
                     }
                     std::thread::spawn(move || {
                         let result = catch_unwind(AssertUnwindSafe(|| provider.complete(&request, &mut |_| !cancel.load(Ordering::SeqCst))))
@@ -381,8 +392,19 @@ impl Agent {
                 Some((backup, name.to_owned()))
             }
         };
+        let quick = match params.quick {
+            None => None,
+            Some(q) => {
+                let name = q.model.trim();
+                if name.is_empty() || name.chars().count() > MAX_MODEL_NAME_CHARS {
+                    return Err(ExtensionError::invalid_params("the quick model must be a name of 1 to 200 characters"));
+                }
+                Some((provider_for(&q.base_url, q.api_key, &self.claude).map_err(ExtensionError::invalid_params)?, name.to_owned()))
+            }
+        };
         self.provider = Some(provider);
         self.fallback = fallback;
+        self.quick = quick;
         self.model = Some(model.to_owned());
         self.max_steps = max_steps;
         self.window = window;
@@ -413,7 +435,7 @@ impl Extension for Agent {
                 _ => Err(ExtensionError::invalid_params("effort must be none, low, medium, high, or empty")),
             }),
             "agent.status" => Ok(match &self.model {
-                Some(model) => json!({ "configured": true, "model": model, "max_steps": self.max_steps, "fallback_model": self.fallback.as_ref().map(|(_, name)| name), "context_tokens": self.window }),
+                Some(model) => json!({ "configured": true, "model": model, "max_steps": self.max_steps, "fallback_model": self.fallback.as_ref().map(|(_, name)| name), "quick_model": self.quick.as_ref().map(|(_, name)| name), "context_tokens": self.window }),
                 None => json!({ "configured": false }),
             }),
             "agent.send" => params_as::<SendParams>(params).and_then(|p| {

@@ -1365,3 +1365,33 @@ fn an_openrouter_sign_in_keeps_the_key_it_is_given() {
     assert!(!call(&b, "providers", "list", json!([])).to_string().contains("sk-or-v1"));
     assert!(!every_file_text(dir.path()).contains("sk-or-v1-signed-in-1234"));
 }
+
+/// The quick model (the Act mode's reviewer) comes from a gateway with its key, is kept in the preferences, and goes
+/// when its key does.
+#[test]
+fn the_quick_model_comes_from_a_gateway_and_goes_with_its_key() {
+    let (url, _seen) = provider_server("sk-openai-12345678");
+    let (b, c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.redirect_provider_for_tests("openai", &url);
+    call(&b, "agent", "configure", json!([{ "baseUrl": "http://127.0.0.1:9/v1", "model": "first" }]));
+    let last = || c.call("test.last_configure", json!({}), Duration::from_secs(5)).unwrap();
+    assert_eq!(call(&b, "providers", "useQuick", json!(["openai", "mini"]))["ok"], false, "no key yet");
+    assert_eq!(call(&b, "providers", "setKey", json!(["openai", "sk-openai-12345678"]))["ok"], true);
+    assert_eq!(call(&b, "providers", "useQuick", json!(["openai", "mini"]))["ok"], true);
+    assert_eq!(call(&b, "preferences", "get", json!([]))["quickModel"], "openai|mini");
+    assert_eq!(last()["quick"], json!({ "base_url": url, "model": "mini", "api_key": "sk-openai-12345678" }));
+    assert_eq!(last()["model"], "first", "the chat model stays");
+    assert!(!every_file_text(dir.path()).contains("sk-openai-12345678"));
+    for bad in [json!(["elevenlabs", "x"]), json!(["nope", "x"]), json!(["openai", ""]), json!(["openai"])] {
+        assert_eq!(call(&b, "providers", "useQuick", bad.clone())["ok"], false, "{bad}");
+    }
+    // Removing the key leaves the quick jobs to the chat model; the choice is kept for when a key comes back.
+    call(&b, "providers", "removeKey", json!(["openai"]));
+    assert!(last().get("quick").is_none(), "{}", last());
+    assert_eq!(call(&b, "providers", "setKey", json!(["openai", "sk-openai-12345678"]))["ok"], true);
+    assert_eq!(last()["quick"]["model"], "mini");
+    assert_eq!(call(&b, "providers", "useQuick", json!(["none"]))["ok"], true);
+    assert!(last().get("quick").is_none());
+    assert_eq!(call(&b, "preferences", "get", json!([]))["quickModel"], "");
+}

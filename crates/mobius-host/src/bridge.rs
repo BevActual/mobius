@@ -295,7 +295,7 @@ impl Bridge {
                 }
             }),
         );
-        Bridge {
+        let bridge = Bridge {
             mcp_server,
             chatgpt,
             secrets: secrets.clone(),
@@ -366,7 +366,10 @@ impl Bridge {
             schedules: crate::schedules::Schedules::open(data_dir.join("schedules.json")),
             data_dir,
             emit,
-        }
+        };
+        // Only sets what the agent will send: nothing is configured until a chat model is.
+        let _ = bridge.restore_quick();
+        bridge
     }
 
     pub fn call(&self, namespace: &str, method: &str, args: &[Value]) -> Out {
@@ -1459,6 +1462,21 @@ impl Bridge {
         }
     }
 
+    /// Hand the agent the quick model kept in the preferences, with its gateway's address and key. A gateway whose
+    /// key has gone leaves the chat model to do the quick jobs.
+    pub fn restore_quick(&self) -> Value {
+        let choice = lock(&self.preferences).get()["quickModel"].as_str().unwrap_or("").to_owned();
+        let quick = choice.split_once('|').and_then(|(id, model)| {
+            let provider = crate::providers::find(id)?;
+            let key = self.providers.key(id);
+            if provider.needs_key && key.is_none() {
+                return None;
+            }
+            Some((self.providers.address(id)?, model.to_owned(), key))
+        });
+        self.agent.set_quick(quick)
+    }
+
     /// Sign in to OpenRouter at this pretend site. Does nothing unless the test hooks are on.
     pub fn use_openrouter_for_tests(&self, site: &str) {
         if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
@@ -1816,6 +1834,29 @@ impl Bridge {
                 }
             }
             "keySignInStatus" => lock(&self.key_sign_in).status(),
+            // The model for quick jobs (the Act mode's reviewer): a gateway's model, or 'none' for the chat model.
+            "useQuick" => {
+                let choice = match (text(0), text(1).map(str::trim)) {
+                    (Some("none"), _) => String::new(),
+                    (Some(id), Some(model)) if !model.is_empty() => {
+                        let Some(provider) = crate::providers::find(id) else { return failed("That gateway is not known.") };
+                        if provider.voice_only {
+                            return failed(format!("{} is for voice only.", provider.name));
+                        }
+                        if provider.needs_key && p.key(id).is_none() {
+                            return failed(format!("Add a key for {} first.", provider.name));
+                        }
+                        format!("{id}|{model}")
+                    }
+                    _ => return failed("Choose a model."),
+                };
+                if !lock(&self.preferences).set(&json!({ "quickModel": choice })) {
+                    return failed("That model cannot be used.");
+                }
+                let result = self.restore_quick();
+                (self.emit)("mobius:preferences", lock(&self.preferences).get());
+                result
+            }
             "cancelKeySignIn" => {
                 lock(&self.key_sign_in).cancel();
                 json!({ "ok": true })
@@ -1823,6 +1864,7 @@ impl Bridge {
             "setKey" => match (text(0), text(1)) {
                 (Some(id), Some(key)) => match p.set_key(id, key) {
                     Ok(storage) => {
+                        let _ = self.restore_quick();
                         changed();
                         json!({ "ok": true, "storage": storage })
                     }
@@ -1836,6 +1878,7 @@ impl Bridge {
                 {
                     p.remove_key(id);
                     self.agent.drop_key_for(&address);
+                    let _ = self.restore_quick();
                     changed();
                     (self.emit)("mobius:agent-settings", self.agent.settings());
                 }

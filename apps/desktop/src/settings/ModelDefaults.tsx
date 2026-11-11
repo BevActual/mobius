@@ -108,3 +108,51 @@ export function FallbackPopUp({ baseUrl, model, onChanged }: { baseUrl: string; 
     </>
   );
 }
+
+/** The quick model as the pop-up shows it: `gateway|model` from the preferences, as a catalog key. */
+export function quickKey(catalog: ModelCatalog, quick: string): string {
+  const [id, ...rest] = quick.split('|');
+  const model = rest.join('|');
+  if (!id || !model) return 'none';
+  const group = catalog.groups.find((g) => g.kind === 'provider' && g.id === id);
+  return group ? keyOf(group, model) : 'none';
+}
+
+/**
+ * The model for quick jobs, such as checking a step in Act mode before it runs: a pop-up of the models the connected
+ * gateways offer, or Same as chat. A small, fast model fits. Its address and key come from the gateway, in the core.
+ */
+export function QuickPopUp({ quick, onChanged }: { quick: string; onChanged?: () => void }) {
+  const [catalog, setCatalog] = useState<ModelCatalog | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const got = await window.mobius.providers?.catalog().catch(() => null);
+    setCatalog(asCatalog(got));
+  }, []);
+  useEffect(() => { void load(); return window.mobius.providers?.onChanged(() => void load()); }, [load]);
+  if (catalog === null) return <span className="srow-text" role="status">Loading models…</span>;
+  const groups = catalog.groups.filter((g) => g.kind === 'provider' && g.models.length > 0);
+  const value = quickKey(catalog, quick);
+  const choose = async (key: string) => {
+    setProblem(null);
+    const api = window.mobius.providers;
+    if (!api?.useQuick) { setProblem('That cannot be set here.'); return; }
+    const [, id, ...rest] = key.split('|');
+    const result = key === 'none' ? await api.useQuick('none') : await api.useQuick(id ?? '', rest.join('|'));
+    if (!result.ok) setProblem(result.error);
+    onChanged?.();
+  };
+  return (
+    <>
+      <select className="popup" aria-label="Quick model" value={value} onChange={(e) => void choose(e.target.value)}>
+        <option value="none">Same as chat</option>
+        {groups.map((g) => (
+          <optgroup key={`${g.kind}-${g.id}`} label={g.name}>
+            {g.models.map((m) => <option key={m.id} value={keyOf(g, m.id)}>{m.label}</option>)}
+          </optgroup>
+        ))}
+      </select>
+      {problem && <span className="field-error" role="alert">{problem}</span>}
+    </>
+  );
+}

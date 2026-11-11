@@ -53,7 +53,12 @@ fn is_voice_name(v: &Value) -> bool {
 pub const LISTEN_WITH: [&str; 4] = ["chat", "local", "elevenlabs", "off"];
 pub const SPEAK_WITH: [&str; 3] = ["local", "elevenlabs", "off"];
 
-static FIELDS: [Field; 22] = [
+/// The model for quick jobs: empty (the chat model) or `gateway|model`.
+fn is_quick_model(v: &Value) -> bool {
+    v.as_str().is_some_and(|s| s.is_empty() || s.split_once('|').is_some_and(|(id, model)| !id.is_empty() && id.len() <= 40 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') && is_model_name(&json!(model))))
+}
+
+static FIELDS: [Field; 23] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -80,6 +85,7 @@ static FIELDS: [Field; 22] = [
     // Read new replies aloud with the service chosen for speaking. Off until chosen.
     Field { name: "readAloud", default: || json!(false), check: is_flag },
     Field { name: "appAccess", default: app_access_default, check: is_app_access },
+    Field { name: "quickModel", default: || json!(""), check: is_quick_model },
 ];
 
 pub fn open(file: PathBuf) -> Settings {

@@ -195,6 +195,8 @@ pub struct AgentService {
     secrets: Arc<dyn Secrets>,
     saved: Mutex<Saved>,
     configured: AtomicBool,
+    /// The model for quick jobs (address, name and key), from a gateway. Kept by the bridge in the preferences.
+    quick: Mutex<Option<(String, String, Option<String>)>>,
 }
 
 fn ok() -> Value {
@@ -206,7 +208,7 @@ fn failed(message: impl Into<String>) -> Value {
 
 impl AgentService {
     pub fn new(core: Arc<CoreProcess>, settings_path: PathBuf, secrets: Arc<dyn Secrets>) -> AgentService {
-        let service = AgentService { token_sources: Mutex::default(), token_expires: Mutex::default(), core, settings_path, secrets, saved: Mutex::default(), configured: AtomicBool::new(false) };
+        let service = AgentService { token_sources: Mutex::default(), token_expires: Mutex::default(), core, settings_path, secrets, saved: Mutex::default(), configured: AtomicBool::new(false), quick: Mutex::default() };
         service.load();
         service
     }
@@ -359,6 +361,20 @@ impl AgentService {
         self.apply_request(&Configure { base_url: s.base_url, model: s.model, api_key: None, clear_key: true, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true);
     }
 
+    /// The model for quick jobs, or `None` for the chat model. Applied at once when a chat model is set up.
+    pub fn set_quick(&self, quick: Option<(String, String, Option<String>)>) -> Value {
+        if quick.as_ref().is_some_and(|(_, model, _)| !is_model_name(model)) {
+            return failed("That model cannot be used.");
+        }
+        *lock(&self.quick) = quick;
+        let s = lock(&self.saved).clone();
+        if s.base_url.is_empty() {
+            return ok();
+        }
+        let fallback = s.fallback.as_ref().map(|f| FallbackRequest { base_url: f.base_url.clone(), model: f.model.clone(), api_key: None, clear_key: false });
+        self.apply_request(&Configure { base_url: s.base_url, model: s.model, api_key: None, clear_key: false, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true)
+    }
+
     /// The key for `address` comes from this sign-in instead of the saved key.
     pub fn add_token_source(&self, address: &str, source: TokenSource) {
         lock(&self.token_sources).push((address.to_owned(), source));
@@ -366,6 +382,12 @@ impl AgentService {
 
     fn params(&self, s: &Saved) -> Result<Value, String> {
         let mut p = core_params(s);
+        if let Some((base_url, model, key)) = lock(&self.quick).clone() {
+            p["quick"] = json!({ "base_url": base_url, "model": model });
+            if let Some(k) = key {
+                p["quick"]["api_key"] = json!(k);
+            }
+        }
         let source = lock(&self.token_sources).iter().find(|(a, _)| a.eq_ignore_ascii_case(s.base_url.trim())).map(|(_, f)| f.clone());
         if let Some(source) = source {
             let token = source()?.ok_or("Sign in first, in Settings > Providers.")?;

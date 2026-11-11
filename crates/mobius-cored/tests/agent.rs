@@ -264,7 +264,7 @@ fn a_bad_setup_is_refused_and_a_key_never_comes_back() {
     let ok = d.call(3, "agent.configure", json!({ "base_url": "https://api.example.com/v1", "api_key": "sk-secret-123", "model": "m" }));
     assert!(!ok.to_string().contains("sk-secret-123"));
     let status = d.call(4, "agent.status", json!({}));
-    assert_eq!(status["result"], json!({ "configured": true, "model": "m", "max_steps": 25, "fallback_model": null, "context_tokens": null }));
+    assert_eq!(status["result"], json!({ "configured": true, "model": "m", "max_steps": 25, "fallback_model": null, "quick_model": null, "context_tokens": null }));
 }
 
 #[test]
@@ -710,6 +710,27 @@ fn smart_approvals_let_a_reviewer_approve_one_call_through_the_real_pipe_and_lea
     assert!(!review.contains("echo hi"), "the person's message is not shown to the reviewer");
     let grants = d.call(6, "permissions.grants", json!({}));
     assert!(grants["result"].as_array().unwrap().iter().all(|g| g["duration"] != "always" && g["duration"] != "session"));
+}
+
+#[test]
+fn the_quick_model_reviews_when_one_is_chosen_and_the_chat_model_does_the_rest() {
+    let chat = fake(vec![calls("demo-echo", "{\"text\":\"hi\"}"), says(&["It echoed."], 0)]);
+    let quick = fake(vec![says(&["APPROVE"], 0)]);
+    let mut d = Daemon::start(&["--demo-tools"]);
+    let r = d.call(1, "agent.configure", json!({ "base_url": chat.url(), "model": "chat-model", "quick": { "base_url": quick.url(), "model": "quick-model" } }));
+    assert_eq!(r["result"], json!({}), "{r}");
+    assert_eq!(d.call(9, "agent.configure", json!({ "base_url": chat.url(), "model": "chat-model", "quick": { "base_url": quick.url(), "model": "" } }))["error"]["code"], -32602);
+    d.call(1, "agent.configure", json!({ "base_url": chat.url(), "model": "chat-model", "quick": { "base_url": quick.url(), "model": "quick-model" } }));
+    d.call(5, "permissions.set_mode", json!({ "mode": "smart" }));
+    d.call(2, "agent.send", json!({ "conversation": "c1", "text": "echo hi" }));
+    let (skipped, _) = d.until_event("done");
+    assert!(!skipped.iter().any(|n| n["params"]["event"]["kind"] == "needs_approval"), "the quick model approved it");
+    let reviewed = quick.bodies.lock().unwrap().clone();
+    assert_eq!(reviewed.len(), 1);
+    assert_eq!(reviewed[0]["model"], "quick-model");
+    let chatted = chat.bodies.lock().unwrap().clone();
+    assert_eq!(chatted.len(), 2, "the chat model is not asked to review");
+    assert!(chatted.iter().all(|b| b["model"] == "chat-model"));
 }
 
 #[test]
