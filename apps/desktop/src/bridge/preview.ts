@@ -4,6 +4,7 @@ import { PREVIEW_TASKS } from './preview-tasks';
 import { PREVIEW_CALENDAR } from './preview-calendar';
 import { PREVIEW_DOCS } from './preview-docs';
 import { PREVIEW_SONGS } from './preview-songs';
+import { PREVIEW_BROWSER } from './preview-browser';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
@@ -64,7 +65,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'preferences.get': () => DEFAULT_PREFERENCES,
   'agent.getSettings': () => ({ baseUrl: 'https://portal.example/v1', model: 'Balanced', system: '', configured: true, hasKey: true, maxSteps: 24, keyStorage: 'session', fallbackBaseUrl: '', fallbackModel: '' }),
   'agent.question': () => null,
-  'browser.getState': () => ({ tabs: [{ id: 't1', url: 'https://axion.example/motors/150', title: 'Axion 150 kW', loading: false, canGoBack: false, canGoForward: false, active: true }], activeId: 't1' }),
+  ...PREVIEW_BROWSER,
   'bots.get': () => ({ bots: [] }),
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,
@@ -132,8 +133,9 @@ const refused = { ok: false, error: 'This is the preview: nothing is saved.' };
 
 function answer(path: string, args: unknown[]): unknown {
   const name = path.slice(path.lastIndexOf('.') + 1);
-  if (/^on[A-Z]/.test(name)) return () => undefined;
   const given = ANSWERS[path];
+  // A listener answers at once with its way of stopping; only the ones in ANSWERS ever fire.
+  if (/^on[A-Z]/.test(name)) return given ? (given as (...a: unknown[]) => unknown)(...args) : () => undefined;
   if (given) return Promise.resolve((given as (...a: unknown[]) => unknown)(...args));
   if (/^(list|lists|items|get|history|waiting|conversations|archived|drafts|projects|albums|places|processes|sources|suggestions|accounts|turns|search|recent|names)$/.test(name)) return Promise.resolve([]);
   return Promise.resolve(refused);
