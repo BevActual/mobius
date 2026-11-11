@@ -14,7 +14,9 @@ const pages: Record<string, string> = {
   '/popup': '<!doctype html><title>Popup page</title><body>popup',
   // Reports what a web page can see. A page must see none of the Node or Electron surface.
   '/probe': '<!doctype html><title>probe</title><script>document.title="probe:"+[typeof window.mobius,typeof require,typeof process,typeof module,typeof Buffer].join(",")</script>',
-  '/perm': '<!doctype html><title>perm</title><script>navigator.permissions.query({name:"geolocation"}).then(r=>{document.title="perm:"+r.state})</script>',
+  // Asks for the location and reports the answer: what a page gets when it asks, not a query of the state, whose answer
+  // while the page is still loading depends on timing ("prompt" now and then on CI).
+  '/perm': '<!doctype html><title>perm</title><script>navigator.geolocation.getCurrentPosition(()=>{document.title="perm:granted"},(e)=>{document.title="perm:"+(e.code===1?"denied":"error"+e.code)},{timeout:10000})</script>',
   '/find': '<!doctype html><title>Find page</title><body><p>apple one</p><p>Apple two</p><p>banana</p><p>apple three</p>',
   '/form': '<!doctype html><title>Form page</title><body><h1 id="out">idle</h1><form onsubmit="event.preventDefault();document.getElementById(\'out\').textContent=\'searched:\'+document.getElementById(\'q\').value"><label for="q">Search</label><input id="q" name="q"><label for="pw">Password</label><input id="pw" type="password"><button type="submit">Go</button></form><a href="#" onclick="document.getElementById(\'out\').textContent=\'clicked-more\';return false">More details</a><a href="#">More news</a><button id="b" onclick="document.getElementById(\'out\').textContent=\'pressed\'">Press me</button>',
   '/icon': '<!doctype html><title>Icon page</title><link rel="icon" href="/fav.png"><body>icon',
