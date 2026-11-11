@@ -2436,6 +2436,11 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .chat .review-strip .review-head { flex-wrap: wrap; row-gap: 8px; }
 .chat .review-strip .review-actions { flex-basis: 100%; }
 .chat .review-strip .review-btn { white-space: nowrap; }
+/* Keep all, Undo all and Try another share the row while they fit, and go onto a second line in a narrow sidebar
+   rather than running past the card's edge. */
+.chat .review-strip .review-actions { flex-wrap: wrap; min-width: 0; }
+.chat .review-strip .review-actions .review-btn { flex: 1 1 auto; min-width: 0; padding: 0 12px; }
+.chat .review-strip .review-item { min-width: 0; }
 
 /* The time above a group of messages: "Today 9:12". */
 .chat .msg-stamp { align-self: center; margin: 6px 0 2px; font-size: 11px; line-height: 1.3; color: var(--muted, #86868B); text-align: center; font-variant-numeric: tabular-nums; }
@@ -2521,8 +2526,10 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .popmenu-heading { margin: 2px 8px 2px 26px; font-size: 11px; font-weight: 600; color: var(--muted); }
 .popmenu-split { margin-top: 4px; }
 /* The composer's row: + model mode on the left, then the context ring, the microphone and send. */
-.composer-tools { flex-wrap: nowrap; min-width: 0; }
-.composer-tools .pill { flex: 0 1 auto; min-width: 0; }
+/* In a narrow sidebar the controls go onto a second line rather than shrinking to a letter ("c…", "P."): each keeps at
+   least a short word, and only a long model name is cut. */
+.composer-tools { flex-wrap: wrap; row-gap: 2px; min-width: 0; }
+.composer-tools .pill { flex: 0 1 auto; min-width: min(64px, 100%); }
 .composer-tools .pill .pill-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-actions { gap: 6px; flex: none; }
 

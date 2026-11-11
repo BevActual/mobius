@@ -3,6 +3,7 @@ import { MenuBar } from './MenuBar';
 import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type SidebarMode } from '@mobius/shared';
+import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, isAvailable, type AppId, noteOpened, APPS } from './apps';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
@@ -132,6 +133,12 @@ export function App() {
   const boards = useNotes('boards');
   const research = useNotes('research');
   const reading = useNotes('reading');
+  // Changes are named by the pages' titles as they are now, not the file names they were made with.
+  useEffect(() => { rememberTitles('notes', notes.notebooks); }, [notes.notebooks]);
+  useEffect(() => { rememberTitles('docs', docs.notebooks); }, [docs.notebooks]);
+  useEffect(() => { rememberTitles('slides', slides.notebooks); }, [slides.notebooks]);
+  useEffect(() => { rememberTitles('research', research.notebooks); }, [research.notebooks]);
+  useEffect(() => { rememberTitles('reading', reading.notebooks); }, [reading.notebooks]);
   const wiki = useNotes('wiki');
   const wikiIncoming = useWikiIncoming();
   const projects = useProjects();
