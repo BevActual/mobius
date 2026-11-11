@@ -34,6 +34,20 @@ async function openProjects(): Promise<void> {
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Projects');
   await shell().keyboard.press('Enter');
+  // Twice on CI (never here) the Projects page was not there after this. Say what the window showed instead, so the
+  // cause can be seen rather than a test that times out on a closed page.
+  try {
+    await expect(shell().locator('.app')).toHaveAttribute('data-app', 'projects', { timeout: 5_000 });
+  } catch {
+    const seen = await shell().evaluate(() => ({
+      app: document.querySelector('.app')?.getAttribute('data-app'),
+      launcherOpen: Boolean(document.querySelector('dialog[open]')),
+      query: (document.querySelector('dialog[open] input') as HTMLInputElement | null)?.value,
+      focus: document.activeElement?.outerHTML.slice(0, 160),
+      regions: [...document.querySelectorAll('section[aria-label], [role="region"][aria-label]')].map((e) => e.getAttribute('aria-label')).slice(0, 20),
+    }));
+    throw new Error(`Projects did not open: ${JSON.stringify(seen)}`);
+  }
 }
 async function newProject(name: string): Promise<void> {
   await shell().getByRole('button', { name: 'New project' }).first().click();

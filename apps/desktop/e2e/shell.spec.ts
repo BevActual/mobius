@@ -22,8 +22,12 @@ test('opens one window with a single visible page glued to the slot', async () =
   expect(view.url).toBe(fixture.origin + '/');
   await expect(tabTitles()).toHaveText(['Fixture home']);
   await expect(address()).toHaveValue(fixture.origin + '/');
-  const slot = (await mobius.shell.getByTestId('surface-slot').boundingBox())!;
-  for (const key of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(view.bounds[key] - slot[key]), key).toBeLessThanOrEqual(2);
+  // Mobius, pinned beside the page in these tests, opens once the saved layout is read: the page follows the slot.
+  await expect.poll(async () => {
+    const slot = (await mobius.shell.getByTestId('surface-slot').boundingBox())!;
+    const shown = (await views(mobius.app)).find((v) => v.visible)!;
+    return Math.max(...(['x', 'y', 'width', 'height'] as const).map((key) => Math.abs(shown.bounds[key] - slot[key])));
+  }).toBeLessThanOrEqual(2);
 });
 
 test('the page stays glued to the slot when the window resizes and the panel toggles', async () => {

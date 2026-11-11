@@ -42,7 +42,7 @@ fn is_clippings_page(v: &Value) -> bool {
     v.as_str().is_some_and(|s| s.is_empty() || (s.ends_with(".md") && s.chars().count() <= 500 && !s.chars().any(char::is_control)))
 }
 
-static FIELDS: [Field; 17] = [
+static FIELDS: [Field; 18] = [
     Field { name: "theme", default: || json!("system"), check: |v| one_of(v, &["system", "light", "dark"]) },
     Field { name: "zoom", default: || json!(1), check: |v| in_range(v, 0.75, 1.5) },
     Field { name: "chatTextScale", default: || json!(1), check: |v| in_range(v, 0.85, 1.4) },
@@ -56,6 +56,8 @@ static FIELDS: [Field; 17] = [
     // The app list on the left: the full sidebar (the default, so it is easy to find) or a narrow rail of icons.
     Field { name: "navigation", default: || json!("sidebar"), check: |v| one_of(v, &["sidebar", "rail"]) },
     Field { name: "rightSidebar", default: || json!("attached"), check: |v| one_of(v, &["attached", "floating"]) },
+    // Where Mobius opens: in the sidebar, which turns into Mobius (the default), or pinned beside the page.
+    Field { name: "agentPlace", default: || json!("sidebar"), check: |v| one_of(v, &["sidebar", "beside"]) },
     Field { name: "leftWidth", default: || json!(LEFT_WIDTH.2), check: |v| in_range(v, LEFT_WIDTH.0, LEFT_WIDTH.1) },
     Field { name: "rightWidth", default: || json!(RIGHT_WIDTH.2), check: |v| in_range(v, RIGHT_WIDTH.0, RIGHT_WIDTH.1) },
     // Which apps the sidebar lists, in order. At least one; each once.

@@ -14,13 +14,17 @@ describe('appearance changes', () => {
     }
   });
   it('has sensible defaults', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'sidebar', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
   });
 });
 
 describe('more appearance choices', () => {
   it('accept each of the named choices and the two switches', () => {
     expect(parseAppearancePatch({ chatFont: 'serif', textDirection: 'rtl', density: 'compact', toolSteps: 'hide-finished', sidebarAtStart: false, resumeLast: false })).toEqual({ chatFont: 'serif', textDirection: 'rtl', density: 'compact', toolSteps: 'hide-finished', sidebarAtStart: false, resumeLast: false });
+  });
+  it('keep where Mobius opens: in the sidebar, or pinned beside the page', () => {
+    expect(parseAppearancePatch({ agentPlace: 'beside' })).toEqual({ agentPlace: 'beside' });
+    expect(parseAppearancePatch({ agentPlace: 'right' })).toBeNull();
   });
   it('refuse anything that is not one of the choices', () => {
     for (const bad of [{ chatFont: 'comic' }, { chatFont: 3 }, { textDirection: 'up' }, { density: 'tiny' }, { toolSteps: 'all' }, { sidebarAtStart: 'yes' }, { resumeLast: 1 }, { chatFont: 'mono', density: 'x' }]) {

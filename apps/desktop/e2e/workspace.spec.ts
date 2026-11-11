@@ -284,3 +284,72 @@ test('Mobius’s own apps sit in the switcher: Bots and Activity open their view
   await own.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
 });
+
+/** Start as a new person does: Mobius lives in the sidebar, closed until asked. */
+async function startInSidebar(replies: ModelReply[] = []): Promise<void> {
+  model = await startModel(replies);
+  mobius = await launch(fixture.origin + '/', { userData, mobiusInSidebar: true, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  await expect(rail()).toHaveAttribute('data-face', 'app', { timeout: 15_000 });
+}
+
+test('by default Mobius opens in the sidebar: the column turns into Mobius, one head, and turns back', async () => {
+  await startInSidebar([says(['Hello from the sidebar.'])]);
+  // Nothing beside the page, and the app's own list in the sidebar.
+  await expect(shell().locator('.dock.right')).toHaveCount(0);
+  await expect(composer()).toHaveCount(0);
+  await rail().locator('[data-mobius-face]').click();
+  await expect(rail()).toHaveAttribute('data-face', 'mobius');
+  await expect(shell().locator('.dock.right')).toHaveCount(0);
+  // One head: the app's tile (the switcher), Mobius and where, then its icons.
+  const head = rail().locator('.chat-head');
+  await expect(head).toHaveCount(1);
+  await expect(head.locator('[data-app-switcher]')).toBeVisible();
+  await expect(head).toContainText('Mobius');
+  await expect(head).toContainText('In Browser');
+  await expect(rail().locator('.rail-head')).toHaveCount(0);
+  await expect(composer()).toBeEnabled();
+  await composer().fill('hi');
+  await composer().press('Enter');
+  await expect(rail().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Hello from the sidebar.');
+  // Closing turns the column back into the app's sidebar.
+  await head.getByRole('button', { name: 'Back to the sidebar' }).click();
+  await expect(rail()).toHaveAttribute('data-face', 'app');
+  await expect(composer()).toHaveCount(0);
+});
+
+test('Pin beside puts Mobius on the right with the app sidebar back, is remembered, and Unpin returns it to the sidebar', async () => {
+  await startInSidebar();
+  await rail().locator('[data-mobius-face]').click();
+  await rail().getByRole('button', { name: 'Pin beside' }).click();
+  const beside = shell().locator('.dock.right');
+  await expect(beside).toHaveCount(1);
+  await expect(rail()).toHaveAttribute('data-face', 'app');
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.appearance.get())).agentPlace).toBe('beside');
+  // Unpinning puts it back in the sidebar, open.
+  await beside.getByRole('button', { name: 'Unpin from beside' }).click();
+  await expect(beside).toHaveCount(0);
+  await expect(rail()).toHaveAttribute('data-face', 'mobius');
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.appearance.get())).agentPlace).toBe('sidebar');
+});
+
+test('with the sidebar folded to the rail, Mobius opens the column, and closing folds it back', async () => {
+  await startInSidebar();
+  await rail().getByRole('button', { name: 'Collapse sidebar' }).click();
+  await expect(rail()).not.toHaveAttribute('data-expanded', /.*/);
+  await shell().getByRole('button', { name: 'Show agent' }).click();
+  await expect(rail()).toHaveAttribute('data-face', 'mobius');
+  await expect(composer()).toBeVisible();
+  await rail().getByRole('button', { name: 'Back to the sidebar' }).click();
+  await expect(rail()).not.toHaveAttribute('data-expanded', /.*/);
+  expect((await shell().evaluate(() => window.mobius.appearance.get())).navigation).toBe('rail');
+});
+
+test('a narrow window still opens Mobius in the sidebar column at its usual width', async () => {
+  await startInSidebar();
+  await resizeWindow(mobius!.app, 900, 700);
+  await expect(rail()).not.toHaveAttribute('data-expanded', /.*/);
+  await shell().getByRole('button', { name: 'Show agent' }).click();
+  await expect(rail()).toHaveAttribute('data-face', 'mobius');
+  await expect.poll(async () => Math.round((await rail().boundingBox())!.width)).toBeGreaterThan(240);
+  await expect(composer()).toBeVisible();
+});

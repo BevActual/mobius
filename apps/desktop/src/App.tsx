@@ -164,7 +164,7 @@ export function App() {
     startedUp.current = true;
     if (!appearance.value.sidebarAtStart || appearance.value.leftSidebar === 'floating') setPanelOpen(false);
     if (appearance.value.leftSidebar === 'floating') setAgentListOpen(false);
-    if (appearance.value.rightSidebar === 'floating') setChatOpen(false);
+    if (appearance.value.agentPlace === 'beside' && appearance.value.rightSidebar !== 'floating') setChatOpen(true);
     if (!appearance.value.resumeLast) conversation.startFresh();
   }, [appearance.loaded, appearance.value, conversation]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -475,10 +475,10 @@ export function App() {
   const startedUp = useRef(false);
   // Where the agent sits when it is open: in the sidebar, which turns into Mobius (the default), or pinned beside the
   // page. Pinning is kept per computer.
-  const [chatPlace, setChatPlaceState] = useState<'beside' | 'sidebar'>(() => { try { return window.localStorage.getItem('mobius.agent.beside') !== '0' ? 'beside' : 'sidebar'; } catch { return 'beside'; } });
-  const setChatPlace = (place: 'beside' | 'sidebar') => { setChatPlaceState(place); try { window.localStorage.setItem('mobius.agent.beside', place === 'beside' ? '1' : '0'); } catch { /* Not kept. */ } };
+  const chatPlace = appearance.value.agentPlace;
+  const setChatPlace = (place: 'beside' | 'sidebar') => { void appearance.set({ agentPlace: place }); };
   // In the sidebar, Mobius waits to be asked and the app's own list shows; pinned beside, it is there from the start.
-  const [chatOpen, setChatOpen] = useState(() => chatPlace === 'beside');
+  const [chatOpen, setChatOpen] = useState(false);
   const [focusToken, setFocusToken] = useState(0);
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
