@@ -95,7 +95,7 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   expect(fs.existsSync(file('Home', 'Groceries.md'))).toBe(false);
   // Opening a page does not rewrite it: the file stays as it was written.
   expect(onDisk('Home', 'Garden.md')).toBe('# Garden\n- tomatoes\n');
-  await expect(shell().getByText('Choose a page, or make a new one.')).toBeVisible();
+  await expect(shell().getByRole('region', { name: 'No page open' })).toBeVisible();
 });
 
 test('the agent panel sits beside a note, and a change the agent makes shows up in the open page', async () => {

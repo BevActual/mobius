@@ -1,5 +1,6 @@
 import { RowMark } from './RowMark';
 import { FromMobius } from './FromMobius';
+import { EmptyState } from './EmptyState';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { changedShots, cutLength, freshShotId, locate, parseCut, shotLength, shotStart, timecode, type Shot } from './cut-format';
 import { useFileReview } from './useFileReview';
@@ -137,8 +138,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
     if (files.length) void video.addFiles(files);
   };
 
-  if (!video.available) return <section className="video-page empty" aria-label="Video"><p className="note-empty">Video is not available here.</p></section>;
-  if (!video.project) return <section className="video-page empty" aria-label="Video"><p className="note-empty">Make a project, then copy clips into its folder.</p></section>;
+  if (!video.available) return <section className="video-page empty" aria-label="Video"><EmptyState app="video" title="Video is not available here" /></section>;
+  if (!video.project) return <section className="video-page empty" aria-label="Video"><EmptyState app="video" label="No project open" title={video.projects.length ? 'No project open' : 'No projects yet'} line="A project is a folder of clips and its cut. The clips are never changed." action={{ label: 'New project', run: () => void video.createProject('Project') }} /></section>;
   const sel = cut.shots.find((s) => s.id === selected) ?? null;
   const pxPerSec = total > 0 ? Math.max(14, Math.min(90, 900 / total)) : 40;
   const names = [...changed].map((id) => { const i = cut.shots.findIndex((s) => s.id === id); return i >= 0 ? `shot ${i + 1}` : id; });

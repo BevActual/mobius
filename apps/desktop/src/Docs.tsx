@@ -13,7 +13,8 @@ import type { Node as PmNode } from '@tiptap/pm/model';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from './line-diff';
 import { liveTitle } from './notes-state';
-import { NotesSidebar, type SidebarWords } from './NotesSidebar';
+import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
+import { EmptyState } from './EmptyState';
 import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
 import { ReviewActions, WhyThis } from './ReviewBar';
@@ -547,10 +548,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
     // The editor stays mounted (hidden), so it is ready the moment a document opens.
     return (
       <section className="doc-editor empty" aria-label="Document">
-        <div className="doc-empty">
-          <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 6h14l10 10v24a2 2 0 0 1-2 2H14a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" /><path d="M28 6v10h10M18 24h12M18 30h12M18 36h8" /></svg>
-          <p className="note-empty">{docs.notebooks.length ? 'Choose a document, or make a new one.' : 'Make a folder to start, or use New document.'}</p>
-        </div>
+        <EmptyState app="docs" label="No document open" title={docs.notebooks.some((n) => n.pages.length) ? 'No document open' : 'No documents yet'} line="Choose one on the left, or start a new one." action={{ label: 'New document', run: () => newItemIn(docs, null, DOCS_WORDS.defaultGroup) }} />
         <EditorContent editor={editor} hidden />
       </section>
     );

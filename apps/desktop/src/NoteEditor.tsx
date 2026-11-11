@@ -1,3 +1,5 @@
+import { EmptyState } from './EmptyState';
+import { newItemIn } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
@@ -519,7 +521,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     // The editor stays mounted (hidden), so it is ready the moment a page opens.
     return (
       <section className="note-editor empty" aria-label="Note">
-        <p className="note-empty">{notes.notebooks.length ? 'Choose a page, or make a new one.' : 'Make a notebook to start.'}</p>
+        <EmptyState app="notes" label="No page open" title={notes.notebooks.some((n) => n.pages.length) ? 'No page open' : 'No pages yet'} line="Choose a page on the left, or start a new one." action={{ label: 'New page', run: () => newItemIn(notes, null, 'Notes') }} />
         <EditorContent editor={editor} hidden />
       </section>
     );

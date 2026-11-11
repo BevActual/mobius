@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
-import { NotesSidebar, type SidebarWords } from './NotesSidebar';
+import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
+import { EmptyState } from './EmptyState';
 import { useFileReview } from './useFileReview';
 import { useUndo } from './useUndo';
 import {
@@ -261,7 +262,7 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
     return () => window.removeEventListener('keydown', onKey);
   }, [selected, remove, nudge, duplicate, copy, paste, board, history]);
 
-  if (!boards.page) return <section className="canvas-page empty" aria-label="Canvas"><p className="note-empty">Choose a board on the left, or make a new one.</p></section>;
+  if (!boards.page) return <section className="canvas-page empty" aria-label="Canvas"><EmptyState app="canvas" label="No board open" title={boards.notebooks.some((n) => n.pages.length) ? 'No board open' : 'No boards yet'} line="Choose one on the left, or start a new one." action={{ label: 'New board', run: () => newItemIn(boards, null, CANVAS_WORDS.defaultGroup) }} /></section>;
   if (!board) {
     return (
       <section className="canvas-page empty" aria-label="Canvas">

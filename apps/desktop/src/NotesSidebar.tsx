@@ -12,6 +12,12 @@ import { RowMark } from './RowMark';
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
 /** The words for Notes; Docs passes its own, since it keeps documents in folders the same way. */
 export interface SidebarWords { app: string; group: string; groups: string; item: string; items: string; about: string; /** Made when something is created before any group exists. */ defaultGroup?: string }
+/** A new page in `group`, or the first folder, or a folder made with the default name when there is none. */
+export function newItemIn(notes: NotesState, group: string | null | undefined, fallback?: string): void {
+  const into = group || notes.notebooks[0]?.name;
+  if (into) void notes.createPage(into);
+  else if (fallback) void notes.createNotebook(fallback).then((made) => { if (made) void notes.createPage(made); });
+}
 export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'page', items: 'pages', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.' };
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
@@ -54,10 +60,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
     const made = await notes.createNotebook(name.trim() || cap(words.group));
     if (made) { setNaming(false); setName(''); await notes.createPage(made); }
   };
-  const newItem = () => {
-    if (openNotebook) void notes.createPage(openNotebook);
-    else if (words.defaultGroup) void notes.createNotebook(words.defaultGroup).then((made) => { if (made) void notes.createPage(made); });
-  };
+  const newItem = () => newItemIn(notes, openNotebook, words.defaultGroup);
   const toggle = (nb: string) => setClosed((s) => { const n = new Set(s); if (n.has(nb)) n.delete(nb); else n.add(nb); return n; });
 
 

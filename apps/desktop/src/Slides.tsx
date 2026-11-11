@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { NotesSidebar, type SidebarWords } from './NotesSidebar';
+import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
+import { EmptyState } from './EmptyState';
 import { SLIDE_STYLES, blankSlide, changedSlides, parseDeck, writeDeck, type Slide, type SlideStyle } from './slides-format';
 import { LAYOUTS, clock, dropIndex, jumpTarget, moveSlide, movedTo, talkMinutes, type Layout } from './slides-view';
 import type { NotesState } from './useNotes';
@@ -317,7 +318,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   if (!deck.page) {
     return (
       <section className="slides-page empty" aria-label="Deck">
-        <p className="note-empty">{deck.notebooks.length ? 'Choose a deck, or make a new one.' : 'Make a deck to start: New deck in the sidebar.'}</p>
+        <EmptyState app="slides" label="No deck open" title={deck.notebooks.some((n) => n.pages.length) ? 'No deck open' : 'No decks yet'} line="Choose one on the left, or start a new one." action={{ label: 'New deck', run: () => newItemIn(deck, null, SLIDES_WORDS.defaultGroup) }} />
       </section>
     );
   }

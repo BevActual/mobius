@@ -1,4 +1,5 @@
 import { RowMark } from './RowMark';
+import { EmptyState } from './EmptyState';
 import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
@@ -257,11 +258,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   if (!data) {
     return (
       <section className="sheet-page empty" aria-label="Sheet">
-        <div className="sheet-empty">
-          <span className="sheet-empty-icon" aria-hidden="true"><Icon d={ICONS.table} /></span>
-          <p>{sheets.workbooks.length ? 'Choose a workbook.' : 'Make a workbook to start.'}</p>
-          <span>Each sheet is a CSV file, so any spreadsheet app can open it.</span>
-        </div>
+        <EmptyState app="sheets" label="No workbook open" title={sheets.workbooks.length ? 'No workbook open' : 'No workbooks yet'} line="Choose one on the left, or start a new one." action={{ label: 'New workbook', run: () => void sheets.createWorkbook('Workbook') }} />
       </section>
     );
   }

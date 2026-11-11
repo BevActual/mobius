@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { NotesSidebar, type SidebarWords } from './NotesSidebar';
+import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
+import { EmptyState } from './EmptyState';
 import { BEATS_PER_BAR, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, writeSong, type Instrument, type Song, type SongNote, type Track } from './song-format';
 import { play, previewNote, type Player } from './studio-audio';
 import { GRIDS, addNote, duplicateNotes, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes, type Picked } from './studio-view';
@@ -193,7 +194,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   if (!songs.page) {
     return (
       <section className="studio-page empty" aria-label="Music">
-        <div className="studio-empty"><span className="studio-empty-icon" aria-hidden="true"><Icon d="M8 15.5V5l8-1.5v10M8 15.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM16 13.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z" /></span><p>Choose a song on the left, or make a new one.</p><span>Songs are notes, never audio, so Mobius can read and write them like a score.</span></div>
+        <EmptyState app="studio" label="No song open" title={songs.notebooks.some((n) => n.pages.length) ? 'No song open' : 'No songs yet'} line="Songs are notes, never audio, so Mobius can read and write them like a score." action={{ label: 'New song', run: () => newItemIn(songs, null, STUDIO_WORDS.defaultGroup) }} />
       </section>
     );
   }
