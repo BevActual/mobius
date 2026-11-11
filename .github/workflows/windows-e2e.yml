@@ -102,3 +102,37 @@ jobs:
         run: |
           echo "shards: ${{ needs.shard.result }}"
           test "${{ needs.shard.result }}" = "success"
+
+  # The screenshots, published as one commit on the branch ci-screens/<branch> (replaced on every run), so reviewers
+  # whose network cannot fetch Actions artifacts can read them at raw.githubusercontent.com/<repo>/ci-screens/<branch>/.
+  # Pushes made with the workflow's own token start no workflows.
+  screens:
+    if: ${{ !cancelled() }}
+    needs: shard
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          pattern: screens-*
+          merge-multiple: true
+          path: screens
+      - name: Publish them to the ci-screens branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if ! ls screens/*.png >/dev/null 2>&1; then echo "No screenshots in this run."; exit 0; fi
+          cd screens
+          echo "$SHA" > SHA.txt
+          git init -q -b screens
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -qm "Screenshots of $BRANCH at $SHA"
+          git push -fq "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "HEAD:refs/heads/ci-screens/${BRANCH}"
+          echo "Published $(ls *.png | wc -l) screenshots to ci-screens/${BRANCH}"
