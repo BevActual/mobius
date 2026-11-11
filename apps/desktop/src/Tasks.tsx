@@ -445,6 +445,9 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
   const input = useRef<HTMLInputElement>(null);
   const typing = useRef(text);
   typing.current = text;
+  // A task added where it will not show (Today, for one due tomorrow) says where it went, with a way there.
+  const [went, setWent] = useState<{ text: string; when: string } | null>(null);
+  useEffect(() => { if (!went) return; const t = window.setTimeout(() => setWent(null), 6000); return () => window.clearTimeout(t); }, [went]);
   useEffect(() => { if (focusToken) input.current?.focus(); }, [focusToken]);
   const now = new Date();
   const said = literal || due ? null : parseWhen(text, now);
@@ -457,7 +460,9 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
     const typed = { text, due, literal };
     setText(''); setDue(''); setLiteral(false);
     input.current?.focus();
-    if (!(await tasks.add(target, words, date)) && typing.current === '') { setText(typed.text); setDue(typed.due); setLiteral(typed.literal); }
+    const added = await tasks.add(target, words, date);
+    if (!added && typing.current === '') { setText(typed.text); setDue(typed.due); setLiteral(typed.literal); }
+    if (added && tasks.view.kind === 'smart' && tasks.view.id === 'today' && date && date > isoDay(now)) setWent({ text: words, when: dueLabel(date, now).text });
   };
   return (
     <form className="task-new" data-typing={text !== '' || due !== '' || undefined} onSubmit={(e) => void submit(e)}>
@@ -471,6 +476,12 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
         </button>
       )}
       <input type="date" className="task-date" aria-label="Due date for the new task" value={due} onChange={(e) => setDue(e.target.value)} />
+      {went && (
+        <p className="task-went" role="status">
+          <span>{`“${went.text}” is due ${went.when}, so it is in Scheduled.`}</span>
+          <button type="button" className="review-btn" onClick={() => { setWent(null); tasks.setView({ kind: 'smart', id: 'scheduled' }); }}>Show</button>
+        </p>
+      )}
     </form>
   );
 }

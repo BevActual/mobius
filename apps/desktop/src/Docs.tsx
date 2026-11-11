@@ -15,6 +15,7 @@ import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from './line-diff';
 import { liveTitle } from './notes-state';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
+import { untitledHeading } from './NoteEditor';
 import { EmptyState } from './EmptyState';
 import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
@@ -374,7 +375,11 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, busy = false
     known.current = docs.text;
     editor.chain().setMeta('mobius-load', true).setContent(docs.text, { contentType: 'markdown', emitUpdate: false }).run();
     // Not while a dialog is open (the launcher): a page that loads late must not take the keys from it.
-    if (autoFocus && !document.querySelector('dialog[open]')) editor.commands.focus('end');
+    if (autoFocus && !document.querySelector('dialog[open]')) {
+      // A new document: its title is chosen, so what is typed first names it.
+      const at = untitledHeading(editor);
+      if (at) editor.chain().focus().setTextSelection(at).run(); else editor.commands.focus('end');
+    }
   }, [editor, docs.text, path]); // eslint-disable-line react-hooks/exhaustive-deps
   const quoteKey = quotesNow.current.join('\u0000');
   useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(commentKey, true)); }, [editor, quoteKey]);

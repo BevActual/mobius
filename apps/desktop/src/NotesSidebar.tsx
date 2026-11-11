@@ -20,7 +20,7 @@ export function newItemIn(notes: NotesState, group: string | null | undefined, f
   if (into) void notes.createPage(into);
   else if (fallback) void notes.createNotebook(fallback).then((made) => { if (made) void notes.createPage(made); });
 }
-export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'page', items: 'pages', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.' };
+export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'page', items: 'pages', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.', defaultGroup: 'Notes' };
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
 /**
