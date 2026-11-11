@@ -92,6 +92,8 @@ interface Props {
   /** Mobius as the sidebar's third face: the conversation takes the column, the app's name stays in the head. */
   mobius?: { shown: boolean; onToggle: () => void; onBeside: () => void; panel: ReactNode } | null;
   children?: ReactNode;
+  /** Changes when something outside asks for the app switcher. */
+  switcherToken?: number;
   onOpen: (id: AppId) => void;
   /** What the agent is doing now: the app it is working in shows it, live. */
   activity: Activity | null;
@@ -121,7 +123,7 @@ interface Props {
  * The sidebar: one column that belongs to the app you are in, and turns into the list of apps from its head. The highlight slides to the app you are in, the app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, expanded, onToggle, create, createInList = false, ownApps, counts, menus, chrome, mobius, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles }: Props) {
+export function Rail({ app, expanded, onToggle, create, createInList = false, ownApps, counts, menus, chrome, mobius, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles, switcherToken = 0 }: Props) {
   // While an app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
   const dragged = useRef(false);
@@ -145,6 +147,8 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   // After the app changes under a pointer that has not moved, the row now under it is not "hovered": the browser
   // keeps the old hover until the pointer moves, which drew a grey bar on whatever landed there.
   const [still, setStill] = useState(false);
+  // Something outside (the Mobius head beside the page) asks for the app switcher.
+  useEffect(() => { if (switcherToken) setFace('apps'); }, [switcherToken]);
   useEffect(() => { setStill(true); }, [app]);
   useEffect(() => {
     if (!menu) return undefined;
@@ -233,8 +237,10 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
           {asking && mobius && (
             <div ref={askRef} className="rail-ask">
               {/* One head: the app's switcher, Mobius and where, then its icons; the page's controls under it. */}
-              {isValidElement(mobius.panel) ? cloneElement(mobius.panel as ReactElement<{ onPlace?: () => void; pin?: ReactNode; below?: ReactNode }>, {
+              {isValidElement(mobius.panel) ? cloneElement(mobius.panel as ReactElement<{ onPlace?: () => void; onHide?: () => void; pin?: ReactNode; below?: ReactNode }>, {
                 onPlace: () => setFace('apps'),
+                // Its Close is in the icons below, as Back to the sidebar.
+                onHide: undefined,
                 pin: (
                   <>
                     <button type="button" className="head-icon" aria-label="Pin beside" title="Pin Mobius beside the page" onClick={mobius.onBeside}>

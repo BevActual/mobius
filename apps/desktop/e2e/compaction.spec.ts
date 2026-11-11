@@ -29,7 +29,7 @@ test('when the model says the conversation is too long, earlier messages are sum
     says(['SECRET-SUMMARY-TEXT']),
     says(['Second answer.']),
   ]);
-  mobius = await launch(fixture.origin + '/', { env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await say('First question');
   await expect(log().locator('.msg.assistant')).toHaveText('First answer.');

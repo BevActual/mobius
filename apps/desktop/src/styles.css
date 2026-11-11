@@ -2674,3 +2674,23 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .row-mark { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--accent); }
 .row-mark[data-kind="unread"] { background: #0A84FF; }
 .row-mark[data-kind="comment"] { width: 9px; height: 9px; border-radius: 4.5px 4.5px 4.5px 1.5px; background: #5856D6; }
+
+/* One floating panel for both sides: the left sidebar and Mobius pinned beside the page share these tokens, so
+   they cannot drift apart. */
+:root {
+  --panel-inset: 8px;
+  --panel-radius: 18px;
+  --panel-border: 0.5px solid var(--hairline);
+  --panel-bg: var(--sidebar);
+  --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+@media (prefers-color-scheme: dark) { :root { --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35); } }
+.rail[data-expanded]::before, .dock.left:not([data-floating]) > .side, .dock.right:not([data-floating]) > .chat { border: var(--panel-border); border-radius: var(--panel-radius); background: var(--panel-bg); box-shadow: var(--panel-shadow); }
+.rail[data-expanded]::before { inset: var(--panel-inset) 0 var(--panel-inset) var(--panel-inset); }
+.dock.left:not([data-floating]) { padding: var(--panel-inset) 0 var(--panel-inset) var(--panel-inset); }
+/* Mobius beside the page: the same card, inset the same from the top, the bottom and the right, its head level with
+   the page's title row. The dock's column holds the inset, so the page beside it never runs under the card. */
+.dock.right:not([data-floating]) { background: transparent; border-left: 0; }
+.app[data-chat="open"] .dock.right:not([data-floating]) { margin-top: calc(-1 * var(--context)); padding: var(--panel-inset) var(--panel-inset) var(--panel-inset) 0; }
+.dock.right:not([data-floating]) > .chat { overflow: hidden; }
+.dock[data-floating] { border: var(--panel-border); border-radius: var(--panel-radius); box-shadow: var(--panel-shadow); }

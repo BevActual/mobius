@@ -502,7 +502,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
         <div className="chat-head-actions">
           {variant === 'panel' && (!needsSetup || menuItems.length > 0) && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />}
           {pin}
-          {variant === 'panel' && onHide && !lead && !onPlace && (
+          {variant === 'panel' && onHide && !lead && (
             <button type="button" className="head-icon" aria-label="Hide" title="Hide Mobius" onClick={onHide}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
             </button>

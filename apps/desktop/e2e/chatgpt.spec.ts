@@ -42,7 +42,7 @@ async function openProviders(): Promise<void> {
 test('signing in with a code on OpenAI\'s site lets the agent answer on the ChatGPT plan', async () => {
   first = await startModel([]);
   openai = await startOpenAi(['Hello from ChatGPT.']);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_CHATGPT: openai.url } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_CHATGPT: openai.url } });
   await openProviders();
   await expect(row().getByRole('status')).toHaveText('Not signed in', { timeout: 15_000 });
   await row().getByRole('button', { name: 'Sign in to ChatGPT subscription' }).click();
@@ -82,7 +82,7 @@ test('signing in with a code on OpenAI\'s site lets the agent answer on the Chat
 test('a sign-in that is waiting for a code can be cancelled', async () => {
   first = await startModel([]);
   openai = await startOpenAi([]);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_CHATGPT: openai.url } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_CHATGPT: openai.url } });
   await openProviders();
   await row().getByRole('button', { name: 'Sign in to ChatGPT subscription' }).click();
   await expect(row().getByLabel('Sign-in code')).toContainText('MOBI-2026');

@@ -30,7 +30,7 @@ const lastUser = (body: Record<string, unknown>) => (body.messages as Array<{ ro
 
 test('a picture attached to a message goes to the model beside the words, and stays in the conversation', async () => {
   model = await startModel([says(['Rolling hills under a blue sky.'])]);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   const shell = mobius.shell;
   const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
   await expect(composer).toBeEnabled({ timeout: 15_000 });
@@ -51,7 +51,7 @@ test('a picture attached to a message goes to the model beside the words, and st
 
 test('Show Mobius takes one still from the camera and attaches it; the camera is off once it is taken', async () => {
   model = await startModel([says(['A test pattern.'])]);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   const shell = mobius.shell;
   const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
   await expect(composer).toBeEnabled({ timeout: 15_000 });

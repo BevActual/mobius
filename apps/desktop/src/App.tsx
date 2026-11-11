@@ -480,6 +480,7 @@ export function App() {
   // In the sidebar, Mobius waits to be asked and the app's own list shows; pinned beside, it is there from the start.
   const [chatOpen, setChatOpen] = useState(false);
   const [focusToken, setFocusToken] = useState(0);
+  const [switcherToken, setSwitcherToken] = useState(0);
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -1326,6 +1327,7 @@ export function App() {
               onModelChanged={() => void reloadSettings()}
             pin={pinned}
             place={appName(app)}
+            onPlace={() => { if (showWide) setSwitcherToken((n) => n + 1); else openHub(); }}
             menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
           />
@@ -1417,6 +1419,7 @@ export function App() {
           panel: chatInSide && chatOpen ? chatPanel(null) : null,
         } : null}
         onLauncher={openHub}
+        switcherToken={switcherToken}
         onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
         settingsOpen={settingsOpen}
         apps={appearance.value.sidebarApps}

@@ -325,6 +325,11 @@ test('Pin beside puts Mobius on the right with the app sidebar back, is remember
   await expect(beside).toHaveCount(1);
   await expect(rail()).toHaveAttribute('data-face', 'app');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.appearance.get())).agentPlace).toBe('beside');
+  // Beside the page too, "In Browser" opens the app switcher.
+  await beside.getByRole('button', { name: 'In Browser: switch app' }).click();
+  await expect(rail()).toHaveAttribute('data-face', 'apps');
+  await rail().locator('[data-app-switcher]').first().click();
+  await expect(rail()).toHaveAttribute('data-face', 'app');
   // Unpinning puts it back in the sidebar, open.
   await beside.getByRole('button', { name: 'Unpin from beside' }).click();
   await expect(beside).toHaveCount(0);

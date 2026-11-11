@@ -34,7 +34,7 @@ const openai = (): Locator => page().getByRole('listitem', { name: 'OpenAI', exa
 async function start(): Promise<void> {
   first = await startModel([says(['from the first server'])]);
   provider = await startModel([says(['from OpenAI'])], { models: ['gpt-b', 'gpt-a'] });
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_PROVIDER: `openai=${provider.url}` } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_PROVIDER: `openai=${provider.url}` } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await openSettings(shell());
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Providers', exact: true }).click();
