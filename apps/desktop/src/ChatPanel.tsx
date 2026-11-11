@@ -292,6 +292,10 @@ export interface ChatPanelProps {
   onHide?: () => void;
   /** Before the title: the app switcher, when the panel takes the sidebar. */
   lead?: ReactNode;
+  /** In the sidebar: "In Notes" opens the app switcher. */
+  onPlace?: () => void;
+  /** More for the All chats menu (Float the agent panel). */
+  menuItems?: Array<{ label: string; onSelect: () => void }>;
   /** Under the head: the page's controls, when the panel takes the sidebar. */
   below?: ReactNode;
   effort: EffortChoice;
@@ -306,7 +310,7 @@ export interface ChatPanelProps {
 }
 
 /** The title of the conversation, which opens the list of the others. */
-function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 0 }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onNew: () => void; /** Changes when something outside asks for the list (the needs-you capsule). */ openToken?: number }) {
+function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 0, extra = [] }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onNew: () => void; /** Changes when something outside asks for the list (the needs-you capsule). */ openToken?: number; extra?: Array<{ label: string; onSelect: () => void }> }) {
   const [open, setOpen] = useState(false);
   useEffect(() => { if (openToken) setOpen(true); }, [openToken]);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -362,6 +366,8 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
               <span className="convo-item-time">{relativeTime(conversation.updated_ms, Date.now())}</span>
             </button>
           ))}
+          {extra.length > 0 && <div className="convo-sep" role="separator" />}
+          {extra.map((item) => <button key={item.label} type="button" role="menuitem" className="convo-item" onClick={() => choose(item.onSelect)}>{item.label}</button>)}
         </div>
       )}
     </div>
@@ -389,7 +395,7 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, below }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -472,8 +478,9 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
 
   return (
     <Shell variant={variant} empty={state.items.length === 0}>
-      <div className="chat-head" data-lead={lead ? true : undefined}>
+      <div className="chat-head" data-lead={lead || onPlace ? true : undefined}>
         {lead}
+        {variant === 'panel' && !lead && <MobiusMark size={22} className="chat-mark" />}
         {variant === 'full' && !needsSetup ? (
           <span className="chat-titles">
             <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span>
@@ -482,7 +489,9 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
         ) : (
           <span className="chat-titles">
             <span className="chat-title">Mobius</span>
-            {place && <span className="chat-sub">In {place}</span>}
+            {place && (onPlace
+              ? <button type="button" className="chat-sub chat-place" data-app-switcher aria-label={`In ${place}: switch app`} title="Switch app" onClick={onPlace}>In {place}<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>
+              : <span className="chat-sub">In {place}</span>)}
           </span>
         )}
         {variant === 'panel' && waiting > 0 && (
@@ -491,9 +500,9 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
           </button>
         )}
         <div className="chat-head-actions">
-          {variant === 'panel' && !needsSetup && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} />}
+          {variant === 'panel' && (!needsSetup || menuItems.length > 0) && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />}
           {pin}
-          {variant === 'panel' && onHide && !lead && (
+          {variant === 'panel' && onHide && !lead && !onPlace && (
             <button type="button" className="head-icon" aria-label="Hide" title="Hide Mobius" onClick={onHide}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
             </button>

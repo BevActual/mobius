@@ -1,3 +1,4 @@
+import { RowMark } from './RowMark';
 import { FromMobius } from './FromMobius';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { changedShots, cutLength, freshShotId, locate, parseCut, shotLength, shotStart, timecode, type Shot } from './cut-format';
@@ -43,7 +44,7 @@ export function VideoSidebar({ video, pin, changed }: { video: VideoState; pin?:
             <li key={p.name}>
               <button type="button" className="list-row" aria-current={video.project === p.name ? 'page' : undefined} onClick={() => void video.open(p.name)}>
                 <span className="list-name">{p.name}</span>
-                {changed?.has(p.name) && <span className="changed-mark" role="img" aria-label="Changed by the agent" title="Cut changed by the agent in its last turn" />}
+                <RowMark changed={changed?.has(p.name) === true} changedTitle="Cut changed by Mobius in its last turn" />
                 <span className="list-count">{p.clips.length || ''}</span>
               </button>
             </li>

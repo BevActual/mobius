@@ -65,14 +65,25 @@ function objectAt(target: Element, stage: Element): { element: Element; anchor: 
   if (!stage.contains(target) || target.closest(SKIP)) return null;
   const owned = target.closest('[data-comment-id]');
   const element = owned && stage.contains(owned) ? owned : target;
-  const text = (element.textContent ?? '').replace(/\s+/g, ' ').trim();
-  const label = element.getAttribute('data-comment-label') ?? element.getAttribute('aria-label') ?? text.slice(0, 60);
+  const text = piecesOf(element, 4000);
+  const label = element.getAttribute('data-comment-label') ?? element.getAttribute('aria-label') ?? piecesOf(target, 80);
   if (owned) return { element, anchor: { id: owned.getAttribute('data-comment-id')!, label }, context: text.slice(0, 4000) };
   const box = element.getBoundingClientRect();
   const area = stage.getBoundingClientRect();
   const x = Math.min(1, Math.max(0, (box.left + box.width / 2 - area.left) / Math.max(1, area.width)));
   const y = Math.min(1, Math.max(0, (box.top + Math.min(box.height / 2, 12) - area.top) / Math.max(1, area.height)));
   return { element, anchor: { x, y, label }, context: text.slice(0, 4000) };
+}
+
+/**
+ * The words of an element as a person reads them: each child's text on its own, joined with " · " (a row of
+ * "Edited just now", "22 words" and "#kestrel" is not one long word), trimmed to `max` characters.
+ */
+export function piecesOf(element: Element, max: number): string {
+  const clean = (t: string | null) => (t ?? '').replace(/\s+/g, ' ').trim();
+  const pieces = [...element.childNodes].map((n) => clean(n.textContent)).filter(Boolean);
+  const text = (pieces.length > 0 ? pieces : [clean(element.textContent)]).join(' · ');
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
 /** Where a thread's pin goes on screen, or null when what it is pinned to is not shown. */

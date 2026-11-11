@@ -164,7 +164,7 @@ export function App() {
     startedUp.current = true;
     if (!appearance.value.sidebarAtStart || appearance.value.leftSidebar === 'floating') setPanelOpen(false);
     if (appearance.value.leftSidebar === 'floating') setAgentListOpen(false);
-    if (appearance.value.rightSidebar === 'floating') setChatOpen(false);
+    if (appearance.value.agentPlace === 'beside' && appearance.value.rightSidebar !== 'floating') setChatOpen(true);
     if (!appearance.value.resumeLast) conversation.startFresh();
   }, [appearance.loaded, appearance.value, conversation]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -475,10 +475,10 @@ export function App() {
   const startedUp = useRef(false);
   // Where the agent sits when it is open: in the sidebar, which turns into Mobius (the default), or pinned beside the
   // page. Pinning is kept per computer.
-  const [chatPlace, setChatPlaceState] = useState<'beside' | 'sidebar'>(() => { try { return window.localStorage.getItem('mobius.agent.beside') !== '0' ? 'beside' : 'sidebar'; } catch { return 'beside'; } });
-  const setChatPlace = (place: 'beside' | 'sidebar') => { setChatPlaceState(place); try { window.localStorage.setItem('mobius.agent.beside', place === 'beside' ? '1' : '0'); } catch { /* Not kept. */ } };
+  const chatPlace = appearance.value.agentPlace;
+  const setChatPlace = (place: 'beside' | 'sidebar') => { void appearance.set({ agentPlace: place }); };
   // In the sidebar, Mobius waits to be asked and the app's own list shows; pinned beside, it is there from the start.
-  const [chatOpen, setChatOpen] = useState(() => chatPlace === 'beside');
+  const [chatOpen, setChatOpen] = useState(false);
   const [focusToken, setFocusToken] = useState(0);
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
@@ -1326,6 +1326,7 @@ export function App() {
               onModelChanged={() => void reloadSettings()}
             pin={pinned}
             place={appName(app)}
+            menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
           />
   );
@@ -1526,9 +1527,8 @@ export function App() {
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
             {chatPanel(<>
               <button type="button" className="head-icon" data-pinned-beside aria-label="Unpin from beside" title="Put Mobius back in the sidebar" onClick={() => setChatPlace('sidebar')}>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /><path d="M4 4l12 12" /></svg>
               </button>
-              {pin('right')}
             </>)}
             {resizer('right', 'Resize the agent panel')}
           </div>

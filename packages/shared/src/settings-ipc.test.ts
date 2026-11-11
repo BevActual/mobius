@@ -1,6 +1,6 @@
 import { DEFAULT_KEYBINDINGS } from './keys';
 import { describe, expect, it } from 'vitest';
-import { CONTEXT_SIZES, DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, parseContextSize, parsePreferencesPatch, parseActivityLimit, parseAppearancePatch, parseConfigureRequest, parseGrantId } from './ipc';
+import { CONTEXT_SIZES, DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, parseContextSize, parsePreferencesPatch, parseActivityLimit, parseAppearance, parseAppearancePatch, parseConfigureRequest, parseGrantId } from './ipc';
 
 describe('appearance changes', () => {
   it('accepts any of the three settings alone or together, and drops anything else', () => {
@@ -14,13 +14,17 @@ describe('appearance changes', () => {
     }
   });
   it('has sensible defaults', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'sidebar', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
   });
 });
 
 describe('more appearance choices', () => {
   it('accept each of the named choices and the two switches', () => {
     expect(parseAppearancePatch({ chatFont: 'serif', textDirection: 'rtl', density: 'compact', toolSteps: 'hide-finished', sidebarAtStart: false, resumeLast: false })).toEqual({ chatFont: 'serif', textDirection: 'rtl', density: 'compact', toolSteps: 'hide-finished', sidebarAtStart: false, resumeLast: false });
+  });
+  it('keep where Mobius opens: in the sidebar, or pinned beside the page', () => {
+    expect(parseAppearancePatch({ agentPlace: 'beside' })).toEqual({ agentPlace: 'beside' });
+    expect(parseAppearancePatch({ agentPlace: 'right' })).toBeNull();
   });
   it('refuse anything that is not one of the choices', () => {
     for (const bad of [{ chatFont: 'comic' }, { chatFont: 3 }, { textDirection: 'up' }, { density: 'tiny' }, { toolSteps: 'all' }, { sidebarAtStart: 'yes' }, { resumeLast: 1 }, { chatFont: 'mono', density: 'x' }]) {
@@ -177,5 +181,16 @@ describe('a second model in a configure request', () => {
   });
   it('drops unknown fields inside it', () => {
     expect(parseConfigureRequest({ ...base, fallback: { baseUrl: 'https://b.example/v1', model: 'n', evil: 1 } })).toEqual({ ...base, fallback: { baseUrl: 'https://b.example/v1', model: 'n' } });
+  });
+});
+
+describe('a reply that is the look', () => {
+  it('is taken whole, over the defaults', () => {
+    expect(parseAppearance({ ...DEFAULT_APPEARANCE, theme: 'dark', agentPlace: 'beside' })).toEqual({ ...DEFAULT_APPEARANCE, theme: 'dark', agentPlace: 'beside' });
+  });
+  it('is never a failure or a bad value, so a failed save cannot wipe the look', () => {
+    expect(parseAppearance({ ok: false, error: 'This is the preview: nothing is saved.' })).toBeNull();
+    expect(parseAppearance(null)).toBeNull();
+    expect(parseAppearance({ theme: 'purple' })).toBeNull();
   });
 });

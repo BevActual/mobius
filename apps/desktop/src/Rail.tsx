@@ -233,12 +233,12 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
           {asking && mobius && (
             <div ref={askRef} className="rail-ask">
               {/* One head: the app's switcher, Mobius and where, then its icons; the page's controls under it. */}
-              {isValidElement(mobius.panel) ? cloneElement(mobius.panel as ReactElement<{ lead?: ReactNode; pin?: ReactNode; below?: ReactNode }>, {
-                lead: switcher,
+              {isValidElement(mobius.panel) ? cloneElement(mobius.panel as ReactElement<{ onPlace?: () => void; pin?: ReactNode; below?: ReactNode }>, {
+                onPlace: () => setFace('apps'),
                 pin: (
                   <>
                     <button type="button" className="head-icon" aria-label="Pin beside" title="Pin Mobius beside the page" onClick={mobius.onBeside}>
-                      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>
+                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
                     </button>
                     <button type="button" className="head-icon" data-mobius-face aria-pressed="true" aria-label="Back to the sidebar" title={`Back to ${title}`} onClick={mobius.onToggle}>
                       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
