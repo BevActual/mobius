@@ -30,12 +30,12 @@
 .photo-library { background: var(--bg); }
 .photo-page .photo-grid { flex: 1; min-height: 0; overflow: auto; list-style: none; margin: 0; padding: 14px 16px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 3px; align-content: start; }
 .photo-page .photo-tile { position: relative; display: block; width: 100%; aspect-ratio: 1; padding: 0; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--ink) 6%, var(--bg)); cursor: default; }
-.photo-page .photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s ease; }
+.photo-page .photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform var(--dur-med) var(--ease); }
 .photo-page .photo-tile:hover img { transform: scale(1.02); }
 .photo-page .photo-tile:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
 .photo-page .photo-tile:focus-visible img { opacity: 0.9; }
 .photo-page .photo-tile[aria-current="true"] { box-shadow: inset 0 0 0 3px var(--accent); }
-.photo-page .photo-tile-wait { display: block; width: 100%; height: 100%; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--ink) 5%, transparent) 50%, transparent 70%) 0 0 / 200% 100%; animation: photo-wait 1.4s linear infinite; }
+.photo-page .photo-tile-wait { display: block; width: 100%; height: 100%; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--ink) 5%, transparent) 50%, transparent 70%) 0 0 / 200% 100%; animation: photo-wait var(--dur-loop) linear infinite; }
 @keyframes photo-wait { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .photo-page .photo-tile-wait { animation: none; } .photo-page .photo-tile img { transition: none; } }
 .photo-page .photo-tile-badge { position: absolute; right: 6px; bottom: 6px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, 0.45); color: #fff; backdrop-filter: blur(6px); }
@@ -56,7 +56,7 @@
 .photo-page .photo-stage[data-cropping] { padding: 36px 64px; }
 .photo-page .photo-stage[data-cropping] .photo-canvas { cursor: default; }
 .photo-page .photo-frame { overflow: visible; }
-.photo-page .photo-step { position: absolute; top: 50%; z-index: 2; width: 34px; height: 34px; margin-top: -17px; display: grid; place-items: center; border-radius: 50%; background: rgba(255, 255, 255, 0.12); color: #fff; opacity: 0; transition: opacity 0.15s ease, background 0.15s ease; backdrop-filter: blur(10px); }
+.photo-page .photo-step { position: absolute; top: 50%; z-index: 2; width: 34px; height: 34px; margin-top: -17px; display: grid; place-items: center; border-radius: 50%; background: rgba(255, 255, 255, 0.12); color: #fff; opacity: 0; transition: opacity var(--dur-med) var(--ease), background var(--dur-med) var(--ease); backdrop-filter: blur(10px); }
 .photo-page .photo-step.prev { left: 12px; }
 .photo-page .photo-step.next { right: 12px; }
 .photo-page .photo-stage:hover .photo-step, .photo-page .photo-step:focus-visible { opacity: 1; }

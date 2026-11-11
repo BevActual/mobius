@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { MenuBar } from './MenuBar';
 import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
@@ -7,7 +7,7 @@ import { appName, askAbout, isAvailable, type AppId, noteOpened, APPS } from './
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
-import { useMorphIn } from './motion';
+import { growFrom, morphOut, useMorphIn } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
 import { useBookmarks } from './useBookmarks';
 import { useArchive } from './useArchive';
@@ -514,7 +514,34 @@ export function App() {
   const leftDock = useRef<HTMLDivElement>(null);
   const rightDock = useRef<HTMLDivElement>(null);
   const hideLeft = useCallback(() => setLeftOpen(false), [setLeftOpen]);
-  const hideRight = useCallback(() => setChatOpen(false), []);
+  // Mobius beside the page goes back toward where it is asked from (its corner) before it is put away.
+  // An app opened from the switcher, All apps or the launcher grows out of the tile or row that was clicked.
+  const shownApp = useRef(app);
+  useLayoutEffect(() => {
+    if (shownApp.current === app) return;
+    shownApp.current = app;
+    const stage = document.querySelector<HTMLElement>('.stage');
+    if (stage) growFrom(stage, 'left');
+  }, [app]);
+  // Pin beside moves the card across, from the sidebar to its place beside the page, rather than fading one out and the
+  // other in.
+  const pinFrom = useRef<DOMRect | null>(null);
+  useLayoutEffect(() => {
+    const from = pinFrom.current;
+    pinFrom.current = null;
+    const card = document.querySelector<HTMLElement>('.dock.right:not([data-floating]) > .chat');
+    if (!from || !card || typeof card.animate !== 'function' || document.visibilityState === 'hidden') return;
+    const to = card.getBoundingClientRect();
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 }); return; }
+    card.animate([
+      { transformOrigin: '0 0', transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})` },
+      { transformOrigin: '0 0', transform: 'none' },
+    ], { duration: 320, easing: 'cubic-bezier(0.2, 0, 0, 1)' });
+  });
+  // Shown again while it was on its way out (a shortcut, the Ask capsule), it stays.
+  const hides = useRef(0);
+  const hideRight = useCallback(() => { const mine = ++hides.current; void morphOut(document.querySelector<HTMLElement>('.dock.right > .chat'), 'right').then(() => { if (hides.current === mine) setChatOpen(false); }); }, []);
+  useEffect(() => { if (chatOpen) hides.current += 1; }, [chatOpen]);
   const leftFromEdge = useRef(false);
   const rightFromEdge = useRef(false);
   // The floating agent panel came out because the pointer reached the edge (not the toolbar button or a shortcut).
@@ -1364,7 +1391,7 @@ export function App() {
         mobius={hasRight && !settingsOpen ? {
           shown: chatInSide && chatOpen,
           onToggle: () => { if (chatInSide && chatOpen) { setChatOpen(false); } else { setChatPlace('sidebar'); setChatOpen(true); setFocusToken((n) => n + 1); } },
-          onBeside: () => { setChatPlace('beside'); setChatOpen(true); },
+          onBeside: () => { pinFrom.current = document.querySelector('.rail[data-expanded]')?.getBoundingClientRect() ?? null; setChatPlace('beside'); setChatOpen(true); },
           panel: chatInSide && chatOpen ? chatPanel(null) : null,
         } : null}
         onLauncher={openHub}
@@ -1417,7 +1444,7 @@ export function App() {
             void conversation.send(text, []);
           }}>
             <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
-            <input name="ask" type="text" aria-label="Ask Mobius" placeholder={askAbout(app)} autoComplete="off" disabled={!settings?.configured} />
+            <input name="ask" type="text" aria-label="Ask Mobius" placeholder={settingsOpen ? 'Ask about settings' : askAbout(app)} autoComplete="off" disabled={!settings?.configured} />
             {activity && <span className="ask-working" role="status" aria-label="Agent activity">{activity.label}</span>}
           </form>
         )}

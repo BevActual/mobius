@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { APP_GROUPS, APPS, recentApps, type AppId, type AppInfo } from './apps';
 import { APP_ICONS } from './Rail';
-import { useMorphIn } from './motion';
+import { morphOut, useMorphIn } from './motion';
 
 export interface HubAction { id: string; label: string; app: AppId; run: () => void }
 
@@ -49,6 +49,9 @@ export function hubGroups(): Array<{ group: string; members: AppInfo[] }> {
 export function AppHub({ open, onClose, current, onOpenApp, actions, status, onConnect }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  // Opened again while it was on its way out: it stays.
+  const stillOpen = useRef(open);
+  stillOpen.current = open;
   const [query, setQuery] = useState('');
   // It grows out of the All apps button that opened it, not from the middle of the window.
   useMorphIn(dialog, open, 'left');
@@ -57,7 +60,8 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
     const el = dialog.current;
     if (!el) return;
     if (open && !el.open) { setQuery(''); el.showModal(); input.current?.focus(); }
-    else if (!open && el.open) el.close();
+    // Put away, it goes back toward the button that opened it before it closes.
+    else if (!open && el.open) void morphOut(el, 'left').then(() => { if (!el.isConnected || stillOpen.current) return; el.close(); el.getAnimations().forEach((a) => a.cancel()); });
   }, [open]);
 
   const q = query.trim().toLowerCase();

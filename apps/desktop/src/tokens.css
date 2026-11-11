@@ -76,6 +76,14 @@
   --dur-fast: 120ms;
   --dur-med: 200ms;
   --dur-slow: 600ms;
+  /* Things leaving: a little quicker, accelerating out. */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --dur-exit: 150ms;
+  /* With Reduce Motion, a fade is all that is left of a movement; it keeps its length. */
+  --dur-fade: 150ms;
+  /* The period of anything that repeats while something is going on, and of a spinner. */
+  --dur-loop: 1.6s;
+  --dur-spin: 800ms;
 
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2365656b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   /* Each app's colour, used only for its tile in the app hub. */
@@ -145,5 +153,6 @@
   :root { --muted: #d0d0d6; --line: #888890; --line-strong: #a8a8b0; --hairline: #888890; --field: #2c2c30; --capsule: #2c2c30; --toolbar: #262629; }
 }
 @media (prefers-reduced-motion: reduce) {
-  :root { --dur-fast: 0ms; --dur-med: 0ms; }
+  /* No movement: what moved now fades (--dur-fade), and nothing repeats. */
+  :root { --dur-fast: 0ms; --dur-med: 0ms; --dur-slow: 0ms; --dur-exit: 0ms; --dur-loop: 0s; --dur-spin: 0s; }
 }
