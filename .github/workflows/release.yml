@@ -1,0 +1,88 @@
+# A release: pushing a tag v1.2.3 builds the Windows installer, the core beside the app, and the files the in-app
+# updater reads (latest.json, and the installer's signature), and puts them in a draft GitHub Release for that tag.
+# Publish the draft by hand; the updater only sees published releases.
+#
+# Needs two repository secrets, from the key made with `npx tauri signer generate` (its public half is in
+# crates/mobius-shell/tauri.conf.json, plugins.updater.pubkey):
+#   TAURI_SIGNING_PRIVATE_KEY           the private key itself
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password (empty if it has none)
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - name: The version, from the tag
+        id: version
+        shell: bash
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # ---- Code signing (Windows) -------------------------------------------------------------------------------
+      # Unsigned for now: Windows SmartScreen warns about an unsigned installer until it has a reputation.
+      # To sign, add the certificate as secrets (WINDOWS_CERTIFICATE: the .pfx, base64; WINDOWS_CERTIFICATE_PASSWORD),
+      # uncomment this step, and set bundle.windows.certificateThumbprint in crates/mobius-shell/tauri.conf.json to the
+      # certificate's thumbprint (timestampUrl too, e.g. http://timestamp.digicert.com).
+      # - name: Import the signing certificate
+      #   shell: pwsh
+      #   env:
+      #     WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      #     WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      #   run: |
+      #     $pfx = Join-Path $env:RUNNER_TEMP 'cert.pfx'
+      #     [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+      #     Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force)
+      # ------------------------------------------------------------------------------------------------------------
+
+      - name: Build the installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run package -- --version ${{ steps.version.outputs.value }}
+
+      - name: Put it in a draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $dir = 'target\release\bundle\nsis'
+          $setup = Get-ChildItem $dir -Filter "*_${env:VERSION}_*-setup.exe" | Select-Object -First 1
+          if (-not $setup) { throw "No installer for $env:VERSION in $dir" }
+          $files = @($setup.FullName)
+          $sig = "$($setup.FullName).sig"
+          if (Test-Path $sig) {
+            # latest.json: what the in-app updater reads, at releases/latest/download/latest.json.
+            $name = [uri]::EscapeDataString($setup.Name)
+            $latest = [ordered]@{
+              version = $env:VERSION
+              notes = "Mobius $env:VERSION"
+              pub_date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+              platforms = [ordered]@{
+                'windows-x86_64' = [ordered]@{
+                  signature = (Get-Content $sig -Raw).Trim()
+                  url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$name"
+                }
+              }
+            }
+            $latest | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 latest.json
+            $files += $sig, (Resolve-Path latest.json).Path
+          } else {
+            Write-Warning 'No updater signature: set the TAURI_SIGNING_PRIVATE_KEY secrets for in-app updates.'
+          }
+          gh release create ${{ github.ref_name }} --draft --title "Mobius $env:VERSION" --notes "Mobius $env:VERSION" $files
