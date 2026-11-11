@@ -122,7 +122,7 @@
 /* In a narrow window the slide keeps its room: the navigator narrows, and the inspector steps aside until there is space. */
 .stage .slides-page { container-type: inline-size; }
 .slides-page .slides-main { min-width: 260px; }
-@container (max-width: 820px) {
+@container (max-width: 640px) {
   .slides-page .slides-nav { flex-basis: 132px; }
   .slides-page .slides-format { display: none; }
 }
