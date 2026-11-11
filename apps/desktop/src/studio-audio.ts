@@ -72,10 +72,34 @@ function tone(ctx: AudioContext, out: AudioNode, instrument: Instrument, pitch: 
   });
 }
 
+function tick(ctx: AudioContext, out: AudioNode, at: number, accent: boolean) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.value = accent ? 1760 : 1320;
+  gain.gain.setValueAtTime(accent ? 0.28 : 0.16, at);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.05);
+  osc.connect(gain);
+  gain.connect(out);
+  osc.start(at);
+  osc.stop(at + 0.06);
+}
+
+let sampler: AudioContext | null = null;
+/** One note heard at once, as a key is pressed or a note is put on the roll. */
+export function previewNote(instrument: Instrument, pitch: number, velocity = 0.8, seconds = 0.35): void {
+  try {
+    sampler ??= new AudioContext();
+    void sampler.resume().catch(() => {});
+    const at = sampler.currentTime + 0.01;
+    if (instrument === 'drums') drum(sampler, sampler.destination, pitch, at, velocity, noise(sampler));
+    else tone(sampler, sampler.destination, instrument, pitch, at, seconds, velocity);
+  } catch { /* No sound here (a test browser); the note is still put in. */ }
+}
+
 export interface Player { stop(): void; beat(): number }
 
 /** Plays the song from `fromBeat`, looping when `loop`; `beat()` says where it is now. */
-export function play(song: Song, fromBeat = 0, loop = false): Player {
+export function play(song: Song, fromBeat = 0, loop = false, click = false): Player {
   const ctx = new AudioContext();
   void ctx.resume().catch(() => {});
   const master = ctx.createGain();
@@ -95,6 +119,14 @@ export function play(song: Song, fromBeat = 0, loop = false): Player {
     while (scheduledTo < until) {
       const from = scheduledTo, to = Math.min(until, Math.ceil((scheduledTo + 0.0001) / total) * total);
       const lap = Math.floor(from / total);
+      // The metronome: a high tick on each bar, a lower one on the other beats.
+      if (click) {
+        for (let b = Math.ceil(from - 1e-6); b < to; b++) {
+          const at = start + (b - fromBeat) * spb;
+          if (at < ctx.currentTime) continue;
+          tick(ctx, master, at, b % BEATS_PER_BAR === 0);
+        }
+      }
       for (const t of tracks) {
         const out = ctx.createGain();
         out.gain.value = t.volume;

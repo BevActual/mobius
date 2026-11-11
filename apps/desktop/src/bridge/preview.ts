@@ -3,6 +3,7 @@ import { linksIn } from '../note-links';
 import { PREVIEW_TASKS } from './preview-tasks';
 import { PREVIEW_CALENDAR } from './preview-calendar';
 import { PREVIEW_DOCS } from './preview-docs';
+import { PREVIEW_SONGS } from './preview-songs';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
@@ -72,6 +73,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_TASKS,
   // Documents are kept in memory for as long as the preview is open.
   ...PREVIEW_DOCS,
+  ...PREVIEW_SONGS,
   'notes.list': () => NOTES(),
   'notes.search': ((query: string) => Object.entries(NOTE_TEXT).filter(([, t]) => t.toLowerCase().includes(query.toLowerCase())).map(([path, t]) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), notebook: path.split('/')[0], line: t.split('\n').find((l) => l.toLowerCase().includes(query.toLowerCase())) ?? '' }))) as never,
   // Typing in a note is kept for as long as the preview is open, so the Markdown it is saved as can be looked at.

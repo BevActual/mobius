@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 const SONG = { version: 1, tempo: 112, key: 'A minor', bars: 4, tracks: [{ id: 't1', name: 'Keys', instrument: 'piano', volume: 0.8, notes: [{ pitch: 57, start: 0, length: 4, velocity: 0.7 }, { pitch: 60, start: 0, length: 4, velocity: 0.7 }] }] };
@@ -48,7 +48,8 @@ test('a song is tracks of notes: added by clicking, with tracks to add, mute and
   const roll = shell().getByRole('grid', { name: 'Notes of Keys' });
   await roll.getByRole('gridcell', { name: 'E4 row' }).click({ position: { x: 4 * 40 + 5, y: 6 } });
   await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 64)).toEqual({ pitch: 64, start: 4, length: 1, velocity: 0.8 });
-  await roll.getByLabel('E4 at beat 5, 1 beats').click();
+  // A click picks a note; a double-click takes it out.
+  await roll.getByLabel('E4 at beat 5, 1 beats').dblclick();
   await expect.poll(() => saved().tracks[0]!.notes.some((n) => n.pitch === 64)).toBe(false);
 
   await shell().getByRole('combobox', { name: 'Add a track' }).selectOption('drums');
@@ -63,6 +64,52 @@ test('a song is tracks of notes: added by clicking, with tracks to add, mute and
   await expect(shell().getByRole('button', { name: 'Stop' })).toBeVisible();
   await expect(shell().getByLabel('Position')).not.toHaveText('1.1BAR', { timeout: 5000 });
   await shell().getByRole('button', { name: 'Stop' }).click();
+});
+
+test('notes are moved, stretched, picked with a box and deleted, and Undo takes each step back', async () => {
+  await start();
+  // Raw drags press where things are drawn, so the window is big enough for the roll, and each target is scrolled in.
+  await resizeWindow(mobius!.app, 1440, 900);
+  const roll = shell().getByRole('grid', { name: 'Notes of Keys' });
+  await roll.getByRole('gridcell', { name: 'E4 row' }).click({ position: { x: 4 * 40 + 5, y: 6 } });
+  await expect.poll(() => saved().tracks[0]!.notes.length).toBe(3);
+  // Dragged one beat later and two semitones up.
+  const note = roll.getByLabel('E4 at beat 5, 1 beats');
+  await note.scrollIntoViewIfNeeded();
+  let box = (await note.boundingBox())!;
+  await shell().mouse.move(box.x + 10, box.y + 5);
+  await shell().mouse.down();
+  await shell().mouse.move(box.x + 30, box.y - 10, { steps: 4 });
+  await shell().mouse.move(box.x + 50, box.y - 23, { steps: 4 });
+  await shell().mouse.up();
+  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.start === 5)).toEqual({ pitch: 66, start: 5, length: 1, velocity: 0.8 });
+  // Stretched by a beat from its end: the chord's top note, near the left, so the drag stays inside a narrow window.
+  const end = roll.getByLabel('C4 at beat 1, 4 beats').locator('.studio-note-end');
+  await end.scrollIntoViewIfNeeded();
+  box = (await end.boundingBox())!;
+  await shell().mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 5 });
+  await shell().mouse.up();
+  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 60)?.length).toBe(5);
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 60)?.length).toBe(4);
+  // A box drawn from the empty space after the opening chord back across it picks both notes; Delete takes them out.
+  await roll.getByLabel('C4 at beat 1, 4 beats').scrollIntoViewIfNeeded();
+  const top = (await roll.getByRole('gridcell', { name: 'C4 row' }).boundingBox())!;
+  const bottom = (await roll.getByRole('gridcell', { name: 'A3 row' }).boundingBox())!;
+  await shell().mouse.move(top.x + 4.5 * 40, top.y + 3);
+  await shell().mouse.down();
+  await shell().mouse.move(top.x + 20, bottom.y + 8, { steps: 6 });
+  await shell().mouse.up();
+  await expect(shell().getByRole('toolbar', { name: 'Notes' })).toContainText('2 notes');
+  await roll.press('Delete');
+  await expect.poll(() => saved().tracks[0]!.notes.map((n) => n.pitch)).toEqual([66]);
+  // A track duplicated, then taken back.
+  await tracks().getByRole('button', { name: 'Duplicate Keys' }).click();
+  await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys', 'Keys copy']);
+  await shell().getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys']);
 });
 
 test('a part from Mobius is a new track of notes, dashed until kept or discarded', async () => {
