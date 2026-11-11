@@ -1440,6 +1440,13 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .doc-proposal p { margin: 0 0 4px; white-space: pre-wrap; }
 .doc-proposal-old { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 70%, transparent); }
 .doc-proposal-new { color: var(--ink); }
+/* A proposal drawn as the document draws it: headings, lists and quotes, sized down a little. */
+.doc-proposal :is(h1, h2, h3, h4) { margin: 2px 0 6px; line-height: 1.25; }
+.doc-proposal h1 { font-size: 1.4em; } .doc-proposal h2 { font-size: 1.2em; } .doc-proposal :is(h3, h4) { font-size: 1.05em; }
+.doc-proposal :is(ul, ol) { margin: 0 0 4px; padding-left: 22px; }
+.doc-proposal li > p { margin: 0; }
+.doc-proposal blockquote { margin: 0 0 4px; padding-left: 10px; border-left: 2px solid var(--line); color: var(--muted); }
+.doc-proposal table { border-collapse: collapse; margin: 0 0 4px; } .doc-proposal :is(td, th) { border: 1px solid var(--line); padding: 2px 6px; }
 .doc-proposal-actions { display: flex; align-items: center; gap: var(--sp-2); justify-content: flex-end; margin-top: 4px; font-size: var(--fs-xs); color: var(--muted); }
 .doc-proposal-actions span { margin-right: auto; font-weight: 600; color: var(--accent); }
 .stage .doc-editor { container-type: inline-size; }

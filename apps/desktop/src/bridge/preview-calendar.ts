@@ -20,6 +20,7 @@ export const PREVIEW_EVENTS: CalendarEvent[] = [
   ev('e5', 'Work', 'Design review', `${day(0)}T13:00`, `${day(0)}T14:30`, { location: 'Room 4' }),
   ev('e6', 'Home', 'Gym', `${day(-1)}T18:00`, `${day(-1)}T19:00`),
   ev('e7', 'Kestrel P2', 'Build week', day(2), day(4)),
+  ev('e9', 'Kestrel P2', 'Sled test week', `${day(7)}T08:00`, `${day(12)}T18:00`, { location: 'Northfield' }),
   ev('e8', 'Work', 'Lunch with Priya', `${day(2)}T12:30`, `${day(2)}T13:30`, { location: 'Canteen' }),
 ];
 
