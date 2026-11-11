@@ -84,12 +84,12 @@
 /* Play */
 .slide-play { cursor: default; }
 .slide-play[data-idle] { cursor: none; }
-.slide-play-stage { animation: slide-in 220ms var(--ease, ease-out); }
+.slide-play-stage { animation: slide-in var(--dur-med) var(--ease, var(--ease)); }
 @keyframes slide-in { from { opacity: 0; } }
 .slide-play-black { position: absolute; inset: 0; background: #000; }
 .slide-play-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(255, 255, 255, 0.08); }
-.slide-play-progress span { display: block; height: 100%; background: rgba(255, 255, 255, 0.45); transition: width 220ms var(--ease, ease-out); }
-.slide-play-hint { transition: opacity 400ms; }
+.slide-play-progress span { display: block; height: 100%; background: rgba(255, 255, 255, 0.45); transition: width var(--dur-med) var(--ease, var(--ease)); }
+.slide-play-hint { transition: opacity var(--dur-slow); }
 .slide-play[data-idle] .slide-play-hint, .slide-play[data-idle] .slide-play-progress { opacity: 0; }
 .slide-play-typed { position: absolute; top: 24px; padding: 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); color: #fff; font-size: 14px; font-variant-numeric: tabular-nums; }
 .slide-presenter { width: 100%; height: 100%; display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); gap: 28px; padding: 32px; box-sizing: border-box; color: #fff; }

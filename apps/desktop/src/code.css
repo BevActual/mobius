@@ -54,7 +54,7 @@
 
 /* Quick open, as Xcode's Open Quickly: a field and a list, over the editor. */
 .code-page .code-quick-wrap { position: absolute; inset: 0; z-index: 20; display: flex; justify-content: center; align-items: flex-start; padding-top: 72px; background: color-mix(in srgb, #000 8%, transparent); }
-.code-page .code-quick { width: min(560px, calc(100% - 48px)); max-height: 60%; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 18px 48px rgba(0, 0, 0, 0.24); animation: code-pop 140ms var(--ease, ease-out); }
+.code-page .code-quick { width: min(560px, calc(100% - 48px)); max-height: 60%; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 18px 48px rgba(0, 0, 0, 0.24); animation: code-pop var(--dur-fast) var(--ease, var(--ease)); }
 @keyframes code-pop { from { opacity: 0; transform: translateY(-4px) scale(0.99); } }
 @media (prefers-reduced-motion: reduce) { .code-page .code-quick { animation: none; } }
 .code-page .code-quick input { height: 46px; padding: 0 16px; border: 0; border-bottom: 0.5px solid var(--line); outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 17px; }
@@ -80,7 +80,7 @@
 .code-side .code-tree ul { padding: 0 6px; }
 .code-side .code-file { height: 26px; gap: 5px; font-size: var(--fs-md, 13px); }
 .code-side .code-file[aria-current="page"] { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.code-side .code-caret { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 120ms var(--ease, ease-out); }
+.code-side .code-caret { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur-fast) var(--ease, var(--ease)); }
 .code-side .code-caret[data-open] { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .code-side .code-caret { transition: none; } }
 .code-side .code-folder { flex: none; width: 15px; height: 15px; fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: var(--accent); stroke-width: 1.3; stroke-linejoin: round; }
