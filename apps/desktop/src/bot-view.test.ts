@@ -9,6 +9,6 @@ describe('bots', () => {
 
   it('are made from a conversation: its title, and what was first asked', () => {
     expect(botFromConversation('Weekly review', 'Look at my tasks and calendar and plan the week')).toEqual({ name: 'Weekly review', instructions: 'Do this, as in the conversation “Weekly review”: Look at my tasks and calendar and plan the week', model: '' });
-    expect(botFromConversation('  ', null)).toEqual({ name: 'New bot', instructions: '', model: '' });
+    expect(botFromConversation('  ', null)).toEqual({ name: 'New agent', instructions: '', model: '' });
   });
 });

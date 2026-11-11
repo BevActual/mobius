@@ -57,7 +57,7 @@ export function useProjects() {
     if (why) return false;
     await load();
     const sent = await window.mobius.agent.send(conversation, ask).catch(() => null);
-    if (!sent || !sent.ok) { setProblem(sent && !sent.ok ? sent.error : 'The bot could not be asked.'); return false; }
+    if (!sent || !sent.ok) { setProblem(sent && !sent.ok ? sent.error : 'The agent could not be asked.'); return false; }
     return true;
   };
   const remove = async (id: string) => { await api?.remove(id).catch(() => null); setOpenId(null); await load(); };
@@ -141,8 +141,8 @@ export function SideThreads({ projects, conversation, bots, onOpen }: { projects
       ))}
       {chosen && (
         <form className="side-thread-ask" onSubmit={(e) => { e.preventDefault(); const t = ask.trim(); if (t) void projects.askBot(project, conversation, chosen, t).then((ok) => { if (ok) setAsk(''); }); }}>
-          <select aria-label="Bot" value={chosen.id} onChange={(e) => setBot(e.target.value)}>{helpers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
-          <input aria-label="Ask a bot" placeholder={`Ask ${chosen.name} to do something on the side`} value={ask} onChange={(e) => setAsk(e.target.value)} />
+          <select aria-label="Agent" value={chosen.id} onChange={(e) => setBot(e.target.value)}>{helpers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
+          <input aria-label="Ask an agent" placeholder={`Ask ${chosen.name} to do something on the side`} value={ask} onChange={(e) => setAsk(e.target.value)} />
         </form>
       )}
     </section>
@@ -199,7 +199,7 @@ function ProjectMemory({ project, incoming, onOpen }: { project: ProjectInfo; in
   return (
     <section className="project-card" aria-label="Project memory">
       <h2 className="ext-heading">Memory</h2>
-      <p className="wiki-private">What this project knows, as a page in the Wiki that you and Mobius both read.</p>
+      <p className="wiki-private">What this project knows, as a page in Knowledge that you and Mobius both read.</p>
       {problem && <p className="field-error" role="alert">{problem}</p>}
       <ul className="wiki-lines" role="list" aria-label="What this project knows">
         {lines.map((l, i) => <li key={`${i}-${l}`} className="wiki-line"><span className="wiki-line-text">{l}</span></li>)}
@@ -215,7 +215,7 @@ function ProjectMemory({ project, incoming, onOpen }: { project: ProjectInfo; in
         ))}
       </ul>
       {lines.length === 0 && proposed.length === 0 && <p className="note-empty">Nothing yet. What Mobius learns in this project's threads waits here for you to keep.</p>}
-      <button type="button" className="btn" onClick={onOpen}>Open in Wiki</button>
+      <button type="button" className="btn" onClick={onOpen}>Open in Knowledge</button>
     </section>
   );
 }

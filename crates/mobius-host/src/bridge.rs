@@ -1932,7 +1932,7 @@ impl Bridge {
         let page_text = |page: &str| self.wiki.read(page).ok().and_then(|p| p["content"].as_str().map(str::to_owned));
         let write = |page: &str, content: &str| -> Result<(), String> {
             if page_text(page).is_none() {
-                let (notebook, title) = page.split_once('/').ok_or("That is not a wiki page.")?;
+                let (notebook, title) = page.split_once('/').ok_or("That is not a Knowledge page.")?;
                 let _ = self.wiki.create_notebook(notebook);
                 self.wiki.create_page(notebook, title.trim_end_matches(".md"))?;
             }
@@ -1958,7 +1958,7 @@ impl Bridge {
                 Ok(json!(out))
             }),
             "incoming" => Ok(self.wiki_incoming.list()),
-            "offer" => text(1).ok_or_else(|| "a line is needed".to_owned()).and_then(|line| self.wiki_incoming.offer(text(0).unwrap_or("your wiki"), text(2), line)).inspect(|_| changed("person")),
+            "offer" => text(1).ok_or_else(|| "a line is needed".to_owned()).and_then(|line| self.wiki_incoming.offer(text(0).unwrap_or("your knowledge"), text(2), line)).inspect(|_| changed("person")),
             "keepChange" => text(0).ok_or_else(|| "a change is needed".to_owned()).and_then(|id| {
                 let change = self.wiki_incoming.take(id)?;
                 // Edit first: the person's own words for the line, if they changed it.
@@ -3037,10 +3037,10 @@ impl Bridge {
     /// Removes the bot and every conversation it had.
     fn remove_bot(&self, id: &str) -> Value {
         if id == MAIN_ID || !bots::is_bot_id(id) {
-            return failed(if id == MAIN_ID { "Mobius cannot be removed." } else { "That bot is not there any more." });
+            return failed(if id == MAIN_ID { "Mobius cannot be removed." } else { "That agent is not there any more." });
         }
         if lock(&self.bots).get(id).is_none() {
-            return failed("That bot is not there any more.");
+            return failed("That agent is not there any more.");
         }
         let mut removed = 0;
         let rows = self.core.call("agent.conversations", json!({}), Duration::from_secs(5)).ok();

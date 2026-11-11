@@ -113,7 +113,7 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
   one item per line in the file; sorting into themes or a flowchart from Mobius shows dashed until kept.
 - **Photo** (`photos/<album>/`): pictures never changed; adjustment layers to all or part of each, in
   `<photo>.edits.json`; Export writes a new picture.
-- **Studio** (`studio/<folder>/*.json`): songs as tracks of notes, a piano roll, a small synthesiser; Mobius writes
+- **Music** (`studio/<folder>/*.json`): songs as tracks of notes, a piano roll, a small synthesiser; Mobius writes
   notes, never audio.
 - **Video** (`video/<project>/`): clips never changed, `cut.json` of shots; the viewer plays clips from the shell's
   `media` address.

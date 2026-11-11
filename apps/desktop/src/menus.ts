@@ -181,7 +181,7 @@ function appMenu(c: MenuContext): Menu | null {
         item('show-footage', 'Show folder', d.video.showFolder),
       ] };
     case 'studio':
-      return { id: 'app', label: 'Studio', items: [
+      return { id: 'app', label: 'Music', items: [
         item('new-song', 'New song', d.studio.newSong),
         item('play-song', 'Play or stop', d.studio.play),
       ] };

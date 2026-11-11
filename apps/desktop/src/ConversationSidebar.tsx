@@ -70,7 +70,7 @@ function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived,
       ) : (
         <>
           {onMakeBot && (
-            <button type="button" className="clist-delete" aria-label={`Make ${conversation.title} a bot`} title="Make this a bot" onClick={onMakeBot}>
+            <button type="button" className="clist-delete" aria-label={`Make ${conversation.title} an agent`} title="Make this an agent" onClick={onMakeBot}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="7" width="11" height="8.5" rx="2.5" /><path d="M10 7V4.5M8 11h.01M12 11h.01" /></svg>
             </button>
           )}
@@ -105,15 +105,15 @@ function BotForm({ initial, submitLabel, onSubmit, onCancel }: { initial: BotDra
     let error = await onSubmit(draft);
     if (!error && canSchedule && starts === 'schedule') {
       const made = await window.mobius.schedules!.add({ title: draft.name.trim(), prompt: draft.instructions.trim() || draft.name.trim(), time, days: days === 'daily' ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5], enabled: true }).catch(() => null);
-      if (!made || !made.ok) error = made && !made.ok ? made.error : 'The bot was made, but its schedule was not.';
+      if (!made || !made.ok) error = made && !made.ok ? made.error : 'The agent was made, but its schedule was not.';
     }
     setProblem(error);
     setSaving(false);
   };
   return (
-    <form className="botform" aria-label={submitLabel === 'Create' ? 'New bot' : 'Edit bot'} onSubmit={submit} onKeyDown={(event) => event.key === 'Escape' && onCancel()}>
+    <form className="botform" aria-label={submitLabel === 'Create' ? 'New agent' : 'Edit agent'} onSubmit={submit} onKeyDown={(event) => event.key === 'Escape' && onCancel()}>
       <label>Name<input type="text" value={draft.name} maxLength={MAX_BOT_NAME} autoFocus onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
-      <label>Instructions<textarea rows={4} value={draft.instructions} maxLength={MAX_BOT_INSTRUCTIONS} placeholder="How this bot should behave. Added to the usual instructions." onChange={(e) => setDraft({ ...draft, instructions: e.target.value })} /></label>
+      <label>Instructions<textarea rows={4} value={draft.instructions} maxLength={MAX_BOT_INSTRUCTIONS} placeholder="How this agent should behave. Added to the usual instructions." onChange={(e) => setDraft({ ...draft, instructions: e.target.value })} /></label>
       <label>Model<input type="text" value={draft.model} spellCheck={false} placeholder="The one in settings" onChange={(e) => setDraft({ ...draft, model: e.target.value })} /></label>
       {canSchedule && (
         <fieldset className="botform-starts">
@@ -309,7 +309,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
       <div className="side-head">
         <div className="seg" role="tablist" aria-label="Show">
           {(['sessions', 'activity', 'bots'] as const).map((m) => (
-            <button key={m} type="button" role="tab" aria-selected={mode === m} className="seg-btn" onClick={() => onMode(m)}>{m === 'sessions' ? 'Sessions' : m === 'activity' ? 'Activity' : 'Bots'}</button>
+            <button key={m} type="button" role="tab" aria-selected={mode === m} className="seg-btn" onClick={() => onMode(m)}>{m === 'sessions' ? 'Sessions' : m === 'activity' ? 'Activity' : 'Agents'}</button>
           ))}
         </div>
         <span className="side-actions">
@@ -319,7 +319,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
             </button>
           ) : (
-            <button type="button" className="strip-btn" aria-label="New bot" title="New bot" onClick={() => setAdding(true)}>
+            <button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => setAdding(true)}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
             </button>
           )}
@@ -332,12 +332,12 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
           {(adding || fromConversation) && (
             <BotForm key={fromConversation ? `from:${fromConversation.name}` : 'new'} initial={fromConversation ?? { name: '', instructions: '', model: '' }} submitLabel="Create" onCancel={() => { setAdding(false); setFromConversation(null); }} onSubmit={async (draft) => { const r = await onCreateBot(draft); if (!r.ok) return r.error; setAdding(false); setFromConversation(null); onNewWithBot(r.bot.id); onMode('sessions'); return null; }} />
           )}
-          <ul className="clist" role="list" aria-label="Bots">
+          <ul className="clist" role="list" aria-label="Agents">
             {bots.map((bot, index) => (
               <BotRow key={bot.id} bot={bot} first={index <= 1} last={index === bots.length - 1} onMove={onMoveBot} sessions={sessionsOf(bot.id).length} current={bot.id === activeBot} onOpen={() => { onOpenBot(bot.id); onMode('sessions'); }} onNew={() => { onNewWithBot(bot.id); onMode('sessions'); }} onUpdate={onUpdateBot} onRemove={onRemoveBot} />
             ))}
           </ul>
-          <p className="srow-empty side-empty">A bot is an agent with its own instructions, and optionally its own model. Each keeps its own sessions.</p>
+          <p className="srow-empty side-empty">An agent is Mobius with its own instructions, and optionally its own model. Each keeps its own sessions.</p>
         </>
       ) : everything.length === 0 ? (
         <p className="srow-empty side-empty">Nothing saved yet. Conversations appear here once you send a message.</p>

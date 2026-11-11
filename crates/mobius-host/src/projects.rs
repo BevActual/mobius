@@ -174,7 +174,7 @@ impl Projects {
     pub fn add_side(&self, id: &str, side: Side) -> Result<Project, String> {
         let ask: String = side.ask.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(500).collect();
         if ask.is_empty() {
-            return Err("What should the bot do?".into());
+            return Err("What should the agent do?".into());
         }
         self.change(|all| {
             if all.iter().any(|p| p.threads.contains(&side.conversation) || p.sides.iter().any(|s| s.conversation == side.conversation)) {

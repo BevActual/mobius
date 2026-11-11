@@ -267,10 +267,10 @@ test('Mobius’s own apps sit in the switcher: Bots and Activity open their view
   await start();
   await showApps();
   const own = rail().getByRole('region', { name: 'Mobius’s apps' });
-  await own.getByRole('button', { name: 'Bots', exact: true }).click();
+  await own.getByRole('button', { name: 'Agents', exact: true }).click();
   const side = shell().getByRole('complementary', { name: 'Conversation list' });
-  await expect(side.getByRole('tab', { name: 'Bots' })).toHaveAttribute('aria-selected', 'true');
-  await expect(rail().locator('[data-app-switcher]')).toHaveAttribute('aria-label', 'Switch app. Current: Bots');
+  await expect(side.getByRole('tab', { name: 'Agents' })).toHaveAttribute('aria-selected', 'true');
+  await expect(rail().locator('[data-app-switcher]')).toHaveAttribute('aria-label', 'Switch app. Current: Agents');
   await showApps();
   // Only Bots is where you are: not Agent too.
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
@@ -363,11 +363,11 @@ test('Mobius pinned beside is a card with no line between it and the page, in ev
   await start();
   for (const theme of ['light', 'dark'] as const) {
     await shell().emulateMedia({ colorScheme: theme });
-    for (const name of ['Docs', 'Notes', 'Mail', 'Browser', 'Sheets', 'Studio', 'Code', 'Design']) {
+    for (const [name, id] of [['Docs', 'docs'], ['Notes', 'notes'], ['Mail', 'mail'], ['Browser', 'browser'], ['Sheets', 'sheets'], ['Music', 'studio'], ['Code', 'code'], ['Design', 'design']]) {
       await shell().keyboard.press('Control+k');
-      await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
+      await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name!);
       await shell().keyboard.press('Enter');
-      await expect(shell().locator('.app')).toHaveAttribute('data-app', name.toLowerCase());
+      await expect(shell().locator('.app')).toHaveAttribute('data-app', id!);
       await expect(shell().locator('.dock.right:not([data-floating]) > .chat')).toBeVisible();
       // Every element whose left or right edge is within a few pixels of where the page meets the card: none draws a line.
       const lines = await shell().evaluate(() => {
