@@ -50,13 +50,20 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
     const element = dialog.current;
     if (!element) return;
     if (open && !element.open) {
-      setQuery('');
-      setSelected(null);
+      // The field is already empty: it was emptied as the launcher closed. Emptying it only now, after it shows, could
+      // land after the first letters typed into it, and the same words typed again went unseen (the field already held
+      // them), so Enter opened whatever was first for an empty field.
       element.showModal();
       input.current?.focus();
     } else if (!open && element.open) {
       element.close();
     }
+  }, [open]);
+  // However it closed (a choice, Escape, a click outside), it is empty and unchosen for next time.
+  useEffect(() => {
+    if (open) return;
+    setQuery('');
+    setSelected(null);
   }, [open]);
 
   // While it is open the keys are its own: something behind it that takes the focus as it loads (an editor opening a
