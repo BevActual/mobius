@@ -15,6 +15,7 @@ cef = ["dep:cef"]
 [dependencies]
 cef = { version = "156.3", optional = true }
 mobius-host = { path = "../mobius-host" }
+mobius-workspace = { path = "../mobius-workspace" }
 mobius-browser = { path = "../mobius-browser" }
 mobius-store = { path = "../mobius-store" }
 base64 = "0.22"

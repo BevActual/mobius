@@ -34,26 +34,59 @@ pub struct Notes {
 /// file can hold it for seconds), moved out of the way at once into the hidden `.trash` beside it and removed as soon as
 /// Windows lets go, so the page's files never outlive the page where the person can see them.
 fn remove_dir_soon(dir: &Path, trash: &Path) {
+    let mut refused = None;
     for wait in [0, 50, 150] {
         std::thread::sleep(std::time::Duration::from_millis(wait));
-        if fs::remove_dir_all(dir).is_ok() || !dir.exists() {
-            return;
+        match fs::remove_dir_all(dir) {
+            Ok(()) => return,
+            Err(_) if !dir.exists() => return,
+            Err(e) => refused = Some(e),
         }
     }
+    // Say why, and who has it: the next run of the log shows what to fix rather than a folder that was not removed.
+    let holders = holders_of(dir);
+    eprintln!(
+        "[mobius] could not remove {} yet ({}); held by {}",
+        dir.display(),
+        refused.map(|e| format!("{:?}: {e}", e.kind())).unwrap_or_default(),
+        if holders.is_empty() { "no program Windows can name".to_owned() } else { holders.join(", ") }
+    );
     let _ = fs::create_dir_all(trash);
     let stamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
     let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("files");
     let parked = trash.join(format!("{stamp}-{name}"));
     let left = if fs::rename(dir, &parked).is_ok() { parked } else { dir.to_path_buf() };
+    // Tried every tenth of a second, so it goes the moment it is let go, for up to half a minute.
     std::thread::spawn(move || {
-        for wait in [250, 500, 1000, 2000, 4000, 8000, 15000] {
-            std::thread::sleep(std::time::Duration::from_millis(wait));
+        for _ in 0..300 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
             if fs::remove_dir_all(&left).is_ok() || !left.exists() {
                 return;
             }
         }
-        eprintln!("[mobius] could not remove {} (still in use)", left.display());
+        eprintln!("[mobius] could not remove {} (still in use; held by {})", left.display(), holders_of(&left).join(", "));
     });
+}
+
+/// The programs holding any file in a folder open, as "name (pid)", from Windows' Restart Manager. Empty elsewhere.
+fn holders_of(dir: &Path) -> Vec<String> {
+    let mut files = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for entry in fs::read_dir(&d).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.is_dir() { stack.push(path) } else if files.len() < 64 { files.push(path) }
+        }
+    }
+    holders(&files)
+}
+
+/// Who holds a file open, as "name (pid)": the shell fills this in with Windows' Restart Manager (it may use the system's
+/// C APIs; this crate does not), so a refused delete says which program to blame.
+pub static FILE_HOLDERS: std::sync::OnceLock<fn(&[PathBuf]) -> Vec<String>> = std::sync::OnceLock::new();
+
+fn holders(files: &[PathBuf]) -> Vec<String> {
+    FILE_HOLDERS.get().map(|find| find(files)).unwrap_or_default()
 }
 
 fn markdown_starter(title: &str) -> String {

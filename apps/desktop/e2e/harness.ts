@@ -329,13 +329,25 @@ function removeTestDataSoon(folder: string): boolean {
 
 /** Ends every process still running from this build's folder (the shell's core and browser helpers), when one outlives the app. */
 function endLeftovers(shellExe: string, userData: string): string {
-  const folder = path.dirname(shellExe).replace(/'/g, "''");
-  const data = userData.replace(/'/g, "''");
   // Also anything run with the test's data folder in its command line (git for a checkpoint, a tool the app started).
-  // Says what it ended, so a run shows what was still holding the folder.
+  // Says what it ended, so a run shows what was still holding the folder. Fast on a busy runner: the build's processes
+  // come from Get-Process, and the command-line search is filtered by WMI itself rather than listing every process
+  // (which took longer than the time allowed on CI, so nothing was ended and the next test started slowly).
+  const quote = (text: string) => text.replace(/'/g, "''");
+  const script = [
+    `$ProgressPreference = 'SilentlyContinue'; $folder = '${quote(path.dirname(shellExe))}\\'; $data = '${quote(userData)}'; $out = @()`,
+    "Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith($folder, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { $out += \"$($_.ProcessName) $($_.Id) (from the build)\"; Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }",
+    "$like = $data.Replace('\\', '\\\\').Replace(\"'\", \"\\'\")",
+    "Get-CimInstance Win32_Process -Filter \"CommandLine LIKE '%$like%'\" -Property ProcessId,Name,CommandLine -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -ne $PID } | ForEach-Object { $c = [string]$_.CommandLine; $out += \"$($_.Name) $($_.ProcessId): \" + $c.Substring(0, [Math]::Min(160, $c.Length)); Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+    "$out -join ' | '",
+  ].join('\n');
+  const encoded = Buffer.from(script, 'utf16le').toString('base64');
+  const began = Date.now();
   try {
-    return execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '${folder}\\*' -or $_.CommandLine -like '*${data}*' } | ForEach-Object { $_.Name + ' ' + $_.ProcessId + ' (parent ' + $_.ParentProcessId + '): ' + ([string]$_.CommandLine).Substring(0, [Math]::Min(160, ([string]$_.CommandLine).Length)); Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`, { encoding: 'utf8', timeout: 15_000 }).trim();
-  } catch { return ''; }
+    return execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { encoding: 'utf8', timeout: 20_000 }).trim();
+  } catch (e) {
+    return `the search for them failed after ${Date.now() - began} ms (${String((e as Error).message).split('\n')[0]!.slice(0, 120)})`;
+  }
 }
 
 /** Up to a few files still left in a folder that could not be removed, relative to it. */

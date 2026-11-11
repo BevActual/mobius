@@ -104,7 +104,15 @@ test('what the last turn changed can be reviewed and undone', async () => {
   await composer().press('Enter');
   const card = shell().getByRole('group', { name: /Approval needed/ });
   await card.getByRole('button', { name: 'Allow once' }).click();
-  await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
+  try {
+    await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
+  } catch (e) {
+    // When the answer never comes (seen once on CI), say what the conversation showed instead and whether the file was written.
+    const shown = await log().innerText().catch(() => '(the conversation could not be read)');
+    const cards = await shell().getByRole('group', { name: /Approval needed/ }).count().catch(() => -1);
+    const written = fs.existsSync(workspace('notes', 'Work', 'Ideas.md'));
+    throw new Error(`${(e as Error).message}\n--- the conversation showed:\n${shown.slice(0, 2000)}\n--- approval cards still showing: ${cards}; Ideas.md written: ${written}`);
+  }
   expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(true);
   const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
   await expect(strip).toContainText('1 change');

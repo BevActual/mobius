@@ -458,6 +458,9 @@ fn main() {
     if let Some(code) = cef_engine::run_helper_process() {
         std::process::exit(code);
     }
+    // A delete Windows refuses in the workspace says which program holds the files.
+    #[cfg(windows)]
+    let _ = mobius_workspace::notes::FILE_HOLDERS.set(file_holders);
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -755,5 +758,74 @@ fn transparency_off() -> bool {
     #[cfg(not(windows))]
     {
         false
+    }
+}
+
+/// The programs holding any of these files open, as "name (pid)", from Windows' Restart Manager: what a refused delete
+/// in the workspace reports (see mobius_workspace::notes::FILE_HOLDERS). Declared here rather than through the windows
+/// crate, whose Restart Manager feature makes rustc overflow its stack on the crates that depend on it.
+#[cfg(windows)]
+fn file_holders(files: &[std::path::PathBuf]) -> Vec<String> {
+    use std::os::windows::ffi::OsStrExt;
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct UniqueProcess { pid: u32, start_low: u32, start_high: u32 }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct ProcessInfo { process: UniqueProcess, app_name: [u16; 256], service: [u16; 64], app_type: i32, status: u32, session: u32, restartable: i32 }
+    #[link(name = "rstrtmgr")]
+    unsafe extern "system" {
+        fn RmStartSession(session: *mut u32, flags: u32, key: *mut u16) -> u32;
+        fn RmRegisterResources(session: u32, nfiles: u32, files: *const *const u16, napps: u32, apps: *const UniqueProcess, nservices: u32, services: *const *const u16) -> u32;
+        fn RmGetList(session: u32, needed: *mut u32, count: *mut u32, list: *mut ProcessInfo, reasons: *mut u32) -> u32;
+        fn RmEndSession(session: u32) -> u32;
+    }
+    if files.is_empty() {
+        return Vec::new();
+    }
+    let mut session = 0u32;
+    let mut key = [0u16; 33];
+    // SAFETY: the key buffer is CCH_RM_SESSION_KEY + 1 wide characters, as Restart Manager asks; the session is ended below.
+    if unsafe { RmStartSession(&mut session, 0, key.as_mut_ptr()) } != 0 {
+        return Vec::new();
+    }
+    let wide: Vec<Vec<u16>> = files.iter().map(|p| p.as_os_str().encode_wide().chain([0]).collect()).collect();
+    let names: Vec<*const u16> = wide.iter().map(|w| w.as_ptr()).collect();
+    let mut out = Vec::new();
+    // SAFETY: the names point into `wide`, alive for these calls; the list is read only up to the count returned.
+    unsafe {
+        if RmRegisterResources(session, u32::try_from(names.len()).unwrap_or(0), names.as_ptr(), 0, std::ptr::null(), 0, std::ptr::null()) == 0 {
+            let (mut needed, mut count, mut reasons) = (0u32, 0u32, 0u32);
+            let _ = RmGetList(session, &mut needed, &mut count, std::ptr::null_mut(), &mut reasons);
+            if needed > 0 {
+                let blank = ProcessInfo { process: UniqueProcess { pid: 0, start_low: 0, start_high: 0 }, app_name: [0; 256], service: [0; 64], app_type: 0, status: 0, session: 0, restartable: 0 };
+                let mut list = vec![blank; needed as usize];
+                count = needed;
+                if RmGetList(session, &mut needed, &mut count, list.as_mut_ptr(), &mut reasons) == 0 {
+                    for p in list.iter().take(count as usize) {
+                        let end = p.app_name.iter().position(|c| *c == 0).unwrap_or(p.app_name.len());
+                        out.push(format!("{} ({})", String::from_utf16_lossy(&p.app_name[..end]), p.process.pid));
+                    }
+                }
+            }
+        }
+        let _ = RmEndSession(session);
+    }
+    out
+}
+
+#[cfg(all(test, windows))]
+mod holder_tests {
+    #[test]
+    fn a_file_held_open_is_said_to_be_held_by_the_program_holding_it() {
+        let dir = std::env::temp_dir().join(format!("mobius-holders-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("cell.png");
+        std::fs::write(&file, b"png").unwrap();
+        let held = std::fs::File::open(&file).unwrap();
+        let names = super::file_holders(std::slice::from_ref(&file));
+        assert!(names.iter().any(|n| n.contains(&format!("({})", std::process::id()))), "{names:?}");
+        drop(held);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
