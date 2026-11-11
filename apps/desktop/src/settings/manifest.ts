@@ -60,6 +60,7 @@ const SECTIONS: readonly SettingsSection[] = [
     description: 'Which model does what. The services they come from are in Gateways.',
     subpages: [
       { id: 'main', label: 'Defaults', rows: [
+        row('second-model', 'Second model', 'Asked when the first is busy, down or cannot be reached.', 'fallback', 'backup', 'failover', 'second model', 'outage', 'rate limit'),
         row('chat-model', 'Chat model', 'The model Mobius talks to, from the services connected in Gateways.', 'model', 'chat model', 'default model', 'which model', 'switch model', 'gpt', 'claude', 'qwen', 'llama'),
         row('effort', 'Effort', 'How hard the model is asked to think. Also in the message box. Only models that can reason use it.', 'reasoning', 'thinking', 'low', 'medium', 'high', 'effort'),
       ] },

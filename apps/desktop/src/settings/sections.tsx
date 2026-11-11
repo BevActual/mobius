@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { MobiusMark } from '../MobiusMark';
-import { ChatModelPopUp } from './ModelDefaults';
+import { ChatModelPopUp, FallbackPopUp } from './ModelDefaults';
 import {
   type SavedServer,
   CHAT_TEXT_RANGE,
@@ -251,6 +251,9 @@ export function ModelSection({ subpage, highlight, settings, onSaveSettings, pre
     <>
       <Row path={rowPath('model', subpage, 'chat-model')} title="Chat model" description="The model Mobius talks to. The services it comes from are in Gateways." highlight={highlight === 'chat-model'}>
         <ChatModelPopUp localContext={preferences.localContext} />
+      </Row>
+      <Row path={rowPath('model', subpage, 'second-model')} title="Second model" description="Asked when the first is busy, down or cannot be reached. Mobius says when it answers instead." highlight={highlight === 'second-model'}>
+        <FallbackPopUp baseUrl={settings.fallbackBaseUrl ?? ''} model={settings.fallbackModel ?? ''} />
       </Row>
       {window.mobius.agent.savedServers && (
         <Row path={rowPath('model', subpage, 'saved-servers')} title="Saved servers" description="Keep model servers under a name and switch between them. Saving keeps the address, the model and, in the system's secret store, the key." highlight={highlight === 'saved-servers'}>

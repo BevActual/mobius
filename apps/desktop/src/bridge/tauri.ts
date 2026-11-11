@@ -231,6 +231,7 @@ export function createTauriBridge(): MobiusBridge {
       removeKey: (id) => call('providers', 'removeKey', [id], () => undefined),
       models: (id) => call('providers', 'models', [id], () => ({ ok: false as const, error: 'Providers are not available.' })),
       use: (id, model) => call('providers', 'use', [id, model], () => ({ ok: false as const, error: 'Providers are not available.' })),
+      useFallback: (id, model) => call('providers', 'useFallback', model === undefined ? [id] : [id, model], () => ({ ok: false as const, error: 'Providers are not available.' })),
       onChanged: (listener) => on<null>('mobius:providers-changed', () => listener()),
     },
     projects: {

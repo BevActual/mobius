@@ -58,3 +58,53 @@ export function ChatModelPopUp({ localContext, onChanged }: { localContext: numb
     </>
   );
 }
+
+const same = (a: string, b: string) => a.trim().replace(/\/+$/, '').toLowerCase() === b.trim().replace(/\/+$/, '').toLowerCase();
+
+/** The second model as the pop-up shows it: the gateway at the address the second model uses, and its name. */
+export function fallbackKey(catalog: ModelCatalog, baseUrl: string, model: string): string {
+  if (!baseUrl || !model) return 'none';
+  const group = catalog.groups.find((g) => g.address !== undefined && same(g.address, baseUrl));
+  return group ? keyOf(group, model) : 'other';
+}
+
+/**
+ * The second model, asked when the first is busy, down or cannot be reached: a pop-up of the models the connected
+ * gateways offer, or None. Its address and key come from the gateway, in the core; a model on this computer cannot
+ * be the second one yet. One set by hand at another address shows as Other (it is in Gateways, Custom server).
+ */
+export function FallbackPopUp({ baseUrl, model, onChanged }: { baseUrl: string; model: string; onChanged?: () => void }) {
+  const [catalog, setCatalog] = useState<ModelCatalog | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const got = await window.mobius.providers?.catalog().catch(() => null);
+    setCatalog(asCatalog(got));
+  }, []);
+  useEffect(() => { void load(); return window.mobius.providers?.onChanged(() => void load()); }, [load]);
+  if (catalog === null) return <span className="srow-text" role="status">Loading models…</span>;
+  const groups = catalog.groups.filter((g) => (g.kind === 'provider' || g.kind === 'subscription') && g.models.length > 0);
+  const value = fallbackKey(catalog, baseUrl, model);
+  const choose = async (key: string) => {
+    setProblem(null);
+    const api = window.mobius.providers;
+    if (!api?.useFallback) { setProblem('That cannot be set here.'); return; }
+    const [, id, ...rest] = key.split('|');
+    const result = key === 'none' ? await api.useFallback('none') : await api.useFallback(id ?? '', rest.join('|'));
+    if (!result.ok) setProblem(result.error);
+    onChanged?.();
+  };
+  return (
+    <>
+      <select className="popup" aria-label="Second model" value={value} onChange={(e) => void choose(e.target.value)}>
+        <option value="none">None</option>
+        {value === 'other' && <option value="other" disabled>{model} (Custom server)</option>}
+        {groups.map((g) => (
+          <optgroup key={`${g.kind}-${g.id}`} label={g.name}>
+            {g.models.map((m) => <option key={m.id} value={keyOf(g, m.id)}>{m.label}</option>)}
+          </optgroup>
+        ))}
+      </select>
+      {problem && <span className="field-error" role="alert">{problem}</span>}
+    </>
+  );
+}
