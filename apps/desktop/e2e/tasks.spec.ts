@@ -143,7 +143,8 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   await expect(row.locator('.task-subcount')).toHaveText('0 of 1');
   await details.getByRole('combobox', { name: 'List' }).selectOption('Garden');
   await expect.poll(() => fs.readFileSync(file('Garden'), 'utf8')).toBe('# Garden\n\n- [ ] Paint the door (flagged)\n  White, not grey.\n  - [ ] Buy brushes\n');
-  expect(fs.readFileSync(file('Home'), 'utf8')).toBe('# Home\n\n- [ ] Fix the tap\n');
+  // The move writes the new list, then takes the task out of the old one: two writes, so wait for the second.
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toBe('# Home\n\n- [ ] Fix the tap\n');
   await lists().getByRole('button', { name: /^Flagged/ }).click();
   await expect(shell().locator('.strip-title')).toHaveText('Flagged');
   await expect(todo().getByRole('checkbox', { name: 'Paint the door' })).toBeVisible();
