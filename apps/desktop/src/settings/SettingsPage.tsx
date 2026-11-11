@@ -3,6 +3,7 @@ import { SETTINGS, findSection, searchSettings, type SectionId } from './manifes
 import { AboutSection, AdvancedSection, AppearanceSection, BrowserSection, KeyboardSection, NotificationsSection, ModelSection, SafetySection, SessionsSection, type SectionProps } from './sections';
 import { ProvidersSection } from './ProviderKeys';
 import { SchedulesSection } from './Schedules';
+import { PageBoundary } from './PageBoundary';
 import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection } from './Voice';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
@@ -130,7 +131,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, ...rest }: Pass
                     ))}
                   </div>
                 )}
-                <View subpage={subpage} highlight={highlight} {...rest} />
+                <PageBoundary key={`${section}.${subpage}`}><View subpage={subpage} highlight={highlight} {...rest} /></PageBoundary>
               </>
             )
           )}

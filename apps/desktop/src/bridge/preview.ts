@@ -107,6 +107,10 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   // Time Mobius suggests, waiting to be kept.
   'calendar.suggestions': () => [{ id: 's1', calendar: 'Kestrel P2', title: 'Prep the build plan', start: `${day(1)}T14:00`, end: `${day(1)}T15:00`, allDay: false, location: '', notes: '', why: 'your first free hour before the build week call' }],
   // The model picker: a plan, a key, and a model on this computer.
+  // This computer: a graphics card, the engine, and one model downloaded.
+  'models.hardware': () => ({ gpu_name: 'NVIDIA GeForce RTX 4070', vram_total: 12_884_901_888, vram_free: 10_737_418_240, ram_total: 34_359_738_368, ram_free: 17_179_869_184 }),
+  'models.status': () => ({ binary: null, runtime: null }),
+  'models.local': () => [],
   'providers.catalog': () => ({ current: 'claude-sonnet-5-5', groups: [{ kind: 'subscription', id: 'claude', name: 'Claude plan', active: true, models: [{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' }, { id: 'claude-opus-5-5', label: 'Opus 5.5' }], error: null }, { kind: 'local', id: 'local', name: 'On this computer', active: false, models: [{ id: 'qwen3-8b', label: 'Qwen3 8B' }], error: null }] }),
   'mail.accounts': () => [{ id: 'a1', name: 'Northway', email: 'you@northway.example', lastSyncMs: now, problem: null }],
   'mail.list': () => MAIL,
