@@ -701,7 +701,11 @@ export function App() {
       sheets: !!sheets.data && turnMarks.sheets.has(sheets.data.workbook),
       tasks: tasks.view.kind === 'list' && turnMarks.lists.has(tasks.view.name),
     };
-    const target = openOnChanges(app, turnMarks.files, showing[app] ?? false, openedOnChanges.current);
+    // Only apps that can tell whether a change is already on screen. Any other (Code reopening its whole project) would
+    // reload what is open in the middle of its review and lose the change being shown.
+    const now = showing[app];
+    if (now === undefined) return;
+    const target = openOnChanges(app, turnMarks.files, now, openedOnChanges.current);
     if (target) openTargetNow.current(target);
     // Only on coming to an app or when a turn's changes arrive, not as its item changes.
   }, [app, turnMarks, conversation.state.busy]); // eslint-disable-line react-hooks/exhaustive-deps
