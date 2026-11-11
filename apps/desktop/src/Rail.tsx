@@ -2,7 +2,6 @@ import { Reorder, motion } from 'motion/react';
 import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { Activity } from './activity';
 import { useSideFolds } from './side-fold';
-import { useMorphIn } from './motion';
 import { appName, type AppId } from './apps';
 import type { Favourite } from '@mobius/shared';
 
@@ -169,7 +168,6 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   const [face, setFace] = useState<'app' | 'apps'>('app');
   const switching = expanded && face === 'apps';
   const asking = expanded && !switching && Boolean(mobius?.shown);
-  useMorphIn(askRef, asking, 'left');
   const showOwn = expanded && !switching && !settingsOpen && !asking;
   const showApps = !asking && (!showOwn || !children);
   useEffect(() => { setFace('app'); }, [app, settingsOpen, expanded]);
@@ -239,7 +237,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
                 lead: switcher,
                 pin: (
                   <>
-                    <button type="button" className="head-icon" aria-label="Show beside" title="Show Mobius beside the page instead" onClick={mobius.onBeside}>
+                    <button type="button" className="head-icon" aria-label="Pin beside" title="Pin Mobius beside the page" onClick={mobius.onBeside}>
                       <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>
                     </button>
                     <button type="button" className="head-icon" data-mobius-face aria-pressed="true" aria-label="Back to the sidebar" title={`Back to ${title}`} onClick={mobius.onToggle}>
