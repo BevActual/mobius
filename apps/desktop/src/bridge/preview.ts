@@ -7,6 +7,8 @@ import { PREVIEW_SONGS } from './preview-songs';
 import { PREVIEW_BROWSER } from './preview-browser';
 import { PREVIEW_CODE } from './preview-code';
 import { PREVIEW_DESIGNS } from './preview-designs';
+import { PREVIEW_SLIDES } from './preview-slides';
+import { PREVIEW_PHOTOS } from './preview-photos';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
@@ -70,6 +72,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_BROWSER,
   ...PREVIEW_CODE,
   ...PREVIEW_DESIGNS,
+  ...PREVIEW_SLIDES,
+  ...PREVIEW_PHOTOS,
   'bots.get': () => ({ bots: [] }),
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,

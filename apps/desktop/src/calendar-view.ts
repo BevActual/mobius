@@ -247,3 +247,31 @@ export function movedByDays(event: { start: string; end: string; allDay: boolean
   if (!event.allDay) return dragged(event, n, 0, false);
   return { start: isoDay(addDays(localDate(event.start), n)), end: isoDay(addDays(localDate(event.end), n - 1)) };
 }
+
+/** A time typed in the event sheet ("14:30", "2:30 pm", "2pm", "1430", "9") as HH:MM, or null when it names none. */
+export function parseTimeText(text: string): string | null {
+  const m = /^\s*(\d{1,2})(?::?(\d{2}))?\s*(a\.?m?\.?|p\.?m?\.?)?\s*$/i.exec(text);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = m[2] ? Number(m[2]) : 0;
+  const half = m[3]?.[0]?.toLowerCase();
+  if (half) { if (h < 1 || h > 12) return null; h = (h % 12) + (half === 'p' ? 12 : 0); }
+  if (h > 23 || min > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+/** A day typed in the event sheet ("2026-11-12", "12 nov", "fri", "tomorrow") as YYYY-MM-DD, or null. */
+export function parseDayText(text: string, now: Date, words: (text: string, now: Date) => { due: string } | null): string | null {
+  const t = text.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return Number.isNaN(localDate(t).getTime()) ? null : t;
+  // Weekday names on their own, as the sheet shows them ("Thu, 12 Nov 2026"), are dropped first.
+  const year = /\b(\d{4})\b/.exec(t)?.[1];
+  const said = t.replace(/\b\d{4}\b/, '').replace(/^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+(?=\S)(?=.*\d)/i, '').replace(/[,.]/g, ' ').replace(/\s+/g, ' ').trim();
+  const due = words(`x ${said}`, now)?.due.slice(0, 10) ?? null;
+  return due && year ? `${year}${due.slice(4)}` : due;
+}
+
+/** A day as the sheet shows it, in the person's own way of writing dates: "Thu, 12 Nov 2026". */
+export const dayLabel = (iso: string): string => localDate(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+/** A time as the sheet shows it, 24-hour or with AM and PM as the person's locale writes it. */
+export const timeLabel = (hhmm: string): string => new Date(2000, 0, 1, Number(hhmm.slice(0, 2)), Number(hhmm.slice(3, 5))).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });

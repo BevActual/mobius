@@ -2,12 +2,12 @@ import { useEffect, useRef, useState, type DragEvent, type FormEvent, type React
 import { createPortal } from 'react-dom';
 import type { CalendarDraft, CalendarEvent, CalendarSuggestion } from '@mobius/shared';
 import { onCommand } from './commands';
-import { addDays, allDayOn, atMinutes, calendarColor, clock, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { addDays, dayLabel, parseDayText, parseTimeText, timeLabel, weekStart, allDayOn, atMinutes, calendarColor, clock, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
 import { ReviewActions } from './ReviewBar';
-import { SideNew, type Start } from './SideNew';
+import type { Start } from './SideNew';
 
 const HOUR_PX = 48;
 /** How many events and tasks a month cell lists before "more". */
@@ -125,7 +125,7 @@ function MiniMonth({ calendar }: { calendar: CalendarState }) {
 }
 
 /** The calendars, each with its colour (unticked ones are hidden), grouped by where they are kept. */
-export function CalendarSidebar({ calendar, pin, onNew, starts, onStart }: { calendar: CalendarState; pin?: ReactNode; onNew?: () => void; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
+export function CalendarSidebar({ calendar, pin }: { calendar: CalendarState; pin?: ReactNode; onNew?: () => void; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [adding, setAdding] = useState(false);
@@ -138,7 +138,7 @@ export function CalendarSidebar({ calendar, pin, onNew, starts, onStart }: { cal
   return (
     <aside className="side calendar-side" aria-label="Calendar sidebar">
       <div className="side-head">
-        <span className="side-title">Calendars</span>
+        <span className="side-title" title="Your own calendars are kept as .ics files in your workspace, so any calendar app can open them.">Calendars</span>
         <span className="side-actions">
           {pin}
           <button type="button" className="strip-btn" aria-label="New calendar" title="New calendar" onClick={() => setNaming(true)}>
@@ -147,7 +147,6 @@ export function CalendarSidebar({ calendar, pin, onNew, starts, onStart }: { cal
         </span>
       </div>
       <div className="calendar-groups">
-        {onNew && <SideNew item="event" onNew={onNew} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />}
         <MiniMonth calendar={calendar} />
         <ul className="calendar-list" role="list" aria-label="Calendars">
           {local.map((c) => <CalendarRow key={c} calendar={calendar} name={c} />)}
@@ -190,7 +189,6 @@ export function CalendarSidebar({ calendar, pin, onNew, starts, onStart }: { cal
         )}
         <button type="button" className="calendar-add-account" onClick={() => setAdding(true)}>Add a calendar account…</button>
       </div>
-      <p className="calendar-side-note">Your own calendars are kept as .ics files in your workspace, so any calendar app can open them.</p>
       {adding && createPortal(<div className="cal-modal-layer"><AccountDialog calendar={calendar} onClose={() => setAdding(false)} /></div>, document.body)}
     </aside>
   );
@@ -221,7 +219,7 @@ export type MoveEvent = (event: Shown, to: { start: string; end: string }) => Pr
 let carrying: { event: Shown; from: Date } | null = null;
 
 function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDown, onResize, dragging }: {
-  calendar: CalendarState; event: Shown; style?: React.CSSProperties; onOpen: (e: Shown) => void; compact?: boolean;
+  calendar: CalendarState; event: Shown; style?: React.CSSProperties; onOpen: (e: Shown, at?: DOMRect) => void; compact?: boolean;
   /** The day it is drawn on, so it can be carried to another (Month and the all-day row). */
   from?: Date;
   onPointerDown?: (e: React.PointerEvent) => void; onResize?: (e: React.PointerEvent) => void; dragging?: boolean;
@@ -246,7 +244,7 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       onDragStart={carry ? (e) => { carrying = { event, from: from! }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', event.title); } : undefined}
       onDragEnd={carry ? () => { carrying = null; } : undefined}
       onPointerDown={onPointerDown}
-      onClick={(e) => { e.stopPropagation(); onOpen(event); }}
+      onClick={(e) => { e.stopPropagation(); onOpen(event, e.currentTarget.getBoundingClientRect()); }}
     >
       <b>{event.title}</b>
       {!event.allDay && !compact && <span>{clock(event.start)}{event.location ? ` · ${event.location}` : ''}</span>}
@@ -290,7 +288,7 @@ function useDrop(onMove: MoveEvent) {
 type Drag = { key: string; event: Shown; resize: boolean; x: number; y: number; day: number; byDays: number; byMinutes: number; moved: boolean; saving: boolean };
 type Sweep = { day: number; column: HTMLElement; y: number; from: number; to: number; moved: boolean };
 
-function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: Shown) => void; onMove: MoveEvent }) {
+function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: Shown, at?: DOMRect) => void; onMove: MoveEvent }) {
   const all = onScreen(calendar);
   const scroller = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
@@ -371,7 +369,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calenda
     e.stopPropagation();
     setDrag({ key: keyOf(event), event, resize, x: e.clientX, y: e.clientY, day, byDays: 0, byMinutes: 0, moved: false, saving: false });
   };
-  const open = (event: Shown) => { if (!dragged_.current) onOpen(event); };
+  const open = (event: Shown, at?: DOMRect) => { if (!dragged_.current) onOpen(event, at); };
 
   const columns = { gridTemplateColumns: `52px repeat(${days.length}, minmax(0, 1fr))` };
   const allDay = days.map((d) => allDayOn(shown, d));
@@ -422,7 +420,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calenda
               }}
               onDoubleClick={(e) => { if (e.target === e.currentTarget) onNew({ start: slotAt(d, e.clientY - e.currentTarget.getBoundingClientRect().top), allDay: false }); }}
             >
-              {placeDay(shown, d).map((p) => {
+              {placeDay(shown, d, 30).map((p) => {
                 const can = movable(calendar, p.event);
                 const key = keyOf(p.event);
                 const isDragged = drag?.moved === true && drag.key === key;
@@ -453,7 +451,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calenda
   );
 }
 
-function MonthGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: Shown) => void; onMove: MoveEvent }) {
+function MonthGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: Shown, at?: DOMRect) => void; onMove: MoveEvent }) {
   const shown = onScreen(calendar);
   const today = new Date();
   const month = calendar.anchor.getMonth();
@@ -482,6 +480,89 @@ function MonthGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calend
         })}
       </div>
     </div>
+  );
+}
+
+const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+const fromMinutes = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+/**
+ * A day in the event sheet, written the way the person writes dates ("Thu, 12 Nov 2026"). Typing a date or words
+ * ("fri", "12 dec") changes it when the field is left; ↑ and ↓ move a day; the mini month picks one.
+ */
+function DayField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [text, setText] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const wrap = useRef<HTMLSpanElement>(null);
+  const commit = () => {
+    if (text !== null) { const day = parseDayText(text, new Date(), parseWhen); if (day) onChange(day); }
+    setText(null);
+  };
+  useEffect(() => {
+    if (!picking) return undefined;
+    const away = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node)) setPicking(false); };
+    window.addEventListener('pointerdown', away, true);
+    return () => window.removeEventListener('pointerdown', away, true);
+  }, [picking]);
+  const shown = localDate(value);
+  const month = new Date(shown.getFullYear(), shown.getMonth(), 1);
+  const [view, setView] = useState(month);
+  useEffect(() => setView(month), [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  const first = weekStart(view);
+  const cells = Array.from({ length: 42 }, (_, i) => addDays(first, i));
+  return (
+    <span className="cal-field" ref={wrap}>
+      <input
+        aria-label={label} className="cal-field-day" value={text ?? dayLabel(value)} required spellCheck={false}
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setText(null); onChange(isoDay(addDays(shown, e.key === 'ArrowUp' ? -1 : 1))); }
+          else if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        }}
+      />
+      <button type="button" className="cal-field-pick" aria-label="Pick a day" aria-expanded={picking} onClick={() => setPicking((p) => !p)}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+      </button>
+      {picking && (
+        <div className="cal-field-month" role="dialog" aria-label={label}>
+          <div className="cal-field-month-head">
+            <b>{view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b>
+            <button type="button" className="strip-btn" aria-label="Previous month" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
+            <button type="button" className="strip-btn" aria-label="Next month" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
+          </div>
+          <div className="cal-field-days">
+            {cells.slice(0, 7).map((d) => <span key={`h${d.getDay()}`}>{d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span>)}
+            {cells.map((d) => (
+              <button key={isoDay(d)} type="button" aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} aria-pressed={isoDay(d) === value} data-out={d.getMonth() !== view.getMonth() || undefined} data-today={sameDay(d, new Date()) || undefined} onClick={() => { onChange(isoDay(d)); setPicking(false); }}>{d.getDate()}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+/** A time in the event sheet, written as the person's locale writes times; "2pm" or "1430" typed, ↑ and ↓ by 15 minutes. */
+function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [text, setText] = useState<string | null>(null);
+  const commit = () => { if (text !== null) { const t = parseTimeText(text); if (t) onChange(t); } setText(null); };
+  return (
+    <input
+      aria-label={label} className="cal-field-time" value={text ?? timeLabel(value)} required spellCheck={false} inputMode="numeric"
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const m = minutesOf(value) + (e.key === 'ArrowUp' ? -15 : 15);
+          setText(null);
+          onChange(fromMinutes(((Math.round(m / 15) * 15) % 1440 + 1440) % 1440));
+        } else if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      }}
+    />
   );
 }
 
@@ -554,13 +635,13 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
           <label className="cal-editor-row cal-editor-check"><span>All day</span><input type="checkbox" aria-label="All day" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} /></label>
           <div className="cal-editor-row">
             <span>Starts</span>
-            <input type="date" aria-label="Start day" value={startDay} required onChange={(e) => { const was = localDate(startDay).getTime(); setStartDay(e.target.value); if (e.target.value) setEndDay(isoDay(new Date(localDate(endDay).getTime() + localDate(e.target.value).getTime() - was))); }} />
-            {!allDay && <input type="time" aria-label="Start time" value={startTime} required onChange={(e) => setStartTime(e.target.value)} />}
+            <DayField label="Start day" value={startDay} onChange={(v) => { const was = localDate(startDay).getTime(); setStartDay(v); setEndDay(isoDay(new Date(localDate(endDay).getTime() + localDate(v).getTime() - was))); }} />
+            {!allDay && <TimeField label="Start time" value={startTime} onChange={(v) => { const length = minutesOf(endTime) - minutesOf(startTime); setStartTime(v); if (startDay === endDay && length > 0) setEndTime(fromMinutes(Math.min(23 * 60 + 59, minutesOf(v) + length))); }} />}
           </div>
           <div className="cal-editor-row">
             <span>Ends</span>
-            <input type="date" aria-label="End day" value={endDay} min={startDay} required onChange={(e) => setEndDay(e.target.value)} />
-            {!allDay && <input type="time" aria-label="End time" value={endTime} required onChange={(e) => setEndTime(e.target.value)} />}
+            <DayField label="End day" value={endDay} onChange={(v) => setEndDay(v < startDay ? startDay : v)} />
+            {!allDay && <TimeField label="End time" value={endTime} onChange={setEndTime} />}
           </div>
           <label className="cal-editor-row"><span>Repeat</span>
             <select aria-label="Repeat" value={repeat} onChange={(e) => setRepeat(e.target.value)}>
@@ -597,40 +678,43 @@ function suggestedWhen(s: CalendarSuggestion): string {
   return `${day(s.start)}, ${clock(s.start)}–${clock(s.end)}`;
 }
 
-/** What Mobius suggests, each with why it suggests it: Keep adds it, Discard declines it, Try another asks again. */
-function Suggestions({ calendar, focus }: { calendar: CalendarState; focus: string | null }) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const cards = useRef<HTMLDivElement>(null);
+/** What Mobius suggests, opened from its dashed event: why, then Keep (add it), Discard (decline it) or Try another. */
+function SuggestionPopover({ calendar, id, at, onClose }: { calendar: CalendarState; id: string; at: DOMRect; onClose: () => void }) {
+  const s = calendar.suggestions.find((x) => x.id === id);
+  const box = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (!s) onClose(); }, [s]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { box.current?.querySelector<HTMLElement>('button[data-kind="keep"]')?.focus(); }, [id]);
   useEffect(() => {
-    if (focus) cards.current?.querySelector<HTMLElement>(`[data-suggestion="${CSS.escape(focus)}"] button[data-kind="keep"]`)?.focus();
-  }, [focus]);
-  if (calendar.suggestions.length === 0) return null;
-  const answer = async (id: string, add: boolean) => {
-    setBusy(id);
-    await (add ? calendar.accept(id) : calendar.decline(id));
-    setBusy(null);
+    const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) onClose(); };
+    window.addEventListener('pointerdown', away, true);
+    return () => window.removeEventListener('pointerdown', away, true);
+  }, [onClose]);
+  if (!s) return null;
+  const answer = async (add: boolean) => {
+    setBusy(true);
+    await (add ? calendar.accept(s.id) : calendar.decline(s.id));
+    setBusy(false);
+    onClose();
   };
-  return (
-    <section className="cal-suggestions" aria-label="Suggested by Mobius">
-      <div className="cal-suggestions-head">
-        <span>Suggested by Mobius</span>
-        <span className="cal-suggestions-note">Nothing is added until you keep it. Mobius never invites anyone.</span>
+  // Beside the event, on whichever side has room, and never off the window.
+  const width = 300;
+  const left = at.right + 10 + width < window.innerWidth ? at.right + 10 : Math.max(10, at.left - 10 - width);
+  const top = Math.max(10, Math.min(window.innerHeight - 200, at.top));
+  return createPortal(
+    <div ref={box} className="cal-suggest-pop" role="dialog" aria-label={`Suggested: ${s.title}`} style={{ left, top, width }} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+      <div className="cal-suggest-pop-head"><span className="review-dot" aria-hidden="true" /><span>Suggested by Mobius</span></div>
+      <b className="cal-suggest-pop-title">{s.title}</b>
+      <span className="cal-suggest-pop-when">{suggestedWhen(s)} · {s.calendar}</span>
+      {s.why && <p className="review-why">Why this: {s.why}</p>}
+      <p className="cal-suggest-pop-note">Nothing is added until you keep it. Mobius never invites anyone.</p>
+      <div className="cal-suggestion-actions" aria-busy={busy || undefined}>
+        <ReviewActions onKeep={() => answer(true)} onDiscard={() => answer(false)} keepTitle="Add it to your calendar" discardTitle="Decline it" />
       </div>
-      <div className="cal-suggestion-list" ref={cards}>
-        {calendar.suggestions.map((s) => (
-          <article key={s.id} className="cal-suggestion" data-suggestion={s.id} aria-label={s.title} data-focus={focus === s.id || undefined}>
-            <div className="cal-suggestion-top"><b>{s.title}</b><span>{suggestedWhen(s)}</span></div>
-            {s.why && <p className="review-why">Why this: {s.why}</p>}
-            <div className="cal-suggestion-actions" aria-busy={busy === s.id || undefined}>
-              <ReviewActions onKeep={() => answer(s.id, true)} onDiscard={() => answer(s.id, false)} keepTitle="Add it to your calendar" discardTitle="Decline it" />
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
+    </div>,
+    document.body,
   );
 }
-
 
 /** "Fri 13 Nov, 13:00–14:00", or "Fri 13 Nov, all day", for the quick add's preview. */
 function whenSaid(p: { start: string; end: string; allDay: boolean }): string {
@@ -687,9 +771,12 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
     }
     return ok;
   };
-  const [focus, setFocus] = useState<string | null>(null);
-  // A suggestion in the grid opens nothing to edit: it points at its card, where it is added or declined.
-  const open = (event: Shown) => { if (event.suggestion) setFocus(event.suggestion.id); else setEditing({ event }); };
+  const [asking, setAsking] = useState<{ id: string; at: DOMRect } | null>(null);
+  // A suggestion in the grid opens nothing to edit: it opens beside itself, to be kept or declined.
+  const open = (event: Shown, at?: DOMRect) => {
+    if (event.suggestion) setAsking({ id: event.suggestion.id, at: at ?? new DOMRect(window.innerWidth / 2, 120, 0, 0) });
+    else setEditing({ event });
+  };
   const days = daysFor(calendar.mode, calendar.anchor);
   const writable = calendar.calendars.filter((c) => !calendar.readOnly(c));
   const into = writable.find((c) => !calendar.hidden.has(c)) ?? writable[0] ?? 'Calendar';
@@ -738,11 +825,12 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
         </div>
         <div className="cal-head-end">
           <QuickAdd calendar={calendar} into={into} onAdded={(start) => calendar.setAnchor(localDate(start))} />
-          <button type="button" className="btn primary" title="New event (N)" onClick={create}>New event</button>
+          <button type="button" className="cal-new" aria-label="New event" title="New event (N)" onClick={create}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
+          </button>
         </div>
       </header>
       {calendar.message && !editing && <p className="tasks-message" role="alert">{calendar.message}</p>}
-      <Suggestions calendar={calendar} focus={focus} />
       {calendar.mode === 'month'
         ? <MonthGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} />
         : <TimeGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} />}
@@ -755,6 +843,7 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
           </button>
         </p>
       )}
+      {asking && <SuggestionPopover calendar={calendar} id={asking.id} at={asking.at} onClose={() => setAsking(null)} />}
       {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} />}
     </section>
   );

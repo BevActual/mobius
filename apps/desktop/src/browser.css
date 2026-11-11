@@ -102,3 +102,22 @@
 .start-page .start-reading button { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
 .start-page .start-reading button:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .start-page .start-reading svg { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
+
+/* Downloads: a button in the sidebar's head with a ring for progress, and a popover that drops down inside the sidebar. */
+.browser-side > .side-head { position: relative; }
+.browser-side .dl-wrap { display: inline-flex; }
+.browser-side .dl-button { position: relative; }
+.browser-side .dl-button[data-busy] { color: var(--accent); }
+.browser-side .dl-ring { position: absolute; inset: 3px; width: calc(100% - 6px); height: calc(100% - 6px); transform: rotate(-90deg); fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; pointer-events: none; }
+.browser-side .dl-pop { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0; max-height: 360px; overflow: auto; padding: 6px; border-radius: 12px; background: var(--bg); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18), 0 0 0 0.5px var(--line); }
+.browser-side .dl-pop .downloads { margin: 0; padding: 0; border: 0; }
+.browser-side .dl-head { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 4px 0 8px; }
+.browser-side .dl-title { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+.browser-side .dl-clear { height: 22px; padding: 0 6px; border-radius: 6px; font-size: var(--fs-sm); color: var(--accent); }
+.browser-side .dl-clear:disabled { opacity: 0.4; }
+.browser-side .dl-actions { gap: 10px; }
+.browser-side .dl-btn { height: auto; padding: 0; font-size: var(--fs-sm); color: var(--accent); background: none; }
+.browser-side .dl-btn:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* A bookmarked or pinned page shows in the accent colour, drawn in outline like the other tools. */
+.strip-middle .strip-btn[aria-pressed="true"] svg { fill: none; }
+.browser-side .dl-item .dl-btn { align-self: flex-start; }

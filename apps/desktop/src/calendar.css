@@ -123,3 +123,37 @@
 .cal-mini-day[aria-current="date"] { color: var(--accent); font-weight: 700; }
 .cal-mini-day[data-anchor] { background: var(--accent); color: var(--on-accent); border-radius: 12px; font-weight: 600; }
 .cal-mini-day:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* One add button beside the quick-add field: a round +. */
+.calendar-page .cal-new { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--on-accent, #fff); }
+.calendar-page .cal-new svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.calendar-page .cal-new:hover { filter: brightness(1.06); }
+
+/* A suggestion opens beside its dashed event, as an event's popover does in Calendar. */
+.cal-suggest-pop { position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: var(--bg); color: var(--ink); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.2), 0 0 0 0.5px var(--line); font-size: var(--fs-sm); }
+.cal-suggest-pop-head { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--accent); }
+.cal-suggest-pop-title { font-size: 15px; font-weight: 600; }
+.cal-suggest-pop-when { color: var(--muted); font-size: var(--fs-xs); }
+.cal-suggest-pop .review-why { margin: 4px 0 0; }
+.cal-suggest-pop-note { margin: 0; color: var(--muted); font-size: var(--fs-xs); }
+.cal-suggest-pop .cal-suggestion-actions { margin-top: 6px; display: flex; gap: 4px; justify-content: flex-end; }
+
+/* The event sheet's day and time, written as the person writes them, with a small month to pick from. */
+.cal-editor .cal-field { position: relative; flex: 1; display: flex; align-items: center; min-width: 0; }
+.cal-editor .cal-field-day { flex: 1; min-width: 0; padding-right: 28px !important; }
+.cal-editor .cal-field-time { width: 92px; flex: none; text-align: center; font-variant-numeric: tabular-nums; }
+.cal-editor .cal-field-pick { position: absolute; right: 4px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 5px; color: var(--muted); }
+.cal-editor .cal-field-pick:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.cal-editor .cal-field-pick svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cal-editor .cal-field-month { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: 236px; padding: 10px; border-radius: 12px; background: var(--bg); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.2), 0 0 0 0.5px var(--line); }
+.cal-editor .cal-field-month-head { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
+.cal-editor .cal-field-month-head b { flex: 1; font-size: var(--fs-sm); }
+.cal-editor .cal-field-month-head svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cal-editor .cal-field-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; text-align: center; }
+.cal-editor .cal-field-days > span { font-size: 10px; font-weight: 600; color: var(--muted); padding-bottom: 4px; }
+.cal-editor .cal-field-days button { height: 28px; border-radius: 50%; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink); }
+.cal-editor .cal-field-days button[data-out] { color: var(--muted); opacity: 0.6; }
+.cal-editor .cal-field-days button[data-today] { color: var(--accent); font-weight: 700; }
+.cal-editor .cal-field-days button:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.cal-editor .cal-field-days button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent, #fff); font-weight: 600; }
+.cal-suggest-pop .review-why { white-space: normal; overflow: visible; text-overflow: clip; font-size: var(--fs-sm); color: var(--ink); }
