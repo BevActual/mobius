@@ -80,15 +80,15 @@ test('notes are moved, stretched, picked with a box and deleted, and Undo takes 
   await shell().mouse.move(box.x + 50, box.y - 23, { steps: 4 });
   await shell().mouse.up();
   await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.start === 5)).toEqual({ pitch: 66, start: 5, length: 1, velocity: 0.8 });
-  // Stretched by a beat from its end.
-  box = (await roll.getByLabel('F#4 at beat 6, 1 beats').locator('.studio-note-end').boundingBox())!;
+  // Stretched by a beat from its end: the chord's top note, near the left, so the drag stays inside a narrow window.
+  box = (await roll.getByLabel('C4 at beat 1, 4 beats').locator('.studio-note-end').boundingBox())!;
   await shell().mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await shell().mouse.down();
   await shell().mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 5 });
   await shell().mouse.up();
-  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 66)?.length).toBe(2);
+  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 60)?.length).toBe(5);
   await shell().keyboard.press('Control+z');
-  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 66)?.length).toBe(1);
+  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 60)?.length).toBe(4);
   // A box around the opening chord picks both notes; Delete takes them out.
   const top = (await roll.getByRole('gridcell', { name: 'C4 row' }).boundingBox())!;
   const bottom = (await roll.getByRole('gridcell', { name: 'A3 row' }).boundingBox())!;
