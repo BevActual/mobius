@@ -82,10 +82,19 @@ jobs:
             apps/desktop/test-results
             shell.log
           retention-days: 7
+      # Screenshots of every app, light and dark, from e2e/screens.spec.ts (on whichever machine ran it), for design review.
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: screens-${{ matrix.shard }}
+          path: apps/desktop/screens
+          if-no-files-found: ignore
+          retention-days: 14
 
-  # One result for the whole suite, under the name the checks have always used.
+  # One result for the whole suite, under the name the checks have always used. A run replaced by a newer push reports
+  # nothing, rather than a failure for code that was never tested.
   e2e:
-    if: always()
+    if: ${{ !cancelled() }}
     needs: shard
     runs-on: ubuntu-latest
     steps:
