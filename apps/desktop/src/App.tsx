@@ -71,7 +71,8 @@ import { Desk } from './Desk';
 import { APP_ICONS, Rail } from './Rail';
 import { AppHub, type HubAction } from './AppHub';
 import { smartName, smartView } from './tasks-view';
-import { SearchPage } from './SearchPage';
+import { SearchPage, SearchSidebar } from './SearchPage';
+import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
 import type { HubTarget } from './search-hub';
 import { useTasks } from './useTasks';
@@ -243,6 +244,8 @@ export function App() {
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
+  // Where Search looks: shared by its sidebar's scopes and the page's own.
+  const [searchFilter, setSearchFilter] = useState<HubFilter>('all');
   /** Shown in either pane, focused or not. */
   const shows = (id: AppId) => app === id || other === id;
   // Apps the agent (or another app) changed while you were elsewhere: their rail button carries a dot until opened.
@@ -487,7 +490,7 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inAgent || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
+  const hasAppList = inBrowser || inSearch || inAgent || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
@@ -817,6 +820,8 @@ export function App() {
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
               <CalendarSidebar calendar={calendar} pin={pinNode} onNew={createFor('calendar').run} starts={startsFor('calendar')} onStart={startWithMobius} />
+            ) : inSearch ? (
+              <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
             ) : inTasks ? (
               <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
@@ -1196,6 +1201,8 @@ export function App() {
             workbooks={sheets.workbooks}
             made={{ designFolders: designs.notebooks, boardFolders: boards.notebooks, researchFolders: research.notebooks, readingFolders: reading.notebooks, databases: databases.list.map((d) => ({ name: d.name, modified: d.modified })), songFolders: songs.notebooks, albums: photos.albums, videoProjects: video.projects.map((p) => p.name), codeProjects: code.projects.map((p) => ({ name: p.name, modified: (p as { modified?: number }).modified ?? 0 })) }}
             focusToken={searchFocus}
+            filter={searchFilter}
+            onFilter={setSearchFilter}
             canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
             onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}
             onOpen={openTarget}
@@ -1349,11 +1356,11 @@ export function App() {
         changed={changed}
         needsYou={needsYou}
         counts={{ browser: browser.tabs.length, tasks: dueToday }}
-        create={createFor(app)}
+        create={inSearch ? undefined : createFor(app)}
         createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'] as AppId[]).includes(app)}
         menus={menuBar}
         chrome={showWide && inBrowser && !settingsOpen ? browserChrome : null}
-        mobius={showWide && hasRight && !settingsOpen ? {
+        mobius={hasRight && !settingsOpen ? {
           shown: chatInSide && chatOpen,
           onToggle: () => { if (chatInSide && chatOpen) { setChatOpen(false); } else { setChatPlace('sidebar'); setChatOpen(true); setFocusToken((n) => n + 1); } },
           onBeside: () => { setChatPlace('beside'); setChatOpen(true); },
@@ -1382,8 +1389,8 @@ export function App() {
           </button>}
         </div>
         <div className="toolbar-place" data-browser={(inBrowser && !showWide) || undefined}>
-          {/* The open document's name; nothing when nothing is open, rather than the app's name again. */}
-          {place && <h1 className="strip-title">{place}</h1>}
+          {/* The open document's name, or the app's when nothing is open, so the title bar is never blank. */}
+          {(place || (!settingsOpen && appName(app))) && <h1 className="strip-title">{place || appName(app)}</h1>}
           {inAgent && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
           {inNotes && notes.page && <span className="toolbar-sub">{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></span>}
           {inMail && <span className="toolbar-sub">{mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`}</span>}
@@ -1422,9 +1429,6 @@ export function App() {
           </button>}
           <UpdateNotice />
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
-          {hasRight && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={chatOpen} aria-label="Show agent" title="Show or hide the agent" onClick={() => { setChatOpen((open) => !open); setFocusToken((n) => n + 1); }}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>
-          </button>}
         </div>
       </header>
       <div className="body" style={layout}>

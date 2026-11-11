@@ -239,7 +239,7 @@ function Reader({ mail, content, onDraftReply }: { mail: MailState; content: Mai
         </div>
       </header>
       <div className="mail-reader-actions">
-        <button type="button" className="btn" onClick={() => mail.reply(content)}>Reply</button>
+        <button type="button" className="btn" title="Reply (R)" aria-keyshortcuts="R" onClick={() => mail.reply(content)}>Reply</button>
         {onDraftReply && <button type="button" className="btn mobius" onClick={() => onDraftReply(content)}>Draft a reply with Mobius</button>}
         <select aria-label="Category" value={content.category ?? 'primary'} onChange={(e) => void mail.sort(content.id, e.target.value as MailCategory).then(() => mail.read(content.id))}>
           {CATEGORIES.filter((c) => c.id !== 'all').map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -316,12 +316,11 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
             ))}
           </div>
         ) : (
-          <div role="listbox" aria-label="Messages" className="mail-list">
+          <div role="listbox" aria-label="Messages" className="mail-list" title="E archives, R replies, H reminds you later" aria-keyshortcuts="E R H">
             {mail.messages.length === 0 && <p className="side-empty">{mail.query ? 'Nothing matches.' : 'Nothing here.'}</p>}
             {mail.messages.map((m) => <Row key={m.id} m={m} on={mail.open?.id === m.id} onOpen={() => void mail.read(m.id)} />)}
           </div>
         )}
-        <p className="mail-keys" aria-label="Keyboard"><span><kbd>E</kbd> Archive</span><span><kbd>R</kbd> Reply</span><span><kbd>H</kbd> Remind me</span><span><kbd>Ctrl+K</kbd> Anything</span></p>
       </div>
       <div className="mail-reading-pane">
         {mail.message && <p className="tasks-message" role="alert">{mail.message}</p>}

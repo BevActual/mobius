@@ -82,7 +82,8 @@ interface Props {
   expanded: boolean;
   onToggle: () => void;
   /** The New button: what is worth starting in the app you are in. */
-  create: { label: string; run: () => void };
+  /** The open app's New; none where there is nothing to make (Search). */
+  create?: { label: string; run: () => void } | undefined;
   /** Small numbers beside an app's name in the full sidebar (open tabs, tasks due today). */
   counts: Partial<Record<AppId, number>>;
   /** The menus, as one button in the head of the full sidebar. */
@@ -202,7 +203,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
       {expanded && <span className="rail-label" aria-hidden="true">All apps</span>}
     </button>
   );
-  const createButton = (
+  const createButton = create && (
     <button type="button" className="rail-btn rail-create" aria-label="Create" title={create.label} onClick={create.run}>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
       {expanded && <span className="rail-label" aria-hidden="true">{create.label}</span>}
@@ -264,6 +265,12 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
       ) : (
         <div className="rail-top">
           {toggle}
+          {/* Mobius opens from here too: the folded rail grows into its column. */}
+          {mobius && (
+            <button type="button" className="rail-btn rail-mobius" data-mobius-face aria-pressed={mobius.shown} aria-label="Mobius in the sidebar" title="Ask Mobius here, in the sidebar" onClick={mobius.onToggle}>
+              <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
+            </button>
+          )}
           {menus}
           {createButton}
         </div>

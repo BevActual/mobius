@@ -31,6 +31,20 @@ const Tile = ({ id, children }: { id: string; children?: ReactNode }) => (
 /** What the hub offers to start before more is asked for. */
 const FEATURED = ['conversation', 'note', 'task', 'tab', 'doc', 'message', 'research', 'event'];
 
+/** The hub's groups of apps. A group of one (Agent, Review) joins the group beside it rather than sitting alone. */
+export function hubGroups(): Array<{ group: string; members: AppInfo[] }> {
+  const groups = APP_GROUPS.map((group) => ({ group: group as string, members: APPS.filter((a) => a.group === group && !a.own) })).filter((g) => g.members.length > 0);
+  const out: Array<{ group: string; members: AppInfo[] }> = [];
+  let carry: AppInfo[] = [];
+  for (const g of groups) {
+    if (g.members.length === 1 && groups.length > 1) { carry.push(...g.members); continue; }
+    out.push({ group: g.group, members: [...carry, ...g.members] });
+    carry = [];
+  }
+  if (carry.length > 0) { const last = out.at(-1); if (last) last.members.push(...carry); else out.push({ group: 'Apps', members: carry }); }
+  return out;
+}
+
 export function AppHub({ open, onClose, current, onOpenApp, actions, status, onConnect }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -107,9 +121,7 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
           ) : (
             // Otherwise by what each app is for; apps still to come sit in their group, dimmed. The groups flow side by
             // side, each as wide as its apps, so a few small groups stay as compact as one grid.
-            <div className="hub-groups">{APP_GROUPS.map((group) => {
-              const members = APPS.filter((a) => a.group === group && !a.own);
-              if (members.length === 0) return null;
+            <div className="hub-groups">{hubGroups().map(({ group, members }) => {
               return (
                 <div key={group} className="hub-group" role="group" aria-label={group}>
                   <h3 className="hub-group-name">{group}</h3>

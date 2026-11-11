@@ -499,7 +499,9 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   const waiting = conversations.reduce((n, c) => n + (c.waiting > 0 ? 1 : 0), 0);
   // What Mobius sees here: what is open beside it, or what it worked in during this conversation.
   const sees = surface?.note ? `this ${({ docs: 'document', slides: 'deck', designs: 'design', studio: 'song', boards: 'board', research: 'report', reading: 'article', databases: 'database', terminal: 'terminal' } as Record<string, string>)[surface.note.folder ?? ''] ?? 'note'}`
-    : surface?.tasks ? 'this list' : surface?.hasPage ? 'this page' : seen.length > 0 ? seen.join(' · ') : 'this conversation';
+    : surface?.tasks ? 'this list' : surface?.sheet ? 'this sheet' : surface?.mail ? 'this email' : surface?.photo ? 'this photo' : surface?.cut ? 'this cut' : surface?.code ? 'this file'
+    // A page only in the browser: another app with nothing open does not see the browser's tab.
+    : surface?.app === 'browser' && surface.hasPage ? 'this page' : seen.length > 0 ? seen.join(' · ') : null;
 
   useLayoutEffect(() => {
     const element = log.current;
@@ -552,7 +554,8 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
         </div>
       </div>
       {below}
-      {!showSettings && (
+      {/* Nothing to see (no page, nothing open, nothing read yet): no line saying so. */}
+      {!showSettings && sees !== null && (
         <div className="chat-context">
           <button type="button" className="chat-context-line" aria-expanded={contextOpen} onClick={() => setContextOpen((o) => !o)} title="What Mobius sees here, and how much it may do">
             <svg className="chat-context-eye" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" /><circle cx="10" cy="10" r="2.2" /></svg>

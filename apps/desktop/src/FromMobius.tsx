@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react';
+
 export interface FromMobiusItem {
   key: string;
   name: string;
@@ -8,25 +10,30 @@ export interface FromMobiusItem {
 }
 
 /**
- * "From Mobius": after a sidebar's own places, what Mobius made or changed there in its last turn, dashed until the turn
- * is kept. Each row opens the item where it is; the names say "from Mobius" so they are not mistaken for the places'
- * own rows.
+ * "From Mobius": a filter at the foot of a sidebar, with how many things Mobius made or changed there in its last turn.
+ * Pressed, the sidebar shows only those rows (the ones marked as changed, dashed until the turn is kept), rather than a
+ * second list repeating rows the sidebar already has. Pressed again, or once nothing is left from Mobius, everything
+ * shows again.
  */
 export function FromMobius({ items }: { items: readonly FromMobiusItem[] }) {
+  const [only, setOnly] = useState(false);
+  const self = useRef<HTMLDivElement>(null);
+  const on = only && items.length > 0;
+  useEffect(() => {
+    const side = self.current?.closest<HTMLElement>('.side, .rail-app, .dock.left');
+    if (!side) return undefined;
+    if (on) side.dataset.mobiusOnly = 'true';
+    else delete side.dataset.mobiusOnly;
+    return () => { delete side.dataset.mobiusOnly; };
+  }, [on]);
   if (items.length === 0) return null;
   return (
-    <section className="from-mobius" aria-label="From Mobius">
-      <h3 className="side-title from-mobius-title">From Mobius</h3>
-      <ul role="list">
-        {items.map((it) => (
-          <li key={it.key}>
-            <button type="button" className="note-row" data-proposed aria-current={it.current ? 'page' : undefined} aria-label={`${it.name}, from Mobius`} onClick={it.onOpen}>
-              <span className="from-mobius-dot" aria-hidden="true" /><span className="note-title">{it.name}</span>
-              {it.where && <span className="note-sub from-mobius-where">{it.where}</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <div ref={self} className="from-mobius">
+      <button type="button" className="from-mobius-filter" aria-pressed={on} title={on ? 'Show everything again' : 'Show only what Mobius made or changed'} onClick={() => setOnly((o) => !o)}>
+        <span className="from-mobius-dot" aria-hidden="true" />
+        <span className="from-mobius-label">From Mobius</span>
+        <span className="list-count">{items.length}</span>
+      </button>
+    </div>
   );
 }

@@ -155,7 +155,13 @@ test('the app hub shows every app with what is happening in it, starts new thing
   await expect(apps.getByRole('button', { name: /^Browser, 1 tab open/ })).toHaveAttribute('aria-current', 'page');
   // Apps sit in groups by what they are for.
   await expect(apps.getByRole('group', { name: 'Write and plan' }).getByRole('button', { name: 'Notes, 1 page' })).toBeVisible();
-  await expect(apps.getByRole('group', { name: 'Review' }).getByRole('button', { name: /^Review/ })).toBeEnabled();
+  // A group of one joins the group beside it, so no app sits alone: Agent leads Browse and find, Review ends Create.
+  await expect(apps.getByRole('group', { name: 'Browse and find' }).getByRole('button', { name: /^Agent/ })).toBeVisible();
+  await expect(apps.getByRole('group', { name: 'Create' }).getByRole('button', { name: /^Review/ })).toBeEnabled();
+  for (const group of await apps.getByRole('group').all()) expect(await group.getByRole('button').count()).toBeGreaterThan(1);
+  // Nothing runs past the hub's right edge, and the Start actions show their whole words.
+  expect(await hub.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  for (const start of await hub.getByRole('region', { name: 'Start something' }).locator('.hub-start > span:last-child').all()) expect(await start.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   // Typing narrows it; Enter opens the first app that matches.
   await hub.getByRole('searchbox', { name: 'Find apps' }).fill('tas');
   await expect(apps.getByRole('button')).toHaveCount(1);
@@ -249,11 +255,12 @@ test('a narrow window folds the sidebar to the rail without changing the choice'
 
 test('with the agent panel put away, asking from the toolbar opens it with the answer', async () => {
   await start([says(['That page is the fixture home.'])]);
-  // While the panel is open, the window's own Show agent button gives way to the panel's Hide.
-  await expect(shell().getByRole('button', { name: 'Show agent' })).toBeHidden();
+  // No panel toggle in the window's corner: Mobius opens from the sidebar's trefoil or the Ask capsule, and the other
+  // corner glyphs say what they are.
+  await expect(shell().getByRole('button', { name: 'Show agent' })).toHaveCount(0);
+  for (const glyph of await shell().getByRole('group', { name: 'Applications' }).getByRole('button').all()) expect(await glyph.getAttribute('title')).toBeTruthy();
   await shell().getByRole('complementary', { name: 'Agent' }).getByRole('button', { name: 'Hide' }).click();
   await expect(shell().getByRole('complementary', { name: 'Agent' })).toHaveCount(0);
-  await expect(shell().getByRole('button', { name: 'Show agent' })).toBeVisible();
   const ask = shell().getByRole('textbox', { name: 'Ask Mobius' });
   await expect(ask).toHaveAttribute('placeholder', 'Ask about this page');
   await ask.fill('What is this page?');
@@ -341,7 +348,7 @@ test('with the sidebar folded to the rail, Mobius opens the column, and closing 
   await startInSidebar();
   await rail().getByRole('button', { name: 'Collapse sidebar' }).click();
   await expect(rail()).not.toHaveAttribute('data-expanded', /.*/);
-  await shell().getByRole('button', { name: 'Show agent' }).click();
+  await rail().locator('[data-mobius-face]').click();
   await expect(rail()).toHaveAttribute('data-face', 'mobius');
   await expect(composer()).toBeVisible();
   await rail().getByRole('button', { name: 'Back to the sidebar' }).click();
@@ -353,7 +360,7 @@ test('a narrow window still opens Mobius in the sidebar column at its usual widt
   await startInSidebar();
   await resizeWindow(mobius!.app, 900, 700);
   await expect(rail()).not.toHaveAttribute('data-expanded', /.*/);
-  await shell().getByRole('button', { name: 'Show agent' }).click();
+  await rail().locator('[data-mobius-face]').click();
   await expect(rail()).toHaveAttribute('data-face', 'mobius');
   await expect.poll(async () => Math.round((await rail().boundingBox())!.width)).toBeGreaterThan(240);
   await expect(composer()).toBeVisible();
@@ -392,3 +399,47 @@ test('Mobius pinned beside is a card with no line between it and the page, in ev
   }
 });
 
+
+test('design review: the title bar names the app, nothing claims a page it cannot see, Search has scopes, the Agent home lines up, and From Mobius filters', async () => {
+  seed();
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Fix the gate\n');
+  await start([callsTool('tasks-add', { list: 'Inbox', text: 'Water the plants' }), says(['Added.'])]);
+  const open = async (name: string) => {
+    await shell().keyboard.press('Control+k');
+    await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
+    await shell().keyboard.press('Enter');
+  };
+  // Docs with nothing open: the title bar says Docs, and Mobius beside it does not claim to see a page.
+  await open('Docs');
+  await expect(shell().locator('.strip-title')).toHaveText('Docs');
+  await expect(shell().getByRole('button', { name: /^Sees / })).toHaveCount(0);
+  // Search: scopes in its sidebar, the same as the page's, and nothing to create.
+  await open('Search');
+  const scopes = shell().getByRole('navigation', { name: 'Search in' });
+  await expect(scopes.getByRole('button')).toHaveCount(9);
+  await scopes.getByRole('button', { name: 'Tasks' }).click();
+  await expect(shell().locator('.search-page').getByRole('radio', { name: 'Tasks' })).toHaveAttribute('aria-checked', 'true');
+  await expect(rail().getByRole('button', { name: 'Create' })).toHaveCount(0);
+  // The Agent home: what is in your apps is as wide as the message box, and centred with it.
+  await open('Agent');
+  const desk = (await shell().locator('.chat.full .desk').boundingBox())!;
+  const box = (await shell().locator('.chat.full .composer').boundingBox())!;
+  expect(Math.abs(desk.width - box.width)).toBeLessThan(12);
+  expect(Math.abs(desk.x + desk.width / 2 - (box.x + box.width / 2))).toBeLessThan(6);
+  // From Mobius: a filter in the Tasks sidebar, not a second list of the same rows.
+  await composer().fill('Remind me to water the plants');
+  await composer().press('Enter');
+  await shell().getByRole('button', { name: 'Allow once' }).click();
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Added.');
+  await open('Tasks');
+  const filter = shell().getByRole('button', { name: /From Mobius/ });
+  await expect(filter).toContainText('1');
+  const lists = shell().locator('.dock.left, .rail');
+  await expect(lists.getByRole('button', { name: /^Home/ }).first()).toBeVisible();
+  await filter.click();
+  await expect(filter).toHaveAttribute('aria-pressed', 'true');
+  await expect(lists.getByRole('button', { name: /^Home/ })).toHaveCount(0);
+  await expect(lists.getByRole('button', { name: /^Inbox/ }).first()).toBeVisible();
+  await filter.click();
+  await expect(lists.getByRole('button', { name: /^Home/ }).first()).toBeVisible();
+});

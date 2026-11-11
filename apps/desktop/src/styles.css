@@ -2337,8 +2337,6 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .mail-later { position: relative; display: inline-flex; }
 .mail-later-menu { position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 5; display: grid; gap: 4px; padding: 6px; border-radius: var(--radius-panel); background: var(--bg); box-shadow: var(--shadow-1); white-space: nowrap; }
 .mail-later-suggested[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; color: var(--accent); }
-.mail-keys { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin: 0; padding: 6px var(--sp-3); border-top: 1px solid var(--hairline); color: var(--muted); font-size: var(--fs-xs); }
-.mail-keys kbd { margin-right: 4px; padding: 0 4px; border: 1px solid var(--hairline); border-radius: 4px; font: inherit; }
 .mail-needs-reply { color: var(--accent); }
 
 /* Wiki: How I work, Shared with this wiki, and a page's versions. */
@@ -2581,7 +2579,6 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
    the window's own buttons for it give way while it is open. */
 .app[data-chat="open"] > .context-strip { margin-right: var(--chat-col, 0px); }
 .app[data-chat="open"] .dock.right:not([data-floating]) { margin-top: calc(-1 * var(--context)); padding: 8px 8px 0 0; z-index: 2; }
-.app[data-chat="open"] [data-dock-toggle][aria-label="Show agent"] { display: none; }
 
 /* Problems are one quiet line with a small warning mark; red text only when a turn really failed. */
 .chat .msg.error { display: flex; align-items: flex-start; gap: 6px; align-self: stretch; padding: 2px 2px; border-radius: 0; background: none; color: var(--muted); font-size: 12px; line-height: 1.4; }
@@ -2608,9 +2605,9 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .from-mobius-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .from-mobius .note-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .from-mobius-where { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
-/* Order in every sidebar: the head, search, New, then the sections. */
-:is(.rail-app, .dock.left) .side > .side-search { order: -2; }
-:is(.rail-app, .dock.left) .side > .side-new { order: -1; }
+/* Order in every sidebar: the head, New, search, then the sections. */
+:is(.rail-app, .dock.left) .side > .side-search { order: -1; }
+:is(.rail-app, .dock.left) .side > .side-new { order: -2; }
 .rail[data-pointer-still] .rail-app :hover:not([aria-current="page"]) { background-color: transparent; }
 .rail[data-pointer-still] .rail-app .clist-item:hover:not(:focus-within) .clist-tools { opacity: 0; }
 .rail[data-pointer-still] .rail-app .clist-item:hover:not(:focus-within) .clist-delete { display: none; }
@@ -2666,8 +2663,6 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .chat-place { display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; text-align: left; }
 .chat-place:hover { color: var(--ink); }
 .chat-place svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-/* While Mobius fills the sidebar, the window's own Show agent button gives way to the head's Close. */
-.app[data-mobius-side] [data-dock-toggle][aria-label="Show agent"] { display: none; }
 /* One focus ring on the composer: the capsule's, soft; the field inside draws none of its own. */
 .composer textarea:focus, .composer textarea:focus-visible, .rail .composer textarea:focus-visible { outline: none; }
 .composer:focus-within { border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent), 0 1px 2px rgba(0, 0, 0, 0.04); }
@@ -2774,3 +2769,73 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .msg-queue-more { color: var(--muted); }
 .msg-queue-edit { flex: 1; min-width: 0; display: flex; }
 .msg-queue-edit input { flex: 1; min-width: 0; font: inherit; height: 24px; padding: 0 var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: inherit; }
+
+/* The empty state every app shows when there is nothing to show (EmptyState.tsx): the app's icon, a bold title, one
+   grey line, and the one thing to do next, centred in the space. */
+.empty-state { display: grid; justify-items: center; align-content: center; gap: var(--sp-2); min-height: 100%; max-width: 360px; margin: 0 auto; padding: var(--sp-8) var(--sp-4); text-align: center; }
+.empty-state-icon { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: var(--sp-1); border-radius: 13px; background: var(--soft); color: #fff; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); }
+.empty-state-icon svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.empty-state-title { margin: 0; font-size: var(--fs-lg, 15px); font-weight: 600; color: var(--ink); }
+.empty-state-line { margin: 0; font-size: var(--fs-sm); color: var(--muted); line-height: 1.45; }
+.empty-state-action { margin-top: var(--sp-2); }
+
+/* From Mobius is a filter (FromMobius.tsx): pressed, a sidebar shows only the rows Mobius made or changed. */
+.from-mobius-filter { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 30px; padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--accent); font-size: var(--fs-sm); font-weight: var(--fw-medium); text-align: left; }
+.from-mobius-filter:hover { background: var(--side-hover, var(--soft)); }
+.from-mobius-filter[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.from-mobius-filter .from-mobius-label { flex: 1; min-width: 0; }
+.from-mobius-filter .list-count { color: var(--accent); }
+[data-mobius-only] li:has(> :is(.note-row, .list-row, .clist-item, .code-file, .tab):not([data-proposed])) { display: none; }
+[data-mobius-only] :is(.note-row, .list-row, .clist-item, .code-file):not([data-proposed]):not(li > *) { display: none; }
+
+/* A row shows one thing at its end: the mark when there is one (changed, unread, a comment), otherwise its count. */
+.row-mark ~ .list-count { display: none; }
+
+/* The app hub, wider and wrapping: no group runs past the right edge, the Start actions show their whole words, and the
+   groups are headed grids rather than cards, so a group of one (Agent) does not sit alone in a box. */
+.hub { width: min(760px, calc(100vw - var(--rail) - 24px)); overflow-x: hidden; }
+.hub-starts { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); }
+.hub-start > span:last-child { overflow: visible; white-space: normal; text-overflow: clip; line-height: 1.25; }
+.hub-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)); gap: var(--sp-3); }
+.hub-group { padding: 0; border-radius: 0; background: none; }
+.hub-group-name { margin: 0 var(--sp-1) var(--sp-1); }
+.hub-group .hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 2px; }
+.hub-group .hub-grid > li { width: auto; min-width: 0; }
+.hub-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Search: each result and each scope wears the icon of the app that keeps it; the field has one focus ring. */
+.search-icon[data-app] { color: #fff; border-radius: 9px; }
+.search-icon[data-app] svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.search-scope-icon { flex: none; width: 20px; height: 20px; padding: 3px; border-radius: 6px; color: #fff; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.search-icon[data-app="agent"], .search-scope-icon[data-app="agent"] { background: var(--app-agent); }
+.search-icon[data-app="search"], .search-scope-icon[data-app="search"] { background: var(--app-search); }
+.search-icon[data-app="browser"], .search-scope-icon[data-app="browser"] { background: var(--app-browser); }
+.search-icon[data-app="notes"], .search-scope-icon[data-app="notes"] { background: var(--app-notes); }
+.search-icon[data-app="tasks"], .search-scope-icon[data-app="tasks"] { background: var(--app-tasks); }
+.search-icon[data-app="calendar"], .search-scope-icon[data-app="calendar"] { background: var(--app-calendar); }
+.search-icon[data-app="code"], .search-scope-icon[data-app="code"] { background: var(--app-code); }
+.search-icon[data-app="design"], .search-scope-icon[data-app="design"] { background: var(--app-design); }
+.search-icon[data-app="photo"], .search-scope-icon[data-app="photo"] { background: var(--app-photo); }
+.search-icon[data-app="studio"], .search-scope-icon[data-app="studio"] { background: var(--app-studio); }
+.search-icon[data-app="video"], .search-scope-icon[data-app="video"] { background: var(--app-video); }
+.search-icon[data-app="skills"], .search-scope-icon[data-app="skills"] { background: var(--app-skills); }
+.search-icon[data-app="docs"], .search-scope-icon[data-app="docs"] { background: var(--app-docs); }
+.search-icon[data-app="slides"], .search-scope-icon[data-app="slides"] { background: var(--app-slides); }
+.search-icon[data-app="mail"], .search-scope-icon[data-app="mail"] { background: var(--app-mail); }
+.search-icon[data-app="sheets"], .search-scope-icon[data-app="sheets"] { background: var(--app-sheets); }
+.search-icon[data-app="canvas"], .search-scope-icon[data-app="canvas"] { background: var(--app-canvas); }
+.search-icon[data-app="research"], .search-scope-icon[data-app="research"] { background: var(--app-research); }
+.search-icon[data-app="reader"], .search-scope-icon[data-app="reader"] { background: var(--app-reader); }
+.search-icon[data-app="database"], .search-scope-icon[data-app="database"] { background: var(--app-database); }
+.search-icon[data-app="terminal"], .search-scope-icon[data-app="terminal"] { background: var(--app-terminal); }
+.search-icon[data-app="review"], .search-scope-icon[data-app="review"] { background: var(--app-review); }
+.search-icon[data-app="files"], .search-scope-icon[data-app="files"] { background: var(--app-files); }
+.search-icon[data-app="wiki"], .search-scope-icon[data-app="wiki"] { background: var(--app-wiki); }
+.search-icon[data-app="projects"], .search-scope-icon[data-app="projects"] { background: var(--app-projects); }
+.search-box:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); }
+.search-box input:focus, .search-box input:focus-visible, .hub-search input:focus-visible { outline: none; box-shadow: none; }
+
+/* The Agent home: the greeting and what is in your apps take the message box's width, centred with it. The desk is a
+   size container, so it is given that width rather than left to shrink inside the centred column. */
+.chat.full[data-empty] .empty { width: 100%; padding: 0; }
+.chat.full[data-empty] .desk { width: 100%; max-width: 760px; justify-self: stretch; align-self: stretch; margin-left: auto; margin-right: auto; box-sizing: border-box; }

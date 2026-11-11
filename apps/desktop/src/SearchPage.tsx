@@ -30,12 +30,17 @@ interface Props {
   onAsk: (question: string) => void;
   canAsk: boolean;
   focusToken: number;
+  /** The scope, when the sidebar holds it (see SearchSidebar); the page keeps its own otherwise. */
+  filter?: HubFilter;
+  onFilter?: (filter: HubFilter) => void;
 }
 
 /** Search: one box for everything Mobius keeps (conversations, notes, tasks and pages), or a question for the agent. */
-export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFolders, workbooks, made, onOpen, onAsk, canAsk, focusToken }: Props) {
+export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFolders, workbooks, made, onOpen, onAsk, canAsk, focusToken, filter: shared, onFilter }: Props) {
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<HubFilter>('all');
+  const [own, setOwn] = useState<HubFilter>('all');
+  const filter = shared ?? own;
+  const setFilter = onFilter ?? setOwn;
   const [noteHits, setNoteHits] = useState<NoteHit[]>([]);
   const [docHits, setDocHits] = useState<NoteHit[]>([]);
   const [deckHits, setDeckHits] = useState<NoteHit[]>([]);
@@ -106,7 +111,7 @@ export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFo
             return (
               <li key={r.key}>
                 <button type="button" className="search-row" data-kind={r.kind} data-done={r.done || undefined} onClick={() => onOpen(r.target)}>
-                  <span className="search-icon"><svg viewBox="0 0 20 20" aria-hidden="true">{KIND_ICON[r.kind]}</svg></span>
+                  <span className="search-icon" data-app={r.target.app}><svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS[r.target.app] ?? KIND_ICON[r.kind]}</svg></span>
                   <span className="search-text">
                     <span className="search-title">{r.title}</span>
                     <span className="search-where">
@@ -122,5 +127,32 @@ export function SearchPage({ conversations, notebooks, tasks, docFolders, deckFo
         {results.length === 0 && <p className="search-empty">{asking ? 'Nothing matches. Ask Mobius instead?' : filter === 'all' ? 'Your conversations, notes, tasks and pages will show here.' : 'Nothing here yet.'}</p>}
       </div>
     </section>
+  );
+}
+
+/** Where Search looks, for its sidebar: everything, or one kind of thing, each with the icon of the app that keeps it. */
+const SCOPE_APP: Record<HubFilter, string> = { all: 'search', conversation: 'agent', note: 'notes', doc: 'docs', sheet: 'sheets', made: 'design', mail: 'mail', task: 'tasks', page: 'browser' };
+
+/** Search's sidebar: its scopes, in place of a list of apps (there is nothing to make here, so no New). */
+export function SearchSidebar({ filter, onFilter, pin }: { filter: HubFilter; onFilter: (filter: HubFilter) => void; pin?: ReactNode }) {
+  return (
+    <aside className="side search-side" aria-label="Search sidebar">
+      <div className="side-head">
+        <span className="side-title">Search in</span>
+        <span className="side-actions">{pin}</span>
+      </div>
+      <nav className="task-lists" aria-label="Search in">
+        <ul role="list">
+          {FILTERS.map((f) => (
+            <li key={f.id}>
+              <button type="button" className="list-row" aria-current={filter === f.id ? 'page' : undefined} onClick={() => onFilter(f.id)}>
+                <svg className="search-scope-icon" data-app={SCOPE_APP[f.id]} viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS[SCOPE_APP[f.id]]}</svg>
+                <span className="list-name">{f.label}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </aside>
   );
 }
