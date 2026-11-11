@@ -109,6 +109,9 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'models.status': () => ({ binary: null, runtime: null }),
   'models.local': () => [],
   // Gateways: one service with a key, one on this computer, and the rest to add.
+  // Voice: dictation hears a fixed sentence, and replies are read as a moment of silence.
+  'agent.transcribe': () => ({ ok: true, text: 'Hello from the preview.' }),
+  'voice.speak': () => ({ ok: true, audio: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=' }),
   'updates.get': () => ({ state: 'off', status: 'Updates are off in the preview.', current: '0.1.0' }),
   'providers.list': () => [
     { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', note: 'GPT models.', keyUrl: 'https://platform.openai.com/api-keys', needsKey: true, voiceOnly: false, hasKey: true, active: false, storage: 'keychain' },

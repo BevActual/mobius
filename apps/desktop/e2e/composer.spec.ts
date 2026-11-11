@@ -178,7 +178,7 @@ test('dictation records, sends the sound to the server\'s speech model, and puts
   await composer().fill('Note:');
   await shell().getByRole('button', { name: 'Dictate' }).click();
   await expect(shell().getByRole('button', { name: 'Stop dictation' })).toBeVisible();
-  await expect(shell().getByRole('status', { name: /Recording/ })).toBeVisible();
+  await expect(shell().getByRole('status', { name: /Listening/ })).toBeVisible();
   await shell().waitForTimeout(700);
   await shell().getByRole('button', { name: 'Stop dictation' }).click();
   await expect(composer()).toHaveValue('Note: hello from my voice');

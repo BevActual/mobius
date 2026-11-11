@@ -2,6 +2,7 @@
 //! tested against the real daemon and a scripted stand-in.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 pub mod updates;
+pub mod voice;
 pub mod access;
 pub mod agent;
 pub mod memory;

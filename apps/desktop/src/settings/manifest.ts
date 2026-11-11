@@ -220,6 +220,7 @@ const SECTIONS: readonly SettingsSection[] = [
         row('speak-voice', 'Voice', 'The voice to speak with. Empty uses the server\'s own.', 'voice', 'speaker', 'narrator'),
         row('speak-url', 'Speech server on this computer', 'Its address, in OpenAI\'s audio format, as Kokoro serves it.', 'url', 'address', 'kokoro', 'speech server'),
         row('speak-fallback', 'If that cannot speak', 'What to try next.', 'fallback', 'backup', 'second'),
+        row('read-aloud', 'Read replies aloud', 'Each new reply is read as it arrives; Esc or a new message stops it.', 'read aloud', 'speak replies', 'tts', 'voice', 'listen to replies'),
         row('speak-test', 'Try speaking', 'Ask the chosen server whether it answers.', 'test', 'check', 'try'),
       ] },
     ],

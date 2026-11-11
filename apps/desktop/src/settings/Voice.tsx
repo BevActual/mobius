@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { isVoiceUrl, type ListenWith, type PreferencesSettings, type SpeakWith } from '@mobius/shared';
 import { settingPath } from './manifest';
 import { Row } from './primitives';
-import { AdvancedSection, AppearanceSection, SafetySection, type SectionProps } from './sections';
+import { AdvancedSection, AppearanceSection, SafetySection, Toggle, type SectionProps } from './sections';
 
 const LISTEN: ReadonlyArray<{ id: ListenWith; label: string }> = [
   { id: 'chat', label: 'Chat server' },
@@ -90,6 +90,9 @@ export function VoiceSection({ subpage, highlight, settings, preferences, onPref
         )}
         <Row path={path('speak-fallback')} title="If that cannot speak" description="What to try next." highlight={highlight === 'speak-fallback'}>
           <PopUp label="If that cannot speak" value={preferences.speakFallback} options={SPEAK} onChange={(speakFallback) => set({ speakFallback })} />
+        </Row>
+        <Row path={path('read-aloud')} title="Read replies aloud" description="Each new reply is read as it arrives. Esc, or a new message, stops it. Every reply also has Speak." highlight={highlight === 'read-aloud'}>
+          <Toggle label="Read replies aloud" checked={preferences.readAloud} onChange={(readAloud) => set({ readAloud })} />
         </Row>
         <Row path={path('speak-test')} title="Try speaking" description="Ask the chosen server whether it answers." highlight={highlight === 'speak-test'}>
           <TestButton job="speak" label="Try speaking" />

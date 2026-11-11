@@ -12,6 +12,8 @@ import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
 import { modeOf } from './approval-modes';
 import { stampLabel, startsGroup } from './time-stamps';
+import { useSpeech } from './useSpeech';
+import { isSpeaking, readAloudNow } from './speech';
 import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import type { SurfaceState } from './surface';
@@ -290,6 +292,8 @@ export interface ChatPanelProps {
   place?: string;
   /** Put the panel away. */
   onHide?: () => void;
+  /** Settings, Voice: where listening and speaking are chosen. */
+  onOpenVoice?: () => void;
   /** Before the title: the app switcher, when the panel takes the sidebar. */
   lead?: ReactNode;
   /** In the sidebar: "In Notes" opens the app switcher. */
@@ -395,14 +399,31 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [chatsToken, setChatsToken] = useState(0);
   const [contextOpen, setContextOpen] = useState(false);
-  const [starterSlot, setStarterSlot] = useState<HTMLDivElement | null>(null);
   const preferences = usePreferences();
+  const [starterSlot, setStarterSlot] = useState<HTMLDivElement | null>(null);
+  // Reading replies aloud: a Speak button on each, and, when chosen in Settings, Voice, each new reply by itself.
+  const { speech, speak, stop: stopSpeaking, dismiss: dismissSpeech } = useSpeech();
+  const wasBusy = useRef(state.busy);
+  const lastRead = useRef<string | null>(null);
+  useEffect(() => {
+    const busy = state.busy;
+    const before = wasBusy.current;
+    wasBusy.current = busy;
+    // A new message stops whatever is being read.
+    if (busy && !before) stopSpeaking();
+    const last = state.items.findLast((i) => i.kind === 'assistant');
+    const reply = last && last.kind === 'assistant' ? { id: last.id, text: last.text } : null;
+    if (readAloudNow(preferences.value.readAloud, before, busy, reply, lastRead.current) && reply) {
+      lastRead.current = reply.id;
+      void speak(reply.id, withoutMarks(reply.text));
+    }
+  }, [state.busy, state.items, preferences.value.readAloud, speak, stopSpeaking]);
   const [copied, setCopied] = useState<string | null>(null);
   // Not-sure facts the person checked, per reply: a reply with unchecked ones is not copied out of Mobius.
   const [checkedClaims, setCheckedClaims] = useState<Record<string, ReadonlySet<string>>>({});
@@ -589,8 +610,17 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
                           ? <span className="msg-gate" title="Click each one marked Not sure to see why, and say when you have checked it">{left === 1 ? 'Check 1 unsure fact before copying' : `Check ${left} unsure facts before copying`}</span>
                           : <button type="button" className="msg-action" aria-label="Copy reply" onClick={() => void copy(item.id, withoutMarks(item.text))}>{copied === item.id ? 'Copied' : 'Copy'}</button>;
                       })()}
+                      <button type="button" className="msg-action" aria-label={isSpeaking(speech, item.id) ? 'Stop reading' : 'Read aloud'} aria-pressed={isSpeaking(speech, item.id)} onClick={() => (isSpeaking(speech, item.id) ? stopSpeaking() : void speak(item.id, withoutMarks(item.text)))}>
+                        {speech.state === 'loading' && speech.id === item.id ? 'Getting the voice…' : isSpeaking(speech, item.id) ? 'Stop' : 'Speak'}
+                      </button>
                       {settled && index === lastAssistant && <button type="button" className="msg-action" aria-label="Try again" onClick={() => void retry()}>Try again</button>}
                     </div>
+                  )}
+                  {speech.state === 'failed' && speech.id === item.id && (
+                    <p className="msg-voice-problem" role="alert">
+                      {speech.error}
+                      {speech.setup && onOpenVoice && <> <button type="button" className="link-btn" onClick={() => { dismissSpeech(); onOpenVoice(); }}>Voice settings</button></>}
+                    </p>
                   )}
                 </Fragment>
               ) : item.kind === 'plan' ? (
@@ -624,6 +654,7 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
           <Composer
             takeFocus={takeFocus}
             contextUse={state.context}
+            {...(onOpenVoice ? { onOpenVoice } : {})}
             startersIn={state.items.length === 0 ? starterSlot : null}
             started={state.items.length > 0}
             draft={draft}

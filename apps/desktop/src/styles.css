@@ -2749,3 +2749,11 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .update-notice { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; margin-right: 4px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .update-notice:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .update-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+/* Listening: a level meter of five bars; reading a reply aloud, and why it could not. */
+.level-meter { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; margin-right: 6px; }
+.level-meter > span { width: 3px; border-radius: 1.5px; background: color-mix(in srgb, var(--accent) 25%, transparent); transition: background 80ms linear; }
+.level-meter > span:nth-child(1) { height: 4px; } .level-meter > span:nth-child(2) { height: 6px; } .level-meter > span:nth-child(3) { height: 8px; } .level-meter > span:nth-child(4) { height: 10px; } .level-meter > span:nth-child(5) { height: 12px; }
+.level-meter > span[data-on] { background: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .level-meter > span { transition: none; } }
+.msg-voice-problem { margin: 2px 0 6px; font-size: 12px; color: var(--muted); }

@@ -29,6 +29,8 @@ type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: Mode
 export interface ComposerProps {
   /** In an empty conversation: where three starters go, as plain text under the greeting, instead of chips here. */
   startersIn?: HTMLElement | null;
+  /** Settings, Voice, for when nothing is set up to listen. */
+  onOpenVoice?: () => void;
   /** Suggestions are for starting: once the conversation has begun there are none. */
   started?: boolean;
   /** How full the model's window is, when the core has said: a small ring with its percent. */
@@ -63,7 +65,7 @@ export interface ComposerProps {
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity, contextUse, startersIn, started = false }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, activity, contextUse, startersIn, started = false, onOpenVoice }: ComposerProps) {
   // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
   const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
   const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
@@ -381,7 +383,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
         </div>
         <div className="composer-actions">
           {contextUse && <ContextRing used={contextUse.used} limit={contextUse.limit} />}
-          {dictation.state === 'recording' && <span className="rec" role="status" aria-label={`Recording ${clock(dictation.seconds)}`}><span className="rec-dot" aria-hidden="true" />{clock(dictation.seconds)}</span>}
+          {dictation.state === 'recording' && <span className="rec" role="status" aria-label={`Listening ${clock(dictation.seconds)}`}><LevelMeter level={dictation.level} />{clock(dictation.seconds)}</span>}
           {dictation.state === 'transcribing' && <span className="rec" role="status">Turning speech into text…</span>}
           <button type="button" className="round ghost" data-recording={dictation.state === 'recording' || undefined} aria-label={dictation.state === 'recording' ? 'Stop dictation' : 'Dictate'} title={dictation.state === 'recording' ? 'Stop and insert the words (Esc cancels)' : 'Dictate'} disabled={!canType || busy || dictation.state === 'transcribing'} onClick={dictation.toggle}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5" /><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17" /></svg>
@@ -398,7 +400,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           )}
         </div>
       </div>
-      {shownProblem && <p className="composer-problem" role="alert">{shownProblem}</p>}
+      {shownProblem && <p className="composer-problem" role="alert">{shownProblem}{!problem && dictation.setup && onOpenVoice && <> <button type="button" className="link-btn" onClick={() => { dictation.clearProblem(); onOpenVoice(); }}>Voice settings</button></>}</p>}
     </form>
   );
 }
@@ -424,4 +426,13 @@ function ContextRing({ used, limit }: { used: number; limit: number }) {
 /** The mark beside the chosen item of a menu, as macOS menus have. */
 function Check({ on }: { on: boolean }) {
   return <svg className="popmenu-check" viewBox="0 0 12 12" aria-hidden="true">{on && <path d="M2.5 6.5 5 9l4.5-6" />}</svg>;
+}
+
+/** How loud the microphone is now: five bars, as the system shows it while listening. */
+function LevelMeter({ level }: { level: number }) {
+  return (
+    <span className="level-meter" aria-hidden="true">
+      {[0.08, 0.2, 0.35, 0.5, 0.7].map((at) => <span key={at} data-on={level > at || undefined} />)}
+    </span>
+  );
 }

@@ -53,7 +53,7 @@ fn is_voice_name(v: &Value) -> bool {
 pub const LISTEN_WITH: [&str; 4] = ["chat", "local", "elevenlabs", "off"];
 pub const SPEAK_WITH: [&str; 3] = ["local", "elevenlabs", "off"];
 
-static FIELDS: [Field; 21] = [
+static FIELDS: [Field; 22] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -77,6 +77,8 @@ static FIELDS: [Field; 21] = [
     Field { name: "speakVoice", default: || json!(""), check: is_voice_name },
     // Install updates on their own, at the next quit, once they are downloaded. Checking and downloading always happen.
     Field { name: "autoUpdate", default: || json!(true), check: is_flag },
+    // Read new replies aloud with the service chosen for speaking. Off until chosen.
+    Field { name: "readAloud", default: || json!(false), check: is_flag },
     Field { name: "appAccess", default: app_access_default, check: is_app_access },
 ];
 
