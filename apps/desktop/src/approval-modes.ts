@@ -7,6 +7,8 @@ export interface ModeInfo {
   hint: string;
   /** The longer account, for Settings › Safety. */
   help: string;
+  /** One sentence for an empty conversation, saying what Mobius will do in this mode. */
+  greeting: string;
 }
 
 /**
@@ -16,14 +18,17 @@ export interface ModeInfo {
 export const MODES: readonly ModeInfo[] = [
   {
     id: 'manual', name: 'Ask first', hint: 'Asks before each tool',
+    greeting: 'Mobius asks before it uses a tool.',
     help: 'Mobius asks before it uses each tool, and you can choose to always allow one. Running commands, deleting files, reading secrets and clicking or typing on a web page are asked about every time.',
   },
   {
     id: 'propose', name: 'Propose', hint: 'Changes wait for Keep, Discard or Try another',
+    greeting: 'Mobius reads and changes your workspace without asking, and what it changes waits for you to keep. Browsing, mail and commands still ask.',
     help: 'Mobius reads and changes your notes, documents, tasks, sheets and other workspace files without asking. What a turn changed shows dashed until you Keep it, Discard it or ask it to Try another way. Browsing, mail, running commands and deleting files still ask.',
   },
   {
     id: 'smart', name: 'Act', hint: 'Does the work, checking each step',
+    greeting: 'Mobius does the work and checks each step; anything risky waits for you.',
     help: 'Mobius does the work and checks each step first: your model approves what is clearly safe, for that one time. A risky or unclear step stops as Needs you. What the reviewer sees is the tool and its arguments.',
   },
 ];
