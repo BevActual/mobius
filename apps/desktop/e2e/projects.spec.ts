@@ -38,8 +38,9 @@ async function openProjects(): Promise<void> {
   await shell().keyboard.press('Enter');
   // Twice on CI (never here) the Projects page was not there after this. Say what the window showed instead, so the
   // cause can be seen rather than a test that times out on a closed page.
+  // In a split with the conversation focused, the app chosen opens in the other pane and the conversation stays.
   try {
-    await expect(shell().locator('.app')).toHaveAttribute('data-app', 'projects', { timeout: 5_000 });
+    await expect(shell().locator('.app[data-app="projects"]').or(shell().getByRole('region', { name: /^(Left|Right) pane: Projects$/ }))).toBeVisible({ timeout: 5_000 });
   } catch {
     const seen = await shell().evaluate(() => ({
       app: document.querySelector('.app')?.getAttribute('data-app'),
