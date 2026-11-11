@@ -21,6 +21,7 @@ export interface EmptyStateProps {
  */
 export function EmptyState({ app, icon, title, line, action, label }: EmptyStateProps) {
   const glyph = icon ?? (app ? APP_ICONS[app] : null);
+  const said = shownLine(title, line);
   return (
     <section className="empty-state" aria-label={label ?? title} data-app={app}>
       {glyph && (
@@ -29,8 +30,15 @@ export function EmptyState({ app, icon, title, line, action, label }: EmptyState
         </span>
       )}
       <h2 className="empty-state-title">{title}</h2>
-      {line && <p className="empty-state-line">{line}</p>}
+      {said && <p className="empty-state-line">{said}</p>}
       {action && <button type="button" className="btn primary empty-state-action" onClick={action.run}>{action.label}</button>}
     </section>
   );
+}
+
+/** With nothing made yet ("No documents yet"), there is nothing on the left to choose: "Choose one on the left, or start a new one." becomes "Start a new one." */
+export function shownLine(title: string, line: string | undefined): string | undefined {
+  if (!line || !/ yet$/.test(title)) return line;
+  const m = /^Choose [^,]* on the left, or (.+)$/.exec(line);
+  return m ? m[1]!.charAt(0).toUpperCase() + m[1]!.slice(1) : line;
 }

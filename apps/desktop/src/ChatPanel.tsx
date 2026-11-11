@@ -504,11 +504,13 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
   }
   // Questions waiting for the person, in every conversation: the head says so, and opens the list.
   const waiting = conversations.reduce((n, c) => n + (c.waiting > 0 ? 1 : 0), 0);
-  // What Mobius sees here: what is open beside it, or what it worked in during this conversation.
-  const sees = surface?.note ? `this ${({ docs: 'document', slides: 'deck', designs: 'design', studio: 'song', boards: 'board', research: 'report', reading: 'article', databases: 'database', terminal: 'terminal' } as Record<string, string>)[surface.note.folder ?? ''] ?? 'note'}`
+  // What Mobius sees here: what is open beside it now ("Sees this note"); failing that, the apps it worked in during
+  // this conversation ("Has used Tasks"), which is not what it is looking at.
+  const inView = surface?.note ? `this ${({ docs: 'document', slides: 'deck', designs: 'design', studio: 'song', boards: 'board', research: 'report', reading: 'article', databases: 'database', terminal: 'terminal' } as Record<string, string>)[surface.note.folder ?? ''] ?? 'note'}`
     : surface?.tasks ? 'this list' : surface?.sheet ? 'this sheet' : surface?.mail ? 'this email' : surface?.photo ? 'this photo' : surface?.cut ? 'this cut' : surface?.code ? 'this file'
     // A page only in the browser: another app with nothing open does not see the browser's tab.
-    : surface?.app === 'browser' && surface.hasPage ? 'this page' : seen.length > 0 ? seen.join(' · ') : null;
+    : surface?.app === 'browser' && surface.hasPage ? 'this page' : null;
+  const sees = inView ? `Sees ${inView}` : seen.length > 0 ? `Has used ${seen.join(' · ')}` : null;
 
   useLayoutEffect(() => {
     const element = log.current;
@@ -566,12 +568,12 @@ export function ChatPanel({ takeFocus = true, surface, state, settings, coreRead
         <div className="chat-context">
           <button type="button" className="chat-context-line" aria-expanded={contextOpen} onClick={() => setContextOpen((o) => !o)} title="What Mobius sees here, and how much it may do">
             <svg className="chat-context-eye" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" /><circle cx="10" cy="10" r="2.2" /></svg>
-            <span className="chat-context-text">Sees {sees} · {modeOf(preferences.value.approvalMode).name}</span>
+            <span className="chat-context-text">{sees} · {modeOf(preferences.value.approvalMode).name}</span>
             <svg className="chat-context-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
           </button>
           {contextOpen && (
             <div className="chat-context-more" role="group" aria-label="What Mobius sees">
-              {seen.length > 0 && <p className="chat-sees" title="What Mobius has read from or worked in during this conversation"><span className="chat-sees-label">Sees:</span> {seen.join(' · ')}</p>}
+              {seen.length > 0 && <p className="chat-sees" title="What Mobius has read from or worked in during this conversation"><span className="chat-sees-label">Has used:</span> {seen.join(' · ')}</p>}
               <p className="chat-context-rule">What Mobius may do here comes from Settings. <button type="button" className="link-btn" onClick={onOpenSettings}>Change</button></p>
             </div>
           )}

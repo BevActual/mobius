@@ -117,10 +117,11 @@ test('while the agent works the composer says what it is doing, the app it works
   await shell().getByRole('button', { name: 'Allow once' }).click();
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Added.');
   // The panel says which apps Mobius has worked in during this conversation.
-  const context = shell().getByRole('button', { name: /^Sees / });
-  await expect(context).toHaveText(/Sees .* · Ask first/);
+  // "Sees" names what is open in view now (this page); the apps it worked in are listed as "Has used".
+  const context = shell().getByRole('button', { name: /^Sees this page / });
+  await expect(context).toHaveText('Sees this page · Ask first');
   await context.click();
-  await expect(shell().locator('.chat-sees')).toHaveText('Sees: Tasks');
+  await expect(shell().locator('.chat-sees')).toHaveText('Has used: Tasks');
   await expect(shell().getByRole('group', { name: 'What Mobius sees' })).toContainText('What Mobius may do here comes from Settings.');
   await expect(shell().locator('.msg-sources').last()).toHaveText('Based on Tasks');
   await expect(activity).toHaveCount(0);
