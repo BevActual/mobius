@@ -2934,3 +2934,14 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
 /* A search result is two lines (the page, then where and the line that matched), each cut short rather than widening the sidebar. */
 .notes-list[aria-label="Search results"] .note-row { display: grid; justify-items: start; }
 .notes-list[aria-label="Search results"] :is(.note-title, .note-sub) { max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Abilities, Apps: every app by what it is for, each with Add or Remove. */
+.ability-apps { display: grid; gap: 20px; max-width: 640px; }
+.ext-lede { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.ability-group-title { margin: 0 0 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); text-transform: none; }
+.ability-list { list-style: none; margin: 0; padding: 0; border-radius: 12px; background: var(--soft); }
+.ability-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 10px; }
+.ability-row + .ability-row { border-top: 0.5px solid var(--hairline, var(--line)); }
+.ability-icon { width: 26px; height: 26px; flex: none; padding: 4px; border-radius: 7px; fill: none; color: #fff; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ability-name { flex: 1; min-width: 0; font-weight: var(--fw-medium); }
+.ability-state { color: var(--muted); font-size: var(--fs-xs); }

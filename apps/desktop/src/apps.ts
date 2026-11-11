@@ -11,7 +11,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'browser', name: 'Browser', available: true, group: 'Browse and find' },
   { id: 'agent', name: 'Agent', available: true, group: 'Assistant' },
   { id: 'mail', name: 'Mail', available: true, group: 'Browse and find' },
-  { id: 'skills', name: 'Extensions', available: true, group: 'Assistant', own: true, also: 'Skills Connectors Plugins Catalogue Updates MCP' },
+  { id: 'skills', name: 'Abilities', available: true, group: 'Assistant', own: true, also: 'Extensions Add apps Skills Connectors Plugins Catalogue Updates MCP Tools' },
   { id: 'notes', name: 'Notes', available: true, group: 'Write and plan' },
   { id: 'docs', name: 'Docs', available: true, group: 'Write and plan' },
   { id: 'projects', name: 'Projects', available: true, group: 'Write and plan', also: 'Project place rules threads' },
@@ -36,7 +36,25 @@ export const APPS: readonly AppInfo[] = [
 ];
 
 export const findApp = (id: string): AppInfo | undefined => APPS.find((app) => app.id === id);
-export const isAvailable = (id: string): boolean => findApp(id)?.available === true;
+
+/** Always there: Home (the agent) and Mobius's own apps. Every other app is added from Abilities. */
+export const CORE_APPS: readonly AppId[] = ['agent', 'skills', 'projects', 'files', 'review'];
+/** The apps a new install starts with, beside the core ones (the same list as the preferences' default). */
+export const DEFAULT_APPS: readonly AppId[] = ['notes', 'tasks', 'calendar', 'mail', 'docs', 'browser'];
+/** The apps added from Abilities; null is every app (an install from before Abilities). Set from the preferences. */
+let installed: ReadonlySet<string> | null = null;
+export function setInstalledApps(list: readonly string[] | null | undefined): void {
+  installed = Array.isArray(list) ? new Set(list) : null;
+}
+/** Whether an app is added (or one that is always there). */
+export const isInstalled = (id: string): boolean => installed === null || installed.has(id) || (CORE_APPS as readonly string[]).includes(id);
+/** The apps that can be opened now: built, and added. */
+export const isAvailable = (id: string): boolean => findApp(id)?.available === true && isInstalled(id);
+/** The added apps after adding or removing one, for the preferences. Removing keeps the app's files. */
+export function withApp(id: AppId, add: boolean): AppId[] {
+  const now = APPS.filter((a) => a.available && !(CORE_APPS as readonly string[]).includes(a.id) && isInstalled(a.id)).map((a) => a.id);
+  return add ? [...new Set([...now, id])] : now.filter((a) => a !== id);
+}
 export const appName = (id: string): string => findApp(id)?.name ?? id;
 
 /** The apps opened most recently, newest first: the hub shows them at the top. Kept per device. */

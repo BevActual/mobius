@@ -84,7 +84,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
   await expect(nav.getByRole('group').locator('.settings-nav-heading')).toHaveText(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
-  await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Conversations', 'Schedules', 'Extensions', 'Advanced', 'About']);
+  await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Conversations', 'Schedules', 'Abilities', 'Advanced', 'About']);
   await expect(nav.getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
@@ -350,7 +350,7 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await expect(page().getByRole('textbox', { name: 'Voice', exact: true })).toHaveValue('Rachel');
 });
 
-test('search at the top of the sidebar finds settings by their old names too, and Extensions opens its app', async () => {
+test('search at the top of the sidebar finds settings by their old names too, and Abilities opens its app', async () => {
   await start([]);
   await openSettings();
   const search = shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('searchbox', { name: 'Search settings' });
@@ -359,8 +359,8 @@ test('search at the top of the sidebar finds settings by their old names too, an
   await search.fill('kokoro');
   await page().getByRole('button', { name: /Voice model/ }).click();
   await expect(page().getByRole('tab', { name: 'Speaking', selected: true })).toBeVisible();
-  await go('Extensions');
-  await page().getByRole('button', { name: 'Open Extensions' }).click();
+  await go('Abilities');
+  await page().getByRole('button', { name: 'Open Abilities' }).click();
   await expect(page()).toHaveCount(0);
   await expect(shell().locator('.app')).toHaveAttribute('data-app', 'skills');
 });

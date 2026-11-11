@@ -53,12 +53,20 @@ fn is_voice_name(v: &Value) -> bool {
 pub const LISTEN_WITH: [&str; 4] = ["chat", "local", "elevenlabs", "off"];
 pub const SPEAK_WITH: [&str; 3] = ["local", "elevenlabs", "off"];
 
+/// The apps a new install starts with; the rest are added from Abilities.
+pub const DEFAULT_APPS: [&str; 6] = ["notes", "tasks", "calendar", "mail", "docs", "browser"];
+
+/// Every app chosen, or null for all of them.
+fn is_app_list(v: &Value) -> bool {
+    v.is_null() || v.as_array().is_some_and(|a| a.len() <= 40 && a.iter().all(|x| x.as_str().is_some_and(|s| !s.is_empty() && s.len() <= 20 && s.chars().all(|c| c.is_ascii_lowercase()))))
+}
+
 /// The model for quick jobs: empty (the chat model) or `gateway|model`.
 fn is_quick_model(v: &Value) -> bool {
     v.as_str().is_some_and(|s| s.is_empty() || s.split_once('|').is_some_and(|(id, model)| !id.is_empty() && id.len() <= 40 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') && is_model_name(&json!(model))))
 }
 
-static FIELDS: [Field; 24] = [
+static FIELDS: [Field; 25] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -88,6 +96,8 @@ static FIELDS: [Field; 24] = [
     Field { name: "quickModel", default: || json!(""), check: is_quick_model },
     // The model that makes pictures: empty (none) or `gateway|model`, as for the quick model.
     Field { name: "imageModel", default: || json!(""), check: is_quick_model },
+    // The apps added from Abilities, beside Mobius's own: null is every app (an install from before Abilities).
+    Field { name: "installedApps", default: || Value::Null, check: is_app_list },
 ];
 
 pub fn open(file: PathBuf) -> Settings {

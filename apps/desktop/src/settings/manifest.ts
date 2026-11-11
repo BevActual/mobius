@@ -253,11 +253,11 @@ const SECTIONS: readonly SettingsSection[] = [
   },
   {
     id: 'extensions',
-    label: 'Extensions',
-    description: 'Skills, connectors and plugins live in the Extensions app.',
+    label: 'Abilities',
+    description: 'Apps, skills, connectors and plugins live in the Abilities app.',
     subpages: [
-      { id: 'open', label: 'Extensions', rows: [
-        row('extensions-app', 'Open Extensions', 'Install, update and turn off skills, connectors and plugins.', 'skills', 'connectors', 'plugins', 'mcp', 'catalogue', 'install', 'updates'),
+      { id: 'open', label: 'Abilities', rows: [
+        row('extensions-app', 'Open Abilities', 'Add and remove apps, and install, update and turn off skills, connectors and plugins.', 'extensions', 'add apps', 'remove apps', 'apps', 'skills', 'connectors', 'plugins', 'mcp', 'catalogue', 'install', 'updates'),
       ] },
     ],
   },

@@ -1,5 +1,5 @@
 import { useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { APPS, appName, type AppId } from './apps';
+import { APPS, appName, isAvailable, type AppId } from './apps';
 import { MAX_SHARE, MIN_SHARE, clampShare } from './split';
 import { APP_ICONS } from './Rail';
 
@@ -27,7 +27,7 @@ export function Pane({ index, app, split, focused, onFocus, onChoose, onSwap, on
       {split && (
         <header className="pane-head">
           <div className="pane-apps" role="group" aria-label={`App in the ${index === 0 ? 'left' : 'right'} pane`}>
-            {PANE_APPS.map((id) => (
+            {PANE_APPS.filter(isAvailable).map((id) => (
               <button key={id} type="button" className="pane-app" aria-pressed={id === app} aria-label={appName(id)} title={appName(id)} onClick={() => onChoose(id)}>
                 <svg viewBox="0 0 20 20" aria-hidden="true" data-app={id}>{APP_ICONS[id]}</svg>
               </button>

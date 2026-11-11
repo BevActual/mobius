@@ -2,7 +2,7 @@ import { Reorder, motion } from 'motion/react';
 import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { Activity } from './activity';
 import { useSideFolds } from './side-fold';
-import { appName, type AppId } from './apps';
+import { appName, isInstalled, type AppId } from './apps';
 import { describeCombo, type Favourite } from '@mobius/shared';
 
 /** One icon per app, shared by the rail and the app hub. */
@@ -140,7 +140,8 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   const latestPinDrag = useRef<Favourite[] | null>(null);
   latestPinDrag.current = pinDrag;
   const pinOrder: Favourite[] = pinDrag ?? [...favourites];
-  const listed = chosen ? RAIL_APPS.filter((a) => chosen.includes(a.id)).sort((a, b) => chosen.indexOf(a.id) - chosen.indexOf(b.id)) : RAIL_APPS;
+  // Only the apps added from Abilities (and Home) are listed.
+  const listed = (chosen ? RAIL_APPS.filter((a) => chosen.includes(a.id)).sort((a, b) => chosen.indexOf(a.id) - chosen.indexOf(b.id)) : RAIL_APPS).filter((a) => isInstalled(a.id));
   const order = listed.map((a) => a.id);
   // Right-click an app (or Shift+F10) to move or hide it: HIG asks that people can shape the sidebar.
   const [menu, setMenu] = useState<{ id: AppId; x: number; y: number } | null>(null);

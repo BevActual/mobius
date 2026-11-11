@@ -1527,3 +1527,16 @@ fn a_picture_is_made_with_the_chosen_image_model_and_kept_in_photo() {
     tool(json!({ "prompt": "Another kite", "name": "Kite" })).unwrap();
     assert!(dir.path().join("workspace/photos/Made by Mobius/Kite 2.png").is_file());
 }
+
+/// A new install starts with the everyday apps; one that was in use before Abilities keeps every app.
+#[test]
+fn a_new_install_starts_with_the_everyday_apps_and_an_old_one_keeps_them_all() {
+    let (b, _core, _events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    assert_eq!(call(&b, "preferences", "get", json!([]))["installedApps"], json!(["notes", "tasks", "calendar", "mail", "docs", "browser"]));
+    let old = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(old.path().join("workspace/notes")).unwrap();
+    let (b, _core, _events, _old) = bridge_in(old);
+    assert_eq!(call(&b, "preferences", "get", json!([]))["installedApps"], serde_json::Value::Null);
+    assert_eq!(call(&b, "preferences", "set", json!([{ "installedApps": ["notes", "photo"] }]))["installedApps"], json!(["notes", "photo"]));
+    assert_eq!(call(&b, "preferences", "set", json!([{ "installedApps": ["Bad App"] }]))["installedApps"], json!(["notes", "photo"]));
+}

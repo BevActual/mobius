@@ -3,10 +3,14 @@ import type { AboutInfo, ConnectorStatus } from '@mobius/shared';
 import { InstallDialog, SkillsSidebar } from './Skills';
 import type { SkillsState } from './useSkills';
 import { OtherApps } from './settings/sections';
+import { APP_GROUPS, APPS, CORE_APPS, isInstalled, withApp, type AppId } from './apps';
+import { APP_ICONS } from './Rail';
+import { usePreferences } from './usePreferences';
 
-/** The places in Extensions: what gives Mobius more to work with, in one app. */
-export type ExtensionPlace = 'connectors' | 'skills' | 'plugins' | 'catalogue' | 'updates';
+/** The places in Abilities: the apps you add, and what gives Mobius more to work with, in one app. */
+export type ExtensionPlace = 'apps' | 'connectors' | 'skills' | 'plugins' | 'catalogue' | 'updates';
 export const EXTENSION_PLACES: readonly { id: ExtensionPlace; name: string }[] = [
+  { id: 'apps', name: 'Apps' },
   { id: 'connectors', name: 'Connectors' },
   { id: 'skills', name: 'Skills' },
   { id: 'plugins', name: 'Plugins' },
@@ -16,7 +20,7 @@ export const EXTENSION_PLACES: readonly { id: ExtensionPlace; name: string }[] =
 
 function Places({ place, onPlace }: { place: ExtensionPlace; onPlace: (p: ExtensionPlace) => void }) {
   return (
-    <nav className="task-lists ext-places" aria-label="Extensions">
+    <nav className="task-lists ext-places" aria-label="Abilities">
       <ul role="list">
         {EXTENSION_PLACES.map((p) => (
           <li key={p.id}>
@@ -35,9 +39,9 @@ export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { pl
   const places = <Places place={place} onPlace={onPlace} />;
   if (place === 'skills') return <SkillsSidebar skills={skills} pin={pin} changed={changed} places={places} />;
   return (
-    <aside className="side skills-side" aria-label="Extensions sidebar">
+    <aside className="side skills-side" aria-label="Abilities sidebar">
       <div className="side-head">
-        <span className="side-title">Extensions</span>
+        <span className="side-title">Abilities</span>
         <span className="side-actions">{pin}</span>
       </div>
       {places}
@@ -47,15 +51,54 @@ export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { pl
 
 /** Extensions' page for every place but Skills (which has its own editor). */
 export function ExtensionsPage({ place, skills, onPlace }: { place: Exclude<ExtensionPlace, 'skills'>; skills: SkillsState; onPlace: (p: ExtensionPlace) => void }) {
-  const name = EXTENSION_PLACES.find((p) => p.id === place)?.name ?? 'Extensions';
+  const name = EXTENSION_PLACES.find((p) => p.id === place)?.name ?? 'Abilities';
   return (
     <section className="skills-page ext-page" aria-label={name}>
       <h1 className="ext-title">{name}</h1>
+      {place === 'apps' && <AppLibrary />}
       {place === 'connectors' && <Connectors />}
       {place === 'plugins' && <p className="note-empty">No plugins are installed.</p>}
       {place === 'catalogue' && <Catalogue skills={skills} onPlace={onPlace} />}
       {place === 'updates' && <Updates />}
     </section>
+  );
+}
+
+/**
+ * The app library: every app Mobius has, by what it is for. Adding one puts it in the switcher, the launcher and the
+ * sidebar; removing it takes it away and keeps its files, so adding it again brings them back.
+ */
+function AppLibrary() {
+  const preferences = usePreferences();
+  const [problem, setProblem] = useState<string | null>(null);
+  const change = async (id: AppId, add: boolean) => {
+    setProblem(null);
+    try { await preferences.set({ installedApps: withApp(id, add) }); } catch { setProblem('That could not be changed.'); }
+  };
+  const groups = APP_GROUPS.map((group) => ({ group, members: APPS.filter((a) => a.group === group && a.available && !(CORE_APPS as readonly string[]).includes(a.id)) })).filter((g) => g.members.length > 0);
+  return (
+    <div className="ability-apps">
+      <p className="ext-lede">Add the apps you use. Removing one keeps its files: add it again and they are back.</p>
+      {problem && <p className="field-error" role="alert">{problem}</p>}
+      {groups.map(({ group, members }) => (
+        <section key={group} className="ability-group" aria-label={group}>
+          <h2 className="ability-group-title">{group}</h2>
+          <ul role="list" className="ability-list">
+            {members.map((app) => {
+              const added = isInstalled(app.id);
+              return (
+                <li key={app.id} className="ability-row">
+                  <svg viewBox="0 0 20 20" aria-hidden="true" className="ability-icon" style={{ background: `var(--app-${app.id})` }}>{APP_ICONS[app.id]}</svg>
+                  <span className="ability-name">{app.name}</span>
+                  {added && <span className="ability-state">Added</span>}
+                  <button type="button" className={added ? 'btn' : 'btn primary'} aria-label={`${added ? 'Remove' : 'Add'} ${app.name}`} onClick={() => void change(app.id, !added)}>{added ? 'Remove' : 'Add'}</button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }
 

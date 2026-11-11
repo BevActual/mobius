@@ -34,6 +34,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Extensions');
   await shell().keyboard.press('Enter');
+  // Abilities opens on its Apps; the skills are a place beside them.
+  await shell().getByRole('navigation', { name: 'Abilities' }).getByRole('button', { name: 'Skills' }).click();
 }
 
 test('a skill is plain steps kept as SKILL.md, and every change keeps the version before it', async () => {
@@ -99,15 +101,22 @@ test('a skill someone shared shows what it is for and what it can touch before i
   expect(fs.readFileSync(file('compare-stays'), 'utf8')).toContain('name: compare-stays\ndescription: When choosing where to stay');
 });
 
-test('Extensions is one of Mobius’s own apps: connectors, skills, plugins, catalogue and updates in one place', async () => {
+test('Abilities is one of Mobius’s own apps: apps, connectors, skills, plugins, catalogue and updates in one place', async () => {
   model = await startModel([]);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   const rail = shell().getByRole('navigation', { name: 'Apps' });
   if ((await rail.getAttribute('data-face')) !== 'apps') await rail.locator('[data-app-switcher]').click();
-  await rail.getByRole('region', { name: 'Mobius’s apps' }).getByRole('button', { name: 'Extensions', exact: true }).click();
-  const places = shell().getByRole('navigation', { name: 'Extensions' });
-  await expect(places.getByRole('button', { name: 'Skills' })).toHaveAttribute('aria-current', 'page');
+  await rail.getByRole('region', { name: 'Mobius’s apps' }).getByRole('button', { name: 'Abilities', exact: true }).click();
+  const places = shell().getByRole('navigation', { name: 'Abilities' });
+  await expect(places.getByRole('button', { name: 'Apps' })).toHaveAttribute('aria-current', 'page');
+  // Removing an app takes it out of the switcher and keeps its files; adding it brings it back.
+  const library = shell().getByRole('region', { name: 'Apps' });
+  await library.getByRole('button', { name: 'Remove Sheets' }).click();
+  await expect(library.getByRole('button', { name: 'Add Sheets' })).toBeVisible();
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).installedApps).not.toContain('sheets');
+  await library.getByRole('button', { name: 'Add Sheets' }).click();
+  await expect(library.getByRole('button', { name: 'Remove Sheets' })).toBeVisible();
   await places.getByRole('button', { name: 'Connectors' }).click();
   const page = shell().getByRole('region', { name: 'Connectors' });
   await expect(page).toContainText('No connectors yet');

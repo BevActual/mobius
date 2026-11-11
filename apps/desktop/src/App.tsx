@@ -4,7 +4,7 @@ import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type SidebarMode } from '@mobius/shared';
 import { rememberTitles } from './ReviewStrip';
-import { appName, askAbout, isAvailable, type AppId, noteOpened, APPS } from './apps';
+import { appName, askAbout, findApp, isAvailable, setInstalledApps, type AppId, noteOpened, APPS } from './apps';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
@@ -125,6 +125,8 @@ export function App() {
   const appearance = useAppearance();
   const downloads = useDownloads();
   const preferences = usePreferences();
+  // The apps added from Abilities decide what opens, what the switcher lists and what loads.
+  setInstalledApps(preferences.value.installedApps);
   const bookmarks = useBookmarks();
   const notes = useNotes();
   const docs = useNotes('docs');
@@ -255,7 +257,7 @@ export function App() {
   const inStudio = app === 'studio';
   const inVideo = app === 'video';
   const inSkills = app === 'skills';
-  const [extPlace, setExtPlace] = useState<ExtensionPlace>('skills');
+  const [extPlace, setExtPlace] = useState<ExtensionPlace>('apps');
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
@@ -374,7 +376,11 @@ export function App() {
   }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
   // Going to an app leaves Settings (from the launcher, a shortcut or a link), so the app chosen is the one showing.
-  const openApp = useCallback((id: AppId) => { if (isAvailable(id)) { setApp(id); setSettingsOpen(false); } }, []);
+  // An app not added yet opens Abilities, where it can be added.
+  const openApp = useCallback((id: AppId) => {
+    if (isAvailable(id)) { setApp(id); setSettingsOpen(false); }
+    else if (findApp(id)?.available) { setExtPlace('apps'); setApp('skills'); setSettingsOpen(false); }
+  }, []);
   // However an app was opened (the sidebar, the hub, a shortcut, a pinned item), it goes to the top of Recent.
   useEffect(() => noteOpened(app), [app]);
   const needsYou = conversation.list.reduce((sum, c) => sum + c.waiting, 0);
@@ -961,7 +967,7 @@ export function App() {
   const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
-    apps: APPS.filter((a) => a.available),
+    apps: APPS.filter((a) => isAvailable(a.id)),
     keys: bindings,
     state: {
       // The sidebar is the app list with the open app's own list under it; with a separate list panel (hasLeft), that panel.
@@ -1442,7 +1448,7 @@ export function App() {
         ownApps={[
           { id: 'bots', name: 'Agents', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
           { id: 'activity', name: 'Activity', current: !settingsOpen && app === 'agent' && sideMode === 'activity', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } },
-          { id: 'extensions', name: 'Extensions', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
+          { id: 'extensions', name: 'Abilities', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
           { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
         ]}
         activity={activity}

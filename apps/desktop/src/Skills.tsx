@@ -19,7 +19,7 @@ export function SkillsSidebar({ skills, pin, changed, places }: { skills: Skills
   return (
     <aside className="side skills-side" aria-label="Skills sidebar">
       <div className="side-head">
-        <span className="side-title">{places ? 'Extensions' : 'Skills'}</span>
+        <span className="side-title">{places ? 'Abilities' : 'Skills'}</span>
         <span className="side-actions">
           {pin}
           <button type="button" className="strip-btn" aria-label="New skill" title="New skill" onClick={() => setNaming(true)}>

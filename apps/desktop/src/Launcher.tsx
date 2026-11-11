@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BrowserTabState } from '@mobius/shared';
-import { APPS, recentApps, type AppId } from './apps';
+import { APPS, isInstalled, recentApps, type AppId } from './apps';
 import { APP_ICONS } from './Rail';
 
 export interface LauncherItem {
@@ -93,7 +93,8 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
         kind: 'app',
         app: app.id,
         label: app.name,
-        detail: app.available ? undefined : 'Not built yet',
+        // An app not added yet is found too: choosing it opens Abilities to add it.
+        detail: !app.available ? 'Not built yet' : isInstalled(app.id) ? undefined : 'Add from Abilities',
         disabled: !app.available,
         run: () => onOpenApp(app.id),
       })),

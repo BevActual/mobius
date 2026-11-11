@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { APP_GROUPS, APPS, askAbout, noteOpened, recentApps, type AppId } from './apps';
+import { APP_GROUPS, APPS, askAbout, isAvailable, noteOpened, recentApps, setInstalledApps, withApp, type AppId } from './apps';
 
 describe('apps', () => {
   it('the ask box names what is open in each app, not another app’s things', () => {
@@ -8,6 +8,17 @@ describe('apps', () => {
     expect(askAbout('search')).toBe('Ask Mobius');
     expect(askAbout('docs', false)).toBe('Ask Mobius');
     expect(askAbout('mail', false)).toBe('Ask about your mail');
+  });
+
+  it('only added apps open; Home and Mobius’s own apps are always there, and an install from before keeps every app', () => {
+    setInstalledApps(['notes']);
+    expect(isAvailable('notes')).toBe(true);
+    expect(isAvailable('photo')).toBe(false);
+    expect(isAvailable('agent') && isAvailable('skills') && isAvailable('files')).toBe(true);
+    expect(withApp('photo', true)).toEqual(['notes', 'photo']);
+    expect(withApp('notes', false)).toEqual([]);
+    setInstalledApps(null);
+    expect(isAvailable('photo')).toBe(true);
   });
 
   it('every app belongs to one of the groups the hub shows', () => {

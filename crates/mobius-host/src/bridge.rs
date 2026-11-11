@@ -233,6 +233,11 @@ pub struct Bridge {
 
 impl Bridge {
     pub fn new(core: Arc<CoreProcess>, data_dir: PathBuf, emit: Emit, secrets: Arc<dyn Secrets>) -> Bridge {
+        // A new install starts with the everyday apps and adds the rest from Abilities; one that was already in use
+        // keeps every app it had.
+        // The end-to-end tests start fresh every time and use every app, unless one asks for a new install's.
+        let testing = std::env::var_os("MOBIUS_TEST").is_some() && std::env::var_os("MOBIUS_TEST_NEW_INSTALL").is_none();
+        let fresh = !testing && !data_dir.join("preferences.json").exists() && !data_dir.join("workspace").exists();
         let chatgpt = Arc::new(Mutex::new(Arc::new(crate::chatgpt::ChatGpt::new(crate::chatgpt::ISSUER, crate::chatgpt::API, secrets.clone()))));
         let calendar_accounts = Arc::new(crate::calendar_accounts::Accounts::new(&data_dir, secrets.clone()));
         let agent = AgentService::new(core.clone(), data_dir.join("agent-settings.json"), secrets.clone());
@@ -368,6 +373,9 @@ impl Bridge {
             emit,
         };
         // Only sets what the agent will send: nothing is configured until a chat model is.
+        if fresh {
+            lock(&bridge.preferences).set(&json!({ "installedApps": preferences::DEFAULT_APPS }));
+        }
         let _ = bridge.restore_quick();
         bridge
     }
