@@ -50,6 +50,7 @@ test('the usual keys work, and the settings page lists them', async () => {
   await expect(keys('launcher')).toHaveText('Ctrl+K');
   await expect(keys('settings')).toHaveText('Ctrl+,');
   await expect(keys('quickEntry')).toHaveText('Not set');
+  await expect(keys('holdToTalk')).toHaveText('Ctrl+Space');
 });
 
 test('a shortcut can be changed, the old keys stop working, and it can be put back', async () => {
@@ -118,6 +119,8 @@ test('the choices survive a restart', async () => {
   await mobius!.close({ keepUserData: true });
   mobius = await launch(fixture.origin + '/', { userData });
   await expect.poll(async () => (await prefs()).keybindings.settings).toBe('mod+alt+s');
+  // The window takes shortcuts once it has read the saved ones; the file being right is not enough on a slow start.
+  await expect(shell().locator('html[data-keys-ready]')).toBeAttached({ timeout: 15_000 });
   await shell().keyboard.press('Control+Alt+s');
   await expect(page()).toBeVisible();
 });

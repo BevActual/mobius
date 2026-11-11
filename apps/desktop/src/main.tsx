@@ -6,6 +6,8 @@ import { installPreviewBridge } from './bridge/preview';
 import { App } from './App';
 import { MiniApp, isMiniWindow } from './MiniApp';
 import { MotionRoot } from './motion';
+import { startKeepingEarlyKeys } from './early-keys';
+import { preloadPreferences } from './usePreferences';
 import './tokens.css';
 import './styles.css';
 
@@ -17,6 +19,12 @@ declare global {
 
 // In the dev server with no shell around it, a stand-in bridge lets the interface be looked at alone.
 if (!installTauriBridge() && import.meta.env.DEV) installPreviewBridge();
+
+// Shortcuts pressed before the saved ones are read are kept, and answered once they are (see App).
+startKeepingEarlyKeys();
+
+// The saved preferences first (a moment, from this computer), so the window opens with the person's shortcuts working.
+await Promise.race([preloadPreferences(), new Promise((resolve) => setTimeout(resolve, 1500))]);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

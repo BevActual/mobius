@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { MenuBar } from './MenuBar';
 import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type MailContent, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type SidebarMode } from '@mobius/shared';
 import { appName, askAbout, isAvailable, type AppId, noteOpened, APPS } from './apps';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
@@ -17,6 +17,8 @@ import { Launcher } from './Launcher';
 import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
 import { useSideFolds } from './side-fold';
+import { UpdateNotice } from './UpdateNotice';
+import { pressOf, takeEarlyKeys } from './early-keys';
 import { CommentButton, CommentLayer, CommentsGroup, useCommentThreads, useOpenComments } from './Comments';
 import type { Side } from './resize';
 import { useAgentSettings } from './useAgentSettings';
@@ -591,7 +593,7 @@ export function App() {
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
   const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
   const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
@@ -672,24 +674,33 @@ export function App() {
     [openLauncher, openSettings, openFind, newTab, active, toggleSplit, toggleMini],
   );
 
-  // The same shortcuts when the shell itself has the keyboard (pages are handled by the main process).
+  // The same shortcuts when the shell itself has the keyboard (pages are handled by the main process). Until the saved
+  // shortcuts are known, presses are kept rather than answered (the defaults would answer keys the person may have given to
+  // something else), then answered with the saved ones: a shortcut pressed as the window opens still works.
+  const keysReady = preferences.loaded;
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const action = actionForPress(bindings, { code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey });
-      if (action === 'launcher') { event.preventDefault(); openLauncher(); }
-      else if (action === 'address') { event.preventDefault(); address.current?.focus(); address.current?.select(); }
-      else if (action === 'newTab') { event.preventDefault(); newTab(); }
-      else if (action === 'closeTab' && active) { event.preventDefault(); window.mobius.browser.close(active.id); }
-      else if (action === 'settings') { event.preventDefault(); openSettings(); }
-      else if (action === 'find' && app === 'browser') { event.preventDefault(); openFind(); }
-      else if (action === 'splitView') { event.preventDefault(); toggleSplit(); }
-      else if (action === 'littleMobius') { event.preventDefault(); toggleMini(); }
+    if (keysReady) document.documentElement.dataset.keysReady = 'true';
+  }, [keysReady]);
+  useEffect(() => {
+    if (!keysReady) return;
+    const answer = (press: KeyPress, claim: () => void) => {
+      const action = actionForPress(bindings, press);
+      if (action === 'launcher') { claim(); openLauncher(); }
+      else if (action === 'address') { claim(); address.current?.focus(); address.current?.select(); }
+      else if (action === 'newTab') { claim(); newTab(); }
+      else if (action === 'closeTab' && active) { claim(); window.mobius.browser.close(active.id); }
+      else if (action === 'settings') { claim(); openSettings(); }
+      else if (action === 'find' && app === 'browser') { claim(); openFind(); }
+      else if (action === 'splitView') { claim(); toggleSplit(); }
+      else if (action === 'littleMobius') { claim(); toggleMini(); }
       // Stop is fixed (Cmd-period, Ctrl-period elsewhere) unless that press was given to something else.
-      else if (action === null && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.code === 'Period' && conversation.state.busy) { event.preventDefault(); void conversation.stop(); }
+      else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'Period' && conversation.state.busy) { claim(); void conversation.stop(); }
     };
+    const onKey = (event: KeyboardEvent) => answer(pressOf(event), () => event.preventDefault());
     window.addEventListener('keydown', onKey);
+    for (const press of takeEarlyKeys(performance.now())) answer(press, () => undefined);
     return () => window.removeEventListener('keydown', onKey);
-  }, [bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation]);
+  }, [keysReady, bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -855,7 +866,7 @@ export function App() {
     if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign) && !typing) { sendCommand(command); return; }
     document.execCommand(command);
   };
-  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles') => { setSettingsSection(section); setSettingsOpen(true); };
+  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
     apps: APPS.filter((a) => a.available),
@@ -1282,6 +1293,7 @@ export function App() {
             onPlace={() => { if (showWide) setSwitcherToken((n) => n + 1); else openHub(); }}
             menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
+            onOpenVoice={() => openSettingsAt('voice')}
           />
   );
   // The browser's own controls. With the full sidebar they live in it, under the app's name, and nothing but the
@@ -1320,7 +1332,7 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
@@ -1348,6 +1360,7 @@ export function App() {
           panel: chatInSide && chatOpen ? chatPanel(null) : null,
         } : null}
         onLauncher={openHub}
+        {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
         switcherToken={switcherToken}
         onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
         settingsOpen={settingsOpen}
@@ -1407,6 +1420,7 @@ export function App() {
           {!narrow && <button type="button" className="strip-btn" data-split-toggle aria-pressed={split} aria-label={split ? 'Close split view' : 'Split view'} title={withKeys(split ? 'Show one app' : 'Show two apps side by side', bindings.splitView)} onClick={toggleSplit}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="6.5" height="11" rx="2" /><rect x="11" y="4.5" width="6.5" height="11" rx="2" /></svg>
           </button>}
+          <UpdateNotice />
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
           {hasRight && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={chatOpen} aria-label="Show agent" title="Show or hide the agent" onClick={() => { setChatOpen((open) => !open); setFocusToken((n) => n + 1); }}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M12 4v12" /></svg>
