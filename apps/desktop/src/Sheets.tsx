@@ -23,6 +23,15 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
   const [query, setQuery] = useState('');
   // Every New workbook asks for its name here, with "Workbook" chosen so typing replaces it.
   const startNaming = () => { setName('Workbook'); setNaming(true); };
+  // A workbook Mobius changed in its last turn opens when none is, once, so a visit after asking lands on it.
+  const offered = useRef(false);
+  useEffect(() => {
+    if (offered.current || here || !changed?.size) return;
+    const book = sheets.workbooks.find((w) => changed.has(w.name));
+    if (!book) return;
+    offered.current = true;
+    sheets.openIfIdle(book.name, book.sheets[0] ?? 'Sheet 1');
+  }, [changed, sheets.workbooks]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const go = () => startNaming(); namers++; window.addEventListener(NEW_WORKBOOK, go); return () => { namers--; window.removeEventListener(NEW_WORKBOOK, go); }; }, []);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -78,6 +87,8 @@ type Edit = { at: Pos; text: string; where: 'cell' | 'bar'; caret: number };
 const ROW_H = 24;
 const HEAD_H = 22;
 const COL_W = 104;
+/** The widest a column grows to fit its words by itself. */
+const FIT_MAX = 260;
 const REF_COLORS = ['#0a84ff', '#ff9f0a', '#30d158', '#bf5af2', '#ff375f', '#64d2ff'];
 const keep = (e: { preventDefault: () => void }) => e.preventDefault();
 
@@ -97,7 +108,23 @@ function writeKept<T>(key: string, place: string, value: T | undefined) {
 /** A first row of words over rows with numbers reads as a header, until the person says otherwise. */
 function looksLikeHeader(values: readonly (readonly string[])[]): boolean {
   const first = values[0] ?? [];
-  return first.some((v) => v !== '') && first.every((v) => v === '' || numberIn(v) === null) && values.slice(1).some((row) => row.some((v) => numberIn(v) !== null));
+  if (!first.some((v) => v !== '') || !first.every((v) => v === '' || numberIn(v) === null)) return false;
+  const rest = values.slice(1).filter((row) => row.some((v) => v !== ''));
+  if (rest.some((row) => row.some((v) => numberIn(v) !== null))) return true;
+  // A table of words: a first row of two or more short labels over at least two rows reads as a header too.
+  const labels = first.filter((v) => v !== '');
+  return labels.length >= 2 && labels.every((v) => v.length <= 24) && rest.length >= 2;
+}
+/** Each column's width to fit what is in it, between the usual width and a wide one; worked out once per sheet as read. */
+const fits = new WeakMap<object, { header: boolean; widths: number[] }>();
+function fittedWidths(values: readonly (readonly string[])[], header: boolean): number[] {
+  const kept = fits.get(values);
+  if (kept && kept.header === header) return kept.widths;
+  const rows = values.slice(0, 400);
+  const cols = Math.max(0, ...rows.map((r) => r.length));
+  const widths = Array.from({ length: cols }, (_, c) => Math.round(Math.min(FIT_MAX, Math.max(COL_W, ...rows.map((r, i) => textWidth(r[c] ?? '', header && i === 0) + 18)))));
+  fits.set(values, { header, widths });
+  return widths;
 }
 let measurer: CanvasRenderingContext2D | null = null;
 function textWidth(text: string, bold = false): number {
@@ -274,7 +301,9 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const width = Math.min(52, Math.max(10, used.cols + 3, focus.c + 2, fillTo ? fillTo.c + 2 : 0));
   const height = Math.max(40, used.rows + 20, focus.r + 10, fillTo ? fillTo.r + 5 : 0);
   const headerOn = header ?? looksLikeHeader(data.values);
-  const colWidth = (c: number) => widths[c] ?? COL_W;
+  // A column the person has not sized fits its words, so names and labels are not cut short.
+  const fitted = fittedWidths(data.values, headerOn);
+  const colWidth = (c: number) => widths[c] ?? fitted[c] ?? COL_W;
   const steps = history.current.get(place) ?? { undo: [], redo: [] };
   history.current.set(place, steps);
 

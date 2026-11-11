@@ -184,7 +184,6 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const [chosen, setAt] = useState(0);
   const at = Math.max(0, Math.min(chosen, slides.length - 1));
   const [playing, setPlaying] = useState<number | null>(null);
-  const [toolsOpen, setToolsOpen] = useState(false);
   const [layoutsAt, setLayoutsAt] = useState<DOMRect | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; i: number } | null>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
@@ -358,21 +357,6 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
         <button type="button" className="slides-tool icon" aria-label="Duplicate slide" title="Duplicate (Ctrl+D)" onClick={() => duplicate()}><Icon d={ICON.duplicate} /></button>
         <button type="button" className="slides-tool icon" aria-label="Delete slide" title="Delete slide" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
         <span className="spacer" />
-        {onTool && (
-          <div className="doc-writing">
-            <button type="button" className="slides-tool mobius" aria-haspopup="menu" aria-expanded={toolsOpen} disabled={busy} onClick={() => setToolsOpen((o) => !o)}>Ask Mobius</button>
-            {toolsOpen && createPortal(
-              <>
-                <div className="doc-writing-scrim" onMouseDown={() => setToolsOpen(false)} />
-                <div className="doc-writing-menu" role="menu" aria-label="Ask Mobius" style={{ top: 96, right: 16, left: 'auto' }}>
-                  <p className="doc-writing-sees">Sees: this deck</p>
-                  {TOOLS.map((t) => <button key={t.id} type="button" role="menuitem" onClick={() => { setToolsOpen(false); onTool(t.id, at); }}>{t.label}</button>)}
-                </div>
-              </>,
-              document.body,
-            )}
-          </div>
-        )}
         <button type="button" className="slides-tool icon" aria-label="Format" title="Format" aria-pressed={formatOpen} onClick={() => setFormatOpen((o) => !o)}><Icon d={ICON.format} /></button>
         <button type="button" className="slides-play-btn" title="Play from this slide (Ctrl+Enter)" onClick={() => setPlaying(at)}><Icon d={ICON.play} /><span>Play</span></button>
       </div>
@@ -434,6 +418,15 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
                 ))}
               </div>
             </section>
+            {onTool && (
+              <section className="slides-section" aria-label="Ask Mobius">
+                {/* The one place in the deck to hand Mobius a job; anything else goes in the Ask field above. */}
+                <div className="slides-section-title">Ask Mobius to</div>
+                <div className="slides-layout-list">
+                  {TOOLS.map((t) => <button key={t.id} type="button" className="slides-chip" disabled={busy} onClick={() => onTool(t.id, at)}>{t.label}</button>)}
+                </div>
+              </section>
+            )}
             <section className="slides-section">
               <div className="slides-section-title">Start again from a layout</div>
               <div className="slides-layout-list">
