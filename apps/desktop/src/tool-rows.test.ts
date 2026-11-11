@@ -7,8 +7,9 @@ describe('a finished tool row names what it acted on', () => {
     expect(pastAction('files.read', { path: 'notes/Work/Plan.md' })).toBe('Read the note “Work › Plan”');
   });
   it('a new email is drafted, not a reply', () => {
-    expect(pastAction('mail.draft', { subject: 'Brake kit' })).toBe('Drafted an email');
-    expect(describeAction('mail.draft', { reply_to: 'm1' })).toBe('draft a reply for you to send');
+    expect(pastAction('mail.draft', { subject: 'Brake kit' })).toBe('Drafted a new email');
+    expect(pastAction('mail.draft', { to: 'priya@example.com', body: 'x' })).toBe('Drafted an email to priya@example.com');
+    expect(describeAction('mail.draft', { replyTo: 'm1', to: 'priya@example.com' })).toBe('draft a reply for you to send');
   });
   it('several of the same in a row read as one line', () => {
     const six = Array.from({ length: 6 }, (_, i) => ({ list: 'P2 build', text: `Step ${i}` }));
