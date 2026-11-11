@@ -118,3 +118,11 @@
 .slides-page .slide-face, .slide-play .slide-face, .slides-layout-face .slide-face { justify-content: safe center; }
 /* Empty fields keep their place but show their hint only under the pointer or while typing, so the slide reads as it plays. */
 .slides-page .slides-canvas:not(:hover):not(:focus-within) .slide-face :is(input, textarea):placeholder-shown::placeholder { opacity: 0; }
+
+/* In a narrow window the slide keeps its room: the navigator narrows, and the inspector steps aside until there is space. */
+.stage .slides-page { container-type: inline-size; }
+.slides-page .slides-main { min-width: 260px; }
+@container (max-width: 820px) {
+  .slides-page .slides-nav { flex-basis: 132px; }
+  .slides-page .slides-format { display: none; }
+}

@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -34,6 +34,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  // The CI window is small and Mobius is pinned beside in tests: give the slide, its notes and the inspector room.
+  await resizeWindow(mobius.app, 1440, 900);
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Slides');
   await shell().keyboard.press('Enter');
@@ -86,10 +88,10 @@ test('slides are picked, moved and duplicated from the navigator by key, and Und
   await expect(nav().getByRole('button')).toHaveCount(2);
   await shell().keyboard.press('Control+z');
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toBe(DECK);
-  // A new slide from a layout comes in after the picked one with its words to replace.
+  // Undo puts the pick back on the slide first picked (slide 2); a new slide from a layout comes in after it.
   await page().getByRole('button', { name: 'Choose a layout' }).click();
   await shell().getByRole('menu', { name: 'Slide layouts' }).getByRole('menuitem', { name: 'Section' }).click();
-  await expect(nav().getByRole('button', { name: /^Slide 2: Section title/ })).toBeVisible();
+  await expect(nav().getByRole('button', { name: /^Slide 3: Section title/ })).toBeVisible();
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toContain('<!-- style: dark -->\n### Part 2\n## Section title');
 });
 
