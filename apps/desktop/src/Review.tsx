@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { ConversationInfo } from '@mobius/shared';
 import { appName, type AppId } from './apps';
 import { APP_ICONS } from './Rail';
+import { EmptyState } from './EmptyState';
 import { appOf, countByApp, dayOf, describeChange, filterTurns, gatherTurns, type ReviewTurn } from './review-view';
 
 /** How many conversations, newest first, the Review app looks through. */
@@ -37,7 +38,7 @@ export function ReviewSidebar({ review, pin }: { review: ReviewState; pin: React
   const row = (id: AppId | 'all' | 'waiting', label: string, count: number, icon?: ReactNode) => (
     <li key={id}>
       <button type="button" className="note-row review-filter" aria-current={review.filter === id ? 'page' : undefined} onClick={() => review.setFilter(id)}>
-        {icon}<span>{label}</span><span className="review-count">{count}</span>
+        {icon}<span>{label}</span>{count > 0 && <span className="review-count">{count}</span>}
       </button>
     </li>
   );
@@ -69,7 +70,7 @@ export function ReviewPage({ review, onOpenFile, onOpenConversation }: { review:
     return (
       <section className="review-page" aria-label="Review">
         <h1 className="review-title">Waiting for you</h1>
-        {review.waiting.length === 0 && <p className="review-empty">Nothing is waiting for you. When Mobius needs you to allow something or answer a question, it is listed here.</p>}
+        {review.waiting.length === 0 && <EmptyState app="review" label="Nothing waiting" title="Nothing is waiting for you" line="When Mobius needs you to allow something or answer a question, it is listed here." />}
         <ul className="review-waiting">
           {review.waiting.map((c) => (
             <li key={c.id}>
@@ -102,7 +103,7 @@ export function ReviewPage({ review, onOpenFile, onOpenConversation }: { review:
       <h1 className="review-title">{review.filter === 'all' ? 'Everything Mobius changed' : `What Mobius changed in ${appName(review.filter)}`}</h1>
       <p className="review-lede">Each change is listed with what was asked. Open it to look, or put it back as it was before that turn.</p>
       {problem && <p className="review-problem" role="alert">{problem}</p>}
-      {!review.loading && shown.length === 0 && <p className="review-empty">Nothing yet. When Mobius changes a note, a board, a database or anything else, it is listed here.</p>}
+      {!review.loading && shown.length === 0 && <EmptyState app="review" label="No changes yet" title="No changes yet" line="When Mobius changes a note, a board, a database or anything else, it is listed here." />}
       {shown.map((t) => {
         const day = dayOf(t.when);
         const heading = day !== lastDay ? day : null;

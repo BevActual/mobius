@@ -4,6 +4,7 @@ import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/
 import type { MailState } from './useMail';
 import { ReviewActions } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
+import { EmptyState } from './EmptyState';
 
 const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
   { id: 'primary', label: 'Primary' },
@@ -267,6 +268,7 @@ function Row({ m, on, onOpen }: { m: MailMessage; on: boolean; onOpen: () => voi
 /** The Mail app: categories, the list, and the message or draft open beside it. */
 export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply?: (m: MailContent) => void }) {
   const v = mail.view;
+  const [adding, setAdding] = useState(false);
   // E archives, R replies, H puts the open message off until tomorrow at 8:00. Not while typing, and not with Ctrl or Alt.
   const keys = useRef(mail);
   keys.current = mail;
@@ -283,11 +285,12 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  if (!mail.available) return <section className="mail-page empty" aria-label="Mail"><p className="note-empty">Mail is not available here.</p></section>;
+  if (!mail.available) return <section className="mail-page empty" aria-label="Mail"><EmptyState app="mail" title="Mail is not available here" /></section>;
   if (mail.accounts.length === 0) {
     return (
       <section className="mail-page empty" aria-label="Mail">
-        <p className="note-empty">Add a mail account in the sidebar to see your mail here. Mobius reads and drafts; only you send.</p>
+        <EmptyState app="mail" title="No mail account yet" line="Add one to see your mail here. Mobius reads and drafts; only you send." action={{ label: 'Add an account', run: () => setAdding(true) }} />
+        {adding && <AccountDialog mail={mail} onClose={() => setAdding(false)} />}
       </section>
     );
   }
@@ -326,7 +329,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
         {mail.message && <p className="tasks-message" role="alert">{mail.message}</p>}
         {mail.editing ? <DraftEditor key={mail.editing.id || 'new'} mail={mail} draft={mail.editing} />
           : mail.open ? <Reader mail={mail} content={mail.open} {...(onDraftReply ? { onDraftReply } : {})} />
-            : <p className="note-empty">Choose a message.</p>}
+            : <EmptyState app="mail" label="No message open" title="No message open" line="Choose one in the list." />}
       </div>
     </section>
   );
