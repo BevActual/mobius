@@ -3,6 +3,7 @@ import { linksIn } from '../note-links';
 import { PREVIEW_TASKS } from './preview-tasks';
 import { PREVIEW_CALENDAR } from './preview-calendar';
 import { PREVIEW_DOCS } from './preview-docs';
+import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
 /**
@@ -91,16 +92,12 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'notes.comments': ((path: string) => NOTE_COMMENTS[path] ?? []) as never,
   'notes.setComments': ((path: string, comments: unknown[]) => { NOTE_COMMENTS[path] = comments; return { path, comments }; }) as never,
   'notes.export': ((path: string, kind: string) => { const name = `${path.slice(path.indexOf('/') + 1, -3)}.${kind}`; (window as unknown as { exported?: string }).exported = name; return { path, saved: `Exports/${name}`, name }; }) as never,
-  'sheets.list': () => [{ name: 'P2 budget', sheets: ['Sheet 1'] }],
-  // Mobius added the Total row in its turn.
-  'sheets.read': ((workbook: string, sheet: string) => ({ workbook, sheet, sheets: ['Sheet 1'], version: 'preview',
-    cells: [['Item', 'Cost'], ['Packs', '48000'], ['Sled', '6500'], ['Total', '=B2+B3']],
-    values: [['Item', 'Cost'], ['Packs', '48000'], ['Sled', '6500'], ['Total', '54500']] })) as never,
+  ...PREVIEW_SHEETS,
   'notes.read': ((path: string) => ({ path, content: NOTE_TEXT[path] ?? '', modified: now })) as never,
   'changes.lastTurn': () => ({ checkpoint: TURN.start, files: TURN.files }),
   'changes.turns': () => ({ ok: true, turns: [TURN] }),
   // Before the turn: the supplier notes had only their title, and the P2 build list had no deposit task.
-  'changes.before': ((_conversation: string, path: string) => ({ ok: true, text: path.startsWith('tasks/') ? '# P2 build\n\n- [x] Confirm the build week with everyone\n- [ ] Hold 8 packs at Veltro\n- [ ] Book the sled for Friday\n- [x] Draft the build budget\n' : path.startsWith('sheets/') ? 'Item,Cost\nPacks,48000\nSled,6500\n' : path.startsWith('docs/') ? '# Build brief\n\nThe P2 build runs the week of the 23rd.\n' : '# Supplier notes\n' })) as never,
+  'changes.before': ((_conversation: string, path: string) => ({ ok: true, text: path.startsWith('tasks/') ? '# P2 build\n\n- [x] Confirm the build week with everyone\n- [ ] Hold 8 packs at Veltro\n- [ ] Book the sled for Friday\n- [x] Draft the build budget\n' : path.startsWith('sheets/') ? PREVIEW_BUDGET_BEFORE : path.startsWith('docs/') ? '# Build brief\n\nThe P2 build runs the week of the 23rd.\n' : '# Supplier notes\n' })) as never,
   'calendar.calendars': () => ['Kestrel P2', 'Work', 'Home'],
   // Events are kept in memory for as long as the preview is open.
   ...PREVIEW_CALENDAR,
