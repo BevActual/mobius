@@ -20,6 +20,7 @@ pub mod schedules;
 pub mod calendar_accounts;
 pub mod mail;
 pub mod chatgpt;
+pub mod key_sign_in;
 pub mod mcp_server;
 pub mod awake;
 pub mod bridge;

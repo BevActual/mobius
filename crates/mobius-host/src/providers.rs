@@ -97,6 +97,9 @@ pub fn is_key_text(key: &str) -> bool {
     (8..=500).contains(&key.len()) && key.chars().all(|c| c.is_ascii_graphic())
 }
 
+/// The gateway you can sign in to on its own site, which then hands Mobius a key (see `key_sign_in`).
+pub const KEY_SIGN_IN: &str = "openrouter";
+
 fn secret_name(id: &str) -> String {
     format!("provider-{id}")
 }
@@ -183,7 +186,7 @@ impl Providers {
                 .iter()
                 .map(|p| json!({
                     "id": p.id, "name": p.name, "baseUrl": p.base_url, "note": p.note, "keyUrl": p.key_url,
-                    "needsKey": p.needs_key, "voiceOnly": p.voice_only, "hasKey": self.key(p.id).is_some(), "active": active == Some(p.id),
+                    "needsKey": p.needs_key, "voiceOnly": p.voice_only, "canSignIn": p.id == KEY_SIGN_IN, "hasKey": self.key(p.id).is_some(), "active": active == Some(p.id),
                     "storage": if lock(&self.session).contains_key(p.id) { "session" } else if self.secrets.get(&secret_name(p.id)).is_some() { "keychain" } else { "none" },
                 }))
                 .collect(),

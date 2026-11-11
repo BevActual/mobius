@@ -81,6 +81,28 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const usable = !p.voiceOnly && (!p.needsKey || p.hasKey);
+  const canSignIn = p.canSignIn === true && !!api.keySignIn;
+  // The page to finish signing in on, while Mobius waits for the key it hands back.
+  const [signingIn, setSigningIn] = useState<string | null>(null);
+  useEffect(() => {
+    if (!signingIn || !api.keySignInStatus) return;
+    const timer = setInterval(() => void api.keySignInStatus!(p.id).then((s) => {
+      if (s.pending) return;
+      setSigningIn(null);
+      setProblem(s.error);
+      if (!s.error) onChanged();
+    }), 1500);
+    return () => clearInterval(timer);
+  }, [api, p.id, signingIn, onChanged]);
+  const signIn = async () => {
+    setProblem(null);
+    const r = await api.keySignIn!(p.id);
+    if (!r.ok) { setProblem(r.error); return; }
+    setOpen('none');
+    setSigningIn(r.url);
+    void window.mobius.browser.open(r.url);
+  };
+  const cancelSignIn = () => { setSigningIn(null); void api.cancelKeySignIn?.(p.id); };
 
   const saveKey = async () => {
     setBusy(true);
@@ -112,7 +134,9 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
       </div>
       <span className="prow-status" data-has-key={p.hasKey || !p.needsKey}>{status}</span>
       <span className="prow-actions">
-        {p.needsKey && !p.hasKey && open !== 'key' && <button type="button" className="btn" aria-label={`Add a key for ${p.name}`} onClick={() => { setOpen('key'); setProblem(null); }}>Add key</button>}
+        {canSignIn && !p.hasKey && !signingIn && <button type="button" className="btn primary" aria-label={`Sign in to ${p.name}`} onClick={() => void signIn()}>Sign in…</button>}
+        {signingIn && <button type="button" className="btn" onClick={cancelSignIn}>Cancel</button>}
+        {p.needsKey && !p.hasKey && open !== 'key' && !signingIn && <button type="button" className="btn" aria-label={`Add a key for ${p.name}`} onClick={() => { setOpen('key'); setProblem(null); }}>Add key</button>}
         {usable && open !== 'use' && <button type="button" className="btn" aria-label={`Use ${p.name}`} onClick={() => void startUse()}>Use…</button>}
         {p.hasKey && !confirming && <button type="button" className="btn link danger" aria-label={`Remove the key for ${p.name}`} onClick={() => setConfirming(true)}>Remove key…</button>}
         {confirming && (
@@ -123,6 +147,12 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
           </span>
         )}
       </span>
+      {signingIn && (
+        <div className="prow-form" role="status" aria-label={`Signing in to ${p.name}`}>
+          <span className="prow-note">Finish signing in on {p.name}'s page. Mobius picks up the key by itself.</span>
+          <button type="button" className="btn link" onClick={() => void window.mobius.browser.open(signingIn)}>Open the page again</button>
+        </div>
+      )}
       {open === 'key' && (
         <form className="prow-form" onSubmit={(e) => { e.preventDefault(); void saveKey(); }}>
           <input className="input" type="password" autoFocus autoComplete="off" spellCheck={false} aria-label={`${p.name} API key`} placeholder="Paste the key" value={key} onChange={(e) => setKey(e.target.value)} />

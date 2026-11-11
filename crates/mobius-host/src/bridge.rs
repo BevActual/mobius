@@ -211,7 +211,9 @@ pub struct Bridge {
     memory: crate::memory::Memory,
     /// Requests to make at times of day.
     schedules: crate::schedules::Schedules,
-    providers: crate::providers::Providers,
+    providers: Arc<crate::providers::Providers>,
+    /// Signing in to a gateway that hands out a key (OpenRouter); tests point it at a pretend site.
+    key_sign_in: Mutex<Arc<crate::key_sign_in::KeySignIn>>,
     /// The Claude Code CLI to use; tests set a fake one.
     claude_command: Mutex<Option<PathBuf>>,
     /// Other apps using Mobius's tools over MCP.
@@ -328,7 +330,8 @@ impl Bridge {
             turn_marks: Arc::new(Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default())),
             marking: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             mcp: Arc::default(),
-            providers: crate::providers::Providers::new(secrets.clone()),
+            providers: Arc::new(crate::providers::Providers::new(secrets.clone())),
+            key_sign_in: Mutex::new(Arc::new(crate::key_sign_in::KeySignIn::new(crate::key_sign_in::OPENROUTER))),
             claude_command: Mutex::new(None),
             signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
@@ -1456,6 +1459,13 @@ impl Bridge {
         }
     }
 
+    /// Sign in to OpenRouter at this pretend site. Does nothing unless the test hooks are on.
+    pub fn use_openrouter_for_tests(&self, site: &str) {
+        if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
+            *lock(&self.key_sign_in) = Arc::new(crate::key_sign_in::KeySignIn::new(site));
+        }
+    }
+
     /// Sign in to ChatGPT at this pretend OpenAI. Does nothing unless the test hooks are on.
     pub fn use_chatgpt_for_tests(&self, issuer: &str) {
         if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
@@ -1785,6 +1795,30 @@ impl Bridge {
             "catalog" => self.model_catalog(),
             "accounts" => Value::Array(crate::providers::SUBSCRIPTIONS.iter().map(|s| json!({ "id": s.id, "name": s.name, "note": s.note, "active": self.agent.base_url().eq_ignore_ascii_case(s.address), "kind": s.kind, "models": crate::providers::subscription_models(s).iter().map(|(id, label)| json!({ "id": id, "label": label })).collect::<Vec<_>>() })).collect()),
             "list" => p.list(&self.agent.base_url()),
+            // Sign in on the service's own page instead of pasting a key: the key it gives is kept like a pasted one.
+            "keySignIn" => {
+                if text(0) != Some(crate::providers::KEY_SIGN_IN) {
+                    return failed("That gateway has no sign-in. Add its key instead.");
+                }
+                let (providers, emit) = (self.providers.clone(), self.emit.clone());
+                let done: crate::key_sign_in::Done = Arc::new(move |result| {
+                    if let Ok(key) = result
+                        && let Err(e) = providers.set_key(crate::providers::KEY_SIGN_IN, &key)
+                    {
+                        eprintln!("[providers] the signed-in key could not be kept: {e}");
+                    }
+                    emit("mobius:providers-changed", Value::Null);
+                });
+                match lock(&self.key_sign_in).clone().start(done) {
+                    Ok(url) => json!({ "ok": true, "url": url }),
+                    Err(e) => failed(e),
+                }
+            }
+            "keySignInStatus" => lock(&self.key_sign_in).status(),
+            "cancelKeySignIn" => {
+                lock(&self.key_sign_in).cancel();
+                json!({ "ok": true })
+            }
             "setKey" => match (text(0), text(1)) {
                 (Some(id), Some(key)) => match p.set_key(id, key) {
                     Ok(storage) => {

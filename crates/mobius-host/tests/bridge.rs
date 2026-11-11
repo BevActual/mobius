@@ -1313,3 +1313,55 @@ fn the_second_model_comes_from_a_gateway_with_its_own_key_and_the_first_stays() 
     assert_eq!(call(&b, "providers", "useFallback", json!(["none"]))["ok"], true);
     assert_eq!(call(&b, "agent", "getSettings", json!([]))["fallbackModel"], "");
 }
+
+/// Signing in to OpenRouter on its own page: the key it hands back is kept like a pasted one, and never listed.
+#[test]
+fn an_openrouter_sign_in_keeps_the_key_it_is_given() {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let site_url = format!("http://{}", site.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for stream in site.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut length = 0usize;
+            loop {
+                let mut header = String::new();
+                reader.read_line(&mut header).unwrap();
+                if header.trim().is_empty() {
+                    break;
+                }
+                if let Some(v) = header.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            let reply = r#"{"key":"sk-or-v1-signed-in-1234"}"#;
+            let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
+        }
+    });
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.use_openrouter_for_tests(&site_url);
+    let listed = call(&b, "providers", "list", json!([]));
+    let openrouter = |listed: &serde_json::Value| listed.as_array().unwrap().iter().find(|p| p["id"] == "openrouter").unwrap().clone();
+    assert_eq!(openrouter(&listed)["canSignIn"], true);
+    assert_eq!(openrouter(&listed)["hasKey"], false);
+    assert_eq!(call(&b, "providers", "keySignIn", json!(["groq"]))["ok"], false, "only OpenRouter has a sign-in");
+    let started = call(&b, "providers", "keySignIn", json!(["openrouter"]));
+    let url = url::Url::parse(started["url"].as_str().unwrap()).unwrap();
+    let param = |name: &str| url.query_pairs().find(|(k, _)| k == name).unwrap().1.into_owned();
+    assert!(call(&b, "providers", "keySignInStatus", json!(["openrouter"]))["pending"].is_string());
+    let callback = format!("{}?code=abc&state={}", param("callback_url").replace("localhost", "127.0.0.1"), param("state"));
+    let agent: ureq::Agent = ureq::Agent::config_builder().http_status_as_error(false).build().into();
+    assert_eq!(agent.get(&callback).call().unwrap().status().as_u16(), 200);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while openrouter(&call(&b, "providers", "list", json!([])))["hasKey"] != true {
+        assert!(std::time::Instant::now() < deadline, "the key was not kept");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(events.lock().unwrap().iter().any(|(n, _)| n == "mobius:providers-changed"));
+    assert!(!call(&b, "providers", "list", json!([])).to_string().contains("sk-or-v1"));
+    assert!(!every_file_text(dir.path()).contains("sk-or-v1-signed-in-1234"));
+}

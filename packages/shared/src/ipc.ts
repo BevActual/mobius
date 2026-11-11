@@ -249,6 +249,8 @@ export interface ProviderInfo {
   /** The agent is using this provider now. */
   active: boolean;
   storage: 'keychain' | 'session' | 'none';
+  /** You can sign in on the service's own page instead of pasting a key (OpenRouter). */
+  canSignIn?: boolean;
 }
 
 export interface MobiusBridge {
@@ -452,6 +454,11 @@ export interface MobiusBridge {
     list(): Promise<ProviderInfo[]>;
     setKey(id: string, key: string): Promise<{ ok: true; storage: 'keychain' | 'session' } | { ok: false; error: string }>;
     removeKey(id: string): Promise<void>;
+    /** Sign in on the service's own page instead of pasting a key: gives the page to open; the key arrives by itself. */
+    keySignIn?(id: string): Promise<{ ok: true; url: string } | { ok: false; error: string }>;
+    /** The page still waiting to be finished, and why the last try failed. */
+    keySignInStatus?(id: string): Promise<{ pending: string | null; error: string | null }>;
+    cancelKeySignIn?(id: string): Promise<void>;
     models(id: string): Promise<{ ok: true; models: string[] } | { ok: false; error: string }>;
     use(id: string, model: string): Promise<AgentResult>;
     /** The second model, from a gateway (its address and key stay in the core); 'none' takes it away. */
