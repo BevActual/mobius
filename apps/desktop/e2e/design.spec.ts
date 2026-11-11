@@ -97,3 +97,34 @@ test('a dark version from Mobius shows dashed, and is kept or discarded', async 
   await expect.poll(() => saved().frames[1]!.name).toBe('Home — Dark');
   await expect(canvas().getByLabel('Frame Home — Dark')).toBeVisible();
 });
+
+test('layers are drawn with a tool, picked together, lined up, duplicated and typed on the canvas', async () => {
+  await start();
+  const tree = shell().getByRole('tree', { name: 'Frames and layers' });
+  // R, then a drag on the frame, draws a rectangle there.
+  await canvas().focus();
+  await shell().keyboard.press('r');
+  const frame = (await canvas().getByLabel('Frame Home').boundingBox())!;
+  await shell().mouse.move(frame.x + frame.width * 0.2, frame.y + frame.height * 0.6);
+  await shell().mouse.down();
+  await shell().mouse.move(frame.x + frame.width * 0.5, frame.y + frame.height * 0.7, { steps: 5 });
+  await shell().mouse.up();
+  await expect.poll(() => saved().frames[0]!.children.map((c) => c.type)).toEqual(['text', 'rect', 'rect']);
+  // Shift-click two layers in the list, then line their left edges up.
+  await tree.getByRole('button', { name: 'Card' }).click();
+  await tree.getByRole('button', { name: 'Rectangle' }).click({ modifiers: ['Shift'] });
+  await expect(inspector()).toContainText('2 layers');
+  await inspector().getByRole('button', { name: 'Align left' }).click();
+  await expect.poll(() => saved().frames[0]!.children.slice(1).map((c) => c.x)).toEqual([24, 24]);
+  // Ctrl+D copies them a little down and right.
+  await canvas().focus();
+  await shell().keyboard.press('Control+d');
+  await expect.poll(() => saved().frames[0]!.children).toHaveLength(5);
+  // Double-click a text layer to type on the canvas; Escape keeps it.
+  await canvas().getByLabel('Text Title').dblclick();
+  await shell().getByRole('textbox', { name: 'Text of Title' }).fill('Porto offsite');
+  await shell().keyboard.press('Escape');
+  await expect.poll(() => saved().frames[0]!.children[0]!.text).toBe('Porto offsite');
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().frames[0]!.children[0]!.text).toBe('Lisbon offsite');
+});

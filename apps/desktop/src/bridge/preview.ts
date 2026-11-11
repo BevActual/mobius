@@ -6,6 +6,7 @@ import { PREVIEW_DOCS } from './preview-docs';
 import { PREVIEW_SONGS } from './preview-songs';
 import { PREVIEW_BROWSER } from './preview-browser';
 import { PREVIEW_CODE } from './preview-code';
+import { PREVIEW_DESIGNS } from './preview-designs';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
@@ -68,6 +69,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'agent.question': () => null,
   ...PREVIEW_BROWSER,
   ...PREVIEW_CODE,
+  ...PREVIEW_DESIGNS,
   'bots.get': () => ({ bots: [] }),
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,

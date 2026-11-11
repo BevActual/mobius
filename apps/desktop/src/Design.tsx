@@ -6,6 +6,8 @@ import type { NotesState } from './useNotes';
 import { onCommand } from './commands';
 import { useUndo } from './useUndo';
 import { ReviewActions, WhyThis } from './ReviewBar';
+import { alignBoxes, around, boxFrom, boxesTouching, distributeBoxes, HANDLES, resizeBox, snapBox, type AlignHow, type Guide, type Handle } from './design-view';
+import './design.css';
 
 export const DESIGN_WORDS: SidebarWords = { app: 'Design', group: 'folder', groups: 'Folders', item: 'design', items: 'designs', about: 'Designs are kept as JSON files in your workspace, frames and their layers, so the agent can read and change them too.', defaultGroup: 'Designs' };
 
@@ -13,8 +15,6 @@ export function DesignSidebar(props: { designs: NotesState; pin: ReactNode; chan
   const { designs, ...rest } = props;
   return <NotesSidebar notes={designs} words={DESIGN_WORDS} {...rest} />;
 }
-
-type Drag = { id: string; mode: 'move' | 'resize'; startX: number; startY: number; dx: number; dy: number } | { id: null; mode: 'pan'; startX: number; startY: number; panX: number; panY: number };
 
 function findNode(doc: DesignDoc, id: string | null): { frame: DesignFrame; node: DesignNode | null } | null {
   for (const frame of doc.frames) {
@@ -92,18 +92,52 @@ function ColorField({ label, value, doc, onChange }: { label: string; value: str
   );
 }
 
-/** One design: frames on a canvas to move, size and colour, its layers, an inspector, and Mobius's changes dashed. */
+type Tool = 'move' | 'frame' | 'rect' | 'ellipse' | 'text';
+const TOOL_KEYS: Record<string, Tool> = { v: 'move', f: 'frame', a: 'frame', r: 'rect', o: 'ellipse', t: 'text' };
+const TOOL_NAME: Record<Exclude<Tool, 'move'>, string> = { frame: 'a frame', rect: 'a rectangle', ellipse: 'an ellipse', text: 'a text box' };
+
+type Drag =
+  | { kind: 'pan'; startX: number; startY: number; panX: number; panY: number }
+  | { kind: 'move'; ids: string[]; startX: number; startY: number; dx: number; dy: number; guides: Guide[]; frame: string | null; moved: boolean }
+  | { kind: 'resize'; id: string; handle: Handle; startX: number; startY: number; dx: number; dy: number; keep: boolean }
+  | { kind: 'draw'; tool: Exclude<Tool, 'move'>; frame: string | null; x0: number; y0: number; x1: number; y1: number }
+  | { kind: 'pick'; frame: string | null; x0: number; y0: number; x1: number; y1: number; add: string[]; moved: boolean };
+
+const ICON = {
+  move: 'M5 3l10 6.5-4.5 1L13 16l-2 1-2.5-5.5L5 15z',
+  frame: 'M6 3v14M14 3v14M3 6h14M3 14h14',
+  rect: 'M4 5h12v10H4z',
+  ellipse: 'M10 4.5c3.6 0 6.5 2.5 6.5 5.5s-2.9 5.5-6.5 5.5S3.5 13 3.5 10 6.4 4.5 10 4.5z',
+  text: 'M5 5h10M10 5v11M8 16h4',
+  alignLeft: 'M4 3v14M7 6h9M7 11h5', alignCenter: 'M10 3v14M5 6h10M7 12h6', alignRight: 'M16 3v14M4 6h9M8 11h5',
+  alignTop: 'M3 4h14M6 7v9M11 7v5', alignMiddle: 'M3 10h14M6 5v10M12 7v6', alignBottom: 'M3 16h14M6 4v9M11 8v5',
+  spreadX: 'M3 4v12M17 4v12M8 7h4v6H8z', spreadY: 'M4 3h12M4 17h12M7 8h6v4H7z',
+} as const;
+const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 20 20" aria-hidden="true"><path d={d} /></svg>;
+const KIND: Record<NodeType, string> = { text: 'Text', ellipse: 'Ellipse', rect: 'Rectangle' };
+
+/**
+ * One design, as Sketch and Figma work: frames on a canvas, layers drawn with a tool (V, F, R, O, T) or added from the
+ * toolbar, picked with a click, Shift-click or a box, moved with smart guides, sized from any edge, lined up from the
+ * inspector, copied and duplicated, text typed on the canvas, and Mobius's changes dashed to keep or discard.
+ */
 export function DesignEditor({ designs, review }: { designs: NotesState; review?: { conversation: string } | null }) {
   const parsed = useMemo(() => (designs.page ? parseDesign(designs.text) : null), [designs.page, designs.text]);
   const doc = parsed && 'doc' in parsed ? parsed.doc : null;
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [tool, setTool] = useState<Tool>('move');
   const [zoom, setZoom] = useState(0.5);
   const [pan, setPan] = useState({ x: 40, y: 40 });
   const [drag, setDrag] = useState<Drag | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [space, setSpace] = useState(false);
+  const copied = useRef<{ frame: string; nodes: DesignNode[] } | null>(null);
   const view = useRef<HTMLDivElement>(null);
   const file = designs.page ? `designs/${designs.page.path}` : null;
   const { before, keep, discard } = useDesignReview(review, file, designs.page?.base);
   const changed = useMemo(() => (doc && before !== undefined ? changedIds(before, doc) : new Set<string>()), [doc, before]);
+  const one = selected.length === 1 ? selected[0]! : null;
 
   const history = useUndo(designs.page?.path ?? null, designs.text, designs.edit);
   const change = useCallback((fn: (d: DesignDoc) => void) => {
@@ -114,7 +148,6 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     history.record(designs.text, text);
     designs.edit(text);
   }, [doc, designs, history]);
-  // Undo and redo from the Edit menu.
   const historyNow = useRef(history);
   historyNow.current = history;
   useEffect(() => {
@@ -125,96 +158,216 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
 
   const fit = useCallback(() => {
     if (!doc || !view.current || doc.frames.length === 0) return;
-    const left = Math.min(...doc.frames.map((f) => f.x)), top = Math.min(...doc.frames.map((f) => f.y));
-    const right = Math.max(...doc.frames.map((f) => f.x + f.w)), bottom = Math.max(...doc.frames.map((f) => f.y + f.h));
+    const all = around(doc.frames)!;
     const { width, height } = view.current.getBoundingClientRect();
-    const z = Math.max(0.05, Math.min(2, (width - 80) / (right - left || 1), (height - 100) / (bottom - top || 1)));
+    const z = Math.max(0.05, Math.min(2, (width - 80) / (all.w || 1), (height - 100) / (all.h || 1)));
     setZoom(Math.round(z * 100) / 100);
-    setPan({ x: (width - (right - left) * z) / 2 - left * z, y: 50 - top * z });
+    setPan({ x: (width - all.w * z) / 2 - all.x * z, y: 50 - all.y * z });
   }, [doc]);
-  // A design opens fitted to the window.
+  const zoomTo = useCallback((z: number) => {
+    const el = view.current;
+    const next = Math.max(0.05, Math.min(8, Math.round(z * 100) / 100));
+    if (!el) { setZoom(next); return; }
+    const { width, height } = el.getBoundingClientRect();
+    setPan((p) => ({ x: width / 2 - ((width / 2 - p.x) * next) / zoom, y: height / 2 - ((height / 2 - p.y) * next) / zoom }));
+    setZoom(next);
+  }, [zoom]);
   const fitted = useRef<string | null>(null);
+  // A new frame from the toolbar can land off screen: the view fits again once it is there.
+  const fitNext = useRef(false);
   useLayoutEffect(() => {
-    if (doc && designs.page && fitted.current !== designs.page.path) { fitted.current = designs.page.path; setSelected(null); fit(); }
+    if (doc && designs.page && fitted.current !== designs.page.path) { fitted.current = designs.page.path; setSelected([]); setTool('move'); fit(); }
+    else if (doc && fitNext.current) { fitNext.current = false; fit(); }
   }, [doc, designs.page, fit]);
 
-  // Moving and sizing follow the pointer and are written once, when it is let go.
+  /** A point on the screen as a place on the canvas. */
+  const toWorld = (clientX: number, clientY: number) => {
+    const r = view.current?.getBoundingClientRect();
+    return { x: (clientX - (r?.left ?? 0) - pan.x) / zoom, y: (clientY - (r?.top ?? 0) - pan.y) / zoom };
+  };
+  const frameAt = (d: DesignDoc, x: number, y: number) => [...d.frames].reverse().find((f) => x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h) ?? null;
+
+  // Pointer moves are followed live and written once, when the pointer is let go.
   useEffect(() => {
-    if (!drag) return;
+    if (!drag || !doc) return;
     const move = (e: PointerEvent) => {
-      if (drag.mode === 'pan') setPan({ x: drag.panX + e.clientX - drag.startX, y: drag.panY + e.clientY - drag.startY });
-      else setDrag({ ...drag, dx: Math.round((e.clientX - drag.startX) / zoom), dy: Math.round((e.clientY - drag.startY) / zoom) });
+      if (drag.kind === 'pan') { setPan({ x: drag.panX + e.clientX - drag.startX, y: drag.panY + e.clientY - drag.startY }); return; }
+      if (drag.kind === 'move') {
+        let dx = Math.round((e.clientX - drag.startX) / zoom), dy = Math.round((e.clientY - drag.startY) / zoom);
+        let guides: Guide[] = [];
+        const moving = drag.ids.map((id) => findNode(doc, id)).filter((a): a is { frame: DesignFrame; node: DesignNode | null } => a !== null);
+        const box = around(moving.map((a) => a.node ?? a.frame));
+        if (box && !e.altKey) {
+          const others = drag.frame
+            ? [{ x: 0, y: 0, w: moving[0]!.frame.w, h: moving[0]!.frame.h }, ...moving[0]!.frame.children.filter((c) => !drag.ids.includes(c.id))]
+            : doc.frames.filter((f) => !drag.ids.includes(f.id));
+          const snap = snapBox({ ...box, x: box.x + dx, y: box.y + dy }, others, 6 / zoom);
+          dx += Math.round(snap.dx); dy += Math.round(snap.dy); guides = snap.guides;
+        }
+        setDrag({ ...drag, dx, dy, guides, moved: drag.moved || Math.abs(e.clientX - drag.startX) + Math.abs(e.clientY - drag.startY) > 2 });
+        return;
+      }
+      if (drag.kind === 'resize') { setDrag({ ...drag, dx: Math.round((e.clientX - drag.startX) / zoom), dy: Math.round((e.clientY - drag.startY) / zoom), keep: e.shiftKey }); return; }
+      const p = toWorld(e.clientX, e.clientY);
+      if (drag.kind === 'draw') setDrag({ ...drag, x1: p.x, y1: p.y });
+      else setDrag({ ...drag, x1: p.x, y1: p.y, moved: true });
     };
     const up = () => {
-      if (drag.mode !== 'pan' && (drag.dx || drag.dy)) {
-        change((d) => {
-          const at = findNode(d, drag.id);
-          const target = at?.node ?? at?.frame;
-          if (!target) return;
-          if (drag.mode === 'move') { target.x += drag.dx; target.y += drag.dy; } else { target.w = Math.max(1, target.w + drag.dx); target.h = Math.max(1, target.h + drag.dy); }
-        });
-      }
       setDrag(null);
+      if (drag.kind === 'move' && drag.moved && (drag.dx || drag.dy)) {
+        change((d) => { for (const id of drag.ids) { const a = findNode(d, id); const t = a?.node ?? a?.frame; if (t) { t.x += drag.dx; t.y += drag.dy; } } });
+      } else if (drag.kind === 'resize' && (drag.dx || drag.dy)) {
+        change((d) => { const a = findNode(d, drag.id); const t = a?.node ?? a?.frame; if (t) Object.assign(t, resizeBox(t, drag.handle, drag.dx, drag.dy, drag.keep)); });
+      } else if (drag.kind === 'draw') {
+        draw(drag);
+      } else if (drag.kind === 'pick') {
+        const box = boxFrom(drag.x0, drag.y0, drag.x1, drag.y1);
+        if (!drag.moved) { setSelected(drag.frame ? [drag.frame] : drag.add); return; }
+        const f = drag.frame ? doc.frames.find((x) => x.id === drag.frame) : null;
+        const hits = f ? boxesTouching(f.children, { ...box, x: box.x - f.x, y: box.y - f.y }).map((n) => n.id) : boxesTouching(doc.frames, box).map((x) => x.id);
+        setSelected([...new Set([...drag.add, ...hits])]);
+      }
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-  }, [drag, zoom, change]);
+  }, [drag, zoom, change, doc]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const startDrag = (e: ReactPointerEvent, id: string, mode: 'move' | 'resize') => {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    setSelected(id);
-    setDrag({ id, mode, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0 });
-  };
-  const live = (id: string, x: number, y: number, w: number, h: number) => {
-    if (!drag || drag.mode === 'pan' || drag.id !== id) return { x, y, w, h };
-    return drag.mode === 'move' ? { x: x + drag.dx, y: y + drag.dy, w, h } : { x, y, w: Math.max(1, w + drag.dx), h: Math.max(1, h + drag.dy) };
+  /** A layer (or frame) drawn with a tool; a click without a drag makes one of the usual size there. */
+  const draw = (d: Extract<Drag, { kind: 'draw' }>) => {
+    let box = boxFrom(d.x0, d.y0, d.x1, d.y1);
+    const tiny = box.w < 4 && box.h < 4;
+    change((doc2) => {
+      if (d.tool === 'frame') {
+        const id = freshId(doc2, 'f');
+        if (tiny) box = { x: d.x0, y: d.y0, w: 393, h: 852 };
+        doc2.frames.push({ id, name: `Frame ${doc2.frames.length + 1}`, x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h), fill: '#ffffff', radius: 0, children: [] });
+        setSelected([id]);
+        return;
+      }
+      const f = doc2.frames.find((x) => x.id === d.frame);
+      if (!f) return;
+      const id = freshId(doc2, 'n');
+      const w = tiny ? (d.tool === 'text' ? 200 : 100) : box.w, h = tiny ? (d.tool === 'text' ? 32 : 100) : box.h;
+      const node: DesignNode = { id, type: d.tool, name: KIND[d.tool], x: Math.round(box.x - f.x), y: Math.round(box.y - f.y), w: Math.round(w), h: Math.round(h), fill: d.tool === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: d.tool === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left' };
+      f.children.push(node);
+      setSelected([id]);
+      if (d.tool === 'text') setEditing(id);
+    });
+    setTool('move');
   };
 
+  /** From the toolbar: put one in the middle of the frame picked (or the first), as before. */
   const add = (type: NodeType | 'frame') => change((d) => {
     if (type === 'frame') {
       const id = freshId(d, 'f');
       d.frames.push({ id, name: `Frame ${d.frames.length + 1}`, ...nextFramePlace(d), w: 393, h: 852, fill: '#ffffff', radius: 0, children: [] });
-      setSelected(id);
+      setSelected([id]);
+      fitNext.current = true;
       return;
     }
-    const at = findNode(d, selected) ?? (d.frames[0] ? { frame: d.frames[0], node: null } : null);
+    const at = findNode(d, one) ?? (d.frames[0] ? { frame: d.frames[0], node: null } : null);
     if (!at) return;
     const id = freshId(d, 'n');
     const w = type === 'text' ? 200 : 120, h = type === 'text' ? 32 : 120;
-    at.frame.children.push({ id, type, name: type === 'text' ? 'Text' : type === 'ellipse' ? 'Ellipse' : 'Rectangle', x: Math.round((at.frame.w - w) / 2), y: Math.round((at.frame.h - h) / 2), w, h, fill: type === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: type === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left' });
-    setSelected(id);
+    at.frame.children.push({ id, type, name: KIND[type], x: Math.round((at.frame.w - w) / 2), y: Math.round((at.frame.h - h) / 2), w, h, fill: type === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: type === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left' });
+    setSelected([id]);
   });
   const remove = useCallback(() => change((d) => {
-    d.frames = d.frames.filter((f) => f.id !== selected);
-    for (const f of d.frames) f.children = f.children.filter((c) => c.id !== selected);
-    setSelected(null);
+    d.frames = d.frames.filter((f) => !selected.includes(f.id));
+    for (const f of d.frames) f.children = f.children.filter((c) => !selected.includes(c.id));
+    setSelected([]);
   }), [change, selected]);
-  const nudge = useCallback((dx: number, dy: number) => change((d) => { const at = findNode(d, selected); const t = at?.node ?? at?.frame; if (t) { t.x += dx; t.y += dy; } }), [change, selected]);
+  const nudge = useCallback((dx: number, dy: number) => change((d) => { for (const id of selected) { const at = findNode(d, id); const t = at?.node ?? at?.frame; if (t) { t.x += dx; t.y += dy; } } }), [change, selected]);
+  /** Layers copied into the frame they came from (or the one picked), each a little down and right. */
+  const pasteNodes = useCallback((from: { frame: string; nodes: DesignNode[] }, offset: number) => change((d) => {
+    const target = findNode(d, one)?.frame ?? d.frames.find((f) => f.id === from.frame) ?? d.frames[0];
+    if (!target) return;
+    const ids: string[] = [];
+    for (const n of from.nodes) {
+      const id = freshId(d, 'n');
+      target.children.push({ ...structuredClone(n), id, name: n.name, x: n.x + offset, y: n.y + offset });
+      ids.push(id);
+    }
+    setSelected(ids);
+  }), [change, one]);
+  const pickedNodes = (d: DesignDoc) => selected.map((id) => findNode(d, id)).filter((a): a is { frame: DesignFrame; node: DesignNode } => a?.node != null);
+  const duplicate = useCallback(() => {
+    if (!doc) return;
+    const nodes = pickedNodes(doc);
+    if (nodes.length > 0) { pasteNodes({ frame: nodes[0]!.frame.id, nodes: nodes.map((a) => a.node) }, 16); return; }
+    change((d) => {
+      const ids: string[] = [];
+      for (const id of selected) {
+        const f = d.frames.find((x) => x.id === id);
+        if (!f) continue;
+        const copy = structuredClone(f);
+        copy.id = freshId(d, 'f');
+        copy.name = `${f.name} copy`;
+        Object.assign(copy, nextFramePlace(d));
+        copy.children = copy.children.map((c) => ({ ...c, id: `${copy.id}-${c.id}` }));
+        d.frames.push(copy);
+        ids.push(copy.id);
+      }
+      setSelected(ids);
+    });
+  }, [doc, selected, change, pasteNodes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const arrange = (by: 1 | -1 | 'front' | 'back') => change((d) => {
+    for (const a of pickedNodes(d)) {
+      const list = a.frame.children;
+      const i = list.indexOf(a.node);
+      list.splice(i, 1);
+      const to = by === 'front' ? list.length : by === 'back' ? 0 : Math.max(0, Math.min(list.length, i + by));
+      list.splice(to, 0, a.node);
+    }
+  });
+  const line = (how: AlignHow) => change((d) => {
+    const nodes = pickedNodes(d);
+    if (nodes.length === 1) { const [a] = nodes; Object.assign(a!.node, alignBoxes([a!.node], how, { x: 0, y: 0, w: a!.frame.w, h: a!.frame.h })[0]); return; }
+    const places = alignBoxes(nodes.map((a) => a.node), how);
+    nodes.forEach((a, i) => Object.assign(a.node, places[i]));
+  });
+  const spread = (axis: 'x' | 'y') => change((d) => {
+    const nodes = pickedNodes(d);
+    const places = distributeBoxes(nodes.map((a) => a.node), axis);
+    nodes.forEach((a, i) => Object.assign(a.node, places[i]));
+  });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-      if (!t?.closest('.design-page')) return;
-      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
-        e.preventDefault();
-        if (e.key.toLowerCase() === 'y' || e.shiftKey) history.redo(); else history.undo();
-        return;
-      }
-      if (!selected) return;
+      if (!t?.closest('.design-page') && t !== document.body) return;
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+      if (mod && (key === 'z' || key === 'y')) { e.preventDefault(); if (key === 'y' || e.shiftKey) history.redo(); else history.undo(); return; }
+      if (mod && key === 'a' && doc) { e.preventDefault(); const f = findNode(doc, selected[0] ?? null)?.frame ?? doc.frames[0]; setSelected(f ? f.children.map((c) => c.id) : []); return; }
+      if (mod && key === 'd') { e.preventDefault(); duplicate(); return; }
+      if (mod && key === 'c' && doc) { const nodes = pickedNodes(doc); if (nodes.length) { e.preventDefault(); copied.current = { frame: nodes[0]!.frame.id, nodes: structuredClone(nodes.map((a) => a.node)) }; } return; }
+      if (mod && key === 'x' && doc) { const nodes = pickedNodes(doc); if (nodes.length) { e.preventDefault(); copied.current = { frame: nodes[0]!.frame.id, nodes: structuredClone(nodes.map((a) => a.node)) }; remove(); } return; }
+      if (mod && key === 'v' && copied.current) { e.preventDefault(); pasteNodes(copied.current, 16); return; }
+      if (mod && (e.key === ']' || e.key === '[')) { e.preventDefault(); arrange(e.key === ']' ? (e.altKey ? 'front' : 1) : (e.altKey ? 'back' : -1)); return; }
+      if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomTo(zoom * 1.25); return; }
+      if (mod && e.key === '-') { e.preventDefault(); zoomTo(zoom * 0.8); return; }
+      if (e.shiftKey && e.code === 'Digit1') { e.preventDefault(); fit(); return; }
+      if (e.shiftKey && e.code === 'Digit0') { e.preventDefault(); zoomTo(1); return; }
+      if (e.key === ' ' && !e.repeat) { setSpace(true); e.preventDefault(); return; }
+      if (!mod && !e.altKey && TOOL_KEYS[key] && !e.shiftKey) { e.preventDefault(); setTool(TOOL_KEYS[key]!); return; }
+      if (e.key === 'Escape') { if (tool !== 'move') setTool('move'); else setSelected([]); return; }
+      if (selected.length === 0) return;
       const step = e.shiftKey ? 10 : 1;
-      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); remove(); }
+      if (e.key === 'Enter' && one && doc && findNode(doc, one)?.node?.type === 'text') { e.preventDefault(); setEditing(one); }
+      else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); remove(); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-step, 0); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); nudge(step, 0); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); nudge(0, -step); }
       else if (e.key === 'ArrowDown') { e.preventDefault(); nudge(0, step); }
-      else if (e.key === 'Escape') setSelected(null);
     };
+    const onUp = (e: KeyboardEvent) => { if (e.key === ' ') setSpace(false); };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [selected, remove, nudge, history]);
+    window.addEventListener('keyup', onUp);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onUp); };
+  }); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!designs.page) return <section className="design-page empty" aria-label="Design"><p className="note-empty">Choose a design on the left, or make a new one.</p></section>;
   if (!doc) {
@@ -224,13 +377,22 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       </section>
     );
   }
-  const at = findNode(doc, selected);
-  const setNode = (fn: (n: DesignNode) => void) => change((d) => { const n = findNode(d, selected)?.node; if (n) fn(n); });
-  const setFrame = (fn: (f: DesignFrame) => void) => change((d) => { const f = findNode(d, selected)?.frame; if (f) fn(f); });
+
+  const at = findNode(doc, one);
+  const picked = pickedNodes(doc);
+  const setNode = (fn: (n: DesignNode) => void) => change((d) => { const n = findNode(d, one)?.node; if (n) fn(n); });
+  const setFrame = (fn: (f: DesignFrame) => void) => change((d) => { const f = findNode(d, one)?.frame; if (f) fn(f); });
   const textContrast = at?.node?.type === 'text' ? contrast(resolveColor(at.node.color, doc.styles), resolveColor(at.frame.fill, doc.styles)) : null;
   const showReview = changed.size > 0;
+  const isPicked = (id: string) => selected.includes(id);
+  /** Where a frame or layer is drawn right now, with any move or resize under way. */
+  const live = (t: { id: string; x: number; y: number; w: number; h: number }) => {
+    if (drag?.kind === 'move' && drag.ids.includes(t.id)) return { x: t.x + drag.dx, y: t.y + drag.dy, w: t.w, h: t.h };
+    if (drag?.kind === 'resize' && drag.id === t.id) return resizeBox(t, drag.handle, drag.dx, drag.dy, drag.keep);
+    return { x: t.x, y: t.y, w: t.w, h: t.h };
+  };
   const nodeStyle = (n: DesignNode): CSSProperties => {
-    const p = live(n.id, n.x, n.y, n.w, n.h);
+    const p = live(n);
     return {
       left: p.x, top: p.y, width: p.w, height: p.h, opacity: n.opacity,
       background: n.fill === 'transparent' ? undefined : resolveColor(n.fill, doc.styles),
@@ -238,33 +400,75 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       ...(n.type === 'text' ? { color: resolveColor(n.color, doc.styles), fontSize: n.size, fontWeight: n.weight, textAlign: n.align, lineHeight: 1.25 } : {}),
     };
   };
+  const pick = (id: string, shift: boolean) => setSelected((was) => (shift ? (was.includes(id) ? was.filter((x) => x !== id) : [...was.filter((x) => findNode(doc, x)?.node != null === (findNode(doc, id)?.node != null)), id]) : [id]));
+  const startMove = (e: ReactPointerEvent, id: string, frame: string | null) => {
+    if (e.button !== 0 || tool !== 'move' || space) return;
+    e.stopPropagation();
+    const ids = selected.includes(id) && !e.shiftKey ? selected : e.shiftKey ? (selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]) : [id];
+    if (!selected.includes(id) || e.shiftKey) pick(id, e.shiftKey);
+    if (e.shiftKey && selected.includes(id)) return;
+    setDrag({ kind: 'move', ids: ids.filter((x) => (findNode(doc, x)?.node != null) === (frame !== null)), startX: e.clientX, startY: e.clientY, dx: 0, dy: 0, guides: [], frame, moved: false });
+  };
+  const onCanvasDown = (e: ReactPointerEvent) => {
+    view.current?.focus();
+    if (e.button === 1 || (e.button === 0 && space)) { e.preventDefault(); setDrag({ kind: 'pan', startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }); return; }
+    if (e.button !== 0) return;
+    const p = toWorld(e.clientX, e.clientY);
+    const f = frameAt(doc, p.x, p.y);
+    if (tool !== 'move') {
+      if (tool !== 'frame' && !f) return;
+      setDrag({ kind: 'draw', tool, frame: f?.id ?? null, x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+      return;
+    }
+    // On a frame's empty part a drag picks its layers with a box; on the canvas it picks frames. A click picks the frame, or nothing.
+    setDrag({ kind: 'pick', frame: f?.id ?? null, x0: p.x, y0: p.y, x1: p.x, y1: p.y, add: e.shiftKey ? selected : [], moved: false });
+  };
+  const handleBox = (t: { id: string; x: number; y: number; w: number; h: number }, inFrame: boolean) => {
+    const q = live(t);
+    return inFrame ? { left: q.x, top: q.y, width: q.w, height: q.h } : { left: 0, top: 0, width: q.w, height: q.h };
+  };
+  const pickBox = drag?.kind === 'pick' && drag.moved ? boxFrom(drag.x0, drag.y0, drag.x1, drag.y1) : drag?.kind === 'draw' ? boxFrom(drag.x0, drag.y0, drag.x1, drag.y1) : null;
+  const editingNode = editing ? findNode(doc, editing) : null;
 
   return (
     <section className="design-page" aria-label="Design">
       <div className="design-bar" role="toolbar" aria-label="Design tools">
-        <button type="button" className="btn" onClick={() => add('frame')}>Frame</button>
-        <button type="button" className="btn" onClick={() => add('rect')} disabled={doc.frames.length === 0}>Rectangle</button>
-        <button type="button" className="btn" onClick={() => add('ellipse')} disabled={doc.frames.length === 0}>Ellipse</button>
-        <button type="button" className="btn" onClick={() => add('text')} disabled={doc.frames.length === 0}>Text</button>
+        <div className="design-tools">
+          <button type="button" className="design-tool" aria-pressed={tool === 'move'} aria-label="Move" title="Move (V)" onClick={() => setTool('move')}><Icon d={ICON.move} /></button>
+          <span className="design-tools-sep" aria-hidden="true" />
+          <button type="button" className="design-tool" aria-pressed={tool === 'frame'} aria-label="Frame" title="Frame (F): click to add one, or press F and drag on the canvas" onClick={() => add('frame')}><Icon d={ICON.frame} /></button>
+          <button type="button" className="design-tool" aria-pressed={tool === 'rect'} aria-label="Rectangle" title="Rectangle (R): click to add one, or press R and drag" disabled={doc.frames.length === 0} onClick={() => add('rect')}><Icon d={ICON.rect} /></button>
+          <button type="button" className="design-tool" aria-pressed={tool === 'ellipse'} aria-label="Ellipse" title="Ellipse (O): click to add one, or press O and drag" disabled={doc.frames.length === 0} onClick={() => add('ellipse')}><Icon d={ICON.ellipse} /></button>
+          <button type="button" className="design-tool" aria-pressed={tool === 'text'} aria-label="Text" title="Text (T): click to add one, or press T and drag" disabled={doc.frames.length === 0} onClick={() => add('text')}><Icon d={ICON.text} /></button>
+        </div>
+        {tool !== 'move' && <span className="design-tool-hint" role="status">Drag on {tool === 'frame' ? 'the canvas' : 'a frame'} to draw {TOOL_NAME[tool]} · Esc to stop</span>}
         <span className="design-bar-gap" />
-        <button type="button" className="strip-btn" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.05, Math.round(z * 80) / 100))}>−</button>
-        <span className="design-zoom" aria-label="Zoom">{Math.round(zoom * 100)}%</span>
-        <button type="button" className="strip-btn" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(4, Math.round(z * 125) / 100))}>+</button>
-        <button type="button" className="btn" onClick={fit}>Fit</button>
+        <div className="design-zoombox">
+          <button type="button" className="strip-btn" aria-label="Zoom out" title="Zoom out (Ctrl+−)" onClick={() => zoomTo(zoom * 0.8)}><Icon d="M5 10h10" /></button>
+          <button type="button" className="design-zoom" aria-label="Zoom" title="Actual size (Shift+0)" onClick={() => zoomTo(1)}>{Math.round(zoom * 100)}%</button>
+          <button type="button" className="strip-btn" aria-label="Zoom in" title="Zoom in (Ctrl+=)" onClick={() => zoomTo(zoom * 1.25)}><Icon d="M5 10h10M10 5v10" /></button>
+        </div>
+        <button type="button" className="btn" title="Fit everything (Shift+1)" onClick={fit}>Fit</button>
       </div>
       <div className="design-body">
         <nav className="design-layers" aria-label="Layers">
           <div className="design-panel-title">Layers</div>
-          <ul role="tree" aria-label="Frames and layers">
+          <ul role="tree" aria-label="Frames and layers" aria-multiselectable>
             {doc.frames.map((f) => (
-              <li key={f.id} role="treeitem" aria-selected={selected === f.id} aria-expanded>
-                <button type="button" className="design-layer" data-frame aria-current={selected === f.id || undefined} data-changed={changed.has(f.id) || undefined} onClick={() => setSelected(f.id)}>#{' '}{f.name}</button>
+              <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded>
+                {renaming === f.id ? <RenameField name={f.name} onDone={(name) => { setRenaming(null); if (name && name !== f.name) change((d) => { const x = d.frames.find((y) => y.id === f.id); if (x) x.name = name; }); }} /> : (
+                  <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)}>
+                    <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON.frame} /></span>{f.name}
+                  </button>
+                )}
                 <ul role="group">
                   {[...f.children].reverse().map((n) => (
-                    <li key={n.id} role="treeitem" aria-selected={selected === n.id}>
-                      <button type="button" className="design-layer" aria-current={selected === n.id || undefined} data-changed={changed.has(n.id) || undefined} onClick={() => setSelected(n.id)}>
-                        <span className="design-layer-kind" aria-hidden="true">{n.type === 'text' ? 'T' : n.type === 'ellipse' ? '○' : '□'}</span>{n.name}
-                      </button>
+                    <li key={n.id} role="treeitem" aria-selected={isPicked(n.id)}>
+                      {renaming === n.id ? <RenameField name={n.name} onDone={(name) => { setRenaming(null); if (name && name !== n.name) change((d) => { const x = findNode(d, n.id)?.node; if (x) x.name = name; }); }} /> : (
+                        <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)}>
+                          <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON[n.type]} /></span>{n.name}
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -278,43 +482,53 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
           role="application"
           aria-label="Canvas"
           tabIndex={0}
-          onPointerDown={(e) => { if (e.button === 0) { setSelected(null); setDrag({ id: null, mode: 'pan', startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }); } }}
+          data-tool={tool}
+          data-panning={space || drag?.kind === 'pan' || undefined}
+          onPointerDown={onCanvasDown}
           onWheel={(e) => {
             if (e.ctrlKey || e.metaKey) {
               const rect = e.currentTarget.getBoundingClientRect();
-              const z = Math.max(0.05, Math.min(4, zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+              const z = Math.max(0.05, Math.min(8, zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
               const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
               setPan({ x: cx - ((cx - pan.x) * z) / zoom, y: cy - ((cy - pan.y) * z) / zoom });
               setZoom(Math.round(z * 100) / 100);
-            } else setPan((p) => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }));
+            } else setPan((p) => ({ x: p.x - (e.shiftKey ? e.deltaY : e.deltaX), y: p.y - (e.shiftKey ? 0 : e.deltaY) }));
           }}
         >
-          <div className="design-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
+          <div className="design-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, ['--z' as string]: zoom }}>
             {doc.frames.map((f) => {
-              const p = live(f.id, f.x, f.y, f.w, f.h);
+              const p = live(f);
+              const inThis = one !== null && at?.frame.id === f.id;
               return (
-                <div key={f.id} className="design-frame" data-selected={selected === f.id || undefined} data-proposed={changed.has(f.id) || undefined} aria-label={`Frame ${f.name}`} style={{ left: p.x, top: p.y, width: p.w, height: p.h, background: resolveColor(f.fill, doc.styles), borderRadius: f.radius }}>
-                  <span className="design-frame-name" style={{ fontSize: 12 / zoom, top: -18 / zoom }} onPointerDown={(e) => startDrag(e, f.id, 'move')}>{f.name}</span>
-                  <div className="design-clip" style={{ borderRadius: f.radius }} onPointerDown={(e) => { if (e.target === e.currentTarget) startDrag(e, f.id, 'move'); }}>
+                <div key={f.id} className="design-frame" data-selected={isPicked(f.id) || undefined} data-proposed={changed.has(f.id) || undefined} aria-label={`Frame ${f.name}`} style={{ left: p.x, top: p.y, width: p.w, height: p.h, background: resolveColor(f.fill, doc.styles), borderRadius: f.radius }}>
+                  <span className="design-frame-name" style={{ fontSize: 12 / zoom, top: -18 / zoom }} onPointerDown={(e) => startMove(e, f.id, null)} onDoubleClick={() => setRenaming(f.id)}>{f.name}</span>
+                  <div className="design-clip" style={{ borderRadius: f.radius }}>
                     {f.children.map((n) => (
-                      <div key={n.id} className="design-node" data-type={n.type} data-selected={selected === n.id || undefined} data-proposed={changed.has(n.id) || undefined} aria-label={`${n.type === 'text' ? 'Text' : n.type === 'ellipse' ? 'Ellipse' : 'Rectangle'} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startDrag(e, n.id, 'move')}>
-                        {n.type === 'text' ? n.text : null}
+                      <div key={n.id} className="design-node" data-type={n.type} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onDoubleClick={() => { if (n.type === 'text') setEditing(n.id); }}>
+                        {n.type === 'text' && editing !== n.id ? n.text : null}
                       </div>
                     ))}
+                    {editingNode?.node && editingNode.frame.id === f.id && (
+                      <TextOnCanvas key={editingNode.node.id} node={editingNode.node} style={nodeStyle(editingNode.node)} onDone={(text) => { const id = editing; setEditing(null); if (text !== null && id) change((d) => { const n = findNode(d, id)?.node; if (n) n.text = text; }); }} />
+                    )}
                   </div>
-                  {selected && at && (at.node ? at.frame.id === f.id : selected === f.id) && (() => {
-                    const t = at.node ?? at.frame;
-                    const q = live(t.id, t.x, t.y, t.w, t.h);
-                    const box = at.node ? { left: q.x, top: q.y, width: q.w, height: q.h } : { left: 0, top: 0, width: q.w, height: q.h };
+                  {drag?.kind === 'move' && drag.frame === f.id && drag.guides.map((g, i) => <span key={i} className="design-guide" data-axis={g.axis} style={g.axis === 'x' ? { left: g.at, top: g.from, height: g.to - g.from } : { top: g.at, left: g.from, width: g.to - g.from }} />)}
+                  {selected.filter((id) => f.children.some((c) => c.id === id)).length > 1 && f.children.filter((c) => isPicked(c.id)).map((c) => <div key={c.id} className="design-handles" data-many style={handleBox(c, true)} />)}
+                  {((inThis && at?.node) || one === f.id) && (() => {
+                    const t = at!.node ?? at!.frame;
+                    const q = live(t);
                     return (
-                      <div className="design-handles" style={{ ...box, borderWidth: 1.5 / zoom }}>
-                        <span className="design-handle" style={{ width: 9 / zoom, height: 9 / zoom, right: -5 / zoom, bottom: -5 / zoom }} onPointerDown={(e) => startDrag(e, t.id, 'resize')} aria-hidden="true" />
+                      <div className="design-handles" style={handleBox(t, at!.node !== null)}>
+                        {HANDLES.map((h) => <span key={h} className="design-handle" data-handle={h} onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); setDrag({ kind: 'resize', id: t.id, handle: h, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0, keep: e.shiftKey }); }} aria-hidden="true" />)}
+                        {drag && (drag.kind === 'move' || drag.kind === 'resize') && <span className="design-size">{drag.kind === 'move' ? `${q.x}, ${q.y}` : `${q.w} × ${q.h}`}</span>}
                       </div>
                     );
                   })()}
                 </div>
               );
             })}
+            {drag?.kind === 'move' && drag.frame === null && drag.guides.map((g, i) => <span key={i} className="design-guide" data-axis={g.axis} style={g.axis === 'x' ? { left: g.at, top: g.from, height: g.to - g.from } : { top: g.at, left: g.from, width: g.to - g.from }} />)}
+            {pickBox && <div className="design-pick" data-draw={drag?.kind === 'draw' ? drag.tool : undefined} style={{ left: pickBox.x, top: pickBox.y, width: pickBox.w, height: pickBox.h }} />}
           </div>
           {showReview && (
             <div className="design-review" role="group" aria-label="Mobius's change" onPointerDown={(e) => e.stopPropagation()}>
@@ -325,7 +539,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
           )}
         </div>
         <aside className="design-inspector" aria-label="Inspector">
-          {!at && (
+          {selected.length === 0 && (
             <>
               <div className="design-panel-title">Colour styles</div>
               {doc.styles.length === 0 && <p className="design-hint">None yet. A style is a named colour layers can use, so changing it changes them all.</p>}
@@ -334,66 +548,149 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   <li key={i}>
                     <input type="color" aria-label={`${s.name} colour`} value={/^#[0-9a-f]{6}/i.test(s.color) ? s.color.slice(0, 7) : '#000000'} onChange={(e) => change((d) => { d.styles[i]!.color = e.target.value; })} />
                     <span>{s.name}</span>
+                    <code>{s.color}</code>
                   </li>
                 ))}
               </ul>
               <button type="button" className="btn" onClick={() => change((d) => { let n = d.styles.length + 1; while (d.styles.some((s) => s.name === `Colour ${n}`)) n++; d.styles.push({ name: `Colour ${n}`, color: '#5856d6' }); })}>Add style</button>
-              <p className="design-hint">Select a frame or a layer to change it. Drag the canvas to move around; Ctrl and the wheel zoom.</p>
+              <div className="design-keys">
+                <div className="design-panel-title">Keys</div>
+                <dl>
+                  <dt>V F R O T</dt><dd>Move, frame, rectangle, ellipse, text</dd>
+                  <dt>Shift-click, drag</dt><dd>Pick more than one</dd>
+                  <dt>Ctrl D · C · V</dt><dd>Duplicate, copy, paste</dd>
+                  <dt>Space-drag</dt><dd>Move around</dd>
+                  <dt>Shift 1 · Shift 0</dt><dd>Fit, actual size</dd>
+                  <dt>Alt while moving</dt><dd>No snapping</dd>
+                </dl>
+              </div>
             </>
           )}
-          {at && !at.node && (
+          {selected.length > 1 && (
+            <>
+              <div className="design-panel-title">{picked.length > 0 ? `${picked.length} layers` : `${selected.length} frames`}</div>
+              {picked.length > 1 && <AlignBar onAlign={line} onSpread={picked.length > 2 ? spread : undefined} />}
+              <button type="button" className="btn danger" onClick={remove}>{picked.length > 0 ? 'Delete layers' : 'Delete frames'}</button>
+            </>
+          )}
+          {one && at && !at.node && (
             <>
               <div className="design-panel-title">Frame</div>
               <label className="design-text"><span>Name</span><input aria-label="Name" value={at.frame.name} maxLength={80} onChange={(e) => setFrame((f) => { f.name = e.target.value; })} /></label>
-              <div className="design-grid">
-                <Field label="X" value={at.frame.x} onChange={(v) => setFrame((f) => { f.x = v; })} />
-                <Field label="Y" value={at.frame.y} onChange={(v) => setFrame((f) => { f.y = v; })} />
-                <Field label="W" value={at.frame.w} min={1} onChange={(v) => setFrame((f) => { f.w = v; })} />
-                <Field label="H" value={at.frame.h} min={1} onChange={(v) => setFrame((f) => { f.h = v; })} />
-                <Field label="Radius" value={at.frame.radius} min={0} onChange={(v) => setFrame((f) => { f.radius = v; })} wide />
-              </div>
-              <ColorField label="Fill" value={at.frame.fill} doc={doc} onChange={(c) => setFrame((f) => { f.fill = c; })} />
+              <Section title="Position">
+                <div className="design-grid">
+                  <Field label="X" value={at.frame.x} onChange={(v) => setFrame((f) => { f.x = v; })} />
+                  <Field label="Y" value={at.frame.y} onChange={(v) => setFrame((f) => { f.y = v; })} />
+                  <Field label="W" value={at.frame.w} min={1} onChange={(v) => setFrame((f) => { f.w = v; })} />
+                  <Field label="H" value={at.frame.h} min={1} onChange={(v) => setFrame((f) => { f.h = v; })} />
+                  <Field label="Radius" value={at.frame.radius} min={0} onChange={(v) => setFrame((f) => { f.radius = v; })} wide />
+                </div>
+                <div className="design-presets" role="group" aria-label="Size">
+                  {[['iPhone', 393, 852], ['iPad', 820, 1180], ['Mac', 1440, 900], ['Square', 1080, 1080]].map(([label, w, h]) => (
+                    <button key={label} type="button" aria-pressed={at.frame.w === w && at.frame.h === h} onClick={() => setFrame((f) => { f.w = w as number; f.h = h as number; })}>{label}</button>
+                  ))}
+                </div>
+              </Section>
+              <Section title="Fill"><ColorField label="Fill" value={at.frame.fill} doc={doc} onChange={(c) => setFrame((f) => { f.fill = c; })} /></Section>
               <button type="button" className="btn danger" onClick={remove}>Delete frame</button>
             </>
           )}
-          {at?.node && (
+          {one && at?.node && (
             <>
-              <div className="design-panel-title">{at.node.type === 'text' ? 'Text' : at.node.type === 'ellipse' ? 'Ellipse' : 'Rectangle'}</div>
+              <div className="design-panel-title">{KIND[at.node.type]}</div>
+              <AlignBar onAlign={line} />
               <label className="design-text"><span>Name</span><input aria-label="Name" value={at.node.name} maxLength={80} onChange={(e) => setNode((n) => { n.name = e.target.value; })} /></label>
-              <div className="design-grid">
-                <Field label="X" value={at.node.x} onChange={(v) => setNode((n) => { n.x = v; })} />
-                <Field label="Y" value={at.node.y} onChange={(v) => setNode((n) => { n.y = v; })} />
-                <Field label="W" value={at.node.w} min={1} onChange={(v) => setNode((n) => { n.w = v; })} />
-                <Field label="H" value={at.node.h} min={1} onChange={(v) => setNode((n) => { n.h = v; })} />
-                {at.node.type === 'rect' && <Field label="Radius" value={at.node.radius} min={0} onChange={(v) => setNode((n) => { n.radius = v; })} />}
-                <Field label="Opacity" value={Math.round(at.node.opacity * 100)} min={0} onChange={(v) => setNode((n) => { n.opacity = Math.min(100, v) / 100; })} />
-              </div>
+              <Section title="Position">
+                <div className="design-grid">
+                  <Field label="X" value={at.node.x} onChange={(v) => setNode((n) => { n.x = v; })} />
+                  <Field label="Y" value={at.node.y} onChange={(v) => setNode((n) => { n.y = v; })} />
+                  <Field label="W" value={at.node.w} min={1} onChange={(v) => setNode((n) => { n.w = v; })} />
+                  <Field label="H" value={at.node.h} min={1} onChange={(v) => setNode((n) => { n.h = v; })} />
+                  {at.node.type === 'rect' && <Field label="Radius" value={at.node.radius} min={0} onChange={(v) => setNode((n) => { n.radius = v; })} />}
+                  <Field label="Opacity" value={Math.round(at.node.opacity * 100)} min={0} onChange={(v) => setNode((n) => { n.opacity = Math.min(100, v) / 100; })} />
+                </div>
+              </Section>
               {at.node.type === 'text' && (
-                <>
+                <Section title="Text">
                   <label className="design-text"><span>Text</span><textarea aria-label="Text" value={at.node.text} rows={3} maxLength={2000} onChange={(e) => setNode((n) => { n.text = e.target.value; })} /></label>
                   <div className="design-grid">
                     <Field label="Size" value={at.node.size} min={4} onChange={(v) => setNode((n) => { n.size = v; })} />
-                    <Field label="Weight" value={at.node.weight} min={100} step={100} onChange={(v) => setNode((n) => { n.weight = Math.min(900, Math.round(v / 100) * 100); })} />
+                    <label className="design-field" data-wide><span>Weight</span>
+                      <select aria-label="Weight" value={at.node.weight} onChange={(e) => setNode((n) => { n.weight = Number(e.target.value); })}>
+                        {[[300, 'Light'], [400, 'Regular'], [500, 'Medium'], [600, 'Semibold'], [700, 'Bold'], [800, 'Heavy']].map(([w, name]) => <option key={w} value={w}>{name}</option>)}
+                        {![300, 400, 500, 600, 700, 800].includes(at.node.weight) && <option value={at.node.weight}>{at.node.weight}</option>}
+                      </select>
+                    </label>
                   </div>
-                  <label className="design-text"><span>Align</span>
-                    <select aria-label="Align" value={at.node.align} onChange={(e) => setNode((n) => { n.align = e.target.value as Align; })}>
-                      <option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option>
-                    </select>
-                  </label>
+                  <div className="design-segment" role="radiogroup" aria-label="Align">
+                    {(['left', 'center', 'right'] as Align[]).map((a) => (
+                      <button key={a} type="button" role="radio" aria-checked={at.node!.align === a} aria-label={a === 'center' ? 'Centre' : a === 'left' ? 'Left' : 'Right'} onClick={() => setNode((n) => { n.align = a; })}>
+                        <Icon d={a === 'left' ? 'M3 5h14M3 9h9M3 13h14M3 17h9' : a === 'center' ? 'M3 5h14M5.5 9h9M3 13h14M5.5 17h9' : 'M3 5h14M8 9h9M3 13h14M8 17h9'} />
+                      </button>
+                    ))}
+                  </div>
                   <ColorField label="Colour" value={at.node.color} doc={doc} onChange={(c) => setNode((n) => { n.color = c; })} />
                   {textContrast !== null && <p className="design-hint" data-bad={textContrast < 4.5 || undefined}>Contrast with the frame {textContrast}:1 · {textContrast >= 4.5 ? 'passes AA' : 'below AA (4.5:1)'}</p>}
-                </>
+                </Section>
               )}
-              <ColorField label="Fill" value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} />
-              <div className="design-row">
-                <button type="button" className="btn" onClick={() => change((d) => { const a = findNode(d, selected); if (!a?.node) return; const i = a.frame.children.indexOf(a.node); if (i < a.frame.children.length - 1) { a.frame.children.splice(i, 1); a.frame.children.splice(i + 1, 0, a.node); } })}>Forward</button>
-                <button type="button" className="btn" onClick={() => change((d) => { const a = findNode(d, selected); if (!a?.node) return; const i = a.frame.children.indexOf(a.node); if (i > 0) { a.frame.children.splice(i, 1); a.frame.children.splice(i - 1, 0, a.node); } })}>Backward</button>
-              </div>
+              <Section title="Fill"><ColorField label="Fill" value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} /></Section>
+              <Section title="Arrange">
+                <div className="design-row">
+                  <button type="button" className="btn" title="Bring forward (Ctrl+])" onClick={() => arrange(1)}>Forward</button>
+                  <button type="button" className="btn" title="Send backward (Ctrl+[)" onClick={() => arrange(-1)}>Backward</button>
+                </div>
+              </Section>
               <button type="button" className="btn danger" onClick={remove}>Delete layer</button>
             </>
           )}
         </aside>
       </div>
     </section>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="design-section" aria-label={title}><div className="design-section-title">{title}</div>{children}</section>;
+}
+
+/** Line layers up: to the frame for one, to each other for several, and equal gaps for three or more. */
+function AlignBar({ onAlign, onSpread }: { onAlign: (how: AlignHow) => void; onSpread?: ((axis: 'x' | 'y') => void) | undefined }) {
+  const items: [AlignHow, string, string][] = [['left', 'Align left', ICON.alignLeft], ['center', 'Align centres', ICON.alignCenter], ['right', 'Align right', ICON.alignRight], ['top', 'Align tops', ICON.alignTop], ['middle', 'Align middles', ICON.alignMiddle], ['bottom', 'Align bottoms', ICON.alignBottom]];
+  return (
+    <div className="design-align" role="group" aria-label="Align">
+      {items.map(([how, label, d]) => <button key={how} type="button" aria-label={label} title={label} onClick={() => onAlign(how)}><Icon d={d} /></button>)}
+      {onSpread && <button type="button" aria-label="Space evenly across" title="Space evenly across" onClick={() => onSpread('x')}><Icon d={ICON.spreadX} /></button>}
+      {onSpread && <button type="button" aria-label="Space evenly down" title="Space evenly down" onClick={() => onSpread('y')}><Icon d={ICON.spreadY} /></button>}
+    </div>
+  );
+}
+
+/** A layer's or frame's new name, typed in the layer list (double-click). */
+function RenameField({ name, onDone }: { name: string; onDone: (name: string | null) => void }) {
+  const [text, setText] = useState(name);
+  return <input className="design-rename" aria-label="Layer name" autoFocus value={text} maxLength={80} onFocus={(e) => e.target.select()} onChange={(e) => setText(e.target.value)} onBlur={() => onDone(text.trim() || null)} onKeyDown={(e) => { if (e.key === 'Enter') onDone(text.trim() || null); if (e.key === 'Escape') onDone(null); }} />;
+}
+
+/** Text typed straight on the canvas (double-click a text layer, or Enter): Escape or a click away keeps it. */
+function TextOnCanvas({ node, style, onDone }: { node: DesignNode; style: CSSProperties; onDone: (text: string | null) => void }) {
+  const [text, setText] = useState(node.text);
+  const done = useRef(false);
+  const finish = (value: string | null) => { if (done.current) return; done.current = true; onDone(value); };
+  return (
+    <textarea
+      className="design-node design-typing"
+      aria-label={`Text of ${node.name}`}
+      autoFocus
+      value={text}
+      style={{ ...style, background: 'transparent', minHeight: style.height }}
+      onFocus={(e) => e.target.select()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => finish(text)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); finish(text); }
+      }}
+    />
   );
 }
