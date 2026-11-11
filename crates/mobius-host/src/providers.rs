@@ -15,13 +15,15 @@ pub struct Provider {
     pub note: &'static str,
     pub key_url: Option<&'static str>,
     pub needs_key: bool,
+    /// For voice only (listening and speaking): it does not speak the chat format, so it is never a chat model.
+    pub voice_only: bool,
 }
 
 const fn hosted(id: &'static str, name: &'static str, base_url: &'static str, note: &'static str, key_url: &'static str) -> Provider {
-    Provider { id, name, base_url, note, key_url: Some(key_url), needs_key: true }
+    Provider { id, name, base_url, note, key_url: Some(key_url), needs_key: true, voice_only: false }
 }
 const fn local(id: &'static str, name: &'static str, base_url: &'static str, note: &'static str) -> Provider {
-    Provider { id, name, base_url, note, key_url: None, needs_key: false }
+    Provider { id, name, base_url, note, key_url: None, needs_key: false, voice_only: false }
 }
 
 /// The addresses are the ones each service documents for the OpenAI chat format.
@@ -40,6 +42,7 @@ pub const CATALOG: &[Provider] = &[
     local("ollama", "Ollama", "http://127.0.0.1:11434/v1", "Models you run with Ollama on this computer. No key needed."),
     local("lmstudio", "LM Studio", "http://127.0.0.1:1234/v1", "The local server in LM Studio on this computer. No key needed."),
     local("llamacpp", "llama.cpp", "http://127.0.0.1:8080/v1", "A llama-server you started on this computer. No key needed."),
+    Provider { id: "elevenlabs", name: "ElevenLabs", base_url: "https://api.elevenlabs.io/v1", note: "Voice only: listening and speaking, in Settings, Voice.", key_url: Some("https://elevenlabs.io/app/settings/api-keys"), needs_key: true, voice_only: true },
 ];
 
 /// Plans you sign in to instead of pasting a key. Each runs through the service's own app on this computer.
@@ -180,7 +183,7 @@ impl Providers {
                 .iter()
                 .map(|p| json!({
                     "id": p.id, "name": p.name, "baseUrl": p.base_url, "note": p.note, "keyUrl": p.key_url,
-                    "needsKey": p.needs_key, "hasKey": self.key(p.id).is_some(), "active": active == Some(p.id),
+                    "needsKey": p.needs_key, "voiceOnly": p.voice_only, "hasKey": self.key(p.id).is_some(), "active": active == Some(p.id),
                     "storage": if lock(&self.session).contains_key(p.id) { "session" } else if self.secrets.get(&secret_name(p.id)).is_some() { "keychain" } else { "none" },
                 }))
                 .collect(),

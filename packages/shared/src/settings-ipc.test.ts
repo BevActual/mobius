@@ -140,7 +140,7 @@ describe('approval mode', () => {
 
 describe('preferences changes', () => {
   it('start with alerts on, sounds on and nothing kept awake', () => {
-    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', appAccess: { browser: 'follow', notes: 'follow', docs: 'follow', sheets: 'follow', slides: 'follow', tasks: 'follow', calendar: 'follow', mail: 'follow', research: 'follow', reader: 'follow', code: 'follow', database: 'follow', design: 'follow', canvas: 'follow', photo: 'follow', studio: 'follow', video: 'follow', skills: 'follow' } });
+    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', appAccess: { browser: 'follow', notes: 'follow', docs: 'follow', sheets: 'follow', slides: 'follow', tasks: 'follow', calendar: 'follow', mail: 'follow', research: 'follow', reader: 'follow', code: 'follow', database: 'follow', design: 'follow', canvas: 'follow', photo: 'follow', studio: 'follow', video: 'follow', skills: 'follow' } });
   });
   it('follow the mode in every app until the person chooses otherwise, and accept only the apps it knows at the three levels (Calendar may be missing from older settings)', () => {
     expect(parsePreferencesPatch({ appAccess: { browser: 'always', notes: 'follow', tasks: 'off' } })).toEqual({ appAccess: { browser: 'always', notes: 'follow', tasks: 'off' } });
@@ -192,5 +192,15 @@ describe('a reply that is the look', () => {
     expect(parseAppearance({ ok: false, error: 'This is the preview: nothing is saved.' })).toBeNull();
     expect(parseAppearance(null)).toBeNull();
     expect(parseAppearance({ theme: 'purple' })).toBeNull();
+  });
+});
+
+describe('voice choices', () => {
+  it('start with listening on the chat server and speaking off', () => {
+    expect(DEFAULT_PREFERENCES).toMatchObject({ listenWith: 'chat', listenFallback: 'off', speakWith: 'off', speakFallback: 'off', speakModel: 'kokoro', speakVoice: '' });
+  });
+  it('accept the providers each job has, and real speech server addresses', () => {
+    expect(parsePreferencesPatch({ listenWith: 'local', listenUrl: 'http://127.0.0.1:9000/v1', speakWith: 'elevenlabs', speakVoice: 'Rachel' })).toEqual({ listenWith: 'local', listenUrl: 'http://127.0.0.1:9000/v1', speakWith: 'elevenlabs', speakVoice: 'Rachel' });
+    for (const bad of [{ speakWith: 'chat' }, { listenWith: 'whisper' }, { listenUrl: 'ftp://x' }, { speakUrl: 'http://a b' }, { speakVoice: 'x'.repeat(101) }]) expect(parsePreferencesPatch(bad), JSON.stringify(bad)).toBeNull();
   });
 });

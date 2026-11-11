@@ -67,7 +67,7 @@ test('the settings page shows Ask first, explains Propose, and the choice surviv
   await start([]);
   await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
+  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Approvals and safety', exact: true }).click();
   await expect(page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Ask first' })).toBeChecked();
   await expect(page().getByTestId('approval-mode-help')).toContainText('asked about every time');
   await page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Propose' }).check();
@@ -165,7 +165,7 @@ test('per app: Tasks following Propose changes a list without asking, Always ask
   await expect(card()).toHaveCount(0);
   expect(fs.readFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), 'utf8')).toContain('Water the plants');
   await openSettings(shell());
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
+  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Approvals and safety', exact: true }).click();
   await page().getByRole('radiogroup', { name: 'Tasks: what Mobius may do' }).getByRole('radio', { name: 'Always ask' }).check();
   await expect(page()).toContainText('Mobius asks you every time before it reads or changes your tasks.');
   await page().getByRole('button', { name: 'Close settings' }).click();

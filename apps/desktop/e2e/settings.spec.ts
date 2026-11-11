@@ -66,10 +66,17 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   await start([]);
   await openSettings();
   const nav = page().getByRole('navigation', { name: 'Settings sections' });
-  await expect(nav.getByRole('button')).toHaveText(['Appearance', 'Model', 'Providers', 'Safety', 'Browser', 'Schedules', 'Notifications', 'Conversations', 'Keyboard', 'Advanced', 'About']);
-  await go('Safety');
-  await expect(page().getByRole('tab')).toHaveText(['Approvals', 'Memory', 'Activity', 'Privacy']);
-  await go('Model');
+  // As in System Settings: sections with icons under headings, search at the top of the sidebar.
+  await expect(nav.getByRole('group').locator('.settings-nav-heading')).toHaveText(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
+  await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Conversations', 'Schedules', 'Extensions', 'Advanced', 'About']);
+  await expect(nav.getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
+  await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
+  await go('Approvals and safety');
+  await expect(page().getByRole('tab')).toHaveText(['Approvals', 'Activity']);
+  await go('Memory');
+  await expect(page().getByRole('heading', { name: 'What Mobius remembers' })).toBeVisible();
+  await go('Models');
+  await expect(page().getByRole('tab')).toHaveText(['Defaults', 'This computer']);
   await expect(page().getByLabel('Server address')).toHaveValue(model!.url);
   await go('Keyboard');
   await expect(page().getByText('Ctrl+K')).toBeVisible();
@@ -139,7 +146,7 @@ test('approvals: what you allowed for good is listed, and removing it makes the 
   await allowAlways('clock.now');
   await expect(log().locator('.msg.assistant').last()).toHaveText('one');
   await openSettings();
-  await go('Safety', 'Approvals');
+  await go('Approvals and safety', 'Approvals');
   const list = page().getByRole('list', { name: 'Always allowed' });
   await expect(list.getByRole('listitem')).toHaveCount(1);
   await expect(list).toContainText('clock.read');
@@ -157,7 +164,7 @@ test('activity lists what was asked, allowed and run, in plain words and never w
   await shell().getByRole('group', { name: 'Approval needed: clock.now' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('done');
   await openSettings();
-  await go('Safety', 'Activity');
+  await go('Approvals and safety', 'Activity');
   const rows = page().getByRole('list', { name: 'Activity log' });
   await expect(rows).toContainText('Asked you about clock.read');
   await expect(rows).toContainText('You allowed clock.read');
@@ -256,7 +263,7 @@ test('Advanced: the step limit is enforced', async () => {
 test('Model: changing the model name is used by the next request', async () => {
   await start([says(['ok'])]);
   await openSettings();
-  await go('Model');
+  await go('Models');
   await page().getByLabel('Model', { exact: true }).fill('another-model');
   await page().getByRole('button', { name: 'Save' }).click();
   await page().getByRole('button', { name: 'Close settings' }).click();
@@ -278,8 +285,60 @@ test('About shows the versions, the core, and where the data is', async () => {
 test('the approvals page lists everything that is asked about every time, including acting on web pages', async () => {
   await start([]);
   await openSettings();
-  await go('Safety', 'Approvals');
+  await go('Approvals and safety', 'Approvals');
   const row = page().locator('[data-setting="safety.approvals.each-time"]');
   await expect(row).toContainText('Running commands');
   await expect(row).toContainText('clicking or typing on a web page');
+});
+
+test('Voice: who listens and who speaks are saved, checked, and still there after a restart', async () => {
+  await start([]);
+  await openSettings();
+  await go('Voice', 'Listening');
+  // The chat model's server in these tests is a plain OpenAI-format one, so listening through it is offered.
+  await expect(page().getByRole('radiogroup', { name: 'Listen with' }).getByRole('radio', { name: 'Chat server' })).toBeChecked();
+  await page().getByRole('radiogroup', { name: 'Listen with' }).getByRole('radio', { name: 'This computer' }).check();
+  const address = page().getByRole('textbox', { name: 'Listening server address' });
+  await address.fill('ftp://nope');
+  await expect(page().getByRole('alert')).toContainText('http:// or https://');
+  await address.fill('http://127.0.0.1:9/v1');
+  await page().getByRole('button', { name: 'Save listening server address' }).click();
+  // Not running: the test says so, with the address.
+  await page().getByRole('button', { name: 'Try listening' }).click();
+  await expect(page().getByRole('alert')).toContainText('127.0.0.1:9');
+  await go('Voice', 'Speaking');
+  await page().getByRole('radiogroup', { name: 'Speak with' }).getByRole('radio', { name: 'ElevenLabs' }).check();
+  await expect(page().getByText('ElevenLabs needs its key, added in Gateways.')).toBeVisible();
+  await page().getByRole('button', { name: 'Try speaking' }).click();
+  await expect(page().getByRole('alert')).toContainText('Gateways');
+  await page().getByRole('textbox', { name: 'Voice', exact: true }).fill('Rachel');
+  await page().getByRole('button', { name: 'Save voice', exact: true }).click();
+  await expect.poll(() => JSON.parse(fs.readFileSync(path.join(mobius!.userData, 'preferences.json'), 'utf8')).speakVoice).toBe('Rachel');
+
+  const userData = mobius!.userData;
+  await mobius!.close({ keepUserData: true });
+  mobius = await launch(fixture.origin + '/', { env: { MOBIUS_AGENT_URL: model!.url, MOBIUS_AGENT_MODEL: 'fake-model' }, userData });
+  await expect(composer()).toBeEnabled({ timeout: 15_000 });
+  await openSettings();
+  await go('Voice', 'Listening');
+  await expect(page().getByRole('radiogroup', { name: 'Listen with' }).getByRole('radio', { name: 'This computer' })).toBeChecked();
+  await expect(page().getByRole('textbox', { name: 'Listening server address' })).toHaveValue('http://127.0.0.1:9/v1');
+  await go('Voice', 'Speaking');
+  await expect(page().getByRole('radiogroup', { name: 'Speak with' }).getByRole('radio', { name: 'ElevenLabs' })).toBeChecked();
+  await expect(page().getByRole('textbox', { name: 'Voice', exact: true })).toHaveValue('Rachel');
+});
+
+test('search at the top of the sidebar finds settings by their old names too, and Extensions opens its app', async () => {
+  await start([]);
+  await openSettings();
+  const search = page().getByRole('navigation', { name: 'Settings sections' }).getByRole('searchbox', { name: 'Search settings' });
+  await search.fill('providers');
+  await expect(page().getByRole('list', { name: 'Search results' })).toContainText('Gateways');
+  await search.fill('kokoro');
+  await page().getByRole('button', { name: /Voice model/ }).click();
+  await expect(page().getByRole('tab', { name: 'Speaking', selected: true })).toBeVisible();
+  await go('Extensions');
+  await page().getByRole('button', { name: 'Open Extensions' }).click();
+  await expect(page()).toHaveCount(0);
+  await expect(shell().locator('.app')).toHaveAttribute('data-app', 'skills');
 });

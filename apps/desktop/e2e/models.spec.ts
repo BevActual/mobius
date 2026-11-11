@@ -43,7 +43,7 @@ const shell = () => mobius!.shell;
 const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const openLocal = async () => {
   await openSettings(shell());
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
+  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   await page().getByRole('tab', { name: 'This computer', exact: true }).click();
 };
 const closeSettings = () => page().getByRole('button', { name: 'Close settings' }).click();
@@ -145,7 +145,7 @@ test('a downloaded model is run, loaded, used by the agent, and stopped', async 
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('hello', { timeout: 15_000 });
 
   await openSettings(shell());
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
+  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   await page().getByRole('tab', { name: 'This computer', exact: true }).click();
   await page().getByRole('button', { name: 'Stop Tiny-1B-Q8_0' }).click();
   await expect(page().getByText('Nothing is running.')).toBeVisible();

@@ -160,8 +160,7 @@ test('Mobius asks before remembering, uses what it remembers next time, and it c
   expect(JSON.stringify(model!.requests.at(-1))).toContain('Prefers boutique hotels');
   await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
-  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Safety', exact: true }).click();
-  await page.getByRole('tab', { name: 'Memory' }).click();
+  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Memory', exact: true }).click();
   const list = page.getByRole('list', { name: 'What Mobius remembers' });
   await expect(list).toContainText('Prefers boutique hotels');
   await list.getByRole('button', { name: 'Forget: Prefers boutique hotels' }).click();

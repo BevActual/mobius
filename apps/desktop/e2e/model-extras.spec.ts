@@ -17,13 +17,13 @@ const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const open = async (tab: string) => {
   await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
+  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   await page().getByRole('tab', { name: tab, exact: true }).click();
 };
 
 test('choosing a provider fills in its address and says where to get a key', async () => {
   mobius = await launch(fixture.origin + '/');
-  await open('Server');
+  await open('Defaults');
   const address = page().getByLabel('Server address');
   await page().getByLabel('Provider').selectOption('openrouter');
   await expect(address).toHaveValue('https://openrouter.ai/api/v1');

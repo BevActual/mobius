@@ -244,6 +244,9 @@ export function createTauriBridge(): MobiusBridge {
       addThread: (id, conversation) => call('projects', 'addThread', [id, conversation], () => ({ ok: false as const, message: 'Projects are not available.' })),
       onChanged: (listener) => on<null>('mobius:projects-changed', () => listener()),
     },
+    voice: {
+      test: (job) => call('voice', 'test', [job], () => ({ ok: false as const, error: 'Voice is not available here.' })),
+    },
     comments: {
       list: (app, doc) => call('comments', 'list', [app, doc], () => []),
       all: (app) => call('comments', 'all', [app], () => []),

@@ -2694,3 +2694,18 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .app[data-chat="open"] .dock.right:not([data-floating]) { margin-top: calc(-1 * var(--context)); padding: var(--panel-inset) var(--panel-inset) var(--panel-inset) 0; }
 .dock.right:not([data-floating]) > .chat { overflow: hidden; }
 .dock[data-floating] { border: var(--panel-border); border-radius: var(--panel-radius); box-shadow: var(--panel-shadow); }
+
+/* Settings, as in System Settings: search at the top of a floating sidebar, sections under headings, a grouped inset
+   list of rows on the right, one control per row with short help. */
+.settings-nav { display: flex; flex-direction: column; gap: 2px; padding: 10px 8px; border: var(--panel-border); border-radius: var(--panel-radius); background: var(--panel-bg); box-shadow: var(--panel-shadow); align-self: start; max-height: calc(100% - 16px); overflow: auto; margin: 8px 0 8px 8px; }
+.settings-nav .settings-search { width: 100%; box-sizing: border-box; height: 28px; margin: 0 0 6px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--field); color: var(--ink); font-size: 13px; }
+.settings-nav-group { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; }
+.settings-nav-heading { margin: 4px 8px 2px; font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.01em; }
+.settings-nav-item { min-height: 30px; font-size: 13px; border-radius: 8px; }
+.settings-nav-item[aria-current="page"] { background: var(--side-select); color: var(--ink); font-weight: 500; }
+.settings-content .srow { border-radius: 12px; }
+.srow-note { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.srow-note::before { content: "⚠ "; color: #c27c00; }
+.settings-body { grid-template-columns: 228px minmax(0, 1fr); }
+.settings-nav .settings-nav-item[aria-current="page"], .settings-nav .settings-nav-item[aria-current="page"]:hover:not(:disabled) { background: var(--side-select); color: var(--ink); font-weight: 500; }
+.settings-nav .settings-nav-item:hover:not([aria-current="page"]) { background: var(--side-hover); }

@@ -1497,6 +1497,7 @@ export function App() {
             <SettingsPage
               {...(settingsSection === 'layout' ? { initial: 'appearance' as const, initialSubpage: 'layout' } : settingsSection === 'profiles' ? { initial: 'advanced' as const, initialSubpage: 'profiles' } : settingsSection ? { initial: settingsSection } : {})}
               onClose={() => { setSettingsSection(undefined); closeSettings(); }}
+              onOpenApp={(id) => { setSettingsSection(undefined); closeSettings(); openApp(id); }}
               settings={settings}
               onSaveSettings={saveSettings}
               appearance={appearance.value}

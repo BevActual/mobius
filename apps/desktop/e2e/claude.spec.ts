@@ -42,7 +42,7 @@ async function start(replies: AnthropicReply[]): Promise<void> {
   mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_CLAUDE: FAKE_CLAUDE, MOBIUS_TEST_CLAUDE_UPSTREAM: anthropic.url } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openSettings(shell());
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Providers', exact: true }).click();
+  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Gateways', exact: true }).click();
   await expect(row().getByRole('status')).toHaveText('Signed in as person@example.com', { timeout: 15_000 });
   await row().getByRole('button', { name: 'Use Claude subscription' }).click();
   await row().getByRole('combobox', { name: 'Claude subscription model' }).selectOption('sonnet');

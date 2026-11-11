@@ -41,12 +41,12 @@ type Seen = { kind: string; title: string; body: string; silent: boolean };
 // The test window is hidden, so it never has the focus: every notice that would be shown is recorded instead.
 const notices = (): Promise<Seen[]> => recordedNotices<Seen>(mobius!.app);
 const awake = (): Promise<boolean> => holdingAwake(mobius!.app);
-const openPage = async (section: string, tab: string) => {
+const openPage = async (section: string, tab?: string) => {
   // The Settings button closes Settings when it is already open, so only press it to open.
   if ((await page().count()) === 0) await openSettings(shell());
   await expect(page()).toBeVisible();
   await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
-  await page().getByRole('tab', { name: tab, exact: true }).click();
+  if (tab) await page().getByRole('tab', { name: tab, exact: true }).click();
 };
 const closeSettings = async () => {
   await page().getByRole('button', { name: 'Close settings' }).click();
@@ -96,7 +96,7 @@ test('a finished download is announced ', async () => {
 test('keeping the computer awake follows the setting and the work', async () => {
   await start([callsTool('browser-tabs'), says(['Done ', 'slowly ', 'now.'], 700)]);
   expect(await awake()).toBe(false);
-  await openPage('Advanced', 'Desktop');
+  await openPage('General');
   await page().getByRole('switch', { name: 'Keep the computer awake while working' }).check();
   await closeSettings();
   await say('go');
@@ -108,7 +108,7 @@ test('keeping the computer awake follows the setting and the work', async () => 
   await expect(log().locator('.msg.assistant')).toHaveText('Done slowly now.');
   await expect.poll(awake).toBe(false);
   // Turned off, nothing is held even while working.
-  await openPage('Advanced', 'Desktop');
+  await openPage('General');
   await page().getByRole('switch', { name: 'Keep the computer awake while working' }).uncheck();
   await closeSettings();
   expect(await awake()).toBe(false);

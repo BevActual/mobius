@@ -36,7 +36,7 @@ const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
 async function openProviders(): Promise<void> {
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openSettings(shell());
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Providers', exact: true }).click();
+  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Gateways', exact: true }).click();
 }
 
 test('signing in with a code on OpenAI\'s site lets the agent answer on the ChatGPT plan', async () => {

@@ -39,8 +39,8 @@ const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
 const openServer = async () => {
   await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
-  await page().getByRole('tab', { name: 'Server', exact: true }).click();
+  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
+  await page().getByRole('tab', { name: 'Defaults', exact: true }).click();
 };
 
 test('a second model answers when the first fails, and the conversation says so', async () => {

@@ -3,10 +3,16 @@ import { SETTINGS, findSection, searchSettings, type SectionId } from './manifes
 import { AboutSection, AdvancedSection, AppearanceSection, BrowserSection, KeyboardSection, NotificationsSection, ModelSection, SafetySection, SessionsSection, type SectionProps } from './sections';
 import { ProvidersSection } from './ProviderKeys';
 import { SchedulesSection } from './Schedules';
+import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection } from './Voice';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
 
 const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
+  general: GeneralSection,
+  voice: VoiceSection,
+  memory: MemorySection,
+  privacy: PrivacySection,
+  extensions: ExtensionsSettings,
   appearance: AppearanceSection,
   model: ModelSection,
   providers: ProvidersSection,
@@ -22,6 +28,11 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
 
 /** The glyph drawn for each section in the list (12 by 12). */
 const SECTION_GLYPHS: Record<string, string> = {
+  general: 'M6 3.8a2.2 2.2 0 1 0 0.01 0M6 1v1.5M6 9.5V11M1 6h1.5M9.5 6H11M2.5 2.5l1 1M8.5 8.5l1 1M2.5 9.5l1-1M8.5 3.5l1-1',
+  voice: 'M2 5v2M4 3.5v5M6 2v8M8 3.5v5M10 5v2',
+  memory: 'M3.5 2h5a1 1 0 0 1 1 1v7L6 8l-3.5 2V3a1 1 0 0 1 1-1z',
+  privacy: 'M3.5 5.5V4a2.5 2.5 0 0 1 5 0v1.5M2.5 5.5h7v5h-7z',
+  extensions: 'M2 4h2.5a1 1 0 1 1 2 0H9v2.5a1 1 0 1 1 0 2V10H2z',
   appearance: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M6 1.5v9',
   model: 'M2 9l3-3 2 2 3-4',
   providers: 'M4 6h4M3 4a2 2 0 1 0 0 4M9 4a2 2 0 1 1 0 4',
@@ -36,8 +47,8 @@ const SECTION_GLYPHS: Record<string, string> = {
 };
 
 export function SettingsPage({ onClose, initial, initialSubpage, ...rest }: Passed & { onClose: () => void; initial?: SectionId; initialSubpage?: string }) {
-  const [section, setSection] = useState<SectionId>(initial ?? 'appearance');
-  const [subpage, setSubpage] = useState<string>(() => initialSubpage ?? findSection(initial ?? 'appearance')?.subpages[0]?.id ?? '');
+  const [section, setSection] = useState<SectionId>(initial ?? 'general');
+  const [subpage, setSubpage] = useState<string>(() => initialSubpage ?? findSection(initial ?? 'general')?.subpages[0]?.id ?? '');
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState<string | null>(null);
   const root = useRef<HTMLElement>(null);
@@ -71,17 +82,23 @@ export function SettingsPage({ onClose, initial, initialSubpage, ...rest }: Pass
     <section ref={root} className="settings-page" role="region" aria-label="Settings">
       <header className="settings-head">
         <h1>Settings</h1>
-        <input type="search" role="searchbox" className="settings-search" aria-label="Search settings" placeholder="Search settings" value={query} onChange={(event) => setQuery(event.target.value)} />
         <button type="button" className="btn" aria-label="Close settings" onClick={onClose}>Done</button>
       </header>
       <div className="settings-body">
         <nav className="settings-nav" aria-label="Settings sections">
-          {SETTINGS.map((item) => (
-            <button key={item.id} type="button" className="settings-nav-item" data-section={item.id} aria-current={item.id === section && !query.trim() ? 'page' : undefined} onClick={() => openSection(item.id)}>
-              {/* A coloured glyph per section, as in System Settings and the Settings board. */}
-              <svg className="settings-nav-icon" viewBox="0 0 12 12" aria-hidden="true"><path d={SECTION_GLYPHS[item.id] ?? 'M6 1.5a4.5 4.5 0 1 0 0.01 0'} /></svg>
-              <span>{item.label}</span>
-            </button>
+          {/* As in System Settings: search at the top of the sidebar, then the sections under their headings. */}
+          <input type="search" role="searchbox" className="settings-search" aria-label="Search settings" placeholder="Search" value={query} onChange={(event) => setQuery(event.target.value)} />
+          {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (
+            <div key={group} className="settings-nav-group" role="group" aria-label={group}>
+              {group && <h2 className="settings-nav-heading">{group}</h2>}
+              {SETTINGS.filter((item) => (item.group ?? '') === group).map((item) => (
+                <button key={item.id} type="button" className="settings-nav-item" data-section={item.id} aria-current={item.id === section && !query.trim() ? 'page' : undefined} onClick={() => openSection(item.id)}>
+                  {/* A coloured glyph per section, as in System Settings and the Settings board. */}
+                  <svg className="settings-nav-icon" viewBox="0 0 12 12" aria-hidden="true"><path d={SECTION_GLYPHS[item.id] ?? 'M6 1.5a4.5 4.5 0 1 0 0.01 0'} /></svg>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="settings-content">
