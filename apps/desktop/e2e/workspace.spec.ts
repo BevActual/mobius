@@ -132,7 +132,8 @@ test('while the agent works the composer says what it is doing, the app it works
   await expect(railButton('Tasks')).toHaveAttribute('data-changed', 'true');
   await showApps();
   await railButton('Tasks').click();
-  await expect(shell().locator('.strip-title')).toHaveText('Today');
+  // The turn's change is still waiting for Keep, so Tasks opens on the list it is in rather than Today.
+  await expect(shell().locator('.strip-title')).toHaveText('Inbox');
   await showApps();
   await railButton('Browser').click();
   await showApps();
