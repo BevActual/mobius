@@ -15,9 +15,7 @@ jobs:
   checks:
     # A pull request from a branch here is already checked by its push; one from a fork is checked here.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    # Pinned: ubuntu-latest became 26.04, whose amd64v3 packages on the Azure mirror time out one by one, so the
-    # system-library install below never finished. Move on deliberately once that image's mirror is healthy.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
@@ -27,12 +25,15 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # What the Tauri shell builds against on Linux (WebKitGTK), and the system keyring. A mirror that stops
-      # answering once held this step for 40 minutes: each attempt now gives up after a minute without progress
-      # and is tried up to three times, and the step as a whole is capped.
+      # What the Tauri shell builds against on Linux (WebKitGTK), and the system keyring. The runner's own Azure
+      # mirror once answered the index but never served a package, so apt uses Canonical's archive instead; each
+      # attempt gives up after a minute without progress, is tried up to three times, and the step is capped.
       - name: Install the system libraries
         timeout-minutes: 8
         run: |
+          for f in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/*; do
+            [ -f "$f" ] && sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' "$f"
+          done
           APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=60 -o Acquire::https::Timeout=60"
           for attempt in 1 2 3; do
             if sudo apt-get $APT_OPTS update && sudo apt-get $APT_OPTS install -y libwebkit2gtk-4.1-dev libdbus-1-dev libssl-dev pkg-config; then
