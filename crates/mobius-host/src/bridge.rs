@@ -2846,17 +2846,42 @@ impl Bridge {
                 _ => failed("There is nothing to undo."),
             });
         };
+        // Once the turn has ended, only what it changed is its own: what the person (or anything else) changed after
+        // its end is theirs, never listed with the turn and never put back by its Undo.
+        let end = self.turn_history.find(conversation, &mark).and_then(|t| t.end);
+        let turn_files = || match &end {
+            Some(end) => self.workspace.changed_between(&mark, end),
+            None => self.workspace.changed_since(&mark),
+        };
+        let changed_later = |path: &str| end.as_deref().and_then(|e| self.workspace.changed_since(e).ok()).is_some_and(|f| f.iter().any(|p| p == path));
         Ok(match method {
-            "lastTurn" => match self.workspace.changed_since(&mark) {
+            "lastTurn" => match turn_files() {
                 Ok(files) => json!({ "checkpoint": mark, "files": files }),
                 Err(e) => failed(e),
             },
-            "undo" => match self.workspace.restore(&mark) {
-                Ok(()) => {
+            "undo" => match (&end, turn_files()) {
+                // Still running: everything since its start is the turn's.
+                (None, _) => match self.workspace.restore(&mark) {
+                    Ok(()) => {
+                        self.reload_after_undo(None);
+                        json!({ "ok": true })
+                    }
+                    Err(e) => failed(e),
+                },
+                (Some(_), Ok(files)) => {
+                    // The turn's files only; one changed again since is left as it is, and said.
+                    let mut kept = Vec::new();
+                    for path in &files {
+                        if changed_later(path) {
+                            kept.push(path.clone());
+                        } else if let Err(e) = self.workspace.restore_file(&mark, path) {
+                            return Ok(failed(e));
+                        }
+                    }
                     self.reload_after_undo(None);
-                    json!({ "ok": true })
+                    json!({ "ok": true, "kept": kept })
                 }
-                Err(e) => failed(e),
+                (Some(_), Err(e)) => failed(e),
             },
             // The file as it was before the turn, to show what changed. `null` when the turn made it.
             "before" => match arg(1).as_str() {
@@ -2867,6 +2892,8 @@ impl Bridge {
                 None => failed("Which file?"),
             },
             "undoFile" => match arg(1).as_str() {
+                Some(path) if changed_later(path) && arg(2).as_bool() != Some(true) => json!({ "ok": false, "later": true, "error": "This changed again after that turn. Putting it back would lose those changes too." }),
+                Some(path) if end.is_some() && !turn_files().is_ok_and(|f| f.iter().any(|p| p == path)) => failed("That turn did not change it."),
                 Some(path) => match self.workspace.restore_file(&mark, path) {
                     Ok(()) => {
                         self.reload_after_undo(Some(path));

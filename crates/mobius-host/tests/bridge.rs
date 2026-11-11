@@ -1413,3 +1413,34 @@ fn a_project_thread_tells_the_model_its_project() {
     assert_eq!(call(&b, "projects", "made", json!([id])), json!([]));
     assert_eq!(call(&b, "projects", "made", json!(["nope"]))["ok"], false);
 }
+
+/// What the person changes after a turn ends is theirs: never listed with the turn, never put back by its Undo.
+#[test]
+fn changes_after_a_turn_ends_do_not_join_it() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let ws = dir.path().join("workspace");
+    std::fs::create_dir_all(ws.join("notes")).unwrap();
+    std::fs::create_dir_all(ws.join("docs")).unwrap();
+    std::fs::write(ws.join("notes/Old.md"), "# Old\n").unwrap();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "write a note"]))["ok"], true);
+    let wait = |what: &dyn Fn() -> bool| {
+        let start = Instant::now();
+        while !what() {
+            assert!(start.elapsed() < Duration::from_secs(20), "timed out");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    // The turn's start is marked, then the turn writes its note and ends.
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"].as_array().is_some_and(|t| !t.is_empty()));
+    std::fs::write(ws.join("notes/Turn.md"), "# Turn\n").unwrap();
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"][0]["ended"] == true);
+    // The person writes their own doc afterwards.
+    std::fs::write(ws.join("docs/Mine.md"), "# Mine\n").unwrap();
+    assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/Turn.md"]));
+    assert_eq!(call(&b, "changes", "undoFile", json!(["c-1", "docs/Mine.md"]))["ok"], false, "not the turn's to put back");
+    let undone = call(&b, "changes", "undo", json!(["c-1"]));
+    assert_eq!(undone["ok"], true, "{undone}");
+    assert!(!ws.join("notes/Turn.md").exists(), "the turn's note is put back");
+    assert_eq!(std::fs::read_to_string(ws.join("docs/Mine.md")).unwrap(), "# Mine\n", "the person's doc stays");
+}
