@@ -2896,3 +2896,16 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
 .context-menu-item[data-separated] { margin-top: 5px; position: relative; }
 .context-menu-item[data-separated]::before { content: ""; position: absolute; left: 8px; right: 8px; top: -3px; border-top: 0.5px solid var(--hairline); }
 .action-icon { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* A tool step reads as what it did, in the interface's own type; its status sits by Details at the end of the line. */
+.tool-name[data-plain] { font-family: inherit; font-weight: var(--fw-medium); font-size: var(--fs-md); }
+.tool-line > .tool-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-line > .tool-status { margin-left: 0; }
+
+/* Scroll bars as macOS draws them: thin, quiet, no arrow buttons. */
+:root { scrollbar-color: color-mix(in srgb, var(--ink) 28%, transparent) transparent; }
+* { scrollbar-width: thin; }
+/* "Something changed in another app" sits on the corner of the head's app icon, as a badge, so it never takes room
+   from the app's name. */
+.rail[data-expanded] .rail-switch { position: relative; }
+.rail[data-expanded] .rail-switch[data-changed]::before { position: absolute; order: 0; top: 2px; left: 26px; margin: 0; box-shadow: 0 0 0 2px var(--glass-solid); }

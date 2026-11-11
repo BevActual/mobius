@@ -770,7 +770,9 @@ export function App() {
     { id: 'event', label: 'New event', app: 'calendar', run: () => { closeSettings(); openApp('calendar'); setEventToken((n) => n + 1); } },
   ];
   /** The one thing worth starting in the app you are in: the panel's New button changes with it. */
-  const createFor = (id: AppId): HubAction => createActions.find((a) => a.app === (id === 'search' ? 'agent' : id)) ?? createActions[0]!;
+  // The open app's New, or none: an app with nothing to make from here (Projects, Photo, Files, Review...) shows no Create,
+  // rather than one that starts a conversation.
+  const createFor = (id: AppId): HubAction | undefined => createActions.find((a) => a.app === id);
   const appSidebar = (pinNode: ReactNode) => settingsOpen ? <div ref={setSettingsSlot} className="settings-side" /> : (
           <>
             {inAgent ? (
@@ -846,7 +848,7 @@ export function App() {
             ) : inDocs ? (
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
-              <CalendarSidebar calendar={calendar} pin={pinNode} onNew={createFor('calendar').run} starts={startsFor('calendar')} onStart={startWithMobius} />
+              <CalendarSidebar calendar={calendar} pin={pinNode} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inSearch ? (
               <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
             ) : inTasks ? (
@@ -1384,7 +1386,7 @@ export function App() {
         changed={changed}
         needsYou={needsYou}
         counts={{ browser: browser.tabs.length, tasks: dueToday }}
-        create={inSearch ? undefined : createFor(app)}
+        create={createFor(app)}
         createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'] as AppId[]).includes(app)}
         menus={menuBar}
         chrome={showWide && inBrowser && !settingsOpen ? browserChrome : null}

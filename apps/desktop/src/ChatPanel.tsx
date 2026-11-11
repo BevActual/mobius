@@ -174,6 +174,12 @@ function QuestionCard({ item, onReply }: { item: Extract<Item, { kind: 'question
   );
 }
 
+/** A tool call as a sentence a person reads, when the tool is one Mobius knows; null otherwise. */
+function plainAction(name: string, args: unknown): string | null {
+  const words = describeAction(name, args);
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : null;
+}
+
 function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 'tool' }>; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details> }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [details, setDetails] = useState<Details | null>(null);
@@ -196,7 +202,8 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
     <div className="tool" data-status={item.status}>
       <div className="tool-line">
         <span className="tool-dot" aria-hidden="true" />
-        <span className="tool-name">{item.name}</span>
+        {/* What it did, in words ("Add “Book the film” to Inbox in Tasks"); the tool's own name stays in the tooltip and Details. */}
+        <span className="tool-name" data-plain={plainAction(item.name, item.args) ? true : undefined} title={item.name}>{plainAction(item.name, item.args) ?? item.name}</span>
         <span className="tool-status">{STATUS_TEXT[item.status]}</span>
         {finished && <button type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details of ${item.name}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}
       </div>
