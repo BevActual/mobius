@@ -2544,7 +2544,7 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 
 
 /* Menus mark the current choice with a check, as macOS menus do. */
-.popmenu-checkable { display: flex; align-items: center; gap: 6px; }
+.popmenu-item.popmenu-checkable { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 6px; }
 .popmenu-check { width: 12px; height: 12px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .popmenu-section { margin-top: 4px; padding-top: 4px; border-top: 0.5px solid var(--hairline); }
 .popmenu-heading { margin: 2px 8px 2px 26px; font-size: 11px; font-weight: 600; color: var(--muted); }
@@ -2639,3 +2639,23 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .comment-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 8px; }
 .comment-row-pin { flex: none; width: 10px; height: 10px; border-radius: 5px 5px 5px 1.5px; background: #5856D6; }
 .comment-row-pin[data-state="note"] { background: #FFCC00; }
+
+/* The sidebar turns into Mobius and back: a crossfade with a short slide, 250ms, and none with reduced motion. */
+@keyframes face-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.rail[data-expanded] > .rail-ask, .rail[data-expanded] > .rail-app { animation: face-in 250ms var(--ease) both; }
+@media (prefers-reduced-motion: reduce) { .rail[data-expanded] > .rail-ask, .rail[data-expanded] > .rail-app { animation: none; } }
+
+/* One Keep everywhere: dark (light in dark mode), in the panel, the review row and every app's review banner. */
+.review-btn[data-kind="keep"] { background: #1D1D1F; color: #fff; }
+.review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: #3A3A3C; }
+@media (prefers-color-scheme: dark) { .review-btn[data-kind="keep"] { background: #F5F5F7; color: #1D1D1F; } .review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: #E5E5EA; } }
+/* One dot per meaning: a row that already has its "changed by Mobius" mark does not get a second dot. */
+:is(.rail-app, .dock.left) .side :is(.note-row, .list-row)[data-proposed]:has(.changed-mark, .code-mark)::after { display: none; }
+.changed-mark { background: var(--accent); }
+/* Comment mode's hover is a solid outline: dashed means made by Mobius and waiting. */
+.comment-ring { border: 0; outline: 1.5px solid var(--accent); outline-offset: 0; background: color-mix(in srgb, var(--accent) 6%, transparent); }
+/* The composer's menus open over the composer, as wide as it, so they never run past the panel's edge (where a
+   page beside it would cover them). */
+.composer { position: relative; }
+.composer-tools .popmenu { position: static; }
+.composer-tools .popmenu-list { left: 0; right: 0; min-width: 0; max-width: none; }

@@ -101,6 +101,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_CALENDAR,
   // Time Mobius suggests, waiting to be kept.
   'calendar.suggestions': () => [{ id: 's1', calendar: 'Kestrel P2', title: 'Prep the build plan', start: `${day(1)}T14:00`, end: `${day(1)}T15:00`, allDay: false, location: '', notes: '', why: 'your first free hour before the build week call' }],
+  // The model picker: a plan, a key, and a model on this computer.
+  'providers.catalog': () => ({ current: 'claude-sonnet-5-5', groups: [{ kind: 'subscription', id: 'claude', name: 'Claude plan', active: true, models: [{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' }, { id: 'claude-opus-5-5', label: 'Opus 5.5' }], error: null }, { kind: 'local', id: 'local', name: 'On this computer', active: false, models: [{ id: 'qwen3-8b', label: 'Qwen3 8B' }], error: null }] }),
   'mail.accounts': () => [{ id: 'a1', name: 'Northway', email: 'you@northway.example', lastSyncMs: now, problem: null }],
   'mail.list': () => MAIL,
   // A reply Mobius suggested to Priya, waiting to be kept.

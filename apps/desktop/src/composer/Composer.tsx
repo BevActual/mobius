@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { MobiusMark } from '../MobiusMark';
 import { MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
 import { usePreferences } from '../usePreferences';
-import { filterCatalog } from './model-catalog';
+import { asCatalog, filterCatalog } from './model-catalog';
 import { PopMenu } from './PopMenu';
 import type { Activity } from '../activity';
 import { CameraDialog } from './CameraDialog';
@@ -201,11 +201,11 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     setModels({ state: 'loading' });
     const providers = window.mobius.providers;
     if (providers) {
-      void providers.catalog().then((catalog) => setModels({ state: 'ready', catalog }));
+      void providers.catalog().then((catalog) => setModels({ state: 'ready', catalog: asCatalog(catalog, settings?.model ?? '') }), () => setModels({ state: 'ready', catalog: asCatalog(null, settings?.model ?? '') }));
       return;
     }
     // Without the provider catalog (the browser preview), list what the server in use offers.
-    void window.mobius.agent.models().then((result) => setModels({ state: 'ready', catalog: { current: settings?.model ?? '', groups: [{ kind: 'server', id: 'server', name: 'This server', active: true, models: result.ok ? result.models.map((m) => ({ id: m, label: m })) : [], error: result.ok ? null : result.error }] } }));
+    void window.mobius.agent.models().then((result) => setModels({ state: 'ready', catalog: { current: settings?.model ?? '', groups: [{ kind: 'server', id: 'server', name: 'This server', active: true, models: result.ok && Array.isArray(result.models) ? result.models.map((m) => ({ id: m, label: m })) : [], error: result.ok ? null : result.error }] } }));
   };
   const isCurrent = (group: ModelGroup, model: { id: string; current?: boolean }) =>
     group.active && (group.kind === 'local' ? model.current === true : models.state === 'ready' && model.id === models.catalog.current);
@@ -330,7 +330,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               <div className="model-menu">
                 <input type="search" className="model-find" aria-label="Find a model" placeholder="Find a model" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />
                 <div className="model-groups">
-                  {models.state !== 'ready' && <p className="popmenu-note" role="status">Asking your providers…</p>}
+                  {models.state !== 'ready' && modelName && <p className="popmenu-item popmenu-checkable" aria-current="true"><Check on /><span>{modelName}</span></p>}
+                  {models.state !== 'ready' && <p className="popmenu-note" role="status">Loading models…</p>}
                   {models.state === 'ready' && models.catalog.groups.length === 0 && <p className="popmenu-note">Nothing is set up yet. Add a provider key, sign in to a plan, or download a model in Settings.</p>}
                   {models.state === 'ready' && models.catalog.groups.length > 0 && shown.length === 0 && <p className="popmenu-note">No model matches “{find}”.</p>}
                   {shown.map((group) => (

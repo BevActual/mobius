@@ -193,12 +193,12 @@ test('the full sidebar is the default: it belongs to the open app, with the apps
   await expect(shell().locator('.body > .dock.left')).toHaveCount(0);
   await showApps();
   await railButton('Tasks').click();
-  // In Tasks, New is the first row of the app's own lists (and adding a task the first row of a list), so the
+  // In Tasks, New is the first row of the app's sidebar (after search), and adding a task the first row of a list, so the
   // sidebar's own Create button gives way.
   const lists = rail().getByRole('navigation', { name: 'Lists' });
   await expect(lists).toBeVisible();
   await expect(railButton('Create')).toHaveCount(0);
-  await expect(lists.getByRole('button', { name: 'New list' })).toBeVisible();
+  await expect(rail().getByRole('complementary', { name: 'Tasks sidebar' }).getByRole('button', { name: 'New list' })).toBeVisible();
   await lists.getByRole('button', { name: /^Inbox/ }).click();
   await expect(shell().locator('.strip-title')).toHaveText('Inbox');
   await expect(shell().getByRole('textbox', { name: 'New task', exact: true })).toHaveAttribute('placeholder', 'Add to Inbox');
@@ -230,7 +230,7 @@ test('Mobius can sit in the sidebar: the conversation takes the column, the pane
   await expect(rail()).toHaveAttribute('data-face', 'app');
   await expect(shell().locator('.dock.right')).toHaveCount(0);
   await face.click();
-  await rail().getByRole('button', { name: 'Show beside' }).click();
+  await rail().getByRole('button', { name: 'Pin beside' }).click();
   await expect(shell().locator('.dock.right')).toHaveCount(1);
   await expect(rail()).toHaveAttribute('data-face', 'app');
 });
