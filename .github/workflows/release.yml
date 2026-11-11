@@ -1,11 +1,16 @@
-# A release: pushing a tag v1.2.3 builds the Windows installer, the core beside the app, and the files the in-app
-# updater reads (latest.json, and the installer's signature), and puts them in a draft GitHub Release for that tag.
-# Publish the draft by hand; the updater only sees published releases.
+# A release: pushing a tag v1.2.3 builds the Windows installer (the core beside the app), has it signed through
+# SignPath when that is set up, makes the files the in-app updater reads (the installer's signature and latest.json)
+# from the installer as shipped, and puts them in a draft GitHub Release for that tag. Publish the draft by hand; the
+# updater only sees published releases.
 #
-# Needs two repository secrets, from the key made with `npx tauri signer generate` (its public half is in
-# crates/mobius-shell/tauri.conf.json, plugins.updater.pubkey):
-#   TAURI_SIGNING_PRIVATE_KEY           the private key itself
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password (empty if it has none)
+# Code signing (Windows): free code signing provided by SignPath.io, certificate by SignPath Foundation; see
+# docs/CODE_SIGNING_POLICY.md. Needs the repository variable SIGNPATH_ORGANIZATION_ID and the secret SIGNPATH_API_TOKEN.
+# Until the variable is set, the installer is released unsigned (SmartScreen warns about it).
+#
+# Updater signature: the secrets TAURI_SIGNING_PRIVATE_KEY (the key from `npx tauri signer generate`; its public half is
+# in crates/mobius-shell/tauri.conf.json, plugins.updater.pubkey) and TAURI_SIGNING_PRIVATE_KEY_PASSWORD (empty if it
+# has none). It is made after Authenticode signing, because signing changes the file and an earlier signature would
+# not verify.
 name: Release
 
 on:
@@ -14,11 +19,13 @@ on:
 
 permissions:
   contents: write
+  # SignPath fetches the uploaded installer from this run's artifacts.
+  actions: read
 
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -33,42 +40,93 @@ jobs:
         shell: bash
         run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      # ---- Code signing (Windows) -------------------------------------------------------------------------------
-      # Unsigned for now: Windows SmartScreen warns about an unsigned installer until it has a reputation.
-      # To sign, add the certificate as secrets (WINDOWS_CERTIFICATE: the .pfx, base64; WINDOWS_CERTIFICATE_PASSWORD),
-      # uncomment this step, and set bundle.windows.certificateThumbprint in crates/mobius-shell/tauri.conf.json to the
-      # certificate's thumbprint (timestampUrl too, e.g. http://timestamp.digicert.com).
-      # - name: Import the signing certificate
-      #   shell: pwsh
-      #   env:
-      #     WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-      #     WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-      #   run: |
-      #     $pfx = Join-Path $env:RUNNER_TEMP 'cert.pfx'
-      #     [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
-      #     Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force)
-      # ------------------------------------------------------------------------------------------------------------
-
+      # The installer alone: no updater key here, so package.mjs makes no updater files from the unsigned build.
       - name: Build the installer
+        run: npm run package -- --version ${{ steps.version.outputs.value }}
+
+      - name: Find the installer
+        id: setup
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $setup = Get-ChildItem 'target\release\bundle\nsis' -Filter "*_${env:VERSION}_*-setup.exe" | Select-Object -First 1
+          if (-not $setup) { throw "No installer for $env:VERSION in target\release\bundle\nsis" }
+          "path=$($setup.FullName)" >> $env:GITHUB_OUTPUT
+          "name=$($setup.Name)" >> $env:GITHUB_OUTPUT
+
+      # ---- Code signing (Windows), through SignPath; skipped until SIGNPATH_ORGANIZATION_ID is set -------------------
+      - name: Upload the unsigned installer for signing
+        id: unsigned
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: unsigned-installer
+          path: ${{ steps.setup.outputs.path }}
+          if-no-files-found: error
+
+      - name: Sign the installer
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: mobius
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Use the signed installer
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        env:
+          SETUP: ${{ steps.setup.outputs.path }}
+          NAME: ${{ steps.setup.outputs.name }}
+        run: |
+          $signed = Get-ChildItem signed -Recurse -Filter $env:NAME | Select-Object -First 1
+          if (-not $signed) { throw "SignPath returned no $env:NAME" }
+          $check = Get-AuthenticodeSignature $signed.FullName
+          if ($check.Status -ne 'Valid') { throw "The signed installer does not verify: $($check.Status) $($check.StatusMessage)" }
+          Copy-Item $signed.FullName $env:SETUP -Force
+          Write-Host "Signed by $($check.SignerCertificate.Subject)"
+      # -------------------------------------------------------------------------------------------------------------
+
+      # The updater's signature, from the installer as it will be shipped (signed or not).
+      - name: Sign for the updater
+        id: updater
+        shell: pwsh
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run package -- --version ${{ steps.version.outputs.value }}
+          SETUP: ${{ steps.setup.outputs.path }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            Write-Warning 'No updater signature: set the TAURI_SIGNING_PRIVATE_KEY secret for in-app updates.'
+            "signed=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          # Bound to the version, as `tauri build` does when it signs.
+          npx tauri signer sign --app-version $env:VERSION "$env:SETUP"
+          if ($LASTEXITCODE -ne 0) { throw 'tauri signer sign failed' }
+          if (-not (Test-Path "$env:SETUP.sig")) { throw "No signature was written next to $env:SETUP" }
+          "signed=true" >> $env:GITHUB_OUTPUT
 
       - name: Put it in a draft release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.value }}
+          SETUP: ${{ steps.setup.outputs.path }}
+          NAME: ${{ steps.setup.outputs.name }}
+          UPDATER_SIGNED: ${{ steps.updater.outputs.signed }}
         run: |
-          $dir = 'target\release\bundle\nsis'
-          $setup = Get-ChildItem $dir -Filter "*_${env:VERSION}_*-setup.exe" | Select-Object -First 1
-          if (-not $setup) { throw "No installer for $env:VERSION in $dir" }
-          $files = @($setup.FullName)
-          $sig = "$($setup.FullName).sig"
-          if (Test-Path $sig) {
+          $files = @($env:SETUP)
+          if ($env:UPDATER_SIGNED -eq 'true') {
+            $sig = "$env:SETUP.sig"
             # latest.json: what the in-app updater reads, at releases/latest/download/latest.json.
-            $name = [uri]::EscapeDataString($setup.Name)
             $latest = [ordered]@{
               version = $env:VERSION
               notes = "Mobius $env:VERSION"
@@ -76,13 +134,11 @@ jobs:
               platforms = [ordered]@{
                 'windows-x86_64' = [ordered]@{
                   signature = (Get-Content $sig -Raw).Trim()
-                  url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$name"
+                  url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$([uri]::EscapeDataString($env:NAME))"
                 }
               }
             }
             $latest | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 latest.json
             $files += $sig, (Resolve-Path latest.json).Path
-          } else {
-            Write-Warning 'No updater signature: set the TAURI_SIGNING_PRIVATE_KEY secrets for in-app updates.'
           }
           gh release create ${{ github.ref_name }} --draft --title "Mobius $env:VERSION" --notes "Mobius $env:VERSION" $files
