@@ -437,29 +437,31 @@ export function App() {
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
   const tasksDone = tasksHere.length - tasksOpen;
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  // A count under an app in the hub, or nothing when there are none ("0 workbooks" says less than a blank line).
+  const some = (n: number, one: string, after = '') => (n === 0 ? '' : plural(n, one) + after);
   const dueToday = smartView('today', tasks.all, new Date()).length;
   const openTasks = tasks.lists.reduce((sum, l) => sum + l.open, 0);
   const pages = notes.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0);
   const eventsToday = eventsOn(calendar.events, new Date()).length;
   const hubStatus: Partial<Record<AppId, string>> = {
-    agent: activity ? activity.label : needsYou > 0 ? `${needsYou} waiting for you` : plural(conversation.list.length, 'conversation'),
-    browser: plural(browser.tabs.length, 'tab') + ' open',
-    notes: plural(pages, 'page'),
-    docs: plural(docs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'document'),
-    sheets: plural(sheets.workbooks.length, 'workbook'),
-    slides: plural(slides.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'deck'),
-    code: plural(code.projects.length, 'project'),
-    video: plural(video.projects.length, 'project'),
-    skills: plural(skills.list.length, 'skill'),
-    studio: plural(songs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'song'),
-    photo: plural(photos.albums.reduce((sum, a) => sum + a.photos.length, 0), 'photo'),
-    design: plural(designs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'design'),
-    canvas: plural(boards.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'board'),
-    database: plural(databases.list.length, 'database'),
+    agent: activity ? activity.label : needsYou > 0 ? `${needsYou} waiting for you` : some(conversation.list.length, 'conversation'),
+    browser: some(browser.tabs.length, 'tab', ' open'),
+    notes: some(pages, 'page'),
+    docs: some(docs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'document'),
+    sheets: some(sheets.workbooks.length, 'workbook'),
+    slides: some(slides.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'deck'),
+    code: some(code.projects.length, 'project'),
+    video: some(video.projects.length, 'project'),
+    skills: some(skills.list.length, 'skill'),
+    studio: some(songs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'song'),
+    photo: some(photos.albums.reduce((sum, a) => sum + a.photos.length, 0), 'photo'),
+    design: some(designs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'design'),
+    canvas: some(boards.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'board'),
+    database: some(databases.list.length, 'database'),
     review: (() => { const n = review.turns.reduce((s, t) => s + t.files.length, 0); return n ? `${plural(n, 'change')} to look at` : 'Nothing to review'; })(),
     terminal: terminal.processes.some((p) => p.running) ? `${plural(terminal.processes.filter((p) => p.running).length, 'command')} running` : 'Your workspace',
-    research: plural(research.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'report'),
-    reader: plural(reading.notebooks.filter((nb) => nb.name !== 'Archive').reduce((sum, nb) => sum + nb.pages.length, 0), 'article') + ' to read',
+    research: some(research.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'report'),
+    reader: some(reading.notebooks.filter((nb) => nb.name !== 'Archive').reduce((sum, nb) => sum + nb.pages.length, 0), 'article', ' to read'),
     mail: mail.accounts.length === 0 ? 'Add an account' : mail.counts.all > 0 ? `${mail.counts.all} unread` : 'All read',
     tasks: dueToday > 0 ? `${dueToday} due today` : openTasks > 0 ? `${openTasks} to do` : 'All done',
     calendar: eventsToday > 0 ? `${plural(eventsToday, 'event')} today` : 'Nothing today',
