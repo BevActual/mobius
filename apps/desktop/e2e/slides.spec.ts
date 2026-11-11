@@ -48,20 +48,49 @@ test('a deck is a Markdown file of slides, edited on the slide and played full s
   await title.fill('Plan 2027 together');
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toContain('## Plan 2027 together\n- Three days, eight people');
   await page().getByRole('textbox', { name: 'Presenter notes' }).fill('Keep it short.');
-  await page().getByRole('button', { name: '+ Slide' }).click();
+  await page().getByRole('button', { name: 'Add slide' }).click();
   await expect(nav().getByRole('button')).toHaveCount(3);
   await page().getByRole('textbox', { name: 'Title' }).fill('Questions?');
-  await page().getByRole('combobox', { name: 'Slide style' }).selectOption('accent');
+  await page().getByRole('radiogroup', { name: 'Slide style' }).getByRole('radio', { name: 'Accent' }).click();
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toContain('---\n\n<!-- style: accent -->\n## Questions?');
   expect(fs.readFileSync(file(), 'utf8')).toContain('Notes:\nKeep it short.');
 
-  await page().getByRole('button', { name: '▶ Play' }).click();
+  await page().getByRole('button', { name: 'Play', exact: true }).click();
   const play = shell().getByRole('dialog', { name: /^Playing slide 3 of 3/ });
   await expect(play).toContainText('Questions?');
   await shell().keyboard.press('ArrowLeft');
   await expect(shell().getByRole('dialog', { name: /^Playing slide 2 of 3/ })).toContainText('Plan 2027 together');
+  // A number and Return jumps; P shows the presenter's view with the next slide and the notes.
+  await shell().keyboard.press('1');
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByRole('dialog', { name: /^Playing slide 1 of 3/ })).toContainText('Lisbon, together');
+  await shell().keyboard.press('p');
+  await expect(shell().getByRole('dialog', { name: /^Playing slide 1 of 3/ })).toContainText('Welcome everyone.');
   await shell().keyboard.press('Escape');
   await expect(shell().getByRole('dialog', { name: /^Playing/ })).toHaveCount(0);
+});
+
+test('slides are picked, moved and duplicated from the navigator by key, and Undo takes each step back', async () => {
+  await start();
+  await nav().getByRole('button', { name: /^Slide 2: Plan next year/ }).click();
+  // Alt+Up moves the picked slide up, and it stays picked.
+  await shell().keyboard.press('Alt+ArrowUp');
+  await expect.poll(() => fs.readFileSync(file(), 'utf8').indexOf('Plan next year')).toBeLessThan(fs.readFileSync(file(), 'utf8').indexOf('Lisbon, together'));
+  await expect(nav().getByRole('button', { name: /^Slide 1: Plan next year/ })).toHaveAttribute('aria-current', 'true');
+  // Ctrl+D duplicates it after itself.
+  await shell().keyboard.press('Control+d');
+  await expect(nav().getByRole('button')).toHaveCount(3);
+  await expect.poll(() => fs.readFileSync(file(), 'utf8').split('## Plan next year').length - 1).toBe(2);
+  // Undo takes the duplicate back, then the move.
+  await shell().keyboard.press('Control+z');
+  await expect(nav().getByRole('button')).toHaveCount(2);
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => fs.readFileSync(file(), 'utf8')).toBe(DECK);
+  // A new slide from a layout comes in after the picked one with its words to replace.
+  await page().getByRole('button', { name: 'Choose a layout' }).click();
+  await shell().getByRole('menu', { name: 'Slide layouts' }).getByRole('menuitem', { name: 'Section' }).click();
+  await expect(nav().getByRole('button', { name: /^Slide 2: Section title/ })).toBeVisible();
+  await expect.poll(() => fs.readFileSync(file(), 'utf8')).toContain('<!-- style: dark -->\n### Part 2\n## Section title');
 });
 
 test('slides Mobius adds are dashed in the navigator until kept', async () => {
