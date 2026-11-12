@@ -5,7 +5,7 @@ import { dayLabel, systemLocale } from '../dates';
 import { settingPath } from './manifest';
 import { Empty, Row } from './primitives';
 import type { SectionProps } from './sections';
-import { GROUP_OPTIONS, RANGE_OPTIONS, byDay, costText, gatewayName, groupBy, rangeDays, shortCount, toCsv, total, type UsageGroup, type UsageRange } from './usage';
+import { GROUP_OPTIONS, RANGE_OPTIONS, byDay, costText, gatewayName, groupBy, rangeDays, shortCount, toCsv, total, type UsageGroup, type UsageRange } from './usage-data';
 
 /** How each group's key reads: a service's name, an app's name, or the model's own id. */
 function label(by: UsageGroup, key: string): string {

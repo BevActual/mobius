@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UsageRow } from '@mobius/shared';
-import { byDay, costText, daysBetween, groupBy, rangeDays, shortCount, toCsv, total } from './usage';
+import { byDay, costText, daysBetween, groupBy, rangeDays, shortCount, toCsv, total } from './usage-data';
 
 const row = (over: Partial<UsageRow>): UsageRow => ({ day: '2026-11-10', gateway: 'openrouter', model: 'm', app: 'agent', kind: 'chat', requests: 1, inputTokens: 100, outputTokens: 10, costUsd: 0.5, ...over });
 
