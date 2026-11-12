@@ -30,8 +30,9 @@
 .browser-side .tab[data-pinned="true"] .tab-pin { color: var(--accent); }
 /* The tab that is showing keeps its close button, as in Safari; its other buttons wait for the pointer. */
 .browser-side .tab[aria-current="page"] .tab-actions { opacity: 1; }
-/* Its other buttons take no room until then, so they do not hide the end of its title. */
-.browser-side .tab[aria-current="page"]:not(:hover):not(:focus-within) .tab-actions > :not(.tab-x) { display: none; }
+.browser-side .tab[aria-current="page"]:not(:hover):not(:focus-within) .tab-actions > :not(.tab-x) { opacity: 0; }
+/* Until then only the close button's end of the row is covered, so the hidden buttons do not hide the end of its title. */
+.browser-side .tab[aria-current="page"]:not(:hover):not(:focus-within) .tab-actions { background: linear-gradient(to right, transparent calc(100% - 42px), var(--row-bg) calc(100% - 26px)); }
 .browser-side .tabs-empty { margin: 2px 8px; font-size: var(--fs-sm); color: var(--muted); }
 
 /* Dragging: the tab being moved fades, and a line shows where it will land. */
