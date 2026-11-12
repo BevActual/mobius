@@ -51,6 +51,7 @@ you want to build or change Mobius, go to **Developers**.
 | [Releases and updates](developers/releasing.md) | Packaging the installer, signing, and the in-app updater |
 | [Architecture decisions](adr/README.md) | Why Mobius is built the way it is (ADRs) |
 | [Design](design/workspace-layout.md) | One adaptive surface: the layout rules every app follows |
+| [Design rules](design/rules.md) | How sidebars, toolbars, controls, menus, glass and motion look and behave in every app |
 | [Reference notes](reference/README.md) | Comparisons with Hermes Agent, and calendar sign-in requirements |
 
 ## Help

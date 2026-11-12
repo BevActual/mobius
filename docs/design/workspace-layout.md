@@ -21,12 +21,13 @@ while you work in any app.
 - One entry point for the agent that sits above the work and opens a side pane that works with the content, with
   clear signals of what it is doing (M365 Copilot, May 2026). Invoking it on the content itself comes after.
 - Progressive disclosure: start clean, reveal controls in context, never every path at once.
-- Glass only on the top layer (the app hub, menus); the sidebar and toolbar are solid.
+- Glass is the floating layer of controls (sidebar, toolbar capsules, menus, the app hub); content stays solid. See
+  [Design rules](rules.md#liquid-glass).
 
 ## Mobius 2 shell
 
 - One window. The sidebar runs edge to edge; one toolbar spans the work area; controls are capsules; indigo is the one
-  accent. Glass stays on the top layer only, so Linux stays readable.
+  accent. Glass is for controls only, never content ([Design rules](rules.md#liquid-glass)).
 - **Split view**: the toolbar's split button (or Ctrl+\\) puts a second app beside the first. Each pane has a small header (choose
   its app, swap, close) outside the page view; the toolbar and sidebar follow the focused pane. Drag the divider, or
   focus it and use the arrow keys. Below 980 px the second pane folds away until the window is wide again. With the
