@@ -1347,8 +1347,9 @@ export function App() {
             surface={surface}
             onOpenItem={openTarget}
             variant="full"
-            desk={(
+            desk={(starters) => (
               <Desk
+                starters={starters}
                 rows={[
                   ...(browser.tabs.length > 0 ? [{ app: 'browser' as const, text: plural(browser.tabs.length, 'tab') + ' open' }] : []),
                   ...(mail.counts.all > 0 ? [{ app: 'mail' as const, text: `${mail.counts.all} unread` }] : []),

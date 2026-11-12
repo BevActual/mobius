@@ -6,9 +6,11 @@ The Agent app is Mobius's home. It opens on the **desk** and holds your conversa
 
 ![The Agent app in Mobius](../readme/apps/agent.png)
 
-- **The desk** shows what waits for you first (questions and approvals, each answerable in place), then what Mobius is
-  doing, what is open in your apps (an app Mobius changed carries a dashed edge until you look), and what is scheduled
-  next.
+- **The desk** opens with one greeting ("Good afternoon"), the date and what is in flight ("1 waiting for you · Mobius
+  is working"), and suggestions to start from. Under it: **Now** (questions and approvals, each answerable in place,
+  and what Mobius is doing, with Stop), **Recent** (the last few conversations, with when each was last active; one
+  press picks it up again), **In your apps** (an app Mobius changed carries a dashed edge until you look) and **Next**
+  (what is scheduled).
 - **The sidebar** lists conversations. Its tabs are **Sessions** (your conversations), **Activity** (opens the
   [Activity app](#activity)) and **Agents**.
 - **The message box** takes text, pictures and files, dictation (hold Ctrl+Space), `/skill` names, the mode

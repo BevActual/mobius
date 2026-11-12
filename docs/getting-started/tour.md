@@ -26,8 +26,9 @@ app you have open (the note, the page, the selected text) and can work across al
 
 ## The desk
 
-The Agent app opens on the **desk**. It shows what waits for you first (questions and approvals you can answer in
-place), then what Mobius is doing, what is open in your apps, and what is scheduled next. The sidebar here lists your
+The Agent app opens on the **desk**. It greets you with the date and what is in flight, with a few suggestions to
+start from. Below that comes what waits for you (questions and approvals you can answer in place) and what Mobius is
+doing, then your recent conversations, what is open in your apps, and what is scheduled next. The sidebar here lists your
 conversations, with tabs for **Sessions**, **Activity** and **Agents**. **Activity** is an app of its own: what Mobius
 did, a day at a time, and what needs you.
 
