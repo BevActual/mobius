@@ -1,0 +1,34 @@
+name: branch cleanup
+
+# Keeps the branch list tidy: when a pull request merges, its branch is deleted, and when one merges or closes,
+# its ci-screens/<branch> screenshots branch goes too. Long-lived branches listed in KEEP are never touched.
+# A deleted branch can be restored from the pull request page ("Restore branch").
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    # Only branches in this repository (a fork's branch is not ours to delete).
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete the merged branch and its screenshots
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          KEEP: main claude/project-thread-upbgu0 claude/project-thread-mnujis
+        run: |
+          for k in $KEEP; do
+            if [ "$BRANCH" = "$k" ]; then echo "$BRANCH is long-lived; kept."; KEPT=1; fi
+          done
+          gone() { gh api -X DELETE "repos/$REPO/git/refs/heads/$1" >/dev/null 2>&1 && echo "Deleted $1" || echo "$1 was not there"; }
+          if [ -z "$KEPT" ]; then
+            gone "ci-screens/$BRANCH"
+            if [ "$MERGED" = "true" ]; then gone "$BRANCH"; else echo "Not merged; $BRANCH kept so the work is not lost."; fi
+          fi
