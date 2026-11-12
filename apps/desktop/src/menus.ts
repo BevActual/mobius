@@ -37,6 +37,7 @@ export interface MenuContext {
     closeTab: () => void;
     settings: () => void;
     shortcuts: () => void;
+    learn: () => void;
     profiles: () => void;
     about: () => void;
     edit: (command: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll') => void;
@@ -123,6 +124,7 @@ export function buildMenus(c: MenuContext): Menu[] {
     item('mini', 'Little Mobius', d.toggleMini, { keys: keys.littleMobius, checked: s.miniOpen }),
   ] };
   const help: Menu = { id: 'help', label: 'Help', items: [
+    item('learn', 'Learn Mobius', d.learn),
     item('shortcuts', 'Keyboard shortcuts', d.shortcuts),
     item('about', 'About Mobius', d.about),
   ] };

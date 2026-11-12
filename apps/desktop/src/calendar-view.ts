@@ -112,8 +112,10 @@ export function placeDay(events: readonly CalendarEvent[], day: Date, minimum = 
 
 /** Events that start on or cover a day, all-day ones first: what a month cell lists. */
 export function eventsOn(events: readonly CalendarEvent[], day: Date): CalendarEvent[] {
-  const start = day.getTime();
-  const end = addDays(day, 1).getTime();
+  // The whole day, from midnight, whatever time `day` carries: "today" asked at 7 pm still has its morning.
+  const midnight = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+  const start = midnight.getTime();
+  const end = addDays(midnight, 1).getTime();
   const on = events.filter((e) => {
     const s = localDate(e.start).getTime();
     const f = localDate(e.end).getTime();
