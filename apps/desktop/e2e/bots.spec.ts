@@ -51,8 +51,16 @@ const say = async (text: string) => {
 const tab = (name: string) => list().getByRole('tab', { name });
 /** An agent's action, from its row's More menu. */
 const fromMenu = async (agent: string, item: string) => {
+  // A menu still closing would make the More button close it again rather than open it: wait until none is open.
+  await expect(shell().getByRole('menu')).toHaveCount(0);
   await list().getByRole('button', { name: `More for ${agent}` }).click();
   await shell().getByRole('menu', { name: agent }).getByRole('menuitem', { name: item }).click();
+  // A menu item runs once the menu has closed: wait for that, and for a new session to open empty.
+  await expect(shell().getByRole('menu')).toHaveCount(0);
+  if (item === 'New session') {
+    await expect(tab('Sessions')).toHaveAttribute('aria-selected', 'true');
+    await expect(log().locator('.msg')).toHaveCount(0);
+  }
 };
 async function newBot(name: string, instructions = '', modelName = ''): Promise<void> {
   await tab('Agents').click();
@@ -80,6 +88,7 @@ test('the side list switches between sessions and bots, and starts with Mobius a
   await list().getByRole('button', { name: 'More for Mobius' }).click();
   await expect(shell().getByRole('menu', { name: 'Mobius' }).getByRole('menuitem')).toHaveText(['New session']);
   await shell().keyboard.press('Escape');
+  await expect(shell().getByRole('menu')).toHaveCount(0);
 });
 
 test('a bot is made, its sessions use its instructions and model, and other sessions do not', async () => {
@@ -244,8 +253,10 @@ test('bots can be moved up and down, Mobius stays first, and the order is kept',
   };
   await expect(await menuItem('Alpha', 'Move up')).toBeDisabled();
   await shell().keyboard.press('Escape');
+  await expect(shell().getByRole('menu')).toHaveCount(0);
   await expect(await menuItem('Gamma', 'Move down')).toBeDisabled();
   await shell().keyboard.press('Escape');
+  await expect(shell().getByRole('menu')).toHaveCount(0);
   await fromMenu('Gamma', 'Move up');
   await expect.poll(names).toEqual(['Mobius', 'Alpha', 'Gamma', 'Beta']);
   await fromMenu('Alpha', 'Move down');
@@ -253,6 +264,7 @@ test('bots can be moved up and down, Mobius stays first, and the order is kept',
   await list().getByRole('button', { name: 'More for Mobius' }).click();
   await expect(shell().getByRole('menuitem', { name: /Move/ })).toHaveCount(0);
   await shell().keyboard.press('Escape');
+  await expect(shell().getByRole('menu')).toHaveCount(0);
   await mobius!.close({ keepUserData: true });
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model!.url, MOBIUS_AGENT_MODEL: 'chat-model' } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
