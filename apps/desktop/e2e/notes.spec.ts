@@ -142,7 +142,7 @@ test('if the agent changes the page while the person is typing, nothing is lost 
   expect(onDisk('Work', 'Plan.md')).toBe('# Plan mine!\n');
 });
 
-test('the format bar makes a checklist you tick, and Insert clips a web page where the cursor is', async () => {
+test('the format bar makes a checklist you tick, and More clips a web page where the cursor is', async () => {
   await start();
   await newNotebook('Trip');
   await retitle('Offsite');
@@ -161,8 +161,9 @@ test('the format bar makes a checklist you tick, and Insert clips a web page whe
   await shell().keyboard.press('End');
   await shell().keyboard.press('Enter');
   await shell().keyboard.press('Enter');
-  const insert = format().getByRole('group', { name: 'Insert' });
-  await insert.getByRole('button', { name: 'Clip from web' }).click();
+  // Clipping is in the bar's More menu.
+  await format().getByRole('button', { name: 'More' }).click();
+  await shell().getByRole('menu', { name: 'More' }).getByRole('menuitem', { name: 'Clip a web page…' }).click();
   await format().getByRole('textbox', { name: 'Address to clip' }).fill(`${fixture.origin}/casa-amora`);
   await format().getByRole('button', { name: 'Clip', exact: true }).click();
   await expect(text().locator('blockquote')).toContainText('Nine rooms in Príncipe Real.');
@@ -202,7 +203,8 @@ test('the Markdown view shows the file as it is kept, and typing there is saved'
   await start();
   await side().getByRole('button', { name: 'Plan', exact: true }).click();
   await expect(text().getByRole('checkbox', { name: 'Task item checkbox for Call Sam' })).not.toBeChecked();
-  await format().getByRole('button', { name: 'Markdown' }).click();
+  await format().getByRole('button', { name: 'More' }).click();
+  await shell().getByRole('menu', { name: 'More' }).getByRole('menuitem', { name: 'Show Markdown' }).click();
   await expect(source()).toHaveValue('# Plan\n\n- [ ] Call Sam\n');
   await source().press('Control+End');
   await source().pressSequentially('- [x] Book the sled\n');

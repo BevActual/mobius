@@ -251,6 +251,7 @@ export function createTauriBridge(): MobiusBridge {
       report: (conversation, text) => call('projects', 'report', [conversation, text], () => ({ ok: false as const, message: 'Projects are not available.' })),
       made: (id) => call('projects', 'made', [id], () => []),
       addThread: (id, conversation) => call('projects', 'addThread', [id, conversation], () => ({ ok: false as const, message: 'Projects are not available.' })),
+      removeThread: (id, conversation) => call('projects', 'removeThread', [id, conversation], () => ({ ok: false as const, message: 'Projects are not available.' })),
       onChanged: (listener) => on<null>('mobius:projects-changed', () => listener()),
     },
     updates: {
@@ -467,6 +468,16 @@ export function createTauriBridge(): MobiusBridge {
       remove: (path) => call('boards', 'remove', [path], () => ({ ok: false as const, message: 'Canvas is not available.' })),
       search: (query) => call('boards', 'search', [query], () => []),
       onChanged: (listener) => on<NotesChange>('mobius:boards-changed', listener),
+    },
+    views: {
+      list: () => call('views', 'list', [], () => []),
+      read: (path) => call('views', 'read', [path], () => ({ ok: false as const, message: 'Views is not available.' })),
+      save: (path, content, base) => call('views', 'save', [path, content, base], () => ({ ok: false as const, message: 'Views is not available.' })),
+      createNotebook: (name) => call('views', 'createNotebook', [name], () => ({ ok: false as const, message: 'Views is not available.' })),
+      createPage: (notebook, title) => call('views', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Views is not available.' })),
+      remove: (path) => call('views', 'remove', [path], () => ({ ok: false as const, message: 'Views is not available.' })),
+      search: (query) => call('views', 'search', [query], () => []),
+      onChanged: (listener) => on<NotesChange>('mobius:views-changed', listener),
     },
     research: {
       list: () => call('research', 'list', [], () => []),

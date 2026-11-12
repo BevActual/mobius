@@ -56,7 +56,11 @@ test('clips are played through the media address, added to the cut as shots, tri
 
   await timeline().getByRole('option', { name: /^Shot 2: sunset\.webm/ }).click();
   const shot = shell().getByRole('complementary', { name: 'Shot' });
-  await shot.getByRole('spinbutton', { name: 'Out' }).fill('2.5');
+  // In and Out read as timecode, and take it or plain seconds.
+  await expect(shot.getByRole('textbox', { name: 'Out' })).toHaveValue('0:05.0');
+  await shot.getByRole('textbox', { name: 'Out' }).fill('2.5');
+  await shot.getByRole('textbox', { name: 'Out' }).press('Enter');
+  await expect(shot.getByRole('textbox', { name: 'Out' })).toHaveValue('0:02.5');
   await shot.getByRole('textbox', { name: 'Title' }).fill('Sunset');
   await shot.getByRole('button', { name: 'Earlier' }).click();
   await expect.poll(() => saved().shots.map((s) => [s.clip, s.out, (s as { title?: string }).title ?? ''])).toEqual([['sunset.webm', 2.5, 'Sunset'], ['terrace.webm', 5, '']]);
@@ -66,6 +70,11 @@ test('clips are played through the media address, added to the cut as shots, tri
   await shell().getByRole('toolbar', { name: 'Transport' }).getByRole('button', { name: 'Play' }).click();
   await expect(shell().getByLabel('Time', { exact: true })).not.toHaveText(before ?? '', { timeout: 5000 });
   await expect(shell().getByRole('status').filter({ hasText: 'cannot be played' })).toHaveCount(0);
+
+  // A shot's right-click menu duplicates it, the copy right after it.
+  await timeline().getByRole('option', { name: /^Shot 1: sunset\.webm/ }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Shot 1' }).getByRole('menuitem', { name: 'Duplicate' }).click();
+  await expect.poll(() => saved().shots.map((s) => [s.clip, s.out, (s as { title?: string }).title ?? ''])).toEqual([['sunset.webm', 2.5, 'Sunset'], ['sunset.webm', 2.5, 'Sunset'], ['terrace.webm', 5, '']]);
 });
 
 test('a rough cut from Mobius is shown dashed, and kept', async () => {

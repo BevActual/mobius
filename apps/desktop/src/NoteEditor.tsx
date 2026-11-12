@@ -2,6 +2,8 @@ import { EmptyState } from './EmptyState';
 import { newItemIn } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
+import { ContextMenu } from './ContextMenu';
 import { settleGone, settleIn, settleKept } from './settle';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
 import { Extension } from '@tiptap/core';
@@ -23,6 +25,7 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { showTag, tagRanges, tagsIn } from './note-tags';
 import { countWords } from './Docs';
 import { relativeTime } from './relative-time';
+import { timeLabel } from './dates';
 import { NoteHistory, dayOf } from './NoteHistory';
 import './notes.css';
 import { CommentComposer, CommentList, useNoteComments } from './NoteComments';
@@ -120,10 +123,17 @@ const STYLES = [
   { id: 'h3', label: 'Subheading' },
 ] as const;
 
+/** The styles in the Aa panel, in the order Apple Notes lists them: biggest first. */
+const STYLES_SHOWN = [STYLES[1], STYLES[2], STYLES[3], STYLES[0]];
+
 /** The Markdown the editor holds, written as people write it: one blank line between blocks, a newline at the end. */
 const markdownOf = (e: Editor) => tidyMarkdown(e.getMarkdown());
 
-/** The format bar's buttons, with what they show as pressed. Off in Markdown, where the marks are typed. */
+/**
+ * The format bar, as in Apple Notes: Aa opens a panel with the text styles and marks, and the bar itself keeps only
+ * what is reached for while writing (checklist, table, link). The buttons show as pressed what the cursor is in.
+ * Off in Markdown, where the marks are typed.
+ */
 function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void }) {
   const state = useEditorState({
     editor,
@@ -133,6 +143,14 @@ function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void 
       bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), task: e.isActive('taskList'), quote: e.isActive('blockquote'), table: e.isActive('table'),
     }),
   });
+  const [panel, setPanel] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!panel) return;
+    const away = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node | null)) setPanel(false); };
+    window.addEventListener('pointerdown', away);
+    return () => window.removeEventListener('pointerdown', away);
+  }, [panel]);
   const run = (f: (c: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) => () => { f(editor.chain().focus()).run(); };
   const setStyle = (id: string) => {
     const chain = editor.chain().focus();
@@ -140,36 +158,52 @@ function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void 
     else chain.setHeading({ level: Number(id.slice(1)) as 1 | 2 | 3 }).run();
   };
   const keep = (e: { preventDefault: () => void }) => e.preventDefault();
+  const marked = state.bold || state.italic || state.strike || state.code || state.style !== 'p' || state.bullet || state.ordered || state.quote;
   return (
     <>
-      <select aria-label="Paragraph style" value={state.style} onChange={(e) => setStyle(e.target.value)}>
-        {STYLES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-      </select>
-      <span className="doc-tool-sep" />
-      <button type="button" className="doc-tool" aria-label="Bold" aria-pressed={state.bold} title="Bold (Ctrl+B)" onPointerDown={keep} onClick={run((c) => c.toggleBold())}><b>B</b></button>
-      <button type="button" className="doc-tool" aria-label="Italic" aria-pressed={state.italic} title="Italic (Ctrl+I)" onPointerDown={keep} onClick={run((c) => c.toggleItalic())}><i>I</i></button>
-      <button type="button" className="doc-tool" aria-label="Strikethrough" aria-pressed={state.strike} title="Strikethrough (Ctrl+Shift+S)" onPointerDown={keep} onClick={run((c) => c.toggleStrike())}><s>S</s></button>
-      <button type="button" className="doc-tool" aria-label="Code" aria-pressed={state.code} title="Code (Ctrl+E)" onPointerDown={keep} onClick={run((c) => c.toggleCode())}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 6 3.5 10l4 4M12.5 6l4 4-4 4" /></svg>
-      </button>
-      <button type="button" className="doc-tool" aria-label="Link" aria-pressed={state.link} title={state.link ? 'Remove the link' : 'Link'} onPointerDown={keep} onClick={() => (state.link ? editor.chain().focus().unsetLink().run() : onLink())}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" /></svg>
-      </button>
-      <span className="doc-tool-sep" />
-      <button type="button" className="doc-tool" aria-label="Bulleted list" aria-pressed={state.bullet} title="Bulleted list (Ctrl+Shift+8)" onPointerDown={keep} onClick={run((c) => c.toggleBulletList())}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="6" r="1" /><circle cx="5" cy="10" r="1" /><circle cx="5" cy="14" r="1" /><path d="M8.5 6h7M8.5 10h7M8.5 14h7" /></svg>
-      </button>
-      <button type="button" className="doc-tool" aria-label="Numbered list" aria-pressed={state.ordered} title="Numbered list (Ctrl+Shift+7)" onPointerDown={keep} onClick={run((c) => c.toggleOrderedList())}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h1.5v3M4 8h3M4 12.5c.5-.8 2.5-.8 2.5.3 0 .8-2.5 1.5-2.5 2.2h2.6M9.5 6h6M9.5 10h6M9.5 14h6" /></svg>
-      </button>
+      <div className="note-aa" ref={wrap}>
+        <button type="button" className="doc-tool note-aa-btn" aria-label="Format text" title="Styles, bold, italic and lists" aria-haspopup="dialog" aria-expanded={panel} data-marked={marked || undefined} onPointerDown={keep} onClick={() => setPanel((o) => !o)}>
+          <span aria-hidden="true">Aa</span>
+        </button>
+        {panel && (
+          <div className="note-aa-panel glass" role="dialog" aria-label="Text format" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setPanel(false); editor.commands.focus(); } }}>
+            <div className="note-aa-styles" role="group" aria-label="Paragraph style">
+              {STYLES_SHOWN.map((s) => (
+                <button key={s.id} type="button" className="note-aa-style" data-style={s.id} aria-pressed={state.style === s.id} onPointerDown={keep} onClick={() => setStyle(s.id)}>{s.label}</button>
+              ))}
+            </div>
+            <div className="note-aa-row">
+              <div className="note-aa-group" role="group" aria-label="Marks">
+                <button type="button" className="doc-tool" aria-label="Bold" aria-pressed={state.bold} title="Bold (Ctrl+B)" onPointerDown={keep} onClick={run((c) => c.toggleBold())}><b>B</b></button>
+                <button type="button" className="doc-tool" aria-label="Italic" aria-pressed={state.italic} title="Italic (Ctrl+I)" onPointerDown={keep} onClick={run((c) => c.toggleItalic())}><i>I</i></button>
+                <button type="button" className="doc-tool" aria-label="Strikethrough" aria-pressed={state.strike} title="Strikethrough (Ctrl+Shift+S)" onPointerDown={keep} onClick={run((c) => c.toggleStrike())}><s>S</s></button>
+                <button type="button" className="doc-tool" aria-label="Code" aria-pressed={state.code} title="Code (Ctrl+E)" onPointerDown={keep} onClick={run((c) => c.toggleCode())}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 6 3.5 10l4 4M12.5 6l4 4-4 4" /></svg>
+                </button>
+              </div>
+              <div className="note-aa-group" role="group" aria-label="Lists">
+                <button type="button" className="doc-tool" aria-label="Bulleted list" aria-pressed={state.bullet} title="Bulleted list (Ctrl+Shift+8)" onPointerDown={keep} onClick={run((c) => c.toggleBulletList())}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="6" r="1" /><circle cx="5" cy="10" r="1" /><circle cx="5" cy="14" r="1" /><path d="M8.5 6h7M8.5 10h7M8.5 14h7" /></svg>
+                </button>
+                <button type="button" className="doc-tool" aria-label="Numbered list" aria-pressed={state.ordered} title="Numbered list (Ctrl+Shift+7)" onPointerDown={keep} onClick={run((c) => c.toggleOrderedList())}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h1.5v3M4 8h3M4 12.5c.5-.8 2.5-.8 2.5.3 0 .8-2.5 1.5-2.5 2.2h2.6M9.5 6h6M9.5 10h6M9.5 14h6" /></svg>
+                </button>
+                <button type="button" className="doc-tool" aria-label="Quote" aria-pressed={state.quote} title="Quote (Ctrl+Shift+B)" onPointerDown={keep} onClick={run((c) => c.toggleBlockquote())}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6v8M9 7h7M9 10h7M9 13h5" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
       <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title="Checklist (Ctrl+Shift+9)" onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4" width="4" height="4" rx="1" /><path d="m4.3 13.2 1 1 1.9-2.2M10 6h6.5M10 13h6.5" /></svg>
-      </button>
-      <button type="button" className="doc-tool" aria-label="Quote" aria-pressed={state.quote} title="Quote (Ctrl+Shift+B)" onPointerDown={keep} onClick={run((c) => c.toggleBlockquote())}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6v8M9 7h7M9 10h7M9 13h5" /></svg>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5.5" cy="6" r="2.2" /><path d="m4.4 6 .8.8 1.4-1.6" /><circle cx="5.5" cy="13.5" r="2.2" /><path d="M10 6h6.5M10 13.5h6.5" /></svg>
       </button>
       <button type="button" className="doc-tool" aria-label="Table" aria-pressed={state.table} title={state.table ? 'Delete table' : 'Insert table'} onPointerDown={keep} onClick={run((c) => (state.table ? c.deleteTable() : c.insertTable({ rows: 3, cols: 2, withHeaderRow: true })))}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></svg>
+      </button>
+      <button type="button" className="doc-tool" aria-label="Link" aria-pressed={state.link} title={state.link ? 'Remove the link' : 'Link to a note or a web page (or type [[)'} onPointerDown={keep} onClick={() => (state.link ? editor.chain().focus().unsetLink().run() : onLink())}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" /></svg>
       </button>
       {state.table && (
         <>
@@ -233,7 +267,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       TaskList,
       TaskItem.configure({ nested: true }),
       Markdown,
-      Placeholder.configure({ placeholder: ({ node }) => (node.type.name === 'heading' ? 'Title' : 'Start writing, or type # for a tag') }),
+      // The hints are for a page still to be written: an empty title, and the first line under it. A page with words
+      // in it shows none, so the empty line kept at its end does not read as a prompt.
+      Placeholder.configure({ placeholder: ({ editor: e, node, pos }) => (node.type.name === 'heading' ? (pos === 0 ? 'Title' : '') : e.state.doc.childCount <= 2 ? 'Start writing, or type # for a tag' : '') }),
       NoteTags,
       image,
       commentMarks,
@@ -366,6 +402,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   const caret = useRef<number | null>(null);
   useEffect(() => { caret.current = null; }, [path]);
   const [clipping, setClipping] = useState<string | null>(null);
+  const [more, setMore] = useState<{ x: number; y: number } | null>(null);
   const [linking, setLinking] = useState<string | null>(null);
   const [insertProblem, setInsertProblem] = useState<string | null>(null);
   const recordedFor = useRef(0);
@@ -433,7 +470,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   const [restored, setRestored] = useState<{ was: string; label: string } | null>(null);
   useEffect(() => { setHistory(false); setRestored(null); }, [path]);
   const restore = (content: string, whenMs: number) => {
-    const at = new Date(whenMs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const at = timeLabel(whenMs);
     setRestored({ was: notes.text, label: `${dayOf(whenMs, Date.now())}, ${at}` });
     notes.edit(content);
     setHistory(false);
@@ -584,9 +621,6 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
                 <input ref={picker} type="file" multiple hidden aria-label="Choose files to add" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; void addFiles(files); }} />
               </>
             )}
-            <button type="button" className="doc-tool" aria-label="Clip from web" title="Clip a web page into this page" aria-expanded={clipping !== null} onPointerDown={keep} onClick={() => setClipping((c) => (c === null ? '' : null))}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M3.5 10h13M10 3.5c-2 2-2.8 4.2-2.8 6.5s.8 4.5 2.8 6.5M10 3.5c2 2 2.8 4.2 2.8 6.5s-.8 4.5-2.8 6.5" /></svg>
-            </button>
           </div>
           <span className="spacer" />
           <div className="note-share">
@@ -614,7 +648,18 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.8 10a6.2 6.2 0 1 0 1.9-4.5M3.5 3.5v3h3M10 6.5V10l2.5 1.6" /></svg>
             </button>
           )}
-          <button type="button" className="doc-tool text note-source" aria-pressed={source} title={source ? 'Show the page formatted' : 'Show and type the Markdown the page is kept as'} onClick={toggleSource}>Markdown</button>
+          {source && <button type="button" className="doc-tool text note-source" aria-pressed title="Show the page formatted" onClick={toggleSource}>Markdown</button>}
+          <button type="button" className="doc-tool" aria-label="More" title="More for this page" aria-haspopup="menu" aria-expanded={more !== null}
+            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMore((m) => (m ? null : { x: r.right - 220, y: r.bottom + 6 })); }}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.1" /><circle cx="10" cy="10" r="1.1" /><circle cx="15" cy="10" r="1.1" /></svg>
+          </button>
+          {more && createPortal(
+            <ContextMenu x={more.x} y={more.y} label="More" onClose={() => setMore(null)} items={[
+              { label: 'Clip a web page…', run: () => setClipping('') },
+              { label: source ? 'Show formatted' : 'Show Markdown', run: toggleSource, separated: true },
+            ]} />,
+            document.body,
+          )}
           {clipping !== null && (
             <form className="note-clip" onSubmit={(e) => { e.preventDefault(); if (clipping.trim()) void clip(clipping); }}>
               <input autoFocus aria-label="Address to clip" placeholder="Paste a link" value={clipping} onChange={(e) => setClipping(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setClipping(null); }} />
