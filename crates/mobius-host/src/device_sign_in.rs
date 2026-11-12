@@ -13,8 +13,8 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 
 pub const HUGGING_FACE: &str = "https://huggingface.co";
-/// Mobius's public client id at Hugging Face. Empty until the app is registered: then there is no sign-in button.
-pub const HUGGING_FACE_CLIENT_ID: &str = "";
+/// Mobius's public client id at Hugging Face (a public app: no secret goes with it).
+pub const HUGGING_FACE_CLIENT_ID: &str = "f0c4f7b0-9446-4fcc-98ae-6427e202b035";
 pub const HUGGING_FACE_SCOPES: &str = "openid profile inference-api";
 pub const GITHUB: &str = "https://github.com";
 /// Mobius's public client id for its GitHub OAuth app (device flow on). Public by design: no secret goes with it.

@@ -1402,8 +1402,6 @@ fn a_hugging_face_sign_in_shows_a_code_and_keeps_the_token() {
     });
     let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
     let hf = |listed: &serde_json::Value| listed.as_array().unwrap().iter().find(|p| p["id"] == "huggingface").unwrap().clone();
-    // Without Mobius's client id there is no sign-in, only a key.
-    assert_eq!(hf(&call(&b, "providers", "list", json!([])))["canSignIn"], false);
     b.enable_test_hooks();
     b.use_hugging_face_for_tests(&site_url, "mobius-test-client");
     assert_eq!(hf(&call(&b, "providers", "list", json!([])))["canSignIn"], true);
