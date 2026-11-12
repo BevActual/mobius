@@ -1,4 +1,4 @@
-export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'advanced' | 'about';
+export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
 
 export interface SettingRow {
   id: string;
@@ -206,6 +206,20 @@ const SECTIONS: readonly SettingsSection[] = [
     ],
   },
   {
+    id: 'usage',
+    label: 'Usage',
+    description: 'Tokens used and what they may have cost, by day.',
+    keywords: ['cost', 'spend', 'billing', 'tokens', 'money', 'price'],
+    subpages: [{ id: 'usage', label: 'Usage', rows: [
+      row('usage-period', 'Period', 'Which days to show: the last 7, 30 or 90 days, or this month.', 'days', 'week', 'month', 'range'),
+      row('usage-summary', 'Totals', 'Tokens, estimated cost and requests for the period.', 'tokens', 'cost', 'spend', 'total', 'money', 'billing'),
+      row('usage-chart', 'Tokens by day', 'How many tokens each day used.', 'chart', 'daily', 'graph'),
+      row('usage-breakdown', 'Breakdown', 'The period by model, service or app.', 'by model', 'by app', 'by service', 'gateway', 'provider', 'cost per model'),
+      row('usage-export', 'Export', 'Every day, service, model and app as CSV.', 'csv', 'spreadsheet', 'download', 'copy', 'excel'),
+      row('usage-clear', 'Clear usage', 'Forget every count kept so far.', 'reset', 'delete', 'forget'),
+    ] }],
+  },
+  {
     id: 'voice',
     label: 'Voice',
     description: 'Who listens when you dictate, and who speaks answers aloud. Each has its own service and a fallback.',
@@ -266,7 +280,7 @@ const SECTIONS: readonly SettingsSection[] = [
 /** The sidebar's order, under its headings, as in System Settings. */
 const ORDER: ReadonlyArray<[SectionId, string]> = [
   ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'],
-  ['providers', 'Models'], ['model', 'Models'], ['voice', 'Models'],
+  ['providers', 'Models'], ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
   ['safety', 'Safety'], ['memory', 'Safety'], ['privacy', 'Safety'],
   ['browser', 'Apps'], ['sessions', 'Apps'], ['schedules', 'Apps'], ['extensions', 'Apps'],
   ['advanced', 'System'], ['about', 'System'],
