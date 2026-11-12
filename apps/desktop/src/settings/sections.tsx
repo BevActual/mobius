@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { MobiusMark } from '../MobiusMark';
-import { ChatModelPopUp, FallbackPopUp, ImagesPopUp, QuickPopUp } from './ModelDefaults';
+import { ChatModelPopUp, FallbackPopUp, ImagesRow, QuickPopUp } from './ModelDefaults';
 import { SoftwareUpdate } from './SoftwareUpdate';
 import {
   type SavedServer,
@@ -259,16 +259,17 @@ export function ModelSection({ subpage, highlight, settings, onSaveSettings, pre
       <Row path={rowPath('model', subpage, 'quick-model')} title="Quick model" description="For quick jobs, like checking a step in Act mode before it runs. A small, fast model fits. Same as chat uses the chat model." highlight={highlight === 'quick-model'}>
         <QuickPopUp quick={preferences.quickModel ?? ''} />
       </Row>
-      <Row path={rowPath('model', subpage, 'images')} title="Images" description="Makes pictures for Photo, Design and Slides when you ask. Each picture may cost money on that gateway." highlight={highlight === 'images'}>
-        <ImagesPopUp chosen={preferences.imageModel ?? ''} />
-      </Row>
+      <ImagesRow path={rowPath('model', subpage, 'images')} highlight={highlight === 'images'} chosen={preferences.imageModel ?? ''} />
       {window.mobius.agent.savedServers && (
         <Row path={rowPath('model', subpage, 'saved-servers')} title="Saved servers" description="Keep model servers under a name and switch between them. Saving keeps the address, the model and, in the system's secret store, the key." highlight={highlight === 'saved-servers'}>
           <SavedServers current={`${settings.baseUrl}|${settings.model}`} />
         </Row>
       )}
       <Row path={rowPath('model', subpage, 'effort')} title="Effort" description="How hard the model is asked to think. Also in the message box. Only models that can reason use it." highlight={highlight === 'effort'}>
-        <Choice label="Effort" name="effort" value={preferences.reasoningEffort} options={EFFORT_OPTIONS} onChange={(reasoningEffort) => void onPreferences({ reasoningEffort })} />
+        {/* A pop-up, like the other rows of this card: five choices side by side were the odd one out. */}
+        <select className="popup" aria-label="Effort" value={preferences.reasoningEffort} onChange={(event) => void onPreferences({ reasoningEffort: event.target.value as EffortChoice })}>
+          {EFFORT_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+        </select>
       </Row>
     </>
   );
@@ -967,10 +968,10 @@ function RemoveData() {
   );
 }
 
-/** Servers saved by name: save the one in use, switch to another, or remove one. */
+/** Servers saved by name, as rows: switch to one or remove it. Save Current Server… asks for a name in a small sheet. */
 function SavedServers({ current }: { current: string }) {
   const [servers, setServers] = useState<SavedServer[]>([]);
-  const [name, setName] = useState('');
+  const [naming, setNaming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const reload = () => void window.mobius.agent.savedServers?.().then(setServers);
   useEffect(reload, []);
@@ -984,21 +985,48 @@ function SavedServers({ current }: { current: string }) {
     <div className="saved-servers">
       {servers.length > 0 && (
         <ul className="clist" role="list" aria-label="Saved servers">
-          {servers.map((s) => (
-            <li key={s.id} className="clist-item" aria-current={`${s.baseUrl}|${s.model}` === current ? 'true' : undefined}>
-              <span className="clist-main"><span className="clist-title">{s.name}</span><span className="clist-meta">{s.model} · {s.baseUrl}{s.hasKey ? '' : ' · no key'}</span></span>
-              <button type="button" className="btn" aria-label={`Use ${s.name}`} onClick={() => run(window.mobius.agent.useServer?.(s.id))}>Use</button>
-              <button type="button" className="btn" aria-label={`Remove ${s.name}`} onClick={() => run(window.mobius.agent.removeServer?.(s.id))}>Remove</button>
-            </li>
-          ))}
+          {servers.map((s) => {
+            const inUse = `${s.baseUrl}|${s.model}` === current;
+            return (
+              <li key={s.id} className="clist-item" aria-current={inUse ? 'true' : undefined}>
+                <span className="clist-main"><span className="clist-title">{s.name}{inUse ? <span className="badge" data-effect="allow">In use</span> : null}</span><span className="clist-meta">{s.model} · {s.baseUrl}{s.hasKey ? '' : ' · no key'}</span></span>
+                <button type="button" className="btn" aria-label={`Use ${s.name}`} onClick={() => run(window.mobius.agent.useServer?.(s.id))}>Use</button>
+                <button type="button" className="btn" aria-label={`Remove ${s.name}`} onClick={() => run(window.mobius.agent.removeServer?.(s.id))}>Remove</button>
+              </li>
+            );
+          })}
         </ul>
       )}
-      <span className="field-inline">
-        <input className="input" aria-label="Name for this server" placeholder="Name, e.g. Work" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} />
-        <button type="button" className="btn" disabled={name.trim() === ''} onClick={() => run(window.mobius.agent.saveServer?.(name), () => setName(''))}>Keep current server</button>
+      <span className="saved-servers-foot">
+        <button type="button" className="btn" onClick={() => setNaming(true)}>Save Current Server…</button>
       </span>
       {problem && <span className="field-error" role="alert">{problem}</span>}
+      {naming && <NameSheet onCancel={() => setNaming(false)} onSave={(name) => run(window.mobius.agent.saveServer?.(name), () => setNaming(false))} />}
     </div>
+  );
+}
+
+/** A small sheet that asks for a name: the field, then Cancel and Save. Esc cancels; Save stays off until there is a name. */
+function NameSheet({ onCancel, onSave }: { onCancel: () => void; onSave: (name: string) => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [name, setName] = useState('');
+  useEffect(() => { const d = ref.current; if (d && !d.open) d.showModal(); return () => d?.close(); }, []);
+  return (
+    <dialog ref={ref} className="settings-sheet" aria-label="Save the current server"
+      onCancel={(e) => { e.preventDefault(); onCancel(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel(); } }}>
+      <form method="dialog" onSubmit={(e) => { e.preventDefault(); if (name.trim()) onSave(name.trim()); }}>
+        <h3 className="settings-sheet-title">Save the current server</h3>
+        <p className="settings-sheet-text">Keeps its address, its model and, in the system's secret store, its key, so you can switch back to it later.</p>
+        <label className="settings-sheet-field"><span>Name</span>
+          <input autoFocus aria-label="Name for this server" placeholder="e.g. Work" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <div className="settings-sheet-actions">
+          <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="btn primary" disabled={name.trim() === ''}>Save</button>
+        </div>
+      </form>
+    </dialog>
   );
 }
 

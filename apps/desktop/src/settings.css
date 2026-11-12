@@ -3,6 +3,7 @@
 
 /* One centred column for every pane, so the switcher, the head and the cards share the same edges. */
 .settings-page .settings-content { padding: 24px 28px 48px; }
+.settings-page { --settings-control-w: 200px; }
 .settings-page .settings-column { width: 100%; max-width: 640px; margin: 0 auto; }
 .settings-page .settings-card { max-width: none; }
 .settings-page .settings-card + .settings-card { margin-top: 14px; }
@@ -32,7 +33,7 @@
 /* Pop-up buttons: a choice of several shows its value and the up-down chevrons, never a bare box like a text field. */
 .settings-page select, .settings-page .popup {
   appearance: none; -webkit-appearance: none;
-  height: 26px; min-width: 150px; max-width: 260px; padding: 0 26px 0 10px;
+  width: var(--settings-control-w); height: 26px; padding: 0 26px 0 10px;
   border: 0.5px solid var(--hairline); border-radius: 7px;
   background-color: var(--bg);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3M1 7.5l3 3 3-3' fill='none' stroke='%238e8e93' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -46,6 +47,7 @@
 /* Text and number fields in a row: the same height and corners as the pop-ups beside them. */
 .settings-page .settings-card .srow-body input:not([type="checkbox"]):not([type="radio"]):not([role="switch"]):not([type="range"]) { height: 26px; padding: 0 8px; border: 0.5px solid var(--hairline); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
 .settings-page .settings-card .srow-body input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.settings-page .settings-card .srow-body input[type="text"] { width: var(--settings-control-w); box-sizing: border-box; }
 .settings-page input.steps-field { width: 64px; text-align: right; }
 
 /* Keyboard: each shortcut is a key field. Click it and press the new keys; a small clear button sits inside it. */
@@ -61,7 +63,7 @@
 .key-field[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .key-field:disabled { opacity: 1; background: transparent; border-color: transparent; color: var(--muted); }
 .key-field kbd { padding: 0; border: 0; background: none; font: inherit; }
-.key-clear { width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--ink) 14%, transparent); color: var(--bg); display: inline-grid; place-items: center; cursor: default; }
+.key-clear { opacity: 0; transition: opacity var(--dur-fast) var(--ease); width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--ink) 14%, transparent); color: var(--bg); display: inline-grid; place-items: center; cursor: default; }
 .key-clear:hover { background: color-mix(in srgb, var(--ink) 30%, transparent); }
 .key-clear svg { width: 8px; height: 8px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .key-reset { padding: 0 2px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; cursor: default; }
@@ -86,3 +88,24 @@
 /* Software Update: what the updater is doing sits beside Check for Updates, in small grey print. */
 .settings-page .settings-card .srow-body > .inline-form { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
 .settings-page .settings-card .srow-body > .inline-form > .srow-text { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+/* The clear button shows only on the row under the pointer or with the keyboard in it, so the list stays quiet. */
+.shortcut-item:hover .key-clear, .shortcut-item:focus-within .key-clear, .key-clear:focus-visible { opacity: 1; }
+
+/* The sidebar's search keeps its height in the column of sections (it is a flex item there). */
+.settings-nav .settings-search, .settings-side .settings-search { flex: none; height: 28px; min-height: 28px; }
+
+/* Saved servers: the list as rows, and Save Current Server… trailing under it. */
+.saved-servers { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.saved-servers-foot { display: flex; justify-content: flex-end; }
+
+/* A small sheet over Settings: a title, a line of help, one field, Cancel and the default button. */
+.settings-sheet { width: min(360px, calc(100vw - 32px)); padding: 18px; border: 0.5px solid var(--hairline); border-radius: 12px; background: var(--bg); color: var(--ink); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); }
+.settings-sheet::backdrop { background: rgba(0, 0, 0, 0.18); }
+.settings-sheet-title { margin: 0 0 4px; font-size: 13px; font-weight: 650; }
+.settings-sheet-text { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
+.settings-sheet-field { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.settings-sheet-field input { flex: 1; height: 26px; padding: 0 8px; border: 0.5px solid var(--hairline); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
+.settings-sheet-field input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.settings-sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+@media (prefers-color-scheme: dark) { .settings-sheet { background: color-mix(in srgb, var(--ink) 8%, var(--bg)); } }

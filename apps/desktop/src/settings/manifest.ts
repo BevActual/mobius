@@ -164,7 +164,7 @@ const SECTIONS: readonly SettingsSection[] = [
   {
     id: 'keyboard',
     label: 'Keyboard',
-    description: 'Shortcuts.',
+    description: 'Click a shortcut to change it.',
     subpages: [{ id: 'shortcuts', label: 'Shortcuts', rows: [
       row('shortcut-list', 'Keyboard shortcuts', 'Change the keys for each shortcut.', 'keys', 'hotkeys', 'keybindings', 'rebind', 'remap', 'ctrl', 'command', 'reset shortcuts'),
       row('quick-entry', 'Quick entry from anywhere', 'A shortcut that works even when Mobius is in the background.', 'global shortcut', 'global hotkey', 'summon', 'bring up', 'wake', 'launch'),
