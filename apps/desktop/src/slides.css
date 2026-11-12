@@ -174,13 +174,15 @@
 
 /* Round 2. In Play: a transition pop-up and a Skip switch, each a row with its label on the left. */
 .slides-page .slides-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; font-size: var(--fs-sm); color: var(--ink); }
-.slides-page .slides-popup { height: 26px; padding: 0 24px 0 10px; border: 0; border-radius: 7px; background: var(--field) var(--chevron) no-repeat right 6px center / 12px; appearance: none; font: inherit; font-size: var(--fs-sm); color: var(--ink); }
+.slides-page .slides-popup { height: 26px; padding: 0 24px 0 10px; border: 0; border-radius: 7px; background: var(--field) var(--chevrons-updown) no-repeat right 7px center / 8px 12px; appearance: none; font: inherit; font-size: var(--fs-sm); color: var(--ink); }
+/* A pop-up that picks a value shows up-and-down chevrons, as on the Mac. */
+.slides-page { --chevrons-updown: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1.5 4.5 4 2l2.5 2.5M1.5 7.5 4 10l2.5-2.5' fill='none' stroke='%238e8e93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 .slides-page .slides-popup:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* A skipped slide stays in the navigator, dimmed and short, as Keynote collapses it. */
-.slides-page .slides-thumb[data-skipped] .slide-face { aspect-ratio: 16 / 3.2; justify-content: center; padding-right: 28px; opacity: 0.5; }
+.slides-page .slides-thumb[data-skipped] .slide-face { aspect-ratio: 16 / 3.2; justify-content: center; padding-right: 28px; background: var(--field); color: var(--muted); }
 .slides-page .slides-thumb[data-skipped] .slide-face > :not(.slide-title) { display: none; }
-.slides-page .slides-thumb[data-skipped] .slide-face .slide-title { font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slides-page .slides-thumb[data-skipped] .slide-face .slide-title { color: var(--muted); font-weight: 600; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slides-page .slides-thumb[data-skipped] .slide-face[data-picture] { display: flex; }
 .slides-page .slides-skipped { position: absolute; right: 10px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 18px; height: 18px; color: var(--muted); }
 .slides-page .slides-skipped svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
