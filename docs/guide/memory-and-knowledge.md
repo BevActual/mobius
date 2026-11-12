@@ -23,7 +23,7 @@ grouped as About you, Preferences, Projects, People and Learned skills.
 
 Knowledge also keeps pages that are shared, such as a project's memory page. Changes to them are offered rather than
 written straight in: a line from How I work you chose to share, a line Mobius proposes, or one from someone else. Each
-waits under **Shared with this wiki** with **Decline**, **Edit first** and **Keep**, and either answer can be undone.
+waits under **Suggested changes** with **Decline**, **Edit first** and **Keep**, and either answer can be undone.
 
 Pages are Markdown files in `workspace/wiki/`. Their earlier versions come from the workspace checkpoints, so any page
 can be put back as it was.

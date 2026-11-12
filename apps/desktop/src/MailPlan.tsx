@@ -11,15 +11,14 @@ const GROUPS: readonly { key: keyof MailPlan; verb: string }[] = [
 /**
  * Get to zero, in the Mobius panel while Mail is open: Mobius's plan for the whole inbox, dashed until kept. Keeping
  * it archives, marks what needs a reply, puts the rest off until tomorrow and adds the to-dos to Tasks; one Undo all
- * puts it all back. Under it, Ask your mail.
+ * puts it all back. Questions about the mail go in the Mobius composer under it, which already sees Mail.
  */
-export function MailPlanCard({ onAsk, onChanged }: { onAsk: (text: string) => void; onChanged?: () => void }) {
+export function MailPlanCard({ onChanged }: { onChanged?: () => void }) {
   const api = window.mobius.mail;
   const [plan, setPlan] = useState<MailPlan | null>(null);
   const [state, setState] = useState<'closed' | 'proposed' | 'kept'>('closed');
   const [open, setOpen] = useState<keyof MailPlan | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [ask, setAsk] = useState('');
   if (!api?.plan) return null;
   const propose = async () => {
     setProblem(null);
@@ -78,9 +77,6 @@ export function MailPlanCard({ onAsk, onChanged }: { onAsk: (text: string) => vo
         </p>
       )}
       {problem && <p className="field-error" role="alert">{problem}</p>}
-      <form className="mail-ask" onSubmit={(e) => { e.preventDefault(); const t = ask.trim(); if (t) { onAsk(`About my mail: ${t}`); setAsk(''); } }}>
-        <input aria-label="Ask your mail" placeholder="Ask your mail" value={ask} onChange={(e) => setAsk(e.target.value)} />
-      </form>
     </section>
   );
 }

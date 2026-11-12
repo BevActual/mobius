@@ -463,7 +463,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
           <Icon d="M12.5 4.5L7 10l5.5 5.5" /><span>{photos.album}</span>
         </button>
         <div className="photo-bar-title">
-          <h2 className="photo-title">{open.path.split('/').pop()}</h2>
+          {/* The photo's name is the window toolbar's title already: here only where it sits in the album. */}
           <span className="photo-meta">{at >= 0 ? `${at + 1} of ${order.length}` : ''}{photos.saved ? '' : ' · Saving…'}</span>
         </div>
         <span className="spacer" />

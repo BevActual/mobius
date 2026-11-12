@@ -65,7 +65,7 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
       <nav className="task-lists" aria-label="Knowledge">
         <ul role="list">
           {row('How I work', place.kind === 'mine', () => onPlace({ kind: 'mine' }))}
-          {row('Shared with Knowledge', place.kind === 'shared', () => onPlace({ kind: 'shared' }), incoming.waiting.length)}
+          {row('Suggested changes', place.kind === 'shared', () => onPlace({ kind: 'shared' }), incoming.waiting.length)}
         </ul>
       </nav>
       <nav className="task-lists wiki-pages" aria-label="Pages">
@@ -176,13 +176,13 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
   );
 }
 
-/** Shared with this wiki: changes offered by people, your own wiki and Mobius, each Decline / Edit first / Keep, then Undo. */
+/** Suggested changes to this wiki: changes offered by people, your own wiki and Mobius, each Decline / Edit first / Keep, then Undo. */
 export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
   const api = window.mobius.wiki;
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [undo, setUndo] = useState<{ label: string; change: WikiChange; line: string | null } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  if (!api?.incoming) return <section className="skills-page empty" aria-label="Shared with Knowledge"><p className="note-empty">Knowledge is not available here.</p></section>;
+  if (!api?.incoming) return <section className="skills-page empty" aria-label="Suggested changes"><p className="note-empty">Knowledge is not available here.</p></section>;
   const keep = async (c: WikiChange, text?: string) => {
     const r = await api.keepChange!(c.id, text).catch(() => null);
     if (!r || !r.ok) { setProblem(r && !r.ok ? r.message : 'That could not be kept.'); return; }
@@ -203,8 +203,8 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
     await incoming.load();
   };
   return (
-    <section className="skills-page wiki-page" aria-label="Shared with Knowledge">
-      <h1 className="ext-title">Shared with Knowledge</h1>
+    <section className="skills-page wiki-page" aria-label="Suggested changes">
+      <h1 className="ext-title">Suggested changes</h1>
       {undo && <p className="cal-undo" role="status"><span>{undo.label}</span><button type="button" className="review-btn" onClick={() => void undoLast()}>Undo</button></p>}
       {problem && <p className="field-error" role="alert">{problem}</p>}
       {incoming.waiting.length === 0 && <p className="note-empty">Nothing is waiting.</p>}

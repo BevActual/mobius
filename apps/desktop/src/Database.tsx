@@ -6,12 +6,17 @@ import { isNotesFailure, type WorkbookInfo } from '@mobius/shared';
 import { sheetToCsv, showCell, tableQuery, toCsv } from './db-view';
 import type { DatabasesState } from './useDatabases';
 import { ReviewActions, WhyThis } from './ReviewBar';
+import { EmptyState } from './EmptyState';
+
+/** The empty page's Import asks the sidebar, which holds the file picker. */
+const IMPORT_CSV = 'mobius-database-import-csv';
 
 /** The databases, the open one's tables, and making or importing one. */
 export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin: ReactNode; changed?: ReadonlySet<string> }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const file = useRef<HTMLInputElement>(null);
+  useEffect(() => { const go = () => file.current?.click(); window.addEventListener(IMPORT_CSV, go); return () => window.removeEventListener(IMPORT_CSV, go); }, []);
   useEffect(() => onCommand('new-database', () => setNaming(true)), []);
   // Import from Sheets: the workbooks and their sheets to choose from.
   const [books, setBooks] = useState<WorkbookInfo[] | null>(null);
@@ -64,10 +69,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
         </form>
       )}
       {db.list.length === 0 && !naming && (
-        <div className="side-empty">
-          <p>A database keeps data in tables you can ask questions of, in SQL or in words to Mobius. Start with a CSV file.</p>
-          <button type="button" className="btn primary" onClick={() => file.current?.click()}>Import a CSV file</button>
-        </div>
+        <p className="side-empty">No databases yet.</p>
       )}
       <ul className="db-list" aria-label="Databases">
         {db.list.map((d) => (
@@ -133,10 +135,9 @@ export function DatabasePage({ db, review }: { db: DatabasesState; review?: { co
   if (!db.open) {
     return (
       <section className="db-page empty" aria-label="Database">
-        <div className="db-empty">
-          <h1>Ask questions of your data.</h1>
-          <p>Import a CSV file to make a table, then query it in SQL, or ask Mobius in words. Databases are SQLite files in your workspace.</p>
-        </div>
+        <EmptyState app="database" label="No database open" title={db.list.length ? 'No database open' : 'No databases yet'}
+          line={db.list.length ? 'Choose one on the left, or import a CSV file to make a new one.' : 'Import a CSV file to make a table, then query it in SQL, or ask Mobius in words.'}
+          action={{ label: 'Import a CSV file', run: () => window.dispatchEvent(new Event(IMPORT_CSV)) }} />
       </section>
     );
   }

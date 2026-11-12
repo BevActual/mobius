@@ -166,7 +166,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
           {notes.notebooks.length === 0 && !naming && (
             <div className="side-empty notes-empty">
               <p>No {words.items} yet.</p>
-              <button type="button" className="btn primary" onClick={() => setNaming(true)}>New {words.group}</button>
+              <button type="button" className="btn" onClick={() => setNaming(true)}>New {words.group}</button>
             </div>
           )}
           {pinnedPages.length > 0 && section('Pinned', pinnedPages.map((pg) => pageRow(pg, pg.notebook, `pin:${pg.path}`)))}

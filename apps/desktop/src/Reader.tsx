@@ -7,6 +7,7 @@ import { ARCHIVE, READING_LIST, addHighlight, articleFile, articleTitle, highlig
 import { clipToNotes } from './clip';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
+import { EmptyState } from './EmptyState';
 
 export const READER_WORDS: SidebarWords = { app: 'Reader', group: 'list', groups: 'Lists', item: 'article', items: 'articles', about: 'Articles are kept as Markdown files in your workspace, so the agent can read them with you.', defaultGroup: READING_LIST };
 
@@ -123,10 +124,8 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
       <section className="reader-page" aria-label="Reader">
         {saveBar}
         {message && <p className="reader-message" role="alert">{message}</p>}
-        <div className="reader-empty">
-          <h1>Read it later, here.</h1>
-          <p>Save a page and Reader keeps just its words: no menus, no adverts, nothing that loads from the web while you read. Mobius can read along, to summarise it or answer questions.</p>
-        </div>
+        <EmptyState app="reader" label="No article open" title={reading.notebooks.some((n) => n.pages.length) ? 'No article open' : 'Nothing saved yet'}
+          line="Paste a link above and Reader keeps just its words: no menus, no adverts, nothing that loads while you read." />
       </section>
     );
   }
