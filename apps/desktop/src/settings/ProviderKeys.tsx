@@ -75,6 +75,7 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
   const api = window.mobius.providers!;
   const [open, setOpen] = useState<Open>('none');
   const [key, setKey] = useState('');
+  const [place, setPlace] = useState(p.place?.value ?? '');
   const [models, setModels] = useState<string[] | null>(null);
   const [model, setModel] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -106,10 +107,10 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
 
   const saveKey = async () => {
     setBusy(true);
-    const r = await api.setKey(p.id, key);
+    const r = await api.setKey(p.id, key, p.place ? place : undefined);
     setBusy(false);
     if (!r.ok) { setProblem(r.error); return; }
-    setKey(''); setProblem(null); setOpen('none'); onChanged();
+    setKey(''); setPlace(''); setProblem(null); setOpen('none'); onChanged();
   };
   const startUse = async () => {
     setOpen('use'); setProblem(null); setModels(null);
@@ -124,7 +125,7 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
     if (!r.ok) { setProblem(r.error); return; }
     setProblem(null); setOpen('none'); onChanged();
   };
-  const status = !p.needsKey ? 'No key needed' : p.hasKey ? (p.storage === 'session' ? 'Key saved until Mobius quits' : 'Key saved') : 'No key';
+  const status = !p.needsKey ? 'No key needed' : p.hasKey ? `${p.storage === 'session' ? 'Key saved until Mobius quits' : 'Key saved'}${p.place?.value ? ` · ${p.place.value}` : ''}` : 'No key';
 
   return (
     <li className="prow" aria-label={p.name} data-active={p.active || undefined}>
@@ -155,9 +156,10 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
       )}
       {open === 'key' && (
         <form className="prow-form" onSubmit={(e) => { e.preventDefault(); void saveKey(); }}>
-          <input className="input" type="password" autoFocus autoComplete="off" spellCheck={false} aria-label={`${p.name} API key`} placeholder="Paste the key" value={key} onChange={(e) => setKey(e.target.value)} />
-          <button type="submit" className="btn primary" disabled={busy || key.trim() === ''}>Save key</button>
-          <button type="button" className="btn" onClick={() => { setOpen('none'); setKey(''); setProblem(null); }}>Cancel</button>
+          {p.place && <input className="input" autoFocus autoComplete="off" spellCheck={false} aria-label={`${p.name} ${p.place.label}`} placeholder={`${p.place.label}, such as ${p.place.example}`} value={place} onChange={(e) => setPlace(e.target.value)} />}
+          <input className="input" type="password" autoFocus={!p.place} autoComplete="off" spellCheck={false} aria-label={`${p.name} API key`} placeholder="Paste the key" value={key} onChange={(e) => setKey(e.target.value)} />
+          <button type="submit" className="btn primary" disabled={busy || key.trim() === '' || (!!p.place && place.trim() === '')}>Save key</button>
+          <button type="button" className="btn" onClick={() => { setOpen('none'); setKey(''); setPlace(''); setProblem(null); }}>Cancel</button>
           {p.keyUrl && <button type="button" className="btn link" onClick={() => void window.mobius.browser.open(p.keyUrl!)}>Get a key</button>}
         </form>
       )}

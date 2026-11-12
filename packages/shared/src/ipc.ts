@@ -256,6 +256,8 @@ export interface ProviderInfo {
   storage: 'keychain' | 'session' | 'none';
   /** You can sign in on the service's own page instead of pasting a key (OpenRouter). */
   canSignIn?: boolean;
+  /** A gateway at your own address (Azure resource, AWS region): what to name, and the name given. */
+  place?: { label: string; example: string; value: string | null } | null;
 }
 
 export interface MobiusBridge {
@@ -457,7 +459,8 @@ export interface MobiusBridge {
     cancelSignIn(id: string): Promise<void>;
     signOut(id: string): Promise<void>;
     list(): Promise<ProviderInfo[]>;
-    setKey(id: string, key: string): Promise<{ ok: true; storage: 'keychain' | 'session' } | { ok: false; error: string }>;
+    /** `place` names the Azure resource or AWS region for a gateway that has one. */
+    setKey(id: string, key: string, place?: string): Promise<{ ok: true; storage: 'keychain' | 'session' } | { ok: false; error: string }>;
     removeKey(id: string): Promise<void>;
     /** Sign in on the service's own page instead of pasting a key: gives the page to open; the key arrives by itself. */
     keySignIn?(id: string): Promise<{ ok: true; url: string } | { ok: false; error: string }>;

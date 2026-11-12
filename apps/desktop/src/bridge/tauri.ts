@@ -228,7 +228,7 @@ export function createTauriBridge(): MobiusBridge {
       cancelSignIn: (id) => call('providers', 'cancelSignIn', [id], () => undefined).then(() => undefined),
       signOut: (id) => call('providers', 'signOut', [id], () => undefined).then(() => undefined),
       list: () => call('providers', 'list', [], () => []),
-      setKey: (id, key) => call('providers', 'setKey', [id, key], () => ({ ok: false as const, error: 'Providers are not available.' })),
+      setKey: (id, key, place) => call('providers', 'setKey', place === undefined ? [id, key] : [id, key, place], () => ({ ok: false as const, error: 'Providers are not available.' })),
       removeKey: (id) => call('providers', 'removeKey', [id], () => undefined),
       keySignIn: (id) => call('providers', 'keySignIn', [id], () => ({ ok: false as const, error: 'Sign-in is not available.' })),
       keySignInStatus: (id) => call('providers', 'keySignInStatus', [id], () => ({ pending: null, error: null })),

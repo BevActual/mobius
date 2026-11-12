@@ -26,6 +26,9 @@ xAI, Fireworks AI, Hugging Face, Cerebras, Perplexity, Cohere, Moonshot AI (Kimi
 NVIDIA. Each row links to the page where you create a key. When a service does not list its own models, Mobius offers
 the ones it knows for that service, and you can still type any other model name.
 
+**Azure OpenAI** and **Amazon Bedrock** live at an address of your own: when you add the key, also give your Azure
+resource name or your AWS region (such as `us-west-2`). Bedrock takes a Bedrock API key, made in the Bedrock console.
+
 ### A server on your computer, or any other server
 
 - **Ollama**, **LM Studio** and **llama.cpp** each have an entry with their usual local address. No key is needed.

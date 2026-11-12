@@ -110,3 +110,21 @@ test('the second model is a pop-up of what the gateways offer, with its address 
   await second.selectOption('none');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.agent.getSettings())).fallbackModel).toBe('');
 });
+
+test('a gateway at your own address asks for its place with the key, and shows it once saved', async () => {
+  await start();
+  const azure = page().getByRole('listitem', { name: 'Azure OpenAI', exact: true });
+  await azure.getByRole('button', { name: 'Add a key for Azure OpenAI' }).click();
+  await azure.getByRole('textbox', { name: 'Azure OpenAI API key' }).fill('azure-e2e-key-12345');
+  // The key alone is not enough: the address is made from the resource name.
+  await expect(azure.getByRole('button', { name: 'Save key' })).toBeDisabled();
+  await azure.getByRole('textbox', { name: 'Azure OpenAI Azure resource name' }).fill('evil.example/x');
+  await azure.getByRole('button', { name: 'Save key' }).click();
+  await expect(azure.getByRole('alert')).toContainText('Azure resource name');
+  await azure.getByRole('textbox', { name: 'Azure OpenAI Azure resource name' }).fill('my-resource');
+  await azure.getByRole('button', { name: 'Save key' }).click();
+  await expect(azure).toContainText('Key saved · my-resource');
+  await azure.getByRole('button', { name: 'Remove the key for Azure OpenAI' }).click();
+  await azure.getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(azure).toContainText('No key');
+});

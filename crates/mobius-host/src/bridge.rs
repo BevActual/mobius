@@ -1967,7 +1967,7 @@ impl Bridge {
                 json!({ "ok": true })
             }
             "setKey" => match (text(0), text(1)) {
-                (Some(id), Some(key)) => match p.set_key(id, key) {
+                (Some(id), Some(key)) => match p.set_key_at(id, key, text(2)) {
                     Ok(storage) => {
                         let _ = self.restore_quick();
                         changed();
