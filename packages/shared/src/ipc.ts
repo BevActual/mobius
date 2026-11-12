@@ -1337,7 +1337,8 @@ export interface PreferencesSettings {
 }
 export interface ProfilesState { current: string; list: { id: string; name: string }[] }
 /** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
-export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean }
+/** `bot` runs it as that agent (its id), with the agent's instructions and model; none is Mobius itself. */
+export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean; bot?: string }
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 /** Per app: follow the approval mode, always ask the person, or off. */
 export type AccessLevel = 'follow' | 'always' | 'off';
