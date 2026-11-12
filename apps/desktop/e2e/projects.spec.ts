@@ -83,7 +83,7 @@ test('a project is a place: its rules, its memory page in the Wiki, its threads 
   await newProject('Kestrel');
   const page = shell().getByRole('region', { name: 'Kestrel' });
   // The rules sit folded in one line until asked for; the threads and what they made come first.
-  await expect(page.getByRole('region', { name: 'Rules for this project' })).toContainText('As in Settings');
+  await expect(page.getByRole('region', { name: 'Rules for this project' })).toContainText('Every app as in Settings');
   await openRules(page);
   await expect(page.getByRole('region', { name: 'Rules for this project' })).toContainText('Paying, sending, deleting and commands always ask.');
   await page.getByRole('combobox', { name: 'Docs in Kestrel' }).selectOption('act');
