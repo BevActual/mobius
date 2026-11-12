@@ -10,6 +10,7 @@
 <p>
   <a href="https://github.com/BevActual/mobius/releases"><b>Download</b></a> &nbsp;·&nbsp;
   <a href="#what-you-can-do-today"><b>What it does</b></a> &nbsp;·&nbsp;
+  <a href="docs/README.md"><b>Docs</b></a> &nbsp;·&nbsp;
   <a href="#where-it-stands"><b>Where it stands</b></a> &nbsp;·&nbsp;
   <a href="#build-from-source"><b>Build from source</b></a> &nbsp;·&nbsp;
   <a href="CONTRIBUTING.md"><b>Contribute</b></a>
@@ -43,6 +44,8 @@ to the next, and carries your work between them: a date from an email becomes an
 quote becomes a row in a sheet.
 
 It suggests and you decide. Nothing is sent, paid for, deleted or run without your OK.
+
+New here? [Install it](docs/getting-started/install.md), then take the [two-minute tour](docs/getting-started/tour.md).
 
 ## Why we're making it
 
@@ -101,7 +104,8 @@ own models, and are happy to try something unfinished and tell us what breaks.
 | **Add from Abilities** | Sheets, Slides, Knowledge, Database, Search, Research, Reader, Design, Photo, Music, Video, Code, Terminal, Canvas |
 | **Always there** | Home (where you talk to Mobius and see its agents and activity), Projects, Files, Review, Abilities, Settings |
 
-Apps load the first time you open them, so the ones you don't use cost nothing.
+Apps load the first time you open them, so the ones you don't use cost nothing. What each app does is in the
+[app guide](docs/apps/README.md), and adding and removing them in [Abilities](docs/guide/abilities.md).
 
 ### Bring your own AI
 
@@ -113,12 +117,16 @@ Apps load the first time you open them, so the ones you don't use cost nothing.
 | **API keys** | OpenAI, Anthropic, Google Gemini, DeepSeek, Groq, Mistral, xAI, Together AI, Fireworks, Hugging Face |
 | **On your computer** | A built-in llama.cpp engine that picks a model to fit your graphics card, or Ollama and LM Studio |
 
+Setting each one up is in [Models and gateways](docs/guide/models-and-gateways.md).
+
 ### Safety rules that don't bend
 
 - Choose how far Mobius goes: **Ask first**, **Propose** (the default) or **Act**.
 - **Sending, paying, deleting and running commands always ask**, whatever the mode.
 - Every change is recorded, and **Rewind to here** takes your work back to any step.
 - Keys are kept in the system's secret store and never shown to the interface.
+
+More in [Working with Mobius](docs/guide/working-with-mobius.md) and [Privacy and profiles](docs/guide/privacy-and-profiles.md).
 
 <br>
 
@@ -131,7 +139,7 @@ missing features and changes between versions. It is not yet ready to be the onl
 - **Releases** will appear on the [Releases page](https://github.com/BevActual/mobius/releases) as a Windows installer.
   The first, 0.1.0, is being prepared.
 - **Coming next:** making the current apps hold up in daily use before adding new ones, then a guided first run and
-  signed installers.
+  signed installers. See the [roadmap](docs/roadmap.md).
 
 Found a bug or have an idea? [Open an issue](https://github.com/BevActual/mobius/issues/new/choose).
 
@@ -150,13 +158,14 @@ npm run app                 # build everything and open the app
 ```
 
 `npm run dev` runs the interface alone in a browser at http://127.0.0.1:5180 with sample data, which is the quickest way
-to look around. Tests, the end-to-end suite and how the code is organised are in [CONTRIBUTING.md](CONTRIBUTING.md).
+to look around. Setup, tests and the end-to-end suite are in the [developer guide](docs/developers/dev-setup.md).
 
 ### How it's put together
 
 Everything that isn't interface is Rust: the core owns permissions, tools, the event log and the model providers, and
 runs as its own process. The interface is React and TypeScript in a Tauri shell, using the system web view or Chromium
-(CEF). Design decisions are recorded in [`docs/adr/`](docs/adr).
+(CEF). The [architecture overview](docs/developers/architecture.md) walks through it, and design decisions are recorded
+in [`docs/adr/`](docs/adr).
 
 <br>
 
