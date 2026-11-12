@@ -53,6 +53,13 @@ Whatever Mobius changes is drawn **dashed** until you decide. Each app has the s
 Press C, or the speech-bubble button, to comment on anything in an app. Send a comment to Mobius and its answer comes
 back in the thread, or keep it as a note for people. See [Review](../apps/review.md#comments).
 
+## Learn
+
+**Help › Learn Mobius** opens lessons beside the page: Start here, one lesson for each app (what it is for and what you
+can do in it) and how to work with Mobius. In an app, that app's lesson comes first. Search finds a lesson by anything
+it mentions, Previous and Next step through a topic, and Escape steps back, then closes. Learn takes the place of
+Mobius pinned beside the page, one at a time.
+
 ## Settings
 
 Ctrl+, opens Settings. Its search box finds any setting by what it does ("dark", "fallback", "dictation").
