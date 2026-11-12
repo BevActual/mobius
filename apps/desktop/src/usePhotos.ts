@@ -142,10 +142,11 @@ export function usePhotos(active = true) {
     if (last) await openPhoto(last);
   }, [api, refresh, openPhoto]);
 
-  const exportPicture = useCallback(async (jpegBase64: string) => {
-    const o = live.current.open;
-    if (!api || !o) return null;
-    const done = await api.export(o.path, jpegBase64);
+  /** Saves a new picture beside the open photo, or beside `path` when it is exported from the album's grid. */
+  const exportPicture = useCallback(async (jpegBase64: string, path?: string) => {
+    const from = path ?? live.current.open?.path;
+    if (!api || !from) return null;
+    const done = await api.export(from, jpegBase64);
     if (isNotesFailure(done)) { setMessage(done.message); return null; }
     await refresh();
     return done.path;

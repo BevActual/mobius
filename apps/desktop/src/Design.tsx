@@ -3,13 +3,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { changedIds, contrast, freshId, nextFramePlace, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
+import { changedIds, contrast, freshId, moveLayer, nextFramePlace, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
 import type { NotesState } from './useNotes';
 import { onCommand } from './commands';
 import { useUndo } from './useUndo';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { alignBoxes, around, boxFrom, boxesTouching, distributeBoxes, HANDLES, resizeBox, snapBox, zoomOnto, type AlignHow, type Guide, type Handle } from './design-view';
+import { EXPORT_ALBUM, exportFrame } from './design-export';
 import './design.css';
 
 export const DESIGN_WORDS: SidebarWords = { app: 'Design', group: 'folder', groups: 'Folders', item: 'design', items: 'designs', about: 'Designs are kept as JSON files in your workspace, frames and their layers, so the agent can read and change them too.', defaultGroup: 'Designs' };
@@ -145,6 +146,11 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const [renaming, setRenaming] = useState<string | null>(null);
   const [space, setSpace] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  /** The last export: which frame, and where it went or why it did not. */
+  const [exported, setExported] = useState<{ frame: string; text: string; bad?: boolean } | null>(null);
+  const [exportScale, setExportScale] = useState(2);
+  /** A layer being dragged in the layer list, and where it would land. */
+  const [moving, setMoving] = useState<{ id: string; target?: string; place?: 'above' | 'below' } | null>(null);
   const copied = useRef<{ frame: string; nodes: DesignNode[] } | null>(null);
   const view = useRef<HTMLDivElement>(null);
   const file = designs.page ? `designs/${designs.page.path}` : null;
@@ -265,7 +271,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       if (d.tool === 'frame') {
         const id = freshId(doc2, 'f');
         if (tiny) box = { x: d.x0, y: d.y0, w: 393, h: 852 };
-        doc2.frames.push({ id, name: `Frame ${doc2.frames.length + 1}`, x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h), fill: '#ffffff', radius: 0, children: [] });
+        doc2.frames.push({ id, name: `Frame ${doc2.frames.length + 1}`, x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h), fill: '#ffffff', radius: 0, stroke: 'transparent', strokeWidth: 0, children: [] });
         setSelected([id]);
         return;
       }
@@ -273,7 +279,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       if (!f) return;
       const id = freshId(doc2, 'n');
       const w = tiny ? (d.tool === 'text' ? 200 : 100) : box.w, h = tiny ? (d.tool === 'text' ? 32 : 100) : box.h;
-      const node: DesignNode = { id, type: d.tool, name: KIND[d.tool], x: Math.round(box.x - f.x), y: Math.round(box.y - f.y), w: Math.round(w), h: Math.round(h), fill: d.tool === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: d.tool === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left' };
+      const node: DesignNode = { id, type: d.tool, name: KIND[d.tool], x: Math.round(box.x - f.x), y: Math.round(box.y - f.y), w: Math.round(w), h: Math.round(h), fill: d.tool === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: d.tool === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left', stroke: 'transparent', strokeWidth: 0 };
       f.children.push(node);
       setSelected([id]);
       if (d.tool === 'text') setEditing(id);
@@ -285,7 +291,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const add = (type: NodeType | 'frame') => change((d) => {
     if (type === 'frame') {
       const id = freshId(d, 'f');
-      d.frames.push({ id, name: `Frame ${d.frames.length + 1}`, ...nextFramePlace(d), w: 393, h: 852, fill: '#ffffff', radius: 0, children: [] });
+      d.frames.push({ id, name: `Frame ${d.frames.length + 1}`, ...nextFramePlace(d), w: 393, h: 852, fill: '#ffffff', radius: 0, stroke: 'transparent', strokeWidth: 0, children: [] });
       setSelected([id]);
       fitNext.current = true;
       return;
@@ -294,7 +300,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     if (!at) return;
     const id = freshId(d, 'n');
     const w = type === 'text' ? 200 : 120, h = type === 'text' ? 32 : 120;
-    at.frame.children.push({ id, type, name: KIND[type], x: Math.round((at.frame.w - w) / 2), y: Math.round((at.frame.h - h) / 2), w, h, fill: type === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: type === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left' });
+    at.frame.children.push({ id, type, name: KIND[type], x: Math.round((at.frame.w - w) / 2), y: Math.round((at.frame.h - h) / 2), w, h, fill: type === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: type === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left', stroke: 'transparent', strokeWidth: 0 });
     setSelected([id]);
   });
   const remove = useCallback(() => change((d) => {
@@ -356,6 +362,12 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     const on = !nodes.every((n) => n[flag]);
     for (const n of nodes) { if (on) n[flag] = true; else delete n[flag]; }
   });
+  const dropLayer = () => {
+    const m = moving;
+    setMoving(null);
+    if (!m?.target || !m.place || m.target === m.id) return;
+    change((d) => { moveLayer(d, m.id, m.target!, m.place!); });
+  };
   const line = (how: AlignHow) => change((d) => {
     const nodes = pickedNodes(d);
     if (nodes.length === 1) { const [a] = nodes; Object.assign(a!.node, alignBoxes([a!.node], how, { x: 0, y: 0, w: a!.frame.w, h: a!.frame.h })[0]); return; }
@@ -434,6 +446,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       left: p.x, top: p.y, width: p.w, height: p.h, opacity: n.opacity,
       background: n.fill === 'transparent' ? undefined : resolveColor(n.fill, doc.styles),
       borderRadius: n.type === 'ellipse' ? '50%' : n.radius,
+      ...(n.type !== 'text' ? strokeStyle(n, doc) : {}),
       ...(n.type === 'text' ? { color: resolveColor(n.color, doc.styles), fontSize: n.size, fontWeight: n.weight, textAlign: n.align, lineHeight: 1.25 } : {}),
     };
   };
@@ -485,13 +498,22 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     else if (!selected.includes(id)) setSelected([id]);
     setMenu({ x: e.clientX, y: e.clientY });
   };
+  /** Draws the frame and saves it as a PNG in Photo's Design exports album. */
+  const exportPng = async (id: string) => {
+    const f = doc.frames.find((x) => x.id === id);
+    if (!f) return;
+    setExported({ frame: id, text: 'Exporting…' });
+    const done = await exportFrame(doc, f, exportScale).catch((e: unknown) => ({ error: e instanceof Error ? e.message : 'The picture could not be saved.' }));
+    setExported('error' in done ? { frame: id, text: done.error, bad: true } : { frame: id, text: `Saved to Photo › ${EXPORT_ALBUM} as ${done.path.slice(EXPORT_ALBUM.length + 1)}` });
+  };
   const menuItems = (): ContextMenuItem[] => {
     const paste: ContextMenuItem = { action: 'paste', keys: 'Ctrl+V', disabled: !copied.current, run: () => { if (copied.current) pasteNodes(copied.current, 16); } };
     if (selected.length === 0) return [paste, { label: 'Zoom to fit', keys: 'Shift+1', separated: true, run: fit }];
     const zoomIn: ContextMenuItem = { label: 'Zoom to selection', keys: 'Shift+2', separated: true, run: zoomToSelection };
     const rename: ContextMenuItem = { action: 'rename', label: 'Rename…', disabled: !one, run: () => { if (one) setRenaming(one); } };
     if (picked.length === 0) {
-      return [paste, { action: 'duplicate', keys: 'Ctrl+D', run: duplicate }, rename, zoomIn, { action: 'delete', label: selected.length > 1 ? 'Delete frames' : 'Delete frame', keys: 'Delete', danger: true, separated: true, run: remove }];
+      const exportOne: ContextMenuItem = { label: 'Export as PNG', separated: true, disabled: !one, run: () => { if (one) void exportPng(one); } };
+      return [paste, { action: 'duplicate', keys: 'Ctrl+D', run: duplicate }, rename, exportOne, zoomIn, { action: 'delete', label: selected.length > 1 ? 'Delete frames' : 'Delete frame', keys: 'Delete', danger: true, separated: true, run: remove }];
     }
     const allHidden = picked.every((a) => a.node.hidden), allLocked = picked.every((a) => a.node.locked);
     return [
@@ -534,7 +556,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
           <div className="design-panel-title">Layers</div>
           <ul role="tree" aria-label="Frames and layers" aria-multiselectable>
             {doc.frames.map((f) => (
-              <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded>
+              <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded data-drop={moving?.target === f.id || undefined} onDragOver={(e) => { if (!moving) return; e.preventDefault(); if (moving.target !== f.id) setMoving({ id: moving.id, target: f.id, place: 'above' }); }} onDrop={(e) => { e.preventDefault(); dropLayer(); }}>
                 {renaming === f.id ? <RenameField name={f.name} onDone={(name) => { setRenaming(null); if (name && name !== f.name) change((d) => { const x = d.frames.find((y) => y.id === f.id); if (x) x.name = name; }); }} /> : (
                   <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>
                     <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON.frame} /></span>{f.name}
@@ -542,7 +564,10 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                 )}
                 <ul role="group">
                   {[...f.children].reverse().map((n) => (
-                    <li key={n.id} role="treeitem" aria-selected={isPicked(n.id)}>
+                    <li key={n.id} role="treeitem" aria-selected={isPicked(n.id)} data-drop={moving?.target === n.id ? moving.place : undefined}
+                      draggable={renaming !== n.id} onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', n.name); setMoving({ id: n.id }); }} onDragEnd={() => setMoving(null)}
+                      onDragOver={(e) => { if (!moving) return; e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const place = e.clientY < r.top + r.height / 2 ? 'above' : 'below'; if (moving.target !== n.id || moving.place !== place) setMoving({ id: moving.id, target: n.id, place }); }}
+                      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropLayer(); }}>
                       {renaming === n.id ? <RenameField name={n.name} onDone={(name) => { setRenaming(null); if (name && name !== n.name) change((d) => { const x = findNode(d, n.id)?.node; if (x) x.name = name; }); }} /> : (
                         <div className="design-layer-row" aria-current={isPicked(n.id) || undefined} data-hidden={n.hidden || undefined}>
                           <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)} onContextMenu={(e) => openMenu(e, n.id)}>
@@ -596,6 +621,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                       <TextOnCanvas key={editingNode.node.id} node={editingNode.node} style={nodeStyle(editingNode.node)} onDone={(text) => { const id = editing; setEditing(null); if (text !== null && id) change((d) => { const n = findNode(d, id)?.node; if (n) n.text = text; }); }} />
                     )}
                   </div>
+                  {f.strokeWidth > 0 && f.stroke !== 'transparent' && <div className="design-frame-stroke" aria-hidden="true" style={{ borderRadius: f.radius, ...strokeStyle(f, doc) }} />}
                   {drag?.kind === 'move' && drag.frame === f.id && drag.guides.map((g, i) => <span key={i} className="design-guide" data-axis={g.axis} style={g.axis === 'x' ? { left: g.at, top: g.from, height: g.to - g.from } : { top: g.at, left: g.from, width: g.to - g.from }} />)}
                   {selected.filter((id) => f.children.some((c) => c.id === id)).length > 1 && f.children.filter((c) => isPicked(c.id)).map((c) => <div key={c.id} className="design-handles" data-many style={handleBox(c, true)} />)}
                   {((inThis && at?.node) || one === f.id) && (() => {
@@ -665,6 +691,16 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                 </div>
               </Section>
               <Section title="Fill"><ColorField label="Fill" bare value={at.frame.fill} doc={doc} onChange={(c) => setFrame((f) => { f.fill = c; })} /></Section>
+              <BorderSection item={at.frame} doc={doc} onChange={(stroke, width) => setFrame((f) => { f.stroke = stroke; f.strokeWidth = width; })} />
+              <Section title="Export">
+                <div className="design-export">
+                  <div className="design-segment" role="radiogroup" aria-label="Export size">
+                    {[1, 2, 3].map((x) => <button key={x} type="button" role="radio" aria-checked={exportScale === x} onClick={() => setExportScale(x)}>{x}×</button>)}
+                  </div>
+                  <button type="button" className="btn" onClick={() => void exportPng(at.frame.id)}>Export PNG</button>
+                </div>
+                {exported?.frame === at.frame.id && <p className="design-hint" role="status" data-bad={exported.bad || undefined}>{exported.text}</p>}
+              </Section>
               <button type="button" className="btn danger" onClick={remove}>Delete frame</button>
             </>
           )}
@@ -707,6 +743,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                 </Section>
               )}
               <Section title="Fill"><ColorField label="Fill" bare value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} /></Section>
+              {at.node.type !== 'text' && <BorderSection item={at.node} doc={doc} onChange={(stroke, width) => setNode((n) => { n.stroke = stroke; n.strokeWidth = width; })} />}
               <Section title="Arrange">
                 <div className="design-align design-arrange" role="group" aria-label="Arrange">
                   {([['front', 'Bring to front (Ctrl+Alt+])', ICON.front], [1, 'Bring forward (Ctrl+])', ICON.forward], [-1, 'Send backward (Ctrl+[)', ICON.backward], ['back', 'Send to back (Ctrl+Alt+[)', ICON.back]] as const).map(([by, label, d]) => (
@@ -720,6 +757,31 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
         </aside>
       </div>
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={one && at ? (at.node?.name ?? at.frame.name) : selected.length ? `${selected.length} selected` : 'Canvas'} items={menuItems()} onClose={() => setMenu(null)} />, document.body)}
+    </section>
+  );
+}
+
+/** A border drawn inside the edge, as Figma's inside stroke: an outline pulled in by its own width, so it follows the corners. */
+function strokeStyle(t: { stroke: string; strokeWidth: number }, doc: DesignDoc): CSSProperties {
+  if (t.strokeWidth <= 0 || t.stroke === 'transparent') return {};
+  return { outline: `${t.strokeWidth}px solid ${resolveColor(t.stroke, doc.styles)}`, outlineOffset: -t.strokeWidth };
+}
+
+/** Border: none until it is added; then its colour and width, and a way to take it off again. */
+function BorderSection({ item, doc, onChange }: { item: { stroke: string; strokeWidth: number }; doc: DesignDoc; onChange: (stroke: string, width: number) => void }) {
+  const on = item.strokeWidth > 0 && item.stroke !== 'transparent';
+  return (
+    <section className="design-section" aria-label="Border">
+      <div className="design-section-head">
+        <div className="design-section-title">Border</div>
+        <button type="button" className="design-section-add" aria-label={on ? 'Remove border' : 'Add border'} title={on ? 'Remove border' : 'Add border'} onClick={() => (on ? onChange('transparent', 0) : onChange('#1d1d1f', 1))}><Icon d={on ? 'M5 10h10' : 'M5 10h10M10 5v10'} /></button>
+      </div>
+      {on && (
+        <div className="design-border">
+          <ColorField label="Border" bare value={item.stroke} doc={doc} onChange={(c) => onChange(c, item.strokeWidth)} />
+          <Field label="Width" value={item.strokeWidth} min={0} onChange={(v) => onChange(v > 0 ? item.stroke : 'transparent', v)} />
+        </div>
+      )}
     </section>
   );
 }
