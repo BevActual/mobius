@@ -51,6 +51,14 @@ impl BridgeError {
 /// How a test asks the window system about itself: `(question, argument)` gives the answer.
 pub type ProbeFn = Arc<dyn Fn(&str, &Value) -> Value + Send + Sync>;
 
+/// The computer's regional format ("en-GB"), which dates and times follow. The web view only knows the display
+/// language, which can differ (an English Windows set to British dates and a 24-hour clock).
+pub fn system_locale() -> Option<String> {
+    sys_locale::get_locale()
+        .map(|l| l.replace('_', "-"))
+        .filter(|l| !l.is_empty() && l.len() <= 40 && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+}
+
 pub type Emit = Arc<dyn Fn(&str, Value) + Send + Sync>;
 
 type Out = Result<Value, BridgeError>;
@@ -395,6 +403,8 @@ impl Bridge {
             ("core", "getStatus") => Ok(json!(self.core.status().word())),
             ("window", "quickEntryActive") => Ok(json!(lock(&self.quick).as_ref().is_some_and(QuickEntry::active))),
             ("app", "about") => Ok(self.about()),
+            // The computer's regional format ("en-GB"), which dates and times follow; the web view only knows its language.
+            ("app", "locale") => Ok(system_locale().map_or(Value::Null, Value::String)),
             ("app", "openDataFolder") => {
                 if let Some(d) = self.dialogs.get() {
                     d.open_path(&self.data_dir);
