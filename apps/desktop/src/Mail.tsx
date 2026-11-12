@@ -324,7 +324,8 @@ function Reader({ mail, content, onDraftReply }: { mail: MailState; content: Mai
   const [showHtml, setShowHtml] = useState(true);
   // The keyboard follows the message opened: E, R and H act on it straight away, whatever was clicked to open it.
   const reader = useRef<HTMLElement>(null);
-  useEffect(() => { reader.current?.focus({ preventScroll: true }); }, [content.id]);
+  // Each read (a click on a row, even the one already open) gives the message the keyboard again.
+  useEffect(() => { reader.current?.focus({ preventScroll: true }); }, [content]);
   return (
     <article ref={reader} tabIndex={-1} className="mail-reader" aria-label={content.subject || 'Message'} data-comment-id={content.id} data-comment-label={content.subject || 'Message'}>
       <header className="mail-reader-head">
