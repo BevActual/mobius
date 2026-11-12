@@ -710,6 +710,10 @@ export interface MobiusBridge {
     saveCut(project: string, text: string, base: number | null): Promise<{ project: string; modified: number } | NotesFailure>;
     addClip(project: string, name: string, data: string): Promise<{ project: string; clip: string } | NotesFailure>;
     showFolder(project: string): Promise<{ ok: true } | NotesFailure>;
+    /** A film made from the cut (base64 MP4 or WebM), saved in the project's `Exports` folder under a fresh name. */
+    saveExport(project: string, name: string, data: string): Promise<{ project: string; file: string } | NotesFailure>;
+    /** Opens the project's `Exports` folder. */
+    showExports(project: string): Promise<{ ok: true } | NotesFailure>;
     onChanged(listener: (change: VideoChanged) => void): () => void;
   };
   /** The Skills app. Only the Tauri shell has it. */

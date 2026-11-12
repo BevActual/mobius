@@ -333,6 +333,8 @@ export function createTauriBridge(): MobiusBridge {
       saveCut: (project, text, base) => call('video', 'saveCut', [project, text, base], () => ({ ok: false as const, message: 'Video is not available.' })),
       addClip: (project, name, data) => call('video', 'addClip', [project, name, data], () => ({ ok: false as const, message: 'Video is not available.' })),
       showFolder: (project) => call('video', 'showFolder', [project], () => ({ ok: false as const, message: 'Video is not available.' })),
+      saveExport: (project, name, data) => call('video', 'saveExport', [project, name, data], () => ({ ok: false as const, message: 'Video is not available.' })),
+      showExports: (project) => call('video', 'showExports', [project], () => ({ ok: false as const, message: 'Video is not available.' })),
       onChanged: (listener) => on<VideoChanged>('mobius:video-changed', listener),
     },
     skills: {

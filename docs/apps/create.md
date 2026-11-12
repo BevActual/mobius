@@ -89,7 +89,12 @@ Cut footage into a short film.
 - **Keys** as in other editors: Space plays, S splits, I and O set the shot's start and end at the playhead,
   Ctrl+D (⌘D on a Mac) duplicates, the arrows step a frame and Up and Down jump between edits.
 
-**Kept in:** `workspace/video/<project>/`, the cut as `cut.json`. Your clips are never changed.
+- **Export** saves the film, titles and sound included, as a video file in the project's `Exports` folder (MP4
+  where the window can make it, otherwise WebM). It plays the cut through once while it is made, so a two-minute film
+  takes two minutes; Stop ends it early.
+
+**Kept in:** `workspace/video/<project>/`, the cut as `cut.json` and exported films in `Exports/`. Your clips are never
+changed.
 
 ## Code
 

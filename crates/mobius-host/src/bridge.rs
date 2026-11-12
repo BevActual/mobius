@@ -2451,6 +2451,16 @@ impl Bridge {
                 }
                 json!({ "ok": true })
             }),
+            "saveExport" => match (text(0), text(1), text(2)) {
+                (Some(p), Some(n), Some(d)) => v.save_export(p, n, d),
+                _ => Err("a project, a name and a film are needed".to_owned()),
+            },
+            "showExports" => text(0).ok_or_else(need).and_then(|p| v.exports(p)).map(|dir| {
+                if let Some(d) = self.dialogs.get() {
+                    d.open_path(&dir);
+                }
+                json!({ "ok": true })
+            }),
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
