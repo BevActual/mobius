@@ -1,4 +1,6 @@
+import { createPortal } from 'react-dom';
 import { RowMark } from './RowMark';
+import { ContextMenu } from './ContextMenu';
 import { FromMobius } from './FromMobius';
 import { EmptyState } from './EmptyState';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
@@ -7,7 +9,7 @@ import {
   AMOUNT_GROUPS, AMOUNT_NAMES, FILTERS, FILTER_ID, applyEdits, autoAmounts, blankAdjustment, coverScale, describePixels, editsPathFor, filterOf, histogram, isPlain, parseEdits, plainGeometry, turnedSize, withFilter,
   type Adjustment, type AreaKind, type FilterId, type Geometry, type PhotoEdits,
 } from './photo-edit';
-import { ASPECTS, HANDLES, aspectRatio, dragCrop, fitAspect, flippedCrop, stepTo, turnedCrop, type AspectId, type Handle } from './photo-view';
+import { ASPECTS, GRID_SIZES, HANDLES, aspectRatio, dragCrop, fitAspect, flippedCrop, groupChanged, resetGroup, stepTo, turnedCrop, zoomStep, type AspectId, type Handle } from './photo-view';
 import type { PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
@@ -15,7 +17,9 @@ import './photo.css';
 
 const PREVIEW_MAX = 1600;
 const EXPORT_MAX = 6000;
-const THUMB_MAX = 360;
+const THUMB_MAX = 480;
+const ZOOM_KEY = 'mobius.photos.zoom';
+const GROUPS_KEY = 'mobius.photos.closed';
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => (
   <svg viewBox="0 0 20 20" aria-hidden="true" data-fill={fill || undefined}><path d={d} /></svg>
@@ -102,6 +106,12 @@ function render(img: HTMLImageElement, max: number, edits: PhotoEdits | null, un
   return c;
 }
 
+/** The picture's size in pixels as it will export: turned and cropped. */
+function shownSize(img: HTMLImageElement, g: Geometry): string {
+  const [w, h] = turnedSize(img.naturalWidth, img.naturalHeight, g.turns);
+  return `${Math.round(w * g.crop.w)} × ${Math.round(h * g.crop.h)}`;
+}
+
 const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
   const i = new Image();
   i.onload = () => resolve(i);
@@ -141,6 +151,18 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
   const thumb = useThumbs(photos, list);
   const grid = useRef<HTMLUListElement>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const [zoom, setZoomState] = useState(() => { try { return zoomStep(Number(window.localStorage.getItem(ZOOM_KEY) ?? 2), 0); } catch { return 2; } });
+  const setZoom = (z: number) => { setZoomState(z); try { window.localStorage.setItem(ZOOM_KEY, String(z)); } catch { /* Not kept. */ } };
+  const [menu, setMenu] = useState<{ path: string; name: string; modified: number; x: number; y: number } | null>(null);
+  const exportFrom = async (p: { path: string; name: string }) => {
+    const got = await photos.read(p.path)?.catch(() => null);
+    if (!got || !('dataUrl' in got)) return;
+    const img = await loadImage(got.dataUrl).catch(() => null);
+    if (!img) { photos.setMessage('This picture could not be opened.'); return; }
+    const data = render(img, EXPORT_MAX, parseEdits(got.edits)).toDataURL('image/jpeg', 0.92).replace(/^data:[^,]*,/, '');
+    const where = await photos.exportPicture(data, p.path);
+    if (where) photos.setMessage(`Saved as ${where.split('/').pop()}`);
+  };
   // The photo just left keeps the focus, so the keyboard carries on from there.
   useEffect(() => {
     const at = photos.open ? list.findIndex((p) => p.path === photos.open!.path) : -1;
@@ -151,6 +173,7 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
     const at = tiles.indexOf(document.activeElement as HTMLButtonElement);
     if (at < 0) return;
     const cols = Math.max(1, getComputedStyle(grid.current!).gridTemplateColumns.split(' ').length);
+    if (e.key === '+' || e.key === '=' || e.key === '-') { e.preventDefault(); setZoom(zoomStep(zoom, e.key === '-' ? -1 : 1)); return; }
     const to = e.key === 'ArrowRight' ? at + 1 : e.key === 'ArrowLeft' ? at - 1 : e.key === 'ArrowDown' ? at + cols : e.key === 'ArrowUp' ? at - cols : e.key === 'Home' ? 0 : e.key === 'End' ? tiles.length - 1 : null;
     if (to === null) return;
     e.preventDefault();
@@ -166,11 +189,18 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
   return (
     <section className="photo-page photo-library" aria-label="Photo" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <header className="photo-bar" role="toolbar" aria-label="Album">
+        {/* The album's name is the window toolbar's title already: here only how many photos it holds. */}
         <div className="photo-bar-title">
-          <h2>{album.name}</h2>
           <span className="photo-meta">{list.length === 1 ? '1 photo' : `${list.length} photos`}</span>
         </div>
         <span className="spacer" />
+        {list.length > 0 && (
+          <label className="photo-zoom" title="Zoom (− and +)">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1.5" /></svg>
+            <input type="range" aria-label="Photo size" min={0} max={GRID_SIZES.length - 1} step={1} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" /></svg>
+          </label>
+        )}
         <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden aria-hidden="true" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length) void photos.addFiles(album.name, files); }} />
         <button type="button" className="photo-tool" onClick={() => picker.current?.click()}><Icon d={PLUS} /><span>Add photos</span></button>
       </header>
@@ -178,12 +208,12 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
       {list.length === 0 ? (
         <EmptyState app="photo" title={`No photos in ${album.name}`} line="Drop pictures on the window to add them." action={{ label: 'Add photos', run: () => picker.current?.click() }} />
       ) : (
-        <ul ref={grid} className="photo-grid" role="list" aria-label={`Photos in ${album.name}`} onKeyDown={onKey}>
+        <ul ref={grid} className="photo-grid" role="list" aria-label={`Photos in ${album.name}`} style={{ ['--tile' as string]: `${GRID_SIZES[zoom]}px` }} onKeyDown={onKey}>
           {list.map((p) => {
             const src = thumb(p);
             return (
               <li key={p.path}>
-                <button type="button" className="photo-tile" aria-label={p.name} aria-current={photos.open?.path === p.path ? 'true' : undefined} title={p.name} onClick={() => void photos.openPhoto(p.path)}>
+                <button type="button" className="photo-tile" aria-label={p.name} aria-current={photos.open?.path === p.path ? 'true' : undefined} title={p.name} onClick={() => void photos.openPhoto(p.path)} onContextMenu={(e) => { e.preventDefault(); setMenu({ ...p, x: e.clientX, y: e.clientY }); }}>
                   {src ? <img src={src} alt="" draggable={false} /> : <span className="photo-tile-wait" />}
                   {p.edited && <span className="photo-tile-badge glass-clear" title="Edited"><Icon d="M4 10.5l3.5 3.5L16 5.5" /></span>}
                 </button>
@@ -191,6 +221,14 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
             );
           })}
         </ul>
+      )}
+      {menu && createPortal(
+        <ContextMenu x={menu.x} y={menu.y} label={menu.name} onClose={() => setMenu(null)} items={[
+          { action: 'open', run: () => void photos.openPhoto(menu.path) },
+          { label: 'Export', action: 'share', run: () => void exportFrom(menu) },
+          { action: 'copy', label: 'Copy name', run: () => void navigator.clipboard?.writeText(menu.name).catch(() => {}) },
+        ]} />,
+        document.body,
       )}
     </section>
   );
@@ -209,6 +247,28 @@ function Slider({ label, value, min = -100, max = 100, step = 1, onChange }: { l
         onDoubleClick={() => onChange(zero)}
       />
     </label>
+  );
+}
+
+/** One part of the Adjust panel, as Photos shows them: a heading that folds it away, and a reset once it is changed. */
+function Section({ name, open, changed, onToggle, onReset, children }: { name: string; open: boolean; changed: boolean; onToggle: () => void; onReset: () => void; children: ReactNode }) {
+  const id = `photo-section-${name.toLowerCase()}`;
+  return (
+    <div className="photo-group" data-open={open || undefined}>
+      <div className="photo-group-head">
+        <button type="button" className="photo-group-toggle" aria-expanded={open} aria-controls={id} onClick={onToggle}>
+          <svg className="photo-group-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5l5 5-5 5" /></svg>
+          <span>{name}</span>
+          {!open && changed && <span className="photo-group-dot" aria-label="changed" />}
+        </button>
+        {changed && (
+          <button type="button" className="photo-group-reset" aria-label={`Reset ${name}`} title={`Reset ${name}`} onClick={onReset}>
+            <Icon d="M7.5 5 4 8.5 7.5 12M4 8.5h7.5a4.5 4.5 0 0 1 0 9H9" />
+          </button>
+        )}
+      </div>
+      {open && <div id={id} className="photo-group-body" role="group" aria-label={name}>{children}</div>}
+    </div>
   );
 }
 
@@ -240,6 +300,14 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
   const [zoomed, setZoomed] = useState(false);
   const [bins, setBins] = useState<number[]>([]);
   const [tiles, setTiles] = useState<Partial<Record<FilterId | 'original', string>>>({});
+  // The Adjust sections folded away, kept for every photo.
+  const [closed, setClosed] = useState<ReadonlySet<string>>(() => { try { return new Set(JSON.parse(window.localStorage.getItem(GROUPS_KEY) ?? '[]') as string[]); } catch { return new Set(); } });
+  const toggleSection = (name: string) => setClosed((cur) => {
+    const next = new Set(cur);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    try { window.localStorage.setItem(GROUPS_KEY, JSON.stringify([...next])); } catch { /* Not kept. */ }
+    return next;
+  });
   const { open, edits } = photos;
   const geometry = edits.geometry ?? plainGeometry();
   const cropping = tab === 'crop';
@@ -344,6 +412,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
     photos.change(next, `${tag}:${sel.id}`);
   };
   const setGeometry = (next: Geometry, tag = '') => photos.change({ ...edits, geometry: isPlain(next) ? undefined : next }, tag);
+  const rotate = () => setGeometry({ ...geometry, turns: ((geometry.turns + 1) % 4) as Geometry['turns'], crop: turnedCrop(geometry.crop) });
   const add = () => {
     const used = new Set(edits.adjustments.map((a) => a.id));
     let n = edits.adjustments.filter((a) => a.id !== FILTER_ID && a.id !== 'auto').length + 1;
@@ -403,7 +472,11 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
     if (mod) return;
     if ((e.key === 'm' || e.key === 'M') && !e.repeat) { setBefore(true); return; }
     if (e.key === 'Escape') { e.preventDefault(); if (cropping) setTab('adjust'); else back(); return; }
-    if (cropping) return;
+    if (cropping) {
+      if ((e.key === 'r' || e.key === 'R') && !e.repeat) { e.preventDefault(); rotate(); }
+      else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); setTab('adjust'); }
+      return;
+    }
     if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); go(1); }
     else if (e.key === 'z' || e.key === 'Z') setZoomed((z) => !z);
@@ -464,7 +537,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
         </button>
         <div className="photo-bar-title">
           {/* The photo's name is the window toolbar's title already: here only where it sits in the album. */}
-          <span className="photo-meta">{at >= 0 ? `${at + 1} of ${order.length}` : ''}{photos.saved ? '' : ' · Saving…'}</span>
+          <span className="photo-meta">{at >= 0 ? `${at + 1} of ${order.length}` : ''}{img ? ` · ${shownSize(img, geometry)}` : ''}{photos.saved ? '' : ' · Saving…'}</span>
         </div>
         <span className="spacer" />
         {busy && <span className="photo-meta" role="status">{busy}</span>}
@@ -553,13 +626,11 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                 <div className="photo-adjust" role="group" aria-label={`Adjustment ${sel.name}`}>
                   <label className="photo-field"><span>Name</span><input aria-label="Adjustment name" value={sel.name} maxLength={80} onChange={(e) => set('name', (a) => { a.name = e.target.value; })} /></label>
                   {AMOUNT_GROUPS.map((g) => (
-                    <fieldset key={g.name} className="photo-group">
-                      <legend>{g.name}</legend>
+                    <Section key={g.name} name={g.name} open={!closed.has(g.name)} changed={groupChanged(sel, g.amounts)} onToggle={() => toggleSection(g.name)} onReset={() => set(`reset:${g.name}`, (a) => Object.assign(a, resetGroup(a, g.amounts)))}>
                       {g.amounts.map((k) => <Slider key={k} label={AMOUNT_NAMES[k]} value={sel[k]} onChange={(v) => set(`slider:${k}`, (a) => { a[k] = v; })} />)}
-                    </fieldset>
+                    </Section>
                   ))}
-                  <fieldset className="photo-group">
-                    <legend>Where</legend>
+                  <Section name="Where" open={!closed.has('Where')} changed={groupChanged(sel, 'where')} onToggle={() => toggleSection('Where')} onReset={() => set('reset:Where', (a) => Object.assign(a, resetGroup(a, 'where')))}>
                     <label className="photo-field"><span>Applies to</span>
                       <select aria-label="Applies to" value={sel.area.kind} onChange={(e) => set('area', (a) => { a.area.kind = e.target.value as AreaKind; })}>
                         {(Object.keys(AREA_NAMES) as AreaKind[]).map((k) => <option key={k} value={k}>{AREA_NAMES[k]}</option>)}
@@ -575,7 +646,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                       </>
                     )}
                     {sel.area.kind !== 'all' && <Slider label="Softness" min={0} max={100} value={Math.round(sel.area.soft * 100)} onChange={(v) => set('slider:soft', (a) => { a.area.soft = v / 100; })} />}
-                  </fieldset>
+                  </Section>
                   <button type="button" className="photo-delete" onClick={() => remove(sel.id)}>Delete adjustment</button>
                 </div>
               ) : (
@@ -608,7 +679,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
               <fieldset className="photo-group">
                 <legend>Rotate</legend>
                 <div className="photo-row">
-                  <button type="button" className="photo-chip" onClick={() => setGeometry({ ...geometry, turns: ((geometry.turns + 1) % 4) as Geometry['turns'], crop: turnedCrop(geometry.crop) })}>
+                  <button type="button" className="photo-chip" title="Rotate left (R)" onClick={rotate}>
                     <Icon d="M6 7.5H3.5V5M3.8 7.4A7 7 0 1110 17" />Rotate left
                   </button>
                   <button type="button" className="photo-chip" aria-pressed={geometry.flip} onClick={() => setGeometry({ ...geometry, flip: !geometry.flip, crop: flippedCrop(geometry.crop) })}>
@@ -620,9 +691,9 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
               <div className="photo-row">
                 <button type="button" className="photo-chip" disabled={isPlain(edits.geometry)} onClick={() => { setAspect('free'); setGeometry(plainGeometry()); }}>Reset</button>
                 <span className="spacer" />
-                <button type="button" className="photo-export" onClick={() => setTab('adjust')}>Done</button>
+                <button type="button" className="photo-export" title="Done (Enter)" onClick={() => setTab('adjust')}>Done</button>
               </div>
-              <p className="photo-hint">Drag the box or its corners; arrow keys nudge it. The crop is kept with the edits, so it can be changed later.</p>
+              <p className="photo-hint">Drag the box or its corners; arrow keys nudge it and R rotates. The crop is kept with the edits, so it can be changed later.</p>
             </div>
           )}
         </aside>

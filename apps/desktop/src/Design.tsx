@@ -10,6 +10,7 @@ import { useUndo } from './useUndo';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { alignBoxes, around, boxFrom, boxesTouching, distributeBoxes, HANDLES, resizeBox, snapBox, zoomOnto, type AlignHow, type Guide, type Handle } from './design-view';
+import { EXPORT_ALBUM, exportFrame } from './design-export';
 import './design.css';
 
 export const DESIGN_WORDS: SidebarWords = { app: 'Design', group: 'folder', groups: 'Folders', item: 'design', items: 'designs', about: 'Designs are kept as JSON files in your workspace, frames and their layers, so the agent can read and change them too.', defaultGroup: 'Designs' };
@@ -145,6 +146,9 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const [renaming, setRenaming] = useState<string | null>(null);
   const [space, setSpace] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  /** The last export: which frame, and where it went or why it did not. */
+  const [exported, setExported] = useState<{ frame: string; text: string; bad?: boolean } | null>(null);
+  const [exportScale, setExportScale] = useState(2);
   /** A layer being dragged in the layer list, and where it would land. */
   const [moving, setMoving] = useState<{ id: string; target?: string; place?: 'above' | 'below' } | null>(null);
   const copied = useRef<{ frame: string; nodes: DesignNode[] } | null>(null);
@@ -494,13 +498,22 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     else if (!selected.includes(id)) setSelected([id]);
     setMenu({ x: e.clientX, y: e.clientY });
   };
+  /** Draws the frame and saves it as a PNG in Photo's Design exports album. */
+  const exportPng = async (id: string) => {
+    const f = doc.frames.find((x) => x.id === id);
+    if (!f) return;
+    setExported({ frame: id, text: 'Exporting…' });
+    const done = await exportFrame(doc, f, exportScale).catch((e: unknown) => ({ error: e instanceof Error ? e.message : 'The picture could not be saved.' }));
+    setExported('error' in done ? { frame: id, text: done.error, bad: true } : { frame: id, text: `Saved to Photo › ${EXPORT_ALBUM} as ${done.path.slice(EXPORT_ALBUM.length + 1)}` });
+  };
   const menuItems = (): ContextMenuItem[] => {
     const paste: ContextMenuItem = { action: 'paste', keys: 'Ctrl+V', disabled: !copied.current, run: () => { if (copied.current) pasteNodes(copied.current, 16); } };
     if (selected.length === 0) return [paste, { label: 'Zoom to fit', keys: 'Shift+1', separated: true, run: fit }];
     const zoomIn: ContextMenuItem = { label: 'Zoom to selection', keys: 'Shift+2', separated: true, run: zoomToSelection };
     const rename: ContextMenuItem = { action: 'rename', label: 'Rename…', disabled: !one, run: () => { if (one) setRenaming(one); } };
     if (picked.length === 0) {
-      return [paste, { action: 'duplicate', keys: 'Ctrl+D', run: duplicate }, rename, zoomIn, { action: 'delete', label: selected.length > 1 ? 'Delete frames' : 'Delete frame', keys: 'Delete', danger: true, separated: true, run: remove }];
+      const exportOne: ContextMenuItem = { label: 'Export as PNG', separated: true, disabled: !one, run: () => { if (one) void exportPng(one); } };
+      return [paste, { action: 'duplicate', keys: 'Ctrl+D', run: duplicate }, rename, exportOne, zoomIn, { action: 'delete', label: selected.length > 1 ? 'Delete frames' : 'Delete frame', keys: 'Delete', danger: true, separated: true, run: remove }];
     }
     const allHidden = picked.every((a) => a.node.hidden), allLocked = picked.every((a) => a.node.locked);
     return [
@@ -679,6 +692,15 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
               </Section>
               <Section title="Fill"><ColorField label="Fill" bare value={at.frame.fill} doc={doc} onChange={(c) => setFrame((f) => { f.fill = c; })} /></Section>
               <BorderSection item={at.frame} doc={doc} onChange={(stroke, width) => setFrame((f) => { f.stroke = stroke; f.strokeWidth = width; })} />
+              <Section title="Export">
+                <div className="design-export">
+                  <div className="design-segment" role="radiogroup" aria-label="Export size">
+                    {[1, 2, 3].map((x) => <button key={x} type="button" role="radio" aria-checked={exportScale === x} onClick={() => setExportScale(x)}>{x}×</button>)}
+                  </div>
+                  <button type="button" className="btn" onClick={() => void exportPng(at.frame.id)}>Export PNG</button>
+                </div>
+                {exported?.frame === at.frame.id && <p className="design-hint" role="status" data-bad={exported.bad || undefined}>{exported.text}</p>}
+              </Section>
               <button type="button" className="btn danger" onClick={remove}>Delete frame</button>
             </>
           )}

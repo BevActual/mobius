@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { setLocaleForTests } from './dates';
 import { agoLabel, deskGreeting, deskTitle, nextRun, recent, upcoming, whenLabel } from './desk-view';
 
 // Monday 9 November 2026, 19:30.
@@ -6,6 +7,9 @@ const now = new Date(2026, 10, 9, 19, 30);
 const schedule = (time: string, days: number[], enabled = true) => ({ id: time, title: `At ${time}`, prompt: 'p', time, days, enabled, lastRunMs: null });
 
 describe('desk', () => {
+  beforeEach(() => setLocaleForTests('en-GB'));
+  afterEach(() => setLocaleForTests(null));
+
   it('greets for the time of day', () => {
     expect(deskGreeting(now)).toBe('Good evening');
     expect(deskGreeting(new Date(2026, 10, 10, 8))).toBe('Good morning');
@@ -14,10 +18,11 @@ describe('desk', () => {
   });
 
   it('the line under it names the date, then only the counts that are not zero', () => {
-    expect(deskTitle(now, { waiting: 0, working: 0, changed: 0 }, 'en-GB')).toEqual(['Monday 9 November']);
-    expect(deskTitle(now, { waiting: 2, working: 1, changed: 1 }, 'en-GB')).toEqual(['Monday 9 November', '2 waiting for you', 'Mobius is working', '1 app changed']);
-    expect(deskTitle(new Date(2026, 10, 10, 8), { waiting: 0, working: 3, changed: 2 }, 'en-GB')).toEqual(['Tuesday 10 November', 'Mobius is working on 3', '2 apps changed']);
-    expect(deskTitle(now, { waiting: 0, working: 0, changed: 0 }, 'en-US')).toEqual(['Monday, November 9']);
+    expect(deskTitle(now, { waiting: 0, working: 0, changed: 0 })).toEqual(['Monday 9 November']);
+    expect(deskTitle(now, { waiting: 2, working: 1, changed: 1 })).toEqual(['Monday 9 November', '2 waiting for you', 'Mobius is working', '1 app changed']);
+    expect(deskTitle(new Date(2026, 10, 10, 8), { waiting: 0, working: 3, changed: 2 })).toEqual(['Tuesday 10 November', 'Mobius is working on 3', '2 apps changed']);
+    setLocaleForTests('en-US');
+    expect(deskTitle(now, { waiting: 0, working: 0, changed: 0 })).toEqual(['Monday, November 9']);
   });
 
   it('says when a conversation was last active, in words', () => {
@@ -26,10 +31,11 @@ describe('desk', () => {
     expect(agoLabel(ago(25), now)).toBe('25 min ago');
     expect(agoLabel(ago(185), now)).toBe('3 h ago');
     expect(agoLabel(new Date(2026, 10, 8, 23, 0).getTime(), now)).toBe('Yesterday');
-    expect(agoLabel(new Date(2026, 10, 5, 9, 0).getTime(), now, 'en-GB')).toBe('Thursday');
-    expect(agoLabel(new Date(2026, 10, 2, 9, 0).getTime(), now, 'en-GB')).toBe('2 Nov');
+    expect(agoLabel(new Date(2026, 10, 5, 9, 0).getTime(), now)).toBe('Thursday');
+    expect(agoLabel(new Date(2026, 10, 2, 9, 0).getTime(), now)).toBe('2 Nov');
     // The system's locale decides the order, as in Mail.
-    expect(agoLabel(new Date(2026, 10, 2, 9, 0).getTime(), now, 'en-US')).toBe('Nov 2');
+    setLocaleForTests('en-US');
+    expect(agoLabel(new Date(2026, 10, 2, 9, 0).getTime(), now)).toBe('Nov 2');
   });
 
   it('lists conversations to pick up again, most recent first, without empty or skipped ones', () => {
@@ -53,8 +59,11 @@ describe('desk', () => {
 
   it('says when in words: today, tomorrow, or the weekday', () => {
     expect(whenLabel(new Date(2026, 10, 9, 20, 0), now)).toBe('Today at 20:00');
-    expect(whenLabel(new Date(2026, 10, 10, 8, 5), now)).toBe('Tomorrow at 08:05');
-    expect(whenLabel(new Date(2026, 10, 12, 8, 0), now)).toBe('Thursday at 08:00');
+    expect(whenLabel(new Date(2026, 10, 10, 8, 5), now)).toBe('Tomorrow at 8:05');
+    expect(whenLabel(new Date(2026, 10, 12, 8, 0), now)).toBe('Thursday at 8:00');
+    // A 12-hour clock where the computer keeps one.
+    setLocaleForTests('en-US');
+    expect(whenLabel(new Date(2026, 10, 10, 8, 5), now)).toBe('Tomorrow at 8:05 AM');
   });
 
   it('lists what runs next, soonest first, leaving out what is off', () => {
