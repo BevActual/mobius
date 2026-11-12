@@ -3,15 +3,39 @@ import type { ScheduleInfo } from '@mobius/shared';
 /** The words for the time of day the desk is read at. */
 export const partOfDay = (hour: number): string => (hour < 5 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening');
 
-/** The desk's title line: the day, the part of day, then only the counts that are not zero. */
+/** The desk's large title: a greeting for the time of day. */
+export const deskGreeting = (now: Date): string => {
+  const part = partOfDay(now.getHours());
+  return part === 'morning' ? 'Good morning' : part === 'afternoon' ? 'Good afternoon' : 'Good evening';
+};
+
+/** The line under the greeting: the date, then only the counts that are not zero. */
 export function deskTitle(now: Date, counts: { waiting: number; working: number; changed: number }): string[] {
-  const day = now.toLocaleDateString('en-GB', { weekday: 'long' });
+  const day = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   return [
-    `${day} ${partOfDay(now.getHours())}`,
+    day,
     counts.waiting > 0 ? `${counts.waiting} waiting for you` : '',
     counts.working > 0 ? (counts.working === 1 ? 'Mobius is working' : `Mobius is working on ${counts.working}`) : '',
     counts.changed > 0 ? `${counts.changed} ${counts.changed === 1 ? 'app' : 'apps'} changed` : '',
   ].filter(Boolean);
+}
+
+/** When a conversation was last active, in words: "Just now", "25 min ago", "3 h ago", "Yesterday", "Monday", "2 Nov". */
+export function agoLabel(ms: number, now: Date): string {
+  const minutes = Math.floor((now.getTime() - ms) / 60_000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const at = new Date(ms);
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime()) / 86_400_000);
+  if (days <= 0) return `${Math.floor(minutes / 60)} h ago`;
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return at.toLocaleDateString('en-GB', { weekday: 'long' });
+  return at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+/** The conversations to pick up again: ones with messages, most recent first, at most `limit`, leaving out `skip`. */
+export function recent<T extends { id: string; messages: number; updated_ms: number }>(conversations: readonly T[], skip: ReadonlySet<string>, limit = 4): T[] {
+  return conversations.filter((c) => c.messages > 0 && !skip.has(c.id)).sort((a, b) => b.updated_ms - a.updated_ms).slice(0, limit);
 }
 
 /** When a schedule runs next, from `now` on, or null when it is off or has no days. Days are 1 (Monday) to 7 (Sunday). */

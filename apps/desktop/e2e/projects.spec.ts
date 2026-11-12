@@ -124,7 +124,7 @@ test('the core counts a project’s rules in its threads only: Act goes ahead th
   await page.getByRole('combobox', { name: 'Browser in Kestrel' }).selectOption('act');
   await expect.poll(() => JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0].rules).toEqual({ browser: 'act', docs: 'act' });
   await page.getByRole('button', { name: 'New thread' }).click();
-  await expect(log().getByRole('heading', { name: 'What can I help with?' })).toBeVisible();
+  await expect(log().getByRole('heading', { name: /^Good (morning|afternoon|evening)$/ })).toBeVisible();
   // In the project, Act: the same change, and opening a page, go ahead without asking.
   await say('write the plan here');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Wrote it in the project.');

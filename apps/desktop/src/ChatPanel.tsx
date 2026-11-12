@@ -352,8 +352,8 @@ export interface ChatPanelProps {
   onDetails: (callId: string) => Promise<Details>;
   /** The button that floats or attaches the panel. */
   pin?: ReactNode;
-  /** The desk: what is in flight, shown under the greeting of an empty conversation in the Agent app. */
-  desk?: ReactNode;
+  /** The desk: the Agent app's home, shown in place of the greeting of an empty conversation. It is given the slot where the suggestions go. */
+  desk?: (starters: ReactNode) => ReactNode;
   /** The open app's own card above the conversation (Get to zero in Mail). */
   appCard?: ReactNode;
   /** Open one email in Mail, from the rows under an answer about the mail. */
@@ -665,13 +665,16 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             }}
           >
             {state.items.length === 0 && (
-              <div className="empty">
-                <MobiusMark size={44} turning={!configured} className="empty-mark" />
-                <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
-                {configured && <p className="greeting-note">{modeOf(preferences.value.approvalMode).greeting} You can change that below.</p>}
-                {configured && <div ref={setStarterSlot} className="empty-starters" />}
-                {desk}
-              </div>
+              configured && desk ? (
+                <div className="empty" data-desk>{desk(<div ref={setStarterSlot} className="empty-starters" />)}</div>
+              ) : (
+                <div className="empty">
+                  <MobiusMark size={44} turning={!configured} className="empty-mark" />
+                  <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
+                  {configured && <p className="greeting-note">{modeOf(preferences.value.approvalMode).greeting} You can change that below.</p>}
+                  {configured && <div ref={setStarterSlot} className="empty-starters" />}
+                </div>
+              )
             )}
             {state.items.map((item, index) =>
               item.kind === 'user' ? (
