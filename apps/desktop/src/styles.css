@@ -1771,38 +1771,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .db-grid tbody tr:hover td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 
 /* Reader: a save bar, then the article as plain readable text. */
-.stage .reader-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
-.reader-save { display: flex; gap: var(--sp-2); padding: 8px 12px; border-bottom: 1px solid var(--line); }
-.reader-save input { flex: 1; min-width: 0; height: 30px; padding: 0 12px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--field); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
-.reader-message { margin: 8px 16px 0; color: var(--danger); font-size: var(--fs-sm); }
-.reader-scroll { flex: 1; min-height: 0; overflow-y: auto; }
-.reader-article { width: min(680px, calc(100% - 48px)); margin: 0 auto; padding: var(--sp-4) 0 80px; --read-size: 17px; }
-.reader-article[data-size="s"] { --read-size: 15px; }
-.reader-article[data-size="l"] { --read-size: 20px; }
-.reader-article[data-face="serif"] .reader-body, .reader-article[data-face="serif"] .reader-title { font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; }
-.reader-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: var(--fs-sm); }
-.reader-meta a { color: var(--accent); text-decoration: none; }
-.reader-gap { flex: 1; }
-.reader-look { display: inline-flex; gap: 2px; }
-.reader-look .strip-btn { min-width: 28px; height: 26px; font-weight: 600; }
-.reader-look .strip-btn[data-size="s"] { font-size: 11px; }
-.reader-look .strip-btn[data-size="m"] { font-size: 14px; }
-.reader-look .strip-btn[data-size="l"] { font-size: 17px; }
-.reader-title { margin: 20px 0 16px; font-size: calc(var(--read-size) * 1.75); line-height: 1.2; letter-spacing: -0.01em; }
-.reader-body { position: relative; font-size: var(--read-size); line-height: 1.65; }
-.reader-body mark, .research-text mark { background: color-mix(in srgb, #ffd60a 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; cursor: pointer; }
-.reader-mark-bar { position: absolute; z-index: 3; }
-.reader-mark-bar kbd { margin-left: 4px; opacity: 0.6; font-size: 10px; }
-.reader-notice { margin: 8px 0; color: var(--muted); font-size: var(--fs-sm); }
-.reader-highlights { margin-top: var(--sp-6); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
-.reader-highlights-head { display: flex; align-items: center; justify-content: space-between; }
-.reader-highlights h2 { margin: 0; font-size: var(--fs-md, 15px); }
-.reader-highlights ul { margin: var(--sp-2) 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.reader-highlights li { padding-left: 10px; border-left: 3px solid #ffd60a; color: var(--ink); font-size: var(--fs-sm); line-height: 1.5; }
-.reader-body h1, .reader-body h2 { font-size: 1.25em; margin: 1.6em 0 0.5em; }
-.reader-body h3 { font-size: 1.08em; margin: 1.4em 0 0.4em; }
-.reader-body p { margin: 0 0 1em; }
-.reader-body blockquote { margin: 0 0 1em; padding-left: 1em; border-left: 3px solid var(--line); color: var(--muted); }
+.research-text mark { background: color-mix(in srgb, #ffd60a 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; cursor: pointer; }
 
 /* Research: a question form, then the report beside its sources. */
 .stage .research-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
