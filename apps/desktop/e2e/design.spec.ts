@@ -59,7 +59,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 
 test('a design is frames of layers: selected, changed in the inspector, added and deleted, and kept as JSON', async () => {
   await start();
-  await shell().getByRole('tree', { name: 'Frames and layers' }).getByRole('button', { name: 'Title' }).click();
+  await shell().getByRole('tree', { name: 'Frames and layers' }).getByRole('button', { name: 'Title', exact: true }).click();
   await expect(inspector()).toContainText('passes AA');
   await inspector().getByRole('textbox', { name: 'Text', exact: true }).fill('Porto offsite');
   await inspector().getByRole('textbox', { name: 'Y', exact: true }).fill('120');
@@ -125,8 +125,8 @@ test('layers are drawn with a tool, picked together, lined up, duplicated and ty
   await shell().mouse.up();
   await expect.poll(() => saved().frames[0]!.children.map((c) => c.type)).toEqual(['text', 'rect', 'rect']);
   // Shift-click two layers in the list, then line their left edges up.
-  await tree.getByRole('button', { name: 'Card' }).click();
-  await tree.getByRole('button', { name: 'Rectangle' }).click({ modifiers: ['Shift'] });
+  await tree.getByRole('button', { name: 'Card', exact: true }).click();
+  await tree.getByRole('button', { name: 'Rectangle', exact: true }).click({ modifiers: ['Shift'] });
   await expect(inspector()).toContainText('2 layers');
   await inspector().getByRole('button', { name: 'Align left' }).click();
   await expect.poll(() => saved().frames[0]!.children.slice(1).map((c) => c.x)).toEqual([24, 24]);
@@ -141,4 +141,30 @@ test('layers are drawn with a tool, picked together, lined up, duplicated and ty
   await expect.poll(() => saved().frames[0]!.children[0]!.text).toBe('Porto offsite');
   await shell().keyboard.press('Control+z');
   await expect.poll(() => saved().frames[0]!.children[0]!.text).toBe('Lisbon offsite');
+});
+
+test('a layer is hidden, locked and arranged from its row and its right-click menu', async () => {
+  await start();
+  const tree = shell().getByRole('tree', { name: 'Frames and layers' });
+  // Hide takes the layer off the canvas; the row stays, dimmed, with Show in its place.
+  await tree.getByRole('button', { name: 'Hide Card' }).click();
+  await expect.poll(() => saved().frames[0]!.children[1]).toMatchObject({ hidden: true });
+  await expect(canvas().getByLabel('Rectangle Card')).toHaveCount(0);
+  await tree.getByRole('button', { name: 'Show Card' }).click();
+  await expect.poll(() => saved().frames[0]!.children[1]).not.toHaveProperty('hidden');
+  await expect(canvas().getByLabel('Rectangle Card')).toBeVisible();
+  // A right-click on a layer opens its menu: Lock, then Send to back.
+  await canvas().getByLabel('Text Title').click({ button: 'right' });
+  const menu = shell().getByRole('menu', { name: 'Title' });
+  await menu.getByRole('menuitem', { name: /^Lock/ }).click();
+  await expect.poll(() => saved().frames[0]!.children[0]).toMatchObject({ locked: true });
+  await expect(tree.getByRole('button', { name: 'Unlock Title' })).toBeVisible();
+  await tree.getByRole('button', { name: 'Card', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Card' }).getByRole('menuitem', { name: /^Send to back/ }).click();
+  await expect.poll(() => saved().frames[0]!.children.map((c) => c.name)).toEqual(['Card', 'Title']);
+  // Ctrl+Shift+L unlocks what is picked.
+  await tree.getByRole('button', { name: 'Title', exact: true }).click();
+  await canvas().focus();
+  await shell().keyboard.press('Control+Shift+L');
+  await expect.poll(() => saved().frames[0]!.children[1]).not.toHaveProperty('locked');
 });

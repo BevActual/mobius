@@ -24,7 +24,10 @@ Frames on a canvas, as in Sketch and Figma.
 - Draw with a tool (**V** move, **F** frame, **R** rectangle, **O** oval, **T** text) or add from the toolbar.
 - Pick with a click, Shift-click or a box. Move with smart guides, size from any edge, line layers up from the
   inspector, copy and duplicate. Double-click a text layer to type on the canvas.
-- Rename layers and frames in the layer list.
+- Rename layers and frames in the layer list. Each layer row has **Lock** and **Hide** buttons (or Ctrl+Shift+L and
+  Ctrl+Shift+H): a hidden layer is not drawn, and a locked one stays put while you work around it.
+- Right-click a layer, a frame or the canvas for cut, copy, paste, duplicate, rename, bring to front, send to back,
+  hide, lock and delete, each with its shortcut. **Shift+1** fits everything, **Shift+2** zooms to what is picked.
 - Mobius's changes are dashed to keep or discard. It can also make pictures with your
   [Images model](../guide/models-and-gateways.md#a-model-for-each-job).
 
