@@ -17,7 +17,7 @@
 .files-crumbs .review-btn[aria-current="page"] { color: var(--ink); }
 
 /* The list: a header row of sortable columns, then one row per entry. */
-.files-head, .files-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 150px 70px; align-items: center; column-gap: var(--sp-3); }
+.files-head, .files-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 196px 64px; align-items: center; column-gap: var(--sp-3); }
 .files-table[aria-label="Made by Mobius"] .files-row { grid-template-columns: minmax(0, 1fr) 90px minmax(0, 200px); }
 .files-head { padding: 0 var(--sp-3) var(--sp-1); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-1); }
 .files-col { justify-self: start; display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; margin-left: -4px; border-radius: var(--radius-small, 4px); font-size: var(--fs-xs); font-weight: var(--fw-semibold, 600); color: var(--muted); }
