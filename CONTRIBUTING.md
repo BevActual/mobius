@@ -6,16 +6,18 @@ Thanks for your interest. Mobius is an early preview and changes quickly, so the
 - **Ideas.** Open an issue that describes the problem you'd like Mobius to solve, not only the feature.
 - **Small, focused pull requests.** For anything larger, open an issue first so we can agree on the approach.
 
-By contributing you agree that your work is released under the [MIT license](LICENSE).
+By contributing you agree that your work is released under the [MIT license](LICENSE), and to follow the
+[code of conduct](CODE_OF_CONDUCT.md).
 
 ## Principles
 
 - **Refine before adding.** Improving the apps that exist comes before new apps.
 - **One look.** Follow Apple's Human Interface Guidelines and the existing components (sidebar, menus, review bar)
-  instead of inventing new ones.
+  instead of inventing new ones. See [Workspace layout](docs/design/workspace-layout.md).
 - **The person decides.** Anything the agent changes must be reviewable and undoable. Sending, paying, deleting and
   running commands always ask.
-- **Rust for everything that isn't interface.** Permissions, tools, storage and model providers live in the core.
+- **Rust for everything that isn't interface.** Permissions, tools, storage and model providers live in the core. The
+  interface is untrusted. See [Architecture](docs/developers/architecture.md).
 
 ## Getting set up
 
@@ -24,55 +26,39 @@ Ninja, which the Visual Studio Build Tools include.
 
 ```
 npm ci
-npm run app                 # build everything and open the real window, to try changes by hand
-npm run dev                 # the interface alone in a browser at 127.0.0.1:5180 (no Rust behind it)
-npm test                    # Rust tests, then TypeScript unit tests
-npm run e2e                 # builds the shell and drives the real app with Playwright (hidden window)
-npm run gen:types           # regenerate TypeScript types from the Rust types
-npm run check:types         # fail if the generated types are stale
+npm run app      # build everything and open the real window
+npm test         # Rust tests, then TypeScript unit tests
 npm run typecheck
 ```
 
-`npm run app -- --webview` uses the system web view instead of Chromium.
+[Development setup](docs/developers/dev-setup.md) has every command, and [Testing and CI](docs/developers/testing.md)
+covers the end-to-end suite.
 
-To run one end-to-end spec: `npm run build -w @mobius/desktop`, then `cargo build --workspace --bins`, then
-`npx playwright test e2e/x.spec.ts` in `apps/desktop` (in that order: the shell carries the interface).
+## Making a change
 
-## How the code is organised
+1. Fork the repository and create a branch from the default branch.
+2. Make your change, with tests: a unit test for logic, an end-to-end spec in `apps/desktop/e2e/` for behaviour in the
+   real window.
+3. If you changed a Rust type the interface uses, run `npm run gen:types` and commit the result.
+4. If the change affects what a person sees or does, update the matching page in [`docs/`](docs/README.md) and retake
+   any screenshot it changes, in the same pull request. [Writing the docs](docs/writing-docs.md) says where pages go
+   and how they're shaped.
+5. Make sure `npm test`, `npm run typecheck` and `npm run check:types` pass, then open a pull request that says what
+   changed and why. Add screenshots, light and dark, for interface changes.
 
-```
-crates/mobius-core       permissions, event log, tools, JSON-RPC protocol
-crates/mobius-cored      the core as a separate process (JSON-RPC over stdin/stdout)
-crates/mobius-agent      the agent turn engine and model providers
-crates/mobius-runtime    local models (llama.cpp) and downloads
-crates/mobius-host       what the window may ask for: validation, bridge, services
-crates/mobius-store      small JSON stores (settings, history, bookmarks, ...)
-crates/mobius-browser    the browser app, behind an Engine trait
-crates/mobius-workspace  checkpoints of real folders, for rolling back agent changes
-crates/mobius-shell      the Tauri shell; web view or Chromium (CEF) engine
-apps/desktop             the React interface and the end-to-end tests
-packages/shared          IPC contract + types generated from the Rust core
-```
+A decision that is hard to reverse (a new process, a storage format, an outside service, a change to permissions) gets
+an [architecture decision record](docs/adr/README.md).
 
-Architecture decisions are in [`docs/adr/`](docs/adr).
+## Writing style
 
-## Checks
+The interface and the docs use plain words and full sentences, in the names people see in the app (Music, Knowledge,
+Abilities). Code comments say why, not what.
 
-On GitHub, **Checks** (`.github/workflows/ci.yml`) runs the types, the TypeScript tests and every Rust test on Linux for
-every push and pull request. **Windows end-to-end** (`.github/workflows/windows-e2e.yml`) runs the Playwright suite
-against the real app on Windows. Please make sure `npm test` and `npm run typecheck` pass before opening a pull request.
+## Driving the real app from an agent
 
-## Driving the real app from Claude Code
-
-`apps/desktop/scripts/drive-mcp.mjs` is a dev-only MCP server (stdio) that starts the build from this clone and drives
-its window through the web view's debugging port, as the end-to-end tests do. Its tools are `launch`, `screenshot`,
-`snapshot`, `click`, `type`, `press`, `open_app`, `hook` and `close`. It runs in test mode with a data folder of its
-own; your real data is used only with `realData: true`. Build first, then register it once:
-
-```
-claude mcp add --scope project mobius-drive -- node apps/desktop/scripts/drive-mcp.mjs
-```
+If you work with Claude Code, the `mobius-drive` MCP server lets it launch your build and use it. See
+[Driving the app from an agent](docs/developers/driving-the-app.md).
 
 ## Security
 
-See [SECURITY.md](SECURITY.md). Please don't report security problems in public issues.
+Please don't report security problems in public issues. See the [security policy](SECURITY.md).

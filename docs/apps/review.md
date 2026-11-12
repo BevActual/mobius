@@ -4,6 +4,8 @@
 
 Everything Mobius changed, from every conversation, in one place.
 
+![The Review app in Mobius](../readme/apps/review.png)
+
 - **The sidebar** filters to everything, what still waits for you, or one app's changes, with counts.
 - **The list** groups changes by day. Each turn shows what you asked, and each file it changed opens in its app or can be
   put back from here.

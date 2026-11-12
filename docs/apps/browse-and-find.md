@@ -4,6 +4,8 @@
 
 A full web browser, with Mobius able to read and work on pages for you.
 
+![The Browser app in Mobius](../readme/apps/browser.png)
+
 - **Tabs** live in the sidebar, as in Safari and Arc. Pinned tabs sit in their own group above the rest; drag a tab to
   reorder it or across the line to pin it.
 - **A new tab** opens Mobius's start page: your favourites, the sites you visit most, and your reading list. It is drawn
@@ -19,6 +21,8 @@ Settings: **Settings › Browser** (allowed sites, local addresses, bookmarks, h
 
 Your mail, mirrored to this computer, sorted for you, with drafts Mobius can write and you send.
 
+![The Mail app in Mobius](../readme/apps/mail.png)
+
 - **Accounts** sign in with an app password. Ready-made settings for iCloud, Fastmail, Gmail and Yahoo, or any provider by its IMAP and SMTP servers.
 - **Categories:** Primary, Transactions, Updates and All. Move a message to another category from its header.
 - **Email is shown safely:** no scripts, and nothing loaded from the web, so tracking pixels don't fire.
@@ -28,10 +32,14 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 
 Mobius never sends mail itself. It writes drafts; you press Send.
 
+**Kept in:** `workspace/mail/<account>/`, a copy of each account's recent Inbox and Sent mail, with your drafts.
+
 ## Search
 
 One box for everything Mobius keeps: conversations, notes, tasks and pages. The sidebar narrows it to one kind of thing.
 Type a question instead and Search hands it to Mobius.
+
+![The Search app in Mobius](../readme/apps/search.png)
 
 ## Research
 
@@ -39,14 +47,24 @@ Ask a question and Mobius searches the web from several angles, reads the best p
 sources. The report is a page like any other, and follow-up questions add to it. What Mobius wrote waits for you to
 keep.
 
+![The Research app in Mobius](../readme/apps/research.png)
+
+**Kept in:** `workspace/research/`, each report a Markdown file.
+
 ## Reader
 
 Pages saved to read later, shown as plain readable text with where each came from. Save the page you're on from the
 Browser, or give Reader an address.
 
+![The Reader app in Mobius](../readme/apps/reader.png)
+
+**Kept in:** `workspace/reading/`, each article a Markdown file.
+
 ## Files
 
 Your whole workspace as a drive.
+
+![The Files app in Mobius](../readme/apps/files.png)
 
 - **The drive** shows the workspace's folders. Files open in their own app.
 - **Made by Mobius** collects what Mobius created, dashed until you keep it, with a count of what is waiting.
