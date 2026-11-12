@@ -77,6 +77,7 @@ const ASK_ABOUT: Partial<Record<AppId, string>> = {
   browser: 'this page', notes: 'this note', tasks: 'your tasks', mail: 'your mail', calendar: 'your calendar', docs: 'this document',
   sheets: 'this sheet', slides: 'these slides', reader: 'this article', research: 'this research', code: 'this code', canvas: 'this board',
   database: 'this database', design: 'this design', photo: 'this picture', video: 'this video', studio: 'this song', terminal: 'this terminal',
+  files: 'your files', wiki: 'what Mobius knows', projects: 'your projects',
 };
 /** `open` says whether the app has one thing open: with none, "this document" would point at nothing. */
 export const askAbout = (id: AppId, open = true): string => {

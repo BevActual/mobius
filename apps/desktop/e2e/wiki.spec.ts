@@ -70,9 +70,9 @@ test('a line shared from How I work waits in Shared with this wiki: Edit first, 
   await mine.getByRole('listitem', { name: 'Vegetarian', exact: true }).getByRole('button', { name: 'Share' }).click();
   await expect(mine.getByRole('status')).toContainText('Shared “Vegetarian” with Knowledge');
   const side = shell().getByRole('navigation', { name: 'Knowledge' });
-  await expect(side.getByRole('button', { name: /Shared with Knowledge/ })).toContainText('1');
-  await side.getByRole('button', { name: /Shared with Knowledge/ }).click();
-  const queue = shell().getByRole('region', { name: 'Shared with Knowledge' });
+  await expect(side.getByRole('button', { name: /Suggested changes/ })).toContainText('1');
+  await side.getByRole('button', { name: /Suggested changes/ }).click();
+  const queue = shell().getByRole('region', { name: 'Suggested changes' });
   const change = queue.getByRole('listitem', { name: 'From your knowledge: Vegetarian' });
   await expect(change).toHaveAttribute('data-proposed');
   await change.getByRole('button', { name: 'Edit first' }).click();

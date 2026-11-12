@@ -153,7 +153,27 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Key claims', prompt: 'List the main claims the attached article makes, and for each, what evidence it gives. Say which ones it does not back up.', attach: 'note' },
             { label: 'Questions about it', prompt: 'Give me five good questions to think about after reading the attached article.', attach: 'note' },
           ]
-        : [];
+        : [
+            { label: 'What should I read?', prompt: 'Look through my reading list in Reader (reading/) and tell me which saved article to read first, and why, in a few lines.' },
+            { label: 'Catch me up', prompt: 'Summarise the articles in my Reader reading list (reading/) in one line each.' },
+          ];
+    case 'files':
+      return [
+        { label: 'What changed lately?', prompt: 'Look through my workspace with files.list and tell me which files changed most recently, and where they are. Change nothing.' },
+        { label: 'Find a file…', prompt: 'Find the file in my workspace that ' },
+        { label: 'Tidy a folder…', prompt: 'Suggest a tidier layout for this folder in my workspace, as a short list of moves, and change nothing until I agree: ' },
+      ];
+    case 'wiki':
+      return [
+        { label: 'What do you know about me?', prompt: 'From my Knowledge and what you remember, tell me in a few short points what you know about me and how I like to work.' },
+        { label: 'Remember…', prompt: 'Remember this about me: ' },
+        { label: 'Anything out of date?', prompt: 'Read my Knowledge pages and tell me what looks out of date or contradicts itself. Change nothing.' },
+      ];
+    case 'projects':
+      return [
+        { label: 'Where do things stand?', prompt: 'Look at my projects and their threads, and tell me in a line each where each one stands and what is waiting on me.' },
+        { label: 'Start a project for…', prompt: 'Help me set up a project in Mobius for ' },
+      ];
     case 'research':
       return state.note
         ? [

@@ -1751,8 +1751,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .side-empty p { margin: 0; }
 .stage .db-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
 .db-page.empty { align-items: center; justify-content: center; }
-.db-empty { width: min(520px, calc(100% - 48px)); text-align: center; color: var(--muted); }
-.db-empty h1 { margin: 0 0 8px; color: var(--ink); font-size: 26px; }
 .db-review { margin: 8px 12px 0; }
 .db-editor { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .db-editor textarea { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; resize: vertical; outline: none; }
@@ -1777,8 +1775,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .reader-save { display: flex; gap: var(--sp-2); padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .reader-save input { flex: 1; min-width: 0; height: 30px; padding: 0 12px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--field); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
 .reader-message { margin: 8px 16px 0; color: var(--danger); font-size: var(--fs-sm); }
-.reader-empty { width: min(560px, calc(100% - 48px)); margin: 14vh auto 0; text-align: center; color: var(--muted); }
-.reader-empty h1 { margin: 0 0 8px; color: var(--ink); font-size: 26px; }
 .reader-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .reader-article { width: min(680px, calc(100% - 48px)); margin: 0 auto; padding: var(--sp-4) 0 80px; --read-size: 17px; }
 .reader-article[data-size="s"] { --read-size: 15px; }
@@ -2284,7 +2280,7 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .tab-driver[data-driver="mobius"] { color: var(--accent); border: 1px dashed var(--accent); }
 .tab-driver[data-driver="yours"] { color: var(--text); background: var(--wash); }
 
-/* Mail: Get to zero in the Mobius panel, Ask your mail, Send later, and the keys. */
+/* Mail: Get to zero in the Mobius panel, Send later, and the keys. */
 .mail-plan { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }
 .mail-plan-start { justify-self: start; }
 .mail-plan-card { display: grid; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-panel); outline: 1px dashed var(--accent); outline-offset: -1px; background: color-mix(in srgb, var(--accent) 5%, transparent); }
@@ -2296,7 +2292,6 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .mail-plan-items { margin: 0 0 4px; padding: 0 6px 0 16px; font-size: var(--fs-sm); color: var(--muted); }
 .mail-plan-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
 .mail-plan-done, .mail-scheduled { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--fs-sm); }
-.mail-ask input { width: 100%; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }
 .mail-sources { list-style: none; margin: 0 0 var(--sp-2); padding: 0; display: grid; gap: 2px; }
 .mail-source { display: flex; gap: var(--sp-2); width: 100%; padding: 4px 8px; border: 1px solid var(--hairline); border-radius: 8px; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
 .mail-source span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

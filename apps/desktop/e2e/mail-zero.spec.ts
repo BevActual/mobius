@@ -113,14 +113,16 @@ test('Send later on a kept draft: Scheduled by you, and Unschedule', async () =>
   await expect(reply.getByRole('status')).toHaveCount(0);
 });
 
-test('Ask your mail answers in the panel with the messages it came from, each opening that mail', async () => {
+test('A question about the mail, asked in the composer, answers with the messages it came from, each opening that mail', async () => {
   await start([
     callsTool('mail-search', { query: 'terrace' }),
     callsTool('mail-read', { id: '{{request:([0-9a-f]{8}/inbox/7)}}' }),
     says(['Rui can hold the terrace for eight on the 13th.']),
   ]);
-  await shell().getByRole('textbox', { name: 'Ask your mail' }).fill('what did Rui say about the terrace?');
-  await shell().getByRole('textbox', { name: 'Ask your mail' }).press('Enter');
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await expect(composer).toBeEnabled({ timeout: 15_000 });
+  await composer.fill('what did Rui say about the terrace?');
+  await composer.press('Enter');
   const log = shell().getByRole('log', { name: 'Conversation' });
   for (const tool of ['mail.search', 'mail.read']) {
     const card = log.getByRole('group', { name: `Approval needed: ${tool}` });

@@ -3,6 +3,10 @@ import { conversationIdFor, type Bot, type ConversationInfo, type Message, type 
 import { appName, type AppId } from './apps';
 import type { WikiIncoming } from './Wiki';
 import { changeTarget } from './actions';
+import { EmptyState } from './EmptyState';
+
+/** The empty page's New project opens the sidebar's naming field. */
+const NEW_PROJECT = 'mobius-projects-new';
 
 /** The apps a project can set a level for, as Settings lists them. */
 const RULE_APPS: readonly AppId[] = ['notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'browser', 'research', 'reader', 'code', 'database', 'design', 'canvas', 'photo', 'studio', 'video', 'skills'];
@@ -69,6 +73,7 @@ export type ProjectsState = ReturnType<typeof useProjects>;
 
 export function ProjectsSidebar({ projects, pin, conversations }: { projects: ProjectsState; pin?: ReactNode; conversations: readonly ConversationInfo[] }) {
   const [naming, setNaming] = useState(false);
+  useEffect(() => { const go = () => setNaming(true); window.addEventListener(NEW_PROJECT, go); return () => window.removeEventListener(NEW_PROJECT, go); }, []);
   const [name, setName] = useState('');
   const waiting = (p: ProjectInfo) => conversations.filter((c) => p.threads.includes(c.id)).reduce((n, c) => n + c.waiting, 0);
   return (
@@ -88,7 +93,7 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
         </form>
       )}
       {projects.problem && <p className="field-error" role="alert">{projects.problem}</p>}
-      {projects.list.length === 0 && !naming && <div className="side-empty notes-empty"><p>A project is a place for one piece of work: its threads, its rules, its memory and its files.</p><button type="button" className="btn primary" onClick={() => setNaming(true)}>New project</button></div>}
+      {projects.list.length === 0 && !naming && <p className="side-empty">No projects yet.</p>}
       <nav className="task-lists" aria-label="Projects">
         <ul role="list">
           {projects.list.map((p) => (
@@ -303,7 +308,16 @@ export function ProjectPage({ projects, conversations, incoming, onOpenThread, o
 }) {
   const p = projects.open;
   if (!projects.available) return <section className="skills-page empty" aria-label="Projects"><p className="note-empty">Projects are not available here.</p></section>;
-  if (!p) return <section className="skills-page empty" aria-label="Projects"><p className="note-empty">Make a project on the left.</p></section>;
+  if (!p) {
+    const none = projects.list.length === 0;
+    return (
+      <section className="skills-page empty" aria-label="Projects">
+        <EmptyState app="projects" label="No project open" title={none ? 'No projects yet' : 'No project open'}
+          line={none ? 'A project keeps one piece of work together: its threads, its rules, its memory and its files.' : 'Choose one on the left, or start a new one.'}
+          action={{ label: 'New project', run: () => window.dispatchEvent(new Event(NEW_PROJECT)) }} />
+      </section>
+    );
+  }
   const threads = p.threads.map((id) => ({ id, info: conversations.find((c) => c.id === id) }));
   const waiting = threads.filter((t) => (t.info?.waiting ?? 0) > 0);
   return (

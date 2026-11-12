@@ -126,14 +126,17 @@ export function FilesPage({ files, onOpenFile }: { files: FilesState; onOpenFile
       <ul className="clist" role="list" aria-label="Files in this folder">
         {files.entries.map((e) => {
           const path = join(e.name);
-          const mine = e.type === 'file' ? proposed.has(path) : files.made.files.some((f) => f.startsWith(`${path}/`));
+          // A file from Mobius is dashed until kept; a folder only says how many such files it holds, so a drive
+          // where Mobius made a little everywhere does not turn every row dashed.
+          const held = e.type === 'folder' ? files.made.files.filter((f) => f.startsWith(`${path}/`)).length : 0;
+          const mine = e.type === 'file' ? proposed.has(path) : held > 0;
           return (
             <li key={e.name}>
-              <button type="button" className="clist-item files-row" data-proposed={mine || undefined} aria-label={mine ? `${e.name}, from Mobius` : e.name}
+              <button type="button" className="clist-item files-row" data-proposed={(mine && e.type === 'file') || undefined} aria-label={mine ? `${e.name}, from Mobius` : e.name}
                 onClick={() => (e.type === 'folder' ? files.setPlace({ kind: 'folder', path }) : onOpenFile(path))}>
                 <svg viewBox="0 0 20 20" aria-hidden="true">{ICON[e.type]}</svg>
                 <span className="ext-name">{e.name}</span>
-                <span className="ext-state">{e.type === 'folder' ? 'Folder' : size(e.bytes)}</span>
+                <span className="ext-state">{e.type === 'folder' ? (held > 0 ? `Folder · ${held} from Mobius` : 'Folder') : size(e.bytes)}</span>
               </button>
             </li>
           );
