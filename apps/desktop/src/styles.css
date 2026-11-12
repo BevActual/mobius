@@ -2144,32 +2144,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .rail-ask-beside:hover { color: var(--ink); background: color-mix(in srgb, var(--soft) 70%, transparent); }
 .rail-ask > :not(.rail-ask-bar) { flex: 1; min-height: 0; background: transparent; }
 
-/* The desk: the Agent app's home, under the greeting of an empty conversation. It spans the message box's column. */
-.desk { display: none; }
-.chat.full[data-empty] .desk { display: block; container-type: inline-size; margin: 36px 0 0; padding: 0 4px; text-align: left; }
-.desk-title { margin: 0 0 var(--sp-4); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--hairline); font-size: var(--fs-sm); color: var(--muted); }
-.desk-title > span:first-child { color: var(--ink); font-weight: var(--fw-medium); }
-.desk-quiet { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
-.desk-group + .desk-group { margin-top: var(--sp-5); }
-.desk-head { margin: 0 0 var(--sp-2); padding-left: 2px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
-.desk-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.desk-rows[data-columns] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.desk-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 6px 0 8px; border: 1px solid transparent; border-radius: 12px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--hairline), 0 1px 2px rgba(0, 0, 0, 0.04); color: var(--ink); text-align: left; }
-button.desk-row { padding-right: 12px; }
-button.desk-row:hover:not(:disabled) { background: color-mix(in srgb, var(--soft) 60%, var(--bg)); }
-button.desk-row:disabled { opacity: 1; cursor: default; }
-.desk-row > svg { flex: none; width: 24px; height: 24px; padding: 4.5px; border-radius: 7px; color: #fff; stroke-width: 1.9; }
-.desk-row > svg.desk-clock { background: var(--soft); color: var(--muted); stroke-width: 1.6; fill: none; stroke: currentColor; }
-.desk-name { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); font-weight: var(--fw-medium); }
-.desk-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: var(--fs-sm); color: var(--muted); }
-.desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { text-align: left; }
-.desk-act { flex: none; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
-.desk-act:hover:not(:disabled) { background: var(--soft); }
-.desk-act[data-primary] { color: var(--on-accent); background: var(--accent); box-shadow: none; }
-.desk-act[data-primary]:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); }
-.desk-row[data-changed] { box-shadow: none; border: 1px dashed var(--accent); }
-.desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--accent); }
-@container (max-width: 520px) { .desk-rows[data-columns] { grid-template-columns: 1fr; } }
 
 /* Activity: the open conversation's turns, each with Rewind to here. */
 .turn-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 6px var(--sp-2); }
@@ -2740,10 +2714,8 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .search-box:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); }
 .search-box input:focus, .search-box input:focus-visible, .hub-search input:focus-visible { outline: none; box-shadow: none; }
 
-/* The Agent home: the greeting and what is in your apps take the message box's width, centred with it. The desk is a
-   size container, so it is given that width rather than left to shrink inside the centred column. */
+/* The Agent home: the greeting takes the message box's width, centred with it. The desk's own styles are in desk.css. */
 .chat.full[data-empty] .empty { width: 100%; padding: 0; }
-.chat.full[data-empty] .desk { width: 100%; max-width: 760px; justify-self: stretch; align-self: stretch; margin-left: auto; margin-right: auto; box-sizing: border-box; }
 
 /* ---- Liquid Glass: one system ----------------------------------------------------------------------------------------
    Glass is for controls that float over content: the sidebar and the Mobius panel, toolbars, popovers, menus and the

@@ -37,7 +37,7 @@ you want to build or change Mobius, go to **Developers**.
 - [Browse and find](apps/browse-and-find.md): Browser, Mail, Search, Research, Reader, Files
 - [Write and plan](apps/write-and-plan.md): Notes, Docs, Tasks, Calendar, Sheets, Database, Projects, Knowledge
 - [Create](apps/create.md): Slides, Design, Photo, Music, Video, Code, Terminal, Canvas
-- [Review](apps/review.md): Review, and comments on anything
+- [Review](apps/review.md): Review, Views (dashboards), and comments on anything
 
 ## Developers
 

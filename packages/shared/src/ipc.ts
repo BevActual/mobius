@@ -744,6 +744,8 @@ export interface MobiusBridge {
   designs?: NonNullable<MobiusBridge['notes']>;
   /** The Canvas app: boards kept like notes, as JSON in `boards/<folder>/<board>.json`. Only the Tauri shell has it. */
   boards?: NonNullable<MobiusBridge['notes']>;
+  /** The Views app: dashboards kept like notes, as JSON in `views/<folder>/<view>.json`. Only the Tauri shell has it. */
+  views?: NonNullable<MobiusBridge['notes']>;
   /** The Research app: reports kept like documents, as Markdown in `research/<folder>/<report>.md`. Only the Tauri shell has it. */
   research?: NonNullable<MobiusBridge['notes']>;
   /** The Reader app: articles kept to read later, as Markdown in `reading/<folder>/<article>.md`, and fetching one. */

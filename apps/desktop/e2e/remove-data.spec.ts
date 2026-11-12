@@ -15,14 +15,14 @@ test.afterEach(async () => {
   await fixture.close();
 });
 
-const openAbout = async () => {
+const openPrivacy = async () => {
   const shell = mobius!.shell;
   await openSettings(shell);
-  await shell.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'About', exact: true }).click();
+  await shell.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Privacy', exact: true }).click();
 };
 
 test('removing data asks first, and cancelling changes nothing', async () => {
-  await openAbout();
+  await openPrivacy();
   const shell = mobius!.shell;
   await shell.getByRole('button', { name: 'Remove my data…' }).click();
   await expect(shell.getByRole('group', { name: 'Confirm removing all data' })).toBeVisible();
@@ -32,7 +32,7 @@ test('removing data asks first, and cancelling changes nothing', async () => {
 });
 
 test('confirming empties the data folder', async () => {
-  await openAbout();
+  await openPrivacy();
   const shell = mobius!.shell;
   fs.writeFileSync(`${mobius!.userData}/marker.txt`, 'x');
   await shell.getByRole('button', { name: 'Remove my data…' }).click();
