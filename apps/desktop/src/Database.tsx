@@ -216,25 +216,40 @@ function useDbReview(review: { conversation: string } | null | undefined, name: 
 }
 
 /** What the Data view's grid needs to change its rows: typing a cell's new value, and a cell's menu. */
-interface GridEdit { save: (row: number, col: number, text: string) => Promise<boolean>; menu: (e: React.MouseEvent | React.KeyboardEvent, row: number, col: number) => void; editing: { row: number; col: number } | null; setEditing: (at: { row: number; col: number } | null) => void }
+type At = { row: number; col: number };
+interface GridEdit {
+  save: (row: number, col: number, text: string) => Promise<boolean>;
+  menu: (e: React.MouseEvent | React.KeyboardEvent, row: number, col: number) => void;
+  editing: At | null; setEditing: (at: At | null) => void;
+  /** The one cell the grid's Tab stop lands on; the arrow keys move it. */
+  active: At; setActive: (at: At) => void;
+  onKey: (e: React.KeyboardEvent) => void;
+}
 
 /** One cell being typed into: Enter or leaving it keeps the text, Escape puts it back. */
-function CellInput({ start, onDone }: { start: string; onDone: (text: string | null) => void }) {
+function CellInput({ start, onDone }: { start: string; onDone: (text: string | null, byKey: boolean) => void }) {
   const done = useRef(false);
-  const finish = (text: string | null) => { if (!done.current) { done.current = true; onDone(text); } };
+  const finish = (text: string | null, byKey = false) => { if (!done.current) { done.current = true; onDone(text, byKey); } };
   return (
     <input className="db-cell-input" size={1} autoFocus aria-label="Cell value" defaultValue={start} onFocus={(e) => e.currentTarget.select()}
       onBlur={(e) => finish(e.currentTarget.value)}
-      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); finish(e.currentTarget.value); } else if (e.key === 'Escape') { e.preventDefault(); finish(null); } }} />
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); finish(e.currentTarget.value, true); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(null, true); } }} />
   );
 }
 
 /** Rows as a table. With `onSort`, a column's heading sorts by it; with `edit`, a double-click changes a cell. */
 function Grid({ columns, rows, sort, onSort, edit }: { columns: string[]; rows: DbCell[][]; sort?: Browse['sort']; onSort?: (column: string) => void; edit?: GridEdit }) {
   const decimals = columns.map((_, j) => columnDecimals(rows, j));
+  const table = useRef<HTMLTableElement>(null);
+  // The active cell takes focus when it moves, and again when typing into it ends, if the grid had it.
+  const key = edit ? `${edit.active.row}:${edit.active.col}:${edit.editing ? 1 : 0}` : '';
+  useEffect(() => {
+    if (!edit || edit.editing || !table.current?.contains(document.activeElement)) return;
+    table.current.querySelector<HTMLElement>('td[tabindex="0"]')?.focus();
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="db-grid-wrap">
-      <table className="db-grid" aria-label="Rows" data-editable={edit ? true : undefined}>
+      <table ref={table} className="db-grid" aria-label="Rows" role={edit ? 'grid' : undefined} data-editable={edit ? true : undefined} onKeyDown={edit?.onKey}>
         <thead>
           <tr>{columns.map((c, i) => {
             const by = sort?.column === c ? (sort.desc ? 'descending' : 'ascending') : undefined;
@@ -254,11 +269,19 @@ function Grid({ columns, rows, sort, onSort, edit }: { columns: string[]; rows: 
           {rows.map((row, i) => (
             <tr key={i}>{row.map((v, j) => {
               const typing = edit?.editing?.row === i && edit.editing.col === j;
+              const active = edit?.active.row === i && edit.active.col === j;
               return (
-                <td key={j} data-kind={v === null ? 'null' : typeof v} data-editing={typing || undefined} title={typeof v === 'string' && v.length > 40 ? v.slice(0, 2000) : undefined}
+                <td key={j} data-kind={v === null ? 'null' : typeof v} data-editing={typing || undefined} data-active={active || undefined} title={typeof v === 'string' && v.length > 40 ? v.slice(0, 2000) : undefined}
+                  tabIndex={edit ? (active ? 0 : -1) : undefined}
+                  onMouseDown={edit && !typing ? () => edit.setActive({ row: i, col: j }) : undefined}
                   onDoubleClick={edit && !typing ? () => edit.setEditing({ row: i, col: j }) : undefined}
-                  onContextMenu={edit ? (e) => edit.menu(e, i, j) : undefined}>
-                  {typing ? <CellInput start={editText(v)} onDone={(text) => { edit.setEditing(null); if (text !== null) void edit.save(i, j, text); }} /> : showCellIn(v, decimals[j] ?? 0)}
+                  onContextMenu={edit ? (e) => { edit.setActive({ row: i, col: j }); edit.menu(e, i, j); } : undefined}>
+                  {typing ? <CellInput start={editText(v)} onDone={(text, byKey) => {
+                    edit.setEditing(null);
+                    // Finished from the keyboard, the cell keeps focus, so the keys go on working in the grid.
+                    if (byKey) window.requestAnimationFrame(() => table.current?.querySelector<HTMLElement>('td[tabindex="0"]')?.focus());
+                    if (text !== null) void edit.save(i, j, text);
+                  }} /> : showCellIn(v, decimals[j] ?? 0)}
                 </td>
               );
             })}</tr>
@@ -274,9 +297,10 @@ type CellMenu = { x: number; y: number; row: number; col: number };
 /** A table's rows: filtered, sorted by a column, a page at a time; in a table with rowids, changed in place. */
 function DataView({ db }: { db: DatabasesState }) {
   const [filter, setFilter] = useState(db.browse.filter);
-  const [editing, setEditing] = useState<{ row: number; col: number } | null>(null);
+  const [editing, setEditing] = useState<At | null>(null);
+  const [active, setActive] = useState<At>({ row: 0, col: 0 });
   const [menu, setMenu] = useState<CellMenu | null>(null);
-  useEffect(() => { setFilter(db.browse.filter); setEditing(null); }, [db.table]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setFilter(db.browse.filter); setEditing(null); setActive({ row: 0, col: 0 }); }, [db.table]); // eslint-disable-line react-hooks/exhaustive-deps
   // Typing settles for a moment before the rows are read again.
   useEffect(() => {
     if (filter === db.browse.filter) return undefined;
@@ -294,22 +318,46 @@ function DataView({ db }: { db: DatabasesState }) {
   const types = db.list.find((d) => d.name === db.open)?.tables.find((t) => t.name === db.table)?.columns ?? [];
   const typeOf = (c: string) => types.find((t) => t.name === c)?.type ?? '';
   const save = (i: number, j: number, text: string) => db.setCell(rowid(i), columns[j]!, rows[i]![j] ?? null, typedValue(text, typeOf(columns[j]!)));
+  const setNull = (i: number, j: number) => { if (rows[i]?.[j] !== null && rows[i]) void db.setCell(rowid(i), columns[j]!, rows[i]![j] ?? null, null); };
+  const removeRow = (i: number) => { if (rows[i]) void db.deleteRow(rowid(i), columns, rows[i]!); };
+  /** The grid's keys, as the ARIA grid pattern has them, while no cell is being typed into. */
+  const onKey = (e: React.KeyboardEvent) => {
+    if (editing || (e.target as HTMLElement).tagName === 'INPUT' || rows.length === 0) return;
+    const last = { row: rows.length - 1, col: columns.length - 1 };
+    const { row, col } = { row: Math.min(active.row, last.row), col: Math.min(active.col, last.col) };
+    const ctrl = e.ctrlKey || e.metaKey;
+    const move: Record<string, At | undefined> = {
+      ArrowUp: { row: Math.max(0, row - 1), col }, ArrowDown: { row: Math.min(last.row, row + 1), col },
+      ArrowLeft: { row, col: Math.max(0, col - 1) }, ArrowRight: { row, col: Math.min(last.col, col + 1) },
+      Home: ctrl ? { row: 0, col: 0 } : { row, col: 0 }, End: ctrl ? last : { row, col: last.col },
+      PageUp: { row: Math.max(0, row - 10), col }, PageDown: { row: Math.min(last.row, row + 10), col },
+    };
+    const to = move[e.key];
+    if (to) { e.preventDefault(); setActive(to); return; }
+    if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); setEditing({ row, col }); }
+    else if ((e.shiftKey && e.key === 'F10') || e.key === 'ContextMenu') { e.preventDefault(); const b = (e.target as HTMLElement).getBoundingClientRect(); setMenu({ x: b.left + 8, y: b.bottom, row, col }); }
+    else if (e.key === 'Delete' && ctrl) { e.preventDefault(); removeRow(row); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setNull(row, col); }
+    else if (ctrl && e.key.toLowerCase() === 'c') { e.preventDefault(); void navigator.clipboard?.writeText(editText(rows[row]![col] ?? null)); }
+    else if (ctrl && e.key.toLowerCase() === 'z' && db.undo) { e.preventDefault(); void db.undoLast(); }
+  };
   const edit: GridEdit | undefined = hasId ? {
-    save, editing, setEditing,
+    save, editing, setEditing, active, setActive, onKey,
     menu: (e, row, col) => { e.preventDefault(); const at = 'clientX' in e ? { x: e.clientX, y: e.clientY } : (() => { const b = e.currentTarget.getBoundingClientRect(); return { x: b.left + 8, y: b.bottom }; })(); setMenu({ ...at, row, col }); },
   } : undefined;
+  // Text only, with each item's keys: there is no standard icon for Set to NULL, so none of the items has one.
   const items = (m: CellMenu): ContextMenuItem[] => [
-    { action: 'rename', label: `Edit ${columns[m.col]}`, run: () => setEditing({ row: m.row, col: m.col }) },
-    { action: 'copy', label: 'Copy value', run: () => void navigator.clipboard?.writeText(editText(rows[m.row]![m.col] ?? null)) },
-    { label: 'Set to NULL', disabled: rows[m.row]![m.col] === null, run: () => void db.setCell(rowid(m.row), columns[m.col]!, rows[m.row]![m.col] ?? null, null) },
-    { action: 'delete', label: 'Delete row', danger: true, separated: true, run: () => void db.deleteRow(rowid(m.row), columns, rows[m.row]!) },
+    { label: `Edit ${columns[m.col]}`, keys: 'Enter', run: () => setEditing({ row: m.row, col: m.col }) },
+    { label: 'Copy value', keys: 'Ctrl+C', run: () => void navigator.clipboard?.writeText(editText(rows[m.row]![m.col] ?? null)) },
+    { label: 'Set to NULL', keys: 'Delete', disabled: rows[m.row]![m.col] === null, run: () => setNull(m.row, m.col) },
+    { label: 'Delete row', keys: 'Ctrl+Delete', danger: true, separated: true, run: () => removeRow(m.row) },
   ];
   // A new row opens its first cell for typing once it is on the page.
   const [fresh, setFresh] = useState<number | null>(null);
   useEffect(() => {
     if (fresh === null || !r?.ok || !hasId) return;
     const at = r.rows.findIndex((x) => x[0] === fresh);
-    if (at >= 0) { setEditing({ row: at, col: Math.max(0, types.findIndex((c) => !/^id$/i.test(c.name))) }); setFresh(null); }
+    if (at >= 0) { const c = Math.max(0, types.findIndex((x) => !/^id$/i.test(x.name))); setActive({ row: at, col: c }); setEditing({ row: at, col: c }); setFresh(null); }
   }, [r, fresh]); // eslint-disable-line react-hooks/exhaustive-deps
   const undo = db.undo && db.undo.db === db.open && db.undo.table === db.table ? db.undo : null;
   return (
@@ -345,7 +393,7 @@ function DataView({ db }: { db: DatabasesState }) {
           <button type="button" className="db-undo-x" aria-label="Dismiss" onClick={() => db.setUndo(null)}>×</button>
         </div>
       )}
-      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={`Row ${menu.row + 1}`} items={items(menu)} onClose={() => setMenu(null)} />, document.body)}
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={`Row ${menu.row + 1}`} items={items(menu)} onClose={() => { setMenu(null); document.querySelector<HTMLElement>('.db-grid td[tabindex="0"]')?.focus(); }} />, document.body)}
     </>
   );
 }

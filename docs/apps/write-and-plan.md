@@ -98,7 +98,9 @@ Sheets, and each table opens with three views:
   for no order), and type in **Filter rows** to keep the rows where any column holds those words.
   In a table you can change, double-click a cell to type a new value (Enter keeps it, Escape puts it back), and
   **Add row** adds an empty row and opens its first cell. Right-click a cell to edit it, copy its value, set it to
-  NULL or delete its row. The last change shows **Undo** at the bottom. A view, or a table made WITHOUT ROWID, is
+  NULL or delete its row. The last change shows **Undo** at the bottom. From the keyboard the grid is one Tab stop:
+  the arrow keys move between cells (Home, End, Ctrl+Home and Ctrl+End jump), Enter or F2 types into a cell, Delete
+  sets it to NULL, Ctrl+Delete deletes the row, Ctrl+C copies the value, Ctrl+Z undoes and Shift+F10 opens the menu. A view, or a table made WITHOUT ROWID, is
   shown read-only: change it in SQL.
 - **Structure** lists the columns with their types, which ones need a value, defaults and the key, and the statement
   that made the table.

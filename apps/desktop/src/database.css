@@ -83,6 +83,10 @@
 /* Room under the last row, so the Undo pill never covers it. */
 .db-grid-wrap:has(> .db-grid[data-editable]) { padding-bottom: 64px; }
 .db-grid td[data-editing] { padding: 0; overflow: visible; }
+/* The active cell: marked while the grid has focus, as the keys move it. */
+.db-grid td[tabindex] { outline: none; }
+.db-grid:focus-within td[data-active]:not([data-editing]) { box-shadow: inset 0 0 0 2px var(--accent); }
+.db-undo .btn:focus:not(:focus-visible) { outline: none; box-shadow: none; }
 .db-cell-input { width: 100%; min-width: 80px; height: 28px; padding: 0 9px; border: 0; outline: 2px solid var(--accent); outline-offset: -2px; background: var(--bg); color: var(--ink); font: inherit; }
 .db-add { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--radius-pill); font-size: var(--fs-sm); }
 .db-add svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
