@@ -89,3 +89,18 @@
 /* Mobius's change bar fits the canvas however narrow it is, so Keep and Discard are never under the inspector. */
 .design-page .design-review { max-width: calc(100% - 24px); white-space: normal; flex-wrap: wrap; justify-content: center; }
 .design-page .design-review .review-actions { flex-wrap: wrap; justify-content: center; margin-left: 0; }
+
+/* A layer row: its name, then lock and hide, shown on hover (and always while they are on), as in Figma and Sketch. */
+.design-page .design-layer-row { display: flex; align-items: center; border-radius: 6px; }
+.design-page .design-layer-row .design-layer { flex: 1; min-width: 0; background: none; }
+.design-page .design-layer-row:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.design-page .design-layer-row[aria-current] { background: var(--accent); color: var(--on-accent, #fff); }
+.design-page .design-layer-row[aria-current] .design-layer { color: inherit; }
+.design-page .design-layer-row[data-hidden] .design-layer { opacity: 0.45; }
+.design-page .design-layer-name { overflow: hidden; text-overflow: ellipsis; }
+.design-page .design-layer-flag { width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; border-radius: 5px; color: inherit; opacity: 0; }
+.design-page .design-layer-flag svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.design-page .design-layer-row:hover .design-layer-flag, .design-page .design-layer-row:focus-within .design-layer-flag, .design-page .design-layer-flag[data-on] { opacity: 0.7; }
+.design-page .design-layer-flag:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.design-page .design-node[data-locked] { pointer-events: none; }
+.design-page .design-arrange { grid-template-columns: repeat(4, 1fr); }

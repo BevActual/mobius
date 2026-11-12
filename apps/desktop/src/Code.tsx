@@ -5,8 +5,9 @@ import { FromMobius } from './FromMobius';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { cursorAt, deletePair, findAll, indentLines, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
-import { applyGroups, badgeOf, changeGroups, highlight, langOf, lineDiff, testLineKind, type DiffRow, type Lang } from './code-view';
+import { IS_MAC, cursorAt, deletePair, findAll, indentLines, keyLabel, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
+import { applyGroups, badgeOf, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, type DiffRow, type GitMark, type Lang } from './code-view';
+import { RowMark } from './RowMark';
 import type { CodeState } from './useCode';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
@@ -36,6 +37,7 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
     });
   const changedHere = (path: string) => code.project !== null && changed?.has(`${code.project}/${path}`) === true;
   const changedInside = (folder: string) => code.project !== null && [...(changed ?? [])].some((c) => c.startsWith(`${code.project}/${folder}/`));
+  const marks = useMemo(() => gitMarks(code.git.repo ? code.git.changes : []), [code.git]);
   return (
     <aside className="side code-side" aria-label="Code sidebar">
       <div className="side-head">
@@ -90,7 +92,7 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
                       </>
                     ) : <span className="code-badge" data-lang={langOf(e.path)} aria-hidden="true">{badgeOf(e.path)}</span>}
                     <span className="code-file-name">{name}</span>
-                    {mark && <span className="code-mark" role="img" aria-label="Changed by the agent" title="Changed by Mobius in its last turn">M</span>}
+                    {mark ? <RowMark changed /> : !e.folder && marks.has(e.path) && <GitLetter mark={marks.get(e.path)!} />}
                   </button>
                 </li>
               );
@@ -128,13 +130,23 @@ function FileMenu({ x, y, label, items, onClose }: { x: number; y: number; label
   return createPortal(<ContextMenu x={left} y={y} label={label} items={items} onClose={onClose} />, document.body);
 }
 
+/** Git's mark on a changed file, as Xcode shows it at the end of the row: M, A, D, R, ? or C, with what it means on hover. */
+function GitLetter({ mark }: { mark: GitMark }) {
+  return <span className="code-git-letter" data-letter={mark.letter} role="img" aria-label={mark.label} title={mark.label}>{mark.letter}</span>;
+}
+
+const SHOWN_CHANGES = 6;
+
 /** The project's branch and what changed since its last commit, with Commit and Push. Mobius asks before either. */
 function GitBar({ code }: { code: CodeState }) {
   const [writing, setWriting] = useState(false);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   if (!code.git.repo) return null;
   const { branch, changes, ahead } = code.git;
+  const marks = [...gitMarks(changes)];
+  const shown = showAll ? marks : marks.slice(0, SHOWN_CHANGES);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -144,9 +156,29 @@ function GitBar({ code }: { code: CodeState }) {
   return (
     <section className="code-git" aria-label="Git">
       <div className="code-git-head">
-        <span className="code-git-branch" title="Branch">⎇ {branch || 'no branch'}</span>
+        <span className="code-git-branch" title="Branch"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="4.5" r="1.8" /><circle cx="6" cy="15.5" r="1.8" /><circle cx="14" cy="7" r="1.8" /><path d="M6 6.3v7.4M14 8.8c0 3-3 3.2-8 4.9" /></svg>{branch || 'no branch'}</span>
         <span className="code-git-count" role="status">{changes.length === 0 ? 'Nothing to commit' : changes.length === 1 ? '1 change' : `${changes.length} changes`}{ahead ? ` · ${ahead} to push` : ''}</span>
       </div>
+      {shown.length > 0 && (
+        <ul className="code-git-changes" aria-label="Changed files">
+          {shown.map(([path, mark]) => {
+            const name = path.split('/').pop() ?? path;
+            const where = path.slice(0, path.length - name.length - 1);
+            return (
+              <li key={path}>
+                <button type="button" className="code-git-change" aria-label={`${path}, ${mark.label.toLowerCase()}`} aria-current={code.open?.path === path ? 'page' : undefined} disabled={mark.letter === 'D'} title={path} onClick={() => void code.openFile(path)}>
+                  <span className="code-git-name">{name}</span>
+                  {where && <span className="code-git-where">{where}</span>}
+                  <GitLetter mark={mark} />
+                </button>
+              </li>
+            );
+          })}
+          {marks.length > SHOWN_CHANGES && (
+            <li><button type="button" className="code-git-more" onClick={() => setShowAll((all) => !all)}>{showAll ? 'Show fewer' : `${marks.length - SHOWN_CHANGES} more`}</button></li>
+          )}
+        </ul>
+      )}
       {writing ? (
         <form className="code-git-form" onSubmit={(e) => void submit(e)}>
           <input autoFocus aria-label="Commit message" placeholder="What changed, and why" value={message} maxLength={500} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setWriting(false); }} />
@@ -192,7 +224,7 @@ function Suggestion({ rows, lang, endsWithNewline, onWrite, onKeepAll, onDiscard
       })}
       <div className="code-diff-bar" role="group" aria-label="Mobius's change">
         <span>{groups.length === 1 ? 'One change from Mobius' : `${groups.length} changes from Mobius`}{conversation && <WhyThis conversation={conversation} />}</span>
-        <ReviewActions onKeep={onKeepAll} onDiscard={onDiscardAll} discardTitle="Discard (Ctrl+Backspace)" keepTitle="Keep (Ctrl+Enter)" />
+        <ReviewActions onKeep={onKeepAll} onDiscard={onDiscardAll} discardTitle={`Discard (${IS_MAC ? '⌘⌫' : 'Ctrl+Backspace'})`} keepTitle={`Keep (${IS_MAC ? '⌘⏎' : 'Ctrl+Enter'})`} />
       </div>
     </div>
   );
@@ -358,7 +390,7 @@ function Editor({ code, lang, bar, setBar }: { code: CodeState; lang: Lang; bar:
         <span>Ln {here.line}, Col {here.col}{picked > 0 ? ` (${picked} selected)` : ''}</span>
         <span>{langName(path)}</span>
         <span>Spaces: 2</span>
-        <span className="code-status-keys">⌘P Open · ⌘F Find · ⌘G Line · ⌘/ Comment</span>
+        <span className="code-status-keys">{keyLabel('P')} Open · {keyLabel('F')} Find · {keyLabel('G')} Line · {keyLabel('/')} Comment</span>
       </footer>
     </div>
   );
@@ -449,8 +481,7 @@ function TestsPanel({ code }: { code: CodeState }) {
   return (
     <section className="code-tests" aria-label="Tests">
       <header className="code-tests-head">
-        <span className="code-tests-title">Tests</span>
-        {summary && <span className="code-tests-summary" data-state={tests.running ? 'running' : last?.passed ? 'pass' : 'fail'} role="status">{summary}{tests.by === 'assistant' && !tests.running ? ' · run by Mobius' : ''}</span>}
+        {summary ? <span className="code-tests-summary" data-state={tests.running ? 'running' : last?.passed ? 'pass' : 'fail'} role="status">{summary}{tests.by === 'assistant' && !tests.running ? ' · run by Mobius' : ''}</span> : <span className="code-tests-summary">{tests.command ? 'Not run yet' : 'No test command'}</span>}
         <span className="code-tests-actions">
           {!editing && tests.command && <code className="code-tests-command" title="The command Mobius runs for this project's tests">{tests.command}</code>}
           {!editing && <button type="button" className="btn" onClick={start}>{tests.command ? 'Change' : 'Choose command'}</button>}
@@ -614,7 +645,7 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
               {code.dirty && <span className="code-dirty" role="status">Not saved</span>}
               <span className="code-head-actions">
                 {code.dirty && <button type="button" className="btn" onClick={() => code.setDraft(code.open?.text ?? '')}>Revert</button>}
-                {code.open.text !== null && <button type="button" className="btn primary" disabled={!code.dirty} onClick={() => void code.save()}>Save <kbd>⌘S</kbd></button>}
+                {code.open.text !== null && <button type="button" className="btn primary" disabled={!code.dirty} onClick={() => void code.save()}>Save <kbd>{keyLabel('S')}</kbd></button>}
               </span>
             </header>
             {code.message && <p className="tasks-message" role="alert">{code.message}</p>}
@@ -629,7 +660,7 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
         ) : (
           <div className="code-none">
             <p>Choose a file on the left, or open one by name.</p>
-            <button type="button" className="btn" onClick={() => setQuick(true)}>Open a file… <kbd>⌘P</kbd></button>
+            <button type="button" className="btn" onClick={() => setQuick(true)}>Open a file… <kbd>{keyLabel('P')}</kbd></button>
           </div>
         )}
       </div>
