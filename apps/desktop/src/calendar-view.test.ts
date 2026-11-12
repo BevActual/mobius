@@ -64,6 +64,12 @@ describe('placing events', () => {
     const lunch = ev('Lunch', '2026-11-12T12:00', '2026-11-12T13:00');
     expect(eventsOn([lunch, trip], day('2026-11-12')).map((e) => e.title)).toEqual(['Lisbon', 'Lunch']);
   });
+
+  it('counts a whole day when asked with the time now, so "today" at 7 pm still has its morning and not tomorrow', () => {
+    const standup = ev('Standup', '2026-11-12T09:00', '2026-11-12T09:15');
+    const tomorrow = ev('Gym', '2026-11-13T08:00', '2026-11-13T09:00');
+    expect(eventsOn([standup, tomorrow], localDate('2026-11-12T19:00')).map((e) => e.title)).toEqual(['Standup']);
+  });
 });
 
 describe('a new event said in words', () => {
