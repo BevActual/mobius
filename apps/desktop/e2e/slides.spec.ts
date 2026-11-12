@@ -99,6 +99,11 @@ test('slides are picked, moved and duplicated from the navigator by key, and Und
   await shell().getByRole('menu', { name: 'Slide layouts' }).getByRole('menuitem', { name: 'Section' }).click();
   await expect(nav().getByRole('button', { name: /^Slide 3: Section title/ })).toBeVisible();
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toContain('<!-- style: dark -->\n### Part 2\n## Section title');
+  // Delete is one click because Undo brings the slide back.
+  await page().getByRole('button', { name: 'Delete slide' }).click();
+  await expect(nav().getByRole('button')).toHaveCount(2);
+  await shell().keyboard.press('Control+z');
+  await expect(nav().getByRole('button', { name: /^Slide 3: Section title/ })).toBeVisible();
 });
 
 test('slides Mobius adds are dashed in the navigator until kept', async () => {

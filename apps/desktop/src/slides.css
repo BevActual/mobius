@@ -162,3 +162,12 @@
 .slide-face .slide-bullets-field li > span { color: transparent; }
 .slide-face .slide-bullets-field[data-empty] { min-height: 1.45em; }
 .slide-face .slide-bullets-field .slide-bullets-edit { position: absolute; inset: 0; height: 100%; overflow: hidden; font-size: 1em; line-height: inherit; padding: 0 0 0 1.1em; margin: 0; border-radius: 0.2em; white-space: pre-wrap; overflow-wrap: break-word; }
+
+/* Duplicate and Delete share one capsule after Add slide, as Mail and Calendar group their tools. */
+.slides-page .slides-group { display: inline-flex; align-items: center; gap: 1px; padding: 1px; margin-left: 4px; border-radius: 8px; background: var(--field); }
+.slides-page .slides-group .slides-tool.icon { height: 28px; }
+.slides-page .slides-group .slides-tool.icon + .slides-tool.icon { border-left: 0.5px solid var(--line); border-radius: 0 7px 7px 0; }
+.slides-page .slides-group .slides-tool.icon:first-child { border-radius: 7px 0 0 7px; }
+/* The layout the slide reads as carries the same ring as its style. */
+.slides-page .slides-layout-pick[aria-pressed="true"] .slide-face { box-shadow: 0 0 0 2px var(--accent); }
+.slides-page .slides-layout-pick[aria-pressed="true"] { color: var(--ink); font-weight: 600; }

@@ -5,7 +5,7 @@ import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { SLIDE_STYLES, blankSlide, changedSlides, parseDeck, writeDeck, type Slide, type SlideStyle } from './slides-format';
-import { LAYOUTS, clock, dropIndex, jumpTarget, moveSlide, movedTo, talkMinutes, type Layout } from './slides-view';
+import { LAYOUTS, clock, layoutOf, dropIndex, jumpTarget, moveSlide, movedTo, talkMinutes, type Layout } from './slides-view';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
@@ -353,8 +353,10 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
             <Icon d={ICON.chevron} />
           </button>
         </div>
-        <button type="button" className="slides-tool icon" aria-label="Duplicate slide" title="Duplicate (Ctrl+D)" onClick={() => duplicate()}><Icon d={ICON.duplicate} /></button>
-        <button type="button" className="slides-tool icon" aria-label="Delete slide" title="Delete slide (Delete)" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
+        <div className="slides-group" role="group" aria-label="Slide">
+          <button type="button" className="slides-tool icon" aria-label="Duplicate slide" title="Duplicate (Ctrl+D)" onClick={() => duplicate()}><Icon d={ICON.duplicate} /></button>
+          <button type="button" className="slides-tool icon" aria-label="Delete slide" title="Delete slide (Delete). Ctrl+Z brings it back" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
+        </div>
         <span className="spacer" />
         <button type="button" className="slides-tool icon" aria-label="Format" title="Format" aria-pressed={formatOpen} onClick={() => setFormatOpen((o) => !o)}><Icon d={ICON.format} /></button>
         <button type="button" className="slides-play-btn" title="Play from this slide (Ctrl+Enter). While playing: P presenter view, B black, Esc stop" onClick={() => setPlaying(at)}><Icon d={ICON.play} /><span>Play</span></button>
@@ -430,7 +432,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
                   <div className="slides-section-title">Layout</div>
                   <div className="slides-layout-grid">
                     {LAYOUTS.map((l) => (
-                      <button key={l.id} type="button" className="slides-layout-pick" title={`Start slide ${at + 1} again as ${l.name}`} onClick={() => change(l.make())}>
+                      <button key={l.id} type="button" className="slides-layout-pick" aria-pressed={layoutOf(current) === l.id} title={`Start slide ${at + 1} again as ${l.name}`} onClick={() => change(l.make())}>
                         <span className="slides-layout-face"><SlideFace slide={l.make()} /></span>
                         <span>{l.name}</span>
                       </button>
