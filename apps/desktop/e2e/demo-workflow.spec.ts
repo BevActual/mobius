@@ -49,7 +49,7 @@ const PRIYA = [
 const SUPPLIER = 'From: Orbis Parts <orders@orbis.example>\r\nTo: Andrew <andrew@northway.example>\r\nSubject: Order 4471 shipped\r\nDate: Wed, 11 Nov 2026 16:10:00 +0000\r\n\r\nYour order of caliper brackets has shipped.\r\n';
 
 interface Step { n: number; name: string; ok: boolean; notes: string[]; picture: string; ms: number }
-const report: { started: string; steps: Step[]; attachedEmail?: boolean; approvalsAsked: string[]; requests?: number } = { started: new Date().toISOString(), steps: [], approvalsAsked: [] };
+let report: { test: string; started: string; steps: Step[]; attachedEmail?: boolean; approvalsAsked: string[]; requests?: number } = { test: 'main', started: new Date().toISOString(), steps: [], approvalsAsked: [] };
 
 const shell = (): Page => mobius!.shell;
 const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
@@ -76,10 +76,12 @@ async function step(name: string, body: (note: (s: string) => void) => Promise<v
   } catch (e) {
     ok = false;
     notes.push(`FAILED: ${String((e as Error).message ?? e).split('\n').slice(0, 4).join(' ')}`);
+    const tree = await shell().locator('body').ariaSnapshot({ timeout: 5000 }).catch(() => '(no snapshot)');
+    fs.writeFileSync(path.join(OUT, `workflow-${report.test}-${pad(n)}-${name}.aria.yml`), tree);
   }
-  const shot = await picture(`workflow-${pad(n)}-${name}`);
+  const shot = await picture(`workflow-${report.test}-${pad(n)}-${name}`);
   report.steps.push({ n, name, ok, notes, picture: shot, ms: Date.now() - t0 });
-  fs.writeFileSync(path.join(OUT, 'workflow-report.json'), JSON.stringify(report, null, 2));
+  fs.writeFileSync(path.join(OUT, `workflow-${report.test}-report.json`), JSON.stringify(report, null, 2));
 }
 
 /** Allows whatever Mobius stops to ask about, as the person would in the demo, and notes each one. */
@@ -96,6 +98,7 @@ async function allowAsked(until: Locator, timeout = 30_000): Promise<void> {
   }
 }
 
+test.use({ actionTimeout: 10_000 });
 test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));
 
 test.beforeEach(async () => {
@@ -131,9 +134,10 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     callsTool('mail-draft', { replyTo: '{{request:([0-9a-f]{8}/inbox/7)}}', body: `Hi Priya,\n\n${weekday(3)} at 10 works. I've put it in for half an hour. You'll have the updated parts list by ${weekday(2)}.\n\nAndrew`, why: 'Confirms the time and when the parts list will reach her.' }),
     says(['Done. I added “Send Priya the updated P2 parts list” to Kestrel P2, due ', weekday(2), '; put the brake kit review in your calendar for ', weekday(3), ' at 10:00, after your stand-up; and drafted a reply for you to check. Nothing is sent.']),
   ]);
-  mobius = await launch(fixture.origin + '/', { newPerson: true, openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  report = { test: 'main', started: new Date().toISOString(), steps: [], approvalsAsked: [] };
+  mobius = await launch(fixture.origin + '/', { newPerson: true, mobiusInSidebar: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await resizeWindow(mobius.app, 1440, 900).catch(() => undefined);
-  await expect(composer()).toBeEnabled({ timeout: 20_000 });
+  await shell().waitForSelector('html[data-keys-ready]', { state: 'attached', timeout: 20_000 }).catch(() => undefined);
 
   await step('mail-signed-in', async (note) => {
     await shell().keyboard.press('Control+k');
@@ -164,8 +168,14 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     note(`sidebar buttons: ${offered.filter(Boolean).slice(0, 20).join(' | ')}`);
   });
 
+  await step('mobius-opened', async (note) => {
+    await shell().locator('[data-mobius-face]').click();
+    await shell().locator('.rail[data-face="mobius"]').waitFor({ timeout: 10_000 });
+    await expect(composer()).toBeEnabled({ timeout: 20_000 });
+    note(`suggestions offered: ${(await shell().getByRole('group', { name: 'Suggestions' }).getByRole('button').allInnerTexts().catch(() => [])).join(' | ') || 'none'}`);
+  });
+
   await step('asked-mobius', async (note) => {
-    await expect(composer()).toBeVisible({ timeout: 5000 });
     await composer().fill('Handle this one: add the parts list to my P2 tasks, book the review, and draft a reply.');
     await composer().press('Enter');
     await allowAsked(log().locator('.msg.assistant').filter({ hasText: 'Nothing is sent.' }), 60_000);
@@ -243,7 +253,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     await suggested.getByRole('button', { name: 'Keep' }).click();
     const form = page.getByRole('form', { name: 'Reply' });
     await expect(form.getByRole('textbox', { name: 'Message' })).toHaveValue(/parts list/);
-    await picture(`workflow-${pad(report.steps.length + 1)}-reply-before-send`);
+    await picture(`workflow-${report.test}-${pad(report.steps.length + 1)}-reply-before-send`);
     await form.getByRole('button', { name: 'Send', exact: true }).click();
     await expect.poll(() => servers.sent.length, { timeout: 10_000 }).toBe(1);
     note(`sent: ${servers.sent[0]!.includes('In-Reply-To: <p2-brakes@northway.example>') ? 'as a reply to Priya' : 'NOT threaded as a reply'}`);
@@ -260,6 +270,7 @@ test('workflow: the same request, then Discard puts Tasks and Calendar back as t
     callsTool('calendar-add', { calendar: 'Calendar', title: 'P2 brake kit review with Priya', start: `${MEET}T10:00`, end: `${MEET}T10:30` }),
     says(['Added the task and the meeting.']),
   ]);
+  report = { test: 'discard', started: new Date().toISOString(), steps: [], approvalsAsked: [] };
   mobius = await launch(fixture.origin + '/', { newPerson: true, openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await resizeWindow(mobius.app, 1440, 900).catch(() => undefined);
   await expect(composer()).toBeEnabled({ timeout: 20_000 });
