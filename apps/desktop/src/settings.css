@@ -92,8 +92,6 @@
 /* The clear button shows only on the row under the pointer or with the keyboard in it, so the list stays quiet. */
 .shortcut-item:hover .key-clear, .shortcut-item:focus-within .key-clear, .key-clear:focus-visible { opacity: 1; }
 
-/* The sidebar's search keeps its height in the column of sections (it is a flex item there). */
-.settings-nav .settings-search, .settings-side .settings-search { flex: none; height: 28px; min-height: 28px; }
 
 /* Saved servers: the list as rows, and Save Current Server… trailing under it. */
 .saved-servers { display: flex; flex-direction: column; gap: 8px; width: 100%; }

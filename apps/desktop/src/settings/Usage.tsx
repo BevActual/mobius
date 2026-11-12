@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { UsageRow } from '@mobius/shared';
 import { appName } from '../apps';
+import { dayLabel, systemLocale } from '../dates';
 import { settingPath } from './manifest';
 import { Empty, Row } from './primitives';
 import type { SectionProps } from './sections';
@@ -13,20 +14,18 @@ function label(by: UsageGroup, key: string): string {
   return key;
 }
 
-const dayLabel = (day: string, long = false) => {
+/** A `YYYY-MM-DD` day as the computer writes dates: "12 Nov" or "Nov 12", with the weekday when asked. */
+const dayOfText = (day: string, weekday = false) => {
   const [y, m, d] = day.split('-').map(Number) as [number, number, number];
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, long ? { weekday: 'short', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric' });
+  return dayLabel(new Date(y, m - 1, d), weekday ? { weekday: 'short' } : {});
 };
 
 /**
  * Settings › Usage: the tokens model calls used on this computer and what they may have cost, by day, and grouped by
  * model, service or app. Costs are estimates from a public price list; calls on a plan have no price of their own.
  */
-/** Saving the CSV in the workspace's Exports folder, where the shell offers it. */
-type UsageApi = NonNullable<typeof window.mobius.usage> & { exportCsv?: (csv: string) => Promise<{ ok: true; path: string } | { ok: false; error: string }> };
-
 export function UsageSection({ subpage, highlight }: SectionProps) {
-  const api = window.mobius.usage as UsageApi | undefined;
+  const api = window.mobius.usage;
   const [range, setRange] = useState<UsageRange>('7d');
   const [by, setBy] = useState<UsageGroup>('model');
   const [rows, setRows] = useState<UsageRow[] | null>(null);
@@ -73,7 +72,7 @@ export function UsageSection({ subpage, highlight }: SectionProps) {
         <dl className="usage-tiles">
           <div className="usage-tile"><dt>Tokens</dt><dd>{shortCount(sum.inputTokens + sum.outputTokens)}</dd><span>{shortCount(sum.inputTokens)} in · {shortCount(sum.outputTokens)} out</span></div>
           <div className="usage-tile"><dt>Estimated cost</dt><dd>{costText(sum)}</dd><span>{sum.unpriced ? (sum.planOnly ? 'Plan calls not priced' : 'Some prices are unknown') : 'From public prices'}</span></div>
-          <div className="usage-tile"><dt>Requests</dt><dd>{sum.requests.toLocaleString()}</dd><span>{sum.cachedTokens > 0 ? `${shortCount(sum.cachedTokens)} tokens from cache` : 'Model calls'}</span></div>
+          <div className="usage-tile"><dt>Requests</dt><dd>{sum.requests.toLocaleString(systemLocale())}</dd><span>{sum.cachedTokens > 0 ? `${shortCount(sum.cachedTokens)} tokens from cache` : 'Model calls'}</span></div>
         </dl>
       </section>
       <section className="srow usage-chart-row" data-setting={path('usage-chart')} aria-label="Tokens by day">
@@ -84,12 +83,12 @@ export function UsageSection({ subpage, highlight }: SectionProps) {
           <div className="usage-chart" role="list" aria-label="Tokens by day">
             {perDay.map((d, i) => {
               const tokens = d.inputTokens + d.outputTokens;
-              const tip = `${dayLabel(d.day, true)}: ${tokens.toLocaleString()} tokens, ${d.requests} ${d.requests === 1 ? 'request' : 'requests'}, ${costText(d)}`;
+              const tip = `${dayOfText(d.day, true)}: ${tokens.toLocaleString(systemLocale())} tokens, ${d.requests} ${d.requests === 1 ? 'request' : 'requests'}, ${costText(d)}`;
               return (
                 <div key={d.day} className="usage-col" role="listitem" aria-label={tip} title={tip} tabIndex={0}>
                   <div className="usage-bar-track"><div className="usage-bar" style={{ height: `${tokens === 0 ? 0 : Math.max(2, (tokens / most) * 100)}%` }} /></div>
                   {/* Every day's date while they fit; on a longer period every other day, or every seventh, so none collide. */}
-                  <span className="usage-day" aria-hidden="true">{i % (perDay.length <= 8 ? 1 : perDay.length <= 31 ? 3 : 7) === 0 ? dayLabel(d.day) : ''}</span>
+                  <span className="usage-day" aria-hidden="true">{i % (perDay.length <= 8 ? 1 : perDay.length <= 31 ? 3 : 7) === 0 ? dayOfText(d.day) : ''}</span>
                 </div>
               );
             })}
@@ -108,9 +107,9 @@ export function UsageSection({ subpage, highlight }: SectionProps) {
                 {groups.map((g) => (
                   <tr key={g.key}>
                     <th scope="row">{label(by, g.key)}</th>
-                    <td>{g.requests.toLocaleString()}</td>
-                    <td title={g.inputTokens.toLocaleString()}>{shortCount(g.inputTokens)}</td>
-                    <td title={g.outputTokens.toLocaleString()}>{shortCount(g.outputTokens)}</td>
+                    <td>{g.requests.toLocaleString(systemLocale())}</td>
+                    <td title={g.inputTokens.toLocaleString(systemLocale())}>{shortCount(g.inputTokens)}</td>
+                    <td title={g.outputTokens.toLocaleString(systemLocale())}>{shortCount(g.outputTokens)}</td>
                     <td>{costText(g)}</td>
                   </tr>
                 ))}

@@ -83,7 +83,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   const nav = (
     <nav className="settings-nav" aria-label="Settings sections">
       {/* As in System Settings: search at the top of the sidebar, then the sections under their headings. */}
-      <input type="search" role="searchbox" className="settings-search" aria-label="Search settings" placeholder="Search" value={query} onChange={(event) => setQuery(event.target.value)} />
+      <input type="search" role="searchbox" className="side-search settings-search" aria-label="Search settings" placeholder="Search" value={query} onChange={(event) => setQuery(event.target.value)} />
       {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (
         <div key={group} className="settings-nav-group" role="group" aria-label={group}>
           {group && <h2 className="settings-nav-heading">{group}</h2>}
