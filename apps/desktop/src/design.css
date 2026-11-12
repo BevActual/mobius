@@ -117,3 +117,5 @@
 .design-page .design-layers li[data-drop="above"]::before { top: -1px; }
 .design-page .design-layers li[data-drop="below"]::after { bottom: -1px; }
 .design-page .design-layers li[data-drop="true"] > .design-layer { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.design-page .design-export { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
+.design-page .design-export .design-segment button { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }

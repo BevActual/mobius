@@ -177,3 +177,7 @@
 .note-aa-group .doc-tool { flex: 1; color: var(--ink); border-radius: 8px; }
 .note-aa-group .doc-tool:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .note-aa-group .doc-tool[aria-pressed="true"] { color: var(--accent); background: var(--bg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+
+/* The note list, as in Apple Notes: the title, then the time in ink and the first line in grey. */
+.notes-side[data-app="notes"] .note-title { font-weight: var(--fw-medium); }
+.notes-side[data-app="notes"] .note-when { color: color-mix(in srgb, var(--ink) 78%, transparent); }

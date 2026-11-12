@@ -2269,6 +2269,10 @@ impl Bridge {
                 (Some(id), Some(conversation)) => p.add_thread(id, conversation).map(|project| json!(project)),
                 _ => Err("that conversation cannot be added".to_owned()),
             },
+            "removeThread" => match (text(0), text(1)) {
+                (Some(id), Some(conversation)) => p.remove_thread(id, conversation).map(|project| json!(project)),
+                _ => Err("that thread cannot be taken out".to_owned()),
+            },
             // What the project's threads made or changed, newest first: the files their finished turns touched.
             "made" => text(0).ok_or_else(|| "that project is not there".to_owned()).and_then(|id| {
                 let project = p.list().into_iter().find(|x| x.id == id).ok_or("That project is not there.")?;
