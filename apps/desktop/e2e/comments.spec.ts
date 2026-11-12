@@ -67,7 +67,9 @@ test('a comment on a sheet cell is pinned there and can be kept as a note, for p
 
   // Kept per document in the workspace's dot folder, with what it is on.
   const kept = path.join(userData, 'workspace', '.comments', 'sheets', 'Offsite budget~Budget.json');
-  await expect.poll(() => fs.existsSync(kept)).toBe(true);
+  // The file is first written when the comment is made (still open), so wait for the save that keeps it as a note.
+  const read = () => { try { return JSON.parse(fs.readFileSync(kept, 'utf8'))[0]?.state; } catch { return undefined; } };
+  await expect.poll(read).toBe('note');
   const saved = JSON.parse(fs.readFileSync(kept, 'utf8'));
   expect(saved[0]).toMatchObject({ doc: 'Offsite budget/Budget', anchor: { id: 'C2' }, state: 'note', text: 'Is the rate per night?', context: '320' });
 

@@ -3,14 +3,14 @@ import { writeDesign, type DesignDoc } from '../design-format';
 /** The preview's Design app: designs kept in memory while the preview is open, so the canvas can be used without the core. */
 const now = Date.now();
 const t = (id: string, name: string, x: number, y: number, w: number, h: number, text: string, size: number, weight: number, color: string, align: 'left' | 'center' = 'left') =>
-  ({ id, type: 'text' as const, name, x, y, w, h, fill: 'transparent', radius: 0, opacity: 1, text, size, weight, color, align });
+  ({ id, type: 'text' as const, name, x, y, w, h, fill: 'transparent', radius: 0, opacity: 1, text, size, weight, color, align, stroke: 'transparent', strokeWidth: 0 });
 const r = (id: string, name: string, x: number, y: number, w: number, h: number, fill: string, radius = 0, type: 'rect' | 'ellipse' = 'rect') =>
-  ({ id, type, name, x, y, w, h, fill, radius, opacity: 1, text: '', size: 16, weight: 400, color: '#1d1d1f', align: 'left' as const });
+  ({ id, type, name, x, y, w, h, fill, radius, opacity: 1, text: '', size: 16, weight: 400, color: '#1d1d1f', align: 'left' as const, stroke: 'transparent', strokeWidth: 0 });
 const HOME: DesignDoc = {
   version: 1,
   styles: [{ name: 'Primary', color: '#5856d6' }, { name: 'Ink', color: '#1d1d1f' }, { name: 'Muted', color: '#6e6e73' }],
   frames: [
-    { id: 'f1', name: 'Home', x: 0, y: 0, w: 393, h: 852, fill: '#ffffff', radius: 0, children: [
+    { id: 'f1', name: 'Home', x: 0, y: 0, w: 393, h: 852, fill: '#ffffff', radius: 0, stroke: 'transparent', strokeWidth: 0, children: [
       t('n1', 'Title', 24, 96, 345, 40, 'Lisbon offsite', 32, 700, 'style:Ink'),
       t('n2', 'Dates', 24, 140, 345, 24, '23 to 26 June · 14 people', 16, 400, 'style:Muted'),
       r('n3', 'Hero', 24, 188, 345, 220, '#e9e8ff', 20),
@@ -21,7 +21,7 @@ const HOME: DesignDoc = {
       r('n8', 'Button', 24, 760, 345, 52, 'style:Primary', 14),
       t('n9', 'Button label', 24, 774, 345, 24, 'Book the flights', 17, 600, '#ffffff', 'center'),
     ] },
-    { id: 'f2', name: 'Trip detail', x: 473, y: 0, w: 393, h: 852, fill: '#f9f9fb', radius: 0, children: [
+    { id: 'f2', name: 'Trip detail', x: 473, y: 0, w: 393, h: 852, fill: '#f9f9fb', radius: 0, stroke: 'transparent', strokeWidth: 0, children: [
       t('n10', 'Heading', 24, 96, 345, 36, 'Day one', 28, 700, 'style:Ink'),
       r('n11', 'Map', 24, 150, 345, 260, '#dfe9f5', 16),
     ] },
@@ -37,7 +37,7 @@ export const PREVIEW_DESIGNS: Record<string, (...args: never[]) => unknown> = {
   'designs.save': ((path: string, content: string) => { TEXT[path] = content; MODIFIED[path] = Date.now(); return { path, modified: MODIFIED[path] }; }) as never,
   'designs.createPage': ((folder: string, name?: string) => {
     const path = `${folder}/${(name ?? '').trim() || 'Untitled design'}.json`;
-    TEXT[path] = writeDesign({ version: 1, styles: [], frames: [{ id: 'f1', name: 'Frame 1', x: 0, y: 0, w: 393, h: 852, fill: '#ffffff', radius: 0, children: [] }] });
+    TEXT[path] = writeDesign({ version: 1, styles: [], frames: [{ id: 'f1', name: 'Frame 1', x: 0, y: 0, w: 393, h: 852, fill: '#ffffff', radius: 0, stroke: 'transparent', strokeWidth: 0, children: [] }] });
     MODIFIED[path] = Date.now();
     return { path, content: TEXT[path], modified: MODIFIED[path] };
   }) as never,

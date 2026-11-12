@@ -60,6 +60,14 @@ export function useProjects() {
   };
   const setRule = async (id: string, app: AppId, level: ProjectLevel | 'follow') => { setProblem(failed(await api?.setRule(id, app, level).catch(() => null))); await load(); };
   const addThread = async (id: string, conversation: string) => { const r = await api?.addThread(id, conversation).catch(() => null); setProblem(failed(r)); await load(); return failed(r) === null; };
+  /** A thread leaves the project (with the side threads asked from it); the conversation itself is kept. */
+  const removeThread = async (id: string, conversation: string) => {
+    const r = await api?.removeThread?.(id, conversation).catch(() => null);
+    const why = r ? failed(r) : 'That cannot be done here.';
+    setProblem(why);
+    await load();
+    return why === null;
+  };
   const rename = async (id: string, name: string) => { const r = await api?.rename(id, name).catch(() => null); const why = r ? failed(r) : 'Projects are not available here.'; setProblem(why); await load(); return why === null; };
   /** Ask a bot, from a project thread, to do something on the side: a conversation of its own, under the project's rules. */
   const askBot = async (project: ProjectInfo, parent: string, bot: Bot, ask: string) => {
@@ -86,7 +94,7 @@ export function useProjects() {
   const [asking, setAsking] = useState<Asking | null>(null);
   const ask = (id: string, kind: Asking['kind']) => { setOpenId(id); setProblem(null); setAsking({ id, kind }); };
   const open = list.find((p) => p.id === openId) ?? list[0] ?? null;
-  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, addThread, askBot, remove, problem, asking, ask, stopAsking: () => setAsking(null) };
+  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, addThread, removeThread, askBot, remove, problem, asking, ask, stopAsking: () => setAsking(null) };
 }
 export type ProjectsState = ReturnType<typeof useProjects>;
 
@@ -122,7 +130,7 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
         <ul role="list">
           {projects.list.map((p) => (
             <li key={p.id} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, project: p }); }}>
-              <button type="button" className="list-row proj-side-row" aria-current={projects.open?.id === p.id ? 'page' : undefined} onClick={() => projects.setOpenId(p.id)}>
+              <button type="button" className="list-row proj-side-row" aria-current={projects.open?.id === p.id ? 'page' : undefined} onClick={() => projects.setOpenId(p.id)} onDoubleClick={() => projects.ask(p.id, 'rename')} title="Double-click to rename">
                 <svg className="proj-side-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.projects}</svg>
                 <span className="list-name">{p.name}</span>
                 {waiting(p) > 0 && <span className="list-count" aria-label={`${waiting(p)} waiting for you`}>{waiting(p)}</span>}
@@ -411,6 +419,7 @@ function OpenProject({ projects, project: p, conversations, incoming, onOpenThre
   const threads = projectThreads(p, conversations);
   const waiting = threads.filter((t) => (t.info?.waiting ?? 0) > 0);
   const sides = p.sides ?? [];
+  const [threadMenu, setThreadMenu] = useState<{ x: number; y: number; id: string; title: string } | null>(null);
   return (
     <section className="skills-page project-page" aria-label={p.name}>
       <ProjectHead projects={projects} project={p} summary={projectSummary(p, conversations, made?.length ?? 0, now)}
@@ -434,7 +443,7 @@ function OpenProject({ projects, project: p, conversations, incoming, onOpenThre
         {threads.length === 0 && <p className="proj-empty">No threads yet. A thread here follows the project's rules and can add to its memory.</p>}
         <ul className="proj-rows" role="list" aria-label="Threads">
           {threads.map((t) => (
-            <li key={t.id}>
+            <li key={t.id} onContextMenu={(e) => { e.preventDefault(); setThreadMenu({ x: e.clientX, y: e.clientY, id: t.id, title: t.info?.title || 'New thread' }); }}>
               <button type="button" className="proj-row" onClick={() => onOpenThread(t.id)}>
                 <ThreadGlyph />
                 <span className="proj-row-text"><span className="proj-row-title">{t.info?.title || 'New thread'}</span><span className="proj-row-sub">{threadLine(t.info, now)}</span></span>
@@ -450,8 +459,16 @@ function OpenProject({ projects, project: p, conversations, incoming, onOpenThre
             </li>
           ))}
         </ul>
+        {projects.problem && !projects.asking && <p className="field-error proj-row-note" role="alert">{projects.problem}</p>}
         <MoveHere projects={projects} project={p} conversations={conversations} />
       </Group>
+      {threadMenu && createPortal(
+        <ContextMenu x={threadMenu.x} y={threadMenu.y} label={threadMenu.title} onClose={() => setThreadMenu(null)} items={[
+          { action: 'open', run: () => onOpenThread(threadMenu.id) },
+          { action: 'move', label: 'Remove from project', separated: true, run: () => void projects.removeThread(p.id, threadMenu.id) },
+        ]} />,
+        document.body,
+      )}
       <ProjectMade items={made} onOpenMade={onOpenMade} onOpenFiles={() => onOpenFiles(p)} />
       <ProjectMemory project={p} incoming={incoming} onOpen={() => onOpenMemory(p)} />
       <ProjectRules projects={projects} project={p} />

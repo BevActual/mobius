@@ -20,7 +20,7 @@ export function gatherTurns(conversations: readonly Pick<ConversationInfo, 'id' 
 /** The app a changed file belongs to, to filter by and to open it in. */
 export function appOf(path: string): AppId | null {
   const top = path.split('/')[0];
-  const map: Record<string, AppId> = { notes: 'notes', docs: 'docs', slides: 'slides', sheets: 'sheets', tasks: 'tasks', calendar: 'calendar', code: 'code', designs: 'design', boards: 'canvas', research: 'research', reading: 'reader', databases: 'database', photos: 'photo', studio: 'studio', video: 'video', skills: 'skills' };
+  const map: Record<string, AppId> = { notes: 'notes', docs: 'docs', slides: 'slides', sheets: 'sheets', tasks: 'tasks', calendar: 'calendar', code: 'code', designs: 'design', boards: 'canvas', views: 'views', research: 'research', reading: 'reader', databases: 'database', photos: 'photo', studio: 'studio', video: 'video', skills: 'skills' };
   return top ? (map[top] ?? null) : null;
 }
 
