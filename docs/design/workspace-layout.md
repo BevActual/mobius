@@ -82,7 +82,7 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 
 - **Calendar** (`calendar/*.ics`): day, week and month; subscribed links and CalDAV accounts (iCloud, Fastmail,
   Nextcloud) beside the person's own calendars; Mobius's suggestions dashed with Decline and Add. Google and Microsoft
-  sign-in need app registrations (`docs/calendar-sign-in.md`).
+  sign-in need app registrations ([calendar sign-in](../reference/calendar-sign-in.md)).
 - **Notes** Insert bar (from the Notebook board): a checklist or a table at the cursor, Record (up to ten minutes,
   turned into words by the speech model and kept as a section), and Clip from web (a page's first paragraphs quoted
   with its link).
