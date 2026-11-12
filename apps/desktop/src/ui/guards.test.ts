@@ -25,14 +25,15 @@ const rel = (file: string) => path.relative(src, file).split(path.sep).join('/')
  * Nothing new joins it; a new menu uses ui/Menu (Menu from a button, PointMenu at a point).
  */
 const OWN_MENUS = [
-  'Calendar.tsx', 'ChatPanel.tsx', 'Docs.tsx', 'MenuBar.tsx', 'NoteEditor.tsx', 'SelectionMenu.tsx', 'Sheets.tsx', 'Slides.tsx',
+  'ChatPanel.tsx', 'Docs.tsx', 'MenuBar.tsx', 'NoteEditor.tsx', 'SelectionMenu.tsx', 'Sheets.tsx', 'Slides.tsx',
   'composer/PopMenu.tsx',
 ];
 
 describe('menus come from src/ui', () => {
   const drawn = walk(src, '.tsx')
     .filter((file) => !rel(file).startsWith('ui/'))
-    .filter((file) => /role=\{?["']menu["']/.test(fs.readFileSync(file, 'utf8')))
+    // A JSX attribute (` role="menu"`), not a selector string such as `closest('[role="menu"]')`.
+    .filter((file) => /\srole=\{?["']menu["']/.test(fs.readFileSync(file, 'utf8')))
     .map(rel)
     .sort();
 
