@@ -1,0 +1,91 @@
+/* The Design app, as Sketch and Figma look on the Mac: a toolbar of tool icons, a quiet layer list, a dotted canvas, blue
+   handles on all sides, pink guides while moving, and an inspector in titled sections. Rules sit under .design-page so
+   they win over the older ones in styles.css. */
+
+.design-page .design-bar { gap: 8px; padding: 6px 10px; border-bottom: 0.5px solid var(--line); background: var(--bg); }
+.design-page .design-tools { display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 9px; background: var(--field); }
+.design-page .design-tool { width: 32px; height: 28px; display: grid; place-items: center; border-radius: 7px; color: var(--ink); }
+.design-page .design-tool svg, .design-page .design-zoombox svg, .design-page .design-align svg, .design-page .design-segment svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.design-page .design-tool:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.design-page .design-tool[aria-pressed="true"] { background: var(--bg); color: var(--accent); box-shadow: 0 0 0 0.5px var(--line), 0 1px 2px rgba(0, 0, 0, 0.08); }
+.design-page .design-tool:disabled { opacity: 0.35; }
+.design-page .design-tools-sep { width: 1px; height: 16px; margin: 0 3px; background: var(--line); }
+.design-page .design-tool-hint { font-size: var(--fs-sm); color: var(--accent); }
+.design-page .design-zoombox { display: flex; align-items: center; gap: 0; padding: 2px; border-radius: 9px; background: var(--field); }
+.design-page .design-zoombox .strip-btn { min-width: 28px; height: 26px; }
+.design-page .design-zoom { min-width: 52px; height: 26px; border-radius: 6px; font-size: var(--fs-sm); color: var(--ink); font-variant-numeric: tabular-nums; }
+.design-page .design-zoom:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.design-page .design-bar > .btn { height: 30px; }
+
+/* Layers */
+.design-page .design-body { grid-template-columns: 200px 1fr 252px; }
+.design-page .design-layers, .design-page .design-inspector { background: var(--bg); }
+.design-page .design-layers { border-right: 0.5px solid var(--line); }
+.design-page .design-inspector { border-left: 0.5px solid var(--line); gap: 10px; padding: 10px; }
+.design-page .design-layer { height: 26px; gap: 6px; font-size: var(--fs-sm); color: var(--ink); }
+.design-page .design-layer[data-frame] { font-weight: 600; }
+.design-page .design-layer[aria-current] { background: var(--accent); color: var(--on-accent, #fff); }
+.design-page .design-layer[aria-current] .design-layer-kind { color: inherit; }
+.design-page .design-layer-kind { width: 16px; display: grid; place-items: center; }
+.design-page .design-layer-kind svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.design-page .design-rename { width: 100%; height: 26px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--accent); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); outline: none; }
+
+/* Canvas */
+.design-page .design-view { cursor: default; background-color: color-mix(in srgb, var(--ink) 4%, var(--bg)); background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1px); background-size: 20px 20px; }
+.design-page .design-view[data-tool]:not([data-tool="move"]) { cursor: crosshair; }
+.design-page .design-view[data-panning] { cursor: grab; }
+.design-page .design-view:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent); }
+.design-page .design-frame { box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.1), 0 10px 30px rgba(0, 0, 0, 0.07); }
+.design-page .design-frame[data-selected] { box-shadow: 0 0 0 calc(1.5px / var(--z, 1)) var(--accent), 0 10px 30px rgba(0, 0, 0, 0.07); }
+.design-page .design-frame-name { cursor: default; }
+.design-page .design-frame-name:hover { color: var(--ink); }
+.design-page .design-node { cursor: default; }
+.design-page .design-node:hover:not([data-selected]) { box-shadow: 0 0 0 calc(1px / var(--z, 1)) var(--accent); }
+.design-page .design-node[data-selected] { cursor: move; }
+.design-page .design-node[data-editing] { visibility: hidden; }
+.design-page .design-typing { visibility: visible; z-index: 2; border: 0; outline: calc(1.5px / var(--z, 1)) solid var(--accent); resize: none; overflow: hidden; font-family: inherit; padding: 0; cursor: text; }
+.design-page .design-handles { border: calc(1.5px / var(--z, 1)) solid var(--accent); }
+.design-page .design-handles[data-many] { border-style: solid; border-width: calc(1px / var(--z, 1)); }
+.design-page .design-handle { width: calc(8px / var(--z, 1)); height: calc(8px / var(--z, 1)); margin: calc(-4px / var(--z, 1)) 0 0 calc(-4px / var(--z, 1)); border: calc(1px / var(--z, 1)) solid var(--accent); border-radius: calc(1.5px / var(--z, 1)); background: #fff; }
+.design-page .design-handle[data-handle="nw"] { left: 0; top: 0; cursor: nwse-resize; }
+.design-page .design-handle[data-handle="n"] { left: 50%; top: 0; cursor: ns-resize; }
+.design-page .design-handle[data-handle="ne"] { left: 100%; top: 0; cursor: nesw-resize; }
+.design-page .design-handle[data-handle="e"] { left: 100%; top: 50%; cursor: ew-resize; }
+.design-page .design-handle[data-handle="se"] { left: 100%; top: 100%; cursor: nwse-resize; }
+.design-page .design-handle[data-handle="s"] { left: 50%; top: 100%; cursor: ns-resize; }
+.design-page .design-handle[data-handle="sw"] { left: 0; top: 100%; cursor: nesw-resize; }
+.design-page .design-handle[data-handle="w"] { left: 0; top: 50%; cursor: ew-resize; }
+.design-page .design-size { position: absolute; left: 50%; top: 100%; transform: translate(-50%, calc(8px / var(--z, 1))); padding: calc(2px / var(--z, 1)) calc(6px / var(--z, 1)); border-radius: calc(4px / var(--z, 1)); background: var(--accent); color: #fff; font: 500 calc(11px / var(--z, 1)) / 1.3 var(--font); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.design-page .design-guide { position: absolute; z-index: 5; pointer-events: none; background: #ff2d55; }
+.design-page .design-guide[data-axis="x"] { width: calc(1px / var(--z, 1)); }
+.design-page .design-guide[data-axis="y"] { height: calc(1px / var(--z, 1)); }
+.design-page .design-pick { position: absolute; z-index: 6; pointer-events: none; border: calc(1px / var(--z, 1)) solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.design-page .design-pick[data-draw] { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.design-page .design-pick[data-draw="ellipse"] { border-radius: 50%; }
+
+/* Inspector */
+.design-page .design-panel-title { padding: 2px 2px 0; font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
+.design-page .design-section { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 0.5px solid var(--line); }
+.design-page .design-section-title { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+.design-page .design-field select { flex: 1; min-width: 0; border: 0; background: none; color: inherit; font: inherit; outline: none; }
+.design-page .design-align { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--field); }
+.design-page .design-align button { height: 26px; display: grid; place-items: center; border-radius: 6px; color: var(--ink); }
+.design-page .design-align button:hover { background: var(--bg); box-shadow: 0 0 0 0.5px var(--line); }
+.design-page .design-segment { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--field); }
+.design-page .design-segment button { height: 24px; display: grid; place-items: center; border-radius: 6px; color: var(--muted); }
+.design-page .design-segment button[aria-checked="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 0.5px var(--line), 0 1px 2px rgba(0, 0, 0, 0.08); }
+.design-page .design-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.design-page .design-presets button { height: 22px; padding: 0 8px; border-radius: 999px; font-size: var(--fs-xs); color: var(--muted); background: var(--field); }
+.design-page .design-presets button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent, #fff); }
+.design-page .design-styles code { margin-left: auto; font-size: 11px; color: var(--muted); }
+.design-page .design-keys { margin-top: 6px; padding-top: 10px; border-top: 0.5px solid var(--line); }
+.design-page .design-keys dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 6px 2px 0; font-size: var(--fs-xs); }
+.design-page .design-keys dt { color: var(--ink); font-weight: 600; white-space: nowrap; }
+.design-page .design-keys dd { margin: 0; color: var(--muted); }
+.design-page .design-inspector > .btn.danger { margin-top: 4px; }
+.design-page .design-inspector .btn.danger { height: 30px; background: transparent; border: 0.5px solid var(--line); color: var(--danger); box-shadow: none; }
+.design-page .design-inspector .btn.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+
+/* Mobius's change bar fits the canvas however narrow it is, so Keep and Discard are never under the inspector. */
+.design-page .design-review { max-width: calc(100% - 24px); white-space: normal; flex-wrap: wrap; justify-content: center; }
+.design-page .design-review .review-actions { flex-wrap: wrap; justify-content: center; margin-left: 0; }

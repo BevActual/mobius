@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { coreCall, coreHistory, crashCore, launch, startFixture, type Fixture, type Launched } from './harness';
-import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
+import { callsTool, dataOf, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -11,7 +11,12 @@ let mobius: Launched | undefined;
 test.beforeEach(async () => {
   fixture = await startFixture();
 });
-test.afterEach(async () => {
+test.afterEach(async ({}, testInfo) => {
+  // A rare stall on the first turn: what the core did and what the model was asked, to see where it waited.
+  if (testInfo.status !== testInfo.expectedStatus && mobius) {
+    const history = await coreHistory(mobius.app).catch((e: unknown) => [`(no history: ${String(e)})`]);
+    console.log(`[${testInfo.title}] model requests: ${model?.requests.length ?? 0}\ncore history:\n${history.join('\n')}`);
+  }
   await mobius?.close();
   mobius = undefined;
   await model?.close();
@@ -46,7 +51,10 @@ test('a message gets a streamed answer, and the model sees the system prompt and
   expect(body.model).toBe('fake-model');
   const messages = body.messages as Array<{ role: string; content: string }>;
   expect(messages[0]!.role).toBe('system');
+  // Just the question: the page open in the browser goes only when added.
   expect(messages.at(-1)).toEqual({ role: 'user', content: 'Say hello' });
+  // And the standing instructions: say what changed from what the tools gave back.
+  expect(messages[0]!.content).toContain('never report a change');
 });
 
 test('Enter sends, Shift+Enter adds a line, and a blank message cannot be sent', async () => {
@@ -78,15 +86,17 @@ test('a tool call stops for approval, shows what will run, and carries on when a
   await say('what time is it');
   const card = mobius!.shell.getByRole('group', { name: 'Approval needed: clock.now' });
   await expect(card).toBeVisible();
-  await expect(card).toContainText('clock.now');
+  await expect(card).toContainText('Mobius wants to check the time.');
+  await expect(card.locator('.approval-text')).toHaveAttribute('title', 'clock.now');
   expect(model!.requests).toHaveLength(1);
   await card.getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('It is noon.');
   await expect(card).toHaveCount(0);
-  await expect(log().locator('.tool')).toContainText('clock.now');
+  // The row reads as a sentence where there is one; the tool's own name is its tooltip.
+  await expect(log().locator('.tool .tool-name')).toHaveAttribute('title', 'clock.now');
   const second = model!.requests[1]!.messages as Array<{ role: string; content: string }>;
   const result = second.find((m) => m.role === 'tool')!;
-  expect(JSON.parse(result.content).utc).toMatch(/^20\d\d-\d\d-\d\dT/);
+  expect(JSON.parse(dataOf(result.content)).utc).toMatch(/^20\d\d-\d\d-\d\dT/);
 
   await say('and now?');
   await expect(mobius!.shell.getByRole('group', { name: 'Approval needed: clock.now' })).toBeVisible();
@@ -100,6 +110,11 @@ test('"Always allow" is remembered, so the next use does not ask', async () => {
   await say('time again');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Second.');
   await expect(mobius!.shell.getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
+  // Messages sent close together share one time, above the first.
+  await expect(log().locator('.msg-stamp')).toHaveCount(1);
+  await expect(log().locator('.msg-stamp')).toHaveText(/^Today \d{1,2}[:.]\d{2}/);
+  // The composer says how full the model's window is, once the core has said.
+  await expect(mobius!.shell.getByRole('meter', { name: 'Context used' })).toHaveText(/^\d{1,3}%$/);
 });
 
 test('declining tells the model, and the tool never runs', async () => {
@@ -146,6 +161,18 @@ test('reloading the window brings the conversation back, including a question st
   await mobius!.shell.reload();
   await expect(log().locator('.msg.assistant')).toHaveText('Done.');
   await expect(log().locator('.msg.user')).toHaveText('time please');
+});
+
+test('a new person is welcomed, and chooses how much Mobius does before choosing a model', async () => {
+  mobius = await launch(fixture.origin + '/', { newPerson: true });
+  await expect(mobius.shell.getByRole('heading', { name: 'Hello.' })).toBeVisible({ timeout: 15_000 });
+  const levels = mobius.shell.getByRole('radiogroup', { name: 'How much should Mobius do?' });
+  // Propose is where a new person starts: Mobius changes the workspace, and the changes wait to be kept.
+  await expect(levels.getByRole('radio', { name: /^Propose/ })).toHaveAttribute('aria-checked', 'true');
+  await levels.getByRole('radio', { name: /^Act/ }).click();
+  await expect(levels.getByRole('radio', { name: /^Act/ })).toHaveAttribute('aria-checked', 'true');
+  expect((await mobius.shell.evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('smart');
+  await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toBeVisible();
 });
 
 test('settings: the model can be set up from the panel, survives a restart, and the key stays out of sight', async () => {
@@ -205,7 +232,7 @@ test('if the core restarts, the agent is set up again by itself', async () => {
 test('a web page cannot reach the agent, and the shell cannot call the core directly', async () => {
   await start([says(['x'])]);
   const keys = await mobius!.shell.evaluate(() => Object.keys(window.mobius).sort());
-  expect(keys).toEqual(['agent', 'app', 'appearance', 'bookmarks', 'bots', 'browser', 'context', 'core', 'downloads', 'history', 'models', 'notes', 'platform', 'preferences', 'providers', 'share', 'surface', 'tasks', 'window']);
+  expect(keys).toEqual(['agent', 'app', 'appearance', 'boards', 'bookmarks', 'bots', 'browser', 'calendar', 'changes', 'code', 'comments', 'context', 'core', 'databases', 'designs', 'docs', 'downloads', 'extensions', 'files', 'history', 'mail', 'memory', 'menu', 'mini', 'models', 'notes', 'photos', 'platform', 'preferences', 'profiles', 'projects', 'providers', 'reading', 'research', 'schedules', 'share', 'sheets', 'signins', 'skills', 'slides', 'songs', 'surface', 'tasks', 'terminal', 'tray', 'updates', 'video', 'voice', 'wiki', 'window']);
   const coreKeys = await mobius!.shell.evaluate(() => Object.keys(window.mobius.core).sort());
   expect(coreKeys).toEqual(['getStatus', 'onStatus']);
   const outcomes = await mobius!.shell.evaluate(async () => ({
@@ -231,7 +258,7 @@ test('while the agent waits for a person, the core still answers other requests'
 
 type Chat = Array<{ role: string; content: string }>;
 const toolResult = (index: number): Record<string, unknown> | string => {
-  const content = (model!.requests[index]!.messages as Chat).findLast((m) => m.role === 'tool')!.content;
+  const content = dataOf((model!.requests[index]!.messages as Chat).findLast((m) => m.role === 'tool')!.content);
   try {
     return JSON.parse(content) as Record<string, unknown>;
   } catch {
@@ -321,5 +348,5 @@ test('the core still knows the browser tools after it restarts', async () => {
   await expect.poll(async () => (await coreHistory(mobius!.app)).includes('restarting'), { timeout: 15_000 }).toBe(true);
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   const tools = await coreCall<Array<{ name: string; external: boolean }>>(mobius!.app, 'tools.list');
-  expect(tools.filter((t) => t.external).map((t) => t.name)).toEqual(['browser.click', 'browser.open', 'browser.read', 'browser.tabs', 'browser.type', 'files.edit', 'files.list', 'files.read', 'files.search', 'files.write', 'tasks.add', 'tasks.list', 'tasks.update']);
+  expect(tools.filter((t) => t.external).map((t) => t.name)).toEqual(['browser.click', 'browser.open', 'browser.read', 'browser.tabs', 'browser.type', 'calendar.add', 'calendar.list', 'calendar.suggest', 'calendar.update', 'code.commit', 'code.output', 'code.push', 'code.run', 'code.start', 'code.stop', 'code.test', 'comments.list', 'comments.reply', 'comments.resolve', 'db.execute', 'db.list', 'db.query', 'files.edit', 'files.list', 'files.read', 'files.search', 'files.write', 'images.generate', 'mail.draft', 'mail.read', 'mail.search', 'memory.forget', 'memory.remember', 'schedules.add', 'schedules.list', 'sheets.list', 'sheets.read', 'sheets.write', 'skills.list', 'skills.read', 'tasks.add', 'tasks.list', 'tasks.update', 'web.read', 'web.search']);
 });

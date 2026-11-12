@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { says, startModel, type ModelFixture } from './model-fixture';
 
 let fixture: Fixture;
@@ -21,14 +21,14 @@ test.afterEach(async () => {
   await backup?.close();
   broken = backup = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true });
+  removeTestData(userData);
 });
 
 // The first model answers every request with an error (HTTP 500); the second answers properly.
 async function start(): Promise<Launched> {
   broken = await startModel([]);
   backup = await startModel([says(['From the backup model.'])]);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: broken.url, MOBIUS_AGENT_MODEL: 'first-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: broken.url, MOBIUS_AGENT_MODEL: 'first-model' } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   return mobius;
 }
@@ -37,10 +37,10 @@ const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mo
 const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
 const openServer = async () => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Model', exact: true }).click();
-  await page().getByRole('tab', { name: 'Server', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Gateways', exact: true }).click();
+  await page().getByRole('button', { name: 'Custom server…' }).click();
 };
 
 test('a second model answers when the first fails, and the conversation says so', async () => {
@@ -51,7 +51,7 @@ test('a second model answers when the first fails, and the conversation says so'
   await page().getByLabel('Second model name').fill('backup-model');
   await page().getByRole('button', { name: 'Save' }).click();
   await expect(page().getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await shell().keyboard.press('Escape');
 
   await composer().fill('hello');
   await composer().press('Enter');
@@ -81,7 +81,7 @@ test('the second model is remembered across a restart, and can be switched off',
   await expect(page().getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
   await mobius!.close({ keepUserData: true });
   // Start again with nothing seeded, so what comes back is what was saved.
-  mobius = await launch(fixture.origin + '/', { userData });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openServer();
   await expect(page().getByRole('switch', { name: 'Use a second model when the first cannot answer' })).toBeChecked();

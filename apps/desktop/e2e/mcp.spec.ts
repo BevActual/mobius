@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { coreCall, launch, startFixture, type Fixture, type Launched } from './harness';
+import { coreCall, launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 // A stand-in MCP server built from crates/mobius-mcp (`cargo build -p mobius-mcp`).
@@ -23,12 +23,12 @@ test.afterEach(async () => {
   await model?.close();
   model = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true });
+  removeTestData(userData);
 });
 
 async function start(replies: ModelReply[]): Promise<Launched> {
   model = await startModel(replies);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   return mobius;
 }
@@ -48,7 +48,7 @@ test('the model offered a tool from a configured MCP server, and using it asks f
   await expect.poll(async () => (await coreCall<Array<{ name: string }>>(mobius!.app, 'tools.list')).map((t) => t.name), { timeout: 30_000 }).toContain('mcp.fake.echo');
   await say('use it');
   await expect(card()).toBeVisible();
-  await expect(card()).toContainText('mcp.fake');
+  await expect(card()).toContainText('from the fake server');
   await card().getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant').last()).toHaveText('Done.');
   const toolsOffered = JSON.stringify((model!.requests[0] as { tools?: unknown[] }).tools ?? []);

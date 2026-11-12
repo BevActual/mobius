@@ -1,11 +1,28 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { MobiusMark } from './MobiusMark';
+import { Welcome } from './Welcome';
+import { describeAction, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
+import type { HubTarget } from './search-hub';
+import { APPS } from './apps';
+import { stepTag } from './step-access';
+import { usePreferences } from './usePreferences';
+import { ClaimChecks, RichText } from './RichText';
+import { unsureClaims, withoutMarks } from './markdown';
+import { ReviewStrip, TurnHistory } from './ReviewStrip';
 import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
-import type { ConversationState, Item, ToolStatus, findToolResult } from './conversation';
+import { MailSources } from './MailPlan';
+import { modeOf } from './approval-modes';
+import { stampLabel, startsGroup } from './time-stamps';
+import { useSpeech } from './useSpeech';
+import { isSpeaking, readAloudNow } from './speech';
+import { EMPTY_QUEUE, afterTurn, clearQueue, editQueued, enqueue, removeQueued, resumeQueue, type MessageQueue, type Queued } from './message-queue';
+import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
-import type { SurfaceState } from './surface';
+import { hereOf, type SurfaceState } from './surface';
 import { activityOf } from './activity';
 import { SettingsForm } from './settings/ModelForm';
+import { SignInForTask } from './SignIn';
 
 const STATUS_TEXT: Record<ToolStatus, string> = {
   running: 'Running…',
@@ -28,20 +45,101 @@ type Details = { result: ReturnType<typeof findToolResult>; arguments: unknown }
 
 const STEP_STATUS: Record<TodoItem['status'], string> = { pending: 'To do', in_progress: 'Working on it', done: 'Done' };
 
-/** The model's plan for the task, as a checklist the person can follow. */
-function PlanCard({ item }: { item: Extract<Item, { kind: 'plan' }> }) {
+/** What starting a plan says to the agent: the plan as it stands, so steps you changed are the ones done. */
+export function startMessage(steps: string[], edited: boolean): string {
+  return edited ? `Go ahead with this plan, as I changed it:\n${steps.map((t, i) => `${i + 1}. ${t}`).join('\n')}` : 'Go ahead with the plan.';
+}
+
+/**
+ * The model's plan for the task, as a checklist the person can follow. A proposed plan (asked for with Plan first, so
+ * every step is still to do and the turn has ended) waits for you: Start it, change the steps first, or do it yourself.
+ */
+function PlanCard({ item, proposal, busy, onStart, onDrive, onStop }: {
+  item: Extract<Item, { kind: 'plan' }>;
+  proposal: boolean;
+  busy: boolean;
+  onStart: (text: string) => void;
+  onDrive?: (steps: string[]) => Promise<string | null>;
+  onStop: () => void;
+}) {
+  const preferences = usePreferences();
+  const [draft, setEditing] = useState<string[] | null>(null);
+  // Changing the steps only makes sense while the plan waits for you.
+  const editing = proposal ? draft : null;
+  const [problem, setProblem] = useState<string | null>(null);
+  const [driving, setDriving] = useState(false);
   const done = item.items.filter((i) => i.status === 'done').length;
+  const at = item.items.findIndex((i) => i.status === 'in_progress');
+  const working = busy && at >= 0;
+  const steps = item.items.map((i) => i.text);
+  const kept = (editing ?? steps).map((t) => t.trim()).filter(Boolean);
+  const edited = editing !== null && kept.join('\n') !== steps.join('\n');
+  const title = proposal ? 'Plan' : working ? 'Working' : 'Plan';
+  const meta = proposal ? `${item.items.length} ${item.items.length === 1 ? 'step' : 'steps'}` : working ? `Step ${at + 1} of ${item.items.length}` : `${done} of ${item.items.length} done`;
+  // The steps not yet done, including the one in hand, become yours.
+  const takeOver = async () => {
+    onStop();
+    setDriving(true);
+    if (onDrive) setProblem(await onDrive(item.items.filter((i) => i.status !== 'done').map((i) => i.text)));
+    setDriving(false);
+  };
+  const drive = async () => {
+    setDriving(true);
+    if (onDrive) setProblem(await onDrive(kept));
+    setDriving(false);
+  };
   return (
-    <section className="plan-card" aria-label="Plan">
-      <header className="plan-head"><span>Plan</span><span className="plan-count">{done} of {item.items.length} done</span></header>
-      <ol className="plan-steps">
-        {item.items.map((step, i) => (
-          <li key={i} className="plan-step" data-status={step.status} aria-label={`${step.text}: ${STEP_STATUS[step.status]}`}>
-            <span className="plan-mark" aria-hidden="true" />
-            <span className="plan-text">{step.text}</span>
-          </li>
-        ))}
-      </ol>
+    <section className="plan-card" aria-label="Plan" data-proposal={proposal || undefined}>
+      <header className="plan-head"><span>{title}</span><span className="plan-count">{meta}</span></header>
+      {editing ? (
+        <ol className="plan-steps plan-edit">
+          {editing.map((text, i) => (
+            <li key={i} className="plan-step">
+              <span className="plan-num" aria-hidden="true">{i + 1}</span>
+              <input className="plan-input" value={text} aria-label={`Step ${i + 1}`} autoFocus={i === 0}
+                onChange={(e) => setEditing((list) => list && list.map((t, k) => (k === i ? e.target.value : t)))}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setEditing((list) => list && [...list.slice(0, i + 1), '', ...list.slice(i + 1)]); } }} />
+              <button type="button" className="msg-action" aria-label={`Remove step ${i + 1}`} onClick={() => setEditing((list) => list && list.filter((_, k) => k !== i))}>Remove</button>
+            </li>
+          ))}
+          <li><button type="button" className="msg-action" onClick={() => setEditing((list) => list && [...list, ''])}>Add a step</button></li>
+        </ol>
+      ) : (
+        <ol className="plan-steps">
+          {item.items.map((step, i) => (
+            <li key={i} className="plan-step" data-status={step.status} aria-label={`${step.text}: ${STEP_STATUS[step.status]}`}>
+              {proposal ? <span className="plan-num" aria-hidden="true">{i + 1}</span> : <span className="plan-mark" aria-hidden="true" />}
+              <span className="plan-text">{step.text}</span>
+              {proposal && (() => { const t = stepTag(step.text, preferences.value.appAccess, preferences.value.approvalMode); return t ? <span className="plan-tag" data-tag={t.tag.startsWith('Asks') ? 'ask' : t.tag === 'Off' ? 'off' : 'act'} title={`${t.app}: ${t.tag.toLowerCase()}, from Settings › Safety. Clicking, typing and deleting always ask.`}>{t.tag}</span> : null; })()}
+            </li>
+          ))}
+        </ol>
+      )}
+      {proposal && (
+        <footer className="plan-foot">
+          <p className="plan-note">Nothing happens until you start it. You can change any step, or do it yourself.</p>
+          {problem && <p className="plan-note" role="alert">{problem}</p>}
+          <div className="plan-actions">
+            {editing ? (
+              <button type="button" className="btn" onClick={() => setEditing(null)}>Cancel</button>
+            ) : (
+              <button type="button" className="btn" onClick={() => setEditing(steps)}>Edit Plan</button>
+            )}
+            {onDrive && <button type="button" className="btn" disabled={driving || kept.length === 0} title="Put the steps in Tasks, to do them yourself" onClick={() => void drive()}>I’ll Drive</button>}
+            <button type="button" className="btn primary" disabled={kept.length === 0} onClick={() => onStart(startMessage(kept, edited))}>Start</button>
+          </div>
+        </footer>
+      )}
+      {working && (
+        <footer className="plan-foot">
+          <p className="plan-note">Stop anytime: finished steps stay. Take Over stops Mobius and puts the steps left in Tasks for you.</p>
+          {problem && <p className="plan-note" role="alert">{problem}</p>}
+          <div className="plan-actions">
+            {onDrive && <button type="button" className="btn" disabled={driving} onClick={() => void takeOver()}>Take Over</button>}
+            <button type="button" className="btn primary" aria-label="Stop the plan" onClick={onStop}>Stop</button>
+          </div>
+        </footer>
+      )}
     </section>
   );
 }
@@ -78,7 +176,65 @@ function QuestionCard({ item, onReply }: { item: Extract<Item, { kind: 'question
   );
 }
 
-function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 'tool' }>; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details> }) {
+/** A tool call as a sentence a person reads, when the tool is one Mobius knows; null otherwise. */
+function plainAction(name: string, args: unknown): string | null {
+  const words = describeAction(name, args);
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : null;
+}
+
+/** App names ("Tasks · Calendar"), each a link that opens the app, when there is somewhere to open them. */
+function AppLinks({ names, onOpenItem }: { names: readonly string[]; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
+  return (
+    <>
+      {names.map((name, i) => {
+        const id = APPS.find((a) => a.name === name)?.id;
+        return (
+          <Fragment key={name}>
+            {i > 0 && ' · '}
+            {id && onOpenItem ? <button type="button" className="link-btn app-link" title={`Open ${name}`} onClick={() => onOpenItem({ app: 'open', id })}>{name}</button> : name}
+          </Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+/** Three or more of the same finished call in a row, as one line ("Added 6 tasks to P2 build") that opens to show each. */
+function ToolGroup({ items, onAnswer, onDetails, onOpenItem }: { items: Extract<Item, { kind: 'tool' }>[]; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
+  const [open, setOpen] = useState(false);
+  const first = items[0]!;
+  const target = onOpenItem ? toolTarget(first.name, first.args) : null;
+  const sameTarget = target && items.every((i) => JSON.stringify(toolTarget(i.name, i.args)) === JSON.stringify(target));
+  return (
+    <div className="tool tool-group" data-status="done">
+      <div className="tool-line">
+        <span className="tool-dot" aria-hidden="true" />
+        {sameTarget
+          ? <button type="button" className="tool-name link-btn" data-plain title={`Open it (${first.name})`} onClick={() => onOpenItem?.(target)}>{groupSummary(first.name, items.map((i) => i.args))}</button>
+          : <span className="tool-name" data-plain title={first.name}>{groupSummary(first.name, items.map((i) => i.args))}</span>}
+        <button type="button" className="msg-action tool-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : `Show all ${items.length}`}</button>
+      </div>
+      {open && items.map((i) => <ToolRow key={i.id} item={i} onAnswer={onAnswer} onDetails={onDetails} onOpenItem={onOpenItem} />)}
+    </div>
+  );
+}
+
+/** Where each run of three or more of the same finished call starts, and how long it is. */
+function toolRuns(items: readonly Item[]): Map<number, number> {
+  const runs = new Map<number, number>();
+  for (let i = 0; i < items.length;) {
+    const it = items[i]!;
+    let j = i;
+    if (it.kind === 'tool' && it.status === 'done') {
+      while (j + 1 < items.length) { const next = items[j + 1]!; if (next.kind === 'tool' && next.status === 'done' && next.name === it.name) j++; else break; }
+    }
+    if (j - i + 1 >= 3) runs.set(i, j - i + 1);
+    i = j + 1;
+  }
+  return runs;
+}
+
+function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item, { kind: 'tool' }>; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [details, setDetails] = useState<Details | null>(null);
   const [open, setOpen] = useState(false);
@@ -100,7 +256,14 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
     <div className="tool" data-status={item.status}>
       <div className="tool-line">
         <span className="tool-dot" aria-hidden="true" />
-        <span className="tool-name">{item.name}</span>
+        {/* What it did, in words ("Add “Book the film” to Inbox in Tasks"); the tool's own name stays in the tooltip and Details. */}
+        {(() => {
+          const said = (item.status === 'done' ? pastAction(item.name, item.args) : null) ?? plainAction(item.name, item.args);
+          const target = item.status === 'done' && onOpenItem ? toolTarget(item.name, item.args) : null;
+          return target
+            ? <button type="button" className="tool-name link-btn" data-plain title={`Open it (${item.name})`} onClick={() => onOpenItem?.(target)}>{said ?? item.name}</button>
+            : <span className="tool-name" data-plain={said ? true : undefined} title={item.name}>{said ?? item.name}</span>;
+        })()}
         <span className="tool-status">{STATUS_TEXT[item.status]}</span>
         {finished && <button type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details of ${item.name}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}
       </div>
@@ -119,8 +282,26 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
       )}
       {item.status === 'waiting' && item.requestId !== undefined && (
         <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`}>
-          <p className="approval-text">Mobius wants to use <strong>{item.name}</strong>.{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
-          {shownArgs && <pre className="approval-args" tabIndex={0} aria-label="What it will use">{shownArgs}</pre>}
+          <p className="approval-head">Needs you</p>
+          {item.origin && <p className="approval-origin" role="note">Asked by text in {item.origin}, not by you. <span className="approval-why">Why: this came from {item.origin}.</span></p>}
+          <p className="approval-text" title={item.name}>Mobius wants to {plainUse(item.name, item.args)}.{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
+          {(() => {
+            // In plain words first, as the Approvals board asks: the text it would write, the statement it would run.
+            const preview = previewArguments(item.name, item.args);
+            if (!preview) return shownArgs && <pre className="approval-args" tabIndex={0} aria-label="What it will use">{shownArgs}</pre>;
+            return (
+              <>
+                <div className="approval-preview-label">{preview.label}</div>
+                <pre className="approval-preview" data-mono={preview.mono || undefined} tabIndex={0} aria-label={preview.label}>{preview.text}</pre>
+                {shownArgs && (
+                  <details className="approval-raw">
+                    <summary>Exactly what it sends</summary>
+                    <pre className="approval-args" tabIndex={0} aria-label="What it will use">{shownArgs}</pre>
+                  </details>
+                )}
+              </>
+            );
+          })()}
           <div className="approval-actions">
             <button type="button" className="btn primary" disabled={sending} onClick={() => void respond(true, 'once')}>Allow once</button>
             {item.onceOnly ? null : <button type="button" className="btn" disabled={sending} onClick={() => void respond(true, 'always')}>Always allow</button>}
@@ -136,17 +317,29 @@ function ToolRow({ item, onAnswer, onDetails }: { item: Extract<Item, { kind: 't
 export interface ChatPanelProps {
   /** Where the person is, for the suggestions the message box offers. */
   surface?: SurfaceState;
+  /** Opens what a finished tool made or changed (a task list, a note, a sheet). */
+  onOpenItem?: (target: HubTarget) => void;
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[]) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
+  /** Show a browser tab to the person (to sign in themselves). */
+  onShowTab?: (tab: string) => void;
   onStop: () => void;
+  /** Take over the running task, and hand it back; each resolves with what went wrong, or null. */
+  onTakeOver?: () => Promise<string | null>;
+  onHandBack?: () => Promise<string | null>;
   onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent. */
   onReply: (callId: string, text: string) => Promise<string | null>;
   onSaveSettings: (request: AgentConfigureRequest) => Promise<AgentResult>;
   /** Text to place in the composer, for example from elsewhere in the window. Each value is used once. */
   focusToken?: number;
+  /** False for a floating panel that slid in because the pointer reached the edge: it must not take the keyboard. */
+  takeFocus?: boolean;
+  /** Material handed over from elsewhere in the window (text selected in a note): added as a chip, then the box is focused. */
+  /** Something to attach, or words to put in the message box (a start from an app's New row). */
+  incoming?: { token: number; item?: ContextItem; text?: string } | null;
   conversations: ConversationInfo[];
   activeConversation: string;
   onNewConversation: () => void;
@@ -159,18 +352,41 @@ export interface ChatPanelProps {
   onDetails: (callId: string) => Promise<Details>;
   /** The button that floats or attaches the panel. */
   pin?: ReactNode;
+  /** The desk: what is in flight, shown under the greeting of an empty conversation in the Agent app. */
+  desk?: ReactNode;
+  /** The open app's own card above the conversation (Get to zero in Mail). */
+  appCard?: ReactNode;
+  /** Open one email in Mail, from the rows under an answer about the mail. */
+  onOpenMail?: (id: string) => void;
+  /** The app the panel sits beside, for the line under its title ("In Notes"). */
+  place?: string;
+  /** Put the panel away. */
+  onHide?: () => void;
+  /** Settings, Voice: where listening and speaking are chosen. */
+  onOpenVoice?: () => void;
+  /** Before the title: the app switcher, when the panel takes the sidebar. */
+  lead?: ReactNode;
+  /** In the sidebar: "In Notes" opens the app switcher. */
+  onPlace?: () => void;
+  /** More for the All chats menu (Float the agent panel). */
+  menuItems?: Array<{ label: string; onSelect: () => void }>;
+  /** Under the head: the page's controls, when the panel takes the sidebar. */
+  below?: ReactNode;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
   /** The model on the server was changed from the composer. */
   onModelChanged: () => void;
+  /** Put a proposed plan's steps in Tasks, to do them yourself. Resolves with a reason when it could not be done. */
+  onDrive?: (steps: string[]) => Promise<string | null>;
   onRetry: () => Promise<string | null>;
   /** Take back the last exchange and hand back the message so it can be changed. */
   onEdit: () => Promise<{ text: string } | { error: string }>;
 }
 
 /** The title of the conversation, which opens the list of the others. */
-function ConversationMenu({ conversations, active, onSelect, onNew }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onNew: () => void }) {
+function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 0, extra = [] }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onNew: () => void; /** Changes when something outside asks for the list (the needs-you capsule). */ openToken?: number; extra?: Array<{ label: string; onSelect: () => void }> }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => { if (openToken) setOpen(true); }, [openToken]);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const title = conversations.find((c) => c.id === active)?.title ?? 'New conversation';
@@ -210,9 +426,8 @@ function ConversationMenu({ conversations, active, onSelect, onNew }: { conversa
 
   return (
     <div className="convo">
-      <button ref={trigger} type="button" className="convo-trigger" aria-label="Conversations" aria-haspopup="menu" aria-expanded={open} title={title} onClick={() => setOpen((value) => !value)}>
-        <span className="convo-title">{title}</span>
-        <svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+      <button ref={trigger} type="button" className="head-icon" aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={`All chats · now: ${title}`} onClick={() => setOpen((value) => !value)}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5.5h9M7 10h9M7 14.5h9" /><circle cx="4" cy="5.5" r="0.6" /><circle cx="4" cy="10" r="0.6" /><circle cx="4" cy="14.5" r="0.6" /></svg>
       </button>
       {open && (
         <div ref={menu} className="convo-menu" role="menu" aria-label="Conversations" onKeyDown={move}>
@@ -225,6 +440,8 @@ function ConversationMenu({ conversations, active, onSelect, onNew }: { conversa
               <span className="convo-item-time">{relativeTime(conversation.updated_ms, Date.now())}</span>
             </button>
           ))}
+          {extra.length > 0 && <div className="convo-sep" role="separator" />}
+          {extra.map((item) => <button key={item.label} type="button" role="menuitem" className="convo-item" onClick={() => choose(item.onSelect)}>{item.label}</button>)}
         </div>
       )}
     </div>
@@ -239,13 +456,71 @@ function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty:
   );
 }
 
-export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop, onAnswer, onReply, onSaveSettings, focusToken, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, effort, onEffort, onModelChanged }: ChatPanelProps) {
+/** While you have control of a running task: where Mobius paused, Hand back and Stop. */
+function ControlBar({ control, onHandBack, onStop }: { control: { step: number; of?: number }; onHandBack?: () => Promise<string | null>; onStop: () => void }) {
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <div className="control-bar" role="status" aria-label="You have control">
+      <span className="control-text">You have control · Mobius paused at step {control.step}{control.of ? ` of ${control.of}` : ''}</span>
+      {onHandBack && <button type="button" className="btn primary" onClick={() => void onHandBack().then(setProblem)}>Hand back</button>}
+      <button type="button" className="btn" onClick={onStop}>Stop</button>
+      {problem && <span className="field-error" role="alert">{problem}</span>}
+    </div>
+  );
+}
+
+export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
+  const [chatsToken, setChatsToken] = useState(0);
+  const [contextOpen, setContextOpen] = useState(false);
+  const preferences = usePreferences();
+  const [starterSlot, setStarterSlot] = useState<HTMLDivElement | null>(null);
+  // Reading replies aloud: a Speak button on each, and, when chosen in Settings, Voice, each new reply by itself.
+  const { speech, speak, stop: stopSpeaking, dismiss: dismissSpeech } = useSpeech();
+  // Messages written while Mobius works: kept above the box and sent in order as each turn ends. Stop keeps them, paused.
+  const [queue, setQueue] = useState<MessageQueue>(EMPTY_QUEUE);
+  const queueWasBusy = useRef(state.busy);
+  const sendQueued = useRef<(item: Queued) => void>(() => undefined);
+  sendQueued.current = (item) => onSend(item.text, item.context, item.options);
+  useEffect(() => {
+    const before = queueWasBusy.current;
+    queueWasBusy.current = state.busy;
+    const step = afterTurn(queue, before, state.busy, state.ended);
+    if (step.queue !== queue) setQueue(step.queue);
+    if (step.send) sendQueued.current(step.send);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.busy, state.ended]);
+  // A queue belongs to its conversation: another one starts without it.
+  useEffect(() => { setQueue((q) => clearQueue(q)); }, [state.conversation]);
+  const sendNextQueued = () => {
+    const step = resumeQueue(queue, state.busy);
+    setQueue(step.queue);
+    if (step.send) sendQueued.current(step.send);
+  };
+  const wasBusy = useRef(state.busy);
+  const lastRead = useRef<string | null>(null);
+  useEffect(() => {
+    const busy = state.busy;
+    const before = wasBusy.current;
+    wasBusy.current = busy;
+    // A new message stops whatever is being read.
+    if (busy && !before) stopSpeaking();
+    const last = state.items.findLast((i) => i.kind === 'assistant');
+    const reply = last && last.kind === 'assistant' ? { id: last.id, text: last.text } : null;
+    if (readAloudNow(preferences.value.readAloud, before, busy, reply, lastRead.current) && reply) {
+      lastRead.current = reply.id;
+      void speak(reply.id, withoutMarks(reply.text));
+    }
+  }, [state.busy, state.items, preferences.value.readAloud, speak, stopSpeaking]);
   const [copied, setCopied] = useState<string | null>(null);
+  // Not-sure facts the person checked, per reply: a reply with unchecked ones is not copied out of Mobius.
+  const [checkedClaims, setCheckedClaims] = useState<Record<string, ReadonlySet<string>>>({});
   const lastUser = state.items.findLastIndex((item) => item.kind === 'user');
   const lastAssistant = state.items.findLastIndex((item) => item.kind === 'assistant');
+  const proposalAt = proposedPlan(state);
+  const seen = appsSeen(state);
   const settled = !state.busy;
   const copy = async (id: string, text: string) => {
     try {
@@ -279,6 +554,29 @@ export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop,
   const needsSetup = settings !== null && !configured && !settings.baseUrl;
   const showSettings = settings !== null && needsSetup;
   const canType = configured && coreReady;
+  // A time above the first message, and above any sent more than fifteen minutes after the one before.
+  const stamps = new Set<string>();
+  {
+    let previous: number | undefined;
+    for (const item of state.items) {
+      if (item.kind !== 'user') continue;
+      if (startsGroup(item.at, previous)) stamps.add(item.id);
+      if (item.at !== undefined) previous = item.at;
+    }
+  }
+  // Questions waiting for the person, in every conversation: the head says so, and opens the list.
+  const waiting = conversations.reduce((n, c) => n + (c.waiting > 0 ? 1 : 0), 0);
+  // What Mobius sees here: what is open beside it now ("Sees this note"); failing that, the apps it worked in during
+  // this conversation ("Has used Tasks"), which is not what it is looking at.
+  // It says it sees only what actually goes with the message: the chip for what is open here, unless it was removed.
+  const runs = toolRuns(state.items);
+  const inRun = new Set([...runs].flatMap(([at, n]) => Array.from({ length: n - 1 }, (_, k) => at + k + 1)));
+  const here = hereOf(surface);
+  const [hereOff, setHereOff] = useState<string | null>(null);
+  const hereShown = here && here.key !== hereOff ? here : null;
+  // A page in the browser is seen (it can be added from Add context) but does not go by itself.
+  const inView = hereShown?.what ?? (surface?.app === 'browser' && surface.hasPage ? 'this page' : null);
+  const sees = inView ? `Sees ${inView}` : seen.length > 0 ? `Has used ${seen.join(' · ')}` : null;
 
   useLayoutEffect(() => {
     const element = log.current;
@@ -289,23 +587,72 @@ export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop,
     if (focusToken) field.current?.focus();
   }, [focusToken]);
 
+  useEffect(() => {
+    if (!incoming) return;
+    const { item, text } = incoming;
+    if (text !== undefined) setDraft(text);
+    if (item) setContext((items) => (items.some((i) => i.source === item.source && i.text === item.text) ? items : [...items, item].slice(-5)));
+    queueMicrotask(() => field.current?.focus());
+  }, [incoming]);
+
   return (
     <Shell variant={variant} empty={state.items.length === 0}>
-      <div className="chat-head">
-        {needsSetup ? <span className="chat-title">Mobius</span> : variant === 'full' ? <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span> : <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} />}
+      <div className="chat-head" data-lead={lead || onPlace ? true : undefined}>
+        {lead}
+        {variant === 'panel' && !lead && <MobiusMark size={22} className="chat-mark" />}
+        {variant === 'full' && !needsSetup ? (
+          <span className="chat-titles">
+            <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span>
+            <span className="chat-sub">Mobius</span>
+          </span>
+        ) : (
+          <span className="chat-titles">
+            <span className="chat-title">Mobius</span>
+            {place && (onPlace
+              ? <button type="button" className="chat-sub chat-place" data-app-switcher aria-label={`In ${place}: switch app`} title="Switch app" onClick={onPlace}>In {place}<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>
+              : <span className="chat-sub">In {place}</span>)}
+          </span>
+        )}
+        {variant === 'panel' && waiting > 0 && (
+          <button type="button" className="needs-you" title="Open the chats that wait for you" onClick={() => setChatsToken((n) => n + 1)}>
+            <span className="needs-you-dot" aria-hidden="true" />{waiting} needs you
+          </button>
+        )}
         <div className="chat-head-actions">
+          {variant === 'panel' && (!needsSetup || menuItems.length > 0) && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />}
           {pin}
-          {variant === 'panel' && <button type="button" className="strip-btn" aria-label="New conversation" title="New conversation" disabled={!configured || state.items.length === 0} onClick={onNewConversation}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-          </button>}
+          {variant === 'panel' && onHide && !lead && (
+            <button type="button" className="head-icon" aria-label="Hide" title="Hide Mobius" onClick={onHide}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
+            </button>
+          )}
         </div>
       </div>
+      {below}
+      {/* Nothing to see (no page, nothing open, nothing read yet): no line saying so. */}
+      {!showSettings && sees !== null && (
+        <div className="chat-context">
+          <button type="button" className="chat-context-line" aria-expanded={contextOpen} onClick={() => setContextOpen((o) => !o)} title="What Mobius sees here, and how much it may do">
+            <svg className="chat-context-eye" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" /><circle cx="10" cy="10" r="2.2" /></svg>
+            <span className="chat-context-text">{sees} · {modeOf(preferences.value.approvalMode).name}</span>
+            <svg className="chat-context-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
+          </button>
+          {contextOpen && (
+            <div className="chat-context-more" role="group" aria-label="What Mobius sees">
+              {seen.length > 0 && <p className="chat-sees" title="What Mobius has read from or worked in during this conversation"><span className="chat-sees-label">Has used:</span> <AppLinks names={seen} onOpenItem={onOpenItem} /></p>}
+              <p className="chat-context-rule">What Mobius may do here comes from Settings. <button type="button" className="link-btn" onClick={onOpenSettings}>Change</button></p>
+            </div>
+          )}
+        </div>
+      )}
       {showSettings && settings ? (
         <div className="chat-scroll">
+          <Welcome />
           <SettingsForm key={`${settings.baseUrl}|${settings.model}`} settings={settings} onSave={onSaveSettings} />
         </div>
       ) : (
         <>
+          {appCard}
           <div
             ref={log}
             className="chat-scroll messages"
@@ -319,17 +666,26 @@ export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop,
           >
             {state.items.length === 0 && (
               <div className="empty">
+                <MobiusMark size={44} turning={!configured} className="empty-mark" />
                 <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
-                {configured && <p className="greeting-note">Mobius asks before it uses a tool, unless you change that below.</p>}
+                {configured && <p className="greeting-note">{modeOf(preferences.value.approvalMode).greeting} You can change that below.</p>}
+                {configured && <div ref={setStarterSlot} className="empty-starters" />}
+                {desk}
               </div>
             )}
             {state.items.map((item, index) =>
               item.kind === 'user' ? (
                 <Fragment key={item.id}>
+                  {stamps.has(item.id) && item.at !== undefined && <p className="msg-stamp"><time dateTime={new Date(item.at).toISOString()}>{stampLabel(item.at, Date.now())}</time></p>}
                   <div className="msg user">{item.text}</div>
+                  {item.images && item.images.length > 0 && (
+                    <ul className="msg-images" aria-label="Pictures attached">
+                      {item.images.map((src, i) => <li key={i}><img src={src} alt={`Picture ${i + 1}`} /></li>)}
+                    </ul>
+                  )}
                   {item.attachments && item.attachments.length > 0 && (
                     <ul className="msg-chips" aria-label="Attached">
-                      {item.attachments.map((a, i) => <li key={i} className="chip" data-kind={a.kind} title={a.source}><span className="chip-kind" aria-hidden="true">{a.kind === 'page' ? 'Page' : 'File'}</span><span className="chip-title">{a.title}</span></li>)}
+                      {item.attachments.map((a, i) => <li key={i} className="chip" data-kind={a.kind} title={a.source}><span className="chip-kind" aria-hidden="true">{a.kind === 'page' ? 'Page' : a.kind === 'note' ? 'Note' : 'File'}</span><span className="chip-title">{a.title}</span></li>)}
                     </ul>
                   )}
                   {settled && index === lastUser && (
@@ -340,39 +696,77 @@ export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop,
                 </Fragment>
               ) : item.kind === 'assistant' ? (
                 <Fragment key={item.id}>
-                  <div className="msg assistant" data-streaming={item.streaming}>{item.text}</div>
+                  <ClaimChecks.Provider value={{ checked: checkedClaims[item.id] ?? new Set(), check: (key) => setCheckedClaims((cur) => ({ ...cur, [item.id]: new Set([...(cur[item.id] ?? []), key]) })) }}>
+                    <div className="msg assistant" data-streaming={item.streaming}><RichText text={item.text} /></div>
+                  </ClaimChecks.Provider>
+                  {!item.streaming && item.text !== '' && (() => { const from = replySources(state.items, index); return from.length > 0 ? <p className="msg-sources" title="The apps Mobius used for this reply">Based on <AppLinks names={from} onOpenItem={onOpenItem} /></p> : null; })()}
+                  {!item.streaming && item.text !== '' && onOpenMail && !state.busy && index === state.items.findLastIndex((i) => i.kind === 'assistant') && replySources(state.items, index).includes('Mail') && <MailSources conversation={state.conversation} version={state.items.length} onOpen={onOpenMail} />}
                   {!item.streaming && item.text !== '' && (
                     <div className="msg-actions assistant">
-                      <button type="button" className="msg-action" aria-label="Copy reply" onClick={() => void copy(item.id, item.text)}>{copied === item.id ? 'Copied' : 'Copy'}</button>
+                      {(() => {
+                        const left = unsureClaims(item.text).filter((k) => !(checkedClaims[item.id]?.has(k) ?? false)).length;
+                        return left > 0
+                          ? <span className="msg-gate" title="Click each one marked Not sure to see why, and say when you have checked it">{left === 1 ? 'Check 1 unsure fact before copying' : `Check ${left} unsure facts before copying`}</span>
+                          : <button type="button" className="msg-action" aria-label="Copy reply" onClick={() => void copy(item.id, withoutMarks(item.text))}>{copied === item.id ? 'Copied' : 'Copy'}</button>;
+                      })()}
+                      <button type="button" className="msg-action" aria-busy={(speech.state === 'loading' && speech.id === item.id) || undefined} onClick={() => (isSpeaking(speech, item.id) ? stopSpeaking() : void speak(item.id, withoutMarks(item.text)))}>
+                        {speech.state === 'loading' && speech.id === item.id ? 'Getting the voice…' : isSpeaking(speech, item.id) ? 'Stop reading' : 'Read aloud'}
+                      </button>
                       {settled && index === lastAssistant && <button type="button" className="msg-action" aria-label="Try again" onClick={() => void retry()}>Try again</button>}
                     </div>
                   )}
+                  {speech.state === 'failed' && speech.id === item.id && (
+                    <p className="msg-voice-problem" role="alert">
+                      {speech.error}
+                      {speech.setup && onOpenVoice && <> <button type="button" className="link-btn" onClick={() => { dismissSpeech(); onOpenVoice(); }}>Voice settings</button></>}
+                    </p>
+                  )}
                 </Fragment>
               ) : item.kind === 'plan' ? (
-                <PlanCard key={item.id} item={item} />
+                <PlanCard key={item.id} item={item} busy={state.busy} proposal={index === proposalAt} onStart={(text) => onSend(text, [])} onDrive={onDrive} onStop={onStop} />
               ) : item.kind === 'question' ? (
                 <QuestionCard key={item.id} item={item} onReply={onReply} />
               ) : item.kind === 'notice' ? (
                 <div key={item.id} className="msg-notice" role="status">{item.text}</div>
               ) : item.kind === 'error' ? (
                 <Fragment key={item.id}>
-                  <div className="msg error" role="alert">{item.text}</div>
+                  <div className="msg error" role="alert" data-failed={item.failed || undefined}><svg className="msg-error-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5 14 13H2z" /><path d="M8 6.5v3M8 11.3v.2" /></svg><span>{item.text}</span></div>
                   {settled && index === state.items.length - 1 && lastUser >= 0 && (
                     <div className="msg-actions assistant">
                       <button type="button" className="msg-action" aria-label="Try again" onClick={() => void retry()}>Try again</button>
                     </div>
                   )}
                 </Fragment>
-              ) : (
-                <ToolRow key={item.id} item={item} onAnswer={onAnswer} onDetails={onDetails} />
+              ) : runs.has(index) ? (
+                <ToolGroup key={item.id} items={state.items.slice(index, index + runs.get(index)!) as Extract<Item, { kind: 'tool' }>[]} onAnswer={onAnswer} onDetails={onDetails} onOpenItem={onOpenItem} />
+              ) : inRun.has(index) ? null : (
+                <ToolRow key={item.id} item={item} onAnswer={onAnswer} onDetails={onDetails} onOpenItem={onOpenItem} />
               ),
             )}
+            {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} />}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
-              <div className="thinking" role="status" aria-label="Mobius is working"><span /><span /><span /></div>
+              <div className="thinking" role="status" aria-label="Mobius is working"><MobiusMark size={22} turning /></div>
             )}
           </div>
+          <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
+          <TurnHistory conversation={state.conversation} busy={state.busy} />
+          {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
+          {queue.items.length > 0 && (
+            <QueuePanel
+              queue={queue}
+              onEdit={(id, text) => setQueue((q) => editQueued(q, id, text))}
+              onRemove={(id) => setQueue((q) => removeQueued(q, id))}
+              onClear={() => setQueue((q) => clearQueue(q))}
+              onSendNext={sendNextQueued}
+            />
+          )}
           <Composer
+            takeFocus={takeFocus}
+            contextUse={state.context}
+            {...(onOpenVoice ? { onOpenVoice } : {})}
+            startersIn={state.items.length === 0 ? starterSlot : null}
+            started={state.items.length > 0}
             draft={draft}
             onDraft={setDraft}
             context={context}
@@ -384,16 +778,55 @@ export function ChatPanel({ surface, state, settings, coreReady, onSend, onStop,
             settings={settings}
             effort={effort}
             onEffort={onEffort}
-            onSend={(text, items) => { onSend(text, items); setDraft(''); setContext([]); }}
+            onSend={(text, items, options) => { onSend(text, items, options); setDraft(''); setContext([]); }}
+            onQueue={(text, items, options) => { setQueue((q) => enqueue(q, text, items, options)); setDraft(''); setContext([]); }}
             onStop={onStop}
+            {...(onTakeOver && !state.control ? { onTakeOver } : {})}
             onModelChanged={onModelChanged}
             onOpenSettings={onOpenSettings}
             fieldRef={field}
             surface={surface}
+            here={hereShown}
+            onRemoveHere={() => setHereOff(here?.key ?? null)}
             activity={activityOf(state)}
           />
         </>
       )}
     </Shell>
+  );
+}
+
+/** The messages waiting for Mobius to finish, each one editable and removable, with Clear queue (and Send next after Stop). */
+function QueuePanel({ queue, onEdit, onRemove, onClear, onSendNext }: { queue: MessageQueue; onEdit: (id: number, text: string) => void; onRemove: (id: number) => void; onClear: () => void; onSendNext: () => void }) {
+  const [editing, setEditing] = useState<{ id: number; text: string } | null>(null);
+  const save = () => { if (editing) onEdit(editing.id, editing.text); setEditing(null); };
+  return (
+    <section className="msg-queue" aria-label="Queued messages">
+      <div className="msg-queue-head">
+        <span className="msg-queue-title">{queue.paused ? `Stopped · ${queue.items.length} waiting` : `${queue.items.length} waiting · sent when Mobius finishes`}</span>
+        {queue.paused && <button type="button" className="link-btn" onClick={onSendNext}>Send next</button>}
+        <button type="button" className="link-btn" onClick={onClear}>Clear queue</button>
+      </div>
+      <ol className="msg-queue-list">
+        {queue.items.map((item, index) => (
+          <li key={item.id} className="msg-queue-item">
+            {editing?.id === item.id ? (
+              <form className="msg-queue-edit" onSubmit={(e) => { e.preventDefault(); save(); }}>
+                <input type="text" aria-label={`Edit queued message ${index + 1}`} value={editing.text} autoFocus onChange={(e) => setEditing({ id: item.id, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setEditing(null); } }} onBlur={save} />
+              </form>
+            ) : (
+              <>
+                <span className="msg-queue-text" title={item.text}>{item.text}</span>
+                {(item.context.length > 0 || item.options?.images?.length) ? <><span className="msg-queue-more" aria-hidden="true" title="With attachments">+</span><span className="sr-only">, with attachments</span></> : null}
+                <button type="button" className="msg-action" aria-label={`Edit queued message ${index + 1}`} onClick={() => setEditing({ id: item.id, text: item.text })}>Edit</button>
+              </>
+            )}
+            <button type="button" className="chip-remove msg-queue-remove" aria-label={`Remove queued message ${index + 1}`} title="Remove" onMouseDown={(e) => e.preventDefault()} onClick={() => { setEditing(null); onRemove(item.id); }}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

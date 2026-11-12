@@ -19,6 +19,8 @@ export interface BrowserTabState {
   icon: string | null;
   /** Pinned tabs stay at the front of the list. Only the Tauri shell has pinning. */
   pinned?: boolean;
+  /** Who is using the tab while a task runs: Mobius reading it, Mobius driving it, or you after taking over. None: yours, as usual. */
+  driver?: 'reading' | 'mobius' | 'yours' | null;
 }
 
 export interface SavedServer {
@@ -115,7 +117,7 @@ export const channels = {
 
 export type CoreStatus = 'starting' | 'ready' | 'restarting' | 'failed';
 
-export type Shortcut = 'launcher' | 'address' | 'new-tab' | 'close-tab' | 'settings' | 'find' | 'quick-entry';
+export type Shortcut = 'launcher' | 'address' | 'new-tab' | 'close-tab' | 'settings' | 'find' | 'split-view' | 'little-mobius' | 'quick-entry';
 
 export interface FindRequest { tabId: string; text: string; forward: boolean; again: boolean }
 /** How a search in the page is going: which match is shown, out of how many. */
@@ -127,29 +129,116 @@ export type NavigateOutcome = 'navigated' | 'ask' | 'blocked' | 'empty';
 
 /** The API the preload script exposes. Nothing else is reachable from the renderer. */
 /** One page of the Notes app: a Markdown file in a notebook folder. `path` is `notebook/page.md`. */
-export interface NotePage { path: string; title: string; modified: number }
+/** `preview` is the first line under the title and `tags` its `#tags`, for Markdown pages (notes, docs, wiki). */
+export interface NotePage { path: string; title: string; modified: number; preview?: string; tags?: string[]; links?: string[] }
 export interface Notebook { name: string; pages: NotePage[] }
 export interface NoteContent { path: string; content: string; modified: number }
 export interface NoteHit { path: string; title: string; notebook: string; line: string }
 /** A refused notes call. `conflict` means the page changed elsewhere (the assistant) since it was read. */
 export interface NotesFailure { ok: false; message: string; conflict?: boolean }
-export interface NotesChange { path: string | null; by: 'person' | 'assistant' }
+/** `undo` is something put back from the review strip: open pages reload, as for the assistant, without new marks. */
+export interface NotesChange { path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 export const isNotesFailure = (value: unknown): value is NotesFailure =>
   typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === false;
 
-/** One task in a list of the Tasks app: a checkbox line in `tasks/<list>.md`. `line` is where it is in the file. */
-export interface TaskItem { line: number; text: string; done: boolean; due: string | null }
+/**
+ * One task in a list of the Tasks app: a checkbox line in `tasks/<list>.md`. `line` is where it is in the file.
+ * `notes` are the lines indented under it; `parent` is the line of the task it sits under, when it is a subtask.
+ */
+export interface TaskItem { line: number; text: string; done: boolean; due: string | null; flagged?: boolean; notes?: string; parent?: number | null }
 export interface TaskList { list: string; tasks: TaskItem[]; version: string }
 export interface TaskListInfo { name: string; open: number; done: number }
-export interface TaskChange { text?: string; done?: boolean; due?: string | null }
+export interface TaskChange { text?: string; done?: boolean; due?: string | null; flagged?: boolean; notes?: string }
+/** Where a task points: its line and its words, which must still match. */
+export interface TaskAt { line: number; expect: string }
 /** `by` says who changed it, so the window can show the agent's work without stealing focus. */
-export interface TasksChanged { list: string | null; by: 'person' | 'assistant' | 'another app' }
+export interface TasksChanged { list: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+
+/** An event in the Calendar app, from `calendar/<calendar>.ics`. Times are local: `YYYY-MM-DD` for an all-day event,
+ * `YYYY-MM-DDTHH:MM` otherwise; `end` is exclusive (an all-day event on the 12th ends on the 13th). A repeating event
+ * is listed once for each time it happens, all with the same id. */
+/** `repeat`: daily, weekdays, weekly, biweekly, monthly or yearly; custom for one made elsewhere; empty when it does not repeat. */
+export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; repeat?: string; readOnly?: boolean }
+/** What Mobius remembers, sorted as How I work in the Wiki shows it: about you, preferences, projects, people, learned skills. */
+export type MemoryCategory = 'you' | 'prefs' | 'work' | 'people' | 'skills';
+export interface MemoryItem { text: string; category: MemoryCategory; source: string; /** Mobius noticed it and you have not kept it yet: shown dashed in How I work. */ learned?: boolean }
+/** A change offered to the Wiki: a line for a page, waiting in Shared with this wiki until it is kept or declined. */
+export interface WikiChange { id: string; from: string; page: string; text: string; whenMs: number }
+/** A page as it was earlier: kept as the person typed, or read from a workspace checkpoint. */
+export interface NoteVersion { whenMs: number; content: string; source?: 'kept' | 'checkpoint'; checkpoint?: string }
+/** A file added beside a page; `ref` is the link to it from the page, `image` whether it shows in the page. */
+/** An image model Settings can offer: on a gateway with a key. */
+export interface ImageModelChoice { gateway: string; gatewayName: string; model: string; label: string }
+/**
+ * A comment on a page: the words it is about (`quote`), what was said, and by whom (`you` or `Mobius`). `replyTo` is the
+ * id of the comment a reply answers: replies sit under it.
+ */
+export interface NoteComment { id: string; quote: string; text: string; by: string; whenMs: number; resolved: boolean; replyTo?: string }
+export interface NoteAttachment { path: string; ref: string; name: string; image: boolean }
+/** A wiki page as it was at a checkpoint. */
+export interface WikiVersion { checkpoint: string; whenMs: number; content: string }
+/** Someone in an email's From, To or Cc. */
+export interface MailPerson { name: string; email: string }
+/** A message in the Mail app's list. `box` is inbox or sent; `category` is sorted on this computer. */
+export interface MailMessage { id: string; account: string; box: 'inbox' | 'sent'; uid: number; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; seen: boolean; flagged: boolean; preview: string; category: MailCategory; attachments: string[]; /** A kept Get to zero plan said it needs a reply. */ needsReply?: boolean; laterMs?: number | null; archived?: boolean }
+export type MailCategory = 'primary' | 'transactions' | 'updates';
+/** A whole message: its text, and its HTML (shown sandboxed, without loading anything from the web). */
+export interface MailContent { id: string; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; text: string; html: string | null; attachments: string[]; category?: MailCategory }
+/** A draft: the person's, or one Mobius suggested (`by` mobius), which waits as a suggestion until opened. */
+export interface MailDraft {
+  /** Send later: when it goes, as you scheduled it. */
+  sendAtMs?: number | null; id: string; account: string; to: string; cc: string; subject: string; body: string; replyTo: string | null; by: 'you' | 'mobius'; why: string; updatedMs: number }
+export interface MailAccount { id: string; name: string; email: string; lastSyncMs: number; problem: string | null }
+export interface MailCounts { primary: number; transactions: number; updates: number; all: number; drafts: number; suggested: number }
+/** A sheet in the Sheets app: each cell as typed (`cells`, a formula starts with =) and as worked out (`values`). */
+export interface SheetData { workbook: string; sheet: string; sheets: string[]; cells: string[][]; values: string[][]; version: string }
+export interface WorkbookInfo { name: string; sheets: string[] }
+export interface SheetsChanged { workbook: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+/** A Code project's file or folder, as a path inside the project, folders first. */
+/** A photo in an album: `path` is `album/name`; `edited` when it has edits beside it. */
+export interface PhotoInfo { path: string; name: string; modified: number; edited: boolean }
+export interface PhotoAlbum { name: string; photos: PhotoInfo[] }
+export interface PhotoContent { path: string; dataUrl: string; edits: string | null; modified: number; editsModified: number | null }
+export interface PhotosChanged { path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+/** A Video project: its clips (footage, never changed) and whether it has a cut yet. */
+export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio' }[]; hasCut: boolean }
+export interface VideoChanged { project: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+/** One agent turn: the checkpoint before it, whether its end was marked, when, what was asked, and what it changed. */
+export interface TurnRecord { start: string; ended: boolean; when: number; ask: string; files: string[] }
+/** A skill: a procedure Mobius follows, `skills/<name>/SKILL.md`, with its earlier versions kept. */
+export interface SkillInfo { name: string; description: string; modified: number; version: number }
+export interface SkillContent { name: string; text: string; modified: number; version: number; versions: { version: number; modified: number; description: string }[] }
+export interface CodeEntry { path: string; folder: boolean; depth: number }
+/** The Database app: SQLite files in `databases/`, their tables, and what a query gave. */
+export interface DbColumn { name: string; type: string }
+export interface DbTable { name: string; columns: DbColumn[]; rows: number }
+export interface DbInfo { name: string; modified: number; tables: DbTable[] }
+export type DbCell = string | number | null;
+export type DbResult = { ok: true; columns: string[]; rows: DbCell[][]; changed: number; truncated: boolean; ms: number } | NotesFailure;
+export interface DbChange { name: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+export interface CodeFile { project: string; path: string; text: string | null; why?: string; modified: number }
+export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean }
+export interface CodeProcess { id: number; command: string; by: 'person' | 'assistant'; started: number; running: boolean; code: number | null; output: string }
+export type CodeGit = { repo: false } | { repo: true; branch: string; changes: { status: string; path: string }[]; ahead: number | null };
+export interface CodeChanged { project: string | null; path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+export interface CodeTestsEvent { project: string; running: boolean; result?: CodeTestRun; command?: string; by: 'person' | 'assistant' }
+export interface CellChange { row: number; col: number; text: string }
+/** An event the agent suggests, waiting for the person to Add or Decline. All-day `end` is the last day, included. */
+export interface CalendarSuggestion { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; why: string }
+/** A calendar and where it is kept: the person's own (`account` null), or an account's. */
+export interface CalendarSource { name: string; account: string | null; readOnly: boolean }
+/** A calendar kept elsewhere: a subscribed link, or a CalDAV account (iCloud, Fastmail, Nextcloud). */
+export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; name: string; url: string; username: string; calendars: string[]; lastSyncMs: number; problem: string | null }
+/** What may be set on an event. An all-day `end` is the last day, included. */
+/** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
+export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
+export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
-export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'device'; models: Array<{ id: string; label: string }> }
-/** A device sign-in waiting for the person to enter `code` at `url`. */
-export interface PendingSignIn { code: string; url: string }
-export interface AccountStatus { installed: boolean; signedIn: boolean; version?: string | null; account?: string | null; hint?: string | null; active?: boolean; pending?: PendingSignIn | null }
+export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'browser'; models: Array<{ id: string; label: string }> }
+/** A browser sign-in waiting for the person to finish it at `url`. */
+export interface PendingSignIn { url: string; /** The code to enter on that page (a GitHub sign-in). */ code?: string | null }
+export interface AccountStatus { installed: boolean; signedIn: boolean; version?: string | null; account?: string | null; hint?: string | null; active?: boolean; pending?: PendingSignIn | null; /** Where the plan's usage limits are seen and changed. */ manageUsage?: string }
 
 /** A model provider in Settings > Providers. The key itself is never sent to the window. */
 export interface ProviderInfo {
@@ -159,10 +248,16 @@ export interface ProviderInfo {
   note: string;
   keyUrl: string | null;
   needsKey: boolean;
+  /** For voice only (ElevenLabs): never a chat model. */
+  voiceOnly?: boolean;
   hasKey: boolean;
   /** The agent is using this provider now. */
   active: boolean;
   storage: 'keychain' | 'session' | 'none';
+  /** You can sign in on the service's own page instead of pasting a key (OpenRouter). */
+  canSignIn?: boolean;
+  /** A gateway at your own address (Azure resource, AWS region): what to name, and the name given. */
+  place?: { label: string; example: string; value: string | null } | null;
 }
 
 export interface MobiusBridge {
@@ -176,6 +271,95 @@ export interface MobiusBridge {
   surface: {
     setBounds(bounds: Bounds | null): void;
   };
+  /** What the last agent turn of a conversation changed in the workspace (notes, tasks, files), and putting it back. */
+  changes: {
+    lastTurn(conversation: string): Promise<TurnChanges | AgentFailure>;
+    undo(conversation: string): Promise<{ ok: true } | AgentFailure>;
+    undoFile(conversation: string, path: string): Promise<{ ok: true } | AgentFailure>;
+    /** A file as it was before the last turn: `text` is null when the turn made it. */
+    before(conversation: string, path: string): Promise<{ ok: true; text: string | null } | AgentFailure>;
+    /** Every turn of the conversation, newest first, with what each changed between its start and its end. */
+    turns(conversation: string): Promise<{ ok: true; turns: TurnRecord[] } | AgentFailure>;
+    /** A file as it was before one turn (`start` names it); `text` is null when that turn made it. */
+    turnBefore(conversation: string, start: string, path: string): Promise<{ ok: true; text: string | null } | AgentFailure>;
+    /** Puts one file back as it was before one turn. Refused with `later` when it changed again after that turn, unless `force`. */
+    undoTurnFile(conversation: string, start: string, path: string, force?: boolean): Promise<{ ok: true } | (AgentFailure & { later?: boolean })>;
+    /** What rewinding to right after one turn would do: how many later turns go, and the files that would change. */
+    rewindPreview?(conversation: string, start: string): Promise<{ ok: true; later: number; files: string[] } | AgentFailure>;
+    /** Everything back as it was right after that turn; the later turns go. `undo` names the rewind for undoRewind. */
+    rewind?(conversation: string, start: string): Promise<{ ok: true; undo: string; later: number } | AgentFailure>;
+    undoRewind?(conversation: string, undo: string): Promise<{ ok: true } | AgentFailure>;
+  };
+  /** Little Mobius: a small window, kept above other apps, with the conversation and nothing else. */
+  mini: {
+    open(): Promise<void>;
+    close(): Promise<void>;
+    isOpen(): Promise<boolean>;
+    /** Bring the full window forward. */
+    showMain(): Promise<void>;
+    setOnTop(onTop: boolean): Promise<void>;
+    /** Says when Little Mobius opens or closes. */
+    onChange(listener: (open: boolean) => void): () => void;
+  };
+  /** Separate sets of data (Personal, Work…). Switching starts Mobius again with the other one. */
+  profiles?: {
+    list(): Promise<ProfilesState>;
+    create(name: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
+    rename(id: string, name: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
+    remove(id: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
+    switch(id: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
+  };
+  /** Requests to make at a time of day, on chosen days. Each run is a new conversation. */
+  /** Sign in once per task: the sites a conversation's task is signed in to. Only the Tauri shell has it. */
+  signins?: {
+    list(conversation: string): Promise<{ ok: true; sites: string[] } | AgentFailure>;
+    /** The person signed in to `site` for this task. */
+    signedIn(conversation: string, site: string): Promise<{ ok: true; sites: string[] } | AgentFailure>;
+    /** Sign out now. */
+    signOut(conversation: string, site: string): Promise<{ ok: true; sites: string[] } | AgentFailure>;
+    /** A page Mobius drives asks for a sign-in this task has not made. */
+    onNeeded(listener: (needed: { conversation: string; site: string; tab: string }) => void): () => void;
+    onChanged(listener: (change: { conversation: string }) => void): () => void;
+  };
+  schedules?: {
+    list(): Promise<ScheduleInfo[]>;
+    add(draft: ScheduleDraft): Promise<{ ok: true; schedule: ScheduleInfo } | AgentFailure>;
+    update(id: string, draft: ScheduleDraft): Promise<{ ok: true; schedule: ScheduleInfo } | AgentFailure>;
+    remove(id: string): Promise<void>;
+    /** Runs it now; says which conversation it started. */
+    runNow(id: string): Promise<{ ok: true; conversation: string } | AgentFailure>;
+    onChange(listener: () => void): () => void;
+  };
+  /** What Mobius remembers about the person between conversations. */
+  memory?: {
+    list(): Promise<string[]>;
+    /** Each fact with its kind and where it was noticed, as How I work shows them. */
+    items(): Promise<MemoryItem[]>;
+    /** The person adds a fact of their own. */
+    add(text: string, category: MemoryCategory): Promise<{ ok: true } | AgentFailure>;
+    edit(old: string, text: string, category: MemoryCategory): Promise<{ ok: true } | AgentFailure>;
+    forget(text: string): Promise<{ ok: true } | AgentFailure>;
+    /** Keep what Mobius learned (or undo that). */
+    keep?(text: string, on: boolean): Promise<{ ok: true } | AgentFailure>;
+    /** Undo of Not true: the fact comes back as it was. */
+    restore?(text: string, category: MemoryCategory, source: string): Promise<{ ok: true } | AgentFailure>;
+    /** The agent remembered or forgot something, or it was forgotten in Settings. */
+    onChange(listener: () => void): () => void;
+  };
+  /** The macOS menu bar, filled from the same menus the window shows in its toolbar elsewhere. */
+  menu?: {
+    set(menus: { id: string; label: string; items: ({ kind: 'item'; id: string; label: string; keys?: string; disabled?: boolean; checked?: boolean } | { kind: 'separator' })[] }[]): Promise<void>;
+    /** An item was chosen in the menu bar. */
+    onSelect(listener: (id: string) => void): () => void;
+  };
+  /** The print in the menu bar or notification area. Optional: not every window or computer has one. */
+  tray?: {
+    set(shown: { state: 'idle' | 'working' | 'needs' | 'done'; tooltip: string; items: { id: string; title: string; status: string }[] }): Promise<void>;
+    /** A conversation was chosen from the tray's menu. */
+    onOpenConversation(listener: (conversation: string) => void): () => void;
+    /** Stop All was chosen: every conversation that is working stops. */
+    onStopAll(listener: () => void): () => void;
+  };
   /** The renderer can see whether the core is up. It cannot call the core: only the main process can. */
   core: {
     getStatus(): Promise<CoreStatus>;
@@ -183,7 +367,9 @@ export interface MobiusBridge {
   };
   /** The conversation with Mobius. The main process holds the connection to the core and to the model; the renderer only asks. */
   agent: {
-    send(conversation: string, text: string, context?: ContextItem[]): Promise<AgentResult<{ turn: number }>>;
+    /** `plan` asks the agent for a plan only: it proposes the steps and does nothing until the person starts it. */
+    /** `options.images` attaches pictures, as `data:` URLs, for models that read them. */
+    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; images?: string[] }): Promise<AgentResult<{ turn: number }>>;
     /** The models the server offers, for the switcher. */
     models(): Promise<AgentResult<{ models: string[] }>>;
     /** Use another model on the same server, with everything else as it was. */
@@ -191,6 +377,12 @@ export interface MobiusBridge {
     /** Turn a recording into text, using the speech model on the server. */
     transcribe(audio: ArrayBuffer, mime: string): Promise<AgentResult<{ text: string }>>;
     cancel(conversation: string): Promise<void>;
+    /** Take over the running task: Mobius pauses at the next safe point and the apps are yours. */
+    takeOver?(conversation: string): Promise<AgentResult>;
+    /** Hand the task back: Mobius reads what is there again, then goes on. */
+    handBack?(conversation: string): Promise<AgentResult>;
+    /** Whether you have control of the conversation's task, and the step Mobius paused at. */
+    control?(conversation: string): Promise<{ theirs: boolean; step?: number; of?: number | null }>;
     history(conversation: string): Promise<Message[]>;
     waiting(conversation: string): Promise<AgentWaiting[]>;
     /** The question the model is waiting on in this conversation, if any. */
@@ -267,13 +459,76 @@ export interface MobiusBridge {
     cancelSignIn(id: string): Promise<void>;
     signOut(id: string): Promise<void>;
     list(): Promise<ProviderInfo[]>;
-    setKey(id: string, key: string): Promise<{ ok: true; storage: 'keychain' | 'session' } | { ok: false; error: string }>;
+    /** `place` names the Azure resource or AWS region for a gateway that has one. */
+    setKey(id: string, key: string, place?: string): Promise<{ ok: true; storage: 'keychain' | 'session' } | { ok: false; error: string }>;
     removeKey(id: string): Promise<void>;
+    /** Sign in on the service's own page instead of pasting a key: gives the page to open; the key arrives by itself. */
+    keySignIn?(id: string): Promise<{ ok: true; url: string; /** The code to enter on that page (Hugging Face's device sign-in). */ code?: string } | { ok: false; error: string }>;
+    /** The page still waiting to be finished, and why the last try failed. */
+    keySignInStatus?(id: string): Promise<{ pending: string | null; error: string | null }>;
+    cancelKeySignIn?(id: string): Promise<void>;
     models(id: string): Promise<{ ok: true; models: string[] } | { ok: false; error: string }>;
     use(id: string, model: string): Promise<AgentResult>;
+    /** The second model, from a gateway (its address and key stay in the core); 'none' takes it away. */
+    useFallback?(id: string, model?: string): Promise<AgentResult>;
+    /** The model for quick jobs, from a gateway (its address and key stay in the core); 'none' gives them to the chat model. */
+    useQuick?(id: string, model?: string): Promise<AgentResult>;
+    /** The image models on gateways with a key (Settings, Models, Images), and the one chosen (`gateway|model` or ''). */
+    imageModels?(): Promise<{ choices: ImageModelChoice[]; chosen: string }>;
+    /** Choose the model that makes pictures; 'none' for none. */
+    useImages?(id: string, model?: string): Promise<AgentResult>;
     onChanged(listener: () => void): () => void;
   };
   /** Other apps using Mobius's tools over MCP. Only the Tauri shell has it. */
+  /** Only the desktop app: projects, each a place with its own rules (counted by the core), threads, memory and files. */
+  /** Software Update: checks by itself, downloads quietly, then restart to install. Off in development. */
+  updates?: {
+    get(): Promise<UpdateInfo>;
+    check(): Promise<UpdateInfo>;
+    restart(): Promise<{ ok: false; error: string } | null>;
+    onChange(listener: (info: UpdateInfo) => void): () => void;
+  };
+  /** Settings, Voice: try the server chosen for listening or speaking. */
+  voice?: {
+    test(job: 'listen' | 'speak'): Promise<{ ok: true; message: string } | { ok: false; error: string }>;
+    /** Whether a speech server answers at the address saved for this computer. Nothing is installed or started. */
+    local?(job: 'listen' | 'speak'): Promise<{ ok: true; ready: boolean; url: string } | { ok: false; error: string }>;
+    /** Words read aloud with the service chosen for speaking, as a data: URL of the sound. `setup` when nothing is chosen. */
+    speak?(text: string): Promise<{ ok: true; audio: string } | { ok: false; error: string; setup?: boolean }>;
+  };
+  /** Comments on anything in the workspace, kept per document in `.comments/<app>/`. */
+  comments?: {
+    list(app: string, doc: string): Promise<CommentThread[] | NotesFailure>;
+    /** Every document of the app that has threads. */
+    all(app: string): Promise<Array<{ doc: string; threads: CommentThread[] }> | NotesFailure>;
+    set(app: string, doc: string, threads: CommentThread[]): Promise<{ app: string; doc: string; threads: CommentThread[] } | NotesFailure>;
+    onChanged(listener: (app: string) => void): () => void;
+  };
+  projects?: {
+    list(): Promise<ProjectInfo[]>;
+    create(name: string): Promise<ProjectInfo | NotesFailure>;
+    remove(id: string): Promise<{ ok: true } | NotesFailure>;
+    /** A new name: its folder in Files and its memory page in the Wiki follow it. */
+    rename(id: string, name: string): Promise<ProjectInfo | NotesFailure>;
+    setRule(id: string, app: string, level: ProjectLevel | 'follow'): Promise<ProjectInfo | NotesFailure>;
+    addThread(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
+    /** Ask a bot, from one of the project's threads, to do something in a side thread of its own. */
+    addSide(id: string, parent: string, conversation: string, bot: string, botName: string, ask: string): Promise<ProjectInfo | NotesFailure>;
+    /** A side thread finished: what it found, for the thread it was asked from. */
+    report(conversation: string, text: string): Promise<ProjectInfo | NotesFailure>;
+    /** Workspace paths the project's threads made or changed, newest first. */
+    made?(id: string): Promise<string[] | NotesFailure>;
+    onChanged(listener: () => void): () => void;
+  };
+  /** Only the desktop app: the workspace folder as a drive, for the person to look through. */
+  files?: {
+    list(path: string): Promise<{ path: string; entries: FileEntry[]; truncated: boolean } | { error: string }>;
+  };
+  /** Only the desktop app: what extends Mobius. */
+  extensions?: {
+    /** The MCP servers from mcp.json: which run, which did not start and why. */
+    connectors(): Promise<ConnectorStatus>;
+  };
   share?: {
     status(): Promise<ShareStatus>;
     set(change: { enabled?: boolean; allowChanges?: boolean; port?: number }): Promise<AgentResult>;
@@ -286,12 +541,197 @@ export interface MobiusBridge {
     lists(): Promise<TaskListInfo[] | NotesFailure>;
     read(list: string): Promise<TaskList | NotesFailure>;
     createList(name: string): Promise<{ name: string } | NotesFailure>;
-    add(list: string, text: string, due: string | null): Promise<TaskList | NotesFailure>;
+    /** `under`: the task it goes under, as a subtask. */
+    add(list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt }): Promise<TaskList | NotesFailure>;
     update(list: string, line: number, expect: string, change: TaskChange): Promise<TaskList | NotesFailure>;
-    remove(list: string, line: number, expect: string): Promise<TaskList | NotesFailure>;
+    /** Takes its notes and subtasks too; `removed` is what went, for `restore`. */
+    remove(list: string, line: number, expect: string): Promise<(TaskList & { removed?: { line: number; text: string } }) | NotesFailure>;
+    restore?(list: string, line: number, text: string): Promise<TaskList | NotesFailure>;
+    /** To the end of `to`, or before the task `before` there. Answers with `to`. */
+    move?(list: string, line: number, expect: string, to: string, before?: TaskAt): Promise<TaskList | NotesFailure>;
+    renameList?(list: string, to: string): Promise<{ name: string } | NotesFailure>;
+    /** `text` is what the list had, for `restoreList` (Undo). */
+    deleteList?(list: string): Promise<{ name: string; text?: string } | NotesFailure>;
+    restoreList?(list: string, text: string): Promise<{ name: string } | NotesFailure>;
     clearDone(list: string): Promise<TaskList | NotesFailure>;
     onChanged(listener: (change: TasksChanged) => void): () => void;
   };
+  /** The Calendar app. Only the Tauri shell has it. */
+  calendar?: {
+    calendars(): Promise<string[] | NotesFailure>;
+    /** Between two days, both included. */
+    events(from: string, to: string): Promise<CalendarEvent[] | NotesFailure>;
+    create(name: string): Promise<{ name: string } | NotesFailure>;
+    add(calendar: string, draft: CalendarDraft): Promise<CalendarEvent | NotesFailure>;
+    update(calendar: string, id: string, draft: CalendarDraft): Promise<CalendarEvent | NotesFailure>;
+    remove(calendar: string, id: string): Promise<{ calendar: string; removed: string } | NotesFailure>;
+    sources(): Promise<CalendarSource[] | NotesFailure>;
+    suggestions(): Promise<CalendarSuggestion[] | NotesFailure>;
+    accept(id: string): Promise<CalendarEvent | NotesFailure>;
+    decline(id: string): Promise<{ declined: string } | NotesFailure>;
+    accounts(): Promise<CalendarAccount[] | NotesFailure>;
+    subscribe(name: string, link: string): Promise<{ id: string; name: string } | NotesFailure>;
+    connect(account: { name: string; server: string; username: string; password: string }): Promise<{ id: string; name: string; calendars: string[] } | NotesFailure>;
+    removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
+    /** Reads one account (or all of them) again now. */
+    sync(id: string | null): Promise<CalendarAccount[] | NotesFailure>;
+    onChanged(listener: (change: CalendarChanged) => void): () => void;
+  };
+  /** The Mail app. Only the person sends: `send` is for the Send button, and the agent has no way to send. */
+  mail?: {
+    accounts(): Promise<MailAccount[] | NotesFailure>;
+    /** `preset` is icloud, fastmail, gmail, yahoo or other (then the servers are given). */
+    connect(account: { preset: string; email: string; password: string; imapHost?: string; imapPort?: number; smtpHost?: string; smtpPort?: number }): Promise<{ id: string; email: string } | NotesFailure>;
+    removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
+    sync(id: string | null): Promise<MailAccount[] | NotesFailure>;
+    list(box: 'inbox' | 'sent' | 'all', category: MailCategory | 'all', query: string): Promise<MailMessage[] | NotesFailure>;
+    counts(): Promise<MailCounts | NotesFailure>;
+    read(id: string): Promise<MailContent | NotesFailure>;
+    flag(id: string, which: 'seen' | 'flagged', on: boolean): Promise<{ ok: true } | NotesFailure>;
+    sort(id: string, category: MailCategory): Promise<{ ok: true } | NotesFailure>;
+    drafts(): Promise<MailDraft[] | NotesFailure>;
+    saveDraft(draft: Partial<MailDraft>): Promise<MailDraft | NotesFailure>;
+    deleteDraft(id: string): Promise<{ ok: true } | NotesFailure>;
+    send(id: string): Promise<{ ok: true } | NotesFailure>;
+    /** Get to zero: what Mobius proposes for everything in the inbox. */
+    plan?(): Promise<MailPlan | NotesFailure>;
+    /** Keep the plan: archive, mark for reply, put off until tomorrow 8:00, and add the to-dos to Tasks. */
+    keepPlan?(plan: MailPlan): Promise<{ ok: true; todos: string[]; list: string } | NotesFailure>;
+    /** Undo all: put back everything the last kept plan did. */
+    undoPlan?(): Promise<{ ok: true } | NotesFailure>;
+    archive?(id: string, on: boolean): Promise<{ ok: true } | NotesFailure>;
+    /** Out of the inbox until then (null: back now). */
+    remind?(id: string, atMs: number | null): Promise<{ ok: true } | NotesFailure>;
+    /** Send later: when a kept draft of yours goes (null: unschedule). */
+    schedule?(id: string, atMs: number | null): Promise<MailDraft | NotesFailure>;
+    /** When the person a draft is to is usually on mail, as Mobius's suggestion for Send later. */
+    suggestSend?(id: string): Promise<{ atMs: number; why: string } | null>;
+    onChanged(listener: (change: { by: string }) => void): () => void;
+  };
+  /** The Sheets app: workbooks of CSV sheets in `sheets/<workbook>/`. Only the Tauri shell has it. */
+  sheets?: {
+    list(): Promise<WorkbookInfo[] | NotesFailure>;
+    read(workbook: string, sheet: string): Promise<SheetData | NotesFailure>;
+    /** Refused with `conflict` when the sheet changed since `version`. */
+    set(workbook: string, sheet: string, cells: CellChange[], version: string | null): Promise<SheetData | NotesFailure>;
+    shift(workbook: string, sheet: string, what: 'row' | 'column', at: number, insert: boolean): Promise<SheetData | NotesFailure>;
+    createWorkbook(name: string): Promise<{ name: string; sheet: string } | NotesFailure>;
+    addSheet(workbook: string, name: string): Promise<{ workbook: string; sheet: string } | NotesFailure>;
+    renameSheet(workbook: string, sheet: string, name: string): Promise<{ workbook: string; sheet: string } | NotesFailure>;
+    removeSheet(workbook: string, sheet: string): Promise<{ workbook: string; removed: string } | NotesFailure>;
+    onChanged(listener: (change: SheetsChanged) => void): () => void;
+  };
+  /** The Code app: projects are folders in `code/`; the test command of each is the person's. Only the Tauri shell has it. */
+  code?: {
+    projects(): Promise<{ name: string; modified: number }[] | NotesFailure>;
+    createProject(name: string): Promise<{ name: string } | NotesFailure>;
+    tree(project: string): Promise<{ project: string; entries: CodeEntry[]; truncated: boolean } | NotesFailure>;
+    read(project: string, path: string): Promise<CodeFile | NotesFailure>;
+    /** Refused with `conflict` when the file changed since `base`. */
+    save(project: string, path: string, text: string, base: number | null): Promise<{ project: string; path: string; modified: number } | NotesFailure>;
+    createFile(project: string, path: string): Promise<{ project: string; path: string; modified: number } | NotesFailure>;
+    removeFile(project: string, path: string): Promise<{ project: string; path: string } | NotesFailure>;
+    testCommand(project: string): Promise<{ command: string | null; suggested: string | null } | NotesFailure>;
+    setTestCommand(project: string, command: string): Promise<{ ok: true } | NotesFailure>;
+    runTests(project: string): Promise<CodeTestRun | NotesFailure>;
+    /** A command the person typed in the console, run in the project's folder. */
+    runCommand(project: string, command: string): Promise<CodeTestRun | NotesFailure>;
+    /** Commands left running in the project (a server, a watcher), with what they printed last. */
+    processes(project: string): Promise<CodeProcess[]>;
+    start(project: string, command: string): Promise<{ id: number } | NotesFailure>;
+    stopProcess(id: number): Promise<{ id: number } | NotesFailure>;
+    onProcesses(listener: () => void): () => void;
+    /** A command run in a project, by the person or (when allowed) by Mobius. */
+    onConsole(listener: (event: { project: string; command: string; result: CodeTestRun; by: 'person' | 'assistant' }) => void): () => void;
+    /** The project's git state, when it is a repository. */
+    git(project: string): Promise<CodeGit | NotesFailure>;
+    commit(project: string, message: string): Promise<{ ok: true; commit: string } | NotesFailure>;
+    push(project: string): Promise<{ ok: true; branch: string } | NotesFailure>;
+    onChanged(listener: (change: CodeChanged) => void): () => void;
+    onTests(listener: (event: CodeTestsEvent) => void): () => void;
+  };
+  /** The Docs app: documents kept like notes, as Markdown in `docs/<folder>/<doc>.md`. Only the Tauri shell has it. */
+  docs?: NonNullable<MobiusBridge['notes']>;
+  /** The Wiki app: pages kept like notes, as Markdown in `wiki/<folder>/<page>.md`, and the changes offered to it. */
+  wiki?: Omit<NonNullable<MobiusBridge['notes']>, 'versions'> & {
+    versions?(path: string): Promise<WikiVersion[] | NotesFailure>;
+    incoming?(): Promise<WikiChange[]>;
+    offer?(from: string, text: string, page?: string): Promise<WikiChange | NotesFailure>;
+    /** Keep a change: its line (or `text`, edited first) is added to its page. */
+    keepChange?(id: string, text?: string): Promise<{ ok: true; change: WikiChange; line: string } | NotesFailure>;
+    declineChange?(id: string): Promise<{ ok: true; change: WikiChange } | NotesFailure>;
+    /** Undo a keep (`keptLine` is taken back out of the page) or a decline: the change waits again. */
+    undoChange?(change: WikiChange, keptLine: string | null): Promise<{ ok: true } | NotesFailure>;
+  };
+  /** The Slides app: decks kept like notes, as Markdown in `slides/<folder>/<deck>.md`. Only the Tauri shell has it. */
+  slides?: NonNullable<MobiusBridge['notes']>;
+  /** The Video app: projects in `video/`, each with its clips and `cut.json`. Only the Tauri shell has it. */
+  video?: {
+    projects(): Promise<VideoProject[] | NotesFailure>;
+    createProject(name: string): Promise<{ name: string } | NotesFailure>;
+    readCut(project: string): Promise<{ project: string; text: string | null; modified: number | null } | NotesFailure>;
+    /** Refused with `conflict` when the cut changed since `base` (null: there was none). */
+    saveCut(project: string, text: string, base: number | null): Promise<{ project: string; modified: number } | NotesFailure>;
+    addClip(project: string, name: string, data: string): Promise<{ project: string; clip: string } | NotesFailure>;
+    showFolder(project: string): Promise<{ ok: true } | NotesFailure>;
+    onChanged(listener: (change: VideoChanged) => void): () => void;
+  };
+  /** The Skills app. Only the Tauri shell has it. */
+  skills?: {
+    list(): Promise<SkillInfo[] | NotesFailure>;
+    read(name: string): Promise<SkillContent | NotesFailure>;
+    /** Keeps the version it replaces. Refused with `conflict` when it changed since `base`. */
+    save(name: string, text: string, base: number | null): Promise<{ name: string; modified: number } | NotesFailure>;
+    create(title: string, description: string): Promise<{ name: string; text: string; modified: number } | NotesFailure>;
+    /** Adds a skill someone shared, from its SKILL.md text. */
+    install(text: string): Promise<{ name: string; text: string; modified: number } | NotesFailure>;
+    restore(name: string, version: number): Promise<{ name: string; modified: number } | NotesFailure>;
+    remove(name: string): Promise<{ removed: string } | NotesFailure>;
+    onChanged(listener: (change: { name: string | null; by: string }) => void): () => void;
+  };
+  /** The Photo app: albums in `photos/`, each photo's edits beside it as `<photo>.edits.json`. Only the Tauri shell has it. */
+  photos?: {
+    albums(): Promise<PhotoAlbum[] | NotesFailure>;
+    createAlbum(name: string): Promise<{ name: string } | NotesFailure>;
+    read(path: string): Promise<PhotoContent | NotesFailure>;
+    /** Refused with `conflict` when the edits changed since `base` (null: there were none). */
+    saveEdits(path: string, text: string, base: number | null): Promise<{ path: string; editsModified: number } | NotesFailure>;
+    /** `data` is the picture as base64. */
+    add(album: string, name: string, data: string): Promise<{ path: string } | NotesFailure>;
+    /** Writes the edited picture (JPEG, base64) next to the photo; says where. */
+    export(path: string, data: string): Promise<{ path: string } | NotesFailure>;
+    onChanged(listener: (change: PhotosChanged) => void): () => void;
+  };
+  /** The Studio app: songs kept like notes, as JSON in `studio/<folder>/<song>.json`. Only the Tauri shell has it. */
+  songs?: NonNullable<MobiusBridge['notes']>;
+  /** The Design app: designs kept like notes, as JSON in `designs/<folder>/<design>.json`. Only the Tauri shell has it. */
+  designs?: NonNullable<MobiusBridge['notes']>;
+  /** The Canvas app: boards kept like notes, as JSON in `boards/<folder>/<board>.json`. Only the Tauri shell has it. */
+  boards?: NonNullable<MobiusBridge['notes']>;
+  /** The Research app: reports kept like documents, as Markdown in `research/<folder>/<report>.md`. Only the Tauri shell has it. */
+  research?: NonNullable<MobiusBridge['notes']>;
+  /** The Reader app: articles kept to read later, as Markdown in `reading/<folder>/<article>.md`, and fetching one. */
+  /** The Terminal app: the person's commands in a folder of the workspace (`cwd`, from the workspace with `/`). */
+  terminal?: {
+    places(): Promise<{ cwd: string; name: string; within?: string }[]>;
+    /** Where `cd target` leads from `cwd`. */
+    resolve(cwd: string, target: string): Promise<{ ok: true; cwd: string } | NotesFailure>;
+    run(cwd: string, command: string): Promise<(CodeTestRun & { cwd: string }) | NotesFailure>;
+    start(cwd: string, command: string): Promise<{ id: number } | NotesFailure>;
+    processes(): Promise<CodeProcess[]>;
+    stop(id: number): Promise<unknown>;
+  };
+  databases?: {
+    list(): Promise<DbInfo[]>;
+    create(name: string): Promise<{ ok: true; name: string } | NotesFailure>;
+    remove(name: string): Promise<{ ok: true } | NotesFailure>;
+    /** A CSV as a new table; the first row names the columns. */
+    importCsv(name: string, table: string, csv: string): Promise<{ ok: true; table: string; columns: string[]; rows: number } | NotesFailure>;
+    /** One statement, which may change the database; at most 1000 rows come back. */
+    query(name: string, sql: string): Promise<DbResult>;
+    onChanged(listener: (change: DbChange) => void): () => void;
+  };
+  reading?: NonNullable<MobiusBridge['notes']> & { fetch(url: string): Promise<{ ok: true; url: string; title: string; text: string } | { ok: false; message: string }> };
   /** The Notes app. Only the Tauri shell has it. */
   notes?: {
     list(): Promise<Notebook[] | NotesFailure>;
@@ -302,6 +742,17 @@ export interface MobiusBridge {
     createPage(notebook: string, title: string): Promise<NoteContent | NotesFailure>;
     remove(path: string): Promise<{ ok: true } | NotesFailure>;
     search(query: string): Promise<NoteHit[] | NotesFailure>;
+    /** The page's earlier versions, newest first: kept as the person typed, and from the workspace checkpoints. */
+    versions?(path: string): Promise<NoteVersion[] | NotesFailure>;
+    /** Add a file (base64) to the page's files folder; `ref` is the link to put in the page. */
+    attach?(path: string, name: string, base64: string): Promise<NoteAttachment | NotesFailure>;
+    /** One of the page's files, as a `data:` address to show. */
+    asset?(path: string, ref: string): Promise<{ dataUrl: string; size: number } | NotesFailure>;
+    /** The page's comments, kept beside it (`.comments/`), and keeping them. */
+    comments?(path: string): Promise<NoteComment[] | NotesFailure>;
+    setComments?(path: string, comments: NoteComment[]): Promise<{ path: string; comments: NoteComment[] } | NotesFailure>;
+    /** A copy of the page in the workspace's Exports folder: `html` is made by the window, `md` takes the page's files along. */
+    export?(path: string, kind: 'html' | 'md', html?: string): Promise<{ path: string; saved: string; name: string } | NotesFailure>;
     onChanged(listener: (change: NotesChange) => void): () => void;
   };
   history: {
@@ -334,6 +785,8 @@ export interface MobiusBridge {
     page(): Promise<AgentResult<{ item: ContextItem }>>;
     /** A text file the person picks, as something to attach. `cancelled` when they close the picker. */
     file(): Promise<AgentResult<{ item: ContextItem | null }>>;
+    /** The text selected on the page that is showing, as something to attach. */
+    selection(): Promise<AgentResult<{ item: ContextItem }>>;
   };
   preferences: {
     get(): Promise<PreferencesSettings>;
@@ -372,7 +825,7 @@ export interface MobiusBridge {
 }
 
 /** A tool call that is waiting for a person to allow or decline it. */
-export interface AgentWaiting { requestId: number; callId: string; tool: string; arguments: unknown; onceOnly: boolean }
+export interface AgentWaiting { requestId: number; callId: string; tool: string; arguments: unknown; onceOnly: boolean; /** The request came from something Mobius read, not from the person. */ origin?: string | null }
 
 export type AgentResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -479,15 +932,35 @@ export interface AppearanceSettings {
   navigation: NavigationStyle;
   /** The agent panel on the right: part of the window, or floating over it and hiding itself. */
   rightSidebar: SidebarMode;
+  /** Where Mobius opens: the sidebar turns into Mobius (the default), or it is pinned beside the page. */
+  agentPlace: 'sidebar' | 'beside';
   /** How wide the left list is, in pixels. */
   leftWidth: number;
   /** How wide the agent panel is, in pixels. */
   rightWidth: number;
+  /** The apps the sidebar lists, in order. The others stay in All apps. */
+  sidebarApps: SidebarApp[];
+  /** Notes, task lists and web pages pinned under the apps in the sidebar, in order. */
+  favourites: Favourite[];
+  /** The note page text saved from a web page goes to, by path; empty for a page called Clippings. */
+  clippingsPage: string;
 }
+/** A note (by page path), a task list (by name) or a web page (by address), kept one click away. */
+export interface Favourite { kind: 'note' | 'list' | 'page'; id: string; title: string }
+export const MAX_FAVOURITES = 8;
+const isFavourite = (v: unknown): v is Favourite => {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+  const { kind, id, title } = v as Record<string, unknown>;
+  const text = (s: unknown, max: number) => typeof s === 'string' && s.length > 0 && [...s].length <= max && !/[\u0000-\u001f\u007f]/.test(s);
+  return Object.keys(v).length === 3 && (kind === 'note' || kind === 'list' || kind === 'page') && text(id, 2000) && text(title, 120);
+};
+/** The apps that can be kept in the sidebar. */
+export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'] as const;
+export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
 export type NavigationStyle = 'sidebar' | 'rail';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 380 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'sidebar', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -502,6 +975,10 @@ export interface AboutInfo {
 }
 
 /** What the settings panel may know. The key itself is never sent back to the renderer. */
+/** The files an agent turn changed, relative to the workspace, and the checkpoint taken before it began. */
+export interface TurnChanges { checkpoint: string | null; files: string[] }
+export interface AgentFailure { ok: false; error: string }
+
 export interface AgentSettings {
   baseUrl: string;
   model: string;
@@ -651,13 +1128,45 @@ export interface ModelGroup {
   name: string;
   /** The agent is using this group now. */
   active: boolean;
+  /** Where its requests go (never a key), so a second model can be shown as coming from it. */
+  address?: string;
   models: Array<{ id: string; label: string; current?: boolean }>;
   error: string | null;
 }
 export interface ModelCatalog { current: string; groups: ModelGroup[] }
 
 /** Settings > Advanced > Other apps. */
+export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number }
+export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null }
 export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }
+
+/** Software Update's state, with the words to show and the version running. */
+export interface UpdateInfo {
+  state: 'off' | 'idle' | 'checking' | 'upToDate' | 'downloading' | 'ready' | 'failed';
+  status: string;
+  current: string;
+  version?: string;
+  percent?: number;
+  checkedMs?: number;
+}
+
+/** What a comment is pinned to: an object's stable id (`data-comment-id`), or a place in the document (0 to 1). */
+export interface CommentAnchor { id?: string; x?: number; y?: number; label: string }
+/** `open` just written, `sent` asked of Mobius, `note` kept for people (Mobius does not read it), `resolved` done. */
+export type CommentState = 'open' | 'sent' | 'note' | 'resolved';
+export interface CommentThread {
+  id: string;
+  doc: string;
+  anchor: CommentAnchor;
+  text: string;
+  /** The words of what it is pinned to, for Mobius. */
+  context: string;
+  by: string;
+  whenMs: number;
+  state: CommentState;
+  reply?: string;
+  conversation?: string;
+}
 
 /** A question the model put to the person. */
 export interface AgentQuestion { callId: string; question: string; choices: string[] }
@@ -671,13 +1180,16 @@ function validEvent(event: unknown): event is AgentEvent {
     case 'message': return isString(event.text);
     case 'tool_call': return isString(event.call_id) && isString(event.name);
     case 'tool_result': return isString(event.call_id) && isString(event.name) && typeof event.is_error === 'boolean';
-    case 'needs_approval': return isCount(event.request_id) && isString(event.call_id) && isString(event.tool) && 'arguments' in event && (event.once_only === undefined || typeof event.once_only === 'boolean');
+    case 'needs_approval': return isCount(event.request_id) && isString(event.call_id) && isString(event.tool) && 'arguments' in event && (event.once_only === undefined || typeof event.once_only === 'boolean') && (event.origin === undefined || event.origin === null || typeof event.origin === 'string');
     case 'failed': return isString(event.message);
     case 'compacted': return isCount(event.messages);
+    case 'context': return isCount(event.used) && isCount(event.limit) && event.limit > 0;
     case 'todo': return Array.isArray(event.items) && event.items.length <= 50 && event.items.every((i: unknown) => isObject(i) && isString(i.text) && i.text.length <= 300 && TODO_STATUSES.includes(i.status as string));
     case 'question': return isString(event.call_id) && isString(event.question) && event.question.length > 0 && event.question.length <= 1000 && Array.isArray(event.choices) && event.choices.length <= 6 && event.choices.every((c: unknown) => isString(c) && c.length <= 200);
     case 'done':
     case 'cancelled': return true;
+    case 'paused': return isCount(event.step) && (event.of === undefined || event.of === null || isCount(event.of));
+    case 'resumed': return true;
     default: return false;
   }
 }
@@ -715,6 +1227,12 @@ export function parseActivityLimit(value: unknown): number {
 }
 
 /** A model's name as a server knows it: short, one line, nothing odd. */
+export const LISTEN_WITH = ['chat', 'local', 'elevenlabs', 'off'] as const;
+export type ListenWith = (typeof LISTEN_WITH)[number];
+export const SPEAK_WITH = ['local', 'elevenlabs', 'off'] as const;
+export type SpeakWith = (typeof SPEAK_WITH)[number];
+/** A speech server's address: http or https, one line, no spaces, up to 300 characters. */
+export const isVoiceUrl = (v: unknown): v is string => typeof v === 'string' && /^https?:\/\/\S+$/.test(v) && v.length > 8 && v.length <= 300 && !/[\u0000-\u001f\u007f]/.test(v);
 export const isModelName = (v: unknown): v is string => typeof v === 'string' && v.length >= 1 && v.length <= 200 && !/[\u0000-\u001f\u007f]/.test(v);
 const inRange = (v: unknown, range: { min: number; max: number }): v is number => typeof v === 'number' && Number.isFinite(v) && v >= range.min && v <= range.max;
 const oneOf = <T extends string>(...choices: T[]) => (v: unknown): v is T => typeof v === 'string' && (choices as string[]).includes(v);
@@ -733,8 +1251,12 @@ export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) 
   leftSidebar: oneOf<SidebarMode>('attached', 'floating'),
   navigation: oneOf<NavigationStyle>('sidebar', 'rail'),
   rightSidebar: oneOf<SidebarMode>('attached', 'floating'),
+  agentPlace: oneOf<'sidebar' | 'beside'>('sidebar', 'beside'),
   leftWidth: (v): v is number => inRange(v, SIDEBAR_WIDTH.left),
   rightWidth: (v): v is number => inRange(v, SIDEBAR_WIDTH.right),
+  clippingsPage: (v): v is string => typeof v === 'string' && (v === '' || (v.endsWith('.md') && [...v].length <= 500 && !/[\u0000-\u001f\u007f]/.test(v))),
+  favourites: (v): v is Favourite[] => Array.isArray(v) && v.length <= MAX_FAVOURITES && v.every(isFavourite),
+  sidebarApps: (v): v is SidebarApp[] => Array.isArray(v) && v.length > 0 && v.length <= SIDEBAR_APPS.length && new Set(v).size === v.length && v.every((id) => (SIDEBAR_APPS as readonly unknown[]).includes(id)),
 };
 
 /** A change to a group of settings: any of the known fields, each checked. Anything unknown is dropped; nothing valid means null. */
@@ -751,6 +1273,15 @@ export function parsePatch<T extends object>(checks: { [K in keyof T]: (v: unkno
 
 export function parseAppearancePatch(value: unknown): Partial<AppearanceSettings> | null {
   return parsePatch(APPEARANCE_CHECKS, value);
+}
+
+/**
+ * A reply that really is the look: its known choices, each checked, over the defaults. Anything else (a failure such as
+ * { ok: false, error }, or a choice out of range) is null, so it can never replace the look the window has.
+ */
+export function parseAppearance(value: unknown): AppearanceSettings | null {
+  const patch = parseAppearancePatch(value);
+  return patch ? { ...DEFAULT_APPEARANCE, ...patch } : null;
 }
 
 /** Choices about how Mobius behaves around you, as opposed to how it looks. */
@@ -777,11 +1308,56 @@ export interface PreferencesSettings {
   reasoningEffort: EffortChoice;
   /** The speech-to-text model asked for when dictating, on the same server as the chat model. */
   dictationModel: string;
+  /** Who listens (speech to text): the chat model's server, a speech server on this computer, ElevenLabs, or no one. */
+  listenWith: ListenWith;
+  /** Tried when the first cannot listen. */
+  listenFallback: ListenWith;
+  /** The speech server on this computer, in OpenAI's audio format (faster-whisper and the like). */
+  listenUrl: string;
+  /** Who speaks (text to speech). */
+  speakWith: SpeakWith;
+  speakFallback: SpeakWith;
+  /** The speech server on this computer, in OpenAI's audio format (Kokoro and the like). */
+  speakUrl: string;
+  speakModel: string;
+  /** The voice to speak with; empty for the server's own. */
+  speakVoice: string;
+  /** Install a downloaded update by itself, the next time Mobius quits. */
+  autoUpdate: boolean;
+  /** Read new replies aloud with the service chosen for speaking. */
+  readAloud: boolean;
+  /** How much the agent may do in each app without asking: off, ask (the usual), read, or act. Risky actions still ask. */
+  appAccess: AppAccess;
+  /** The model for quick jobs (the Act mode's reviewer): `gateway|model`, or empty for the chat model. */
+  quickModel: string;
+  /** The model that makes pictures (`gateway|model`), or empty for none. */
+  imageModel: string;
+  /** The apps added from Abilities, beside Home and Mobius's own; null is every app (an install from before Abilities). */
+  installedApps: string[] | null;
+}
+export interface ProfilesState { current: string; list: { id: string; name: string }[] }
+/** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
+export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean }
+export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
+/** Per app: follow the approval mode, always ask the person, or off. */
+export type AccessLevel = 'follow' | 'always' | 'off';
+/** `calendar` came later: a setting saved before it leaves it out, and it follows the mode. */
+export type AppAccess = Record<'browser' | 'notes' | 'tasks', AccessLevel> & { docs?: AccessLevel; sheets?: AccessLevel; slides?: AccessLevel; calendar?: AccessLevel; mail?: AccessLevel; research?: AccessLevel; reader?: AccessLevel; code?: AccessLevel; database?: AccessLevel; design?: AccessLevel; canvas?: AccessLevel; photo?: AccessLevel; studio?: AccessLevel; video?: AccessLevel; skills?: AccessLevel };
+export const DEFAULT_APP_ACCESS: AppAccess = { browser: 'follow', notes: 'follow', docs: 'follow', sheets: 'follow', slides: 'follow', tasks: 'follow', calendar: 'follow', mail: 'follow', research: 'follow', reader: 'follow', code: 'follow', database: 'follow', design: 'follow', canvas: 'follow', photo: 'follow', studio: 'follow', video: 'follow', skills: 'follow' };
+const ACCESS_LEVELS: readonly string[] = ['follow', 'always', 'off'];
+export function isAppAccess(v: unknown): v is AppAccess {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+  const o = v as Record<string, unknown>;
+  const apps = ['browser', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'research', 'reader', 'code', 'database', 'design', 'canvas', 'photo', 'studio', 'video', 'skills'];
+  return Object.keys(o).every((k) => apps.includes(k))
+    && (['browser', 'notes', 'tasks'] as const).every((app) => ACCESS_LEVELS.includes(o[app] as string))
+    && (['docs', 'sheets', 'slides', 'calendar', 'mail'] as const).every((app) => o[app] === undefined || ACCESS_LEVELS.includes(o[app] as string));
 }
 /** `none` turns thinking off where the model allows it (models on this computer). */
 export type EffortChoice = '' | 'none' | 'low' | 'medium' | 'high';
 export const DEFAULT_DICTATION_MODEL = 'whisper-1';
-export type ApprovalModeChoice = 'manual' | 'smart' | 'off';
+/** Ask first (manual), Propose, or Act (smart). Off is from before the three modes and reads as Act. */
+export type ApprovalModeChoice = 'manual' | 'propose' | 'smart' | 'off';
 /** The context sizes offered for local models. */
 export const CONTEXT_SIZES: readonly number[] = [4096, 8192, 16384, 32768, 65536];
 export const DEFAULT_CONTEXT = 16384;
@@ -790,7 +1366,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'manual', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -800,10 +1376,24 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   keepAwake: isFlag,
   localContext: (v): v is number => typeof v === 'number' && CONTEXT_SIZES.includes(v),
   agentPrivateUrls: isFlag,
-  approvalMode: oneOf<ApprovalModeChoice>('manual', 'smart', 'off'),
+  approvalMode: oneOf<ApprovalModeChoice>('manual', 'propose', 'smart', 'off'),
   keybindings: isKeyBindings,
   reasoningEffort: oneOf<EffortChoice>('', 'none', 'low', 'medium', 'high'),
   dictationModel: (v): v is string => isModelName(v),
+  listenWith: oneOf<ListenWith>(...LISTEN_WITH),
+  listenFallback: oneOf<ListenWith>(...LISTEN_WITH),
+  listenUrl: (v): v is string => isVoiceUrl(v),
+  speakWith: oneOf<SpeakWith>(...SPEAK_WITH),
+  speakFallback: oneOf<SpeakWith>(...SPEAK_WITH),
+  speakUrl: (v): v is string => isVoiceUrl(v),
+  speakModel: (v): v is string => isModelName(v),
+  autoUpdate: (v): v is boolean => typeof v === 'boolean',
+  readAloud: (v): v is boolean => typeof v === 'boolean',
+  speakVoice: (v): v is string => typeof v === 'string' && [...v].length <= 100 && !/[\u0000-\u001f\u007f]/.test(v),
+  appAccess: isAppAccess,
+  quickModel: (v): v is string => typeof v === 'string' && (v === '' || /^[A-Za-z0-9-]{1,40}\|[^\r\n]{1,200}$/.test(v)),
+  installedApps: (v): v is string[] | null => v === null || (Array.isArray(v) && v.length <= 40 && v.every((x) => typeof x === 'string' && /^[a-z]{1,20}$/.test(x))),
+  imageModel: (v): v is string => typeof v === 'string' && (v === '' || /^[A-Za-z0-9-]{1,40}\|[^\r\n]{1,200}$/.test(v)),
 };
 export function parsePreferencesPatch(value: unknown): Partial<PreferencesSettings> | null {
   return parsePatch(PREFERENCES_CHECKS, value);
@@ -846,3 +1436,15 @@ export function parseHistoryQuery(value: unknown): string {
 export function parseHistoryUrl(value: unknown): string | null {
   return typeof value === 'string' && value.length <= 2048 ? value : null;
 }
+
+/** One message in a Get to zero plan. To-dos also say what goes into Tasks. */
+export interface MailPlanRow { id: string; from: string; subject: string; text?: string }
+/** Get to zero: what Mobius proposes for everything in the inbox. */
+export interface MailPlan { archive: MailPlanRow[]; reply: MailPlanRow[]; todos: MailPlanRow[]; later: MailPlanRow[] }
+
+/** How much Mobius may do in one app of a project: Ask first, Propose or Act. */
+export type ProjectLevel = 'ask' | 'propose' | 'act';
+/** A project: its name, its rules by app, and its conversations (threads). */
+export interface ProjectInfo { id: string; name: string; rules: Partial<Record<string, ProjectLevel>>; threads: string[]; sides?: ProjectSide[] }
+/** A bot asked from a project thread to do something in a side thread of its own, and what it reported back. */
+export interface ProjectSide { conversation: string; parent: string; bot: string; botName: string; ask: string; report?: string | null }

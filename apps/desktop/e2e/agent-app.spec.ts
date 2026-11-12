@@ -49,7 +49,7 @@ test('the launcher opens the Agent as a full app: the page is hidden and the sid
   await expect(shell().getByRole('complementary', { name: 'Agent' })).toHaveCount(0);
   await expect(shell().getByRole('textbox', { name: 'Address or question' })).toHaveCount(0);
   await expect.poll(async () => (await visibleViews()).length).toBe(0);
-  await expect(shell().getByRole('button', { name: /Applications. Current: Agent/ })).toBeVisible();
+  await expect(shell().getByRole('button', { name: 'Switch app. Current: Agent' })).toBeVisible();
 });
 
 test('going back to the Browser restores the page, the tabs and the side panel with the same conversation', async () => {
@@ -104,7 +104,7 @@ test('settings opens over the Agent app and closes back to it', async () => {
   const page = shell().getByRole('region', { name: 'Settings' });
   await expect(page).toBeVisible();
   // Visible is not enough: the page has to be the thing on top, so a click lands on it and not on the chat behind.
-  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click({ timeout: 3000 });
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click({ timeout: 3000 });
   await expect(page.getByRole('heading', { name: 'Browser', level: 2 })).toBeVisible();
   await shell().keyboard.press('Escape');
   await expect(page).toHaveCount(0);
@@ -115,7 +115,7 @@ test('settings opens over the Agent app and closes back to it', async () => {
 test('apps that are not built cannot be opened', async () => {
   await start([]);
   await openApp('Documents');
-  await expect(shell().getByRole('button', { name: 'Applications. Current: Browser' })).toBeVisible();
+  await expect(shell().getByRole('button', { name: 'Switch app. Current: Browser' })).toBeVisible();
 });
 
 test('a conversation waiting for you is flagged in the list and on the app button even from the Browser', async () => {

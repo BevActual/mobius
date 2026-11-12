@@ -15,6 +15,7 @@ use crate::compaction::{self, Budget, Compaction};
 use crate::message::{Message, ToolCall};
 use crate::provider::{ChatRequest, Completion, ProviderError, ToolDef};
 use crate::review::{Verdict, parse_verdict, review_request};
+use crate::untrusted;
 
 /// The most a single tool result may add to the conversation.
 pub const MAX_TOOL_RESULT_BYTES: usize = 32 * 1024;
@@ -50,7 +51,14 @@ pub enum Step {
 #[ts(export)]
 pub enum AgentEvent {
     Message { text: String },
-    ToolCall { call_id: String, name: String },
+    /// A call the model made, with its arguments (long text cut short) so the conversation can say what it acted on:
+    /// "Added “Order brake kit”", not "Add a task".
+    ToolCall {
+        call_id: String,
+        name: String,
+        #[ts(type = "unknown")]
+        arguments: serde_json::Value,
+    },
     ToolResult { call_id: String, name: String, is_error: bool },
     NeedsApproval {
         #[ts(type = "number")]
@@ -61,15 +69,35 @@ pub enum AgentEvent {
         arguments: serde_json::Value,
         /// The answer can only be "allow once": there is no standing approval for this kind of action.
         once_only: bool,
+        /// The request came from something Mobius read, not from the person: "Priya's invite “Dinner”".
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        origin: Option<String>,
     },
     /// The model's plan for this task, the whole list each time it changes.
     Todo { items: Vec<TodoItem> },
+    /// The person took over: Mobius stopped at a safe point, at this step of its plan (`of` when there is a plan).
+    Paused {
+        step: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        of: Option<u32>,
+    },
+    /// The person handed back: Mobius reads what is there again, then goes on.
+    Resumed,
     /// The model asks the person something and waits for the answer.
     Question { call_id: String, question: String, choices: Vec<String> },
     /// Earlier messages were summarised to make room in the model's window. The transcript itself is unchanged.
     Compacted {
         #[ts(type = "number")]
         messages: usize,
+    },
+    /// How much of the model's window the next request takes, estimated in tokens, against the window's size.
+    Context {
+        #[ts(type = "number")]
+        used: usize,
+        #[ts(type = "number")]
+        limit: usize,
     },
     Done,
     Failed { message: String },
@@ -141,6 +169,8 @@ struct Parked {
     once_only: bool,
     /// A reviewer model is looking at it; the person has not been asked yet.
     reviewing: bool,
+    /// Where the call's arguments came from, when it was something read.
+    origin: Option<String>,
     call: ToolCall,
     remaining: VecDeque<ToolCall>,
 }
@@ -151,12 +181,35 @@ struct Dispatched {
     remaining: VecDeque<ToolCall>,
 }
 
-/// What one turn does differently from the usual setup: the instructions and model of the bot it belongs to.
+/// The pictures of a turn that are acceptable: a few `data:` URLs of common picture types, none too big.
+pub const MAX_IMAGES: usize = 4;
+pub const MAX_IMAGE_CHARS: usize = 7_000_000;
+pub fn image_ok(url: &str) -> bool {
+    url.len() <= MAX_IMAGE_CHARS && ["data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,", "data:image/gif;base64,"].iter().any(|p| url.starts_with(p))
+}
+fn turn_images(setup: &TurnSetup) -> Vec<String> {
+    setup.images.iter().filter(|u| image_ok(u)).take(MAX_IMAGES).cloned().collect()
+}
+
+/// What one turn does differently from the usual setup: the instructions and model of the bot it belongs to, and
+/// whether it only proposes a plan.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TurnSetup {
     pub system: Option<String>,
     pub model: Option<String>,
+    /// Plan first: the model may only write a plan and ask questions. Nothing else runs until the person starts it.
+    pub plan_only: bool,
+    /// Pictures the person attached to this message, as `data:` URLs.
+    pub images: Vec<String>,
+    /// The project the conversation belongs to: its rules count for the turn's calls.
+    pub project: Option<String>,
 }
+
+/// Added to the next request after the person took over and handed back.
+pub const HANDED_BACK: &str = "The person took over for a while and used the apps themself, then handed back. What you read before may have changed: read the current state again (the page, document or list you were working on) before your next step, and carry on from what is there now.";
+
+/// Added to the instructions of a plan-only turn.
+pub const PLAN_ONLY_INSTRUCTIONS: &str = "The person asked to see your plan before you do anything. Do not do the task yet: you can only write the plan and ask questions in this turn. Write the steps with the todo.write tool, all pending, in the order you would do them, each a short sentence that says what you will do and in which app. Ask with ask.person only if you cannot plan without an answer. Then say in one or two sentences what the plan does and that nothing will happen until they start it.";
 
 pub struct Turn {
     pub id: u64,
@@ -174,6 +227,10 @@ pub struct Turn {
     summarizing: Option<usize>,
     /// A request was refused as too long once already in this turn.
     overflow_retried: bool,
+    /// The plan's steps done and in all, from the last todo.write.
+    plan: Option<(u32, u32)>,
+    /// The person had control for a while: the next request tells the model to read what is there again.
+    reread: bool,
 }
 
 impl Turn {
@@ -209,8 +266,27 @@ impl Turn {
         self.parked.as_ref().is_some_and(|p| p.reviewing)
     }
 
+    /// The step the turn is on, and how many its plan has (when there is one).
+    pub fn progress(&self) -> (u32, Option<u32>) {
+        match self.plan {
+            Some((done, total)) if total > 0 => ((done + 1).min(total), Some(total)),
+            _ => (self.steps.max(1), None),
+        }
+    }
+
+    /// The person took over (`Paused`) or handed back (`Resumed`): told to the window like the turn's other events.
+    pub fn note_control(&mut self, theirs: bool) {
+        let event = if theirs { let (step, of) = self.progress(); AgentEvent::Paused { step, of } } else { AgentEvent::Resumed };
+        self.events.push(event);
+    }
+
     pub fn parked_once_only(&self) -> bool {
         self.parked.as_ref().is_some_and(|p| p.once_only)
+    }
+
+    /// Where the waiting call's arguments came from, when it was something read and not the person.
+    pub fn parked_origin(&self) -> Option<&str> {
+        self.parked.as_ref().and_then(|p| p.origin.as_deref())
     }
 
     /// The tool call that is waiting for a person's answer, if any.
@@ -278,13 +354,15 @@ impl Engine {
     /// Like `start_with`, for a conversation that was already shortened for the model.
     pub fn start_from(&self, core: &Core, mut history: Vec<Message>, compaction: Option<Compaction>, user_text: &str, id: u64, setup: TurnSetup) -> (Turn, Step) {
         let compaction = compaction.filter(|c| c.covers < history.len() && !matches!(history[c.covers], Message::Tool { .. }));
-        history.push(Message::User { text: user_text.to_owned() });
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false };
+        let at_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok().and_then(|d| u64::try_from(d.as_millis()).ok());
+        history.push(Message::User { text: user_text.to_owned(), images: turn_images(&setup), at_ms });
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false };
         let step = self.next_model_call(core, &mut turn);
         (turn, step)
     }
 
     pub fn on_model(&self, turn: &mut Turn, core: &mut Core, result: Result<Completion, ProviderError>) -> Step {
+        turn.reread = false;
         if turn.finished {
             return Step::Done;
         }
@@ -324,9 +402,11 @@ impl Engine {
         let Some(dispatched) = turn.dispatched.take() else { return Step::Idle };
         let succeeded = result.is_ok();
         core.record_external_result(&self.config.principal, &dispatched.call.name, succeeded).ok();
+        // What came back is data from somewhere else: it goes to the model inside an envelope that says so.
+        let call = &dispatched.call;
         let (content, is_error) = match result {
-            Ok(content) => (truncate(content), false),
-            Err(message) => (truncate(message), true),
+            Ok(content) => (untrusted::wrap(&call.name, &call.arguments, &truncate(content)), false),
+            Err(message) => (untrusted::wrap(&call.name, &call.arguments, &truncate(message)), true),
         };
         self.push_result(turn, &dispatched.call, content, is_error);
         self.run_calls(turn, core, dispatched.remaining, true)
@@ -368,6 +448,26 @@ impl Engine {
         }
     }
 
+    /// The person handed back after taking over. `held` is the step that was waiting when they took over: a model
+    /// request is asked again, telling the model to read what is there now; a tool call is not run (what it was
+    /// decided on may have changed), and the model is asked again instead.
+    pub fn hand_back(&self, turn: &mut Turn, core: &Core, held: Option<Step>) -> Step {
+        turn.reread = true;
+        match held {
+            Some(Step::CallModel(_)) => Step::CallModel(self.request(core, turn)),
+            Some(Step::RunTool { .. }) => {
+                if let Some(d) = turn.dispatched.take() {
+                    for call in std::iter::once(d.call).chain(d.remaining) {
+                        self.push_result(turn, &call, "Not run: the person took over and changed things meanwhile. Read the current state again, then decide.".to_owned(), true);
+                    }
+                }
+                self.next_model_call(core, turn)
+            }
+            Some(other) => other,
+            None => Step::Idle,
+        }
+    }
+
     /// Stop the turn. Its open question is withdrawn and every unfinished call is closed, so the conversation stays
     /// valid for whatever comes next.
     pub fn cancel(&self, turn: &mut Turn, core: &mut Core) {
@@ -406,7 +506,10 @@ impl Engine {
 
     fn call_model(&self, core: &Core, turn: &mut Turn) -> Step {
         turn.steps += 1;
-        Step::CallModel(self.request(core, turn))
+        let request = self.request(core, turn);
+        let used = compaction::tokens_of(&request.system, &request.messages, &request.tools);
+        turn.events.push(AgentEvent::Context { used, limit: self.budget.context_tokens });
+        Step::CallModel(request)
     }
 
     fn model_of(&self, turn: &Turn) -> String {
@@ -414,11 +517,20 @@ impl Engine {
     }
 
     fn request(&self, core: &Core, turn: &Turn) -> ChatRequest {
+        let system = turn.setup.system.clone().unwrap_or_else(|| self.config.system.clone());
+        // A plan-only turn offers the model nothing but its own tools.
+        let (system, outside) = if turn.setup.plan_only {
+            ([system.as_str(), PLAN_ONLY_INSTRUCTIONS].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n"), Vec::new())
+        } else {
+            (system, core.tools())
+        };
+        let system = if system.is_empty() { untrusted::ENVELOPE_RULE.to_owned() } else { format!("{system}\n\n{}", untrusted::ENVELOPE_RULE) };
+        let system = if turn.reread { format!("{system}\n\n{HANDED_BACK}") } else { system };
         ChatRequest {
             model: self.model_of(turn),
-            system: turn.setup.system.clone().unwrap_or_else(|| self.config.system.clone()),
+            system,
             messages: compaction::view(&turn.messages, turn.compaction.as_ref()),
-            tools: core.tools().into_iter().map(|t| ToolDef { name: t.name, description: t.description, input_schema: t.input_schema }).chain(own_tools()).collect(),
+            tools: outside.into_iter().map(|t| ToolDef { name: t.name, description: t.description, input_schema: t.input_schema }).chain(own_tools()).collect(),
             effort: self.effort.clone(),
             max_tokens: None,
         }
@@ -464,7 +576,7 @@ impl Engine {
     fn run_calls(&self, turn: &mut Turn, core: &mut Core, mut queue: VecDeque<ToolCall>, mut announce: bool) -> Step {
         while let Some(call) = queue.pop_front() {
             if announce {
-                turn.events.push(AgentEvent::ToolCall { call_id: call.id.clone(), name: call.name.clone() });
+                turn.events.push(AgentEvent::ToolCall { call_id: call.id.clone(), name: call.name.clone(), arguments: brief_arguments(&call.arguments) });
             }
             announce = true;
             if call.name == TODO_TOOL {
@@ -472,6 +584,7 @@ impl Engine {
                     Ok(items) => {
                         let done = items.iter().filter(|i| i.status == "done").count();
                         let summary = format!("Plan updated: {done} of {} done.", items.len());
+                        turn.plan = Some((u32::try_from(done).unwrap_or(u32::MAX), u32::try_from(items.len()).unwrap_or(u32::MAX)));
                         turn.events.push(AgentEvent::Todo { items });
                         self.push_result(turn, &call, summary, false);
                     }
@@ -493,7 +606,15 @@ impl Engine {
                     }
                 }
             }
-            match self.execute(core, &call) {
+            if turn.setup.plan_only {
+                // Whatever the model asks for, nothing outside the conversation runs before the person starts the plan.
+                self.push_result(turn, &call, "Not yet: this turn only plans. Write the plan with todo.write; the person starts it.".to_owned(), true);
+                continue;
+            }
+            // Arguments that came from something read, for a call that sends, pays, deletes, runs or opens a site:
+            // the person decides, every time and in every mode, told where the request came from.
+            let origin = core.capability_of(&call.name).filter(|c| untrusted::is_consequential(&call.name, c.as_str(), &call.arguments)).and_then(|_| untrusted::came_from(&turn.messages, &call.arguments));
+            match self.execute(core, &call, origin.is_some(), turn.setup.project.as_deref()) {
                 Executed::Result { content, is_error } => self.push_result(turn, &call, content, is_error),
                 Executed::Dispatch => {
                     let step = Step::RunTool { call_id: call.id.clone(), name: call.name.clone(), arguments: call.arguments.clone() };
@@ -501,12 +622,15 @@ impl Engine {
                     return step;
                 }
                 Executed::Park(request_id) => {
-                    if core.approval_mode() == ApprovalMode::Smart {
+                    // In Act a reviewer model may answer for the person, but never for a floor (running commands,
+                    // deleting files, reading secrets, clicking or typing in a page) or an app set to always ask: those
+                    // stop as Needs you, every time.
+                    if origin.is_none() && core.approval_mode() == ApprovalMode::Smart && !core.is_person_only(request_id) && !core.is_once_only(request_id) {
                         let request = review_request(turn.setup.model.as_deref().unwrap_or(&self.config.model), &call);
-                        turn.parked = Some(Parked { request_id, once_only: core.is_once_only(request_id), reviewing: true, call, remaining: queue });
+                        turn.parked = Some(Parked { request_id, once_only: core.is_once_only(request_id), reviewing: true, origin: None, call, remaining: queue });
                         return Step::Review { request_id, request };
                     }
-                    return self.ask(turn, core, request_id, call, queue);
+                    return self.ask(turn, core, request_id, call, queue, origin);
                 }
                 Executed::Fatal(message) => return self.fail(turn, message),
             }
@@ -515,10 +639,10 @@ impl Engine {
     }
 
     /// Put the question to the person.
-    fn ask(&self, turn: &mut Turn, core: &Core, request_id: u64, call: ToolCall, remaining: VecDeque<ToolCall>) -> Step {
+    fn ask(&self, turn: &mut Turn, core: &Core, request_id: u64, call: ToolCall, remaining: VecDeque<ToolCall>, origin: Option<String>) -> Step {
         let once_only = core.is_once_only(request_id);
-        turn.events.push(AgentEvent::NeedsApproval { request_id, call_id: call.id.clone(), tool: call.name.clone(), arguments: call.arguments.clone(), once_only });
-        turn.parked = Some(Parked { request_id, once_only, reviewing: false, call, remaining });
+        turn.events.push(AgentEvent::NeedsApproval { request_id, call_id: call.id.clone(), tool: call.name.clone(), arguments: call.arguments.clone(), once_only, origin: origin.clone() });
+        turn.parked = Some(Parked { request_id, once_only, reviewing: false, origin, call, remaining });
         Step::AwaitApproval { request_id }
     }
 
@@ -545,19 +669,19 @@ impl Engine {
             }
             Verdict::Deny => {
                 core.require_once(request_id);
-                self.ask(turn, core, request_id, parked.call, parked.remaining)
+                self.ask(turn, core, request_id, parked.call, parked.remaining, None)
             }
-            _ => self.ask(turn, core, request_id, parked.call, parked.remaining),
+            _ => self.ask(turn, core, request_id, parked.call, parked.remaining, None),
         }
     }
 
-    fn execute(&self, core: &mut Core, call: &ToolCall) -> Executed {
+    fn execute(&self, core: &mut Core, call: &ToolCall, person_only: bool, project: Option<&str>) -> Executed {
         if !call.arguments.is_object() {
             return Executed::Result { content: "the arguments must be a JSON object".to_owned(), is_error: true };
         }
         let error = |content: String| Executed::Result { content, is_error: true };
-        match core.invoke(&self.config.principal, &call.name, &call.arguments) {
-            Ok(InvokeOutcome::Completed { result }) => Executed::Result { content: truncate(result.to_string()), is_error: false },
+        match core.invoke_in(&self.config.principal, &call.name, &call.arguments, person_only, project) {
+            Ok(InvokeOutcome::Completed { result }) => Executed::Result { content: untrusted::wrap(&call.name, &call.arguments, &truncate(result.to_string())), is_error: false },
             Ok(InvokeOutcome::Failed { error: message }) => error(message),
             Ok(InvokeOutcome::Denied { reason }) => error(format!("denied: {reason}")),
             Ok(InvokeOutcome::NeedsApproval { request_id }) => Executed::Park(request_id),
@@ -601,4 +725,16 @@ fn truncate(mut text: String) -> String {
     text.truncate(cut);
     text.push_str("… [truncated]");
     text
+}
+
+/// A call's arguments for the conversation to show: every string over a few hundred characters (a whole file's text)
+/// cut short, so an event stays small. The model and the tool still get the whole of it.
+fn brief_arguments(value: &serde_json::Value) -> serde_json::Value {
+    const MAX: usize = 300;
+    match value {
+        serde_json::Value::String(text) if text.chars().count() > MAX => serde_json::Value::String(format!("{}…", text.chars().take(MAX).collect::<String>())),
+        serde_json::Value::Array(items) => serde_json::Value::Array(items.iter().take(50).map(brief_arguments).collect()),
+        serde_json::Value::Object(map) => serde_json::Value::Object(map.iter().map(|(k, v)| (k.clone(), brief_arguments(v))).collect()),
+        other => other.clone(),
+    }
 }

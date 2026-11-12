@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { clipboardText, launch, startFixture, type Fixture, type Launched } from './harness';
+import { clipboardText, launch, startFixture, type Fixture, type Launched, turnEnded } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -18,7 +18,7 @@ test.afterEach(async () => {
 
 async function start(replies: ModelReply[]): Promise<Launched> {
   model = await startModel(replies);
-  mobius = await launch(fixture.origin + '/', { env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  mobius = await launch(fixture.origin + '/', { openMobius: true, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   return mobius;
 }
@@ -59,6 +59,7 @@ test('Edit puts the last message back in the box to be changed, and sending it r
   await shell().getByRole('button', { name: 'Edit message' }).click();
   await expect(composer()).toHaveValue('First wordnig');
   await expect(log().locator('.msg')).toHaveCount(0);
+  await turnEnded(composer());
   await composer().fill('First wording');
   await composer().press('Enter');
   await expect(log().locator('.msg.assistant')).toHaveText('Answer to the new wording.');

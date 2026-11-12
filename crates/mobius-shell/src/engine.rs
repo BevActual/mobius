@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
 use std::time::Duration;
 
+#[cfg(not(target_os = "linux"))]
 use base64::Engine as _;
 use mobius_browser::engine::{Bounds, Engine};
 use mobius_browser::tabs::Browser;
@@ -20,6 +21,25 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// Run on another thread: the window toolkit calls our handlers on its own thread, which must never wait for it.
 fn later(work: impl FnOnce() + Send + 'static) {
     std::thread::spawn(work);
+}
+
+type Job = Box<dyn FnOnce() + Send>;
+
+/// Like `later`, but jobs run one after another in the order they were given, on one thread. A page's events (it
+/// started loading, it finished, its title) must land in order: on threads of their own, "finished" could be applied
+/// before "started", and the tab stayed loading, so the agent's browser.open waited out its whole time.
+fn in_order(work: impl FnOnce() + Send + 'static) {
+    static QUEUE: OnceLock<Mutex<std::sync::mpsc::Sender<Job>>> = OnceLock::new();
+    let queue = QUEUE.get_or_init(|| {
+        let (send, receive) = std::sync::mpsc::channel::<Job>();
+        std::thread::spawn(move || {
+            for job in receive {
+                job();
+            }
+        });
+        Mutex::new(send)
+    });
+    let _ = lock(queue).send(Box::new(work));
 }
 
 pub struct WebViewEngine {
@@ -149,7 +169,7 @@ impl Engine for WebViewEngine {
                 let allowed = weak_browser(&nav_slot).is_none_or(|b| b.allows_navigation(target.as_str()));
                 if allowed && let Some(b) = weak_browser(&nav_slot) {
                     let (id, url) = (nav_id.clone(), target.to_string());
-                    later(move || {
+                    in_order(move || {
                         b.navigated(&id, &url, false, false);
                         b.loading(&id, true);
                     });
@@ -159,15 +179,18 @@ impl Engine for WebViewEngine {
             .on_page_load(move |webview, payload| {
                 let Some(b) = weak_browser(&load_slot) else { return };
                 let (id, url, finished) = (load_id.clone(), payload.url().to_string(), payload.event() == PageLoadEvent::Finished);
-                later(move || {
+                in_order(move || {
                     #[cfg(windows)]
                     let (back, forward) = crate::cdp::history(&webview);
-                    #[cfg(not(windows))]
+                    #[cfg(target_os = "linux")]
+                    let (back, forward) = crate::linux_page::history(&webview);
+                    #[cfg(not(any(windows, target_os = "linux")))]
                     let (back, forward) = (false, false);
                     b.navigated(&id, &url, back, forward);
                     if finished {
                         b.finished(&id);
-                        fetch_icon(&b, &id, &url);
+                        // Reading the page and fetching its icon can take a while: not in the queue.
+                        later(move || fetch_icon(&b, &id, &url));
                     } else {
                         b.loading(&id, true);
                     }
@@ -176,16 +199,20 @@ impl Engine for WebViewEngine {
             .on_document_title_changed(move |_, title| {
                 if let Some(b) = weak_browser(&title_slot) {
                     let id = title_id.clone();
-                    later(move || b.titled(&id, &title));
+                    in_order(move || b.titled(&id, &title));
                 }
             })
             .on_new_window(move |target, _| {
                 if let Some(b) = weak_browser(&window_slot) {
                     let target = target.to_string();
-                    later(move || b.new_window(&target));
+                    in_order(move || b.new_window(&target));
                 }
                 NewWindowResponse::Deny
             });
+        #[cfg(target_os = "linux")]
+        let builder = match crate::web_data() { Some(dir) => builder.data_directory(dir), None => builder };
+        #[cfg(windows)]
+        let builder = match crate::webview2_args() { Some(args) => builder.additional_browser_args(&args), None => builder };
         // A page starts out of the way; `layout` places it.
         match self.window.add_child(builder, LogicalPosition::new(0.0, 0.0), LogicalSize::new(1.0, 1.0)) {
             Ok(webview) => {
@@ -229,6 +256,14 @@ impl Engine for WebViewEngine {
     }
 
     fn navigate(&self, tab: &str, url: &str) {
+        // Without the Chromium protocol (Linux, macOS), the web view goes to the address itself.
+        #[cfg(not(windows))]
+        if let (Some(page), Ok(parsed)) = (self.page(tab), url::Url::parse(url)) {
+            if let Err(error) = page.navigate(parsed) {
+                eprintln!("[browser] could not navigate: {error}");
+            }
+            return;
+        }
         if let Err(error) = self.cdp(tab, "Page.navigate", json!({ "url": url })) {
             eprintln!("[browser] could not navigate: {error}");
         }
@@ -267,6 +302,8 @@ impl Engine for WebViewEngine {
                         size: LogicalSize::new(f64::from(b.width) * zoom, f64::from(b.height) * zoom).into(),
                     };
                     let _ = page.set_bounds(rect);
+                    #[cfg(target_os = "linux")]
+                    crate::linux_views::place(&page, f64::from(b.x) * zoom, f64::from(b.y) * zoom, f64::from(b.width) * zoom, f64::from(b.height) * zoom);
                     let _ = page.show();
                 }
                 _ => {
@@ -276,6 +313,12 @@ impl Engine for WebViewEngine {
         }
     }
 
+    #[cfg(target_os = "linux")]
+    fn eval(&self, tab: &str, script: &str) -> Result<Value, String> {
+        crate::linux_page::eval(&self.page(tab).ok_or("no such tab")?, script, true)
+    }
+
+    #[cfg(not(target_os = "linux"))]
     fn eval(&self, tab: &str, script: &str) -> Result<Value, String> {
         // A world of its own sees the page's DOM but none of the page's scripts or globals.
         let frame = self.cdp(tab, "Page.getFrameTree", json!({}))?;
@@ -289,6 +332,12 @@ impl Engine for WebViewEngine {
         Ok(answer.pointer("/result/value").cloned().unwrap_or(Value::Null))
     }
 
+    #[cfg(target_os = "linux")]
+    fn picture(&self, tab: &str) -> Option<Vec<u8>> {
+        crate::linux_page::picture(&self.page(tab)?)
+    }
+
+    #[cfg(not(target_os = "linux"))]
     fn picture(&self, tab: &str) -> Option<Vec<u8>> {
         let shot = self.cdp(tab, "Page.captureScreenshot", json!({ "format": "jpeg", "quality": 70 })).ok()?;
         base64::engine::general_purpose::STANDARD.decode(shot.get("data")?.as_str()?).ok()
@@ -320,6 +369,12 @@ impl Engine for WebViewEngine {
 
 impl WebViewEngine {
     /// Runs a statement in the page itself (not the isolated world): used only for history navigation.
+    #[cfg(target_os = "linux")]
+    fn cdp_fire(&self, tab: &str, expression: &str) -> Result<Value, String> {
+        crate::linux_page::eval(&self.page(tab).ok_or("no such tab")?, expression, false)
+    }
+
+    #[cfg(not(target_os = "linux"))]
     fn cdp_fire(&self, tab: &str, expression: &str) -> Result<Value, String> {
         self.cdp(tab, "Runtime.evaluate", json!({ "expression": expression }))
     }

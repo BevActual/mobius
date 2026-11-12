@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { launch, startFixture, views, type Fixture, type Launched } from './harness';
+import { launch, startFixture, views, type Fixture, type Launched, openSettings } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -8,8 +8,11 @@ test.beforeEach(async () => {
   mobius = await launch(fixture.origin + '/');
   await expect(shell().getByText('Core ready')).toBeVisible();
   // These tests are about the app's own list beside the page, which the narrow rail keeps separate.
-  await shell().evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
-  await expect(shell().locator('.dock.left')).toHaveCount(1);
+  // Set once the window has read its own settings, which can land after this on a slow start: try until it holds.
+  await expect(async () => {
+    await shell().evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
+    await expect(shell().locator('.dock.left')).toHaveCount(1, { timeout: 1500 });
+  }).toPass({ timeout: 15_000 });
   // The sidebar folds with a short animation: measure only once it has settled.
   await expect.poll(async () => Math.round((await shell().locator('.rail').boundingBox())!.width)).toBe(52);
 });
@@ -90,7 +93,9 @@ test('the pin button switches between floating and attached, and the choice is k
   await expect(left()).not.toHaveAttribute('data-floating', /.*/);
   expect(await leftEdge()).toBeGreaterThan(200);
 
-  await agentPanel().getByRole('button', { name: 'Float the agent panel' }).click();
+  // Floating is in the All chats menu, so the head keeps three icons.
+  await agentPanel().getByRole('button', { name: 'All chats' }).click();
+  await agentPanel().getByRole('menuitem', { name: 'Float the agent panel' }).click();
   await expect.poll(async () => (await appearance()).rightSidebar).toBe('floating');
   await expect(right()).toHaveAttribute('data-floating', 'true');
 });
@@ -106,8 +111,8 @@ test('a floating agent panel appears from the right edge and hides again', async
   await shell().mouse.move(zone.x + 4, zone.y + 100);
   await expect(agentPanel()).toBeVisible();
   await expect.poll(pageVisible).toBe(false);
-  // Back over the middle of the page (the rail and the list are on the left now).
-  await shell().mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
+  // Back over the page, left of the panel (on a narrow window the middle of the page is under the floating panel).
+  await shell().mouse.move(stage.x + 40, stage.y + stage.height / 2);
   await expect(agentPanel()).toHaveCount(0);
   await expect.poll(pageVisible).toBe(true);
 });
@@ -185,10 +190,10 @@ test('widths and modes survive a restart, and the settings page shows and resets
   await expect(shell().locator('.dock.right')).toBeVisible();
   await expect(shell().getByRole('separator', { name: 'Resize the agent panel' })).toHaveAttribute('aria-valuenow', '500');
 
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
   await expect(page).toBeVisible();
-  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Appearance', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Appearance', exact: true }).click();
   await page.getByRole('tab', { name: 'Layout', exact: true }).click();
   await expect(page.getByRole('radio', { name: 'Floating' }).first()).toBeChecked();
   await expect(page.getByText('list 300 px, agent panel 500 px')).toBeVisible();
@@ -200,4 +205,18 @@ test('widths and modes survive a restart, and the settings page shows and resets
 test('a width the window sends that is out of range is refused', async () => {
   const after = await setAppearance({ leftWidth: 5000 });
   expect((after as { leftWidth: number }).leftWidth).toBe(248);
+});
+
+test('a section header folds what follows it, by click or key, and the fold is kept', async () => {
+  const header = tabs().getByRole('button', { name: 'Tabs', exact: true });
+  await expect(header).toHaveAttribute('aria-expanded', 'true');
+  const body = tabs().locator('[data-fold-body]').first();
+  await expect(body).toBeVisible();
+  await header.click();
+  await expect(header).toHaveAttribute('aria-expanded', 'false');
+  await expect(body).toBeHidden();
+  expect(await shell().evaluate(() => window.localStorage.getItem('mobius.sidebar.folded'))).toContain('Browser sidebar/Tabs');
+  await header.press('Enter');
+  await expect(header).toHaveAttribute('aria-expanded', 'true');
+  await expect(body).toBeVisible();
 });

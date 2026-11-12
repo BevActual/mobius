@@ -66,9 +66,12 @@ fn fake_server() -> Vec<u8> {
     fs::read(env!("CARGO_BIN_EXE_mobius-fake-llama")).unwrap()
 }
 
+/// The server's file name on this system: the install looks for the one it can run.
+const SERVER: &str = if cfg!(windows) { "llama-server.exe" } else { "llama-server" };
+
 fn cuda_build(tag: &str) -> Vec<(String, Vec<u8>)> {
     vec![
-        (format!("llama-{tag}-bin-win-cuda-12.4-x64.zip"), zip_of(&[("llama-server.exe", fake_server()), ("ggml-cuda.dll", b"cuda".to_vec())])),
+        (format!("llama-{tag}-bin-win-cuda-12.4-x64.zip"), zip_of(&[(SERVER, fake_server()), ("ggml-cuda.dll", b"cuda".to_vec())])),
         ("cudart-llama-bin-win-cuda-12.4-x64.zip".into(), zip_of(&[("cudart64_12.dll", b"rt".to_vec())])),
     ]
 }

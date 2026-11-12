@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BrowserTabState } from '@mobius/shared';
-import { APPS, type AppId } from './apps';
+import { APPS, isInstalled, recentApps, type AppId } from './apps';
+import { APP_ICONS } from './Rail';
 
 export interface LauncherItem {
   id: string;
-  kind: 'app' | 'tab' | 'command';
+  kind: 'ask' | 'app' | 'tab' | 'command';
   label: string;
   detail?: string;
   disabled?: boolean;
+  /** The app whose icon the row shows. */
+  app?: AppId;
   run: () => void;
 }
 
@@ -18,39 +21,80 @@ interface Props {
   onNewTab: () => void;
   onActivateTab: (id: string) => void;
   onOpenApp: (id: AppId) => void;
+  /** Hand what was typed to Mobius as a question. */
+  onAsk?: (text: string) => void;
+  /** Everything the menus can do now, to find by name. */
+  commands?: readonly { id: string; label: string; detail?: string; run: () => void }[];
 }
 
-const SECTION: Record<LauncherItem['kind'], string> = { app: 'Applications', tab: 'Open pages', command: 'Commands' };
+const SECTION: Record<LauncherItem['kind'], string> = { ask: 'Ask Mobius', app: 'Applications', tab: 'Open pages', command: 'Commands' };
 
-/** One centred surface for finding and opening things. A modal dialog, so focus is trapped and Escape closes it. */
-export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenApp }: Props) {
+/**
+ * One centred surface for finding and opening things. Typing makes it one search for apps, open pages and commands,
+ * with "Ask Mobius" always the first row. A modal dialog, so focus is trapped and Escape closes it.
+ */
+/** Apps in the order to offer them: recent first when nothing is typed, else names starting with the words first. */
+export function rankApps<T extends { id: AppId; name: string }>(apps: readonly T[], q: string, recent: readonly AppId[] = recentApps(6)): T[] {
+  const score = (a: T) => (q ? (a.name.toLowerCase().startsWith(q) ? 0 : 1) : (recent.includes(a.id) ? recent.indexOf(a.id) - 100 : 0));
+  return apps.map((a, i) => ({ a, i, s: score(a) })).sort((x, y) => x.s - y.s || x.i - y.i).map((x) => x.a);
+}
+
+export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, commands = [] }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState(0);
+  // null: the default row (what was found, or Ask when nothing was). A number once the arrows or pointer chose.
+  const [chosen, setSelected] = useState<number | null>(null);
 
   useEffect(() => {
     const element = dialog.current;
     if (!element) return;
     if (open && !element.open) {
-      setQuery('');
-      setSelected(0);
+      // The field is already empty: it was emptied as the launcher closed. Emptying it only now, after it shows, could
+      // land after the first letters typed into it, and the same words typed again went unseen (the field already held
+      // them), so Enter opened whatever was first for an empty field.
       element.showModal();
       input.current?.focus();
     } else if (!open && element.open) {
       element.close();
     }
   }, [open]);
+  // However it closed (a choice, Escape, a click outside), it is empty and unchosen for next time.
+  useEffect(() => {
+    if (open) return;
+    setQuery('');
+    setSelected(null);
+  }, [open]);
 
-  const items = useMemo<LauncherItem[]>(() => {
+  // While it is open the keys are its own: something behind it that takes the focus as it loads (an editor opening a
+  // page) hands it back, so Enter opens what was found instead of going into that page.
+  useEffect(() => {
+    if (!open) return undefined;
+    const keep = (event: FocusEvent) => {
+      const element = dialog.current;
+      if (element?.open && event.target instanceof Node && !element.contains(event.target)) input.current?.focus();
+    };
+    document.addEventListener('focusin', keep, true);
+    return () => document.removeEventListener('focusin', keep, true);
+  }, [open]);
+
+  /** What a query finds, in the order shown. */
+  const listFor = useCallback((text: string): LauncherItem[] => {
+    const query = text;
     const q = query.trim().toLowerCase();
     const has = (text: string) => !q || text.toLowerCase().includes(q);
+    const typed = query.trim();
     const list: LauncherItem[] = [
-      ...APPS.filter((app) => has(app.name)).map<LauncherItem>((app) => ({
+      ...(typed && onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, run: () => onAsk(typed) }] : []),
+      // As in Spotlight and Raycast: with nothing typed the apps used last come first; typing puts names that start
+      // with it before names that only contain it.
+      ...rankApps(APPS.filter((app) => has(`${app.name} ${app.also ?? ''}`)), q).map<LauncherItem>((app) => ({
         id: `app-${app.id}`,
         kind: 'app',
+        app: app.id,
         label: app.name,
-        detail: app.available ? undefined : 'Not built yet',
+        // An app not added yet is found too: choosing it opens Abilities to add it.
+        detail: !app.available ? 'Not built yet' : isInstalled(app.id) ? undefined : 'Add from Abilities',
         disabled: !app.available,
         run: () => onOpenApp(app.id),
       })),
@@ -61,12 +105,21 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
         detail: tab.url,
         run: () => onActivateTab(tab.id),
       })),
-      ...[{ id: 'new-tab', label: 'New tab', detail: 'Ctrl+T' }]
-        .filter((command) => has(command.label))
-        .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab })),
+      ...(commands.length > 0
+        ? commands.filter((command) => q && has(`${command.label} ${command.detail ?? ''}`)).slice(0, 12).map<LauncherItem>((command) => ({ id: `cmd-${command.id}`, kind: 'command', label: command.label, detail: command.detail, run: command.run }))
+        : [{ id: 'new-tab', label: 'New tab', detail: 'Ctrl+T' }]
+          .filter((command) => has(command.label))
+          .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
     return list;
-  }, [query, tabs, onNewTab, onActivateTab, onOpenApp]);
+  }, [tabs, onNewTab, onActivateTab, onOpenApp, onAsk, commands]);
+  const items = useMemo(() => listFor(query), [listFor, query]);
+
+  // Ask Mobius is always the first row, but Enter opens what was found when something was: typing "notes" and
+  // pressing Enter opens Notes. With nothing found, Enter asks. Worked out as the list is drawn, so a quick Enter
+  // right after typing gets the same row.
+  const found = items.findIndex((item) => item.kind !== 'ask' && !item.disabled);
+  const selected = chosen ?? (found > 0 ? found : 0);
 
   const activate = (item: LauncherItem | undefined) => {
     if (!item || item.disabled) return;
@@ -74,7 +127,7 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
     item.run();
   };
 
-  const move = (delta: number) => setSelected((index) => (items.length ? (index + delta + items.length) % items.length : 0));
+  const move = (delta: number) => setSelected(items.length ? (selected + delta + items.length) % items.length : 0);
   const activeId = items[selected] ? `launcher-option-${items[selected]!.id}` : undefined;
   const sections = (Object.keys(SECTION) as Array<LauncherItem['kind']>).filter((kind) => items.some((item) => item.kind === kind));
 
@@ -94,11 +147,18 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
           autoComplete="off"
           spellCheck={false}
           value={query}
-          onChange={(event) => { setQuery(event.target.value); setSelected(0); }}
+          onChange={(event) => { setQuery(event.target.value); setSelected(null); }}
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
             else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
-            else if (event.key === 'Enter') { event.preventDefault(); activate(items[selected]); }
+            else if (event.key === 'Enter') {
+              event.preventDefault();
+              // What is in the field now, even if the list has not been drawn for it yet: a quick Enter right after
+              // typing opens what was typed, never what was first in the list before.
+              const typed = event.currentTarget.value;
+              if (typed === query) activate(items[selected]);
+              else { const list = listFor(typed); const first = list.findIndex((item) => item.kind !== 'ask' && !item.disabled); activate(list[first > 0 ? first : 0]); }
+            }
             else if (event.key === 'Escape') { event.preventDefault(); onClose(); }
           }}
         />
@@ -119,6 +179,9 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
                 onPointerMove={() => setSelected(index)}
                 onClick={() => activate(item)}
               >
+                <span className="launcher-icon" data-kind={item.kind} aria-hidden="true">
+                  {item.app ? <svg viewBox="0 0 20 20" data-app={item.app}>{APP_ICONS[item.app]}</svg> : item.kind === 'ask' ? <svg viewBox="0 0 20 20" data-app="agent">{APP_ICONS.agent}</svg> : item.kind === 'tab' ? <svg viewBox="0 0 20 20" data-app="browser">{APP_ICONS.browser}</svg> : <svg viewBox="0 0 20 20"><path d="M6 7l-3 3 3 3M9 14h8" /></svg>}
+                </span>
                 <span className="launcher-label">{item.label}</span>
                 {item.detail && <span className="launcher-detail">{item.detail}</span>}
               </div>
@@ -127,6 +190,7 @@ export function Launcher({ open, onClose, tabs, onNewTab, onActivateTab, onOpenA
         ))}
         {items.length === 0 && <div className="launcher-empty" role="status">No results for “{query.trim()}”.</div>}
       </div>
+      <div className="launcher-foot" aria-hidden="true"><span><kbd>↵</kbd> Open</span><span><kbd>↑</kbd><kbd>↓</kbd> Move</span><span><kbd>Esc</kbd> Close</span></div>
     </dialog>
   );
 }

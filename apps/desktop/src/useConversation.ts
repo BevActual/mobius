@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { MAIN_BOT_ID, botOfConversation, conversationIdFor, splitContext, type ContextItem, type ConversationInfo, type CoreStatus, type Duration } from '@mobius/shared';
+import { preferencesSettled } from './usePreferences';
 import { findToolArguments, findToolResult, initialConversation, reduce, type ConversationState } from './conversation';
 
 const STORAGE_KEY = 'mobius.conversation';
@@ -9,8 +10,12 @@ export interface Conversation {
   state: ConversationState;
   id: string;
   list: ConversationInfo[];
-  send(text: string, context?: ContextItem[]): Promise<void>;
+  /** `plan` asks for a plan only: the agent proposes steps and nothing runs until they are started. */
+  send(text: string, context?: ContextItem[], options?: { plan?: boolean; images?: string[] }): Promise<void>;
   stop(): void;
+  /** Take over the running task, and hand it back. Resolve with what went wrong, or null. */
+  takeOver(): Promise<string | null>;
+  handBack(): Promise<string | null>;
   /** Resolves with an explanation when the answer could not be used, otherwise null. */
   answer(requestId: number, approve: boolean, duration: Duration): Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent, otherwise null. */
@@ -45,6 +50,11 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   busy.current = state.busy;
   const active = useRef(id);
   active.current = id;
+  /** The conversation whose request is on its way to the core, and one Stop was pressed for meanwhile. */
+  const sending = useRef<string | null>(null);
+  const stopWanted = useRef<string | null>(null);
+  const stateNow = useRef(state);
+  stateNow.current = state;
   botRef.current = botOfConversation(id, knownBots);
 
   const refresh = useCallback(async () => {
@@ -56,6 +66,13 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
       window.mobius.agent.onNotification((notification) => {
         dispatch({ type: 'notification', notification });
         if (notification.method === 'agent.event' && ['done', 'failed', 'cancelled', 'needs_approval', 'tool_result', 'question'].includes(notification.params.event.kind)) void refresh();
+        // A turn started elsewhere (a schedule, Little Mobius) was opened while it ran, before its request was saved:
+        // once it ends, read it again so the request shows above the reply.
+        const ended = notification.method === 'agent.event' && ['done', 'failed', 'cancelled'].includes(notification.params.event.kind);
+        if (ended && notification.params.conversation === active.current && !stateNow.current.items.some((item) => item.kind === 'user')) {
+          const id = active.current;
+          void window.mobius.agent.history(id).then((messages) => { if (active.current === id) dispatch({ type: 'loaded', messages, conversation: id }); });
+        }
       }),
     [refresh],
   );
@@ -64,11 +81,14 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, id);
     let live = true;
-    void Promise.all([window.mobius.agent.history(id), window.mobius.agent.waiting(id), window.mobius.agent.question(id), refresh()]).then(([messages, requests, question]) => {
+    void Promise.all([window.mobius.agent.history(id), window.mobius.agent.waiting(id), window.mobius.agent.question(id), window.mobius.agent.control?.(id).catch(() => null) ?? Promise.resolve(null), refresh()]).then(([messages, requests, question, control]) => {
       if (!live) return;
-      dispatch({ type: 'loaded', messages });
+      // On a busy computer this can come back after a whole turn has been sent and answered here; it is then older than
+      // what is shown, and the reducer leaves it (it once took the reply and the review strip away).
+      dispatch({ type: 'loaded', messages, onOpen: true, conversation: id });
       dispatch({ type: 'pending', requests });
       dispatch({ type: 'question-open', question });
+      if (control?.theirs && typeof control.step === 'number') dispatch({ type: 'control', control: { step: control.step, ...(typeof control.of === 'number' ? { of: control.of } : {}) } });
     });
     return () => {
       live = false;
@@ -84,17 +104,37 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   }, [coreStatus]);
 
   const send = useCallback(
-    async (text: string, context: ContextItem[] = []) => {
-      dispatch({ type: 'sent', text, context });
-      const result = await window.mobius.agent.send(active.current, text, context);
+    async (text: string, context: ContextItem[] = [], options: { plan?: boolean; images?: string[] } = {}) => {
+      const images = options.images ?? [];
+      dispatch({ type: 'sent', text, context, images });
+      const id = active.current;
+      sending.current = id;
+      const extra = { ...(options.plan ? { plan: true } : {}), ...(images.length > 0 ? { images } : {}) };
+      // A choice made just before sending (the effort, say) reaches the core first.
+      await preferencesSettled();
+      const result = await window.mobius.agent.send(id, text, context, Object.keys(extra).length > 0 ? extra : undefined);
+      sending.current = null;
       if (!result.ok) dispatch({ type: 'send-failed', message: result.error });
+      // Stop was pressed before the core had the request: the cancel could have arrived first and been lost.
+      else if (stopWanted.current === id) void window.mobius.agent.cancel(id);
+      stopWanted.current = null;
       void refresh();
     },
     [refresh],
   );
 
   const stop = useCallback(() => {
+    if (sending.current === active.current) stopWanted.current = active.current;
     void window.mobius.agent.cancel(active.current);
+  }, []);
+
+  const takeOver = useCallback(async () => {
+    const result = await window.mobius.agent.takeOver?.(active.current).catch(() => null);
+    return result?.ok ? null : result && !result.ok ? result.error : 'Taking over is not available here.';
+  }, []);
+  const handBack = useCallback(async () => {
+    const result = await window.mobius.agent.handBack?.(active.current).catch(() => null);
+    return result?.ok ? null : result && !result.ok ? result.error : 'Handing back is not available here.';
   }, []);
 
   const answer = useCallback(async (requestId: number, approve: boolean, duration: Duration) => {
@@ -174,5 +214,5 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     [],
   );
 
-  return { state, id, list, send, stop, answer, reply, retry, edit, toolDetails, newConversation, startFresh, select, remove, refresh };
+  return { state, id, list, send, stop, takeOver, handBack, answer, reply, retry, edit, toolDetails, newConversation, startFresh, select, remove, refresh };
 }

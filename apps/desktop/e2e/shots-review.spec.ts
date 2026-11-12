@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, resizeWindow, startFixture } from './harness';
+import { launch, resizeWindow, startFixture, removeTestData, openSettings } from './harness';
 import { callsTool, says, startModel } from './model-fixture';
 
 // Not a test: pictures of the current app for design review. Run with MOBIUS_SHOTS=1 and MOBIUS_SHOTS_DIR=<folder>.
@@ -42,6 +42,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('button', { name: /Show details of/ }).click();
       await shell.waitForTimeout(400);
       await shot('1-browser');
+      await shell.locator('.rail[data-face="app"] [data-app-switcher]').click();
       await shell.getByRole('button', { name: /^Applications/ }).click();
       await shell.waitForTimeout(300);
       await shot('2-launcher');
@@ -65,15 +66,21 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Today/ }).click();
       await shell.waitForTimeout(400);
       await shot('3d-tasks-today');
+      // The apps are one press away, in the sidebar's head.
+      await shell.locator('.rail[data-face="app"] [data-app-switcher]').click();
       await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Search', exact: true }).click();
       await shell.waitForTimeout(400);
       await shot('3e-search');
       await shell.getByRole('searchbox', { name: 'Search everything' }).fill('the');
       await shell.waitForTimeout(500);
       await shot('3f-search-results');
+      // The apps are one press away, in the sidebar's head.
+      await shell.locator('.rail[data-face="app"] [data-app-switcher]').click();
       await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Tasks', exact: true }).click();
       await shell.waitForTimeout(500);
       await shot('3g-sidebar-tasks');
+      // The apps are one press away, in the sidebar's head.
+      await shell.locator('.rail[data-face="app"] [data-app-switcher]').click();
       await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Browser', exact: true }).click();
       await shell.waitForTimeout(400);
       await shot('3h-sidebar-browser');
@@ -85,11 +92,11 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
       await shell.keyboard.press('Enter');
       await shell.waitForTimeout(300);
-      await shell.getByRole('button', { name: 'Settings', exact: true }).click();
+      await openSettings(shell);
       const page = shell.getByRole('region', { name: 'Settings' });
       await shell.waitForTimeout(800);
       await shot('3b-settings-opened');
-      const nav = page.getByRole('navigation', { name: 'Settings sections' });
+      const nav = shell.getByRole('navigation', { name: 'Settings sections' });
       const visit = async (section: string, tab: string | null, name: string) => {
         await nav.getByRole('button', { name: section, exact: true }).click();
         if (tab) await page.getByRole('tab', { name: tab, exact: true }).click();
@@ -106,7 +113,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await mobius.close();
       await model.close();
       await fixture.close();
-      fs.rmSync(userData, { recursive: true, force: true });
+      removeTestData(userData);
       fs.rmSync(dl, { recursive: true, force: true });
     }
   });

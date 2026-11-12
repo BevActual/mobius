@@ -28,7 +28,13 @@ pub fn build_request_body(request: &ChatRequest) -> Value {
     }
     for message in &request.messages {
         messages.push(match message {
-            Message::User { text } => json!({ "role": "user", "content": text }),
+            Message::User { text, images, .. } if images.is_empty() => json!({ "role": "user", "content": text }),
+            // Pictures go as content parts after the words, for models that read them.
+            Message::User { text, images, .. } => {
+                let mut parts = vec![json!({ "type": "text", "text": text })];
+                parts.extend(images.iter().map(|url| json!({ "type": "image_url", "image_url": { "url": url } })));
+                json!({ "role": "user", "content": parts })
+            }
             Message::Assistant { text, tool_calls } if tool_calls.is_empty() => json!({ "role": "assistant", "content": text }),
             Message::Assistant { text, tool_calls } => json!({
                 "role": "assistant",
@@ -498,7 +504,7 @@ mod tests {
             model: "m".into(),
             system: "be brief".into(),
             messages: vec![
-                Message::User { text: "hi".into() },
+                Message::user("hi"),
                 Message::Assistant { text: String::new(), tool_calls: vec![ToolCall { id: "c1".into(), name: "demo.echo".into(), arguments: json!({ "text": "x" }) }] },
                 Message::Tool { call_id: "c1".into(), name: "demo.echo".into(), content: "{\"echo\":1}".into(), is_error: false },
                 Message::Tool { call_id: "c2".into(), name: "demo.fail".into(), content: "it broke".into(), is_error: true },
@@ -530,7 +536,7 @@ mod tests {
 
     #[test]
     fn with_no_tools_the_field_is_left_out() {
-        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "hi".into() }], tools: vec![], effort: None, max_tokens: None };
+        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::user("hi")], tools: vec![], effort: None, max_tokens: None };
         let body = build_request_body(&request);
         assert!(body.get("tools").is_none());
         assert_eq!(body["messages"].as_array().unwrap().len(), 1, "an empty system prompt is not sent");
@@ -538,7 +544,7 @@ mod tests {
 
     #[test]
     fn a_bounded_request_says_so_and_no_reasoning_is_asked_for_only_on_this_computer() {
-        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "hi".into() }], tools: vec![], effort: None, max_tokens: None };
+        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::user("hi")], tools: vec![], effort: None, max_tokens: None };
         assert!(body_for(&request, true).get("max_tokens").is_none());
         request.max_tokens = Some(900);
         request.effort = Some(crate::provider::NO_REASONING.into());
@@ -555,9 +561,18 @@ mod tests {
 
     #[test]
     fn the_effort_is_sent_only_when_one_was_chosen() {
-        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "hi".into() }], tools: vec![], effort: None, max_tokens: None };
+        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::user("hi")], tools: vec![], effort: None, max_tokens: None };
         assert!(build_request_body(&request).get("reasoning_effort").is_none());
         request.effort = Some("high".into());
         assert_eq!(build_request_body(&request)["reasoning_effort"], "high");
     }
+
+    #[test]
+    fn pictures_go_as_content_parts_after_the_words() {
+        let picture = "data:image/png;base64,iVBORw0KGgo=".to_owned();
+        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "what is this?".into(), images: vec![picture.clone()], at_ms: None }], tools: vec![], effort: None, max_tokens: None };
+        let body = body_for(&request, false);
+        assert_eq!(body["messages"][0]["content"], json!([{ "type": "text", "text": "what is this?" }, { "type": "image_url", "image_url": { "url": picture } }]));
+    }
+
 }

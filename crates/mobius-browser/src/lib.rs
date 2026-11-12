@@ -10,5 +10,6 @@ pub mod favicon;
 pub mod find;
 pub mod net_rules;
 pub mod page_actions;
+pub mod session;
 pub mod tabs;
 pub mod tools;

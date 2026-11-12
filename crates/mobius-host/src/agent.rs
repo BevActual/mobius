@@ -136,6 +136,18 @@ pub struct SendRequest {
     pub conversation: String,
     pub text: String,
     pub context: Vec<context::Item>,
+    /// Plan first: the agent only proposes a plan this turn.
+    pub plan: bool,
+    /// Pictures attached to the message, as `data:` URLs: at most four, each a PNG, JPEG, WebP or GIF of a few MB.
+    pub images: Vec<String>,
+    /// The project the conversation belongs to: its rules count for the turn. Set by the host, never by the window.
+    pub project: Option<String>,
+}
+
+pub const MAX_IMAGES: usize = 4;
+const MAX_IMAGE_CHARS: usize = 7_000_000;
+fn image_ok(url: &str) -> bool {
+    url.len() <= MAX_IMAGE_CHARS && ["data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,", "data:image/gif;base64,"].iter().any(|p| url.starts_with(p)) && url.split_once(";base64,").is_some_and(|(_, d)| d.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'=')))
 }
 
 pub fn parse_send(v: &Value) -> Option<SendRequest> {
@@ -145,7 +157,18 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
         None => Vec::new(),
         Some(c) => context::parse_list(c)?,
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context })
+    let plan = match v.get("plan") {
+        None | Some(Value::Null) => false,
+        Some(p) => p.as_bool()?,
+    };
+    let images = match v.get("images") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(list) => {
+            let list = list.as_array().filter(|l| l.len() <= MAX_IMAGES)?;
+            list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
+        }
+    };
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, images, project: None })
 }
 
 const AUDIO_TYPES: [&str; 5] = ["audio/webm", "audio/ogg", "audio/mp4", "audio/wav", "audio/mpeg"];
@@ -172,6 +195,8 @@ pub struct AgentService {
     secrets: Arc<dyn Secrets>,
     saved: Mutex<Saved>,
     configured: AtomicBool,
+    /// The model for quick jobs (address, name and key), from a gateway. Kept by the bridge in the preferences.
+    quick: Mutex<Option<(String, String, Option<String>)>>,
 }
 
 fn ok() -> Value {
@@ -183,7 +208,7 @@ fn failed(message: impl Into<String>) -> Value {
 
 impl AgentService {
     pub fn new(core: Arc<CoreProcess>, settings_path: PathBuf, secrets: Arc<dyn Secrets>) -> AgentService {
-        let service = AgentService { token_sources: Mutex::default(), token_expires: Mutex::default(), core, settings_path, secrets, saved: Mutex::default(), configured: AtomicBool::new(false) };
+        let service = AgentService { token_sources: Mutex::default(), token_expires: Mutex::default(), core, settings_path, secrets, saved: Mutex::default(), configured: AtomicBool::new(false), quick: Mutex::default() };
         service.load();
         service
     }
@@ -310,6 +335,22 @@ impl AgentService {
         self.apply_request(&Configure { base_url: base_url.to_owned(), model: model.to_owned(), api_key: key, clear_key, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true)
     }
 
+    /// Set the second model (asked when the first cannot answer), or none, keeping the first as it is. `key` is the
+    /// second model's own key; `None` means its server needs none.
+    pub fn use_fallback(&self, endpoint: Option<(&str, &str, Option<String>)>) -> Value {
+        let s = lock(&self.saved).clone();
+        if s.base_url.is_empty() {
+            return failed("Choose a chat model first.");
+        }
+        if let Some((_, model, _)) = endpoint
+            && !is_model_name(model)
+        {
+            return failed("That model cannot be used.");
+        }
+        let fallback = endpoint.map(|(base_url, model, key)| FallbackRequest { base_url: base_url.to_owned(), model: model.to_owned(), clear_key: key.is_none(), api_key: key });
+        self.apply_request(&Configure { base_url: s.base_url, model: s.model, api_key: None, clear_key: false, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true)
+    }
+
     /// Stop sending the saved key, if the agent is using this address. Used when a provider's key is removed.
     pub fn drop_key_for(&self, base_url: &str) {
         let s = lock(&self.saved).clone();
@@ -320,6 +361,20 @@ impl AgentService {
         self.apply_request(&Configure { base_url: s.base_url, model: s.model, api_key: None, clear_key: true, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true);
     }
 
+    /// The model for quick jobs, or `None` for the chat model. Applied at once when a chat model is set up.
+    pub fn set_quick(&self, quick: Option<(String, String, Option<String>)>) -> Value {
+        if quick.as_ref().is_some_and(|(_, model, _)| !is_model_name(model)) {
+            return failed("That model cannot be used.");
+        }
+        *lock(&self.quick) = quick;
+        let s = lock(&self.saved).clone();
+        if s.base_url.is_empty() {
+            return ok();
+        }
+        let fallback = s.fallback.as_ref().map(|f| FallbackRequest { base_url: f.base_url.clone(), model: f.model.clone(), api_key: None, clear_key: false });
+        self.apply_request(&Configure { base_url: s.base_url, model: s.model, api_key: None, clear_key: false, system: Some(s.system), max_steps: Some(s.max_steps), fallback }, true)
+    }
+
     /// The key for `address` comes from this sign-in instead of the saved key.
     pub fn add_token_source(&self, address: &str, source: TokenSource) {
         lock(&self.token_sources).push((address.to_owned(), source));
@@ -327,6 +382,12 @@ impl AgentService {
 
     fn params(&self, s: &Saved) -> Result<Value, String> {
         let mut p = core_params(s);
+        if let Some((base_url, model, key)) = lock(&self.quick).clone() {
+            p["quick"] = json!({ "base_url": base_url, "model": model });
+            if let Some(k) = key {
+                p["quick"]["api_key"] = json!(k);
+            }
+        }
         let source = lock(&self.token_sources).iter().find(|(a, _)| a.eq_ignore_ascii_case(s.base_url.trim())).map(|(_, f)| f.clone());
         if let Some(source) = source {
             let token = source()?.ok_or("Sign in first, in Settings > Providers.")?;
@@ -353,19 +414,34 @@ impl AgentService {
 
     /// `bot` is the instructions and model of the bot the conversation belongs to, if it has one.
     pub fn send(&self, request: &SendRequest, bot: Option<(&str, &str)>) -> Value {
+        self.send_remembering(request, bot, "")
+    }
+
+    /// As `send`, with what Mobius remembers about the person added to the instructions (nothing when empty).
+    pub fn send_remembering(&self, request: &SendRequest, bot: Option<(&str, &str)>, remembered: &str) -> Value {
         self.refresh_token_if_needed();
-        let usual = lock(&self.saved).system.clone();
         let mut params = Map::new();
         params.insert("conversation".into(), json!(request.conversation));
         params.insert("text".into(), json!(context::with_context(&request.text, &request.context)));
-        if let Some((instructions, model)) = bot {
-            if !instructions.is_empty() {
-                let joined = [usual.as_str(), instructions].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
-                params.insert("system".into(), json!(joined));
-            }
-            if !model.is_empty() {
-                params.insert("model".into(), json!(model));
-            }
+        let instructions = bot.map(|(i, _)| i).unwrap_or("");
+        if !instructions.is_empty() || !remembered.is_empty() {
+            // Added to the usual instructions by the core, never in place of them.
+            let joined = [instructions, remembered].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
+            params.insert("system".into(), json!(joined));
+        }
+        if let Some((_, model)) = bot
+            && !model.is_empty()
+        {
+            params.insert("model".into(), json!(model));
+        }
+        if request.plan {
+            params.insert("plan".into(), json!(true));
+        }
+        if !request.images.is_empty() {
+            params.insert("images".into(), json!(request.images));
+        }
+        if let Some(project) = &request.project {
+            params.insert("project".into(), json!(project));
         }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),
@@ -375,6 +451,19 @@ impl AgentService {
 
     pub fn cancel(&self, conversation: &str) {
         let _ = self.call("agent.cancel", json!({ "conversation": conversation }));
+    }
+
+    /// The person takes over the running task, or hands it back. Ok, or what went wrong in words.
+    pub fn control(&self, conversation: &str, theirs: bool) -> Value {
+        match self.call(if theirs { "agent.take_over" } else { "agent.hand_back" }, json!({ "conversation": conversation })) {
+            Ok(_) => json!({ "ok": true }),
+            Err(_) => json!({ "ok": false, "error": if theirs { "Nothing is running to take over." } else { "There is nothing to hand back." } }),
+        }
+    }
+
+    /// Whether the person has control of the conversation's task, and the step Mobius stopped at.
+    pub fn control_state(&self, conversation: &str) -> Value {
+        self.call("agent.control", json!({ "conversation": conversation })).unwrap_or_else(|_| json!({ "theirs": false }))
     }
 
     pub fn history(&self, conversation: &str) -> Value {
@@ -424,7 +513,7 @@ impl AgentService {
             rows.iter()
                 .filter_map(|row| {
                     let (request_id, call_id, tool) = (row.get("request_id")?.as_u64()?, row.get("call_id")?.as_str()?, row.get("tool")?.as_str()?);
-                    Some(json!({ "requestId": request_id, "callId": call_id, "tool": tool, "arguments": row.get("arguments").cloned().unwrap_or(Value::Null), "onceOnly": row.get("once_only") == Some(&Value::Bool(true)) }))
+                    Some(json!({ "requestId": request_id, "callId": call_id, "tool": tool, "arguments": row.get("arguments").cloned().unwrap_or(Value::Null), "onceOnly": row.get("once_only") == Some(&Value::Bool(true)), "origin": row.get("origin").cloned().unwrap_or(Value::Null) }))
                 })
                 .collect(),
         )
@@ -539,6 +628,9 @@ impl AgentService {
         if base.eq_ignore_ascii_case(crate::providers::CLAUDE_CODE_ADDRESS) {
             return json!({ "ok": true, "models": mobius_claude::frames::MODELS.iter().map(|(id, _)| *id).collect::<Vec<_>>() });
         }
+        if base.eq_ignore_ascii_case(crate::providers::COPILOT_ADDRESS) {
+            return json!({ "ok": true, "models": mobius_claude::copilot::MODELS.iter().map(|(id, _)| *id).collect::<Vec<_>>() });
+        }
         Self::models_at(&base, &key)
     }
 
@@ -557,10 +649,17 @@ impl AgentService {
         if status == 401 || status == 403 {
             return failed("The model server did not accept the key.");
         }
+        let known = crate::providers::known_models(base);
         if !(200..300).contains(&status) {
+            if !known.is_empty() {
+                return json!({ "ok": true, "models": known });
+            }
             return failed("The model server could not list its models.");
         }
         let Some(body) = response.body_mut().with_config().limit(2 * 1024 * 1024).read_to_string().ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else {
+            if !known.is_empty() {
+                return json!({ "ok": true, "models": known });
+            }
             return failed("The model server answered with something Mobius could not read.");
         };
         let mut found: Vec<String> = body.get("data").and_then(Value::as_array).into_iter().flatten().filter_map(|r| r.get("id")?.as_str().filter(|i| is_model_name(i)).map(str::to_owned)).collect();
@@ -705,9 +804,10 @@ fn valid_event(e: &Value) -> bool {
         Some("message") => s("text"),
         Some("tool_call") => s("call_id") && s("name"),
         Some("tool_result") => s("call_id") && s("name") && e.get("is_error").is_some_and(Value::is_boolean),
-        Some("needs_approval") => e.get("request_id").is_some_and(Value::is_u64) && s("call_id") && s("tool") && e.get("arguments").is_some() && e.get("once_only").is_none_or(Value::is_boolean),
+        Some("needs_approval") => e.get("request_id").is_some_and(Value::is_u64) && s("call_id") && s("tool") && e.get("arguments").is_some() && e.get("once_only").is_none_or(Value::is_boolean) && e.get("origin").is_none_or(|o| o.as_str().is_some_and(|o| o.chars().count() <= 300)),
         Some("failed") => s("message"),
         Some("compacted") => e.get("messages").is_some_and(Value::is_u64),
+        Some("context") => e.get("used").is_some_and(Value::is_u64) && e.get("limit").and_then(Value::as_u64).is_some_and(|l| l > 0),
         Some("todo") => e.get("items").and_then(Value::as_array).is_some_and(|items| {
             items.len() <= 50 && items.iter().all(|i| i.get("text").and_then(Value::as_str).is_some_and(|t| t.chars().count() <= 300) && matches!(i.get("status").and_then(Value::as_str), Some("pending" | "in_progress" | "done")))
         }),
@@ -715,7 +815,8 @@ fn valid_event(e: &Value) -> bool {
             s("call_id") && e.get("question").and_then(Value::as_str).is_some_and(|q| !q.is_empty() && q.chars().count() <= 1000)
                 && e.get("choices").and_then(Value::as_array).is_some_and(|c| c.len() <= 6 && c.iter().all(|c| c.as_str().is_some_and(|c| c.chars().count() <= 200)))
         }
-        Some("done" | "cancelled") => true,
+        Some("done" | "cancelled" | "resumed") => true,
+        Some("paused") => e.get("step").is_some_and(Value::is_u64) && e.get("of").is_none_or(Value::is_u64),
         _ => false,
     }
 }

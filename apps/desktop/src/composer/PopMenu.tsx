@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { morphOut, useMorphIn } from '../motion';
 
 interface Props {
   /** Names the button for people using a screen reader. */
@@ -17,6 +18,21 @@ interface Props {
 /** A small menu that opens above its button. Escape and clicking elsewhere close it; the arrow keys move between items. */
 export function PopMenu({ label, trigger, className = 'pill', disabled, title, onOpen, children }: Props) {
   const [open, setOpen] = useState(false);
+  // The menu grows out of the button that opened it, and goes back into it when it closes.
+  const list = useRef<HTMLDivElement>(null);
+  useMorphIn(list, open, 'left');
+  const leaving = useRef(false);
+  // Each opening has its own number: an exit that finishes late closes only the opening it belongs to, never one made since.
+  const opening = useRef(0);
+  useEffect(() => { leaving.current = false; if (open) opening.current += 1; }, [open]);
+  const shut = () => {
+    const node = list.current;
+    if (!node || leaving.current) { if (!node) setOpen(false); return; }
+    leaving.current = true;
+    node.style.pointerEvents = 'none';
+    const mine = opening.current;
+    void morphOut(node, 'left').then(() => { if (opening.current !== mine) return; leaving.current = false; setOpen(false); });
+  };
   const root = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const id = useId();
@@ -24,7 +40,7 @@ export function PopMenu({ label, trigger, className = 'pill', disabled, title, o
   useEffect(() => {
     if (!open) return undefined;
     const down = (event: PointerEvent) => {
-      if (root.current && !root.current.contains(event.target as Node)) setOpen(false);
+      if (root.current && !root.current.contains(event.target as Node)) shut();
     };
     document.addEventListener('pointerdown', down, true);
     return () => document.removeEventListener('pointerdown', down, true);
@@ -35,7 +51,7 @@ export function PopMenu({ label, trigger, className = 'pill', disabled, title, o
   }, [disabled]);
 
   const close = () => {
-    setOpen(false);
+    shut();
     button.current?.focus();
   };
   const items = () => [...(root.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([disabled])') ?? [])];
@@ -68,14 +84,15 @@ export function PopMenu({ label, trigger, className = 'pill', disabled, title, o
         title={title ?? label}
         disabled={disabled}
         onClick={() => {
-          if (!open) onOpen?.();
-          setOpen((was) => !was);
+          if (open) { shut(); return; }
+          onOpen?.();
+          setOpen(true);
         }}
       >
         {trigger}
       </button>
       {open && (
-        <div className="popmenu-list" id={id} role="menu" aria-label={label}>
+        <div ref={list} className="popmenu-list" id={id} role="menu" aria-label={label}>
           {children(close)}
         </div>
       )}

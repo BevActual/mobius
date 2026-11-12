@@ -168,6 +168,14 @@ mod chromium {
         }
         impl BrowserProcessHandler {
             fn on_context_initialized(&self) {
+                // A page asking what it may do is told "denied", for every page from the start. Set once here, before
+                // any tab exists, so a tab's first page cannot ask before the tab's own DevTools setting lands.
+                if let Some(context) = request_context_get_global_context() {
+                    use sys::cef_content_setting_types_t as T;
+                    for kind in [T::CEF_CONTENT_SETTING_TYPE_GEOLOCATION, T::CEF_CONTENT_SETTING_TYPE_NOTIFICATIONS, T::CEF_CONTENT_SETTING_TYPE_MEDIASTREAM_MIC, T::CEF_CONTENT_SETTING_TYPE_MEDIASTREAM_CAMERA, T::CEF_CONTENT_SETTING_TYPE_MIDI_SYSEX] {
+                        context.set_content_setting(None, None, kind.into(), sys::cef_content_setting_values_t::CEF_CONTENT_SETTING_VALUE_BLOCK.into());
+                    }
+                }
                 self.shared.context_ready();
             }
         }
@@ -304,6 +312,14 @@ mod chromium {
                 }
                 // The page never gets a window of its own: the target opens as a tab.
                 1
+            }
+
+            // The page has really closed (after close_browser): it is no longer one of the open pages, so shutting down
+            // waits only as long as closing takes.
+            fn on_before_close(&self, browser: Option<&mut cef::Browser>) {
+                if let Some(browser) = browser {
+                    lock(&self.shared.by_id).remove(&browser.identifier());
+                }
             }
 
             fn on_after_created(&self, browser: Option<&mut cef::Browser>) {

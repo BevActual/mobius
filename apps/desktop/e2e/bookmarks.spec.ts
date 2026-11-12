@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -25,9 +25,9 @@ const visit = async (route: string, title: string) => {
 };
 const star = () => shell().getByRole('button', { name: /^(Bookmark this page|Remove bookmark)$/ });
 const openBookmarks = async () => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(shell());
   await expect(settings()).toBeVisible();
-  await settings().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await settings().getByRole('tab', { name: 'Bookmarks', exact: true }).click();
 };
 const saved = (): Locator => settings().getByRole('list', { name: 'Bookmarks' }).getByRole('listitem');
@@ -76,6 +76,6 @@ test('saved pages are listed in settings, can be searched and removed, and survi
   } finally {
     await mobius?.close();
     mobius = undefined;
-    fs.rmSync(userData, { recursive: true, force: true });
+    removeTestData(userData);
   }
 });

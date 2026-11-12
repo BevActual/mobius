@@ -305,10 +305,48 @@ fn the_approval_mode_can_be_read_and_changed_and_only_to_a_known_one() {
 }
 
 #[test]
-fn a_command_is_asked_about_in_manual_mode_and_run_when_approvals_are_off() {
+fn a_sign_in_is_for_one_task_and_one_site_and_ends_with_the_task_or_on_sign_out() {
+    let mut c = core();
+    let req = |id: u64, method: &str, params: Value| json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
+    let has = |c: &mut Core, conversation: &str| call(c, req(1, "signins.has", json!({ "conversation": conversation, "site": "https://axion.example/orders/new" })))["result"]["signedIn"].clone();
+    assert_eq!(has(&mut c, "c1"), json!(false));
+    let r = call(&mut c, req(2, "signins.add", json!({ "conversation": "c1", "site": "https://Axion.example/login" })));
+    assert_eq!(r["result"]["sites"], json!(["https://axion.example"]));
+    assert_eq!(has(&mut c, "c1"), json!(true), "later steps of the task do not ask again");
+    assert_eq!(has(&mut c, "c2"), json!(false), "another task asks again");
+    call(&mut c, req(3, "signins.sign_out", json!({ "conversation": "c1", "site": "https://axion.example" })));
+    assert_eq!(has(&mut c, "c1"), json!(false), "Sign out now");
+    call(&mut c, req(4, "signins.add", json!({ "conversation": "c1", "site": "https://axion.example" })));
+    call(&mut c, req(5, "signins.end", json!({ "conversation": "c1" })));
+    assert_eq!(has(&mut c, "c1"), json!(false), "it ends with the task");
+    let bad = call(&mut c, req(6, "signins.add", json!({ "conversation": "c1", "site": "file:///etc" })));
+    assert_eq!(bad["error"]["code"], -32602);
+}
+
+#[test]
+fn a_command_is_asked_about_in_manual_mode_and_still_when_approvals_are_off() {
     let mut c = core();
     let run = |c: &mut Core| call(c, json!({ "jsonrpc": "2.0", "id": 2, "method": "tools.invoke", "params": { "principal": agent(), "tool": "demo.exec", "args": {} } }));
     assert_eq!(run(&mut c)["result"]["status"], "needs_approval");
     call(&mut c, json!({ "jsonrpc": "2.0", "id": 1, "method": "permissions.set_mode", "params": { "mode": "off" } }));
+    // Running a command is a floor: asked in every mode.
+    assert_eq!(run(&mut c)["result"]["status"], "needs_approval");
+}
+
+#[test]
+fn rules_from_settings_let_the_agent_act_or_stop_it_and_bad_rules_are_refused() {
+    let mut c = core();
+    let run = |c: &mut Core| call(c, json!({ "jsonrpc": "2.0", "id": 2, "method": "tools.invoke", "params": { "principal": agent(), "tool": "demo.echo", "args": {} } }));
+    assert_eq!(run(&mut c)["result"]["status"], "needs_approval");
+    let r = call(&mut c, json!({ "jsonrpc": "2.0", "id": 1, "method": "permissions.set_rules", "params": { "rules": [{ "capability": "demo.echo", "effect": "allow" }] } }));
+    assert_eq!(r["result"], json!({}));
     assert_eq!(run(&mut c)["result"]["status"], "completed");
+    call(&mut c, json!({ "jsonrpc": "2.0", "id": 1, "method": "permissions.set_rules", "params": { "rules": [{ "capability": "demo.echo", "effect": "deny" }] } }));
+    assert_eq!(run(&mut c)["result"]["status"], "denied");
+    for bad in [json!({ "rules": [{ "capability": "Bad Cap", "effect": "allow" }] }), json!({ "rules": [{ "capability": "a.b", "effect": "maybe" }] }), json!({ "rules": "x" }), json!({ "rules": [{ "capability": "a.b", "effect": "allow", "extra": 1 }] })] {
+        let r = call(&mut c, json!({ "jsonrpc": "2.0", "id": 4, "method": "permissions.set_rules", "params": bad }));
+        assert_eq!(r["error"]["code"], -32602, "{bad}");
+    }
+    call(&mut c, json!({ "jsonrpc": "2.0", "id": 1, "method": "permissions.set_rules", "params": { "rules": [] } }));
+    assert_eq!(run(&mut c)["result"]["status"], "needs_approval");
 }

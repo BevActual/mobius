@@ -16,7 +16,7 @@ describe('the list of providers', () => {
       const local = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
       expect(local || url.protocol === 'https:', p.id).toBe(true);
       expect(url.username + url.password, p.id).toBe('');
-      expect(p.baseUrl.endsWith('/') || /\/v1$|\/openai$|\/v1beta\/openai$|\/api\/v1$|\/inference\/v1$/.test(p.baseUrl), p.id).toBe(true);
+      expect(p.baseUrl.endsWith('/') || /\/v\d+$|\/openai$|\/v1beta\/openai$|^https:\/\/api\.perplexity\.ai$/.test(p.baseUrl), p.id).toBe(true);
     }
   });
   it('says where to get a key, only for providers that need one, and only over https', () => {

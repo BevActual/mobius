@@ -3,6 +3,8 @@ name = "mobius-shell"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 description = "The Mobius desktop shell (Tauri)."
 
@@ -13,21 +15,37 @@ cef = ["dep:cef"]
 [dependencies]
 cef = { version = "156.3", optional = true }
 mobius-host = { path = "../mobius-host" }
+mobius-workspace = { path = "../mobius-workspace" }
 mobius-browser = { path = "../mobius-browser" }
+mobius-store = { path = "../mobius-store" }
 base64 = "0.22"
 ureq.workspace = true
 url = "2"
 serde_json.workspace = true
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
-tauri = { version = "2", features = ["unstable", "webview-data-url"] }
+tauri = { version = "2", features = ["unstable", "webview-data-url", "tray-icon", "image-png"] }
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
 arboard = "3"
 tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
+getrandom = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_Power", "Win32_Graphics_Gdi"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_Power", "Win32_Graphics_Gdi", "Win32_System_Registry"] }
+
+# Placing the window's web views on Linux (see src/linux_views.rs); the same versions Tauri uses.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+webkit2gtk = { version = "2.0", features = ["v2_40"] }
+javascriptcore-rs = "1.1"
+cairo-rs = { version = "0.18", features = ["png"] }
+# Looking for the AppIndicator library before the tray uses it (see src/tray.rs).
+libloading = "0.7"
+
+[dev-dependencies]
+tempfile = "3"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -19,7 +19,7 @@ test.afterEach(async () => {
   await model?.close();
   model = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true });
+  removeTestData(userData);
 });
 
 async function start(replies: ModelReply[]): Promise<Launched> {
@@ -37,14 +37,14 @@ const say = async (text: string) => {
   await composer().fill(text);
   await composer().press('Enter');
 };
-const openPage = async (section: string, tab: string) => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+const openPage = async (section: string, tab?: string) => {
+  await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
-  await page().getByRole('tab', { name: tab, exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
+  if (tab) await page().getByRole('tab', { name: tab, exact: true }).click();
 };
 const closeSettings = async () => {
-  await page().getByRole('button', { name: 'Close settings' }).click();
+  await shell().keyboard.press('Escape');
   await expect(page()).toHaveCount(0);
 };
 // A message styled by the stylesheet, without needing a model reply.
@@ -129,7 +129,7 @@ test('turning off "reopen the last conversation" starts blank next time', async 
   await model!.close();
   await start([]);
   await expect(log().locator('.msg.assistant')).toHaveText('An earlier answer.');
-  await openPage('Appearance', 'General');
+  await openPage('General');
   await page().getByRole('switch', { name: 'Reopen the last conversation' }).uncheck();
   await closeSettings();
   await mobius!.close({ keepUserData: true });

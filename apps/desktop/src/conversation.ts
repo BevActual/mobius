@@ -11,10 +11,10 @@ export type QuestionStatus = 'open' | 'sending' | 'answered' | 'cancelled';
 export type ToolStatus = 'running' | 'waiting' | 'done' | 'failed' | 'declined' | 'cancelled';
 
 export type Item =
-  | { kind: 'user'; id: string; text: string; attachments?: ContextItem[] }
+  | { kind: 'user'; id: string; text: string; attachments?: ContextItem[]; images?: string[]; /** When it was sent, in milliseconds; older conversations have none. */ at?: number }
   | { kind: 'assistant'; id: string; text: string; streaming: boolean }
-  | { kind: 'tool'; id: string; callId: string; name: string; status: ToolStatus; requestId?: number; args?: unknown; onceOnly?: boolean }
-  | { kind: 'error'; id: string; text: string }
+  | { kind: 'tool'; id: string; callId: string; name: string; status: ToolStatus; requestId?: number; args?: unknown; onceOnly?: boolean; /** What it was read in, when the request came from there and not from the person. */ origin?: string }
+  | { kind: 'error'; id: string; text: string; /** The turn itself failed (the model or the core), not just a message that could not go. */ failed?: boolean }
   /** Something the person should know that is not part of the conversation itself. */
   | { kind: 'notice'; id: string; text: string }
   /** The model's plan for the task in hand; one per turn, updated in place. */
@@ -29,14 +29,28 @@ export interface ConversationState {
   busy: boolean;
   turn: number | null;
   nextId: number;
+  /** You took over the running task: Mobius paused at this step (of this many, when it has a plan). */
+  control?: { step: number; of?: number } | null;
+  /** How full the model's window was at its last request, as the core estimated it, in tokens. */
+  context?: { used: number; limit: number };
+  /** How the last turn ended: well, failed, or stopped. */
+  ended?: 'done' | 'failed' | 'cancelled';
 }
 
 export type ConversationAction =
-  | { type: 'sent'; text: string; context?: ContextItem[]; turn?: number }
+  | { type: 'sent'; text: string; context?: ContextItem[]; turn?: number; images?: string[]; at?: number }
   | { type: 'send-failed'; message: string }
   | { type: 'notification'; notification: AgentNotification }
   | { type: 'answered'; requestId: number; approve: boolean }
-  | { type: 'loaded'; messages: Message[] }
+  /**
+   * What was saved, read from the core. `onOpen`: read when the conversation was opened, so it is older than anything
+   * that has happened here since (a turn sent and finished while it was being read) and must not replace it.
+   */
+  /**
+   * `conversation`: the one it was read for. A read started for the conversation shown before a switch can come back
+   * after it, and must not fill the new one (it once kept a blank start showing the last conversation).
+   */
+  | { type: 'loaded'; messages: Message[]; onOpen?: boolean; conversation?: string }
   | { type: 'pending'; requests: AgentWaiting[] }
   | { type: 'answer-failed'; requestId: number }
   | { type: 'question-open'; question: { callId: string; question: string; choices: string[] } | null }
@@ -44,7 +58,8 @@ export type ConversationAction =
   | { type: 'question-failed'; callId: string }
   | { type: 'reset-busy' }
   | { type: 'rewound' }
-  | { type: 'switch'; conversation: string };
+  | { type: 'switch'; conversation: string }
+  | { type: 'control'; control: { step: number; of?: number } | null };
 
 export const initialConversation = (conversation: string): ConversationState => ({ conversation, items: [], busy: false, turn: null, nextId: 1 });
 
@@ -92,14 +107,14 @@ const cancelOpenTools = (items: Item[]): Item[] =>
     : item.kind === 'question' && (item.status === 'open' || item.status === 'sending') ? { ...item, status: 'cancelled' as const }
     : item);
 
-const finished = (state: ConversationState): ConversationState => ({ ...state, busy: false, turn: null, items: settleStreaming(state.items) });
+const finished = (state: ConversationState, ended: 'done' | 'failed' | 'cancelled'): ConversationState => ({ ...state, busy: false, turn: null, control: null, ended, items: settleStreaming(state.items) });
 
 function fromHistory(state: ConversationState, messages: Message[]): ConversationState {
   let next: ConversationState = { ...state, items: [], nextId: 1 };
   for (const message of messages) {
     if (message.role === 'user') {
       const parts = splitContext(message.text);
-      next = withItem(next, (id) => ({ kind: 'user', id, text: parts.text, ...(parts.items.length > 0 ? { attachments: parts.items } : {}) }));
+      next = withItem(next, (id) => ({ kind: 'user', id, text: parts.text, ...(parts.items.length > 0 ? { attachments: parts.items } : {}), ...(message.images && message.images.length > 0 ? { images: message.images } : {}), ...(message.at_ms !== undefined ? { at: message.at_ms } : {}) }));
     }
     else if (message.role === 'assistant') {
       if (message.text) next = withItem(next, (id) => ({ kind: 'assistant', id, text: message.text, streaming: false }));
@@ -131,9 +146,9 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
       return at < 0 ? state : { ...state, items: state.items.slice(0, at), busy: false, turn: null };
     }
     case 'sent':
-      return { ...withItem(state, (id) => ({ kind: 'user', id, text: action.text, ...(action.context && action.context.length > 0 ? { attachments: action.context } : {}) })), busy: true, turn: action.turn ?? null };
+      return { ...withItem(state, (id) => ({ kind: 'user', id, text: action.text, ...(action.context && action.context.length > 0 ? { attachments: action.context } : {}), ...(action.images && action.images.length > 0 ? { images: action.images } : {}), at: action.at ?? Date.now() })), busy: true, turn: action.turn ?? null };
     case 'send-failed':
-      return finished(withItem(state, (id) => ({ kind: 'error', id, text: action.message })));
+      return finished(withItem(state, (id) => ({ kind: 'error', id, text: action.message })), 'failed');
     case 'answered':
       return updateTool(
         state,
@@ -142,10 +157,13 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
       );
     case 'switch':
       return initialConversation(action.conversation);
+    case 'control':
+      return { ...state, control: action.control };
     case 'reset-busy':
-      return finished({ ...state, items: cancelOpenTools(state.items) });
+      return finished({ ...state, items: cancelOpenTools(state.items) }, 'cancelled');
     case 'loaded':
-      return state.busy ? state : fromHistory(state, action.messages);
+      if (action.conversation !== undefined && action.conversation !== state.conversation) return state;
+      return state.busy || (action.onOpen && state.nextId !== 1) ? state : fromHistory(state, action.messages);
     case 'answer-failed':
       return updateTool(
         state,
@@ -163,7 +181,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
       for (const request of action.requests) {
         const known = next.items.some((item) => item.kind === 'tool' && item.callId === request.callId);
         if (!known) next = withItem(next, (id) => ({ kind: 'tool', id, callId: request.callId, name: request.tool, status: 'running' }));
-        next = updateTool(next, (item) => item.callId === request.callId, (item) => ({ ...item, status: 'waiting', requestId: request.requestId, args: request.arguments, onceOnly: request.onceOnly }));
+        next = updateTool(next, (item) => item.callId === request.callId, (item) => ({ ...item, status: 'waiting', requestId: request.requestId, args: request.arguments, onceOnly: request.onceOnly, ...(request.origin ? { origin: request.origin } : {}) }));
         next = { ...next, busy: true };
       }
       return next;
@@ -204,28 +222,35 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
           // Some servers reuse call ids from one turn to the next, so only a call that is still open counts as the same call.
           const open = base.items.findLast((item) => item.kind === 'tool' && item.callId === event.call_id);
           if (open?.kind === 'tool' && (open.status === 'running' || open.status === 'waiting')) {
-            return updateTool(base, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'running' }));
+            return updateTool(base, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'running', ...(item.args === undefined && event.arguments !== undefined ? { args: event.arguments } : {}) }));
           }
-          return withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: 'running' }));
+          // With its arguments, so the row can say what it acted on.
+          return withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: 'running', ...(event.arguments !== undefined ? { args: event.arguments } : {}) }));
         }
         case 'needs_approval': {
           const known = base.items.some((item) => item.kind === 'tool' && item.callId === event.call_id);
           const withTool = known ? base : withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.tool, status: 'running' }));
-          return updateTool(withTool, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'waiting', requestId: event.request_id, args: event.arguments, onceOnly: event.once_only === true }));
+          return updateTool(withTool, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'waiting', requestId: event.request_id, args: event.arguments, onceOnly: event.once_only === true, ...(event.origin ? { origin: event.origin } : {}) }));
         }
         case 'tool_result': {
           const known = base.items.some((item) => item.kind === 'tool' && item.callId === event.call_id);
           const withTool = known ? base : withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: 'running' }));
           return updateTool(withTool, (item) => item.callId === event.call_id, (item) => (item.status === 'declined' ? item : { ...item, status: event.is_error ? 'failed' : 'done' }));
         }
+        case 'paused':
+          return { ...base, control: { step: event.step, ...(typeof event.of === 'number' ? { of: event.of } : {}) } };
+        case 'resumed':
+          return { ...base, control: null };
+        case 'context':
+          return { ...base, context: { used: event.used, limit: event.limit } };
         case 'compacted':
           return withItem(base, (id) => ({ kind: 'notice', id, text: 'Earlier messages were summarised to make room for the model. They are still here for you.' }));
         case 'done':
-          return finished(base);
+          return finished(base, 'done');
         case 'failed':
-          return finished(withItem(base, (id) => ({ kind: 'error', id, text: event.message })));
+          return finished(withItem(base, (id) => ({ kind: 'error', id, text: event.message, failed: true })), 'failed');
         case 'cancelled':
-          return finished({ ...base, items: cancelOpenTools(base.items) });
+          return finished({ ...base, items: cancelOpenTools(base.items) }, 'cancelled');
       }
     }
   }
@@ -233,12 +258,16 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
 
 export const MAX_RESULT_SHOWN = 4000;
 
+/** A tool's answer without the envelope that tells the model it is data. */
+export const dataOf = (content: string): string => content.replace(/^<<untrusted-data source="[^"]*">>\n/, '').replace(/\n<<\/untrusted-data>>$/, '');
+
 /** What a tool call returned, from the saved messages. The newest one wins when a server reused the call id. */
 export function findToolResult(messages: Message[], callId: string): { text: string; isError: boolean; truncated: boolean } | null {
   const message = messages.findLast((m) => m.role === 'tool' && m.call_id === callId);
   if (!message || message.role !== 'tool') return null;
-  const truncated = message.content.length > MAX_RESULT_SHOWN;
-  return { text: truncated ? message.content.slice(0, MAX_RESULT_SHOWN) : message.content, isError: message.is_error, truncated };
+  const content = dataOf(message.content);
+  const truncated = content.length > MAX_RESULT_SHOWN;
+  return { text: truncated ? content.slice(0, MAX_RESULT_SHOWN) : content, isError: message.is_error, truncated };
 }
 
 /** What a tool call was asked to do, from the saved messages. */
@@ -249,4 +278,77 @@ export function findToolArguments(messages: Message[], callId: string): unknown 
     if (call) return call.arguments;
   }
   return undefined;
+}
+
+/**
+ * Where a plan waits for the person, or -1: the last plan of an ended turn whose steps are all still to do, with
+ * nothing asked since. That is what Plan first leaves behind (a plan-only turn cannot start a step).
+ */
+export function proposedPlan(state: ConversationState): number {
+  if (state.busy) return -1;
+  const at = state.items.findLastIndex((item) => item.kind === 'plan');
+  if (at < 0) return -1;
+  const plan = state.items[at] as Extract<Item, { kind: 'plan' }>;
+  if (plan.items.length === 0 || plan.items.some((step) => step.status !== 'pending')) return -1;
+  return state.items.slice(at + 1).some((item) => item.kind === 'user') ? -1 : at;
+}
+
+/** Which app a tool works in, for saying what Mobius has seen. Files under notes/ and tasks/ belong to those apps. */
+export function appOfTool(name: string, args: unknown): string | null {
+  const path = typeof args === 'object' && args !== null && typeof (args as { path?: unknown }).path === 'string' ? (args as { path: string }).path : '';
+  if (name.startsWith('browser.')) return 'Browser';
+  if (name.startsWith('tasks.')) return 'Tasks';
+  if (name.startsWith('notes.')) return 'Notes';
+  if (name.startsWith('calendar.')) return 'Calendar';
+  if (name.startsWith('sheets.')) return 'Sheets';
+  if (name.startsWith('mail.')) return 'Mail';
+  if (name.startsWith('files.')) return path.startsWith('notes/') ? 'Notes' : path.startsWith('docs/') ? 'Docs' : path.startsWith('slides/') ? 'Slides' : path.startsWith('sheets/') ? 'Sheets' : path.startsWith('tasks/') ? 'Tasks' : path.startsWith('calendar/') ? 'Calendar' : 'Files';
+  return null;
+}
+
+/**
+ * The apps Mobius has read from or worked in during this conversation, in the order it first did: what you attached
+ * (a page, a note, a file) and the tools it used that ran. Shown as "Sees:" so it is never a surprise.
+ */
+/** A tool that only reads (it brings something from an app, and changes nothing). */
+const READS = /\.(read|list|search|tabs|events|calendars|lists|query|tables)$/;
+
+/**
+ * Where a turn's change was made from: the apps its last turn read, apart from the ones it changed. Shown on a
+ * proposal as "Linked from Mail · Notes", so a task made from an email says so.
+ */
+export function linkedFrom(history: readonly Message[]): string[] {
+  const start = history.map((m) => m.role).lastIndexOf('user');
+  const turn = start < 0 ? [] : history.slice(start);
+  const read: string[] = [];
+  const changed = new Set<string>();
+  for (const m of turn) {
+    if (m.role !== 'assistant') continue;
+    for (const call of m.tool_calls) {
+      const app = appOfTool(call.name, call.arguments);
+      if (!app) continue;
+      if (READS.test(call.name)) { if (!read.includes(app)) read.push(app); } else changed.add(app);
+    }
+  }
+  return read.filter((app) => !changed.has(app));
+}
+
+export function appsSeen(state: ConversationState): string[] {
+  const seen: string[] = [];
+  const add = (app: string | null) => { if (app && !seen.includes(app)) seen.push(app); };
+  for (const item of state.items) {
+    if (item.kind === 'user') for (const a of item.attachments ?? []) add(a.kind === 'page' ? 'Browser' : a.kind === 'note' ? 'Notes' : 'Files');
+    if (item.kind === 'tool' && (item.status === 'done' || item.status === 'running' || item.status === 'failed')) add(appOfTool(item.name, item.args));
+  }
+  return seen;
+}
+
+/**
+ * Where a reply came from: the apps whose tools ran in the same turn, before it, plus what was attached to the
+ * request. Shown under the reply ("Based on Browser · Notes"), so you can tell what it rests on.
+ */
+export function replySources(items: readonly Item[], index: number): string[] {
+  const start = items.slice(0, index).findLastIndex((item) => item.kind === 'user');
+  if (start < 0) return [];
+  return appsSeen({ ...initialConversation(''), items: items.slice(start, index) });
 }

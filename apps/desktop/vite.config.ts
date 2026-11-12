@@ -8,7 +8,7 @@ const productionCsp = (connect = "'self'"): Plugin => ({
   transformIndexHtml: (html) =>
     html.replace(
       '<!--csp-->',
-      `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ${connect}; object-src 'none'; base-uri 'none'; form-action 'none'" />`,
+      `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' media: http://media.localhost blob:; connect-src ${connect}; object-src 'none'; base-uri 'none'; form-action 'none'" />`,
     ),
 });
 
@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
   const tauri = mode === 'tauri';
   return {
     base: './',
-    plugins: [react(), productionCsp(tauri ? "'self' ipc: http://ipc.localhost" : "'self'")],
+    plugins: [react(), productionCsp(tauri ? "'self' ipc: http://ipc.localhost media:" : "'self'")],
     build: { outDir: tauri ? 'dist/tauri' : 'dist/renderer', emptyOutDir: true, sourcemap: true, target: tauri ? 'es2022' : 'chrome140' },
     server: { host: '127.0.0.1', port: 5180, strictPort: true },
   };

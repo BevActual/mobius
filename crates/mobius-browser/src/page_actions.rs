@@ -2,6 +2,9 @@
 //! arguments encoded as JSON, never by joining the arguments into code, so a page-controlled string cannot become code.
 use serde_json::{Value, json};
 
+/// The text selected on the page, if any, with where it is. Read in the same isolated world as the page text.
+pub const SELECTION_SCRIPT: &str = "(() => ({ text: String(window.getSelection ? window.getSelection() : ''), title: document.title, url: location.href }))()";
+
 pub const READ_SCRIPT: &str = "(() => ({ text: document.body ? document.body.innerText : '', title: document.title, url: location.href }))()";
 
 const CLICK: &str = r#"((wanted) => {

@@ -28,6 +28,7 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 - **Email is shown safely:** no scripts, and nothing loaded from the web, so tracking pixels don't fire.
 - **Suggested replies** are dashed until you keep one (it opens as your draft), discard it or ask for another.
 - **Get to zero** (in the Mobius panel while Mail is open) proposes a plan for the whole inbox, dashed until kept.
+- **Ask about your mail** in the Mobius composer: the answer lists the messages it came from, and each one opens.
 - **Send later:** tomorrow at 8:00, Monday at 9:00, or when the person is usually on mail.
 
 Mobius never sends mail itself. It writes drafts; you press Send.
@@ -66,5 +67,6 @@ Your whole workspace as a drive.
 
 ![The Files app in Mobius](../readme/apps/files.png)
 
-- **The drive** shows the workspace's folders. Files open in their own app.
+- **The drive** shows the workspace's folders. Files open in their own app. A file Mobius made is dashed until kept; a
+  folder says how many such files it holds.
 - **Made by Mobius** collects what Mobius created, dashed until you keep it, with a count of what is waiting.

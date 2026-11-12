@@ -2,6 +2,7 @@
   "name": "@mobius/desktop",
   "productName": "Mobius",
   "version": "0.0.0",
+  "license": "MIT",
   "private": true,
   "description": "Mobius desktop shell.",
   "type": "module",
@@ -17,6 +18,13 @@
   "dependencies": {
     "@mobius/shared": "*",
     "@tauri-apps/api": "^2.0.0",
+    "@tiptap/extension-image": "^3.32.0",
+    "@tiptap/extension-table": "3.32.0",
+    "@tiptap/extensions": "3.32.0",
+    "@tiptap/markdown": "3.32.0",
+    "@tiptap/pm": "3.32.0",
+    "@tiptap/react": "3.32.0",
+    "@tiptap/starter-kit": "3.32.0",
     "motion": "^14.9.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

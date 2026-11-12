@@ -64,8 +64,9 @@ export async function startModel(replies: ModelReply[], options: ModelOptions = 
         else res.writeHead(answer.status, { 'content-type': 'application/json' }).end('{}');
         return;
       }
+      const raw = Buffer.concat(parts).toString('utf8');
       try {
-        requests.push(JSON.parse(Buffer.concat(parts).toString('utf8')) as Record<string, unknown>);
+        requests.push(JSON.parse(raw) as Record<string, unknown>);
       } catch {
         requests.push({});
       }
@@ -92,7 +93,10 @@ export async function startModel(replies: ModelReply[], options: ModelOptions = 
           res.end();
           return;
         }
-        res.write(`data: ${JSON.stringify(chunk.data)}\n\n`);
+        // `{{request:<pattern>}}` in a scripted reply becomes what the pattern's first group finds in the request,
+        // for a reply that must use something the app made up, such as an id.
+        const text = JSON.stringify(chunk.data).replace(/\{\{request:(.+?)\}\}/g, (_, pattern: string) => new RegExp(pattern).exec(raw)?.[1] ?? '');
+        res.write(`data: ${text}\n\n`);
         setTimeout(() => next(index + 1), chunk.pauseMs);
       };
       next(0);
@@ -108,3 +112,6 @@ export async function startModel(replies: ModelReply[], options: ModelOptions = 
     close: () => new Promise((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }),
   };
 }
+
+/** What a tool returned, without the envelope that tells the model it is data (an error keeps its "error: "). */
+export const dataOf = (content: string): string => content.replace(/^(error: )?<<untrusted-data source="[^"]*">>\n/, '$1').replace(/\n<<\/untrusted-data>>$/, '');

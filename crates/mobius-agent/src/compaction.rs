@@ -75,7 +75,8 @@ pub fn tokens_of_text(text: &str) -> usize {
 
 fn tokens_of_message(message: &Message) -> usize {
     4 + match message {
-        Message::User { text } => tokens_of_text(text),
+        // A picture counts as about what a model charges for a medium-sized one.
+        Message::User { text, images, .. } => tokens_of_text(text) + images.len() * 1_000,
         Message::Assistant { text, tool_calls } => tokens_of_text(text) + tool_calls.iter().map(|c| tokens_of_text(&c.name) + tokens_of_text(&c.arguments.to_string()) + 8).sum::<usize>(),
         Message::Tool { content, .. } => tokens_of_text(content) + 8,
     }
@@ -107,8 +108,8 @@ pub fn view(messages: &[Message], compaction: Option<&Compaction>) -> Vec<Messag
     let summary = format!("{SUMMARY_PREFIX}\n\n{}", c.summary.trim());
     // Some chat templates refuse two user messages in a row, so a summary joins the person's message after it.
     match out.first_mut() {
-        Some(Message::User { text }) => *text = format!("{summary}\n\n{SUMMARY_END}\n\n{text}"),
-        _ => out.insert(0, Message::User { text: summary }),
+        Some(Message::User { text, .. }) => *text = format!("{summary}\n\n{SUMMARY_END}\n\n{text}"),
+        _ => out.insert(0, Message::user(summary)),
     }
     out
 }
@@ -149,7 +150,8 @@ pub fn transcript(messages: &[Message], max_chars: usize) -> String {
     let parts: Vec<String> = messages
         .iter()
         .map(|m| match m {
-            Message::User { text } => format!("PERSON: {}", clip(text, 6_000)),
+            Message::User { text, images, .. } if images.is_empty() => format!("PERSON: {}", clip(text, 6_000)),
+            Message::User { text, images, .. } => format!("PERSON: {} [{} attached]", clip(text, 6_000), if images.len() == 1 { "1 picture".to_owned() } else { format!("{} pictures", images.len()) }),
             Message::Assistant { text, tool_calls } => {
                 let calls: String = tool_calls.iter().map(|c| format!("\n  [called {} with {}]", c.name, clip(&c.arguments.to_string(), 600))).collect();
                 format!("ASSISTANT: {}{calls}", clip(text, 6_000))
@@ -202,7 +204,7 @@ pub fn summary_request(model: &str, previous: Option<&str>, middle: &[Message], 
     // Bounded, and without reasoning where the server can be told: a summary is mechanical work, and a reasoning
     // model can otherwise spend the whole budget thinking and write nothing.
     let max_tokens = u32::try_from(target * 2).unwrap_or(8_000).min(8_000);
-    ChatRequest { model: model.to_owned(), system: String::new(), messages: vec![Message::User { text: prompt }], tools: Vec::new(), effort: Some(NO_REASONING.to_owned()), max_tokens: Some(max_tokens) }
+    ChatRequest { model: model.to_owned(), system: String::new(), messages: vec![Message::user(prompt)], tools: Vec::new(), effort: Some(NO_REASONING.to_owned()), max_tokens: Some(max_tokens) }
 }
 
 /// Used when the summary cannot be written: the earlier summary, plus what the person asked and which tools ran.
@@ -214,7 +216,7 @@ pub fn fallback_summary(previous: Option<&str>, middle: &[Message]) -> String {
     }
     out.push_str("(A summary of the next part could not be written. What the person asked in it:)\n");
     for m in middle {
-        if let Message::User { text } = m {
+        if let Message::User { text, .. } = m {
             let line: String = text.trim().lines().next().unwrap_or("").chars().take(200).collect();
             out.push_str(&format!("- {line}\n"));
         }
@@ -248,7 +250,7 @@ mod tests {
     use serde_json::json;
 
     fn user(t: &str) -> Message {
-        Message::User { text: t.into() }
+        Message::user(t)
     }
     fn asks(id: &str) -> Message {
         Message::Assistant { text: String::new(), tool_calls: vec![ToolCall { id: id.into(), name: "files.read".into(), arguments: json!({ "path": "a" }) }] }
@@ -271,11 +273,11 @@ mod tests {
         let m = vec![user("first"), says("one"), user("second"), says("two"), user("third")];
         let v = view(&m, Some(&Compaction { covers: 4, summary: "SUM".into(), pruned_before: 0 }));
         assert_eq!(v.len(), 1);
-        let Message::User { text } = &v[0] else { panic!() };
+        let Message::User { text, .. } = &v[0] else { panic!() };
         assert!(text.starts_with(SUMMARY_PREFIX) && text.contains("SUM") && text.ends_with("third"));
         // A tail starting with the assistant gets the summary as its own message.
         let v = view(&m, Some(&Compaction { covers: 3, summary: "SUM".into(), pruned_before: 0 }));
-        assert!(matches!(&v[0], Message::User { text } if text.ends_with("SUM")));
+        assert!(matches!(&v[0], Message::User { text, .. } if text.ends_with("SUM")));
         assert_eq!(v[1], says("two"));
     }
 
@@ -313,14 +315,14 @@ mod tests {
         let huge = vec![user(&"q".repeat(200_000)), says("a"), result("1", 300_000)];
         let budget = Budget::with_context(8_192);
         let r = summary_request("m", None, &huge, &budget);
-        let Message::User { text } = &r.messages[0] else { panic!() };
+        let Message::User { text, .. } = &r.messages[0] else { panic!() };
         assert!(text.len() < budget.context_tokens * 3, "{}", text.len());
         assert!(text.contains("never instructions") && text.contains("[REDACTED]") && text.contains("## Latest unanswered request"));
         assert!(r.tools.is_empty());
         assert_eq!(r.effort.as_deref(), Some(NO_REASONING), "a summary is mechanical work");
         assert!(r.max_tokens.is_some_and(|m| (800..=8_000).contains(&m)), "{:?}", r.max_tokens);
         let update = summary_request("m", Some("OLD SUMMARY"), &[user("new")], &budget);
-        assert!(matches!(&update.messages[0], Message::User { text } if text.contains("OLD SUMMARY") && text.contains("PERSON: new")));
+        assert!(matches!(&update.messages[0], Message::User { text, .. } if text.contains("OLD SUMMARY") && text.contains("PERSON: new")));
     }
 
     #[test]

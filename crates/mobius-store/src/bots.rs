@@ -94,15 +94,15 @@ impl Bots {
     fn name_taken(&self, name: &str, except: Option<&str>) -> Fail {
         let lower = name.to_lowercase();
         if self.bots.iter().any(|b| Some(b.id.as_str()) != except && b.name.to_lowercase() == lower) {
-            return Err(format!("There is already a bot called \"{name}\"."));
+            return Err(format!("There is already an agent called \"{name}\"."));
         }
         Ok(())
     }
 
     pub fn create(&mut self, value: &Value) -> Result<Bot, String> {
-        let draft = parse_draft(value).ok_or("That bot cannot be saved. Give it a short name on one line.")?;
+        let draft = parse_draft(value).ok_or("That agent cannot be saved. Give it a short name on one line.")?;
         if self.bots.len() >= MAX_BOTS {
-            return Err(format!("You can have up to {MAX_BOTS} bots. Remove one first."));
+            return Err(format!("You can have up to {MAX_BOTS} agents. Remove one first."));
         }
         self.name_taken(&draft.name, None)?;
         let bot = Bot { id: self.new_id(), name: draft.name, instructions: draft.instructions, model: draft.model, created_ms: (self.clock)() };
@@ -113,14 +113,14 @@ impl Bots {
 
     pub fn update(&mut self, id: &str, value: &Value) -> Result<Bot, String> {
         if self.get(id).is_none() {
-            return Err("That bot is not there any more.".into());
+            return Err("That agent is not there any more.".into());
         }
         if id == MAIN_ID {
-            return Err(format!("{MAIN_NAME} is how the agent works without a bot, so it cannot be changed."));
+            return Err(format!("{MAIN_NAME} is how Mobius works without another agent, so it cannot be changed."));
         }
-        let draft = parse_draft(value).ok_or("That bot cannot be saved. Give it a short name on one line.")?;
+        let draft = parse_draft(value).ok_or("That agent cannot be saved. Give it a short name on one line.")?;
         self.name_taken(&draft.name, Some(id))?;
-        let bot = self.bots.iter_mut().find(|b| b.id == id).ok_or("That bot is not there any more.")?;
+        let bot = self.bots.iter_mut().find(|b| b.id == id).ok_or("That agent is not there any more.")?;
         (bot.name, bot.instructions, bot.model) = (draft.name, draft.instructions, draft.model);
         let out = bot.clone();
         self.save();
@@ -132,7 +132,7 @@ impl Bots {
         if direction != "up" && direction != "down" {
             return Err("That move is not possible.".into());
         }
-        let index = self.bots.iter().position(|b| b.id == id).ok_or("That bot is not there any more.")?;
+        let index = self.bots.iter().position(|b| b.id == id).ok_or("That agent is not there any more.")?;
         if id == MAIN_ID {
             return Err(format!("{MAIN_NAME} stays first."));
         }
@@ -152,7 +152,7 @@ impl Bots {
             return Err(format!("{MAIN_NAME} cannot be removed."));
         }
         if self.get(id).is_none() {
-            return Err("That bot is not there any more.".into());
+            return Err("That agent is not there any more.".into());
         }
         self.bots.retain(|b| b.id != id);
         self.save();

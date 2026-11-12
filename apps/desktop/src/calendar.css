@@ -1,0 +1,186 @@
+/*
+ * Calendar, in the manner of Apple's: a quiet grid, events as soft tinted blocks with a coloured edge, today in the
+ * accent, weekends a shade back. Everything is drawn from the theme's tokens, so light and dark both follow.
+ */
+
+/* The head: back, Today and forward at the start; the view in the middle; quick add and New event at the end. */
+/* A row that wraps rather than overlaps: in a narrow window the quick add and New event go to a second line. */
+.calendar-page .cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 10px var(--sp-4); }
+.cal-head-start, .cal-head-end { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.cal-head-start { flex: 1 0 auto; }
+/* Back, Today and Forward are one control, in the same capsule as the Browser's back and forward. */
+.calendar-page .cal-step > .btn { height: 26px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; font-weight: var(--fw-medium); }
+.calendar-page .cal-step > .btn:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.cal-head-end { flex: 1 1 280px; justify-content: flex-end; gap: var(--sp-2); }
+.cal-head-end > .btn { flex: none; white-space: nowrap; }
+.calendar-page .cal-head .segmented button { min-width: 64px; }
+
+/* Quick add: one line, said in words; what it will add shows underneath before Enter. */
+.cal-quick { position: relative; display: flex; align-items: center; gap: 6px; flex: 0 1 260px; min-width: 0; height: 30px; padding: 0 10px; border-radius: var(--radius-pill); background: var(--field); border: 1px solid transparent; }
+.cal-quick:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); background: var(--bg); }
+.cal-quick > svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; }
+.cal-quick input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; font: inherit; font-size: var(--fs-sm); color: inherit; outline: none; }
+.cal-quick-hint { position: absolute; z-index: 6; top: calc(100% + 6px); right: 0; width: max(100%, 300px); margin: 0; padding: 8px 12px; border-radius: var(--radius-group); background: var(--bg); box-shadow: var(--shadow-3); font-size: var(--fs-sm); color: var(--muted); display: none; }
+.cal-quick:focus-within .cal-quick-hint { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+.cal-quick-hint b { color: var(--ink); font-weight: 600; }
+.cal-quick-hint kbd { margin-left: auto; padding: 0 5px; border-radius: 4px; background: var(--field); font: inherit; font-size: var(--fs-xs); }
+
+/* Day headings: the date large, today in an accent circle; a heading opens its day. */
+.calendar-page .cal-days { border-bottom: 1px solid var(--line); }
+.calendar-page .cal-day-head { display: flex; align-items: baseline; justify-content: center; gap: 6px; padding: 8px 6px; border: 0; background: transparent; font: inherit; font-size: var(--fs-sm); color: var(--muted); cursor: pointer; border-radius: 0; }
+.calendar-page .cal-day-head:disabled { cursor: default; color: var(--muted); }
+.calendar-page .cal-day-head:not(:disabled):hover b { background: var(--soft); }
+.calendar-page .cal-day-head b { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 4px; border-radius: 14px; font-size: var(--fs-lg); font-weight: 500; color: var(--ink); }
+.calendar-page .cal-day-head[data-today] { color: var(--accent); font-weight: 600; }
+.calendar-page .cal-day-head[data-today] b, .calendar-page .cal-day-head[data-today]:not(:disabled):hover b { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+
+/* The grid: hour lines, a fainter half-hour line, weekends a shade back, today a breath of accent. */
+.calendar-page .cal-column { background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px); background-position: 0 0, 0 calc(48px / 2); background-size: 100% 48px; touch-action: none; }
+.calendar-page .cal-column[data-weekend], .calendar-page .cal-month-cell[data-weekend]:not([data-outside]) { background-color: color-mix(in srgb, var(--panel) 70%, var(--bg)); }
+.calendar-page .cal-column[data-today] { background-color: color-mix(in srgb, var(--accent) 4%, var(--bg)); }
+.calendar-page .cal-grid[data-dragging] { cursor: grabbing; user-select: none; }
+.calendar-page .cal-hour { font-size: 11px; }
+
+/* Events: a soft tint of the calendar's colour, a coloured edge, the title in a deeper shade of it. */
+.calendar-page .cal-event { border: 0; border-left: 3px solid var(--event); border-radius: 5px; padding: 3px 6px 3px 7px; background: color-mix(in srgb, var(--event) 15%, var(--bg)); color: color-mix(in srgb, var(--event) 55%, var(--ink)); font-size: 12px; line-height: 1.3; transition: box-shadow var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
+.calendar-page .cal-event b { font-weight: 600; }
+.calendar-page .cal-event span { color: color-mix(in srgb, var(--event) 35%, var(--muted)); }
+.calendar-page .cal-event:hover { background: color-mix(in srgb, var(--event) 24%, var(--bg)); }
+.calendar-page .cal-event[data-all-day] { background: color-mix(in srgb, var(--event) 78%, var(--bg)); color: #fff; border-left-color: transparent; }
+.calendar-page .cal-event[data-all-day]:hover { background: var(--event); }
+.calendar-page .cal-event[data-all-day] span { color: inherit; }
+.calendar-page .cal-event[data-movable] { cursor: default; touch-action: none; user-select: none; }
+.calendar-page .cal-event[data-dragging] { z-index: 4; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18), 0 0 0 1px color-mix(in srgb, var(--event) 60%, transparent); background: color-mix(in srgb, var(--event) 30%, var(--bg)); cursor: grabbing; }
+.cal-repeat { position: absolute; top: 4px; right: 4px; width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; opacity: 0.6; }
+.calendar-page .cal-event[data-compact] .cal-repeat { display: none; }
+/* Stretching: the bottom edge of a timed event. */
+.cal-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; cursor: ns-resize; }
+.calendar-page .cal-column > .cal-event:hover .cal-resize::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 16px; height: 2px; margin-left: -8px; border-radius: 1px; background: color-mix(in srgb, var(--event) 70%, transparent); }
+
+/* A new event swept out on empty time. */
+.cal-sweep { position: absolute; z-index: 3; left: 2px; right: 4px; padding: 3px 7px; border-radius: 5px; border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--bg)); color: var(--accent); font-size: 12px; font-weight: 600; pointer-events: none; overflow: hidden; }
+
+/* A day an event is being carried to. */
+.calendar-page [data-drop] { background-color: color-mix(in srgb, var(--accent) 10%, var(--bg)); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* Tasks with due dates: a ring to tick, like Reminders in Apple's Calendar. */
+.cal-task { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 1px 4px; border-radius: 5px; font-size: 12px; line-height: 18px; cursor: pointer; }
+.cal-task:hover { background: var(--soft); }
+.cal-task input { appearance: none; flex: none; width: 13px; height: 13px; margin: 0; border-radius: 50%; border: 1.5px solid var(--muted); background: transparent; cursor: pointer; }
+.cal-task input:checked { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 2px var(--bg); }
+.cal-task input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cal-task span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-task[data-done] span { color: var(--muted); text-decoration: line-through; }
+
+/* Month: the date top right, the first of a month named, today in an accent circle. */
+.calendar-page .cal-month-head span { text-align: right; padding: 6px 10px; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.calendar-page .cal-month-cell { gap: 2px; padding: 3px 4px 4px; }
+.calendar-page .cal-month-day { align-self: flex-end; min-width: 24px; height: 24px; padding: 0 6px; border: 0; border-radius: 12px; background: transparent; font: inherit; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; }
+.calendar-page .cal-month-day:hover { background: var(--soft); }
+.calendar-page .cal-month-cell[data-today] .cal-month-day { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.calendar-page .cal-month-cell[data-outside] .cal-month-day { color: var(--muted); }
+.calendar-page .cal-month-cell .cal-event[data-compact]:not([data-all-day]) { background: transparent; border-left: 0; padding-left: 4px; color: var(--ink); }
+.calendar-page .cal-month-cell .cal-event[data-compact]:not([data-all-day])::before { content: ""; flex: none; align-self: center; width: 7px; height: 7px; border-radius: 50%; background: var(--event); }
+.calendar-page .cal-month-cell .cal-event[data-compact]:not([data-all-day]):hover { background: var(--soft); }
+.calendar-page .cal-month-cell .cal-event[data-suggested][data-compact] { color: var(--accent); }
+.calendar-page .cal-more { font-weight: 600; }
+
+/* Undo, floating at the foot of the page like a toast. */
+.calendar-page .cal-undo { position: absolute; z-index: 6; left: 50%; bottom: var(--sp-4); transform: translateX(-50%); margin: 0; padding: 4px 4px 4px 14px; border-radius: var(--radius-pill); background: var(--bg); box-shadow: var(--shadow-3); white-space: nowrap; max-width: calc(100% - 32px); }
+.calendar-page .cal-undo span { overflow: hidden; text-overflow: ellipsis; }
+
+/* The editor: title and place up top, then the times as one grouped inset list. */
+.cal-editor { gap: var(--sp-3); border-radius: var(--sheet-radius); }
+/* Inside the sheet, groups follow its corner: its radius less the padding that insets them. */
+.cal-editor .cal-editor-group { border-radius: calc(var(--sheet-radius) - var(--sp-4)); }
+.cal-editor .cal-editor-place { background: transparent !important; padding-left: 0 !important; color: var(--muted) !important; min-height: 24px !important; }
+.cal-editor .cal-editor-title { background: transparent !important; padding-left: 0 !important; font-size: var(--fs-xl) !important; border-radius: 0 !important; border-bottom: 1px solid var(--line) !important; }
+.cal-editor .cal-editor-title:focus-visible, .cal-editor .cal-editor-place:focus-visible { outline: none; border-bottom-color: var(--accent) !important; }
+.cal-editor .cal-editor-place { border-radius: 0 !important; border-bottom: 1px solid transparent !important; }
+.cal-editor-group { display: flex; flex-direction: column; border-radius: var(--radius-group); background: var(--field); }
+.cal-editor-group > .cal-editor-row { min-height: 40px; padding: 4px 10px; }
+.cal-editor-group > .cal-editor-row + .cal-editor-row { border-top: 1px solid var(--line); }
+.cal-editor-group > .cal-editor-row > span { width: 72px; color: var(--ink); font-size: var(--fs-sm); }
+.cal-editor-group input:not([type="checkbox"]), .cal-editor-group select { background: var(--bg) !important; }
+.cal-editor-group > .cal-editor-check { justify-content: space-between; }
+/* All day as a switch. */
+.cal-editor-check input[type="checkbox"] { appearance: none; position: relative; width: 36px; height: 22px; margin: 0 0 0 auto; border-radius: 11px; background: color-mix(in srgb, var(--muted) 40%, transparent); cursor: pointer; transition: background-color var(--dur-med) var(--ease); }
+.cal-editor-check input[type="checkbox"]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform var(--dur-med) var(--ease); }
+.cal-editor-check input[type="checkbox"]:checked { background: var(--success, #34c759); }
+.cal-editor-check input[type="checkbox"]:checked::after { transform: translateX(14px); }
+.cal-editor-check input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .cal-editor-check input, .cal-editor-check input::after, .calendar-page .cal-event { transition: none; } }
+
+/* The mini month in the sidebar. */
+.cal-mini { margin: 0 var(--sp-2) var(--sp-1); padding: var(--sp-2) var(--sp-1) var(--sp-1); }
+.cal-mini-head { display: flex; align-items: center; gap: 2px; padding: 0 var(--sp-1) var(--sp-1); }
+.cal-mini-title { flex: 1; font-size: var(--fs-sm); font-weight: 600; }
+.cal-mini-head .strip-btn { width: 24px; height: 24px; }
+.cal-mini-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 1px; }
+.cal-mini-dow { text-align: center; font-size: 10px; font-weight: 600; color: var(--muted); padding-bottom: 2px; }
+.cal-mini-day { height: 24px; border: 0; padding: 0; background: transparent; font: inherit; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink); border-radius: 12px; cursor: pointer; }
+.cal-mini-day:hover { background: var(--soft); }
+.cal-mini-day[data-outside] { color: var(--muted); opacity: 0.6; }
+.cal-mini-day[data-shown] { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 0; }
+.cal-mini-day[data-shown]:nth-child(7n+1) { border-radius: 12px 0 0 12px; }
+.cal-mini-day[data-shown]:nth-child(7n) { border-radius: 0 12px 12px 0; }
+.cal-mini-day[data-shown]:nth-child(7n+1):nth-child(7n) { border-radius: 12px; }
+.cal-mini-day[aria-current="date"] { color: var(--accent); font-weight: 700; }
+.cal-mini-day[data-anchor] { background: var(--accent); color: var(--on-accent); border-radius: 12px; font-weight: 600; }
+.cal-mini-day:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* One add button beside the quick-add field: a round +. */
+.calendar-page .cal-new { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--on-accent, #fff); }
+.calendar-page .cal-new svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.calendar-page .cal-new:hover { filter: brightness(1.06); }
+
+/* A suggestion opens beside its dashed event, as an event's popover does in Calendar. */
+.cal-suggest-pop { position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: var(--bg); color: var(--ink); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.2), 0 0 0 0.5px var(--line); font-size: var(--fs-sm); }
+.cal-suggest-pop-head { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--accent); }
+.cal-suggest-pop-title { font-size: 15px; font-weight: 600; }
+.cal-suggest-pop-when { color: var(--muted); font-size: var(--fs-xs); }
+.cal-suggest-pop .review-why { margin: 4px 0 0; }
+.cal-suggest-pop-note { margin: 0; color: var(--muted); font-size: var(--fs-xs); }
+.cal-suggest-pop .cal-suggestion-actions { margin-top: 6px; display: flex; gap: 4px; justify-content: flex-end; }
+
+/* The event sheet's day and time, written as the person writes them, with a small month to pick from. */
+.cal-editor .cal-field { position: relative; flex: 1; display: flex; align-items: center; min-width: 0; }
+.cal-editor .cal-field-day { flex: 1; min-width: 0; padding-right: 28px !important; }
+.cal-editor .cal-field-time { width: 92px; flex: none; text-align: center; font-variant-numeric: tabular-nums; }
+.cal-editor .cal-field-pick { position: absolute; right: 4px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 5px; color: var(--muted); }
+.cal-editor .cal-field-pick:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.cal-editor .cal-field-pick svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cal-editor .cal-field-month { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: 236px; padding: 10px; border-radius: 12px; background: var(--bg); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.2), 0 0 0 0.5px var(--line); }
+.cal-editor .cal-field-month-head { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
+.cal-editor .cal-field-month-head b { flex: 1; font-size: var(--fs-sm); }
+.cal-editor .cal-field-month-head svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cal-editor .cal-field-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; text-align: center; }
+.cal-editor .cal-field-days > span { font-size: 10px; font-weight: 600; color: var(--muted); padding-bottom: 4px; }
+.cal-editor .cal-field-days button { height: 28px; border-radius: 50%; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink); }
+.cal-editor .cal-field-days button[data-out] { color: var(--muted); opacity: 0.6; }
+.cal-editor .cal-field-days button[data-today] { color: var(--accent); font-weight: 700; }
+.cal-editor .cal-field-days button:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.cal-editor .cal-field-days button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent, #fff); font-weight: 600; }
+.cal-suggest-pop .review-why { white-space: normal; overflow: visible; text-overflow: clip; font-size: var(--fs-sm); color: var(--ink); }
+
+/* A suggestion kept turns solid where it is, then becomes the event. */
+.calendar-page .cal-event[data-suggested] { transition: background-color var(--dur-med) var(--ease), border-color var(--dur-med) var(--ease), color var(--dur-med) var(--ease); }
+.calendar-page .cal-event[data-suggested][data-keeping] { border-style: solid; border-width: 0 0 0 3px; border-color: var(--event); background: color-mix(in srgb, var(--event) 15%, var(--bg)); color: color-mix(in srgb, var(--event) 55%, var(--ink)); }
+/* A dot under a day that has something on. */
+.cal-mini-day { position: relative; }
+.cal-mini-day[data-busy]::after { content: ''; position: absolute; left: 50%; bottom: 2px; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: currentColor; opacity: 0.55; }
+/* An all-day event of several days is one bar across them: the days it joins have square ends that reach the cell edge, and its title shows once per week row. */
+.calendar-page .cal-month-cell { overflow: clip; overflow-clip-margin: 1px; }
+.calendar-page .cal-month-cell .cal-event[data-joins-before], .calendar-page .cal-month-cell .cal-event[data-joins-after] { position: relative; z-index: 1; }
+.calendar-page .cal-month-cell .cal-event[data-joins-before] { margin-left: -5px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.calendar-page .cal-month-cell .cal-event[data-joins-after] { margin-right: -5px; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.calendar-page .cal-month-cell .cal-event[data-quiet] b { visibility: hidden; }
+.calendar-page .cal-all-day-cell .cal-event[data-joins-before] { margin-left: -3px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.calendar-page .cal-all-day-cell .cal-event[data-joins-after] { margin-right: -2px; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.calendar-page .cal-all-day-cell .cal-event[data-quiet] b { visibility: hidden; }
+/* An event that is also a task in Tasks carries a small tick before its title. */
+.calendar-page .cal-from-tasks { display: inline-block; width: 11px; height: 11px; margin-right: 3px; vertical-align: -1px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: 0.8; }
+/* An event with times that runs over several days is drawn as a bar too, like an all-day one, not as a dot each day. */
+.calendar-page .cal-month-cell .cal-event[data-compact][data-span]:not([data-all-day]) { background: color-mix(in srgb, var(--event) 78%, var(--bg)); color: #fff; padding-left: 6px; }
+.calendar-page .cal-month-cell .cal-event[data-compact][data-span]:not([data-all-day])::before { display: none; }
+.calendar-page .cal-month-cell .cal-event[data-compact][data-span]:not([data-all-day]):hover { background: var(--event); }

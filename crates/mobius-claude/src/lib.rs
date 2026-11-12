@@ -8,6 +8,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod cli;
+pub mod copilot;
 pub mod frames;
 pub mod provider;
 pub mod relay;

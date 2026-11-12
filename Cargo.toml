@@ -6,6 +6,8 @@ members = ["crates/mobius-core", "crates/mobius-cored", "crates/mobius-agent", "
 version = "0.0.0"
 edition = "2024"
 publish = false
+license = "MIT"
+repository = "https://github.com/BevActual/mobius"
 rust-version = "1.85"
 
 [workspace.dependencies]

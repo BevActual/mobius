@@ -131,11 +131,14 @@ fn a_message_is_checked_for_its_conversation_text_and_attachments() {
         json!({ "conversation": "c-1", "text": "hi", "context": [item(20_000), item(20_000), item(20_000), item(1)] }),
         json!({ "conversation": "c-1", "text": "hi", "context": [{ "kind": "video", "title": "T", "source": "s", "text": "t" }] }),
         json!({ "conversation": "c-1", "text": "hi", "context": [{ "kind": "file", "title": "", "source": "s", "text": "t" }] }),
+        json!({ "conversation": "c-1", "text": "hi", "plan": "yes" }),
     ] {
         assert!(parse_send(&bad).is_none(), "{bad}");
     }
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "x".repeat(32_000) })).is_some());
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "context": [item(20_000), item(20_000), item(20_000)] })).is_some());
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "plan": true })).unwrap().plan);
+    assert!(!parse_send(&json!({ "conversation": "c-1", "text": "hi" })).unwrap().plan);
 }
 
 #[test]
@@ -171,6 +174,8 @@ fn notifications_are_checked_before_the_window_sees_them() {
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "compacted", "messages": 12 }))).is_some());
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "compacted" }))).is_none());
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "compacted", "messages": "12" }))).is_none());
+    assert!(parse_notification("agent.event", &ev(json!({ "kind": "context", "used": 9000, "limit": 40000 }))).is_some());
+    assert!(parse_notification("agent.event", &ev(json!({ "kind": "context", "used": 9000, "limit": 0 }))).is_none());
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "todo", "items": [{ "text": "a", "status": "in_progress" }] }))).is_some());
     assert!(parse_notification("agent.event", &ev(json!({ "kind": "question", "call_id": "q", "question": "Which?", "choices": ["A"] }))).is_some());
     for bad in [
@@ -300,16 +305,36 @@ fn a_message_goes_to_the_core_with_its_attachments_and_a_bots_instructions_added
     s.service.send(&req, Some(("", "small")));
     s.service.send(&req, None);
     let sends: Vec<Value> = calls(&s.core).into_iter().filter(|c| c["method"] == "agent.send").map(|c| c["params"].clone()).collect();
-    assert_eq!(sends[0]["system"], json!("Be brief.\n\nCite sources."));
+    // The core adds a turn's own instructions to the usual ones ("Be brief."), which it already has.
+    assert_eq!(sends[0]["system"], json!("Cite sources."));
     assert_eq!(sends[0]["model"], json!("big-model"));
     assert!(sends[0]["text"].as_str().unwrap().contains("<attached kind=\"page\""));
     assert!(sends[1].get("system").is_none() && sends[1]["model"] == json!("small"));
     assert!(sends[2].get("system").is_none() && sends[2].get("model").is_none());
+    assert!(sends.iter().all(|p| p.get("plan").is_none()), "a plan is only asked for when wanted");
+    let plan = parse_send(&json!({ "conversation": "c-abc123-x", "text": "plan it", "plan": true })).unwrap();
+    s.service.send(&plan, None);
+    let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
+    assert_eq!(last["params"]["plan"], json!(true));
     let bare = service(true);
     bare.service.configure(&cfg("http://a/v1", "am"));
     bare.service.send(&req, Some(("Only me.", "")));
     let only = calls(&bare.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
     assert_eq!(only["params"]["system"], json!("Only me."));
+}
+
+#[test]
+fn what_mobius_remembers_joins_the_instructions_after_a_bots() {
+    let s = service(true);
+    s.service.configure(&Configure { system: Some("Be brief.".into()), ..cfg("http://a/v1", "am") });
+    let req = parse_send(&json!({ "conversation": "c-1", "text": "hi" })).unwrap();
+    s.service.send_remembering(&req, None, "Remembered: likes tea.");
+    s.service.send_remembering(&req, Some(("Cite sources.", "")), "Remembered: likes tea.");
+    s.service.send_remembering(&req, None, "");
+    let sends: Vec<Value> = calls(&s.core).into_iter().filter(|c| c["method"] == "agent.send").map(|c| c["params"].clone()).collect();
+    assert_eq!(sends[0]["system"], json!("Remembered: likes tea."));
+    assert_eq!(sends[1]["system"], json!("Cite sources.\n\nRemembered: likes tea."));
+    assert!(sends[2].get("system").is_none(), "nothing remembered leaves the usual instructions to the core");
 }
 
 #[test]
@@ -321,7 +346,7 @@ fn what_is_shown_from_the_core_is_filtered_and_trimmed() {
     assert_eq!((rows[0]["activity"].clone(), rows[0]["waiting"].clone()), (json!("working"), json!(1)));
     assert_eq!((rows[1]["activity"].clone(), rows[1]["title"].as_str().unwrap().len()), (json!("idle"), 200));
     let waiting = s.service.waiting("c-one");
-    assert_eq!(waiting, json!([{ "requestId": 3, "callId": "k1", "tool": "browser.read", "arguments": { "url": "x" }, "onceOnly": true }]));
+    assert_eq!(waiting, json!([{ "requestId": 3, "callId": "k1", "tool": "browser.read", "arguments": { "url": "x" }, "onceOnly": true, "origin": null }]));
     let grants = s.service.grants();
     assert_eq!(grants.as_array().unwrap().iter().map(|g| g["id"].as_i64().unwrap()).collect::<Vec<_>>(), vec![1, 6], "only the agent's, only lasting ones, only well formed");
     let activity = s.service.activity(10).to_string();

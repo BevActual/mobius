@@ -16,8 +16,25 @@ pub struct ToolCall {
 #[serde(tag = "role", rename_all = "snake_case")]
 #[ts(export)]
 pub enum Message {
-    User { text: String },
+    User {
+        text: String,
+        /// Pictures the person attached, as `data:` URLs (PNG, JPEG, WebP or GIF), for models that read pictures.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[ts(as = "Option<Vec<String>>", optional)]
+        images: Vec<String>,
+        /// When the person sent it, in milliseconds since 1970: the window shows a time above a group of messages.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(type = "number", optional)]
+        at_ms: Option<u64>,
+    },
     Assistant { text: String, tool_calls: Vec<ToolCall> },
     /// The result of one tool call. Every call in an assistant message gets exactly one of these.
     Tool { call_id: String, name: String, content: String, is_error: bool },
+}
+
+impl Message {
+    /// A message from the person with no pictures.
+    pub fn user(text: impl Into<String>) -> Message {
+        Message::User { text: text.into(), images: Vec::new(), at_ms: None }
+    }
 }

@@ -2,6 +2,7 @@
   "name": "mobius",
   "private": true,
   "version": "0.0.0",
+  "license": "MIT",
   "description": "Mobius Agent: a morphing desktop environment for people and agents.",
   "type": "module",
   "workspaces": [
@@ -16,14 +17,16 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "dev": "npm run dev -w @mobius/desktop",
     "build": "npm run build -w @mobius/desktop",
-    "e2e": "cargo build -p mobius-cored -p mobius-shell && npm run e2e -w @mobius/desktop",
+    "e2e": "npm run build -w @mobius/desktop && cargo build --workspace --bins && npm run e2e -w @mobius/desktop",
     "build:core": "cargo build -p mobius-cored",
     "test:core": "cargo test --workspace",
     "gen:types": "node scripts/gen-types.mjs",
     "check:types": "node scripts/check-generated.mjs",
-    "app": "npm run app -w @mobius/desktop --"
+    "app": "npm run app -w @mobius/desktop --",
+    "package": "node scripts/package.mjs"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.3",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   },

@@ -69,8 +69,29 @@ pub struct CheckParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct SignInParams {
+    conversation: String,
+    #[serde(default)]
+    site: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SetModeParams {
     mode: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetRulesParams {
+    rules: Vec<crate::permissions::Rule>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetProjectRulesParams {
+    project: String,
+    rules: Vec<crate::permissions::Rule>,
 }
 
 #[derive(Debug, Deserialize, TS)]
@@ -283,12 +304,55 @@ fn dispatch(core: &mut Core, extension: &mut dyn Extension, method: &str, params
             core.resolve(params.request_id, params.approve, params.duration)?;
             Ok(json!({}))
         }
+        // Sign in once per task: what a conversation is signed in to, a new sign-in, Sign out now, and the task's end.
+        "signins.list" => {
+            let p: SignInParams = parse_params(params)?;
+            Ok(json!({ "sites": core.signins.sites(&p.conversation) }))
+        }
+        "signins.has" => {
+            let p: SignInParams = parse_params(params)?;
+            let site = p.site.as_deref().and_then(crate::signins::site_of).ok_or_else(|| RpcError::invalid_params("site must be a web address"))?;
+            Ok(json!({ "signedIn": core.signins.has(&p.conversation, &site), "site": site }))
+        }
+        "signins.add" => {
+            let p: SignInParams = parse_params(params)?;
+            let site = p.site.as_deref().and_then(crate::signins::site_of).ok_or_else(|| RpcError::invalid_params("site must be a web address"))?;
+            core.signins.signed_in(&p.conversation, &site);
+            Ok(json!({ "sites": core.signins.sites(&p.conversation) }))
+        }
+        "signins.sign_out" => {
+            let p: SignInParams = parse_params(params)?;
+            let site = p.site.as_deref().and_then(crate::signins::site_of).ok_or_else(|| RpcError::invalid_params("site must be a web address"))?;
+            core.signins.sign_out(&p.conversation, &site);
+            Ok(json!({ "sites": core.signins.sites(&p.conversation) }))
+        }
+        "signins.end" => {
+            let p: SignInParams = parse_params(params)?;
+            core.signins.task_ended(&p.conversation);
+            Ok(json!({ "sites": [] }))
+        }
         "permissions.mode" => Ok(json!({ "mode": core.approval_mode().as_str() })),
         "permissions.set_mode" => {
             let params: SetModeParams = parse_params(params)?;
-            let mode = ApprovalMode::parse(&params.mode).ok_or_else(|| RpcError::invalid_params("mode must be careful, standard or relaxed"))?;
+            let mode = ApprovalMode::parse(&params.mode).ok_or_else(|| RpcError::invalid_params("mode must be manual, propose, smart or off"))?;
             core.set_approval_mode(mode)?;
             Ok(json!({ "mode": mode.as_str() }))
+        }
+        "permissions.set_project_rules" => {
+            let params: SetProjectRulesParams = parse_params(params)?;
+            if params.rules.len() > 200 {
+                return Err(RpcError::invalid_params("at most 200 rules"));
+            }
+            core.set_project_rules(&params.project, params.rules).map_err(|_| RpcError::invalid_params("that is not a project"))?;
+            Ok(json!({}))
+        }
+        "permissions.set_rules" => {
+            let params: SetRulesParams = parse_params(params)?;
+            if params.rules.len() > 200 {
+                return Err(RpcError::invalid_params("at most 200 rules"));
+            }
+            core.set_rules(params.rules)?;
+            Ok(json!({}))
         }
         "permissions.grants" => to_value(core.grants()),
         "permissions.revoke" => {

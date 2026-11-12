@@ -72,7 +72,7 @@ fn a_message_starts_a_turn_and_the_answer_is_announced_and_remembered() {
     let (turn_id, outs) = host.send(&core, "c1", "hello").unwrap();
     let (called_turn, request) = model_call(&outs).expect("a model call");
     assert_eq!(called_turn, turn_id);
-    assert_eq!(request.messages, [Message::User { text: "hello".into() }]);
+    assert_eq!(untimed(&request.messages), [Message::user("hello")]);
     assert!(host.is_busy("c1"));
 
     let outs = host.model_result(&mut core, turn_id, text("Hi!"));
@@ -80,7 +80,7 @@ fn a_message_starts_a_turn_and_the_answer_is_announced_and_remembered() {
     assert_eq!(n[0], json!({ "jsonrpc": "2.0", "method": "agent.event", "params": { "conversation": "c1", "turn": turn_id, "event": { "kind": "message", "text": "Hi!" } } }));
     assert_eq!(kinds(&outs), ["message", "done"]);
     assert!(!host.is_busy("c1"));
-    assert_eq!(host.history("c1"), [Message::User { text: "hello".into() }, Message::Assistant { text: "Hi!".into(), tool_calls: vec![] }]);
+    assert_eq!(untimed(&host.history("c1")), [Message::user("hello"), Message::Assistant { text: "Hi!".into(), tool_calls: vec![] }]);
 
     let (_, outs) = host.send(&core, "c1", "again").unwrap();
     assert_eq!(model_call(&outs).unwrap().1.messages.len(), 3, "the next turn sees the earlier ones");
@@ -93,7 +93,7 @@ fn conversations_are_independent_and_one_turn_runs_per_conversation() {
     assert_eq!(host.send(&core, "a", "two").err(), Some(HostError::Busy));
     let (_, outs) = host.send(&core, "b", "other").unwrap();
     assert_eq!(model_call(&outs).unwrap().1.messages.len(), 1);
-    assert_eq!(host.history("a"), [Message::User { text: "one".into() }], "a turn in progress is already part of the history");
+    assert_eq!(untimed(&host.history("a")), [Message::user("one")], "a turn in progress is already part of the history");
 }
 
 #[test]
@@ -294,14 +294,14 @@ fn the_last_waiter_cancelling_withdraws_the_question() {
 fn the_history_includes_the_turn_in_progress_and_the_parked_call_can_be_found() {
     let (mut core, mut host) = setup();
     let (turn_id, _) = host.send(&core, "c1", "use it").unwrap();
-    assert_eq!(host.history("c1"), [Message::User { text: "use it".into() }]);
+    assert_eq!(untimed(&host.history("c1")), [Message::user("use it")]);
     assert!(host.waiting("c1").is_empty());
 
     let outs = host.model_result(&mut core, turn_id, tool("call1", json!({ "text": "hi" })));
     let request_id = notices(&outs).iter().find_map(|n| n["params"]["event"]["request_id"].as_u64()).unwrap();
     let history = host.history("c1");
     assert!(matches!(history.last(), Some(Message::Assistant { tool_calls, .. }) if tool_calls[0].id == "call1"));
-    assert_eq!(host.waiting("c1"), [Waiting { request_id, call_id: "call1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false }]);
+    assert_eq!(host.waiting("c1"), [Waiting { request_id, call_id: "call1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false, origin: None }]);
     assert!(host.waiting("other").is_empty());
 
     core.resolve(request_id, true, Duration::Once).unwrap();
@@ -338,7 +338,7 @@ fn the_host_asks_its_caller_to_run_application_tools_and_carries_on_with_the_ans
 
     let outs = host.tool_result(&mut core, turn_id, "r1", Ok("fine".to_owned()));
     let (_, request) = model_call(&outs).expect("the model sees the result");
-    assert!(matches!(request.messages.last(), Some(Message::Tool { content, is_error: false, .. }) if content == "fine"));
+    assert!(matches!(request.messages.last(), Some(Message::Tool { content, is_error: false, .. }) if mobius_agent::untrusted::unwrap(content).map(|x| x.1) == Some("fine")));
     let outs = host.model_result(&mut core, turn_id, text("done"));
     assert_eq!(kinds(&outs), ["message", "done"]);
 }
@@ -504,7 +504,7 @@ fn a_new_host_loads_only_as_many_conversations_as_may_be_open() {
     {
         let mut raw = store.clone();
         for i in 0..80u64 {
-            raw.save(&format!("c{i}"), &[Message::User { text: format!("m{i}") }], i).unwrap();
+            raw.save(&format!("c{i}"), &[Message::user(format!("m{i}"))], i).unwrap();
         }
     }
     let (_, host) = saved_world(store, Arc::new(Mutex::new(0)));
@@ -650,7 +650,7 @@ fn a_review_that_says_deny_leaves_a_once_only_question_for_the_person() {
     let (_, request_id, _) = review_of(&outs).unwrap();
     let outs = host.review_result(&mut core, turn_id, request_id, text("DENY"));
     assert!(kinds(&outs).iter().any(|k| k == "needs_approval"));
-    assert_eq!(host.waiting("c1"), [Waiting { request_id, call_id: "call1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: true }]);
+    assert_eq!(host.waiting("c1"), [Waiting { request_id, call_id: "call1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: true, origin: None }]);
     assert_eq!(host.conversations()[0].activity, Activity::NeedsYou);
 }
 
@@ -682,12 +682,14 @@ fn the_effort_survives_a_new_setup_and_reaches_every_model_call() {
 #[test]
 fn a_conversation_can_have_its_own_setup_and_another_conversation_keeps_the_usual_one() {
     let (core, mut host) = setup();
-    let (_, outs) = host.send_with(&core, "bot-a", "hi", TurnSetup { system: Some("Be the bot.".into()), model: Some("bot-model".into()) }).unwrap();
+    let (_, outs) = host.send_with(&core, "bot-a", "hi", TurnSetup { system: Some("Be the bot.".into()), model: Some("bot-model".into()), plan_only: false, images: vec![], project: None }).unwrap();
     let (_, request) = model_call(&outs).unwrap();
-    assert_eq!((request.model.as_str(), request.system.as_str()), ("bot-model", "Be the bot."));
+    assert_eq!(request.model, "bot-model");
+    assert!(request.system.starts_with("Be the bot.\n\n"), "{}", request.system);
     let (_, outs) = host.send(&core, "plain", "hi").unwrap();
     let (_, request) = model_call(&outs).unwrap();
-    assert_eq!((request.model.as_str(), request.system.as_str()), ("test-model", "You are a test."));
+    assert_eq!(request.model, "test-model");
+    assert!(request.system.starts_with("You are a test.\n\n"));
 }
 
 // ---- long conversations --------------------------------------------------------------------------------------
@@ -719,7 +721,7 @@ fn a_summary_is_never_streamed_into_the_conversation_and_is_kept_after_a_restart
     assert!(!host.text(t, "Here").is_empty(), "the real answer streams as usual");
     host.model_result(&mut core, t, text("Here."));
     assert_eq!(host.history("long").len(), 8, "the transcript is whole");
-    assert!(matches!(&real.messages[0], Message::User { text } if text.contains("SUMMARY OF EARLIER")));
+    assert!(matches!(&real.messages[0], Message::User { text, .. } if text.contains("SUMMARY OF EARLIER")));
     let covers = host.compaction("long").unwrap().covers;
 
     // After a restart the next message goes out with the same summary, without asking for a new one.
@@ -729,7 +731,7 @@ fn a_summary_is_never_streamed_into_the_conversation_and_is_kept_after_a_restart
     let (_, outs) = host.send(&core, "long", "and then?").unwrap();
     let (_, request) = model_call(&outs).unwrap();
     assert!(!request.tools.is_empty(), "no new summary was needed");
-    assert!(matches!(&request.messages[0], Message::User { text } if text.contains("SUMMARY OF EARLIER")), "{:?}", request.messages[0]);
+    assert!(matches!(&request.messages[0], Message::User { text, .. } if text.contains("SUMMARY OF EARLIER")), "{:?}", request.messages[0]);
     let _ = &mut core;
 }
 
@@ -753,4 +755,89 @@ fn taking_back_a_message_the_summary_covers_forgets_the_summary() {
     host.model_result(&mut core, t, text("ok"));
     host.delete("long").unwrap();
     assert!(host.compaction("long").is_none());
+}
+
+fn remote(id: &str) -> Result<Completion, ProviderError> {
+    Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: id.into(), name: "demo.remote".into(), arguments: json!({ "url": "https://example.com/" }) }], stop: StopReason::ToolUse })
+}
+fn allow_remote(core: &mut Core) {
+    if let mobius_core::core::InvokeOutcome::NeedsApproval { request_id } = core.invoke(&agent(), "demo.remote", &json!({})).unwrap() {
+        core.resolve(request_id, true, Duration::Always).unwrap();
+    }
+}
+fn runs_tool(outs: &[Out]) -> bool {
+    outs.iter().any(|o| matches!(o, Out::RunTool { .. }))
+}
+fn event_of(outs: &[Out], kind: &str) -> Option<Value> {
+    notices(outs).into_iter().find(|n| n["method"] == "agent.event" && n["params"]["event"]["kind"] == kind).map(|n| n["params"]["event"].clone())
+}
+
+#[test]
+fn taking_over_pauses_at_the_next_safe_point_and_a_tool_decided_before_is_not_run_after_hand_back() {
+    let (mut core, mut host) = setup();
+    allow_remote(&mut core);
+    let (turn, outs) = host.send(&core, "c1", "go").unwrap();
+    assert!(model_call(&outs).is_some());
+    let outs = host.take_over("c1").unwrap();
+    assert_eq!(event_of(&outs, "paused"), Some(json!({ "kind": "paused", "step": 1 })));
+    assert_eq!(host.control("c1"), Some((1, None)));
+    assert!(host.take_over("c1").unwrap().is_empty(), "taking over twice changes nothing");
+    // The model's answer arrives while the person has control: the tool it asked for waits.
+    let outs = host.model_result(&mut core, turn, remote("r1"));
+    assert!(!runs_tool(&outs), "nothing runs while the person has control");
+    assert!(host.is_busy("c1"));
+    // Handing back: what it decided before is not run; the model is asked again and told to read what is there.
+    let outs = host.hand_back(&mut core, "c1").unwrap();
+    assert!(event_of(&outs, "resumed").is_some());
+    assert!(!runs_tool(&outs));
+    let (_, request) = model_call(&outs).expect("Mobius goes on");
+    assert!(request.system.contains(mobius_agent::engine::HANDED_BACK));
+    assert!(matches!(request.messages.last(), Some(Message::Tool { content, is_error: true, .. }) if content.starts_with("Not run: the person took over")));
+    assert_eq!(host.control("c1"), None);
+    let outs = host.model_result(&mut core, turn, text("Carried on."));
+    assert!(kinds(&outs).contains(&"done".to_owned()));
+    assert_eq!(host.hand_back(&mut core, "c1").err(), Some(HostError::NotWaiting));
+}
+
+#[test]
+fn while_a_tool_runs_the_next_model_request_waits_and_is_told_to_read_again() {
+    let (mut core, mut host) = setup();
+    allow_remote(&mut core);
+    let (turn, _) = host.send(&core, "c1", "go").unwrap();
+    let outs = host.model_result(&mut core, turn, remote("r1"));
+    assert!(runs_tool(&outs));
+    host.take_over("c1").unwrap();
+    let outs = host.tool_result(&mut core, turn, "r1", Ok("{\"title\":\"Home\"}".into()));
+    assert!(model_call(&outs).is_none(), "the next request waits for the person");
+    let outs = host.hand_back(&mut core, "c1").unwrap();
+    let (_, request) = model_call(&outs).unwrap();
+    assert!(request.system.contains(mobius_agent::engine::HANDED_BACK));
+    assert!(matches!(request.messages.last(), Some(Message::Tool { is_error: false, .. })), "the tool that did run keeps its answer");
+    // The note is for the one request after handing back.
+    host.model_result(&mut core, turn, remote("r2"));
+    let outs = host.tool_result(&mut core, turn, "r2", Ok("{}".into()));
+    let (_, next) = model_call(&outs).unwrap();
+    assert!(!next.system.contains(mobius_agent::engine::HANDED_BACK));
+}
+
+#[test]
+fn the_pause_names_the_step_of_the_plan() {
+    let (mut core, mut host) = setup();
+    let (turn, _) = host.send(&core, "c1", "go").unwrap();
+    let plan = Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: "p1".into(), name: "todo.write".into(), arguments: json!({ "items": [{ "text": "Read", "status": "done" }, { "text": "Write", "status": "in_progress" }, { "text": "Send", "status": "pending" }] }) }], stop: StopReason::ToolUse });
+    host.model_result(&mut core, turn, plan);
+    let outs = host.take_over("c1").unwrap();
+    assert_eq!(event_of(&outs, "paused"), Some(json!({ "kind": "paused", "step": 2, "of": 3 })));
+    // Stop still stops.
+    let outs = host.cancel(&mut core, "c1");
+    assert!(kinds(&outs).contains(&"cancelled".to_owned()));
+    assert!(!host.is_busy("c1"));
+}
+
+/// The messages without the time each was sent, to compare with plain ones.
+fn untimed(messages: &[Message]) -> Vec<Message> {
+    messages.iter().cloned().map(|m| match m {
+        Message::User { text, images, .. } => Message::User { text, images, at_ms: None },
+        other => other,
+    }).collect()
 }

@@ -1,4 +1,4 @@
-//! Material the person attaches to a message (a page, a file). It travels inside the message text between markers, so
+//! Material the person attaches to a message (a page, a file, text selected in a note). It travels inside the message text between markers, so
 //! it is saved with the conversation and the model can tell it from what the person typed. It is data, never
 //! instructions. Same rules as `context.ts` in the shared package.
 use serde_json::Value;
@@ -26,7 +26,7 @@ fn clean(value: &str, limit: usize) -> String {
 }
 
 fn item(v: &Value) -> Option<Item> {
-    let kind = v.get("kind")?.as_str().filter(|k| *k == "page" || *k == "file")?;
+    let kind = v.get("kind")?.as_str().filter(|k| matches!(*k, "page" | "file" | "note"))?;
     let (title, source, text) = (v.get("title")?.as_str()?, v.get("source")?.as_str()?, v.get("text")?.as_str()?);
     if title.is_empty() || title.encode_utf16().count() > MAX_TITLE || source.encode_utf16().count() > MAX_SOURCE || text.encode_utf16().count() > MAX_ITEM_CHARS {
         return None;

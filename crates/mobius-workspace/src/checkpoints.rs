@@ -8,6 +8,8 @@ use std::process::{Command, Stdio};
 /// Never snapshotted: build output, caches, environments, other version control, big binaries.
 pub const DEFAULT_EXCLUDES: &[&str] = &[
     "node_modules/", "dist/", "build/", "target/", "out/", ".next/", ".nuxt/", "__pycache__/", "*.pyc", ".cache/", ".venv/", "venv/", ".git/", ".hg/", ".svn/",
+    // An app's own record of the versions it kept (Docs, Research, Reading): theirs, not part of what a turn changed.
+    ".versions/",
     "*.so", "*.dylib", "*.dll", "*.o", "*.a", "*.jar", "*.class", "*.exe", "*.obj", "*.mp4", "*.mov", "*.mkv", "*.webm", "*.zip", "*.tar", "*.gz", "*.7z", "*.rar",
 ];
 
@@ -51,10 +53,14 @@ pub fn is_checkpoint_id(v: &str) -> bool {
     (4..=40).contains(&v.len()) && v.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-/// A path inside the folder: relative, no `..`, no drive or root, no control characters.
+/// A path inside the folder: relative, no `..`, no drive or root, no control characters. Paths use `/` on every
+/// system, and a backslash or a drive letter is refused everywhere, so a path means the same on Linux as on Windows
+/// (where `..\x` and `C:/x` would leave the folder).
 pub fn is_inner_path(v: &str) -> bool {
     !v.is_empty()
         && !v.chars().any(char::is_control)
+        && !v.contains('\\')
+        && !v.split('/').next().is_some_and(|first| first.len() >= 2 && first.as_bytes()[1] == b':')
         && Path::new(v).components().all(|c| matches!(c, Component::Normal(_)))
         && !v.starts_with('-')
 }
@@ -82,7 +88,7 @@ impl Checkpoints {
 
     fn git(&self, folder: &Path, id: &str, args: &[&str]) -> Result<String, Error> {
         let index = self.store.join("indexes").join(id);
-        let output = Command::new("git")
+        let output = quiet(Command::new("git"))
             .args(["-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.quotepath=false", "-c", "core.hooksPath=NUL", "-c", "gc.auto=0"])
             .args(args)
             .env("GIT_DIR", &self.store)
@@ -116,13 +122,23 @@ impl Checkpoints {
             return Err(Error::BadFolder("The checkpoint store cannot be inside the folder it protects.".into()));
         }
         if !self.store.join("HEAD").exists() {
-            let init = Command::new("git").args(["init", "--bare", "--quiet"]).arg(&self.store).stdin(Stdio::null()).output().map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { Error::NoGit } else { Error::Git(e.to_string()) })?;
+            let init = quiet(Command::new("git")).args(["init", "--bare", "--quiet"]).arg(&self.store).stdin(Stdio::null()).output().map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { Error::NoGit } else { Error::Git(e.to_string()) })?;
             if !init.status.success() {
                 return Err(Error::Git(String::from_utf8_lossy(&init.stderr).trim().to_owned()));
             }
             let info = self.store.join("info");
             std::fs::create_dir_all(&info).map_err(|e| Error::Git(e.to_string()))?;
             std::fs::write(info.join("exclude"), DEFAULT_EXCLUDES.join("\n") + "\n").map_err(|e| Error::Git(e.to_string()))?;
+        } else {
+            // A store made before an exclude was added gets it too.
+            let file = self.store.join("info").join("exclude");
+            let now = std::fs::read_to_string(&file).unwrap_or_default();
+            let missing: Vec<&str> = DEFAULT_EXCLUDES.iter().copied().filter(|e| !now.lines().any(|l| l.trim() == *e)).collect();
+            if !missing.is_empty() {
+                let _ = std::fs::create_dir_all(self.store.join("info"));
+                let gap = if now.is_empty() || now.ends_with('\n') { "" } else { "\n" };
+                let _ = std::fs::write(&file, format!("{now}{gap}{}\n", missing.join("\n")));
+            }
         }
         let id = folder_id(&folder);
         Ok((folder, id))
@@ -134,6 +150,7 @@ impl Checkpoints {
 
     /// Saves the folder as it is now. `None` when nothing changed since the last checkpoint.
     pub fn snapshot(&self, folder: &Path, reason: &str) -> Result<Option<Checkpoint>, Error> {
+        let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         self.git(&folder, &id, &["add", "-A", "--", "."])?;
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
@@ -156,6 +173,7 @@ impl Checkpoints {
 
     /// Newest first, at most `limit` (never more than 500).
     pub fn list(&self, folder: &Path, limit: usize) -> Result<Vec<Checkpoint>, Error> {
+        let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         if self.tip(&folder, &id).is_none() {
             return Ok(Vec::new());
@@ -175,18 +193,25 @@ impl Checkpoints {
         if !is_checkpoint_id(checkpoint) {
             return Err(Error::BadInput("That is not a checkpoint.".into()));
         }
-        let full = self.git(folder, id, &["rev-parse", "--verify", "--quiet", &format!("{checkpoint}^{{commit}}")]).map_err(|_| Error::BadInput("That checkpoint is not there.".into()))?.trim().to_owned();
+        // Once found on this folder's branch, a checkpoint stays there: the branch only ever grows.
+        let memo = format!("{}|{id}|{checkpoint}", self.store.display());
+        if let Some(full) = memo_get(&KNOWN, &memo) {
+            return Ok(full);
+        }
+        let full =self.git(folder, id, &["rev-parse", "--verify", "--quiet", &format!("{checkpoint}^{{commit}}")]).map_err(|_| Error::BadInput("That checkpoint is not there.".into()))?.trim().to_owned();
         // It must belong to this folder: reachable from this folder's branch.
         let tip = self.tip(folder, id).ok_or_else(|| Error::BadInput("This folder has no checkpoints.".into()))?;
         let merge_base = self.git(folder, id, &["merge-base", "--is-ancestor", &full, &tip]);
         if merge_base.is_err() {
             return Err(Error::BadInput("That checkpoint belongs to another folder.".into()));
         }
+        memo_put(&KNOWN, memo, full.clone());
         Ok(full)
     }
 
     /// Puts the whole folder back as it was at `checkpoint`. What is there now is saved first, so this can be undone too.
     pub fn restore(&self, folder: &Path, checkpoint: &str) -> Result<(), Error> {
+        let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
         let before = self.snapshot(&folder, "before restoring an earlier checkpoint")?;
@@ -203,26 +228,132 @@ impl Checkpoints {
         Ok(())
     }
 
-    /// Puts one file back as it was at `checkpoint` (it is recreated if it was deleted since).
+    /// Puts one file back as it was at `checkpoint`: recreated if it was deleted since, removed if it was made since.
     pub fn restore_file(&self, folder: &Path, checkpoint: &str, path: &str) -> Result<(), Error> {
+        let _one = one_at_a_time();
         if !is_inner_path(path) {
             return Err(Error::BadInput("That path is not inside the folder.".into()));
         }
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
         self.snapshot(&folder, &format!("before restoring {path}"))?;
+        if self.git(&folder, &id, &["cat-file", "-e", &format!("{target}:{path}")]).is_err() {
+            let file = folder.join(path);
+            if file.is_file() {
+                std::fs::remove_file(&file).map_err(|e| Error::Git(e.to_string()))?;
+            }
+            return Ok(());
+        }
         self.git(&folder, &id, &["checkout", &target, "--", path])?;
         Ok(())
     }
 
-    /// Files that differ between `checkpoint` and the folder now: added, changed or removed since.
-    pub fn changed_since(&self, folder: &Path, checkpoint: &str) -> Result<Vec<String>, Error> {
+    /// A file's text as it was at `checkpoint`; `None` when it was not there then (or is not text).
+    pub fn read_at(&self, folder: &Path, checkpoint: &str, path: &str) -> Result<Option<String>, Error> {
+        let _one = one_at_a_time();
+        if !is_inner_path(path) {
+            return Err(Error::BadInput("That path is not inside the folder.".into()));
+        }
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
+        match self.git(&folder, &id, &["cat-file", "blob", &format!("{target}:{path}")]) {
+            Ok(text) => Ok(Some(text)),
+            Err(_) => Ok(None),
+        }
+    }
+
+    /// Files that differ between two checkpoints.
+    pub fn changed_between(&self, folder: &Path, from: &str, to: &str) -> Result<Vec<String>, Error> {
+        let _one = one_at_a_time();
+        let (folder, id) = self.prepare(folder)?;
+        let a = self.known(&folder, &id, from)?;
+        let b = self.known(&folder, &id, to)?;
+        // Two saved states never change, so neither does what differs between them.
+        let memo = format!("{}|{a}|{b}", self.store.display());
+        if let Some(files) = memo_get(&BETWEEN, &memo) {
+            return Ok(files);
+        }
+        let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &a, &b])?;
+        let files: Vec<String> = out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
+        memo_put(&BETWEEN, memo, files.clone());
+        Ok(files)
+    }
+
+    /// Files that differ between `checkpoint` and the folder now: added, changed or removed since.
+    pub fn changed_since(&self, folder: &Path, checkpoint: &str) -> Result<Vec<String>, Error> {
+        // Several parts of the window ask this at once after a change (the strip, each app's bar, Activity, Review),
+        // and each answer takes a few git commands, one at a time. An answer worked out after this call arrived saw
+        // the folder as it is for this call too, so it is shared; an older one is not.
+        let asked = std::time::Instant::now();
+        let _one = one_at_a_time();
+        let (folder, id) = self.prepare(folder)?;
+        let target = self.known(&folder, &id, checkpoint)?;
+        let memo = format!("{}|{id}|{target}", self.store.display());
+        if let Some((worked_out, files)) = memo_get(&SINCE, &memo) {
+            if worked_out >= asked {
+                return Ok(files);
+            }
+        }
+        let started = std::time::Instant::now();
         self.git(&folder, &id, &["add", "-A", "--", "."])?;
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
         let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &target, &tree])?;
-        Ok(out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect())
+        let files: Vec<String> = out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
+        memo_put(&SINCE, memo, (started, files.clone()));
+        Ok(files)
+    }
+}
+
+/// Answers kept between calls: checkpoints already found on a folder's branch, what differs between two checkpoints,
+/// and the latest answer to what changed since a checkpoint, with when it was worked out.
+type Memo<T> = std::sync::Mutex<Option<std::collections::HashMap<String, T>>>;
+static KNOWN: Memo<String> = std::sync::Mutex::new(None);
+static BETWEEN: Memo<Vec<String>> = std::sync::Mutex::new(None);
+static SINCE: Memo<(std::time::Instant, Vec<String>)> = std::sync::Mutex::new(None);
+
+fn memo_get<T: Clone>(memo: &'static Memo<T>, key: &str) -> Option<T> {
+    memo.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().and_then(|m| m.get(key).cloned())
+}
+
+/// Keeps an answer. The memo is emptied now and then, so it cannot grow without end.
+fn memo_put<T>(memo: &'static Memo<T>, key: String, value: T) {
+    let mut guard = memo.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if guard.as_ref().is_some_and(|m| m.len() > 4096) {
+        *guard = None;
+    }
+    guard.get_or_insert_with(std::collections::HashMap::new).insert(key, value);
+}
+
+/// Every checkpoint operation in this process runs one at a time. Notes, Tasks and the agent's file tools each have
+/// their own `Checkpoints` over the same store and index, and two git commands at once fail on git's index lock: a turn
+/// whose mark failed that way had nothing to review or undo. An operation that calls another keeps the lock it has.
+static STORE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+thread_local! { static HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+
+/// Git run with no console window of its own. The app's window has no console, so on Windows each run would otherwise
+/// open one: slow on a busy computer, and a window flashing up at the start of every turn. As every other git run here.
+fn quiet(mut command: Command) -> Command {
+    #[cfg(windows)]
+    std::os::windows::process::CommandExt::creation_flags(&mut command, 0x0800_0000);
+    command
+}
+
+struct OneAtATime(Option<std::sync::MutexGuard<'static, ()>>);
+
+fn one_at_a_time() -> OneAtATime {
+    if HELD.with(std::cell::Cell::get) {
+        return OneAtATime(None);
+    }
+    let guard = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    HELD.with(|h| h.set(true));
+    OneAtATime(Some(guard))
+}
+
+impl Drop for OneAtATime {
+    fn drop(&mut self) {
+        if self.0.is_some() {
+            HELD.with(|h| h.set(false));
+        }
     }
 }
 
@@ -256,6 +387,28 @@ mod tests {
     }
     fn read(folder: &Path, name: &str) -> Option<String> {
         fs::read_to_string(folder.join(name)).ok()
+    }
+
+    #[test]
+    fn many_asking_at_once_share_an_answer_but_never_one_from_before_they_asked() {
+        let s = setup();
+        write(&s.folder, "a.md", "a");
+        let start = s.cp.snapshot(&s.folder, "start").unwrap().unwrap();
+        write(&s.folder, "b.md", "b");
+        let answers: Vec<Vec<String>> = std::thread::scope(|scope| {
+            let asks: Vec<_> = (0..6).map(|_| scope.spawn(|| s.cp.changed_since(&s.folder, &start.id).unwrap())).collect();
+            asks.into_iter().map(|a| a.join().unwrap()).collect()
+        });
+        assert!(answers.iter().all(|a| a == &vec!["b.md".to_owned()]), "{answers:?}");
+        // A change after those answers is seen by the next question, not hidden by the kept answer.
+        write(&s.folder, "c.md", "c");
+        let mut next = s.cp.changed_since(&s.folder, &start.id).unwrap();
+        next.sort();
+        assert_eq!(next, ["b.md", "c.md"]);
+        // And what differs between two saved states is the same however often it is asked.
+        let end = s.cp.snapshot(&s.folder, "end").unwrap().unwrap();
+        assert_eq!(s.cp.changed_between(&s.folder, &start.id, &end.id).unwrap().len(), 2);
+        assert_eq!(s.cp.changed_between(&s.folder, &start.id, &end.id).unwrap().len(), 2);
     }
 
     #[test]
@@ -367,6 +520,30 @@ mod tests {
         assert!(matches!(s.cp.restore(&other, &mine.id), Err(Error::BadInput(_))), "a checkpoint of another folder is refused");
         assert!(matches!(s.cp.restore(&s.folder, &theirs.id), Err(Error::BadInput(_))));
         assert_eq!(read(&other, "d.md").as_deref(), Some("docs"));
+    }
+
+    #[test]
+    fn checkpoints_of_one_store_from_several_places_at_once_all_succeed() {
+        let s = setup();
+        write(&s.folder, "a.md", "a");
+        let store = s._root.path().join("store");
+        let workers: Vec<_> = (0..8)
+            .map(|n| {
+                let (store, folder) = (store.clone(), s.folder.clone());
+                std::thread::spawn(move || {
+                    // Each its own handle on the same store, as Notes, Tasks and the file tools have.
+                    let cp = Checkpoints::new(store);
+                    for i in 0..5 {
+                        fs::write(folder.join(format!("{n}-{i}.md")), "x").unwrap();
+                        cp.snapshot(&folder, "at once").unwrap();
+                        cp.list(&folder, 1).unwrap();
+                    }
+                })
+            })
+            .collect();
+        for w in workers {
+            w.join().expect("no snapshot failed");
+        }
     }
 
     #[test]

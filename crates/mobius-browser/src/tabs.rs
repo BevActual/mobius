@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use crate::address::{Address, is_web_url, resolve_address};
 use crate::engine::{Bounds, Engine};
-use crate::page_actions::READ_SCRIPT;
+use crate::page_actions::{READ_SCRIPT, SELECTION_SCRIPT};
 
 pub const START_PAGE: &str = "data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ENew%20tab%3C%2Ftitle%3E%3Cmeta%20name%3D%22color-scheme%22%20content%3D%22light%20dark%22%3E%3Cbody%20style%3D%22font%3A14px%20system-ui%3Bdisplay%3Agrid%3Bplace-items%3Acenter%3Bheight%3A100vh%3Bmargin%3A0%3Bcolor%3A%236e6e73%22%3E%3Cp%3EType%20an%20address%2C%20or%20ask%20a%20question.";
 
@@ -29,6 +29,32 @@ struct Tab {
     icon: Option<String>,
     icon_from: Option<String>,
     pinned: bool,
+    /// The page finished loading before it had a title: the first title it gets goes to history too.
+    untitled_visit: bool,
+    /// Who is using the tab while a task runs: Mobius reading it, Mobius driving it, or the person who took over.
+    driver: Option<Driver>,
+}
+
+/// Who is using a tab while a task runs. With none, the tab is simply the person's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Driver {
+    /// Mobius reads it and changes nothing.
+    Reading,
+    /// Mobius opens, clicks and types in it.
+    Mobius,
+    /// The person took over from Mobius: the tab is theirs until they hand back.
+    Yours,
+}
+
+impl Driver {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Driver::Reading => "reading",
+            Driver::Mobius => "mobius",
+            Driver::Yours => "yours",
+        }
+    }
 }
 
 /// How many closed pages are remembered for reopening.
@@ -78,7 +104,7 @@ impl Browser {
                 let url = shown_url(&t.url);
                 json!({
                     "id": t.id, "url": url, "title": if t.title.is_empty() { if url.is_empty() { "New tab" } else { url } } else { t.title.as_str() },
-                    "loading": t.loading, "canGoBack": t.can_back, "canGoForward": t.can_forward, "pinned": t.pinned, "active": s.active.as_deref() == Some(t.id.as_str()), "icon": t.icon,
+                    "loading": t.loading, "canGoBack": t.can_back, "canGoForward": t.can_forward, "pinned": t.pinned, "active": s.active.as_deref() == Some(t.id.as_str()), "icon": t.icon, "driver": t.driver.map(Driver::as_str),
                 })
             })
             .collect();
@@ -100,7 +126,7 @@ impl Browser {
             let mut s = lock(&self.state);
             s.counter += 1;
             let id = format!("tab-{}", s.counter);
-            s.tabs.push(Tab { id: id.clone(), url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false });
+            s.tabs.push(Tab { id: id.clone(), url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false, untitled_visit: false, driver: None });
             id
         };
         self.engine.open(&id, url.unwrap_or(START_PAGE));
@@ -292,6 +318,17 @@ impl Browser {
 
     pub fn titled(&self, id: &str, title: &str) {
         let title: String = title.chars().take(300).collect();
+        // Once per load: a visit kept under its address learns its title. Later changes (a count in the title) do not.
+        let revisit = {
+            let mut s = lock(&self.state);
+            s.tabs.iter_mut().find(|t| t.id == id).filter(|t| t.untitled_visit && !title.trim().is_empty()).map(|t| {
+                t.untitled_visit = false;
+                t.url.clone()
+            })
+        };
+        if let Some(url) = &revisit {
+            (self.on_visit)(url, &title);
+        }
         self.update(id, |t| t.title = title);
     }
 
@@ -302,7 +339,13 @@ impl Browser {
     /// A page finished loading.
     pub fn finished(&self, id: &str) {
         self.loading(id, false);
-        let page = lock(&self.state).tabs.iter().find(|t| t.id == id).map(|t| (t.url.clone(), t.title.clone()));
+        let page = {
+            let mut s = lock(&self.state);
+            s.tabs.iter_mut().find(|t| t.id == id).map(|t| {
+                t.untitled_visit = t.title.trim().is_empty();
+                (t.url.clone(), t.title.clone())
+            })
+        };
         if let Some((url, title)) = page {
             (self.on_visit)(&url, &title);
         }
@@ -364,6 +407,29 @@ impl Browser {
         Some((id, bounds))
     }
 
+    /// Who is using a tab now (none: the person's, as usual).
+    #[must_use]
+    pub fn driver(&self, id: &str) -> Option<Driver> {
+        lock(&self.state).tabs.iter().find(|t| t.id == id).and_then(|t| t.driver)
+    }
+
+    /// Say who is using a tab; the window shows it on the tab.
+    pub fn set_driver(&self, id: &str, driver: Option<Driver>) {
+        let changed = {
+            let mut s = lock(&self.state);
+            match s.tabs.iter_mut().find(|t| t.id == id) {
+                Some(t) if t.driver != driver => {
+                    t.driver = driver;
+                    true
+                }
+                _ => false,
+            }
+        };
+        if changed {
+            self.publish();
+        }
+    }
+
     pub fn active_id(&self) -> Option<String> {
         lock(&self.state).active.clone()
     }
@@ -388,6 +454,18 @@ impl Browser {
             return None;
         }
         let value = self.engine.eval(id, READ_SCRIPT).ok()?;
+        let text = value.get("text").and_then(Value::as_str).unwrap_or("").to_owned();
+        let url = value.get("url").and_then(Value::as_str).unwrap_or("").to_owned();
+        let title = value.get("title").and_then(Value::as_str).unwrap_or("").to_owned();
+        Some((url, title, text))
+    }
+
+    /// The text selected in a tab, with its address and title. Empty text when nothing is selected.
+    pub fn selection(&self, id: &str) -> Option<(String, String, String)> {
+        if !self.has_tab(id) {
+            return None;
+        }
+        let value = self.engine.eval(id, SELECTION_SCRIPT).ok()?;
         let text = value.get("text").and_then(Value::as_str).unwrap_or("").to_owned();
         let url = value.get("url").and_then(Value::as_str).unwrap_or("").to_owned();
         let title = value.get("title").and_then(Value::as_str).unwrap_or("").to_owned();
@@ -627,6 +705,18 @@ mod tests {
     }
 
     #[test]
+    fn a_title_that_comes_after_the_page_loaded_goes_to_history_once() {
+        let (b, _, _, visits) = browser();
+        b.open(Some("https://b.example/"));
+        b.navigated("tab-1", "https://b.example/", false, false);
+        b.finished("tab-1");
+        b.titled("tab-1", "B");
+        b.titled("tab-1", "(1) B");
+        let seen = visits.lock().unwrap().clone();
+        assert_eq!(seen, vec![("https://b.example/".into(), String::new()), ("https://b.example/".into(), "B".into())]);
+    }
+
+    #[test]
     fn an_icon_belongs_to_the_page_it_was_fetched_for() {
         let (b, _, _, _) = browser();
         b.open(None);
@@ -709,6 +799,15 @@ mod tests {
         engine.answer("innerText", Err("gone".into()));
         assert_eq!(b.read("tab-1"), None);
         assert!(b.eval("tab-9", "1").is_err());
+    }
+
+    #[test]
+    fn the_selected_text_is_read_only_for_open_tabs() {
+        let (b, engine, _, _) = browser();
+        b.open(None);
+        engine.answer("getSelection", Ok(json!({ "text": "a quote", "title": "T", "url": "https://a.example/" })));
+        assert_eq!(b.selection("tab-1"), Some(("https://a.example/".into(), "T".into(), "a quote".into())));
+        assert_eq!(b.selection("tab-9"), None);
     }
 
     #[test]

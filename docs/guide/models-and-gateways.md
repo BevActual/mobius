@@ -14,6 +14,7 @@ each job. Two places in Settings handle this:
 | --- | --- |
 | **ChatGPT** | **Sign in…** opens OpenAI's own "Sign in with ChatGPT" page in your browser. Mobius never sees your password; it keeps a token that refreshes itself. Use counts against your ChatGPT plan. |
 | **Claude Pro or Max** | Uses the official **Claude Code** program, which must be installed. **Sign in…** opens Claude Code's own sign-in; come back and choose **Check again** when it is done. Use counts against your Claude plan's limits. Mobius keeps its own tools and approvals. |
+| **GitHub Copilot** | Uses GitHub's official **Copilot CLI**, which must be installed (`winget install GitHub.Copilot`). **Sign in with GitHub** shows a short code: enter it on the GitHub page that opens and approve Mobius. Use counts against your Copilot plan's premium requests. Mobius keeps its own tools and approvals; the CLI's own tools are always switched off. |
 | **OpenRouter** | **Sign in…** uses OpenRouter's own sign-in to create a key for Mobius, so you don't have to copy one. |
 
 ### Paste an API key
@@ -22,7 +23,16 @@ each job. Two places in Settings handle this:
 store, never shown again, and only ever sent to its own service.
 
 Services with a ready-made entry: OpenAI, Anthropic, Google Gemini, OpenRouter, DeepSeek, Groq, Together AI, Mistral,
-xAI, Fireworks AI and Hugging Face. Each row links to the page where you create a key.
+xAI, Fireworks AI, Hugging Face, Cerebras, Perplexity, Cohere, Moonshot AI (Kimi), Alibaba Cloud (Qwen), Z.ai (GLM) and
+NVIDIA. Each row links to the page where you create a key. When a service does not list its own models, Mobius offers
+the ones it knows for that service, and you can still type any other model name.
+
+**Azure OpenAI** and **Amazon Bedrock** live at an address of your own: when you add the key, also give your Azure
+resource name or your AWS region (such as `us-west-2`). Bedrock takes a Bedrock API key, made in the Bedrock console.
+
+**Sign in instead of pasting a key.** OpenRouter and Hugging Face have a **Sign in…** button. OpenRouter opens its
+page and hands Mobius a key. Hugging Face shows a short code: check it matches on Hugging Face's page and approve
+Mobius. If Hugging Face later stops accepting the sign-in, remove the key and sign in again.
 
 ### A server on your computer, or any other server
 

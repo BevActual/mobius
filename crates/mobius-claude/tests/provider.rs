@@ -120,7 +120,7 @@ fn a_reply_streams_through_one_upstream_request_with_the_cli_s_own_sign_in() {
     let up = upstream(|_, _| (200, text_reply("Hello there")));
     let dir = tempfile::tempdir().unwrap();
     let mut streamed = String::new();
-    let c = provider(&up, dir.path()).complete(&request("sonnet", vec![Message::User { text: "hi".into() }]), &mut |t| { streamed.push_str(t); true }).unwrap();
+    let c = provider(&up, dir.path()).complete(&request("sonnet", vec![Message::user("hi")]), &mut |t| { streamed.push_str(t); true }).unwrap();
     assert_eq!((c.text.as_str(), streamed.as_str(), c.stop), ("Hello there", "Hello there", StopReason::EndTurn));
     let seen = up.seen.lock().unwrap();
     assert_eq!(seen.len(), 1);
@@ -151,11 +151,11 @@ fn a_tool_call_comes_back_as_a_mobius_call_and_the_next_request_replays_its_sign
     let up = upstream(|i, _| (200, if i == 0 { tool_reply() } else { text_reply("Done") }));
     let dir = tempfile::tempdir().unwrap();
     let p = provider(&up, dir.path());
-    let first = p.complete(&request("opus", vec![Message::User { text: "read it".into() }]), &mut |_| true).unwrap();
+    let first = p.complete(&request("opus", vec![Message::user("read it")]), &mut |_| true).unwrap();
     assert_eq!(first.stop, StopReason::ToolUse);
     assert_eq!(first.tool_calls, vec![ToolCall { id: "toolu_1".into(), name: "files.read".into(), arguments: json!({ "path": "notes/a.md" }) }]);
     let history = vec![
-        Message::User { text: "read it".into() },
+        Message::user("read it"),
         Message::Assistant { text: first.text.clone(), tool_calls: first.tool_calls.clone() },
         Message::Tool { call_id: "toolu_1".into(), name: "files.read".into(), content: "# A".into(), is_error: false },
     ];
@@ -173,7 +173,7 @@ fn a_tool_call_comes_back_as_a_mobius_call_and_the_next_request_replays_its_sign
 fn a_second_attempt_by_the_cli_is_refused_locally() {
     let up = upstream(|_, _| (200, text_reply("Once")));
     let dir = tempfile::tempdir().unwrap();
-    let c = provider(&up, dir.path()).complete(&request("fake-retry", vec![Message::User { text: "hi".into() }]), &mut |_| true).unwrap();
+    let c = provider(&up, dir.path()).complete(&request("fake-retry", vec![Message::user("hi")]), &mut |_| true).unwrap();
     assert_eq!(c.text, "Once");
     assert_eq!(up.seen.lock().unwrap().len(), 1, "the retry never reached the upstream");
 }
@@ -182,7 +182,7 @@ fn a_second_attempt_by_the_cli_is_refused_locally() {
 fn an_upstream_refusal_keeps_its_status_and_reason() {
     let up = upstream(|_, _| (429, r#"{"type":"error","error":{"type":"rate_limit_error","message":"You have hit your limit"}}"#.into()));
     let dir = tempfile::tempdir().unwrap();
-    let err = provider(&up, dir.path()).complete(&request("sonnet", vec![Message::User { text: "hi".into() }]), &mut |_| true).unwrap_err();
+    let err = provider(&up, dir.path()).complete(&request("sonnet", vec![Message::user("hi")]), &mut |_| true).unwrap_err();
     assert_eq!(err, ProviderError::Http { status: 429, message: "You have hit your limit".into() });
 }
 
@@ -190,7 +190,7 @@ fn an_upstream_refusal_keeps_its_status_and_reason() {
 fn a_signed_out_cli_says_how_to_sign_in_and_sends_nothing() {
     let up = upstream(|_, _| (200, text_reply("no")));
     let dir = tempfile::tempdir().unwrap();
-    let err = provider(&up, dir.path()).complete(&request("fake-signed-out", vec![Message::User { text: "hi".into() }]), &mut |_| true).unwrap_err();
+    let err = provider(&up, dir.path()).complete(&request("fake-signed-out", vec![Message::user("hi")]), &mut |_| true).unwrap_err();
     assert!(matches!(&err, ProviderError::Http { status: 401, message } if message.contains("claude auth login")), "{err:?}");
     assert!(up.seen.lock().unwrap().is_empty());
 }
@@ -200,7 +200,7 @@ fn stopping_ends_the_cli_at_once() {
     let up = upstream(|_, _| (200, text_reply("Hello there")));
     let dir = tempfile::tempdir().unwrap();
     let started = Instant::now();
-    let err = provider(&up, dir.path()).complete(&request("sonnet", vec![Message::User { text: "hi".into() }]), &mut |_| false).unwrap_err();
+    let err = provider(&up, dir.path()).complete(&request("sonnet", vec![Message::user("hi")]), &mut |_| false).unwrap_err();
     assert_eq!(err, ProviderError::Cancelled);
     assert!(started.elapsed() < Duration::from_secs(10));
 }
@@ -211,7 +211,7 @@ fn a_cli_that_never_answers_times_out() {
     let dir = tempfile::tempdir().unwrap();
     let p = provider(&up, dir.path()).with_timeout(Duration::from_secs(2));
     let started = Instant::now();
-    let err = p.complete(&request("fake-hang", vec![Message::User { text: "hi".into() }]), &mut |_| true).unwrap_err();
+    let err = p.complete(&request("fake-hang", vec![Message::user("hi")]), &mut |_| true).unwrap_err();
     assert!(matches!(err, ProviderError::Network(_)), "{err:?}");
     assert!(started.elapsed() < Duration::from_secs(10));
 }
@@ -230,14 +230,14 @@ fn without_the_cli_the_provider_says_how_to_install_it() {
 fn live_the_real_cli_answers_and_calls_a_mobius_tool() {
     let dir = tempfile::tempdir().unwrap();
     let p = ClaudeCodeProvider::new(None, exe("mobius-inert-mcp"), dir.path().to_path_buf()).unwrap().with_timeout(Duration::from_secs(120));
-    let mut plain = request("haiku", vec![Message::User { text: "Reply with exactly the word: pong".into() }]);
+    let mut plain = request("haiku", vec![Message::user("Reply with exactly the word: pong")]);
     plain.tools.clear();
     plain.effort = Some("low".into());
     let mut streamed = String::new();
     let c = p.complete(&plain, &mut |t| { streamed.push_str(t); true }).unwrap();
     eprintln!("live plain: {:?} streamed {:?}", c.text, streamed);
     assert!(c.text.to_lowercase().contains("pong"), "{c:?}");
-    let mut ask = request("haiku", vec![Message::User { text: "Use the files.read tool to read notes/a.md. Do not answer before reading it.".into() }]);
+    let mut ask = request("haiku", vec![Message::user("Use the files.read tool to read notes/a.md. Do not answer before reading it.")]);
     ask.effort = Some("low".into());
     let first = p.complete(&ask, &mut |_| true).unwrap();
     eprintln!("live tool turn: {first:?}");

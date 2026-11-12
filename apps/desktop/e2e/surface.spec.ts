@@ -2,8 +2,8 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
-import { says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
+import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -19,7 +19,7 @@ test.afterEach(async () => {
   await model?.close();
   model = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true });
+  removeTestData(userData);
 });
 
 const shell = () => mobius!.shell;
@@ -44,13 +44,53 @@ test('an empty Agent app greets you in the middle and suggests a start, which is
   await openApp('Agent');
   const region = shell().getByRole('region', { name: 'Agent conversation' });
   await expect(region.getByRole('heading', { name: 'What can I help with?' })).toBeVisible();
+  // Under the greeting is the desk: what is open in your apps, each row one press from its app.
+  await expect(region.getByRole('region', { name: 'Desk' }).getByRole('button', { name: /Browser.*1 tab open/ })).toBeVisible();
   await region.getByRole('group', { name: 'Suggestions' }).getByRole('button', { name: 'What is in my notes?' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('Here is an overview.');
   expect(sent()).toContain('give me a short overview');
   // A conversation has started, so the greeting has gone; the suggestions hide while you type.
   await expect(region.getByRole('heading', { name: 'What can I help with?' })).toHaveCount(0);
+  await turnEnded(composer());
   await composer().fill('x');
   await expect(region.getByRole('group', { name: 'Suggestions' })).toHaveCount(0);
+});
+
+test('the desk is the Agent app’s home: what waits is allowed in place, and what is scheduled comes next', async () => {
+  await start([callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.'])]);
+  await shell().evaluate(() => window.mobius.schedules?.add({ title: 'Morning brief', prompt: 'What is on today?', time: '08:00', days: [1, 2, 3, 4, 5, 6, 7], enabled: true }));
+  // A conversation started beside the page waits for an approval.
+  await composer().fill('make an ideas page');
+  await composer().press('Enter');
+  await expect(shell().getByRole('group', { name: /Approval needed/ })).toBeVisible();
+  await openApp('Agent');
+  await shell().getByRole('button', { name: 'Create' }).click();
+  const desk = shell().getByRole('region', { name: 'Agent conversation' }).getByRole('region', { name: 'Desk' });
+  await expect(shell().getByRole('heading', { name: 'What can I help with?' })).toBeVisible();
+  await expect(desk.locator('.desk-title')).toContainText('1 waiting for you');
+  const now = desk.getByRole('group', { name: 'Now' });
+  await expect(now.getByRole('listitem')).toContainText('Wants to');
+  await expect(desk.getByRole('group', { name: 'Next' }).getByRole('button', { name: /Morning brief.*at 08:00/ })).toBeVisible();
+  await now.getByRole('button', { name: /^Allow .* once$/ }).click();
+  await expect(desk.getByRole('group', { name: 'Now' })).toHaveCount(0);
+  await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(true);
+});
+
+test('Try another puts the change back and asks Mobius to do it another way', async () => {
+  await start([callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.']), says(['Here is another way.'])]);
+  await composer().fill('make an ideas page');
+  await composer().press('Enter');
+  await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
+  const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
+  // One bar, the same everywhere: Try another, Discard, Keep.
+  // A card from the start: the count, Keep, each change as a link to it, then Try another and Discard.
+  await expect(strip.getByRole('button', { name: /changes? in Notes ·? ?Review/ })).toHaveAttribute('aria-expanded', 'true');
+  await expect(strip.getByRole('button', { name: 'Discard' })).toBeVisible();
+  await strip.getByRole('button', { name: 'Try another' }).click();
+  await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(false);
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Here is another way.');
+  expect(sent()).toContain('Try another way.');
 });
 
 test('a suggestion that starts a sentence puts it in the box for you to finish', async () => {
@@ -81,9 +121,11 @@ test('in Notes, a note suggestion attaches the open note', async () => {
   await openApp('Notes');
   const side = shell().getByRole('complementary', { name: 'Notes sidebar' });
   await side.getByRole('button', { name: 'Errands', exact: true }).click();
-  await expect(shell().getByRole('textbox', { name: 'Page text' })).toHaveValue(/Buy stamps/);
+  await expect(shell().getByRole('textbox', { name: 'Note text' })).toContainText('Buy stamps');
   await suggestions().getByRole('button', { name: 'Make a to-do list' }).click();
-  await expect(log().locator('.msg.assistant')).toHaveText('- [ ] Buy stamps');
+  // The reply's to-do shows as an unticked box with its words.
+  await expect(log().locator('.msg.assistant')).toHaveText('Buy stamps');
+  await expect(log().locator('.msg.assistant').getByRole('checkbox', { name: 'Not done' })).not.toBeChecked();
   await expect(log().getByRole('list', { name: 'Attached' })).toContainText('Errands');
   expect(sent()).toContain('call the plumber');
 });

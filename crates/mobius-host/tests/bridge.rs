@@ -387,6 +387,44 @@ mod browser {
     }
 
     #[test]
+    fn a_tab_says_who_is_using_it_and_changes_hands_on_take_over_and_hand_back() {
+        let (b, engine, br, _e, _d) = with_browser(None);
+        engine.answer("innerText", Ok(json!({ "text": "A page", "title": "A", "url": "https://a.example/" })));
+        let driver = |tab: &str| br.state()["tabs"].as_array().unwrap().iter().find(|t| t["id"] == tab).map(|t| t["driver"].clone()).unwrap();
+        let first = call(&b, "browser", "open", json!(["example.com"]));
+        let first = first.as_str().unwrap();
+        br.navigated(first, "https://a.example/", false, false);
+        br.finished(first);
+        assert_eq!(driver(first), json!(null), "a tab is the person's until a task uses it");
+        b.host_request("host.tool", &json!({ "tool": "browser.read", "arguments": {}, "conversation": "c1" })).unwrap();
+        assert_eq!(driver(first), json!("reading"));
+        // The page Mobius opens loads a moment later.
+        let loader = br.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            loader.navigated("tab-2", "https://b.example/", false, false);
+            loader.finished("tab-2");
+        });
+        let opened = b.host_request("host.tool", &json!({ "tool": "browser.open", "arguments": { "url": "https://b.example/" }, "conversation": "c1" })).unwrap();
+        let second: serde_json::Value = serde_json::from_str(opened.as_str().unwrap()).unwrap();
+        let second = second["tabId"].as_str().unwrap().to_owned();
+        assert_eq!(driver(&second), json!("mobius"));
+        // Reading a tab Mobius drives leaves it driven.
+        b.host_request("host.tool", &json!({ "tool": "browser.read", "arguments": { "tabId": second }, "conversation": "c1" })).unwrap();
+        assert_eq!(driver(&second), json!("mobius"));
+        assert_eq!(call(&b, "agent", "takeOver", json!(["c1"]))["ok"], json!(true));
+        assert_eq!(driver(&second), json!("yours"), "the tab Mobius drove is yours now");
+        assert_eq!(driver(first), json!("reading"), "a tab it only read stays as it was");
+        assert_eq!(call(&b, "agent", "handBack", json!(["c1"]))["ok"], json!(true));
+        assert_eq!(driver(&second), json!("mobius"));
+        // Another task's end changes nothing here; this task's end makes both plain tabs again.
+        b.on_core_notification("agent.event", &json!({ "conversation": "c2", "turn": 2, "event": { "kind": "done" } }));
+        assert_eq!(driver(&second), json!("mobius"));
+        b.on_core_notification("agent.event", &json!({ "conversation": "c1", "turn": 1, "event": { "kind": "done" } }));
+        assert_eq!((driver(first), driver(&second)), (json!(null), json!(null)));
+    }
+
+    #[test]
     fn file_tools_work_in_the_workspace_folder_without_a_window() {
         let (b, _c, _e, dir) = bridge_in(tempfile::tempdir().unwrap());
         let run = |tool: &str, arguments: serde_json::Value| b.host_request("host.tool", &json!({ "tool": tool, "arguments": arguments }));
@@ -439,7 +477,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 13, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 45, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -450,12 +488,41 @@ mod browser {
     }
 
     #[test]
+    fn schedules_are_added_checked_changed_and_removed_through_the_bridge() {
+        let (b, _core, _e, _d) = bridge_in(tempfile::tempdir().unwrap());
+        let made = b.call("schedules", "add", &[json!({ "title": "Brief", "prompt": "Brief me on my tasks", "time": "08:00", "days": [1, 2, 3, 4, 5] })]).unwrap();
+        assert_eq!(made["ok"], json!(true));
+        let id = made["schedule"]["id"].as_str().unwrap().to_owned();
+        assert_eq!(b.call("schedules", "list", &[]).unwrap()[0]["title"], "Brief");
+        assert_eq!(b.call("schedules", "add", &[json!({ "title": "x", "prompt": "y", "time": "8", "days": [1] })]).unwrap()["ok"], json!(false));
+        let changed = b.call("schedules", "update", &[json!(id), json!({ "title": "Brief", "prompt": "Brief me", "time": "09:30", "days": [6, 7], "enabled": false })]).unwrap();
+        assert_eq!((changed["schedule"]["time"].clone(), changed["schedule"]["enabled"].clone()), (json!("09:30"), json!(false)));
+        b.call("schedules", "remove", &[json!(id)]).unwrap();
+        assert_eq!(b.call("schedules", "list", &[]).unwrap(), json!([]));
+        // The agent can make one too, through its tool.
+        let said = b.host_request("host.tool", &json!({ "tool": "schedules.add", "arguments": { "title": "Brief", "prompt": "Brief me", "time": "07:30", "days": [1, 3] } })).unwrap();
+        assert!(said.as_str().unwrap().starts_with("Scheduled \"Brief\""));
+        assert!(b.host_request("host.tool", &json!({ "tool": "schedules.list", "arguments": {} })).unwrap().as_str().unwrap().contains("07:30"));
+    }
+
+    #[test]
+    fn what_mobius_remembers_is_added_to_every_turn_and_can_be_forgotten() {
+        let dir = tempfile::tempdir().unwrap();
+        let (b, _core, _e, _d) = bridge_in(dir);
+        assert_eq!(b.host_request("host.tool", &json!({ "tool": "memory.remember", "arguments": { "text": "Prefers boutique hotels" } })).unwrap(), json!("Remembered."));
+        assert_eq!(b.call("memory", "list", &[]).unwrap(), json!(["Prefers boutique hotels"]));
+        assert_eq!(b.call("memory", "forget", &[json!("Prefers boutique hotels")]).unwrap(), json!({ "ok": true }));
+        assert_eq!(b.call("memory", "list", &[]).unwrap(), json!([]));
+        assert_eq!(b.call("memory", "forget", &[json!("Prefers boutique hotels")]).unwrap()["ok"], json!(false));
+    }
+
+    #[test]
     fn becoming_ready_registers_the_browser_tools_with_the_core() {
         let (b, core, _e, _d) = bridge_in(tempfile::tempdir().unwrap());
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve", "images.generate"]);
     }
 
     #[derive(Default)]
@@ -529,7 +596,7 @@ mod browser {
         assert!(!b.page_key(0x4A, true, false, false), "ctrl+j is not bound");
         assert!(!b.page_key(0x11, true, false, false), "a modifier alone");
         assert_eq!(events.lock().unwrap().clone(), vec![("mobius:shortcut".to_owned(), json!("launcher"))]);
-        call(&b, "preferences", "set", json!([{ "keybindings": { "launcher": "alt+j", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "" } }]));
+        call(&b, "preferences", "set", json!([{ "keybindings": { "launcher": "alt+j", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+\\", "littleMobius": "mod+shift+m" } }]));
         assert!(b.page_key(0x4A, false, true, false), "the new binding works");
         assert!(!b.page_key(0x4B, true, false, false), "the old one no longer does");
     }
@@ -731,7 +798,7 @@ mod browser {
     }
 
     fn defaults_keys() -> serde_json::Value {
-        json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "" })
+        json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+\\", "littleMobius": "mod+shift+m" })
     }
 
     #[test]
@@ -815,10 +882,13 @@ mod browser {
     #[test]
     fn only_a_folder_well_below_the_top_of_a_drive_may_be_emptied() {
         use mobius_host::bridge::is_safe_to_empty;
-        for unsafe_dir in ["C:/", "C:/Users", "C:/Users/me", "/", "/home", "relative/path", "C:/a/b/../.."] {
+        for unsafe_dir in ["C:/", "C:/Users", "C:/Users/me", "/", "/home", "/home/me", "relative/path", "C:/a/b/../..", "/home/me/a/../.."] {
             assert!(!is_safe_to_empty(std::path::Path::new(unsafe_dir)), "{unsafe_dir}");
         }
+        #[cfg(windows)]
         assert!(is_safe_to_empty(std::path::Path::new("C:/Users/me/AppData/Roaming/mobius")));
+        #[cfg(not(windows))]
+        assert!(is_safe_to_empty(std::path::Path::new("/home/me/.local/share/mobius")));
     }
 
     #[test]
@@ -845,6 +915,45 @@ mod browser {
         assert_eq!(call(&b, "agent", "savedServers", json!([])).as_array().unwrap().len(), 1);
         assert_eq!(call(&b, "agent", "removeServer", json!(["x"]))["ok"], false);
     }
+}
+
+#[test]
+fn a_note_keeps_its_versions_and_files_and_never_hands_out_a_file_outside_its_own_folder() {
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "notes", "createNotebook", json!(["Work"]));
+    let page = call(&b, "notes", "createPage", json!(["Work", "Battery"]));
+    call(&b, "notes", "save", json!(["Work/Battery.md", "# Battery\n\nfirst\n", page["modified"]]));
+    let versions = call(&b, "notes", "versions", json!(["Work/Battery.md"]));
+    assert_eq!(versions[0]["content"], "# Battery\n\n", "{versions}");
+    // A picture goes beside the page; a name that tries to leave the folder is cut to its last part.
+    let before = events.lock().unwrap().len();
+    let added = call(&b, "notes", "attach", json!(["Work/Battery.md", "..\\..\\cell.png", "iVBORw0K"]));
+    assert_eq!(added["ref"], "Battery%20files/cell.png", "{added}");
+    assert!(dir.path().join("workspace/notes/Work/Battery files/cell.png").is_file());
+    assert!(events.lock().unwrap()[before..].iter().any(|(name, _)| name == "mobius:notes-changed"));
+    assert_eq!(call(&b, "notes", "asset", json!(["Work/Battery.md", "Battery%20files/cell.png"]))["dataUrl"], "data:image/png;base64,iVBORw0K");
+    std::fs::write(dir.path().join("workspace/secret.txt"), "no").unwrap();
+    for bad in ["Battery files/../../../secret.txt", "../secret.txt", "/etc/hosts", "C:\\Windows\\win.ini", "Battery files/C:x"] {
+        assert_eq!(call(&b, "notes", "asset", json!(["Work/Battery.md", bad]))["ok"], false, "{bad}");
+    }
+    assert_eq!(call(&b, "notes", "attach", json!(["../Battery.md", "a.png", "iVBORw0K"]))["ok"], false);
+    assert_eq!(call(&b, "notes", "attach", json!(["Work/Battery.md", "a.png"]))["ok"], false);
+}
+
+#[test]
+fn a_notes_comments_are_kept_beside_it_and_an_export_lands_in_exports() {
+    let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "notes", "createNotebook", json!(["Work"]));
+    call(&b, "notes", "createPage", json!(["Work", "Plan"]));
+    let kept = call(&b, "notes", "setComments", json!(["Work/Plan.md", [{ "id": "c1", "quote": "Plan", "text": "Good", "whenMs": 1 }]]));
+    assert_eq!(kept["comments"][0]["by"], "you", "{kept}");
+    assert_eq!(call(&b, "notes", "comments", json!(["Work/Plan.md"]))[0]["text"], "Good");
+    assert_eq!(call(&b, "notes", "setComments", json!(["../Plan.md", []]))["ok"], false);
+    assert_eq!(call(&b, "notes", "setComments", json!(["Work/Plan.md", "nope"]))["ok"], false);
+    let saved = call(&b, "notes", "export", json!(["Work/Plan.md", "md"]));
+    assert_eq!(saved["saved"], "Exports/Plan.md", "{saved}");
+    assert!(dir.path().join("workspace/Exports/Plan.md").is_file());
+    assert_eq!(call(&b, "notes", "export", json!(["Work/Plan.md", "exe"]))["ok"], false);
 }
 
 #[test]
@@ -914,6 +1023,37 @@ fn tasks_are_real_files_the_window_and_the_agent_both_change() {
     events.lock().unwrap().clear();
     b.host_request("host.tool", &json!({ "tool": "tasks.list", "arguments": {} })).unwrap();
     assert!(!events.lock().unwrap().iter().any(|(name, _)| name == "mobius:tasks-changed"), "reading changes nothing");
+}
+
+#[test]
+fn a_task_carries_a_flag_notes_and_subtasks_and_moves_between_lists_through_the_bridge() {
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "tasks", "lists", json!([]));
+    let added = call(&b, "tasks", "add", json!(["Inbox", "Book the sled", "", { "flagged": true }]));
+    let line = added["tasks"][0]["line"].clone();
+    let sub = call(&b, "tasks", "add", json!(["Inbox", "Check the trailer", "", { "under": { "line": line, "expect": "Book the sled" } }]));
+    assert_eq!(sub["tasks"][1]["parent"], line);
+    call(&b, "tasks", "update", json!(["Inbox", line, "Book the sled", { "notes": "Ask Dana." }]));
+    let file = dir.path().join("workspace/tasks/Inbox.md");
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "# Inbox\n\n- [ ] Book the sled (flagged)\n  Ask Dana.\n  - [ ] Check the trailer\n");
+    // Deleting hands back what went, and restore puts it back.
+    let gone = call(&b, "tasks", "remove", json!(["Inbox", line, "Book the sled"]));
+    assert_eq!(gone["tasks"], json!([]));
+    call(&b, "tasks", "restore", json!(["Inbox", gone["removed"]["line"], gone["removed"]["text"]]));
+    assert!(std::fs::read_to_string(&file).unwrap().contains("  Ask Dana.\n  - [ ] Check the trailer"));
+    call(&b, "tasks", "createList", json!(["Build"]));
+    events.lock().unwrap().clear();
+    let moved = call(&b, "tasks", "move", json!(["Inbox", line, "Book the sled", "Build"]));
+    assert_eq!(moved["list"], "Build");
+    assert!(events.lock().unwrap().iter().any(|(name, v)| name == "mobius:tasks-changed" && v["list"].is_null()));
+    assert_eq!(call(&b, "tasks", "renameList", json!(["Build", "P2 build"]))["name"], "P2 build");
+    assert_eq!(call(&b, "tasks", "read", json!(["P2 build"]))["tasks"].as_array().unwrap().len(), 2);
+    assert_eq!(call(&b, "tasks", "deleteList", json!(["Inbox"]))["ok"], false);
+    let gone = call(&b, "tasks", "deleteList", json!(["P2 build"]));
+    assert!(!dir.path().join("workspace/tasks/P2 build.md").exists());
+    call(&b, "tasks", "restoreList", json!(["P2 build", gone["text"]]));
+    assert!(std::fs::read_to_string(dir.path().join("workspace/tasks/P2 build.md")).unwrap().contains("Book the sled"));
+    assert_eq!(call(&b, "tasks", "restore", json!(["Inbox", 0, "# not a task"]))["ok"], false);
 }
 
 /// A provider's models endpoint that answers only to one key, and remembers what it was sent.
@@ -1082,4 +1222,430 @@ fn a_server_that_is_no_provider_is_offered_as_this_server() {
     let groups = call(&b, "providers", "catalog", json!([]))["groups"].clone();
     assert_eq!(groups[0]["kind"], "server");
     assert_eq!(groups[0]["active"], true);
+}
+
+#[test]
+fn code_projects_run_only_the_test_command_the_person_chose() {
+    let (b, _core, events, _d) = bridge_in(tempfile::tempdir().unwrap());
+    assert_eq!(call(&b, "code", "createProject", json!(["planner"]))["name"], "planner");
+    let saved = call(&b, "code", "save", json!(["planner", "src/budget.ts", "export const a = 1;\n", null]));
+    assert!(saved["modified"].is_number());
+    let tree = call(&b, "code", "tree", json!(["planner"]));
+    assert_eq!(tree["entries"].as_array().unwrap().len(), 3);
+    assert_eq!(call(&b, "code", "save", json!(["planner", "../x", "y", null]))["ok"], false);
+    // No command yet: the agent cannot run anything, and cannot choose one.
+    assert!(b.host_request("host.tool", &json!({ "tool": "code.test", "arguments": { "project": "planner" } })).unwrap_err().contains("No test command"));
+    assert_eq!(call(&b, "code", "testCommand", json!(["planner"]))["command"], serde_json::Value::Null);
+    let check = if cfg!(windows) { "findstr a src\\budget.ts" } else { "grep a src/budget.ts" };
+    assert_eq!(call(&b, "code", "setTestCommand", json!(["planner", check]))["ok"], true);
+    let text = b.host_request("host.tool", &json!({ "tool": "code.test", "arguments": { "project": "planner" } })).unwrap();
+    assert!(text.as_str().unwrap().starts_with("Tests for planner passed"), "{text}");
+    let run = call(&b, "code", "runTests", json!(["planner"]));
+    assert_eq!(run["passed"], true);
+    assert!(events.lock().unwrap().iter().any(|(name, _)| name == "mobius:code-tests"));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_command_mobius_started_is_listed_read_and_stopped() {
+    let (b, _core, _events, _d) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "code", "createProject", json!(["p"]));
+    let person = call(&b, "code", "start", json!(["p", "sleep 30"]));
+    assert_eq!(person["id"], 1);
+    let started = b.host_request("host.tool", &json!({ "tool": "code.start", "arguments": { "project": "p", "command": "echo serving; sleep 30" } })).unwrap();
+    assert!(started.as_str().unwrap().starts_with("Started as command 2."), "{started}");
+    b.host_request("host.tool", &json!({ "tool": "code.stop", "arguments": { "id": "2" } })).unwrap();
+    let list = call(&b, "code", "processes", json!(["p"]));
+    assert_eq!(list[1]["running"], false, "{list}");
+    assert_eq!(list[0]["running"], true);
+    call(&b, "code", "stopProcess", json!([1]));
+}
+
+#[test]
+fn voice_settings_are_kept_and_the_test_says_what_is_missing_without_any_key_in_the_answer() {
+    let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    // Off: nothing to try.
+    call(&b, "preferences", "set", json!([{ "speakWith": "off" }]));
+    assert_eq!(call(&b, "voice", "test", json!(["speak"]))["ok"], false);
+    // ElevenLabs without a key says where to add one.
+    call(&b, "preferences", "set", json!([{ "speakWith": "elevenlabs", "speakVoice": "Rachel" }]));
+    let missing = call(&b, "voice", "test", json!(["speak"]));
+    assert!(missing["error"].as_str().unwrap_or("").contains("Gateways"), "{missing}");
+    // A speech server on this computer that is not running says so, with its address.
+    call(&b, "preferences", "set", json!([{ "listenWith": "local", "listenUrl": "http://127.0.0.1:9/v1" }]));
+    let down = call(&b, "voice", "test", json!(["listen"]));
+    assert_eq!(down["ok"], false);
+    assert!(down["error"].as_str().unwrap_or("").contains("127.0.0.1:9"), "{down}");
+    // A bad address is refused, and the choices are kept in preferences.json.
+    call(&b, "preferences", "set", json!([{ "listenUrl": "ftp://nope" }]));
+    let kept: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(dir.path().join("preferences.json")).unwrap()).unwrap();
+    assert_eq!(kept["listenWith"], "local");
+    assert_eq!(kept["listenUrl"], "http://127.0.0.1:9/v1");
+    assert_eq!(kept["speakVoice"], "Rachel");
+    // ElevenLabs is a gateway for voice only: never a chat model.
+    let list = call(&b, "providers", "list", json!([]));
+    assert!(list.as_array().unwrap().iter().any(|p| p["id"] == "elevenlabs" && p["voiceOnly"] == true));
+    assert_eq!(call(&b, "providers", "use", json!(["elevenlabs", "x"]))["ok"], false);
+}
+
+#[test]
+fn the_second_model_comes_from_a_gateway_with_its_own_key_and_the_first_stays() {
+    let (url, _seen) = provider_server("sk-openai-12345678");
+    let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.redirect_provider_for_tests("openai", &url);
+    // No first model yet: there is nothing to back up.
+    assert_eq!(call(&b, "providers", "useFallback", json!(["openai", "model-b"]))["ok"], false);
+    call(&b, "agent", "configure", json!([{ "baseUrl": "http://127.0.0.1:9/v1", "model": "first", "system": "Be brief." }]));
+    // A gateway without its key is refused.
+    assert_eq!(call(&b, "providers", "useFallback", json!(["openai", "model-b"]))["ok"], false);
+    assert_eq!(call(&b, "providers", "setKey", json!(["openai", "sk-openai-12345678"]))["ok"], true);
+    assert_eq!(call(&b, "providers", "useFallback", json!(["openai", "model-b"]))["ok"], true);
+    let s = call(&b, "agent", "getSettings", json!([]));
+    assert_eq!((s["model"].as_str(), s["fallbackBaseUrl"].as_str(), s["fallbackModel"].as_str(), s["hasFallbackKey"].as_bool(), s["system"].as_str()), (Some("first"), Some(url.as_str()), Some("model-b"), Some(true), Some("Be brief.")));
+    // The catalog says where each gateway is, so the window can show which one the second model uses; never its key.
+    let catalog = call(&b, "providers", "catalog", json!([]));
+    assert!(catalog["groups"].as_array().unwrap().iter().any(|g| g["id"] == "openai" && g["address"] == url.as_str()), "{catalog}");
+    assert!(!catalog.to_string().contains("sk-openai") && !every_file_text(dir.path()).contains("sk-openai-12345678"));
+    // Voice-only gateways and unknown ones are refused; none takes the second model away.
+    assert_eq!(call(&b, "providers", "useFallback", json!(["elevenlabs", "x"]))["ok"], false);
+    assert_eq!(call(&b, "providers", "useFallback", json!(["nope", "x"]))["ok"], false);
+    assert_eq!(call(&b, "providers", "useFallback", json!(["none"]))["ok"], true);
+    assert_eq!(call(&b, "agent", "getSettings", json!([]))["fallbackModel"], "");
+}
+
+/// Signing in to OpenRouter on its own page: the key it hands back is kept like a pasted one, and never listed.
+#[test]
+fn an_openrouter_sign_in_keeps_the_key_it_is_given() {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let site_url = format!("http://{}", site.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for stream in site.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut length = 0usize;
+            loop {
+                let mut header = String::new();
+                reader.read_line(&mut header).unwrap();
+                if header.trim().is_empty() {
+                    break;
+                }
+                if let Some(v) = header.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            let reply = r#"{"key":"sk-or-v1-signed-in-1234"}"#;
+            let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
+        }
+    });
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.use_openrouter_for_tests(&site_url);
+    let listed = call(&b, "providers", "list", json!([]));
+    let openrouter = |listed: &serde_json::Value| listed.as_array().unwrap().iter().find(|p| p["id"] == "openrouter").unwrap().clone();
+    assert_eq!(openrouter(&listed)["canSignIn"], true);
+    assert_eq!(openrouter(&listed)["hasKey"], false);
+    assert_eq!(call(&b, "providers", "keySignIn", json!(["groq"]))["ok"], false, "only OpenRouter has a sign-in");
+    let started = call(&b, "providers", "keySignIn", json!(["openrouter"]));
+    let url = url::Url::parse(started["url"].as_str().unwrap()).unwrap();
+    let param = |name: &str| url.query_pairs().find(|(k, _)| k == name).unwrap().1.into_owned();
+    assert!(call(&b, "providers", "keySignInStatus", json!(["openrouter"]))["pending"].is_string());
+    let callback = format!("{}?code=abc&state={}", param("callback_url").replace("localhost", "127.0.0.1"), param("state"));
+    let agent: ureq::Agent = ureq::Agent::config_builder().http_status_as_error(false).build().into();
+    assert_eq!(agent.get(&callback).call().unwrap().status().as_u16(), 200);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while openrouter(&call(&b, "providers", "list", json!([])))["hasKey"] != true {
+        assert!(std::time::Instant::now() < deadline, "the key was not kept");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(events.lock().unwrap().iter().any(|(n, _)| n == "mobius:providers-changed"));
+    assert!(!call(&b, "providers", "list", json!([])).to_string().contains("sk-or-v1"));
+    assert!(!every_file_text(dir.path()).contains("sk-or-v1-signed-in-1234"));
+}
+
+/// Signing in to Hugging Face with a code: the token it hands back is kept like a pasted key, and never listed.
+#[test]
+fn a_hugging_face_sign_in_shows_a_code_and_keeps_the_token() {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let site_url = format!("http://{}", site.local_addr().unwrap());
+    let page = site_url.clone();
+    std::thread::spawn(move || {
+        for stream in site.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut first = String::new();
+            reader.read_line(&mut first).unwrap();
+            let mut length = 0usize;
+            loop {
+                let mut header = String::new();
+                reader.read_line(&mut header).unwrap();
+                if header.trim().is_empty() {
+                    break;
+                }
+                if let Some(v) = header.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            let reply = if first.starts_with("POST /oauth/device ") {
+                format!(r#"{{"device_code":"d1","user_code":"WXYZ-0001","verification_uri":"{page}/device","interval":0}}"#)
+            } else {
+                r#"{"access_token":"hf_oauth_signed_in_1234"}"#.to_owned()
+            };
+            let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
+        }
+    });
+    let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let hf = |listed: &serde_json::Value| listed.as_array().unwrap().iter().find(|p| p["id"] == "huggingface").unwrap().clone();
+    b.enable_test_hooks();
+    b.use_hugging_face_for_tests(&site_url, "mobius-test-client");
+    assert_eq!(hf(&call(&b, "providers", "list", json!([])))["canSignIn"], true);
+    let started = call(&b, "providers", "keySignIn", json!(["huggingface"]));
+    assert_eq!((started["url"].as_str(), started["code"].as_str()), (Some(format!("{site_url}/device").as_str()), Some("WXYZ-0001")), "{started}");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while hf(&call(&b, "providers", "list", json!([])))["hasKey"] != true {
+        assert!(std::time::Instant::now() < deadline, "the token was not kept");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert_eq!(call(&b, "providers", "keySignInStatus", json!(["huggingface"]))["pending"], serde_json::Value::Null);
+    assert!(!call(&b, "providers", "list", json!([])).to_string().contains("hf_oauth"));
+    assert!(!every_file_text(dir.path()).contains("hf_oauth_signed_in_1234"));
+}
+
+/// The GitHub Copilot plan: sign in with GitHub using a code, then the plan can be chosen; signing out forgets it.
+#[test]
+fn a_copilot_sign_in_shows_a_code_and_lets_the_plan_be_used() {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let site_url = format!("http://{}", site.local_addr().unwrap());
+    let page = site_url.clone();
+    std::thread::spawn(move || {
+        for stream in site.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut first = String::new();
+            reader.read_line(&mut first).unwrap();
+            let mut length = 0usize;
+            loop {
+                let mut header = String::new();
+                reader.read_line(&mut header).unwrap();
+                if header.trim().is_empty() {
+                    break;
+                }
+                if let Some(v) = header.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            let reply = if first.starts_with("POST /login/device/code ") {
+                format!(r#"{{"device_code":"g1","user_code":"COPI-LOT1","verification_uri":"{page}/login/device","interval":0}}"#)
+            } else {
+                r#"{"access_token":"gho_copilot_signed_in_1234","token_type":"bearer"}"#.to_owned()
+            };
+            let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
+        }
+    });
+    let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    let fake_cli = dir.path().join(if cfg!(windows) { "copilot.exe" } else { "copilot" });
+    std::fs::write(&fake_cli, b"").unwrap();
+    b.use_copilot_for_tests(&site_url, "gh-test-client", &fake_cli);
+    let accounts = call(&b, "providers", "accounts", json!([]));
+    assert!(accounts.as_array().unwrap().iter().any(|a| a["id"] == "copilot"), "{accounts}");
+    assert_eq!(call(&b, "providers", "use", json!(["copilot", "gpt-5"]))["ok"], false, "not signed in yet");
+    let started = call(&b, "providers", "signIn", json!(["copilot"]));
+    assert_eq!(started["code"], "COPI-LOT1", "{started}");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while call(&b, "providers", "accountStatus", json!(["copilot"]))["signedIn"] != true {
+        assert!(std::time::Instant::now() < deadline, "the sign-in was not kept");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert_eq!(call(&b, "providers", "accountStatus", json!(["copilot"]))["installed"], true);
+    assert_eq!(call(&b, "providers", "use", json!(["copilot", "gpt-5; rm"]))["ok"], false);
+    assert_eq!(call(&b, "providers", "use", json!(["copilot", "gpt-5"]))["ok"], true);
+    assert_eq!(call(&b, "agent", "getSettings", json!([]))["baseUrl"], "copilot://subscription");
+    assert!(!every_file_text(dir.path()).contains("gho_copilot_signed_in_1234"));
+    call(&b, "providers", "signOut", json!(["copilot"]));
+    assert_eq!(call(&b, "providers", "accountStatus", json!(["copilot"]))["signedIn"], false);
+}
+
+/// The quick model (the Act mode's reviewer) comes from a gateway with its key, is kept in the preferences, and goes
+/// when its key does.
+#[test]
+fn the_quick_model_comes_from_a_gateway_and_goes_with_its_key() {
+    let (url, _seen) = provider_server("sk-openai-12345678");
+    let (b, c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.redirect_provider_for_tests("openai", &url);
+    call(&b, "agent", "configure", json!([{ "baseUrl": "http://127.0.0.1:9/v1", "model": "first" }]));
+    let last = || c.call("test.last_configure", json!({}), Duration::from_secs(5)).unwrap();
+    assert_eq!(call(&b, "providers", "useQuick", json!(["openai", "mini"]))["ok"], false, "no key yet");
+    assert_eq!(call(&b, "providers", "setKey", json!(["openai", "sk-openai-12345678"]))["ok"], true);
+    assert_eq!(call(&b, "providers", "useQuick", json!(["openai", "mini"]))["ok"], true);
+    assert_eq!(call(&b, "preferences", "get", json!([]))["quickModel"], "openai|mini");
+    assert_eq!(last()["quick"], json!({ "base_url": url, "model": "mini", "api_key": "sk-openai-12345678" }));
+    assert_eq!(last()["model"], "first", "the chat model stays");
+    assert!(!every_file_text(dir.path()).contains("sk-openai-12345678"));
+    for bad in [json!(["elevenlabs", "x"]), json!(["nope", "x"]), json!(["openai", ""]), json!(["openai"])] {
+        assert_eq!(call(&b, "providers", "useQuick", bad.clone())["ok"], false, "{bad}");
+    }
+    // Removing the key leaves the quick jobs to the chat model; the choice is kept for when a key comes back.
+    call(&b, "providers", "removeKey", json!(["openai"]));
+    assert!(last().get("quick").is_none(), "{}", last());
+    assert_eq!(call(&b, "providers", "setKey", json!(["openai", "sk-openai-12345678"]))["ok"], true);
+    assert_eq!(last()["quick"]["model"], "mini");
+    assert_eq!(call(&b, "providers", "useQuick", json!(["none"]))["ok"], true);
+    assert!(last().get("quick").is_none());
+    assert_eq!(call(&b, "preferences", "get", json!([]))["quickModel"], "");
+}
+
+/// A thread started in a project tells the model which project it is in; other conversations say nothing of it.
+#[test]
+fn a_project_thread_tells_the_model_its_project() {
+    let (b, core, _events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    let project = call(&b, "projects", "create", json!(["Kestrel P2"]));
+    let id = project["id"].as_str().unwrap_or_else(|| panic!("{project}")).to_owned();
+    assert!(call(&b, "projects", "addThread", json!([id, "c-1"]))["threads"].as_array().is_some());
+    let last = || core.call("test.last_send", json!({}), Duration::from_secs(5)).unwrap();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "plan the build"]))["ok"], true);
+    let system = last()["system"].as_str().unwrap_or("").to_owned();
+    assert!(system.contains("project \"Kestrel P2\"") && system.contains("Projects/Kestrel P2.md"), "{system}");
+    assert_eq!(call(&b, "agent", "send", json!(["c-2", "hello"]))["ok"], true);
+    assert!(!last()["system"].as_str().unwrap_or("").contains("Kestrel"));
+    // Nothing made yet: the project's page lists nothing.
+    assert_eq!(call(&b, "projects", "made", json!([id])), json!([]));
+    assert_eq!(call(&b, "projects", "made", json!(["nope"]))["ok"], false);
+}
+
+/// What the person changes after a turn ends is theirs: never listed with the turn, never put back by its Undo.
+#[test]
+fn changes_after_a_turn_ends_do_not_join_it() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let ws = dir.path().join("workspace");
+    std::fs::create_dir_all(ws.join("notes")).unwrap();
+    std::fs::create_dir_all(ws.join("docs")).unwrap();
+    std::fs::write(ws.join("notes/Old.md"), "# Old\n").unwrap();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "write a note"]))["ok"], true);
+    let wait = |what: &dyn Fn() -> bool| {
+        let start = Instant::now();
+        while !what() {
+            assert!(start.elapsed() < Duration::from_secs(20), "timed out");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    // The turn's start is marked, then the turn writes its note and ends.
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"].as_array().is_some_and(|t| !t.is_empty()));
+    std::fs::write(ws.join("notes/Turn.md"), "# Turn\n").unwrap();
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"][0]["ended"] == true);
+    // The person writes their own doc afterwards.
+    std::fs::write(ws.join("docs/Mine.md"), "# Mine\n").unwrap();
+    assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/Turn.md"]));
+    assert_eq!(call(&b, "changes", "undoFile", json!(["c-1", "docs/Mine.md"]))["ok"], false, "not the turn's to put back");
+    let undone = call(&b, "changes", "undo", json!(["c-1"]));
+    assert_eq!(undone["ok"], true, "{undone}");
+    assert!(!ws.join("notes/Turn.md").exists(), "the turn's note is put back");
+    assert_eq!(std::fs::read_to_string(ws.join("docs/Mine.md")).unwrap(), "# Mine\n", "the person's doc stays");
+}
+
+/// Mobius reads the comments on a document, answers one under it and resolves it; Docs is told so it shows them.
+#[test]
+fn mobius_reads_answers_and_resolves_comments() {
+    let (b, _core, events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    call(&b, "docs", "createNotebook", json!(["Documents"]));
+    let page = call(&b, "docs", "createPage", json!(["Documents", "Release notes"]))["path"].as_str().unwrap().to_owned();
+    call(&b, "docs", "setComments", json!([page, [{ "id": "c1", "quote": "ships in May", "text": "Is May still right?", "by": "you", "whenMs": 1 }]]));
+    let tool = |name: &str, args: serde_json::Value| b.host_request("host.tool", &json!({ "tool": name, "arguments": args }));
+    let all = tool("comments.list", json!({})).unwrap();
+    assert!(all.as_str().unwrap().contains("Is May still right?") && all.as_str().unwrap().contains(&format!("docs/{page}")), "{all}");
+    let full = format!("docs/{page}");
+    assert_eq!(tool("comments.reply", json!({ "page": full, "id": "c1", "text": "Yes, May 14." })).unwrap(), json!(format!("Replied under the comment on {full}.")));
+    assert_eq!(tool("comments.resolve", json!({ "page": full, "id": "c1" })).unwrap(), json!(format!("Resolved the comment on {full}.")));
+    let kept = call(&b, "docs", "comments", json!([page]));
+    assert_eq!(kept[1]["by"], "Mobius");
+    assert_eq!(kept[1]["replyTo"], "c1");
+    assert!(kept.as_array().unwrap().iter().all(|c| c["resolved"] == true));
+    assert!(events.lock().unwrap().iter().any(|(n, v)| n == "mobius:docs-changed" && v["by"] == "assistant" && v["path"] == page.as_str()));
+    assert!(tool("comments.reply", json!({ "page": "sheets/Budget.csv", "id": "c1", "text": "no" })).unwrap_err().contains("Notes"));
+    assert!(tool("comments.reply", json!({ "page": full, "id": "c9", "text": "no" })).is_err());
+}
+
+/// Mobius makes a picture with the image model chosen in Models and keeps it in Photo; with none chosen it says where to
+/// choose one, and only gateways with a key are offered.
+#[test]
+fn a_picture_is_made_with_the_chosen_image_model_and_kept_in_photo() {
+    use std::io::{BufRead, BufReader, Read, Write};
+    // A 1×1 PNG.
+    const PNG: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    let seen: Arc<std::sync::Mutex<Vec<(String, String)>>> = Arc::default();
+    let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/v1", site.local_addr().unwrap());
+    let heard = seen.clone();
+    std::thread::spawn(move || {
+        for stream in site.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let (mut length, mut line) = (0usize, String::new());
+            reader.read_line(&mut line).unwrap();
+            loop {
+                let mut header = String::new();
+                reader.read_line(&mut header).unwrap();
+                if header.trim().is_empty() {
+                    break;
+                }
+                if let Some(v) = header.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            heard.lock().unwrap().push((line.clone(), String::from_utf8_lossy(&body).into_owned()));
+            let reply = if line.contains("/images/generations") { format!(r#"{{"data":[{{"b64_json":"{PNG}"}}]}}"#) } else { r#"{"data":[]}"#.to_owned() };
+            let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
+        }
+    });
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    b.redirect_provider_for_tests("openai", &url);
+    let tool = |args: serde_json::Value| b.host_request("host.tool", &json!({ "tool": "images.generate", "arguments": args }));
+    assert!(tool(json!({ "prompt": "a kite" })).unwrap_err().contains("Settings, Models, Images"));
+    assert_eq!(call(&b, "providers", "imageModels", json!([]))["choices"], json!([]));
+    assert_eq!(call(&b, "providers", "useImages", json!(["openai", "gpt-image-1"]))["ok"], false, "no key yet");
+    assert_eq!(call(&b, "providers", "setKey", json!(["openai", "sk-openai-12345678"]))["ok"], true);
+    let offered = call(&b, "providers", "imageModels", json!([]));
+    assert!(offered["choices"].as_array().unwrap().iter().any(|c| c["model"] == "gpt-image-1"), "{offered}");
+    assert_eq!(call(&b, "providers", "useImages", json!(["openai", "gpt-image-1"]))["ok"], true);
+    assert_eq!(call(&b, "preferences", "get", json!([]))["imageModel"], "openai|gpt-image-1");
+    let made = tool(json!({ "prompt": "A red kite over the hills", "name": "Kite", "shape": "wide" })).unwrap();
+    assert_eq!(made, json!("Made the picture and kept it in Photo as photos/Made by Mobius/Kite.png."));
+    assert!(dir.path().join("workspace/photos/Made by Mobius/Kite.png").is_file());
+    let (line, body) = seen.lock().unwrap().iter().find(|(l, _)| l.contains("/images/generations")).cloned().unwrap();
+    assert!(line.starts_with("POST /v1/images/generations"), "{line}");
+    let sent: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(sent["model"], "gpt-image-1");
+    assert_eq!(sent["size"], "1536x1024");
+    assert!(sent.get("response_format").is_none());
+    assert!(events.lock().unwrap().iter().any(|(n, v)| n == "mobius:photos-changed" && v["by"] == "assistant"));
+    // A second picture of the same name is kept beside the first.
+    tool(json!({ "prompt": "Another kite", "name": "Kite" })).unwrap();
+    assert!(dir.path().join("workspace/photos/Made by Mobius/Kite 2.png").is_file());
+}
+
+/// A new install starts with the everyday apps; one that was in use before Abilities keeps every app.
+#[test]
+fn a_new_install_starts_with_the_everyday_apps_and_an_old_one_keeps_them_all() {
+    let (b, _core, _events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    assert_eq!(call(&b, "preferences", "get", json!([]))["installedApps"], json!(["notes", "tasks", "calendar", "mail", "docs", "browser"]));
+    let old = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(old.path().join("workspace/notes")).unwrap();
+    let (b, _core, _events, _old) = bridge_in(old);
+    assert_eq!(call(&b, "preferences", "get", json!([]))["installedApps"], serde_json::Value::Null);
+    assert_eq!(call(&b, "preferences", "set", json!([{ "installedApps": ["notes", "photo"] }]))["installedApps"], json!(["notes", "photo"]));
+    assert_eq!(call(&b, "preferences", "set", json!([{ "installedApps": ["Bad App"] }]))["installedApps"], json!(["notes", "photo"]));
 }

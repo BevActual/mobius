@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { coreCall, coreHistory, corePid, crashCore, launch, startFixture, type Fixture, type Launched } from './harness';
+import { coreCall, coreHistory, corePid, crashCore, launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -89,7 +89,7 @@ test('the page-facing shell can read the core status but cannot call the core', 
     top: Object.keys((window as unknown as { mobius: object }).mobius).sort(),
   }));
   expect(surface.core).toEqual(['getStatus', 'onStatus']);
-  expect(surface.top).toEqual(['agent', 'app', 'appearance', 'bookmarks', 'bots', 'browser', 'context', 'core', 'downloads', 'history', 'models', 'notes', 'platform', 'preferences', 'providers', 'share', 'surface', 'tasks', 'window']);
+  expect(surface.top).toEqual(['agent', 'app', 'appearance', 'boards', 'bookmarks', 'bots', 'browser', 'calendar', 'changes', 'code', 'comments', 'context', 'core', 'databases', 'designs', 'docs', 'downloads', 'extensions', 'files', 'history', 'mail', 'memory', 'menu', 'mini', 'models', 'notes', 'photos', 'platform', 'preferences', 'profiles', 'projects', 'providers', 'reading', 'research', 'schedules', 'share', 'sheets', 'signins', 'skills', 'slides', 'songs', 'surface', 'tasks', 'terminal', 'tray', 'updates', 'video', 'voice', 'wiki', 'window']);
 });
 
 test('without a core binary the shell still works and says the core is unavailable', async () => {
@@ -125,6 +125,6 @@ test('approvals made with "always" are still there after quitting and starting t
   } finally {
     await mobius?.close();
     mobius = undefined;
-    fs.rmSync(userData, { recursive: true, force: true });
+    removeTestData(userData);
   }
 });

@@ -21,10 +21,17 @@ const pathOf = (args: unknown): string => {
 export function appOfTool(name: string, args?: unknown): AppId | null {
   if (name.startsWith('browser.')) return 'browser';
   if (name.startsWith('tasks.')) return 'tasks';
+  if (name.startsWith('calendar.')) return 'calendar';
+  if (name.startsWith('sheets.')) return 'sheets';
+  if (name.startsWith('mail.')) return 'mail';
   if (name.startsWith('files.')) {
     const path = pathOf(args);
     if (path.startsWith('notes/')) return 'notes';
+    if (path.startsWith('docs/')) return 'docs';
+    if (path.startsWith('slides/')) return 'slides';
+    if (path.startsWith('sheets/')) return 'sheets';
     if (path.startsWith('tasks/')) return 'tasks';
+    if (path.startsWith('calendar/')) return 'calendar';
   }
   return null;
 }
@@ -43,12 +50,23 @@ const LABELS: Record<string, string> = {
   'tasks.list': 'Reading your tasks',
   'tasks.add': 'Adding a task',
   'tasks.update': 'Updating a task',
+  'calendar.list': 'Reading your calendar',
+  'calendar.add': 'Adding an event',
+  'calendar.update': 'Changing an event',
+  'calendar.suggest': 'Suggesting an event',
+  'sheets.list': 'Looking at your workbooks',
+  'sheets.read': 'Reading a sheet',
+  'sheets.write': 'Changing a sheet',
+  'mail.search': 'Looking through your mail',
+  'mail.read': 'Reading an email',
+  'mail.draft': 'Drafting an email',
   'todo.write': 'Making a plan',
 };
 
 export function toolLabel(name: string, args?: unknown): string {
   const app = appOfTool(name, args);
   if (app === 'notes') return name === 'files.read' ? 'Reading a note' : name === 'files.list' || name === 'files.search' ? 'Looking through notes' : 'Writing in Notes';
+  if (name === 'mail.draft' && isReply(args)) return 'Drafting a reply';
   if (LABELS[name]) return LABELS[name]!;
   const server = /^mcp[._]+([^._]+)/.exec(name)?.[1];
   return server ? `Using ${server}` : 'Working';
@@ -70,4 +88,10 @@ export function activityOf(state: ConversationState): Activity | null {
   const running = [...state.items].reverse().find((i): i is Tool => i.kind === 'tool' && i.status === 'running');
   if (running) return withStep({ label: toolLabel(running.name, running.args), app: appOfTool(running.name, running.args), needsYou: false });
   return withStep({ label: 'Thinking', app: null, needsYou: false });
+}
+
+/** Whether a mail.draft answers a message (its replyTo is the id of the one it answers) or is a new email. */
+function isReply(args: unknown): boolean {
+  const a = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>;
+  return ['replyTo', 'reply_to', 'in_reply_to'].some((k) => typeof a[k] === 'string' && (a[k] as string).trim() !== '');
 }

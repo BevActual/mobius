@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, quickEntry, startFixture, takeGlobalShortcut, type Fixture, type Launched } from './harness';
+import { launch, quickEntry, startFixture, takeGlobalShortcut, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { startModel, type ModelFixture } from './model-fixture';
 
 let fixture: Fixture;
@@ -21,7 +21,7 @@ test.afterEach(async () => {
   mobius = undefined;
   await model?.close();
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true });
+  removeTestData(userData);
 });
 
 const shell = () => mobius!.shell;
@@ -29,9 +29,9 @@ const launcher = (): Locator => shell().getByRole('combobox', { name: 'Find apps
 const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const keys = (action: string): Locator => page().getByTestId(`keys-${action}`);
 const openKeyboard = async () => {
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Keyboard', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Keyboard', exact: true }).click();
 };
 const prefs = () => shell().evaluate(() => window.mobius.preferences.get());
 const hook = async <T>(fn: (h: { quickEntry: { press(): void; active(): boolean } }) => T): Promise<T> => {
@@ -50,6 +50,7 @@ test('the usual keys work, and the settings page lists them', async () => {
   await expect(keys('launcher')).toHaveText('Ctrl+K');
   await expect(keys('settings')).toHaveText('Ctrl+,');
   await expect(keys('quickEntry')).toHaveText('Not set');
+  await expect(keys('holdToTalk')).toHaveText('Ctrl+Space');
 });
 
 test('a shortcut can be changed, the old keys stop working, and it can be put back', async () => {
@@ -118,6 +119,8 @@ test('the choices survive a restart', async () => {
   await mobius!.close({ keepUserData: true });
   mobius = await launch(fixture.origin + '/', { userData });
   await expect.poll(async () => (await prefs()).keybindings.settings).toBe('mod+alt+s');
+  // The window takes shortcuts once it has read the saved ones; the file being right is not enough on a slow start.
+  await expect(shell().locator('html[data-keys-ready]')).toBeAttached({ timeout: 15_000 });
   await shell().keyboard.press('Control+Alt+s');
   await expect(page()).toBeVisible();
 });
@@ -130,14 +133,14 @@ test('quick entry is off until chosen, then it is registered with the system and
   await shell().keyboard.press('Control+Alt+Space');
   await expect(keys('quickEntry')).toHaveText('Ctrl+Alt+Space');
   await expect(page().getByTestId('quick-entry-working')).toBeVisible();
-  expect(await hook((h) => h.quickEntry.active())).toBe(true);
+  await expect.poll(() => hook((h) => h.quickEntry.active())).toBe(true);
   await hook((h) => h.quickEntry.press());
   await expect(page()).toHaveCount(0);
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeFocused();
   await openKeyboard();
   await page().getByRole('button', { name: 'Clear Bring Mobius up and start a message, from anywhere' }).click();
   await expect(keys('quickEntry')).toHaveText('Not set');
-  expect(await hook((h) => h.quickEntry.active())).toBe(false);
+  await expect.poll(() => hook((h) => h.quickEntry.active())).toBe(false);
 });
 
 test('a global shortcut another program already has is reported, not hidden', async () => {
@@ -148,4 +151,15 @@ test('a global shortcut another program already has is reported, not hidden', as
   await expect(keys('quickEntry')).toHaveText('Ctrl+Alt+J');
   await expect(page().getByTestId('quick-entry-taken')).toBeVisible();
   expect(await hook((h) => h.quickEntry.active())).toBe(false);
+});
+
+test('the launcher opens from the message box too, and starts new things in any app', async () => {
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).first().focus();
+  await shell().keyboard.press('Control+k');
+  await expect(launcher()).toBeFocused();
+  await launcher().fill('new document');
+  await expect(shell().getByRole('option', { name: /New document/ })).toBeVisible();
+  await shell().keyboard.press('Enter');
+  await expect(launcher()).toHaveCount(0);
+  await expect(shell().getByRole('button', { name: /Switch app\. Current: Docs/ })).toBeVisible();
 });

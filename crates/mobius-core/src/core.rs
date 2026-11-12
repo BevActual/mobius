@@ -134,15 +134,23 @@ struct Tool {
 }
 
 pub struct Core {
+    /// Each project's own rules, by project id.
+    project_rules: HashMap<String, Vec<crate::permissions::Rule>>,
+    /// The project of the call being decided, while it is.
+    in_project: Option<String>,
     store: Store,
     clock: Clock,
     policy: Policy,
+    /// Sign-ins the person made for a task (a conversation), per site. In memory only.
+    pub signins: crate::signins::SignIns,
     tools: HashMap<String, Tool>,
     /// Every live grant. Always grants are mirrored in the store; session and one-time grants live only here.
     grants: Vec<Grant>,
     pending: Vec<PendingRequest>,
     /// Questions that may only be answered "allow once", whatever the policy says.
     once_only: HashSet<u64>,
+    /// Questions only the person may answer: the app is set to always ask, so no reviewer answers them.
+    person_only: HashSet<u64>,
     /// Answers to questions, held until the asker collects them (oldest dropped first).
     answered: VecDeque<(u64, bool)>,
     next_grant_id: u64,
@@ -161,7 +169,7 @@ impl Core {
     fn with_store(store: Store, clock: Clock) -> Result<Self, CoreError> {
         let grants = store.load_grants()?;
         let next_grant_id = store.max_grant_id()? + 1;
-        Ok(Core { store, clock, policy: Policy::default_floors(), tools: HashMap::new(), grants, pending: Vec::new(), once_only: HashSet::new(), answered: VecDeque::new(), next_grant_id, next_request_id: 1 })
+        Ok(Core { store, clock, policy: Policy::default_floors(), signins: crate::signins::SignIns::new(), tools: HashMap::new(), grants, pending: Vec::new(), once_only: HashSet::new(), person_only: HashSet::new(), answered: VecDeque::new(), next_grant_id, next_request_id: 1, project_rules: HashMap::new(), in_project: None })
     }
 
     pub fn register_tool(&mut self, spec: ToolSpec, handler: ToolHandler) -> Result<(), CoreError> {
@@ -208,6 +216,11 @@ impl Core {
         self.pending.iter().find(|r| r.id == request_id).is_some_and(|r| self.once_only.contains(&r.id) || self.policy.is_floor(&r.capability))
     }
 
+    /// Whether only the person may answer this question: its app is set to always ask, so no reviewer model does.
+    pub fn is_person_only(&self, request_id: u64) -> bool {
+        self.person_only.contains(&request_id)
+    }
+
     /// From now on this question can only be answered "allow once". Nothing happens for an unknown question.
     pub fn require_once(&mut self, request_id: u64) {
         if self.pending.iter().any(|r| r.id == request_id) {
@@ -218,6 +231,24 @@ impl Core {
     #[must_use]
     pub fn approval_mode(&self) -> ApprovalMode {
         self.policy.mode()
+    }
+
+    /// Replace the standing rules from Settings (how much the agent may do in each app). Kept only in memory: the
+    /// host sends them again whenever the core starts.
+    pub fn set_rules(&mut self, rules: Vec<crate::permissions::Rule>) -> Result<(), CoreError> {
+        for rule in &rules {
+            if let Some(resource) = &rule.resource {
+                validate_resource(resource)?;
+            }
+        }
+        let count = rules.len();
+        self.policy.set_rules(rules);
+        self.log("permission.rules", None, None, None, json!({ "rules": count }))
+    }
+
+    #[must_use]
+    pub fn rules(&self) -> Vec<crate::permissions::Rule> {
+        self.policy.rules().to_vec()
     }
 
     /// Change how often the assistant has to ask. Standing approvals are kept, only not used in the careful mode.
@@ -250,7 +281,41 @@ impl Core {
     }
 
     pub fn invoke(&mut self, principal: &Principal, tool: &str, args: &Value) -> Result<InvokeOutcome, CoreError> {
+        self.invoke_guarded(principal, tool, args, false)
+    }
+
+    /// The capability a tool needs, when the tool is known.
+    #[must_use]
+    pub fn capability_of(&self, tool: &str) -> Option<Capability> {
+        self.tools.get(tool).map(|t| t.spec.capability.clone())
+    }
+
+    /// As `invoke`, but with `person_only` nothing standing lets it through (no grant for longer than once, no rule,
+    /// no approval mode): the person is asked, only "allow once" answers, and no reviewer model answers for them. For a
+    /// call whose arguments came from something read rather than from the person. A block still blocks.
+    pub fn invoke_guarded(&mut self, principal: &Principal, tool: &str, args: &Value, person_only: bool) -> Result<InvokeOutcome, CoreError> {
+        self.invoke_in(principal, tool, args, person_only, None)
+    }
+
+    /// The rules of one project (how much Mobius may do in each app there), counted beside the person's own rules
+    /// for calls made in that project's conversations. Kept in memory: the host sends them when it starts.
+    pub fn set_project_rules(&mut self, project: &str, rules: Vec<crate::permissions::Rule>) -> Result<(), CoreError> {
+        if project.is_empty() || project.len() > 64 || !project.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+            return Err(CoreError::InvalidArgs("that is not a project".into()));
+        }
+        // An allow for a floor is kept but never counts: the policy asks about floors every time, in every project.
+        if rules.is_empty() {
+            self.project_rules.remove(project);
+        } else {
+            self.project_rules.insert(project.to_owned(), rules);
+        }
+        Ok(())
+    }
+
+    /// As `invoke_guarded`, for a call made in a project's conversation: that project's rules count too.
+    pub fn invoke_in(&mut self, principal: &Principal, tool: &str, args: &Value, person_only: bool, project: Option<&str>) -> Result<InvokeOutcome, CoreError> {
         principal.validate()?;
+        self.in_project = project.map(str::to_owned);
         let (capability, resource_arg, by_origin, external) = {
             let tool = self.tools.get(tool).ok_or_else(|| CoreError::UnknownTool(tool.to_owned()))?;
             (tool.spec.capability.clone(), tool.spec.resource_arg.clone(), tool.spec.resource_origin, tool.spec.external)
@@ -268,7 +333,9 @@ impl Core {
                 _ => return Err(CoreError::InvalidArgs(format!("`{key}` is required and must be a string"))),
             },
         };
-        match self.decide(principal, &capability, resource.as_deref(), true)? {
+        let decided = self.decide_guarded(principal, &capability, resource.as_deref(), true, person_only);
+        self.in_project = None;
+        match decided? {
             Decision::Allow => {
                 self.log("tool.started", Some(principal), Some(capability.as_str()), resource.as_deref(), json!({ "tool": tool }))?;
                 if external {
@@ -307,6 +374,7 @@ impl Core {
         }
         let request = self.pending.remove(index);
         self.once_only.remove(&request.id);
+        self.person_only.remove(&request.id);
         let now = (self.clock)();
         let effect = if approve { Effect::Allow } else { Effect::Deny };
         // Rejecting once is just "no, not now": it leaves nothing behind, so the next attempt asks again.
@@ -347,6 +415,7 @@ impl Core {
         let index = self.pending.iter().position(|r| r.id == request_id).ok_or(CoreError::UnknownRequest(request_id))?;
         let request = self.pending.remove(index);
         self.once_only.remove(&request.id);
+        self.person_only.remove(&request.id);
         self.log("permission.withdrawn", Some(&request.principal), Some(request.capability.as_str()), request.resource.as_deref(), json!({ "request_id": request_id }))?;
         Ok(())
     }
@@ -362,9 +431,25 @@ impl Core {
     }
 
     fn decide(&mut self, principal: &Principal, capability: &Capability, resource: Option<&str>, consume: bool) -> Result<Decision, CoreError> {
+        self.decide_guarded(principal, capability, resource, consume, false)
+    }
+
+    fn decide_guarded(&mut self, principal: &Principal, capability: &Capability, resource: Option<&str>, consume: bool, person_only: bool) -> Result<Decision, CoreError> {
         let now = (self.clock)();
         self.grants.retain(|g| g.expires_ms.is_none_or(|expires| now < expires));
-        match self.policy.evaluate(&self.grants, now, principal, capability, resource) {
+        let project: &[crate::permissions::Rule] = self.in_project.as_ref().and_then(|p| self.project_rules.get(p)).map_or(&[], Vec::as_slice);
+        let verdict = match self.policy.evaluate_in(&self.grants, now, principal, capability, resource, project) {
+            // Only the person's answer for this one use counts.
+            Verdict::Allow { consume: None } | Verdict::Ask if person_only && principal.kind != crate::model::PrincipalKind::Person => {
+                let once = self.grants.iter().find(|g| {
+                    g.principal == *principal && g.capability == *capability && g.effect == Effect::Allow && g.duration == Duration::Once
+                        && crate::permissions::resource_matches(g.resource.as_deref(), resource)
+                });
+                once.map_or(Verdict::AskPerson, |g| Verdict::Allow { consume: Some(g.id) })
+            }
+            other => other,
+        };
+        match verdict {
             Verdict::Allow { consume: used } => {
                 if consume && let Some(id) = used {
                     self.grants.retain(|g| g.id != id);
@@ -376,9 +461,14 @@ impl Core {
                 self.log("permission.denied", Some(principal), Some(capability.as_str()), resource, json!({ "reason": "denied by a standing rule" }))?;
                 Ok(Decision::Deny { reason: "blocked by a standing rule".to_owned() })
             }
-            Verdict::Ask => {
+            Verdict::Ask | Verdict::AskPerson => {
+                let person = matches!(verdict, Verdict::AskPerson);
                 let existing = self.pending.iter().find(|r| r.principal == *principal && r.capability == *capability && r.resource.as_deref() == resource).map(|r| r.id);
                 if let Some(request_id) = existing {
+                    if person {
+                        self.once_only.insert(request_id);
+                        self.person_only.insert(request_id);
+                    }
                     return Ok(Decision::Ask { request_id });
                 }
                 if self.pending.len() >= MAX_PENDING {
@@ -388,6 +478,11 @@ impl Core {
                 let request_id = self.next_request_id;
                 self.next_request_id += 1;
                 self.pending.push(PendingRequest { id: request_id, principal: principal.clone(), capability: capability.clone(), resource: resource.map(str::to_owned), created_ms: now });
+                if person {
+                    // The app is set to always ask: allow once is the only yes, and no reviewer answers for the person.
+                    self.once_only.insert(request_id);
+                    self.person_only.insert(request_id);
+                }
                 self.log("permission.asked", Some(principal), Some(capability.as_str()), resource, json!({ "request_id": request_id }))?;
                 Ok(Decision::Ask { request_id })
             }

@@ -9,4 +9,5 @@ pub mod core;
 pub mod model;
 pub mod permissions;
 pub mod rpc;
+pub mod signins;
 pub mod store;

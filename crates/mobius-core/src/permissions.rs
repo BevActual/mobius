@@ -10,6 +10,8 @@ pub enum Verdict {
     Deny,
     /// No grant covers this: someone has to decide.
     Ask,
+    /// The person set this app to always ask: the person decides, each time (allow once), and no reviewer does.
+    AskPerson,
 }
 
 /// The person's choice of how the assistant is gated, named as Hermes names it.
@@ -18,10 +20,15 @@ pub enum ApprovalMode {
     /// Ask the first time and remember if told to. The floors are asked about every time.
     #[default]
     Manual,
+    /// Mobius makes reversible changes in the workspace (and reads it) without asking: what a turn changed waits as a
+    /// proposal to keep, discard or try another way, since each turn begins with a checkpoint. Everything else is asked
+    /// about as in manual, and the floors every time.
+    Propose,
     /// Like manual, but a reviewer model first looks at each question: it can approve that one use, or point out
     /// that it looks dangerous. When it is unsure, or cannot answer, the person is asked.
     Smart,
-    /// Ask about nothing. A standing block the person set still blocks.
+    /// From before the three modes: ask about nothing but the floors, which are asked about in every mode. A
+    /// standing block the person set still blocks.
     Off,
 }
 
@@ -30,6 +37,7 @@ impl ApprovalMode {
     pub fn parse(name: &str) -> Option<Self> {
         match name {
             "manual" => Some(Self::Manual),
+            "propose" => Some(Self::Propose),
             "smart" => Some(Self::Smart),
             "off" => Some(Self::Off),
             _ => None,
@@ -40,8 +48,41 @@ impl ApprovalMode {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Manual => "manual",
+            Self::Propose => "propose",
             Self::Smart => "smart",
             Self::Off => "off",
+        }
+    }
+}
+
+/// A standing rule the person set in Settings (how much Mobius may do in each app), as opposed to a grant given while
+/// answering a question. A rule's allow covers only the agent (not plugins or servers) and never a floor capability:
+/// those are still asked about each time. A rule's deny covers everyone but the person. A rule's ask (the app set to
+/// always ask) makes the agent ask the person every time, whatever the mode and any standing allow.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rule {
+    pub capability: Capability,
+    /// A resource pattern, as for grants (`notes/*`); none covers every resource.
+    #[serde(default)]
+    pub resource: Option<String>,
+    pub effect: RuleEffect,
+}
+
+/// What a rule from Settings does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuleEffect {
+    Allow,
+    Deny,
+    Ask,
+}
+
+impl From<Effect> for RuleEffect {
+    fn from(effect: Effect) -> Self {
+        match effect {
+            Effect::Allow => RuleEffect::Allow,
+            Effect::Deny => RuleEffect::Deny,
         }
     }
 }
@@ -50,11 +91,12 @@ impl ApprovalMode {
 pub struct Policy {
     floors: HashSet<String>,
     mode: ApprovalMode,
+    rules: Vec<Rule>,
 }
 
 impl Policy {
     pub fn new<I: IntoIterator<Item = &'static str>>(floors: I) -> Self {
-        Policy { floors: floors.into_iter().map(str::to_owned).collect(), mode: ApprovalMode::Manual }
+        Policy { floors: floors.into_iter().map(str::to_owned).collect(), mode: ApprovalMode::Manual, rules: Vec::new() }
     }
 
     /// Capabilities that can never be allowed standing: each use needs its own approval.
@@ -71,15 +113,25 @@ impl Policy {
         self.mode = mode;
     }
 
+    /// Replace the rules from Settings.
+    pub fn set_rules(&mut self, rules: Vec<Rule>) {
+        self.rules = rules;
+    }
+
+    #[must_use]
+    pub fn rules(&self) -> &[Rule] {
+        &self.rules
+    }
+
     pub fn is_floor(&self, capability: &Capability) -> bool {
         self.floors.contains(capability.as_str())
     }
 
     /// Decide whether `principal` may use `capability` on `resource`.
     ///
-    /// Order of precedence: a person is always allowed; any matching deny wins; a standing allow
-    /// (session or always) comes next, except for floor capabilities, which accept only one-time
-    /// grants; otherwise someone has to be asked.
+    /// Order of precedence: a person is always allowed; any matching deny grant wins, then a deny rule from Settings;
+    /// a standing allow (session or always) comes next, except for floor capabilities, which accept only one-time
+    /// grants; then an allow rule from Settings (never for a floor); otherwise the approval mode decides.
     pub fn evaluate(
         &self,
         grants: &[Grant],
@@ -88,10 +140,27 @@ impl Policy {
         capability: &Capability,
         resource: Option<&str>,
     ) -> Verdict {
+        self.evaluate_in(grants, now_ms, principal, capability, resource, &[])
+    }
+
+    /// As `evaluate`, with a project's own rules counted beside the person's rules from Settings: a deny in either
+    /// denies, an ask in either asks the person, an allow in either allows (never for a floor).
+    pub fn evaluate_in(
+        &self,
+        grants: &[Grant],
+        now_ms: u64,
+        principal: &Principal,
+        capability: &Capability,
+        resource: Option<&str>,
+        project: &[Rule],
+    ) -> Verdict {
         if principal.kind == PrincipalKind::Person {
             return Verdict::Allow { consume: None };
         }
         let floor = self.is_floor(capability);
+        let rule = |effect: RuleEffect| self.rules.iter().chain(project).any(|r| r.effect == effect && r.capability == *capability && resource_matches(r.resource.as_deref(), resource));
+        let denied_by_rule = rule(RuleEffect::Deny);
+        let always_ask = principal.kind == PrincipalKind::Agent && rule(RuleEffect::Ask);
         let mut standing = false;
         let mut once: Option<u64> = None;
         for grant in grants {
@@ -112,17 +181,40 @@ impl Policy {
                 (Effect::Allow, Duration::Session | Duration::Always) => standing |= !floor,
             }
         }
-        if standing {
+        if denied_by_rule {
+            Verdict::Deny
+        } else if always_ask {
+            // Only an answer for this one use counts: no standing allow, rule or mode lets it through.
+            once.map_or(Verdict::AskPerson, |id| Verdict::Allow { consume: Some(id) })
+        } else if standing {
             Verdict::Allow { consume: None }
         } else if let Some(id) = once {
             Verdict::Allow { consume: Some(id) }
-        } else if self.mode == ApprovalMode::Off {
-            // Nothing is asked about, and no standing block matched.
+        } else if !floor && principal.kind == PrincipalKind::Agent && rule(RuleEffect::Allow) {
+            Verdict::Allow { consume: None }
+        } else if self.mode == ApprovalMode::Propose && !floor && principal.kind == PrincipalKind::Agent && is_reversible(capability) {
+            // A proposal: the turn's checkpoint puts it back if the person discards it.
+            Verdict::Allow { consume: None }
+        } else if self.mode == ApprovalMode::Off && !floor {
+            // Nothing but the floors is asked about, and no standing block matched.
             Verdict::Allow { consume: None }
         } else {
             Verdict::Ask
         }
     }
+}
+
+/// What Propose lets the agent do without asking: read the workspace and change it in ways a turn's checkpoint puts
+/// back, and read what only says something about this computer (the time, the schedules). Deleting files is a floor,
+/// and sending, browsing, mail and running commands are not here, so they still ask.
+const REVERSIBLE: [&str; 14] = [
+    "clock.read", "schedules.read", "files.read", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
+    "calendar.read", "calendar.write", "skills.read", "document.write",
+];
+
+#[must_use]
+pub fn is_reversible(capability: &Capability) -> bool {
+    REVERSIBLE.contains(&capability.as_str())
 }
 
 /// `None` matches every resource. A pattern ending in `*` matches by prefix (write patterns as `https://host/*`,
@@ -192,6 +284,52 @@ mod tests {
         assert_eq!(policy().evaluate(&g, NOW, &agent("b"), &cap("browser.read"), None), Verdict::Ask);
         let same_id_other_kind = Principal::new(PrincipalKind::McpServer, "a").unwrap();
         assert_eq!(policy().evaluate(&g, NOW, &same_id_other_kind, &cap("browser.read"), None), Verdict::Ask);
+    }
+
+    fn rule(c: &str, resource: Option<&str>, effect: Effect) -> Rule {
+        Rule { capability: cap(c), resource: resource.map(str::to_owned), effect: effect.into() }
+    }
+
+    #[test]
+    fn a_projects_rules_count_only_in_that_project_and_never_open_a_floor() {
+        let a = agent("a");
+        let mut p = policy();
+        p.set_rules(vec![rule("tasks.write", None, Effect::Deny)]);
+        let act = [rule("files.write", Some("docs/*"), Effect::Allow), rule("tasks.write", None, Effect::Allow), rule("process.exec", None, Effect::Allow)];
+        let ask = [Rule { capability: cap("files.write"), resource: Some("docs/*".into()), effect: RuleEffect::Ask }];
+        // Act in the project: its app's changes go ahead there, and only there.
+        assert_eq!(p.evaluate_in(&[], NOW, &a, &cap("files.write"), Some("docs/Plan.md"), &act), Verdict::Allow { consume: None });
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("docs/Plan.md")), Verdict::Ask);
+        // What the person blocked in Settings stays blocked in every project.
+        assert_eq!(p.evaluate_in(&[], NOW, &a, &cap("tasks.write"), None, &act), Verdict::Deny);
+        // Commands, deleting and the other floors ask every time, whatever the project says.
+        assert_eq!(p.evaluate_in(&[], NOW, &a, &cap("process.exec"), None, &act), Verdict::Ask);
+        // Ask first in the project: the person, every time.
+        assert_eq!(p.evaluate_in(&[], NOW, &a, &cap("files.write"), Some("docs/Plan.md"), &ask), Verdict::AskPerson);
+    }
+
+    #[test]
+    fn rules_from_settings_allow_the_agent_deny_everyone_and_never_open_a_floor() {
+        let a = agent("a");
+        let mut p = policy();
+        p.set_rules(vec![
+            rule("tasks.write", None, Effect::Allow),
+            rule("files.write", Some("notes/*"), Effect::Allow),
+            rule("browser.navigate", None, Effect::Deny),
+            rule("browser.interact", None, Effect::Allow),
+        ]);
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("tasks.write"), Some("Inbox")), Verdict::Allow { consume: None });
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Allow { consume: None });
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("drafts/x.md")), Verdict::Ask, "only under notes/");
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.interact"), None), Verdict::Ask, "a floor is still asked");
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.navigate"), Some("https://a.example")), Verdict::Deny);
+        let server = Principal::new(PrincipalKind::McpServer, "s").unwrap();
+        assert_eq!(p.evaluate(&[], NOW, &server, &cap("tasks.write"), None), Verdict::Ask, "an allow rule is for the agent only");
+        assert_eq!(p.evaluate(&[], NOW, &server, &cap("browser.navigate"), None), Verdict::Deny);
+        // A standing allow the person gave still loses to a deny rule; even with approvals off the rule blocks.
+        let g = [grant(1, &a, "browser.navigate", None, Effect::Allow, Duration::Always)];
+        p.set_mode(ApprovalMode::Off);
+        assert_eq!(p.evaluate(&g, NOW, &a, &cap("browser.navigate"), None), Verdict::Deny);
     }
 
     #[test]
@@ -281,6 +419,49 @@ mod tests {
     }
 
     #[test]
+    fn an_app_set_to_always_ask_asks_the_person_every_time_in_every_mode() {
+        let a = agent("mobius");
+        let always = Rule { capability: cap("files.write"), resource: Some("notes/*".into()), effect: RuleEffect::Ask };
+        let standing = grant(1, &a, "files.write", Some("notes/*"), Effect::Allow, Duration::Always);
+        for mode in [ApprovalMode::Manual, ApprovalMode::Propose, ApprovalMode::Smart, ApprovalMode::Off] {
+            let mut p = policy();
+            p.set_mode(mode);
+            p.set_rules(vec![always.clone()]);
+            assert_eq!(p.evaluate(&[standing.clone()], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::AskPerson, "{mode:?}");
+            // An answer for this one use lets it through, once.
+            let once = grant(2, &a, "files.write", Some("notes/Plan.md"), Effect::Allow, Duration::Once);
+            assert_eq!(p.evaluate(&[once], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Allow { consume: Some(2) });
+            // Other apps follow the mode as before.
+            assert_ne!(p.evaluate(&[], NOW, &a, &cap("tasks.write"), None), Verdict::AskPerson);
+        }
+        let parsed: Rule = serde_json::from_value(serde_json::json!({ "capability": "files.write", "resource": "notes/*", "effect": "ask" })).unwrap();
+        assert_eq!(parsed, always);
+    }
+
+    #[test]
+    fn propose_lets_the_agent_change_the_workspace_and_asks_about_the_rest() {
+        let mut p = policy();
+        p.set_mode(ApprovalMode::Propose);
+        let a = agent("mobius");
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Allow { consume: None });
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("tasks.write"), None), Verdict::Allow { consume: None });
+        // Reading the time asks nothing in Propose.
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("clock.read"), None), Verdict::Allow { consume: None });
+        // Not reversible, or a floor: asked as in manual.
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.navigate"), None), Verdict::Ask);
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.read"), None), Verdict::Ask);
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("fs.delete"), Some("notes/Plan.md")), Verdict::Ask);
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("process.exec"), None), Verdict::Ask);
+        // A block still blocks, and only the agent gets the leeway.
+        let deny = grant(1, &a, "files.write", Some("notes/*"), Effect::Deny, Duration::Always);
+        assert_eq!(p.evaluate(&[deny], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Deny);
+        let plugin = Principal::new(PrincipalKind::Plugin, "x").unwrap();
+        assert_eq!(p.evaluate(&[], NOW, &plugin, &cap("files.write"), Some("notes/Plan.md")), Verdict::Ask);
+        assert_eq!(ApprovalMode::parse("propose"), Some(ApprovalMode::Propose));
+        assert_eq!(ApprovalMode::Propose.as_str(), "propose");
+    }
+
+    #[test]
     fn capability_names_are_validated() {
         for ok in ["browser.read", "document.write", "a.b", "net.http_get", "x1.y2.z3"] {
             assert!(Capability::new(ok).is_ok(), "{ok}");
@@ -317,11 +498,15 @@ mod tests {
     }
 
     #[test]
-    fn with_approvals_off_nothing_is_asked_about_not_even_a_floor() {
+    fn with_approvals_off_nothing_is_asked_about_but_the_floors() {
         let p = in_mode(ApprovalMode::Off);
         let a = agent("a");
-        for name in ["browser.read", "browser.navigate", "browser.interact", "process.exec", "fs.delete", "secrets.read", "demo.anything"] {
+        for name in ["browser.read", "browser.navigate", "demo.anything"] {
             assert_eq!(p.evaluate(&[], NOW, &a, &cap(name), None), Verdict::Allow { consume: None }, "{name}");
+        }
+        // Running commands, deleting, secrets and clicking or typing in a page ask in every mode, Off too.
+        for name in ["browser.interact", "process.exec", "fs.delete", "secrets.read"] {
+            assert_eq!(p.evaluate(&[], NOW, &a, &cap(name), None), Verdict::Ask, "{name}");
         }
     }
 

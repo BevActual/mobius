@@ -7,7 +7,7 @@ use serde_json::json;
 
 fn sample() -> Vec<Message> {
     vec![
-        Message::User { text: "open the page \u{1F600}".into() },
+        Message::user("open the page \u{1F600}"),
         Message::Assistant { text: "On it.".into(), tool_calls: vec![ToolCall { id: "c1".into(), name: "browser.open".into(), arguments: json!({ "url": "https://example.com" }) }] },
         Message::Tool { call_id: "c1".into(), name: "browser.open".into(), content: "{\"ok\":true}".into(), is_error: false },
         Message::Assistant { text: "Done.".into(), tool_calls: vec![] },

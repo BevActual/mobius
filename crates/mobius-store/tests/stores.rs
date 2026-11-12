@@ -33,7 +33,7 @@ fn appearance_refuses_every_bad_value_whole_and_changes_nothing() {
     for bad in [
         json!({ "theme": "purple" }), json!({ "zoom": 0.74 }), json!({ "zoom": 1.51 }), json!({ "zoom": "1" }), json!({ "zoom": null }),
         json!({ "chatTextScale": 0.84 }), json!({ "chatTextScale": 1.41 }), json!({ "leftWidth": 199 }), json!({ "leftWidth": 421 }),
-        json!({ "rightWidth": 299 }), json!({ "rightWidth": 641 }), json!({ "rightWidth": "400" }), json!({ "leftSidebar": "hidden" }), json!({ "navigation": "tabs" }), json!({ "navigation": true }),
+        json!({ "rightWidth": 299 }), json!({ "rightWidth": 641 }), json!({ "rightWidth": "400" }), json!({ "leftSidebar": "hidden" }), json!({ "navigation": "tabs" }), json!({ "navigation": true }), json!({ "sidebarApps": [] }), json!({ "sidebarApps": ["agent", "agent"] }), json!({ "sidebarApps": ["code"] }), json!({ "sidebarApps": "agent" }), json!({ "favourites": [{ "kind": "site", "id": "x", "title": "x" }] }), json!({ "clippingsPage": "Work/Reading" }), json!({ "clippingsPage": 3 }), json!({ "favourites": [{ "kind": "note", "id": "", "title": "x" }] }),
         json!({ "sidebarAtStart": "yes" }), json!({ "density": 1 }), json!([1]), json!("x"), json!(null), json!({}), json!({ "unknown": 1 }),
         json!({ "theme": "dark", "zoom": 9 }),
     ] {
@@ -61,7 +61,7 @@ fn a_damaged_or_hostile_settings_file_falls_back_one_field_at_a_time() {
 fn preferences_check_each_choice() {
     let dir = tempfile::tempdir().unwrap();
     let mut p = preferences::open(dir.path().join("p.json"));
-    assert_eq!(p.get()["approvalMode"], "manual");
+    assert_eq!(p.get()["approvalMode"], "propose");
     assert_eq!(p.get()["dictationModel"], "whisper-1");
     for bad in [
         json!({ "approvalMode": "yolo" }), json!({ "localContext": 1234 }), json!({ "localContext": 16384.5 }), json!({ "reasoningEffort": "extreme" }),
@@ -73,6 +73,18 @@ fn preferences_check_each_choice() {
     for good in [json!({ "approvalMode": "smart" }), json!({ "localContext": 65536 }), json!({ "reasoningEffort": "high" }), json!({ "reasoningEffort": "" }), json!({ "dictationModel": "x".repeat(200) })] {
         assert!(p.set(&good), "{good}");
     }
+}
+
+#[test]
+fn shortcuts_saved_before_new_ones_were_added_are_kept() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("p.json");
+    // A file from before split view and Little Mobius had shortcuts, with one key changed.
+    std::fs::write(&file, json!({ "keybindings": { "launcher": "alt+j", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "" } }).to_string()).unwrap();
+    let p = preferences::open(file);
+    assert_eq!(p.get()["keybindings"]["launcher"], "alt+j", "the chosen key stays");
+    assert_eq!(p.get()["keybindings"]["splitView"], "mod+\\");
+    assert_eq!(p.get()["keybindings"]["littleMobius"], "mod+shift+m");
 }
 
 #[test]
@@ -218,7 +230,7 @@ fn mobius_cannot_be_changed_removed_moved_or_copied() {
     assert!(b.update(MAIN_ID, &draft("Other")).is_err());
     assert!(b.remove(MAIN_ID).is_err());
     assert!(b.move_bot(MAIN_ID, "down").is_err());
-    assert_eq!(b.create(&draft("mobius")).unwrap_err(), "There is already a bot called \"mobius\".");
+    assert_eq!(b.create(&draft("mobius")).unwrap_err(), "There is already an agent called \"mobius\".");
 }
 
 #[test]

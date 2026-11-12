@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
 import { says, startModel, type ModelFixture, type ModelOptions, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -21,7 +21,7 @@ test.afterEach(async () => {
   await model?.close();
   model = undefined;
   await fixture.close();
-  fs.rmSync(userData, { recursive: true, force: true });
+  removeTestData(userData);
   fs.rmSync(work, { recursive: true, force: true });
 });
 
@@ -48,7 +48,7 @@ const say = async (text: string) => {
 
 test('the message box has add context, model, effort, dictate and send', async () => {
   await start();
-  for (const name of ['Add context', 'Model', 'Effort', 'Approvals', 'Dictate']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
+  for (const name of ['Add context', 'Model', 'Approvals', 'Dictate']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
   await expect(shell().getByRole('button', { name: 'Send' })).toBeDisabled();
   await expect(shell().getByRole('button', { name: 'Model' })).toContainText('chat-model');
   await composer().fill('hi');
@@ -69,7 +69,7 @@ test('send becomes stop while the agent works, and stop ends the request', async
 test('the model menu lists what the server offers and switching changes the model for the next message', async () => {
   await start([says(['one']), says(['two'])], { models: ['chat-model', 'other-model', 'big-model'] });
   await shell().getByRole('button', { name: 'Model' }).click();
-  await expect(menu('Model').getByRole('menuitemradio')).toHaveText([/big-model/, /chat-model/, /other-model/]);
+  await expect(menu('Model').locator('.model-groups').getByRole('menuitemradio')).toHaveText([/big-model/, /chat-model/, /other-model/]);
   await expect(menu('Model').getByRole('menuitemradio', { name: /chat-model/ })).toHaveAttribute('aria-checked', 'true');
   await menu('Model').getByRole('menuitemradio', { name: /other-model/ }).click();
   await expect(shell().getByRole('button', { name: 'Model' })).toContainText('other-model');
@@ -90,16 +90,20 @@ test('a server that cannot list its models says so and still shows the one in us
 
 test('the effort is chosen from the menu, kept, and sent with the next request', async () => {
   await start([says(['ok']), says(['ok again'])]);
-  await shell().getByRole('button', { name: 'Effort' }).click();
-  await expect(menu('Effort').getByRole('menuitemradio', { name: /Default/ })).toHaveAttribute('aria-checked', 'true');
-  await menu('Effort').getByRole('menuitemradio', { name: /High/ }).click();
-  await expect(shell().getByRole('button', { name: 'Effort' })).toContainText('High');
+  // Effort is in the model's menu, marked with a check; the model's button says it once it is not the default.
+  await shell().getByRole('button', { name: 'Model' }).click();
+  const thinking = menu('Model').getByRole('group', { name: 'Thinking' });
+  await expect(thinking.getByRole('menuitemradio', { name: /Default/ })).toHaveAttribute('aria-checked', 'true');
+  await thinking.getByRole('menuitemradio', { name: /High/ }).click();
+  await expect(shell().getByRole('button', { name: 'Model' })).toContainText('High');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).reasoningEffort).toBe('high');
   await say('think hard');
   await expect(log().locator('.msg.assistant')).toHaveText('ok');
   expect(model!.requests.at(-1)?.reasoning_effort).toBe('high');
-  await shell().getByRole('button', { name: 'Effort' }).click();
-  await menu('Effort').getByRole('menuitemradio', { name: /Default/ }).click();
+  await shell().getByRole('button', { name: 'Model' }).click();
+  // Chosen and sent at once, with the choice slow to save: the message still goes with what was chosen.
+  await shell().evaluate(() => { const real = window.mobius.preferences.set; window.mobius.preferences.set = async (change) => { await new Promise((r) => setTimeout(r, 800)); return real(change); }; });
+  await menu('Model').getByRole('group', { name: 'Thinking' }).getByRole('menuitemradio', { name: /Default/ }).click();
   await say('relax');
   await expect(log().locator('.msg.assistant').last()).toHaveText('ok again');
   expect(model!.requests.at(-1)).not.toHaveProperty('reasoning_effort');
@@ -170,12 +174,29 @@ test('Edit puts the words back in the box and the attachment back as a chip', as
   await expect(shell().getByRole('list', { name: 'Attached to this message' })).toContainText('Article');
 });
 
+test('Enter while a page is still being attached sends once it is, with the page', async () => {
+  await start([says(['first'])]);
+  await visit('/article', 'Article');
+  // A slow page: reading it takes a while, as a big one does on a busy computer.
+  await shell().evaluate(() => { const real = window.mobius.context.page; window.mobius.context.page = async () => { await new Promise((r) => setTimeout(r, 1500)); return real(); }; });
+  await shell().getByRole('button', { name: 'Add context' }).click();
+  await menu('Add context').getByRole('menuitem', { name: /This page/ }).click();
+  await expect(shell().getByRole('status').filter({ hasText: 'Attaching…' })).toBeVisible();
+  await composer().fill('summarise');
+  await composer().press('Enter');
+  await expect(log().locator('.msg.assistant')).toHaveText('first');
+  expect(JSON.stringify(model!.requests[0]!.messages)).toContain('The article');
+  // Nothing is left behind for the next message.
+  await expect(shell().getByRole('list', { name: 'Attached to this message' })).toHaveCount(0);
+});
+
 test('dictation records, sends the sound to the server\'s speech model, and puts the words in the box', async () => {
   await start([], { transcript: 'hello from my voice' });
+  await turnEnded(composer());
   await composer().fill('Note:');
   await shell().getByRole('button', { name: 'Dictate' }).click();
   await expect(shell().getByRole('button', { name: 'Stop dictation' })).toBeVisible();
-  await expect(shell().getByRole('status', { name: /Recording/ })).toBeVisible();
+  await expect(shell().getByRole('status', { name: /Listening/ })).toBeVisible();
   await shell().waitForTimeout(700);
   await shell().getByRole('button', { name: 'Stop dictation' }).click();
   await expect(composer()).toHaveValue('Note: hello from my voice');
@@ -222,12 +243,12 @@ test('the model menu groups every provider with a key, can be searched, and swit
     await start([says(['from the first server'])], { models: ['chat-model', 'other-model'] }, { MOBIUS_TEST_PROVIDER: `openai=${openai.url}` });
     await shell().evaluate(() => window.mobius.providers!.setKey('openai', 'sk-composer-test-1234'));
     await shell().getByRole('button', { name: 'Model' }).click();
-    const groups = menu('Model').getByRole('group');
+    const groups = menu('Model').locator('.model-groups').getByRole('group');
     await expect(groups).toHaveCount(2);
     await expect(menu('Model').getByRole('group', { name: 'OpenAI' }).getByRole('menuitemradio')).toHaveText([/gpt-5.4-mini/, /gpt-5.5/]);
     await expect(menu('Model').getByRole('group', { name: 'This server' }).getByRole('menuitemradio', { name: /chat-model/ })).toHaveAttribute('aria-checked', 'true');
     await menu('Model').getByRole('searchbox', { name: 'Find a model' }).fill('mini');
-    await expect(menu('Model').getByRole('menuitemradio')).toHaveText([/gpt-5.4-mini/]);
+    await expect(menu('Model').locator('.model-groups').getByRole('menuitemradio')).toHaveText([/gpt-5.4-mini/]);
     await menu('Model').getByRole('menuitemradio', { name: /gpt-5.4-mini/ }).click();
     await expect(shell().getByRole('button', { name: 'Model' })).toContainText('gpt-5.4-mini');
     await say('hello');
@@ -247,16 +268,22 @@ test('approvals can be changed from the message box and match Settings', async (
   await start();
   await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Ask first');
   await shell().getByRole('button', { name: 'Approvals' }).click();
-  await menu('Approvals').getByRole('menuitemradio', { name: /Smart/ }).click();
-  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Smart approvals');
+  await menu('Approvals').getByRole('menuitemradio', { name: /^Act/ }).click();
+  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Act');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('smart');
+  // Shift+Tab in the message box goes on to the next: Ask first, Propose, Act.
+  await composer().press('Shift+Tab');
+  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Ask first');
+  await composer().press('Shift+Tab');
+  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Propose');
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('propose');
 });
 
 test('effort Off tells a model on this computer not to think', async () => {
   await start([says(['quick'])]);
-  await shell().getByRole('button', { name: 'Effort' }).click();
-  await menu('Effort').getByRole('menuitemradio', { name: /^Off/ }).click();
-  await expect(shell().getByRole('button', { name: 'Effort' })).toContainText('Off');
+  await shell().getByRole('button', { name: 'Model' }).click();
+  await menu('Model').getByRole('group', { name: 'Thinking' }).getByRole('menuitemradio', { name: /^Off/ }).click();
+  await expect(shell().getByRole('button', { name: 'Model' })).toContainText('Off');
   await say('fast please');
   await expect(log().locator('.msg.assistant')).toHaveText('quick');
   expect(model!.requests.at(-1)).toMatchObject({ chat_template_kwargs: { enable_thinking: false } });

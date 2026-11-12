@@ -26,14 +26,14 @@ fn answer(t: &str) -> Result<Completion, ProviderError> {
 }
 
 fn chat(pairs: usize, size: usize) -> Vec<Message> {
-    (0..pairs).flat_map(|i| [Message::User { text: format!("question {i} {}", "q".repeat(size)) }, Message::Assistant { text: format!("answer {i} {}", "a".repeat(size)), tool_calls: vec![] }]).collect()
+    (0..pairs).flat_map(|i| [Message::user(format!("question {i} {}", "q".repeat(size))), Message::Assistant { text: format!("answer {i} {}", "a".repeat(size)), tool_calls: vec![] }]).collect()
 }
 
 fn with_tool_output(turns: usize, size: usize) -> Vec<Message> {
     (0..turns)
         .flat_map(|i| {
             [
-                Message::User { text: format!("read file {i}") },
+                Message::user(format!("read file {i}")),
                 Message::Assistant { text: String::new(), tool_calls: vec![ToolCall { id: format!("c{i}"), name: "files.read".into(), arguments: json!({ "path": format!("{i}.md") }) }] },
                 Message::Tool { call_id: format!("c{i}"), name: "files.read".into(), content: "x".repeat(size), is_error: false },
                 Message::Assistant { text: format!("file {i} read"), tool_calls: vec![] },
@@ -50,12 +50,12 @@ fn request(step: &Step) -> &ChatRequest {
 }
 
 fn is_summary_request(r: &ChatRequest) -> bool {
-    r.tools.is_empty() && r.messages.len() == 1 && matches!(&r.messages[0], Message::User { text } if text.contains("checkpoint summary"))
+    r.tools.is_empty() && r.messages.len() == 1 && matches!(&r.messages[0], Message::User { text, .. } if text.contains("checkpoint summary"))
 }
 
 fn first_text(r: &ChatRequest) -> &str {
     match &r.messages[0] {
-        Message::User { text } => text,
+        Message::User { text, .. } => text,
         other => panic!("{other:?}"),
     }
 }
@@ -102,7 +102,7 @@ fn a_long_chat_is_summarised_and_the_model_then_answers_with_the_summary_and_rec
     assert!(!turn.is_summarizing());
     assert!(first_text(r).starts_with(SUMMARY_PREFIX) && first_text(r).contains("The person asks questions."));
     // The newest message is the person's, after the summary (joined to it when it is the whole tail).
-    assert!(matches!(r.messages.last(), Some(Message::User { text }) if text.ends_with("[END OF SUMMARY — the person's latest message follows]\n\nwhat next?")));
+    assert!(matches!(r.messages.last(), Some(Message::User { text, .. }) if text.ends_with("[END OF SUMMARY — the person's latest message follows]\n\nwhat next?")));
     let covers = turn.compaction().unwrap().covers;
     assert_eq!(covers, history.len(), "everything before the new message was summarised");
     assert_eq!(compacted(&mut turn), vec![covers]);

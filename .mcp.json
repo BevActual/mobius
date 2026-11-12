@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mobius-drive": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "apps/desktop/scripts/drive-mcp.mjs"
+      ],
+      "env": {}
+    }
+  }
+}

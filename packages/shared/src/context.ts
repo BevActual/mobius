@@ -5,7 +5,8 @@
  * It is data, never instructions: a page can say anything. The agent is told so in its system prompt.
  */
 
-export type ContextKind = 'page' | 'file';
+/** `note` is text selected in a note, with the page it came from. */
+export type ContextKind = 'page' | 'file' | 'note';
 
 export interface ContextItem {
   kind: ContextKind;
@@ -34,7 +35,7 @@ const clean = (value: string, limit: number): string => value.replace(/[\r\n"<>]
 export function isContextItem(value: unknown): value is ContextItem {
   if (typeof value !== 'object' || value === null) return false;
   const { kind, title, source, text } = value as Record<string, unknown>;
-  return (kind === 'page' || kind === 'file') && typeof title === 'string' && title.length > 0 && title.length <= MAX_TITLE
+  return (kind === 'page' || kind === 'file' || kind === 'note') && typeof title === 'string' && title.length > 0 && title.length <= MAX_TITLE
     && typeof source === 'string' && source.length <= MAX_SOURCE && typeof text === 'string' && text.length <= MAX_CONTEXT_ITEM_CHARS;
 }
 
@@ -59,7 +60,7 @@ export function withContext(text: string, items: readonly ContextItem[]): string
   return `${text}\n\n${blocks.join('\n\n')}`;
 }
 
-const BLOCK = /\n\n<attached kind="(page|file)" title="([^"]*)" source="([^"]*)">\n([\s\S]*?)\n<\/attached>/g;
+const BLOCK = /\n\n<attached kind="(page|file|note)" title="([^"]*)" source="([^"]*)">\n([\s\S]*?)\n<\/attached>/g;
 
 /** The reverse, for showing a saved message: what the person typed, and the attachments to show as chips. */
 export function splitContext(message: string): { text: string; items: ContextItem[] } {

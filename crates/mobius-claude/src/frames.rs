@@ -138,9 +138,19 @@ pub fn prepare(request: &ChatRequest, natives: &NativeTurns) -> Result<Prepared,
     };
     for message in &request.messages {
         match message {
-            Message::User { text } => {
+            Message::User { text, images, .. } => {
+                let mut blocks = Vec::new();
                 if !text.is_empty() {
-                    push_user(&mut frames, vec![json!({ "type": "text", "text": text })]);
+                    blocks.push(json!({ "type": "text", "text": text }));
+                }
+                // A `data:image/png;base64,...` URL as the image block Claude reads.
+                for url in images {
+                    if let Some((kind, data)) = url.strip_prefix("data:").and_then(|u| u.split_once(";base64,")) {
+                        blocks.push(json!({ "type": "image", "source": { "type": "base64", "media_type": kind, "data": data } }));
+                    }
+                }
+                if !blocks.is_empty() {
+                    push_user(&mut frames, blocks);
                 }
             }
             Message::Assistant { text, tool_calls } => {
@@ -254,7 +264,7 @@ mod tests {
 
     #[test]
     fn tools_are_offered_under_the_mobius_server_and_long_names_are_shortened_stably() {
-        let p = prepare(&request(vec![Message::User { text: "hi".into() }]), &NativeTurns::default()).unwrap();
+        let p = prepare(&request(vec![Message::user("hi")]), &NativeTurns::default()).unwrap();
         assert_eq!(p.manifest[0]["name"], "files-read");
         assert_eq!(p.body["tools"][0]["name"], "mcp__mobius__files-read");
         assert!(p.body["tools"][0]["input_schema"].get("anyOf").is_none());
@@ -270,7 +280,7 @@ mod tests {
     #[test]
     fn history_becomes_frames_with_tool_results_merged_into_one_user_turn() {
         let p = prepare(&request(vec![
-            Message::User { text: "read two".into() },
+            Message::user("read two"),
             Message::Assistant { text: "Reading.".into(), tool_calls: vec![call("t1"), call("t2")] },
             Message::Tool { call_id: "t1".into(), name: "files.read".into(), content: "one".into(), is_error: false },
             Message::Tool { call_id: "t2".into(), name: "files.read".into(), content: "nope".into(), is_error: true },
@@ -288,7 +298,7 @@ mod tests {
         let native = json!({ "role": "assistant", "content": [{ "type": "thinking", "thinking": "hm", "signature": "s" }, { "type": "text", "text": "Reading." }, { "type": "tool_use", "id": "t1", "name": "mcp__mobius__files-read", "input": { "path": "a.md" } }], "usage": { "input_tokens": 3 } });
         natives.remember("Reading.", &[call("t1")], vec![native]);
         let p = prepare(&request(vec![
-            Message::User { text: "read".into() },
+            Message::user("read"),
             Message::Assistant { text: "Reading.".into(), tool_calls: vec![call("t1")] },
             Message::Tool { call_id: "t1".into(), name: "files.read".into(), content: "one".into(), is_error: false },
         ]), &natives).unwrap();
@@ -296,7 +306,7 @@ mod tests {
         assert!(p.frames[1]["message"].get("usage").is_none());
         // A turn Mobius changed since does not get the old signed blocks.
         let changed = prepare(&request(vec![
-            Message::User { text: "read".into() },
+            Message::user("read"),
             Message::Assistant { text: "Reading now.".into(), tool_calls: vec![call("t1")] },
             Message::Tool { call_id: "t1".into(), name: "files.read".into(), content: "one".into(), is_error: false },
         ]), &natives).unwrap();
@@ -305,7 +315,7 @@ mod tests {
 
     #[test]
     fn a_conversation_must_end_with_the_person_or_a_tool_result() {
-        assert!(prepare(&request(vec![Message::User { text: "a".into() }, Message::Assistant { text: "b".into(), tool_calls: vec![] }]), &NativeTurns::default()).is_err());
+        assert!(prepare(&request(vec![Message::user("a"), Message::Assistant { text: "b".into(), tool_calls: vec![] }]), &NativeTurns::default()).is_err());
         assert!(prepare(&request(vec![]), &NativeTurns::default()).is_err());
     }
 
@@ -329,4 +339,11 @@ mod tests {
         let parts: Vec<_> = a.split('-').map(str::len).collect();
         assert_eq!(parts, [8, 4, 4, 4, 12]);
     }
+
+    #[test]
+    fn pictures_go_as_image_blocks() {
+        let p = prepare(&request(vec![Message::User { text: "what is this?".into(), images: vec!["data:image/png;base64,iVBORw0KGgo=".into()], at_ms: None }]), &NativeTurns::default()).unwrap();
+        assert_eq!(p.frames[0]["message"]["content"][1], json!({ "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo=" } }));
+    }
+
 }

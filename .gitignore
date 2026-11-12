@@ -8,3 +8,5 @@ playwright-report
 target
 crates/mobius-shell/gen
 target-side
+screenshots
+apps/desktop/screens

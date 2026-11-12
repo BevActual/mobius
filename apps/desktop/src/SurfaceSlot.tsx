@@ -5,6 +5,8 @@ import { useEffect, useRef } from 'react';
  * This reserves the space and reports its rectangle. When `hidden` is true (an overlay is open) the view is
  * hidden immediately and synchronously: hiding must never wait for a rendering frame, because frames are
  * throttled when a window is occluded and the page would stay on top of the overlay.
+ * The slot lives only while a pane shows the browser, so going away hides the view too: otherwise the page would
+ * stay drawn over whichever app took the pane.
  */
 export function SurfaceSlot({ hidden }: { hidden: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -27,6 +29,7 @@ export function SurfaceSlot({ hidden }: { hidden: boolean }) {
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', report);
+      window.mobius.surface.setBounds(null);
     };
   }, [hidden]);
 

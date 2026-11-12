@@ -1,6 +1,6 @@
 import { DEFAULT_KEYBINDINGS } from './keys';
 import { describe, expect, it } from 'vitest';
-import { CONTEXT_SIZES, DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, parseContextSize, parsePreferencesPatch, parseActivityLimit, parseAppearancePatch, parseConfigureRequest, parseGrantId } from './ipc';
+import { CONTEXT_SIZES, DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, parseContextSize, parsePreferencesPatch, parseActivityLimit, parseAppearance, parseAppearancePatch, parseConfigureRequest, parseGrantId } from './ipc';
 
 describe('appearance changes', () => {
   it('accepts any of the three settings alone or together, and drops anything else', () => {
@@ -14,13 +14,17 @@ describe('appearance changes', () => {
     }
   });
   it('has sensible defaults', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', leftWidth: 248, rightWidth: 380 });
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'sidebar', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
   });
 });
 
 describe('more appearance choices', () => {
   it('accept each of the named choices and the two switches', () => {
     expect(parseAppearancePatch({ chatFont: 'serif', textDirection: 'rtl', density: 'compact', toolSteps: 'hide-finished', sidebarAtStart: false, resumeLast: false })).toEqual({ chatFont: 'serif', textDirection: 'rtl', density: 'compact', toolSteps: 'hide-finished', sidebarAtStart: false, resumeLast: false });
+  });
+  it('keep where Mobius opens: in the sidebar, or pinned beside the page', () => {
+    expect(parseAppearancePatch({ agentPlace: 'beside' })).toEqual({ agentPlace: 'beside' });
+    expect(parseAppearancePatch({ agentPlace: 'right' })).toBeNull();
   });
   it('refuse anything that is not one of the choices', () => {
     for (const bad of [{ chatFont: 'comic' }, { chatFont: 3 }, { textDirection: 'up' }, { density: 'tiny' }, { toolSteps: 'all' }, { sidebarAtStart: 'yes' }, { resumeLast: 1 }, { chatFont: 'mono', density: 'x' }]) {
@@ -73,6 +77,16 @@ describe('where the sidebars sit', () => {
     expect(DEFAULT_APPEARANCE).toMatchObject({ leftSidebar: 'attached', rightSidebar: 'attached', leftWidth: 248, rightWidth: 380 });
     expect(parseAppearancePatch({ leftSidebar: 'floating' })).toEqual({ leftSidebar: 'floating' });
     expect(parseAppearancePatch({ navigation: 'rail' })).toEqual({ navigation: 'rail' });
+    expect(parseAppearancePatch({ sidebarApps: ['notes', 'agent'] })).toEqual({ sidebarApps: ['notes', 'agent'] });
+    for (const bad of [[], ['agent', 'agent'], ['code'], 'agent']) expect(parseAppearancePatch({ sidebarApps: bad }), String(bad)).toBeNull();
+    const plan = { kind: 'note', id: 'Work/Plan.md', title: 'Plan' };
+    expect(parseAppearancePatch({ favourites: [plan] })).toEqual({ favourites: [plan] });
+    const site = { kind: 'page', id: 'https://example.com/a', title: 'A site' };
+    expect(parseAppearancePatch({ favourites: [plan, site] })).toEqual({ favourites: [plan, site] });
+    for (const bad of [[{ ...plan, kind: 'site' }], [{ ...plan, id: '' }], [{ ...plan, extra: 1 }], Array(9).fill(plan)]) expect(parseAppearancePatch({ favourites: bad })).toBeNull();
+    expect(parseAppearancePatch({ clippingsPage: 'Work/Reading.md' })).toEqual({ clippingsPage: 'Work/Reading.md' });
+    expect(parseAppearancePatch({ clippingsPage: '' })).toEqual({ clippingsPage: '' });
+    for (const bad of ['Work/Reading', 'a\nb.md', 7]) expect(parseAppearancePatch({ clippingsPage: bad })).toBeNull();
     for (const bad of ['tabs', true, null]) expect(parseAppearancePatch({ navigation: bad }), String(bad)).toBeNull();
     expect(parseAppearancePatch({ rightSidebar: 'floating', leftSidebar: 'attached' })).toEqual({ rightSidebar: 'floating', leftSidebar: 'attached' });
     for (const bad of ['hidden', 'pinned', '', 'Floating', 1, null, true]) {
@@ -117,16 +131,27 @@ describe('effort and dictation in preferences', () => {
 });
 
 describe('approval mode', () => {
-  it('is manual unless the person chooses, and only manual, smart or off is accepted', () => {
-    expect(DEFAULT_PREFERENCES.approvalMode).toBe('manual');
-    for (const mode of ['manual', 'smart', 'off']) expect(parsePreferencesPatch({ approvalMode: mode })).toEqual({ approvalMode: mode });
+  it('is propose unless the person chooses, and only manual, propose, smart or off is accepted', () => {
+    expect(DEFAULT_PREFERENCES.approvalMode).toBe('propose');
+    for (const mode of ['manual', 'propose', 'smart', 'off']) expect(parsePreferencesPatch({ approvalMode: mode })).toEqual({ approvalMode: mode });
     for (const bad of ['auto', 'yolo', 'never', '', 'Off', 'careful', 'standard', 'relaxed', 3, null, true]) expect(parsePreferencesPatch({ approvalMode: bad }), String(bad)).toBeNull();
   });
 });
 
 describe('preferences changes', () => {
   it('start with alerts on, sounds on and nothing kept awake', () => {
-    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'manual', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1' });
+    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: { browser: 'follow', notes: 'follow', docs: 'follow', sheets: 'follow', slides: 'follow', tasks: 'follow', calendar: 'follow', mail: 'follow', research: 'follow', reader: 'follow', code: 'follow', database: 'follow', design: 'follow', canvas: 'follow', photo: 'follow', studio: 'follow', video: 'follow', skills: 'follow' }, quickModel: '', imageModel: '', installedApps: null });
+    expect(parsePreferencesPatch({ quickModel: 'openai|gpt-mini' })).toEqual({ quickModel: 'openai|gpt-mini' });
+    expect(parsePreferencesPatch({ imageModel: 'openai|gpt-image-1' })).toEqual({ imageModel: 'openai|gpt-image-1' });
+    expect(parsePreferencesPatch({ installedApps: ['notes', 'photo'] })).toEqual({ installedApps: ['notes', 'photo'] });
+    expect(parsePreferencesPatch({ installedApps: null })).toEqual({ installedApps: null });
+    expect(parsePreferencesPatch({ installedApps: ['Bad App'] })).toBeNull();
+    for (const bad of ['openai', '|m', 'openai|', 'a b|m', 5]) expect(parsePreferencesPatch({ quickModel: bad })).toBeNull();
+  });
+  it('follow the mode in every app until the person chooses otherwise, and accept only the apps it knows at the three levels (Calendar may be missing from older settings)', () => {
+    expect(parsePreferencesPatch({ appAccess: { browser: 'always', notes: 'follow', tasks: 'off' } })).toEqual({ appAccess: { browser: 'always', notes: 'follow', tasks: 'off' } });
+    expect(parsePreferencesPatch({ appAccess: { browser: 'always', notes: 'follow', tasks: 'off', calendar: 'always' } })).toEqual({ appAccess: { browser: 'always', notes: 'follow', tasks: 'off', calendar: 'always' } });
+    for (const bad of [{}, { browser: 'follow', notes: 'follow' }, { browser: 'follow', notes: 'follow', tasks: 'act' }, { browser: 'follow', notes: 'follow', tasks: 'follow', fax: 'follow' }, { browser: 'follow', notes: 'follow', tasks: 'follow', calendar: 'yes' }, 'follow']) expect(parsePreferencesPatch({ appAccess: bad })).toBeNull();
   });
   it('keep the agent out of local addresses until the person says otherwise', () => {
     expect(DEFAULT_PREFERENCES.agentPrivateUrls).toBe(false);
@@ -162,5 +187,26 @@ describe('a second model in a configure request', () => {
   });
   it('drops unknown fields inside it', () => {
     expect(parseConfigureRequest({ ...base, fallback: { baseUrl: 'https://b.example/v1', model: 'n', evil: 1 } })).toEqual({ ...base, fallback: { baseUrl: 'https://b.example/v1', model: 'n' } });
+  });
+});
+
+describe('a reply that is the look', () => {
+  it('is taken whole, over the defaults', () => {
+    expect(parseAppearance({ ...DEFAULT_APPEARANCE, theme: 'dark', agentPlace: 'beside' })).toEqual({ ...DEFAULT_APPEARANCE, theme: 'dark', agentPlace: 'beside' });
+  });
+  it('is never a failure or a bad value, so a failed save cannot wipe the look', () => {
+    expect(parseAppearance({ ok: false, error: 'This is the preview: nothing is saved.' })).toBeNull();
+    expect(parseAppearance(null)).toBeNull();
+    expect(parseAppearance({ theme: 'purple' })).toBeNull();
+  });
+});
+
+describe('voice choices', () => {
+  it('start with listening on the chat server and speaking off', () => {
+    expect(DEFAULT_PREFERENCES).toMatchObject({ listenWith: 'chat', listenFallback: 'off', speakWith: 'off', speakFallback: 'off', speakModel: 'kokoro', speakVoice: '' });
+  });
+  it('accept the providers each job has, and real speech server addresses', () => {
+    expect(parsePreferencesPatch({ listenWith: 'local', listenUrl: 'http://127.0.0.1:9000/v1', speakWith: 'elevenlabs', speakVoice: 'Rachel' })).toEqual({ listenWith: 'local', listenUrl: 'http://127.0.0.1:9000/v1', speakWith: 'elevenlabs', speakVoice: 'Rachel' });
+    for (const bad of [{ speakWith: 'chat' }, { listenWith: 'whisper' }, { listenUrl: 'ftp://x' }, { speakUrl: 'http://a b' }, { speakVoice: 'x'.repeat(101) }]) expect(parsePreferencesPatch(bad), JSON.stringify(bad)).toBeNull();
   });
 });

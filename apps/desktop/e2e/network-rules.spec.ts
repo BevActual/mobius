@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, openSettings } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -49,9 +49,9 @@ test('the switch in settings turns the rule off and on', async () => {
   await start([]);
   const allowed = () => shell().evaluate(() => window.mobius.preferences.get().then((p) => p?.agentPrivateUrls));
   expect(await allowed()).toBe(false);
-  await shell().getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(shell());
   await expect(page()).toBeVisible();
-  await page().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await page().getByRole('tab', { name: 'Network', exact: true }).click();
   const toggle = page().getByRole('switch', { name: 'Let the agent use local addresses' });
   await expect(toggle).not.toBeChecked();

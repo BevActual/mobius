@@ -3,6 +3,8 @@ name = "mobius-host"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
@@ -17,7 +19,14 @@ mobius-agent = { path = "../mobius-agent" }
 base64 = "0.22"
 url = "2"
 ureq.workspace = true
+rusqlite = { workspace = true, features = ["limits", "hooks"] }
 getrandom = "0.3"
+sha2 = "0.11"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+webpki-roots = "1"
+mail-parser = "0.11.9"
+lettre = { version = "0.11.23", default-features = false, features = ["smtp-transport", "builder", "hostname", "rustls", "ring", "webpki-roots"] }
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, startFixture, type Fixture, type Launched, openSettings } from './harness';
 
 
 let fixture: Fixture;
@@ -17,7 +17,7 @@ test.afterEach(async () => {
 
 const openAbout = async () => {
   const shell = mobius!.shell;
-  await shell.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(shell);
   await shell.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'About', exact: true }).click();
 };
 

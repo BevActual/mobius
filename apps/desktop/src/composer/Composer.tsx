@@ -1,11 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
-import { MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ApprovalModeChoice, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
+import { createPortal } from 'react-dom';
+import { MobiusMark } from '../MobiusMark';
+import { MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
 import { usePreferences } from '../usePreferences';
-import { filterCatalog } from './model-catalog';
+import { asCatalog, filterCatalog } from './model-catalog';
 import { PopMenu } from './PopMenu';
 import type { Activity } from '../activity';
-import { isStarter, noteContext, suggestionsFor, tasksItem, type Suggestion, type SurfaceState } from '../surface';
+import { CameraDialog } from './CameraDialog';
+import { MAX_PICTURES, pictureFromFile, pictureFromUrl, pictureOfWindow } from '../picture';
+import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem, withSelection, type Here, type Suggestion, type SurfaceState } from '../surface';
+import { useStageSelection } from '../useStageSelection';
 import { useDictation } from './useDictation';
+import { holdsHere, isHoldToTalk } from './hold-to-talk';
+import { MODES, modeOf, nextMode } from '../approval-modes';
 
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
   { id: '', label: 'Default' },
@@ -15,17 +22,25 @@ const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
   { id: 'high', label: 'High' },
 ];
 
-const APPROVALS: Array<{ id: ApprovalModeChoice; label: string; hint: string }> = [
-  { id: 'manual', label: 'Manual', hint: 'Ask me before using a tool' },
-  { id: 'smart', label: 'Smart', hint: 'Your model approves what is clearly safe' },
-  { id: 'off', label: 'Off', hint: 'Act without asking' },
-];
 
+const PLAN_FIRST_KEY = 'mobius.planFirst';
 const KIND_NOTE: Record<ModelGroup['kind'], string> = { subscription: 'Plan', provider: 'Key', local: 'On this computer', server: 'Server' };
 
 type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: ModelCatalog };
 
 export interface ComposerProps {
+  /** In an empty conversation: where three starters go, as plain text under the greeting, instead of chips here. */
+  startersIn?: HTMLElement | null;
+  /** While Mobius works, Enter puts the message in the queue above the box, sent when the turn ends. */
+  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
+  /** Settings, Voice, for when nothing is set up to listen. */
+  onOpenVoice?: () => void;
+  /** Suggestions are for starting: once the conversation has begun there are none. */
+  started?: boolean;
+  /** How full the model's window is, when the core has said: a small ring with its percent. */
+  contextUse?: { used: number; limit: number };
+  /** Whether the message box takes the keyboard when it appears (not when a floating panel is only peeked at). */
+  takeFocus?: boolean;
   draft: string;
   onDraft: (text: string) => void;
   context: ContextItem[];
@@ -37,14 +52,19 @@ export interface ComposerProps {
   settings: AgentSettings | null;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
-  onSend: (text: string, context: ContextItem[]) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
   onStop: () => void;
+  /** While it works: take over, so Mobius pauses at the next safe point and the apps are yours. */
+  onTakeOver?: () => Promise<string | null>;
   /** The model on the server was changed from here. */
   onModelChanged: () => void;
   onOpenSettings: () => void;
   fieldRef: RefObject<HTMLTextAreaElement | null>;
   /** Where the person is: the message box suggests what is worth asking there. */
   surface?: SurfaceState;
+  /** What is open here, which goes with the message unless removed (shown as the first chip). */
+  here?: Here | null;
+  onRemoveHere?: () => void;
   /** What the agent is doing while it works: the box turns into a live status line with Stop. */
   activity?: Activity | null;
 }
@@ -52,12 +72,35 @@ export interface ComposerProps {
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onModelChanged, onOpenSettings, fieldRef, surface, activity }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, started = false, onOpenVoice, onQueue }: ComposerProps) {
+  // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
+  const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
+  const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
   const [problem, setProblem] = useState<string | null>(null);
   const [models, setModels] = useState<ModelList>({ state: 'idle' });
   const [find, setFind] = useState('');
   const preferences = usePreferences();
   const [adding, setAdding] = useState(false);
+  // Pictures for this message, for models that read them; sent with it and then cleared.
+  const [pictures, setPictures] = useState<string[]>([]);
+  const pictureInput = useRef<HTMLInputElement>(null);
+  const [camera, setCamera] = useState(false);
+  const addPictures = async (files: readonly Blob[]) => {
+    const made = (await Promise.all(files.map(pictureFromFile))).filter((p): p is string => p !== null);
+    if (made.length === 0) return;
+    setPictures((was) => {
+      const next = [...was, ...made];
+      if (next.length > MAX_PICTURES) setProblem(`You can attach up to ${MAX_PICTURES} pictures to one message.`);
+      return next.slice(0, MAX_PICTURES);
+    });
+  };
+  const lookAtWindow = async () => {
+    setProblem(null);
+    const result = await pictureOfWindow();
+    if (!result.ok) { setProblem(result.error); return; }
+    setPictures((was) => [...was, result.picture].slice(0, MAX_PICTURES));
+    queueMicrotask(() => fieldRef.current?.focus());
+  };
   const latest = useRef(draft);
   latest.current = draft;
 
@@ -68,14 +111,54 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
   });
   const listening = dictation.state !== 'idle';
   const shownProblem = problem ?? dictation.problem;
-  const canSend = canType && !busy && !listening && draft.trim().length > 0;
+  const canSend = canType && !busy && !listening && !adding && draft.trim().length > 0;
+  const canQueue = canType && busy && !listening && !adding && draft.trim().length > 0 && onQueue !== undefined;
 
   useLayoutEffect(() => {
     const element = fieldRef.current;
     if (!element) return;
-    element.style.height = 'auto';
-    element.style.height = `${Math.min(element.scrollHeight, 168)}px`;
+    const fit = () => {
+      element.style.height = 'auto';
+      element.style.height = `${Math.min(element.scrollHeight, 168)}px`;
+    };
+    fit();
+    // Measured while the sidebar was still growing, the box would stay tall: fit it again when its width changes.
+    if (typeof ResizeObserver !== 'function') return;
+    let width = element.clientWidth;
+    const watch = new ResizeObserver(() => { if (element.clientWidth !== width) { width = element.clientWidth; fit(); } });
+    watch.observe(element);
+    return () => watch.disconnect();
   }, [draft, fieldRef]);
+
+  // Hold to talk: while the shortcut (Ctrl+Space unless changed in Settings, Keyboard) is held with the keyboard in this
+  // panel, listen; on letting go, the words go into the box, not sent.
+  const formRef = useRef<HTMLFormElement>(null);
+  const holding = useRef(false);
+  const holdKeys = preferences.value.keybindings;
+  const { hold, letGo } = dictation;
+  useEffect(() => {
+    const down = (event: globalThis.KeyboardEvent) => {
+      if (!isHoldToTalk(holdKeys, { code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey })) return;
+      if (!holding.current && !holdsHere(document.activeElement, formRef.current)) return;
+      event.preventDefault();
+      if (event.repeat || holding.current || !canType || busy) return;
+      holding.current = true;
+      hold();
+    };
+    const up = () => {
+      if (!holding.current) return;
+      holding.current = false;
+      letGo();
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', up);
+    };
+  }, [holdKeys, hold, letGo, canType, busy]);
 
   useEffect(() => {
     if (!busy) return;
@@ -83,16 +166,47 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
+  const selected = useStageSelection(here?.key ?? null);
+  const going = useRef(false);
+  /** The message's attachments with what is open here first, unless it is already among them. */
+  const withHere = async (items: ContextItem[]): Promise<ContextItem[]> => {
+    if (!here) return items;
+    const item = here.item;
+    if (items.some((i) => i.source === item.source)) return items;
+    return [withSelection(item, selected()), ...items].slice(0, MAX_CONTEXT_ITEMS);
+  };
+  const go = (text: string, items: ContextItem[], options: { plan?: boolean; images?: string[] } | undefined, queue: boolean) => {
+    if (going.current) return;
+    going.current = true;
+    void withHere(items).then((all) => {
+      going.current = false;
+      if (queue) onQueue?.(text, all, options); else onSend(text, all, options);
+    });
+  };
+
+  // Enter while a page or file is still being read sends once it is attached, so the message never goes without it.
+  const sendWhenAdded = useRef(false);
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
-    if (!canSend) return;
+    if (adding && canType && !listening && draft.trim().length > 0) {
+      sendWhenAdded.current = true;
+      return;
+    }
+    if (!canSend && !canQueue) return;
     setProblem(null);
-    onSend(draft, context);
+    const options = { ...(planFirst ? { plan: true } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
+    go(draft, context, Object.keys(options).length > 0 ? options : undefined, !canSend);
+    setPictures([]);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       submit();
+    }
+    // Shift+Tab goes to the next way of working: Ask first, Propose, Act.
+    if (event.key === 'Tab' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      event.preventDefault();
+      void preferences.set({ approvalMode: nextMode(preferences.value.approvalMode) });
     }
   };
   const onFormKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
@@ -113,12 +227,15 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
     const result = kind === 'page' ? await window.mobius.context.page() : await window.mobius.context.file();
     setAdding(false);
     if (!result.ok) {
+      // It could not be attached: say so and let the person decide, rather than sending without it.
+      sendWhenAdded.current = false;
       setProblem(result.error);
       return;
     }
     const item = result.item;
     if (item === null) return;
     if (total(context) + item.text.length > MAX_CONTEXT_TOTAL_CHARS) {
+      sendWhenAdded.current = false;
       setProblem('That is too much to attach to one message along with what is already attached.');
       return;
     }
@@ -126,7 +243,14 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
     fieldRef.current?.focus();
   };
 
-  const suggestions = surface && canType && !busy && !listening && draft === '' ? suggestionsFor(surface) : [];
+  useEffect(() => {
+    if (adding || !sendWhenAdded.current) return;
+    sendWhenAdded.current = false;
+    submit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adding, context]);
+
+  const suggestions = surface && !started && canType && !busy && !listening && draft === '' ? suggestionsFor(surface) : [];
   const suggest = async (s: Suggestion) => {
     setProblem(null);
     if (isStarter(s)) {
@@ -137,13 +261,22 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
     let item: ContextItem | null = null;
     if (s.attach === 'note' && surface?.note) item = noteContext(surface.note);
     if (s.attach === 'tasks' && surface?.tasks) item = tasksItem(surface.tasks);
+    if (s.attach === 'sheet' && surface?.sheet) item = sheetItem(surface.sheet);
+    if (s.attach === 'code' && surface?.code) item = sheetItem(surface.code);
+    if (s.attach === 'photo' && surface?.photo) item = sheetItem(surface.photo);
+    if (s.attach === 'cut' && surface?.cut) item = sheetItem(surface.cut);
+    if (s.attach === 'mail' && surface?.mail) item = mailItem(surface.mail);
     if (s.attach === 'page') {
       const result = await window.mobius.context.page();
       if (!result.ok) { setProblem(result.error); return; }
       item = result.item;
     }
     const items = item ? [...context, item].slice(0, MAX_CONTEXT_ITEMS) : context;
-    onSend(s.prompt, items);
+    // A photo goes as the picture itself too, for models that read pictures.
+    const photo = s.attach === 'photo' && surface?.photo?.picture ? await pictureFromUrl(surface.photo.picture) : null;
+    const images = [...pictures, ...(photo ? [photo] : [])].slice(0, MAX_PICTURES);
+    go(s.prompt, items, images.length > 0 ? { images } : undefined, false);
+    setPictures([]);
   };
 
   const loadModels = () => {
@@ -151,11 +284,11 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
     setModels({ state: 'loading' });
     const providers = window.mobius.providers;
     if (providers) {
-      void providers.catalog().then((catalog) => setModels({ state: 'ready', catalog }));
+      void providers.catalog().then((catalog) => setModels({ state: 'ready', catalog: asCatalog(catalog, settings?.model ?? '') }), () => setModels({ state: 'ready', catalog: asCatalog(null, settings?.model ?? '') }));
       return;
     }
     // Without the provider catalog (the browser preview), list what the server in use offers.
-    void window.mobius.agent.models().then((result) => setModels({ state: 'ready', catalog: { current: settings?.model ?? '', groups: [{ kind: 'server', id: 'server', name: 'This server', active: true, models: result.ok ? result.models.map((m) => ({ id: m, label: m })) : [], error: result.ok ? null : result.error }] } }));
+    void window.mobius.agent.models().then((result) => setModels({ state: 'ready', catalog: { current: settings?.model ?? '', groups: [{ kind: 'server', id: 'server', name: 'This server', active: true, models: result.ok && Array.isArray(result.models) ? result.models.map((m) => ({ id: m, label: m })) : [], error: result.ok ? null : result.error }] } }));
   };
   const isCurrent = (group: ModelGroup, model: { id: string; current?: boolean }) =>
     group.active && (group.kind === 'local' ? model.current === true : models.state === 'ready' && model.id === models.catalog.current);
@@ -174,14 +307,14 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
 
   const modelName = settings?.configured || settings?.model ? settings.model : '';
   const effortLabel = EFFORTS.find((e) => e.id === effort)?.label ?? 'Default';
-  const approval = APPROVALS.find((a) => a.id === preferences.value.approvalMode) ?? APPROVALS[0]!;
+  const approval = modeOf(preferences.value.approvalMode);
   const shown = models.state === 'ready' ? filterCatalog(models.catalog.groups, find) : [];
 
   return (
-    <form className="composer" onSubmit={submit} onKeyDown={onFormKeyDown} data-listening={listening || undefined} data-working={activity ? (activity.needsYou ? 'you' : 'agent') : undefined}>
+    <form ref={formRef} className="composer" onSubmit={submit} onKeyDown={onFormKeyDown} data-listening={listening || undefined} data-working={activity ? (activity.needsYou ? 'you' : 'agent') : undefined}>
       {activity && (
         <div className="working" role="status" aria-label="Agent activity" aria-live="polite">
-          <span className="working-dot" aria-hidden="true" />
+          <MobiusMark size={16} turning={!activity.needsYou} className="working-mark" />
           <span className="working-label" key={activity.label}>{activity.label}</span>
           {activity.step && (
             <span className="working-step" aria-label={`Step ${Math.min(activity.step.done + 1, activity.step.total)} of ${activity.step.total}`}>
@@ -191,20 +324,50 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
           )}
         </div>
       )}
-      {suggestions.length > 0 && (
+      {suggestions.length > 0 && startersIn && createPortal(
+        <div className="starters" role="group" aria-label="Suggestions">
+          {suggestions.slice(0, 3).map((s) => (
+            <button key={s.label} type="button" className="starter" onClick={() => void suggest(s)}>{s.label}</button>
+          ))}
+        </div>,
+        startersIn,
+      )}
+      {suggestions.length > 0 && !startersIn && (
         <div className="suggest" role="group" aria-label="Suggestions">
           {suggestions.map((s) => (
-            <button key={s.label} type="button" className="suggest-chip" title={s.attach === 'page' ? 'Attaches this page' : s.attach === 'note' ? 'Attaches this note' : s.attach === 'tasks' ? 'Attaches this list' : undefined} onClick={() => void suggest(s)}>
+            <button key={s.label} type="button" className="suggest-chip" title={s.attach === 'page' ? 'Attaches this page' : s.attach === 'note' ? 'Attaches this note' : s.attach === 'tasks' ? 'Attaches this list' : s.attach === 'sheet' ? 'Attaches this sheet' : s.attach === 'mail' ? 'Attaches this email' : s.attach === 'code' ? 'Attaches this file' : s.attach === 'photo' ? 'Attaches this photo, described, and its edits' : s.attach === 'cut' ? 'Attaches the clips and the cut' : undefined} onClick={() => void suggest(s)}>
               {s.label}
             </button>
           ))}
         </div>
       )}
-      {context.length > 0 && (
+      {pictures.length > 0 && (
+        <ul className="picture-chips" aria-label="Pictures for this message">
+          {pictures.map((src, index) => (
+            <li key={index} className="picture-chip">
+              <img src={src} alt={`Picture ${index + 1}`} />
+              <button type="button" className="chip-remove" aria-label={`Remove picture ${index + 1}`} onClick={() => setPictures((was) => was.filter((_, i) => i !== index))}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {adding && <p className="chip chip-adding" role="status">Attaching…</p>}
+      {(context.length > 0 || here) && (
         <ul className="chips" aria-label="Attached to this message">
+          {here && !context.some((c) => c.source === here.item.source) && (
+            <li className="chip" data-here title={`Goes with your message: ${here.what}. Remove it to send without.`}>
+              <span className="chip-kind" aria-hidden="true">{here.what.replace(/^this /, '').replace(/^./, (c) => c.toUpperCase())}</span>
+              <span className="chip-title">{here.label}</span>
+              <button type="button" className="chip-remove" aria-label={`Remove ${here.label}`} onClick={onRemoveHere}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+              </button>
+            </li>
+          )}
           {context.map((item, index) => (
             <li key={`${item.kind}-${index}-${item.title}`} className="chip" data-kind={item.kind} title={item.source}>
-              <span className="chip-kind" aria-hidden="true">{item.kind === 'page' ? 'Page' : 'File'}</span>
+              <span className="chip-kind" aria-hidden="true">{item.kind === 'page' ? 'Page' : item.kind === 'note' ? 'Note' : 'File'}</span>
               <span className="chip-title">{item.title}</span>
               <button type="button" className="chip-remove" aria-label={`Remove ${item.title}`} onClick={() => onContext(context.filter((_, i) => i !== index))}>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
@@ -220,11 +383,17 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
         maxLength={MAX_TYPED_CHARS}
         value={draft}
         disabled={!canType}
-        autoFocus
-        placeholder={canType ? 'Message Mobius' : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
+        autoFocus={takeFocus}
+        placeholder={canType ? (busy && onQueue ? 'Queue a message for when Mobius finishes' : 'Message Mobius') : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={onKeyDown}
+        onPaste={(event) => {
+          const files = [...event.clipboardData.items].filter((i) => i.kind === 'file' && i.type.startsWith('image/')).map((i) => i.getAsFile()).filter((f): f is File => f !== null);
+          if (files.length > 0) { event.preventDefault(); void addPictures(files); }
+        }}
       />
+      {camera && <CameraDialog onClose={() => setCamera(false)} onTake={(p) => { setPictures((was) => [...was, p].slice(0, MAX_PICTURES)); queueMicrotask(() => fieldRef.current?.focus()); }} />}
+      <input ref={pictureInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden aria-label="Choose pictures" onChange={(event) => { const files = [...(event.target.files ?? [])]; event.target.value = ''; void addPictures(files); }} />
       <div className="composer-bar">
         <div className="composer-tools">
           <PopMenu label="Add context" className="round ghost" disabled={!canType || adding} trigger={<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>}>
@@ -236,16 +405,26 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
                 <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); void attach('file'); }}>
                   <span>A file…</span><span className="popmenu-hint">A text file from this computer</span>
                 </button>
+                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); pictureInput.current?.click(); }}>
+                  <span>A picture…</span><span className="popmenu-hint">For models that read pictures; you can paste one too</span>
+                </button>
+                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); void lookAtWindow(); }}>
+                  <span>Look at a window…</span><span className="popmenu-hint">One still of a window you choose, nothing more</span>
+                </button>
+                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); setCamera(true); }}>
+                  <span>Show Mobius…</span><span className="popmenu-hint">One still from the camera</span>
+                </button>
                 <p className="popmenu-note">Up to {MAX_CONTEXT_ITEMS} things, {MAX_CONTEXT_ITEM_CHARS / 1000}k characters each. The agent reads them as material, never as instructions.</p>
               </>
             )}
           </PopMenu>
-          <PopMenu label="Model" className="pill" disabled={!configured || busy} onOpen={loadModels} title={modelName ? `Model: ${modelName}` : 'Model'} trigger={<><span className="pill-text">{modelName || 'Model'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+          <PopMenu label="Model" className="pill" disabled={!configured || busy} onOpen={loadModels} title={modelName ? `Model: ${modelName}` : 'Model'} trigger={<><span className="pill-text">{modelName || 'Model'}{effort ? ` · ${effortLabel}` : ''}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <div className="model-menu">
                 <input type="search" className="model-find" aria-label="Find a model" placeholder="Find a model" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />
                 <div className="model-groups">
-                  {models.state !== 'ready' && <p className="popmenu-note" role="status">Asking your providers…</p>}
+                  {models.state !== 'ready' && modelName && <p className="popmenu-item popmenu-checkable" aria-current="true"><Check on /><span>{modelName}</span></p>}
+                  {models.state !== 'ready' && <p className="popmenu-note" role="status">Loading models…</p>}
                   {models.state === 'ready' && models.catalog.groups.length === 0 && <p className="popmenu-note">Nothing is set up yet. Add a provider key, sign in to a plan, or download a model in Settings.</p>}
                   {models.state === 'ready' && models.catalog.groups.length > 0 && shown.length === 0 && <p className="popmenu-note">No model matches “{find}”.</p>}
                   {shown.map((group) => (
@@ -253,48 +432,54 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
                       <header className="model-group-head"><span>{group.name}</span><span className="popmenu-hint">{group.active ? 'In use' : KIND_NOTE[group.kind]}</span></header>
                       {group.error && <p className="popmenu-note" role="alert">{group.error}</p>}
                       {group.models.map((model) => (
-                        <button key={model.id} type="button" role="menuitemradio" aria-checked={isCurrent(group, model)} className="popmenu-item" title={`${model.label} · ${group.name}`} onClick={() => void chooseModel(group, model, close)}>
-                          <span>{model.label}</span>{isCurrent(group, model) && <span className="popmenu-hint">In use</span>}
+                        <button key={model.id} type="button" role="menuitemradio" aria-checked={isCurrent(group, model)} className="popmenu-item popmenu-checkable" title={`${model.label} · ${group.name}`} onClick={() => void chooseModel(group, model, close)}>
+                          <Check on={isCurrent(group, model)} /><span>{model.label}</span>
                         </button>
                       ))}
                     </section>
                   ))}
                 </div>
                 <button type="button" role="menuitem" className="popmenu-item popmenu-link" onClick={() => { close(); onOpenSettings(); }}>Add providers and models…</button>
+                <div className="popmenu-section" role="group" aria-label="Thinking">
+                  <p className="popmenu-heading" aria-hidden="true">Effort</p>
+                  {EFFORTS.map((option) => (
+                    <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === effort} className="popmenu-item popmenu-checkable" title={option.id === 'none' ? 'Thinking off, for models on this computer' : undefined} onClick={() => { close(); onEffort(option.id); }}>
+                      <Check on={option.id === effort} /><span>{option.label}</span>
+                    </button>
+                  ))}
+                  <button type="button" role="menuitemcheckbox" aria-checked={planFirst} className="popmenu-item popmenu-checkable popmenu-split" title="See the steps before Mobius does anything" onClick={() => { close(); togglePlanFirst(); }}>
+                    <Check on={planFirst} /><span>Plan first</span>
+                  </button>
+                </div>
               </div>
             )}
           </PopMenu>
-          <PopMenu label="Effort" className="pill" disabled={busy} title={`Effort: ${effortLabel}. How hard the model thinks.`} trigger={<><span className="pill-text">Effort{effort ? `: ${effortLabel}` : ''}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+          <PopMenu label="Approvals" className="pill pill-compact" title={`${approval.name}: ${approval.hint}. Shift+Tab in the message box changes it.`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{approval.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <>
-                {EFFORTS.map((option) => (
-                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === effort} className="popmenu-item" onClick={() => { close(); onEffort(option.id); }}>
-                    <span>{option.label}</span>{option.id === effort && <span className="popmenu-hint">Chosen</span>}
+                {MODES.map((option) => (
+                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === approval.id} className="popmenu-item popmenu-checkable" onClick={() => { close(); void preferences.set({ approvalMode: option.id }); }}>
+                    <Check on={option.id === approval.id} /><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span>
                   </button>
                 ))}
-                <p className="popmenu-note">How hard the model is asked to think. Only models that can reason use this. Off turns thinking off for models on this computer.</p>
+                <p className="popmenu-note">In every mode, paying, sending, deleting and running commands ask first, and what you blocked stays blocked. Shift+Tab in the message box changes it.</p>
               </>
             )}
           </PopMenu>
-          <PopMenu label="Approvals" className="pill" title={`Approvals: ${approval.label}. ${approval.hint}.`} trigger={<><span className="pill-text">{approval.id === 'manual' ? 'Ask first' : approval.id === 'smart' ? 'Smart approvals' : 'No approvals'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
-            {(close) => (
-              <>
-                {APPROVALS.map((option) => (
-                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === approval.id} className="popmenu-item" onClick={() => { close(); void preferences.set({ approvalMode: option.id }); }}>
-                    <span>{option.label}</span><span className="popmenu-hint">{option.hint}</span>
-                  </button>
-                ))}
-                <p className="popmenu-note">Blocked sites and actions stay blocked in every mode. Same setting as Settings › Safety.</p>
-              </>
-            )}
-          </PopMenu>
+          {planFirst && (
+            <button type="button" className="pill pill-compact" aria-label="Plan first" aria-pressed="true" data-on disabled={busy} onClick={togglePlanFirst} title="Plan first is on: Mobius shows its steps, and nothing happens until you start them. Click to turn it off.">
+              <span className="pill-text">Plan first</span>
+            </button>
+          )}
         </div>
         <div className="composer-actions">
-          {dictation.state === 'recording' && <span className="rec" role="status" aria-label={`Recording ${clock(dictation.seconds)}`}><span className="rec-dot" aria-hidden="true" />{clock(dictation.seconds)}</span>}
+          {contextUse && <ContextRing used={contextUse.used} limit={contextUse.limit} />}
+          {dictation.state === 'recording' && <span className="rec" role="status" aria-label={`Listening ${clock(dictation.seconds)}`}><LevelMeter level={dictation.level} />{clock(dictation.seconds)}</span>}
           {dictation.state === 'transcribing' && <span className="rec" role="status">Turning speech into text…</span>}
           <button type="button" className="round ghost" data-recording={dictation.state === 'recording' || undefined} aria-label={dictation.state === 'recording' ? 'Stop dictation' : 'Dictate'} title={dictation.state === 'recording' ? 'Stop and insert the words (Esc cancels)' : 'Dictate'} disabled={!canType || busy || dictation.state === 'transcribing'} onClick={dictation.toggle}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5" /><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17" /></svg>
           </button>
+          {busy && onTakeOver && <button type="button" className="btn take-over" title="Mobius pauses at the next safe point and the apps are yours" onClick={() => void onTakeOver()}>Take over</button>}
           {busy ? (
             <button type="button" className="round stop" aria-label="Stop" title="Stop" onClick={onStop}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1.5" fill="currentColor" stroke="none" /></svg>
@@ -306,7 +491,39 @@ export function Composer({ draft, onDraft, context, onContext, canType, busy, co
           )}
         </div>
       </div>
-      {shownProblem && <p className="composer-problem" role="alert">{shownProblem}</p>}
+      {shownProblem && <p className="composer-problem" role="alert">{shownProblem}{!problem && dictation.setup && onOpenVoice && <> <button type="button" className="link-btn" onClick={() => { dictation.clearProblem(); onOpenVoice(); }}>Voice settings</button></>}</p>}
     </form>
+  );
+}
+
+/** How much of the model's window the conversation takes: a 13px ring that fills, with its percent. */
+function ContextRing({ used, limit }: { used: number; limit: number }) {
+  const share = Math.min(1, Math.max(0, used / limit));
+  const percent = Math.round(share * 100);
+  const r = 5;
+  const around = 2 * Math.PI * r;
+  return (
+    <span className="context-ring" role="meter" aria-label="Context used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}
+      title={`Context used: ${percent}% (about ${used.toLocaleString()} of ${limit.toLocaleString()} tokens). Mobius summarises older messages when it fills.`}>
+      <svg viewBox="0 0 13 13" width="13" height="13" aria-hidden="true">
+        <circle cx="6.5" cy="6.5" r={r} className="context-ring-track" />
+        <circle cx="6.5" cy="6.5" r={r} className="context-ring-fill" strokeDasharray={`${share * around} ${around}`} transform="rotate(-90 6.5 6.5)" />
+      </svg>
+      <span className="context-ring-text">{percent}%</span>
+    </span>
+  );
+}
+
+/** The mark beside the chosen item of a menu, as macOS menus have. */
+function Check({ on }: { on: boolean }) {
+  return <svg className="popmenu-check" viewBox="0 0 12 12" aria-hidden="true">{on && <path d="M2.5 6.5 5 9l4.5-6" />}</svg>;
+}
+
+/** How loud the microphone is now: five bars, as the system shows it while listening. */
+function LevelMeter({ level }: { level: number }) {
+  return (
+    <span className="level-meter" aria-hidden="true">
+      {[0.08, 0.2, 0.35, 0.5, 0.7].map((at) => <span key={at} data-on={level > at || undefined} />)}
+    </span>
   );
 }

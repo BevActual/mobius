@@ -264,7 +264,7 @@ fn a_bad_setup_is_refused_and_a_key_never_comes_back() {
     let ok = d.call(3, "agent.configure", json!({ "base_url": "https://api.example.com/v1", "api_key": "sk-secret-123", "model": "m" }));
     assert!(!ok.to_string().contains("sk-secret-123"));
     let status = d.call(4, "agent.status", json!({}));
-    assert_eq!(status["result"], json!({ "configured": true, "model": "m", "max_steps": 25, "fallback_model": null, "context_tokens": null }));
+    assert_eq!(status["result"], json!({ "configured": true, "model": "m", "max_steps": 25, "fallback_model": null, "quick_model": null, "context_tokens": null }));
 }
 
 #[test]
@@ -282,7 +282,8 @@ fn a_reply_streams_and_arrives_after_the_response_that_started_it() {
     assert_eq!(message["params"]["event"]["text"], "Hello there");
     d.until_event("done");
     let history = d.call(3, "agent.history", json!({ "conversation": "c1" }));
-    assert_eq!(history["result"][0], json!({ "role": "user", "text": "hi" }));
+    assert!(history["result"][0]["at_ms"].as_u64().is_some_and(|t| t > 1_700_000_000_000), "{history}");
+    assert_eq!(history["result"][0]["text"], "hi");
     assert_eq!(history["result"][1]["text"], "Hello there");
     let body = &server.bodies.lock().unwrap()[0];
     assert_eq!(body["model"], "fake-model");
@@ -317,7 +318,8 @@ fn a_tool_call_waits_for_a_person_and_the_whole_flow_works_through_the_real_pipe
     let waiting = d.call(9, "agent.waiting", json!({ "conversation": "c1" }));
     assert_eq!(waiting["result"], json!([{ "request_id": request_id, "call_id": "call_1", "tool": "demo.echo", "arguments": { "text": "hi" }, "once_only": false }]));
     let history = d.call(10, "agent.history", json!({ "conversation": "c1" }));
-    assert_eq!(history["result"][0], json!({ "role": "user", "text": "echo hi" }));
+    assert!(history["result"][0]["at_ms"].as_u64().is_some_and(|t| t > 1_700_000_000_000), "{history}");
+    assert_eq!(history["result"][0]["text"], "echo hi");
     assert_eq!(history["result"][1]["tool_calls"][0]["name"], "demo.echo", "a turn in progress can be reloaded");
     assert_eq!(d.call(3, "permissions.pending", json!({}))["result"].as_array().unwrap().len(), 1);
 
@@ -414,14 +416,15 @@ fn a_tool_the_application_runs_is_sent_out_after_approval_and_its_answer_goes_ba
     let request = d.take_host_request();
     assert_eq!(request["jsonrpc"], "2.0");
     assert!(request["id"].is_string());
-    assert_eq!(request["params"], json!({ "call_id": "call_1", "tool": "browser.open", "arguments": { "url": "https://example.com/page" } }));
+    assert_eq!(request["params"], json!({ "call_id": "call_1", "tool": "browser.open", "arguments": { "url": "https://example.com/page" }, "conversation": "c1" }), "the conversation goes too, for sign-ins per task");
     assert_eq!(server.bodies.lock().unwrap().len(), 1, "the model waits for the application");
 
     d.reply_raw(json!({ "jsonrpc": "2.0", "id": request["id"], "result": "{\"tabId\":\"tab-2\"}" }));
     d.until_event("done");
     let second = server.bodies.lock().unwrap()[1].clone();
     let tool = second["messages"].as_array().unwrap().iter().find(|m| m["role"] == "tool").unwrap().clone();
-    assert_eq!(tool["content"], "{\"tabId\":\"tab-2\"}");
+    let content = tool["content"].as_str().unwrap();
+    assert!(content.starts_with("<<untrusted-data source=\"") && content.contains("\n{\"tabId\":\"tab-2\"}\n"), "read content goes to the model as data: {content}");
     let kinds: Vec<String> = d.call(4, "events.list", json!({ "limit": 100 }))["result"].as_array().unwrap().iter().map(|e| e["kind"].as_str().unwrap().to_owned()).collect();
     assert!(kinds.contains(&"tool.completed".to_owned()));
 }
@@ -440,7 +443,8 @@ fn an_error_from_the_application_reaches_the_model_as_an_error() {
     assert!(skipped.iter().any(|n| n["params"]["event"]["kind"] == "tool_result" && n["params"]["event"]["is_error"] == true));
     let second = server.bodies.lock().unwrap()[1].clone();
     let tool = second["messages"].as_array().unwrap().iter().find(|m| m["role"] == "tool").unwrap().clone();
-    assert_eq!(tool["content"], "error: the page did not load");
+    let content = tool["content"].as_str().unwrap();
+    assert!(content.starts_with("error: <<untrusted-data") && content.contains("the page did not load"), "{content}");
 }
 
 #[test]
@@ -530,7 +534,8 @@ fn conversations_are_kept_across_restarts_listed_and_deletable() {
         let server = fake(vec![says(&["Again."], 0)]);
         let mut d = Daemon::start(&["--conversations", path]);
         let history = d.call(1, "agent.history", json!({ "conversation": "trip" }));
-        assert_eq!(history["result"][0], json!({ "role": "user", "text": "Plan a trip to Lisbon" }), "the conversation is there before any model is set up");
+        assert!(history["result"][0]["at_ms"].as_u64().is_some_and(|t| t > 1_700_000_000_000), "{history}");
+    assert_eq!(history["result"][0]["text"], "Plan a trip to Lisbon", "the conversation is there before any model is set up");
         assert_eq!(d.call(2, "agent.conversations", json!({}))["result"][0]["id"], "trip");
         configure(&mut d, &server);
         d.call(3, "agent.send", json!({ "conversation": "trip", "text": "and hotels?" }));
@@ -708,6 +713,27 @@ fn smart_approvals_let_a_reviewer_approve_one_call_through_the_real_pipe_and_lea
 }
 
 #[test]
+fn the_quick_model_reviews_when_one_is_chosen_and_the_chat_model_does_the_rest() {
+    let chat = fake(vec![calls("demo-echo", "{\"text\":\"hi\"}"), says(&["It echoed."], 0)]);
+    let quick = fake(vec![says(&["APPROVE"], 0)]);
+    let mut d = Daemon::start(&["--demo-tools"]);
+    let r = d.call(1, "agent.configure", json!({ "base_url": chat.url(), "model": "chat-model", "quick": { "base_url": quick.url(), "model": "quick-model" } }));
+    assert_eq!(r["result"], json!({}), "{r}");
+    assert_eq!(d.call(9, "agent.configure", json!({ "base_url": chat.url(), "model": "chat-model", "quick": { "base_url": quick.url(), "model": "" } }))["error"]["code"], -32602);
+    d.call(1, "agent.configure", json!({ "base_url": chat.url(), "model": "chat-model", "quick": { "base_url": quick.url(), "model": "quick-model" } }));
+    d.call(5, "permissions.set_mode", json!({ "mode": "smart" }));
+    d.call(2, "agent.send", json!({ "conversation": "c1", "text": "echo hi" }));
+    let (skipped, _) = d.until_event("done");
+    assert!(!skipped.iter().any(|n| n["params"]["event"]["kind"] == "needs_approval"), "the quick model approved it");
+    let reviewed = quick.bodies.lock().unwrap().clone();
+    assert_eq!(reviewed.len(), 1);
+    assert_eq!(reviewed[0]["model"], "quick-model");
+    let chatted = chat.bodies.lock().unwrap().clone();
+    assert_eq!(chatted.len(), 2, "the chat model is not asked to review");
+    assert!(chatted.iter().all(|b| b["model"] == "chat-model"));
+}
+
+#[test]
 fn a_deny_from_the_reviewer_reaches_the_person_as_a_once_only_question() {
     let server = fake(vec![calls("demo-echo", "{}"), says(&["DENY"], 0), says(&["Done."], 0)]);
     let mut d = Daemon::start(&["--demo-tools"]);
@@ -770,7 +796,8 @@ fn a_conversation_can_be_sent_with_its_own_instructions_and_model_and_bad_ones_a
     d.until_event("done");
     let first = server.bodies.lock().unwrap()[0].clone();
     assert_eq!(first["model"], "research-model");
-    assert_eq!(first["messages"][0]["content"], "You are the research bot.");
+    let system = first["messages"][0]["content"].as_str().unwrap();
+    assert!(system.starts_with("You are Mobius") && system.contains("trust:unsure") && system.contains("never report a change") && system.contains("\n\nYou are the research bot."), "added to the usual instructions, not in place of them: {system}");
     d.call(3, "agent.send", json!({ "conversation": "plain", "text": "hi" }));
     d.until_event("done");
     assert_eq!(server.bodies.lock().unwrap()[1]["model"], "fake-model");
@@ -830,7 +857,7 @@ fn chatgpt_token() -> String {
 }
 
 #[test]
-fn the_chatgpt_plan_is_spoken_to_in_responses_with_the_sign_in_and_its_account() {
+fn the_chatgpt_plan_is_spoken_to_in_responses_with_the_sign_in() {
     let server = fake(vec![
         vec![
             (json!({ "type": "response.output_item.done", "item": { "type": "function_call", "call_id": "call_1", "name": "clock-now", "arguments": "{}" } }), 0),
@@ -842,7 +869,7 @@ fn the_chatgpt_plan_is_spoken_to_in_responses_with_the_sign_in_and_its_account()
             (json!({ "type": "response.completed", "response": { "status": "completed" } }), 0),
         ],
     ]);
-    let upstream = format!("http://{}/backend-api/codex", server.addr);
+    let upstream = format!("http://{}/v1", server.addr);
     let mut d = Daemon::start(&["--chatgpt-upstream", &upstream]);
     let without = d.call(1, "agent.configure", json!({ "base_url": "chatgpt://subscription", "model": "gpt-5.5" }));
     assert_eq!(without["error"]["code"], -32602, "no sign-in, no ChatGPT: {without}");
@@ -861,9 +888,9 @@ fn the_chatgpt_plan_is_spoken_to_in_responses_with_the_sign_in_and_its_account()
     assert_eq!(bodies[1]["input"][1]["type"], "function_call");
     assert_eq!(bodies[1]["input"][2]["type"], "function_call_output");
     let head = &server.heads.lock().unwrap()[0];
-    assert!(head.starts_with("post /backend-api/codex/responses "), "{head}");
+    assert!(head.starts_with("post /v1/responses "), "{head}");
     assert!(head.contains(&format!("authorization: bearer {}", token.to_lowercase())));
-    assert!(head.contains("chatgpt-account-id: acct-42"));
+    assert!(!head.contains("chatgpt-account-id"), "the public API takes the account from the token");
 }
 
 #[test]

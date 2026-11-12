@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { MobiusMark } from '../MobiusMark';
+import { ChatModelPopUp, FallbackPopUp, ImagesPopUp, QuickPopUp } from './ModelDefaults';
+import { SoftwareUpdate } from './SoftwareUpdate';
 import {
   type SavedServer,
   CHAT_TEXT_RANGE,
   SIDEBAR_WIDTH,
+  SIDEBAR_APPS,
+  type SidebarApp,
   DEFAULT_KEYBINDINGS,
   SHORTCUT_ACTIONS,
   isModelName,
@@ -21,7 +26,6 @@ import {
   type AgentSettings,
   type AppearanceSettings,
   type BookmarkEntry,
-  type ApprovalModeChoice,
   type ChatFont,
   type ConversationInfo,
   type EffortChoice,
@@ -36,13 +40,20 @@ import {
   type TextDirection,
   type ThemeChoice,
   type ToolSteps,
+  type AccessLevel,
+  type AppAccess,
 } from '@mobius/shared';
+import { APP_ICONS } from '../Rail';
+import { appName } from '../apps';
 import { relativeTime } from '../relative-time';
 import { describeActivity } from './activity';
+import { privacyReport, whereItRuns } from './privacy';
+import { ProfilesPane } from './Profiles';
 import { LocalModelsSection } from './LocalModels';
 import { SettingsForm } from './ModelForm';
 import { Empty, Row } from './primitives';
 import { settingPath, type SectionId } from './manifest';
+import { MODES, modeOf } from '../approval-modes';
 
 export interface SectionProps {
   subpage: string;
@@ -59,6 +70,8 @@ export interface SectionProps {
   onDeleteConversation: (id: string) => Promise<string | null>;
   onRefreshConversations: () => Promise<void>;
   coreStatus: CoreStatus;
+  /** Open an app (Extensions) and leave Settings. */
+  onOpenApp?: (id: 'skills') => void;
 }
 
 const rowPath = (section: SectionId, subpage: string, row: string) => settingPath(section, subpage, row);
@@ -114,7 +127,7 @@ function Slider({ label, value, range, step, onCommit, format }: { label: string
   );
 }
 
-function Choice<T extends string>({ label, name, value, options, onChange }: { label: string; name: string; value: T; options: ReadonlyArray<{ id: T; label: string }>; onChange: (value: T) => void }) {
+export function Choice<T extends string>({ label, name, value, options, onChange }: { label: string; name: string; value: T; options: ReadonlyArray<{ id: T; label: string }>; onChange: (value: T) => void }) {
   return (
     <div className="segmented" role="radiogroup" aria-label={label}>
       {options.map((option) => (
@@ -127,11 +140,10 @@ function Choice<T extends string>({ label, name, value, options, onChange }: { l
   );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+export function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
     <label className="switch-line">
       <input type="checkbox" role="switch" aria-label={label} checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      <span>{checked ? 'On' : 'Off'}</span>
     </label>
   );
 }
@@ -139,14 +151,10 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 const FONTS: Array<{ id: ChatFont; label: string }> = [{ id: 'system', label: 'System' }, { id: 'serif', label: 'Serif' }, { id: 'mono', label: 'Monospace' }];
 const DIRECTIONS: Array<{ id: TextDirection; label: string }> = [{ id: 'auto', label: 'Automatic' }, { id: 'ltr', label: 'Left to right' }, { id: 'rtl', label: 'Right to left' }];
 const DENSITIES: Array<{ id: Density; label: string }> = [{ id: 'comfortable', label: 'Comfortable' }, { id: 'compact', label: 'Compact' }];
-const APPROVAL_MODES: Array<{ id: ApprovalModeChoice; label: string }> = [{ id: 'manual', label: 'Manual' }, { id: 'smart', label: 'Smart' }, { id: 'off', label: 'Off' }];
-const APPROVAL_HELP: Record<ApprovalModeChoice, string> = {
-  manual: 'The first use is asked about and you can choose to always allow it. Running commands, deleting files, reading secrets and clicking or typing on a web page are asked about every time.',
-  smart: 'Your model reviews each question first. It approves only what is clearly safe, for that one time. If it thinks something is dangerous you are asked and can allow it once; if it is unsure, or cannot answer, you are asked as usual. What the reviewer sees is the tool and its arguments.',
-  off: 'The agent acts without asking, including running commands and deleting files. Sites and actions you have blocked stay blocked.',
-};
+const APPROVAL_MODES = MODES.map((m) => ({ id: m.id, label: m.name }));
 const SIDEBAR_MODES: Array<{ id: SidebarMode; label: string }> = [{ id: 'attached', label: 'Attached' }, { id: 'floating', label: 'Floating' }];
 const EFFORT_OPTIONS: Array<{ id: EffortChoice; label: string }> = [{ id: '', label: 'Default' }, { id: 'none', label: 'Off' }, { id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }];
+const AGENT_PLACES: Array<{ id: 'sidebar' | 'beside'; label: string }> = [{ id: 'sidebar', label: 'In the sidebar' }, { id: 'beside', label: 'Beside the page' }];
 const TOOL_STEPS: Array<{ id: ToolSteps; label: string }> = [{ id: 'show', label: 'Show all' }, { id: 'hide-finished', label: 'Hide finished' }];
 
 export function AppearanceSection({ subpage, highlight, appearance, onAppearance }: SectionProps) {
@@ -178,6 +186,9 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
   if (subpage === 'layout') {
     return (
       <>
+        <Row path={path('sidebar-apps')} title="Apps in the sidebar" description="Choose which apps the sidebar lists, and their order. The others stay in All apps." highlight={highlight === 'sidebar-apps'}>
+          <SidebarAppsEditor value={appearance.sidebarApps} onChange={(sidebarApps) => set({ sidebarApps })} />
+        </Row>
         <Row path={path('sidebar-at-start')} title="Show the tab list at start" description="Whether the browser's list of tabs is open when Mobius starts." highlight={highlight === 'sidebar-at-start'}>
           <Toggle label="Show the tab list at start" checked={appearance.sidebarAtStart} onChange={(sidebarAtStart) => set({ sidebarAtStart })} />
         </Row>
@@ -190,6 +201,9 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
         <Row path={path('sidebar-size')} title="Sidebar sizes" description="Drag the edge of a sidebar to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back." highlight={highlight === 'sidebar-size'}>
           <p className="srow-text">Now: list {appearance.leftWidth} px, agent panel {appearance.rightWidth} px.</p>
           <button type="button" className="btn" disabled={appearance.leftWidth === SIDEBAR_WIDTH.left.default && appearance.rightWidth === SIDEBAR_WIDTH.right.default} onClick={() => set({ leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default })}>Reset sizes</button>
+        </Row>
+        <Row path={path('agent-place')} title="Where Mobius opens" description="In the sidebar, which turns into Mobius, or pinned beside the page." highlight={highlight === 'agent-place'}>
+          <Choice label="Where Mobius opens" name="agent-place" value={appearance.agentPlace} options={AGENT_PLACES} onChange={(agentPlace) => set({ agentPlace })} />
         </Row>
         <Row path={path('density')} title="List density" description="How tightly tabs and conversations are packed." highlight={highlight === 'density'}>
           <Choice label="List density" name="density" value={appearance.density} options={DENSITIES} onChange={(density) => set({ density })} />
@@ -218,7 +232,7 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
 
 // ---- Model ---------------------------------------------------------------------------------------------------
 
-function DictationModelField({ value, onSave }: { value: string; onSave: (value: string) => void }) {
+export function DictationModelField({ value, onSave }: { value: string; onSave: (value: string) => void }) {
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
   const valid = isModelName(text);
@@ -236,18 +250,23 @@ export function ModelSection({ subpage, highlight, settings, onSaveSettings, pre
   if (!settings) return <Empty>Loading…</Empty>;
   return (
     <>
-      <div className="srow" data-setting={rowPath('model', subpage, 'endpoint')}>
-        <SettingsForm key={`${settings.baseUrl}|${settings.model}|${settings.system}`} settings={settings} onSave={onSaveSettings} />
-      </div>
+      <Row path={rowPath('model', subpage, 'chat-model')} title="Chat model" description="The model Mobius talks to. The services it comes from are in Gateways." highlight={highlight === 'chat-model'}>
+        <ChatModelPopUp localContext={preferences.localContext} />
+      </Row>
+      <Row path={rowPath('model', subpage, 'second-model')} title="Second model" description="Asked when the first is busy, down or cannot be reached. Mobius says when it answers instead." highlight={highlight === 'second-model'}>
+        <FallbackPopUp baseUrl={settings.fallbackBaseUrl ?? ''} model={settings.fallbackModel ?? ''} />
+      </Row>
+      <Row path={rowPath('model', subpage, 'quick-model')} title="Quick model" description="For quick jobs, like checking a step in Act mode before it runs. A small, fast model fits. Same as chat uses the chat model." highlight={highlight === 'quick-model'}>
+        <QuickPopUp quick={preferences.quickModel ?? ''} />
+      </Row>
+      <Row path={rowPath('model', subpage, 'images')} title="Images" description="Makes pictures for Photo, Design and Slides when you ask. Each picture may cost money on that gateway." highlight={highlight === 'images'}>
+        <ImagesPopUp chosen={preferences.imageModel ?? ''} />
+      </Row>
       {window.mobius.agent.savedServers && (
         <Row path={rowPath('model', subpage, 'saved-servers')} title="Saved servers" description="Keep model servers under a name and switch between them. Saving keeps the address, the model and, in the system's secret store, the key." highlight={highlight === 'saved-servers'}>
           <SavedServers current={`${settings.baseUrl}|${settings.model}`} />
         </Row>
       )}
-      <Row path={rowPath('model', subpage, 'dictation-model')} title="Voice dictation" description="The speech model asked for when you dictate a message. It runs on the same server as the chat model." highlight={highlight === 'dictation-model'}>
-        <DictationModelField value={preferences.dictationModel} onSave={(dictationModel) => void onPreferences({ dictationModel })} />
-        <p className="srow-text">Not every server offers one. If yours does not, dictation says so.</p>
-      </Row>
       <Row path={rowPath('model', subpage, 'effort')} title="Effort" description="How hard the model is asked to think. Also in the message box. Only models that can reason use it." highlight={highlight === 'effort'}>
         <Choice label="Effort" name="effort" value={preferences.reasoningEffort} options={EFFORT_OPTIONS} onChange={(reasoningEffort) => void onPreferences({ reasoningEffort })} />
       </Row>
@@ -313,9 +332,110 @@ function ActivityList() {
   );
 }
 
+/** Settings › Safety › Privacy: the last seven days, read from the activity log. Nothing here leaves this computer. */
+function PrivacyReport({ baseUrl }: { baseUrl: string }) {
+  const load = useCallback(() => window.mobius.agent.activity(200), []);
+  const { value, loaded } = useLoaded<ActivityEntry[]>(load, []);
+  const rows = privacyReport(value, Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const times = (n: number) => (n === 0 ? '—' : n === 1 ? 'once' : `${n} times`);
+  return (
+    <>
+      <p className="srow-text">Requests are answered by: <strong>{whereItRuns(baseUrl)}</strong>.</p>
+      {loaded && rows.length === 0 ? (
+        <p className="srow-text">Mobius has not read or changed anything in the last seven days.</p>
+      ) : (
+        <table className="stable privacy-table" aria-label="Privacy report">
+          <thead><tr><th scope="col">App</th><th scope="col">Read</th><th scope="col">Changed</th><th scope="col">Blocked</th></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.area}><th scope="row">{r.area}</th><td>{times(r.read)}</td><td>{times(r.changed)}</td><td>{times(r.blocked)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="srow-text">From the activity log on this computer. Change what Mobius may do in each app under Approvals.</p>
+    </>
+  );
+}
+
+const ACCESS_OPTIONS: ReadonlyArray<{ id: AccessLevel; label: string }> = [
+  { id: 'follow', label: 'Follow the mode' },
+  { id: 'always', label: 'Always ask' },
+  { id: 'off', label: 'Off' },
+];
+/** Each app's words: what off means there, and what Mobius asks about there (said "every time" for Always ask). */
+const ACCESS_APPS: ReadonlyArray<{ id: keyof AppAccess; label: string; help: { off: string; ask: string; read: string; act: string } }> = [
+  { id: 'browser', label: 'Browser', help: { off: 'Mobius cannot see your tabs, read pages, search the web or open new ones.', ask: 'Mobius asks before it reads a page, searches the web or opens a page.', read: 'Mobius reads your tabs and pages and searches the web without asking, and asks before opening one.', act: 'Mobius reads pages, searches the web and opens new ones without asking. Clicking and typing still ask.' } },
+  { id: 'notes', label: 'Notes', help: { off: 'Mobius cannot open or change your notes.', ask: 'Mobius asks before it opens or changes a note.', read: 'Mobius opens your notes without asking, and asks before changing one.', act: 'Mobius opens and changes your notes without asking. You can still review and undo each change.' } },
+  { id: 'docs', label: 'Docs', help: { off: 'Mobius cannot open or change your documents.', ask: 'Mobius asks before it opens or changes a document.', read: 'Mobius opens your documents without asking, and asks before changing one.', act: 'Mobius opens and changes your documents without asking. You can still keep or discard each change.' } },
+  { id: 'sheets', label: 'Sheets', help: { off: 'Mobius cannot open or change your workbooks.', ask: 'Mobius asks before it reads a workbook or changes one.', read: 'Mobius reads your workbooks without asking, and asks before changing a cell.', act: 'Mobius reads and changes your workbooks without asking. You can still keep or discard each change.' } },
+  { id: 'mail', label: 'Mail', help: { off: 'Mobius cannot read your mail or draft replies.', ask: 'Mobius asks before it reads your mail. It may suggest drafts; only you send.', read: 'Mobius reads your mail without asking. It may suggest drafts; only you send.', act: 'Mobius reads your mail without asking. It may suggest drafts; only you send.' } },
+  { id: 'slides', label: 'Slides', help: { off: 'Mobius cannot open or change your decks.', ask: 'Mobius asks before it opens or changes a deck.', read: 'Mobius opens your decks without asking, and asks before changing one.', act: 'Mobius opens and changes your decks without asking. You can still keep or discard what it changed.' } },
+  { id: 'tasks', label: 'Tasks', help: { off: 'Mobius cannot see or change your task lists.', ask: 'Mobius asks before it reads or changes your tasks.', read: 'Mobius reads your task lists without asking, and asks before changing them.', act: 'Mobius reads and changes your task lists without asking.' } },
+  { id: 'calendar', label: 'Calendar', help: { off: 'Mobius cannot see or change your calendars.', ask: 'Mobius asks before it reads your calendar or adds to it.', read: 'Mobius reads your calendars without asking, and asks before adding or changing an event.', act: 'Mobius reads your calendars and adds or changes events without asking. It never invites anyone.' } },
+  { id: 'research', label: 'Research', help: { off: 'Mobius cannot open or change your research reports.', ask: 'Mobius asks before it opens or writes a report. Searching the web is set under Browser.', read: 'Mobius opens your reports without asking, and asks before writing one.', act: 'Mobius opens and writes your reports without asking. Searching the web is set under Browser.' } },
+  { id: 'reader', label: 'Reader', help: { off: 'Mobius cannot open or change what you keep in Reader.', ask: 'Mobius asks before it opens or changes an article.', read: 'Mobius opens your articles without asking, and asks before changing one.', act: 'Mobius opens and changes your articles without asking. You can still keep or discard what it changed.' } },
+  { id: 'database', label: 'Database', help: { off: 'Mobius cannot see or change your databases.', ask: 'Mobius asks before it reads a database, and before each change.', read: 'Mobius reads your databases without asking (it cannot change them that way), and asks before each change.', act: 'Mobius reads and changes your databases without asking. You can still keep or discard what it changed.' } },
+  { id: 'design', label: 'Design', help: { off: 'Mobius cannot open or change your designs.', ask: 'Mobius asks before it opens or changes a design.', read: 'Mobius opens your designs without asking, and asks before changing one.', act: 'Mobius opens and changes your designs without asking. You can still keep or discard what it changed.' } },
+  { id: 'canvas', label: 'Canvas', help: { off: 'Mobius cannot open or change your boards.', ask: 'Mobius asks before it opens or changes a board.', read: 'Mobius opens your boards without asking, and asks before changing one.', act: 'Mobius opens and changes your boards without asking. You can still keep or discard what it changed.' } },
+  { id: 'skills', label: 'Skills', help: { off: 'Mobius cannot read or change your skills.', ask: 'Mobius asks before it reads or changes a skill.', read: 'Mobius reads your skills without asking, and asks before changing one.', act: 'Mobius reads and improves your skills without asking. Every version is kept, and you can keep or discard each change.' } },
+  { id: 'video', label: 'Video', help: { off: 'Mobius cannot see or change your cuts.', ask: 'Mobius asks before it reads or changes a cut.', read: 'Mobius reads your cuts without asking, and asks before changing one.', act: 'Mobius changes your cuts without asking. Clips are never changed, and you can keep or discard each change.' } },
+  { id: 'studio', label: 'Music', help: { off: 'Mobius cannot open or change your songs.', ask: 'Mobius asks before it opens or changes a song.', read: 'Mobius opens your songs without asking, and asks before changing one.', act: 'Mobius changes your songs without asking. It writes notes, never audio, and you can keep or discard each change.' } },
+  { id: 'photo', label: 'Photo', help: { off: 'Mobius cannot see or change your photos’ edits.', ask: 'Mobius asks before it reads or changes a photo’s edits.', read: 'Mobius reads your photos’ edits without asking, and asks before changing them.', act: 'Mobius changes your photos’ edits without asking. The pictures themselves are never changed.' } },
+  { id: 'code', label: 'Code', help: { off: 'Mobius cannot open, change or test your projects.', ask: 'Mobius asks before it opens or changes a file. It may run the test command you chose.', read: 'Mobius opens your project files without asking, and asks before changing one. It may run the test command you chose.', act: 'Mobius opens and changes your project files without asking. You can still keep or discard each change.' } },
+];
+
+/** What a level means for one app, in the mode chosen now. */
+function accessHelp(help: { off: string; ask: string }, level: AccessLevel, mode: Parameters<typeof modeOf>[0]): string {
+  if (level === 'off') return help.off;
+  if (level === 'always') return help.ask.replace('Mobius asks before', 'Mobius asks you every time before');
+  const current = modeOf(mode);
+  return `Follows your mode, ${current.name}: ${current.hint.charAt(0).toLowerCase()}${current.hint.slice(1)}.`;
+}
+
+/** What Mobius remembers, each with Forget. Read again whenever it changes, by the agent or here. */
+function MemoryList() {
+  const [items, setItems] = useState<string[] | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () => void window.mobius.memory?.list().then((list) => live && setItems(list)).catch(() => live && setItems([]));
+    load();
+    const off = window.mobius.memory?.onChange(load);
+    return () => { live = false; off?.(); };
+  }, []);
+  if (!window.mobius.memory) return <p className="srow-text">Memory is not available here.</p>;
+  if (items === null) return null;
+  return (
+    <>
+      {items.length === 0 ? (
+        <p className="srow-text">Nothing yet. When Mobius learns something worth keeping, such as a preference you mention, it asks to remember it.</p>
+      ) : (
+        <ul className="memory-list" aria-label="What Mobius remembers">
+          {items.map((text) => (
+            <li key={text} className="memory-item">
+              <span className="memory-text">{text}</span>
+              <button type="button" className="btn" aria-label={`Forget: ${text}`} onClick={() => void window.mobius.memory!.forget(text).then((r) => setProblem(r.ok ? null : r.error))}>Forget</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {problem && <p className="srow-text" role="alert">{problem}</p>}
+      <p className="srow-text">Kept in memory.md in the data folder, as plain text you can edit.</p>
+    </>
+  );
+}
+
 export function SafetySection({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
   const { grants, remove } = useGrants();
   const path = (row: string) => rowPath('safety', subpage, row);
+  if (subpage === 'memory') {
+    return (
+      <Row path={path('remembered')} title="What Mobius remembers" description="Short facts Mobius keeps between conversations. It asks before remembering unless you chose otherwise. Forget any of them here." highlight={highlight === 'remembered'}>
+        <MemoryList />
+      </Row>
+    );
+  }
   if (subpage === 'activity') {
     return (
       <Row path={path('activity-log')} title="Activity log" description="A record of what was asked, allowed and run. It never contains what was typed or read." highlight={highlight === 'activity-log'}>
@@ -327,6 +447,9 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
     const storage = settings?.hasKey ? (settings.keyStorage === 'keychain' ? 'Your API key is stored encrypted by your system.' : 'Your API key is kept only until you quit Mobius.') : 'No API key is saved.';
     return (
       <>
+        <Row path={path('privacy-report')} title="Privacy report" description="What Mobius read and changed in the last seven days, by app, and where your requests are answered." highlight={highlight === 'privacy-report'}>
+          <PrivacyReport baseUrl={settings?.baseUrl ?? ''} />
+        </Row>
         <Row path={path('key-storage')} title="Key storage" description="Whether your API key is stored encrypted by the system or only kept until you quit." highlight={highlight === 'key-storage'}>
           <p className="srow-text">{storage}</p>
         </Row>
@@ -338,9 +461,28 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
   }
   return (
     <>
-      <Row path={path('approval-mode')} title="Approval mode" description="Manual asks before the agent acts. Smart lets a reviewer model approve the clearly safe ones. Off lets it act without asking." highlight={highlight === 'approval-mode'}>
-        <Choice label="Approval mode" name="approval-mode" value={preferences.approvalMode} options={APPROVAL_MODES} onChange={(approvalMode) => void onPreferences({ approvalMode })} />
-        <p className="srow-text" data-testid="approval-mode-help">{APPROVAL_HELP[preferences.approvalMode]}</p>
+      <Row path={path('approval-mode')} title="Approval mode" description="Ask first asks before each tool. Propose changes your workspace without asking and waits for Keep, Discard or Try another. Act does the work, checking each step." highlight={highlight === 'approval-mode'}>
+        <Choice label="Approval mode" name="approval-mode" value={modeOf(preferences.approvalMode).id} options={APPROVAL_MODES} onChange={(approvalMode) => void onPreferences({ approvalMode })} />
+        <p className="srow-text" data-testid="approval-mode-help">{modeOf(preferences.approvalMode).help}</p>
+      </Row>
+      <Row path={path('app-access')} title="What Mobius may do in each app" description="For each app: follow the mode, always ask you, or off. Paying, sending, deleting and running commands ask in every mode." highlight={highlight === 'app-access'}>
+        <div className="access-all" role="group" aria-label="Every app at once">
+          <span>Set every app to</span>
+          {ACCESS_OPTIONS.map((o) => (
+            <button key={o.id} type="button" className="btn" onClick={() => void onPreferences({ appAccess: Object.fromEntries(ACCESS_APPS.map((a) => [a.id, o.id])) as typeof preferences.appAccess })}>{o.label}</button>
+          ))}
+        </div>
+        <div className="access-grid">
+          {ACCESS_APPS.map((app) => (
+            <div key={app.id} className="access-row">
+              <span className="access-app"><svg viewBox="0 0 20 20" aria-hidden="true" data-app={app.id}>{APP_ICONS[app.id]}</svg>{app.label}</span>
+              <Choice label={`${app.label}: what Mobius may do`} name={`access-${app.id}`} value={preferences.appAccess[app.id] ?? 'follow'} options={ACCESS_OPTIONS}
+                onChange={(level) => void onPreferences({ appAccess: { ...preferences.appAccess, [app.id]: level } })} />
+              <p className="srow-text access-help">{accessHelp(app.help, preferences.appAccess[app.id] ?? 'follow', preferences.approvalMode)}</p>
+            </div>
+          ))}
+        </div>
+        <p className="srow-text">Clicking or typing on a web page, deleting, running commands and reading secrets always ask, whatever you choose here. Off also holds when approvals are off.</p>
       </Row>
       <Row path={path('always-allowed')} title="Always allowed" description="Actions you chose to always allow. Remove one to be asked again." highlight={highlight === 'always-allowed'}>
         <GrantList label="Always allowed" grants={grants} onRemove={remove} empty="Nothing is always allowed. You are asked the first time." />
@@ -590,7 +732,9 @@ export function KeyboardSection({ subpage, highlight, preferences, onPreferences
     let live = true;
     void window.mobius.window.quickEntryActive().then((active) => live && setWorking(active));
     return () => { live = false; };
-  }, [bindings.quickEntry]);
+    // Asked again whenever the preferences come back, not only when the binding changes: the binding shows at once,
+    // before the system has taken the combination, and asking then says it is not working.
+  }, [preferences]);
   const path = (row: string) => rowPath('keyboard', subpage, row);
   const changed = SHORTCUT_ACTIONS.some((action) => bindings[action] !== DEFAULT_KEYBINDINGS[action]);
   return (
@@ -648,7 +792,7 @@ export function NotificationsSection({ subpage, highlight, preferences, onPrefer
 }
 
 /** Settings > Advanced > Other apps: Mobius as an MCP server for other agents. */
-function OtherApps({ subpage, highlight }: { subpage: string; highlight: string | null | undefined }) {
+export function OtherApps({ subpage, highlight }: { subpage: string; highlight: string | null | undefined }) {
   const api = window.mobius.share;
   const [status, setStatus] = useState<ShareStatus | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -716,6 +860,7 @@ export function AdvancedSection({ subpage, highlight, settings, onSaveSettings, 
     setStatus(result.ok ? { ok: true, text: 'Saved' } : { ok: false, text: result.error });
   };
   if (subpage === 'other-apps') return <OtherApps subpage={subpage} highlight={highlight} />;
+  if (subpage === 'profiles') return <ProfilesPane subpage={subpage} highlight={highlight} />;
   if (subpage === 'desktop') {
     return (
       <Row path={rowPath('advanced', subpage, 'keep-awake')} title="Keep the computer awake while working" description="Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you." highlight={highlight === 'keep-awake'}>
@@ -745,12 +890,20 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   return <tr><th scope="row">{label}</th><td>{children}</td></tr>;
 }
 
-export function AboutSection({ subpage, highlight, coreStatus }: SectionProps) {
+export function AboutSection({ subpage, highlight, coreStatus, preferences, onPreferences }: SectionProps) {
   const load = useCallback(() => window.mobius.app.about(), []);
   const { value: about } = useLoaded<AboutInfo | null>(load, null);
   const STATUS: Record<CoreStatus, string> = { starting: 'Starting', ready: 'Running', restarting: 'Restarting', failed: 'Not running' };
   return (
     <>
+      <div className="about-brand">
+        <MobiusMark size={56} label="Mobius" />
+        <div>
+          <p className="about-name">Mobius</p>
+          <p className="about-line">{about?.app ? `Version ${about.app}` : 'An agent and the apps it works in.'}</p>
+        </div>
+      </div>
+      <SoftwareUpdate highlight={highlight} preferences={preferences} onPreferences={onPreferences} />
       <Row path={rowPath('about', subpage, 'versions')} title="Versions" description="Mobius, its core, and the parts it runs on." highlight={highlight === 'versions'}>
         <table className="stable" aria-label="Versions">
           <tbody>
@@ -823,5 +976,46 @@ function SavedServers({ current }: { current: string }) {
       </span>
       {problem && <span className="field-error" role="alert">{problem}</span>}
     </div>
+  );
+}
+
+/** Show, hide and reorder the sidebar's apps. At least one stays, so the sidebar is never empty. */
+function SidebarAppsEditor({ value, onChange }: { value: SidebarApp[]; onChange: (apps: SidebarApp[]) => void }) {
+  const hidden = SIDEBAR_APPS.filter((id) => !value.includes(id));
+  const move = (id: SidebarApp, by: -1 | 1) => {
+    const at = value.indexOf(id);
+    const to = at + by;
+    if (at < 0 || to < 0 || to >= value.length) return;
+    const next = [...value];
+    [next[at], next[to]] = [next[to]!, next[at]!];
+    onChange(next);
+  };
+  return (
+    <ul className="sidebar-apps" aria-label="Apps in the sidebar">
+      {[...value, ...hidden].map((id) => {
+        const shown = value.includes(id);
+        const at = value.indexOf(id);
+        return (
+          <li key={id} className="sidebar-app" data-hidden={!shown || undefined}>
+            <label className="sidebar-app-show">
+              <input type="checkbox" checked={shown} disabled={shown && value.length === 1}
+                onChange={(e) => onChange(e.target.checked ? [...value, id] : value.filter((v) => v !== id))} />
+              <svg viewBox="0 0 20 20" aria-hidden="true" data-app={id}>{APP_ICONS[id]}</svg>
+              <span>{appName(id)}</span>
+            </label>
+            {shown && (
+              <span className="sidebar-app-order">
+                <button type="button" className="strip-btn" aria-label={`Move ${appName(id)} up`} disabled={at === 0} onClick={() => move(id, -1)}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 12 4-4 4 4" /></svg>
+                </button>
+                <button type="button" className="strip-btn" aria-label={`Move ${appName(id)} down`} disabled={at === value.length - 1} onClick={() => move(id, 1)}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+                </button>
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

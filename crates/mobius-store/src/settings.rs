@@ -25,8 +25,17 @@ impl Settings {
         let mut value: Map<String, Value> = fields.iter().map(|f| (f.name.to_owned(), (f.default)())).collect();
         if let Some(Value::Object(saved)) = read_json(&file) {
             for f in fields {
-                if let Some(v) = saved.get(f.name).filter(|v| (f.check)(v)) {
-                    value.insert(f.name.to_owned(), v.clone());
+                // A group saved before an entry was added (a new shortcut, say) gets that entry's default, so what
+                // was chosen is kept instead of the whole group being reset.
+                let saved_value = match (saved.get(f.name), (f.default)()) {
+                    (Some(Value::Object(kept)), Value::Object(mut whole)) => {
+                        whole.extend(kept.clone());
+                        Some(Value::Object(whole))
+                    }
+                    (other, _) => other.cloned(),
+                };
+                if let Some(v) = saved_value.filter(|v| (f.check)(v)) {
+                    value.insert(f.name.to_owned(), v);
                 }
             }
         }

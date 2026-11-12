@@ -6,8 +6,8 @@ export type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'conflict' | 'error';
  * page that is open is loaded at once when nothing is waiting to be saved; otherwise the person chooses, so neither
  * version is lost.
  */
-export function onPageChanged(status: SaveStatus, isOpenPage: boolean, by: 'person' | 'assistant'): 'reload' | 'ask' | 'list-only' {
-  if (by !== 'assistant' || !isOpenPage) return 'list-only';
+export function onPageChanged(status: SaveStatus, isOpenPage: boolean, by: 'person' | 'assistant' | 'another app' | 'undo'): 'reload' | 'ask' | 'list-only' {
+  if ((by !== 'assistant' && by !== 'undo') || !isOpenPage) return 'list-only';
   return status === 'saved' ? 'reload' : 'ask';
 }
 

@@ -1,6 +1,6 @@
 //! A stand-in for the core daemon, used only by this crate's tests. It speaks the same one-line JSON-RPC.
 //!
-//! `--never-start` exits at once. It answers `core.ping`, the `agent.*`, `permissions.*` and `events.*` calls the host
+//! `--never-start` exits at once; `--slow-start <ms>` reads nothing for that long (a core on a busy computer). It answers `core.ping`, the `agent.*`, `permissions.*` and `events.*` calls the host
 //! makes with fixed rows (some deliberately malformed), records every other call (`test.log` returns them), and
 //! answers anything else with `{"echo": <method>}`. Special methods: `test.notify`, `test.ask`, `test.fail`,
 //! `test.silent` (never answers) and `test.exit` (dies).
@@ -50,9 +50,15 @@ fn main() {
     if std::env::args().any(|a| a == "--never-start") {
         std::process::exit(3);
     }
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(ms) = args.iter().position(|a| a == "--slow-start").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<u64>().ok()) {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+    }
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
     let mut lines = stdin.lock().lines();
+    let mut last_configure = Value::Null;
+    let mut last_send = Value::Null;
     let mut log: Vec<Value> = Vec::new();
     while let Some(Ok(line)) = lines.next() {
         let Ok(message) = serde_json::from_str::<Value>(&line) else { continue };
@@ -97,7 +103,18 @@ fn main() {
             "agent.configure" if params.get("model") == Some(&json!("reject")) => {
                 send(&mut out, &json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32602, "message": "that model is refused" } }));
             }
-            "agent.configure" | "agent.cancel" | "agent.delete" | "permissions.resolve" | "permissions.revoke" | "agent.set_effort" | "permissions.set_mode" | "tools.register_external" => send(&mut out, &reply(json!({}))),
+            "agent.configure" => {
+                last_configure = params.clone();
+                send(&mut out, &reply(json!({})));
+            }
+            // What the host last set the agent up with, for tests.
+            "test.last_configure" => send(&mut out, &reply(last_configure.clone())),
+            "agent.send" => {
+                last_send = params.clone();
+                send(&mut out, &reply(json!({ "turn": 7 })));
+            }
+            "test.last_send" => send(&mut out, &reply(last_send.clone())),
+            "agent.cancel" | "agent.take_over" | "agent.hand_back" | "agent.delete" | "permissions.resolve" | "permissions.revoke" | "agent.set_effort" | "permissions.set_mode" | "tools.register_external" => send(&mut out, &reply(json!({}))),
             m => match canned(m) {
                 Some(result) => send(&mut out, &reply(result)),
                 None if message.get("id").is_some() => send(&mut out, &reply(json!({ "echo": method }))),

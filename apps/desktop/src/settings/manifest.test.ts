@@ -3,7 +3,9 @@ import { SETTINGS, findSection, searchSettings, settingPath } from './manifest';
 
 describe('the settings map', () => {
   it('has the sections in a fixed order, each with at least one subpage', () => {
-    expect(SETTINGS.map((s) => s.id)).toEqual(['appearance', 'model', 'providers', 'safety', 'browser', 'notifications', 'sessions', 'keyboard', 'advanced', 'about']);
+    expect(SETTINGS.map((s) => s.id)).toEqual(['general', 'appearance', 'notifications', 'keyboard', 'providers', 'model', 'voice', 'safety', 'memory', 'privacy', 'browser', 'sessions', 'schedules', 'extensions', 'advanced', 'about']);
+    // Under headings, as in System Settings.
+    expect([...new Set(SETTINGS.map((s) => s.group))]).toEqual(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
     for (const section of SETTINGS) {
       expect(section.label).not.toBe('');
       expect(section.subpages.length).toBeGreaterThan(0);
@@ -21,7 +23,8 @@ describe('the settings map', () => {
   });
 
   it('finds a section by id and says nothing for an unknown one', () => {
-    expect(findSection('model')?.label).toBe('Model');
+    expect(findSection('model')?.label).toBe('Models');
+    expect(findSection('providers')?.label).toBe('Gateways');
     expect(findSection('nope')).toBeUndefined();
   });
 });
@@ -31,7 +34,7 @@ describe('searching settings', () => {
 
   it('finds a setting by its name, wherever it lives', () => {
     expect(top('theme')).toMatchObject({ section: 'appearance', subpage: 'theme', row: 'theme' });
-    expect(top('api key')).toMatchObject({ section: 'model', row: 'api-key' });
+    expect(top('api key')).toMatchObject({ section: 'providers', row: 'api-key' });
     expect(top('shortcuts')).toMatchObject({ section: 'keyboard' });
     expect(top('delete conversation')).toMatchObject({ section: 'sessions' });
     expect(top('gguf')).toMatchObject({ section: 'model', subpage: 'local' });
@@ -40,17 +43,24 @@ describe('searching settings', () => {
     expect(top('llama.cpp')).toMatchObject({ section: 'model', subpage: 'local' });
     expect(top('provider keys')).toMatchObject({ section: 'providers', subpage: 'keys', row: 'provider-keys' });
     expect(top('credentials')).toMatchObject({ section: 'providers' });
-    expect(top('ollama')).toMatchObject({ section: 'model', row: 'provider' });
+    expect(top('ollama')).toMatchObject({ section: 'providers', row: 'provider' });
     expect(top('browsing history')).toMatchObject({ section: 'browser', subpage: 'history' });
     expect(top('serif font')).toMatchObject({ section: 'appearance', row: 'chat-font' });
     expect(top('right to left')).toMatchObject({ section: 'appearance', row: 'text-direction' });
     expect(top('compact')).toMatchObject({ section: 'appearance', row: 'density' });
     expect(top('hide tool steps')).toMatchObject({ section: 'appearance', row: 'tool-steps' });
-    expect(top('reopen last conversation')).toMatchObject({ section: 'appearance', row: 'resume-last' });
+    expect(top('reopen last conversation')).toMatchObject({ section: 'general', row: 'resume-last' });
+    expect(top('where mobius opens')).toMatchObject({ section: 'appearance', row: 'agent-place' });
+    expect(top('whisper')).toMatchObject({ section: 'voice' });
+    expect(top('kokoro')).toMatchObject({ section: 'voice', subpage: 'speaking' });
+    expect(top('elevenlabs')).toBeDefined();
+    // Gateways is still found by its old name.
+    expect(searchSettings('providers').some((h) => h.section === 'providers')).toBe(true);
     expect(top('context size')).toMatchObject({ section: 'model', subpage: 'local', row: 'context-size' });
     expect(top('context length')).toMatchObject({ section: 'model', subpage: 'local', row: 'context-size' });
-    expect(top('provider')).toMatchObject({ section: 'model', row: 'provider' });
-    expect(top('openrouter')).toMatchObject({ section: 'model', row: 'provider' });
+    expect(searchSettings('provider').some((h) => h.section === 'providers' && h.row === 'provider-keys')).toBe(true);
+    // A service's name finds Gateways (to connect it) first, then the model picker.
+    expect(searchSettings('openrouter').every((h) => h.section === 'providers')).toBe(true);
     expect(top('local network')).toMatchObject({ section: 'browser', subpage: 'network', row: 'private-addresses' });
     expect(top('localhost')).toMatchObject({ section: 'browser', row: 'private-addresses' });
     expect(top('approval mode')).toMatchObject({ section: 'safety', subpage: 'approvals', row: 'approval-mode' });
@@ -60,13 +70,13 @@ describe('searching settings', () => {
     expect(top('resize')).toMatchObject({ section: 'appearance', row: 'sidebar-size' });
     expect(top('rebind')).toMatchObject({ section: 'keyboard', row: 'shortcut-list' });
     expect(top('global shortcut')).toMatchObject({ section: 'keyboard', row: 'quick-entry' });
-    expect(top('second model')).toMatchObject({ section: 'model', row: 'fallback' });
-    expect(top('fallback')).toMatchObject({ section: 'model', row: 'fallback' });
+    expect(top('second model')).toMatchObject({ section: 'providers', row: 'fallback' });
+    expect(top('fallback')).toMatchObject({ section: 'providers', row: 'fallback' });
     expect(top('notify me')).toMatchObject({ section: 'notifications', subpage: 'alerts' });
     expect(top('do not disturb')).toMatchObject({ section: 'notifications' });
     expect(top('mute sounds')).toMatchObject({ section: 'notifications', subpage: 'sounds' });
-    expect(top('keep awake')).toMatchObject({ section: 'advanced', subpage: 'desktop', row: 'keep-awake' });
-    expect(top('prevent sleep')).toMatchObject({ section: 'advanced', row: 'keep-awake' });
+    expect(top('keep awake')).toMatchObject({ section: 'general', subpage: 'general', row: 'keep-awake' });
+    expect(top('prevent sleep')).toMatchObject({ section: 'general', row: 'keep-awake' });
     expect(top('bookmarks')).toMatchObject({ section: 'browser', subpage: 'bookmarks' });
     expect(top('clear history')).toMatchObject({ section: 'browser', subpage: 'history' });
   });

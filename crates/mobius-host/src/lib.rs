@@ -1,8 +1,31 @@
 //! `mobius-host`: starts the core daemon as a child process and talks to it. No window toolkit in here, so it is
 //! tested against the real daemon and a scripted stand-in.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+pub mod updates;
+pub mod voice;
+pub mod access;
+pub mod comments;
+pub mod copilot_account;
+pub mod device_sign_in;
+pub mod images;
 pub mod agent;
+pub mod memory;
+pub mod wiki;
+pub mod projects;
+pub mod code_tests;
+pub mod code_git;
+pub mod code_processes;
+pub mod web;
+pub mod database;
+pub mod terminal;
+pub mod workspace_guide;
+pub mod turn_history;
+pub mod schedules;
+pub mod calendar_accounts;
+pub mod mail;
 pub mod chatgpt;
+pub mod key_sign_in;
+pub mod loopback;
 pub mod mcp_server;
 pub mod awake;
 pub mod bridge;

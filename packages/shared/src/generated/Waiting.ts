@@ -3,4 +3,8 @@
 /**
  * A tool call that is waiting for a person to allow or decline it.
  */
-export type Waiting = { request_id: number, call_id: string, tool: string, arguments: unknown, once_only: boolean, };
+export type Waiting = { request_id: number, call_id: string, tool: string, arguments: unknown, once_only: boolean, 
+/**
+ * The request came from something Mobius read, not from the person.
+ */
+origin?: string, };

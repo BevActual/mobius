@@ -22,8 +22,12 @@ test('opens one window with a single visible page glued to the slot', async () =
   expect(view.url).toBe(fixture.origin + '/');
   await expect(tabTitles()).toHaveText(['Fixture home']);
   await expect(address()).toHaveValue(fixture.origin + '/');
-  const slot = (await mobius.shell.getByTestId('surface-slot').boundingBox())!;
-  for (const key of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(view.bounds[key] - slot[key]), key).toBeLessThanOrEqual(2);
+  // Mobius, pinned beside the page in these tests, opens once the saved layout is read: the page follows the slot.
+  await expect.poll(async () => {
+    const slot = (await mobius.shell.getByTestId('surface-slot').boundingBox())!;
+    const shown = (await views(mobius.app)).find((v) => v.visible)!;
+    return Math.max(...(['x', 'y', 'width', 'height'] as const).map((key) => Math.abs(shown.bounds[key] - slot[key])));
+  }).toBeLessThanOrEqual(2);
 });
 
 test('the page stays glued to the slot when the window resizes and the panel toggles', async () => {
@@ -90,16 +94,23 @@ test('window.open becomes a new tab for web addresses only, and pages cannot nav
   expect((await views(mobius.app)).find((v) => v.id === first!.id)!.url).toBe(fixture.origin + '/');
 });
 
-test('only the active tab is visible, and closing the last tab opens a fresh one', async () => {
+test('a new tab shows the start page instead of a page view, and closing the last tab opens a fresh one', async () => {
   await mobius.shell.getByRole('button', { name: 'New tab' }).click();
   await expect(tabTitles()).toHaveCount(2);
-  expect((await views(mobius.app)).filter((v) => v.visible)).toHaveLength(1);
-  await mobius.shell.getByRole('button', { name: 'Close Fixture home' }).click();
+  // Mobius draws the start page itself: no page view shows, so nothing of it reaches a web page.
+  const start = mobius.shell.getByRole('region', { name: 'New tab' });
+  await expect(start).toBeVisible();
+  await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(0);
+  // The site visited before is offered, and opens in this tab.
+  const host = new URL(fixture.origin).hostname;
+  await start.getByRole('region', { name: 'Frequently visited' }).getByRole('button', { name: host }).click();
+  await expect(start).toBeHidden();
+  await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(1);
+  await mobius.shell.getByRole('button', { name: 'Close Fixture home' }).first().click();
   await expect(tabTitles()).toHaveCount(1);
   await mobius.shell.getByRole('button', { name: /^Close / }).click();
   await expect(tabTitles()).toHaveCount(1);
-  // The page is placed again a moment after the list changes, so look until it is there.
-  await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(1);
+  await expect(mobius.shell.getByRole('region', { name: 'New tab' })).toBeVisible();
 });
 
 test('the launcher hides the native page while open and returns focus on Escape', async () => {
@@ -111,8 +122,8 @@ test('the launcher hides the native page while open and returns focus on Escape'
   await expect(dialog).toBeVisible();
   await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(0);
   await expect(mobius.shell.getByRole('combobox', { name: /Find apps/ })).toBeFocused();
-  await mobius.shell.keyboard.type('code');
-  await expect(mobius.shell.getByRole('option', { name: /Code/ })).toHaveAttribute('aria-disabled', 'true');
+  await mobius.shell.keyboard.type('canvas');
+  await expect(mobius.shell.getByRole('option', { name: /^Canvas/ }).first()).toBeVisible();
   await mobius.shell.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect.poll(async () => (await views(mobius.app)).filter((v) => v.visible).length).toBe(1);
@@ -128,4 +139,12 @@ test('the launcher finds an open page and activates it', async () => {
   await mobius.shell.keyboard.press('Enter');
   await expect(mobius.shell.getByRole('dialog', { name: 'Launcher' })).toBeHidden();
   await expect(mobius.shell.locator('.tab[aria-current="page"] .tab-title')).toHaveText('Fixture home');
+});
+
+test('the launcher finds menu commands by name, and offers to ask Mobius only once a model is set up', async () => {
+  await mobius.shell.keyboard.press('Control+K');
+  await mobius.shell.keyboard.type('split');
+  await expect(mobius.shell.getByRole('option', { name: /^Split view/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(mobius.shell.getByRole('option', { name: /Ask Mobius/ })).toHaveCount(0);
+  await mobius.shell.keyboard.press('Escape');
 });

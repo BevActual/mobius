@@ -47,18 +47,23 @@ pub fn jwt_claims(token: &str) -> Option<Value> {
     serde_json::from_slice(&base64url(payload)?).ok()
 }
 
-/// What the ChatGPT endpoint needs besides the token: who is calling, and which workspace the token is for. After
-/// Hermes Agent's `codex_headers.py` (MIT).
-pub fn chatgpt_headers(token: &str) -> Vec<(String, String)> {
-    let mut headers = vec![("originator".to_owned(), "mobius".to_owned()), ("User-Agent".to_owned(), format!("Mobius/{}", env!("CARGO_PKG_VERSION")))];
-    let auth = jwt_claims(token).and_then(|c| c.get("https://api.openai.com/auth").cloned()).unwrap_or(Value::Null);
-    if let Some(account) = auth.get("chatgpt_account_id").and_then(Value::as_str).filter(|s| !s.is_empty() && s.len() < 200) {
-        headers.push(("ChatGPT-Account-ID".to_owned(), account.to_owned()));
-    }
-    if let Some(residency) = auth.get("chatgpt_data_residency").or_else(|| auth.get("chatgpt_compute_residency")).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty() && s.len() < 100) {
-        headers.push(("x-openai-internal-codex-residency".to_owned(), residency.to_owned()));
-    }
-    headers
+/// What a ChatGPT plan request sends besides the token: only who is calling. OpenAI's public Responses API takes
+/// the account and workspace from the token itself.
+pub fn chatgpt_headers(_token: &str) -> Vec<(String, String)> {
+    vec![("User-Agent".to_owned(), format!("Mobius/{}", env!("CARGO_PKG_VERSION")))]
+}
+
+/// What to tell the person for a ChatGPT plan error, when it is one with its own advice
+/// (https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery).
+pub fn plan_error(code: &str) -> Option<&'static str> {
+    Some(match code {
+        "subscription_sharing_usage_limit_exceeded" => "Mobius has reached its limit on your ChatGPT plan for now. See Manage usage in ChatGPT Settings, Usage.",
+        "subscription_sharing_usage_unavailable" | "subscription_sharing_user_unavailable" => "ChatGPT could not check your plan's usage just now. Try again in a moment.",
+        "subscription_sharing_user_not_eligible" => "This ChatGPT account cannot use its plan in other apps. Use an OpenAI API key instead.",
+        "subscription_sharing_unsupported_capability" => "Your ChatGPT plan cannot do that through Mobius (images, files or a tool it does not allow).",
+        "subscription_sharing_invalid_user" | "chatpass_v2_scope_not_authorized" | "chatpass_v2_invalid_authorization_context" => "ChatGPT did not accept the sign-in for your plan. Sign in again in Settings, Gateways.",
+        _ => return None,
+    })
 }
 
 /// The request body for one model call.
@@ -66,7 +71,11 @@ pub fn build_body(request: &ChatRequest) -> Value {
     let mut input = Vec::new();
     for message in &request.messages {
         match message {
-            Message::User { text } => input.push(json!({ "type": "message", "role": "user", "content": [{ "type": "input_text", "text": text }] })),
+            Message::User { text, images, .. } => {
+                let mut content = vec![json!({ "type": "input_text", "text": text })];
+                content.extend(images.iter().map(|url| json!({ "type": "input_image", "image_url": url })));
+                input.push(json!({ "type": "message", "role": "user", "content": content }));
+            }
             Message::Assistant { text, tool_calls } => {
                 if !text.is_empty() {
                     input.push(json!({ "type": "message", "role": "assistant", "content": [{ "type": "output_text", "text": text }] }));
@@ -108,9 +117,12 @@ pub struct ResponsesStream {
 
 fn status_for(code: &str) -> u16 {
     match code {
-        "rate_limit_exceeded" | "insufficient_quota" | "usage_limit_reached" => 429,
-        "context_length_exceeded" | "invalid_request_error" | "invalid_prompt" => 400,
+        "rate_limit_exceeded" | "insufficient_quota" | "usage_limit_reached" | "subscription_sharing_usage_limit_exceeded" => 429,
+        "context_length_exceeded" | "invalid_request_error" | "invalid_prompt" | "subscription_sharing_unsupported_capability" => 400,
+        "subscription_sharing_invalid_user" => 401,
+        "subscription_sharing_user_not_eligible" | "chatpass_v2_scope_not_authorized" | "chatpass_v2_invalid_authorization_context" => 403,
         "server_error" => 500,
+        "subscription_sharing_usage_unavailable" | "subscription_sharing_user_unavailable" => 503,
         _ => 502,
     }
 }
@@ -143,7 +155,7 @@ impl ResponsesStream {
             "response.failed" | "error" => {
                 let error = event.pointer("/response/error").or_else(|| event.get("error")).unwrap_or(event);
                 let code = error.get("code").and_then(Value::as_str).unwrap_or("");
-                let message: String = error.get("message").and_then(Value::as_str).unwrap_or("the model failed").chars().take(MAX_ERROR_CHARS).collect();
+                let message: String = plan_error(code).or_else(|| error.get("message").and_then(Value::as_str)).unwrap_or("the model failed").chars().take(MAX_ERROR_CHARS).collect();
                 return Err(ProviderError::Http { status: status_for(code), message });
             }
             _ => {}
@@ -181,7 +193,7 @@ impl std::fmt::Debug for ResponsesProvider {
 }
 
 impl ResponsesProvider {
-    /// `base_url` is the API root (`https://chatgpt.com/backend-api/codex`); requests go to `<base>/responses`.
+    /// `base_url` is the API root (`https://api.openai.com/v1`); requests go to `<base>/responses`.
     pub fn new(base_url: &str, token: &str, headers: Vec<(String, String)>) -> Result<Self, String> {
         let base = base_url.trim().trim_end_matches('/');
         crate::openai::check_base_url(base, true)?;
@@ -204,7 +216,8 @@ fn error_text(body: &[u8]) -> String {
     let text = String::from_utf8_lossy(body);
     serde_json::from_str::<Value>(&text)
         .ok()
-        .and_then(|v| v.pointer("/error/message").or_else(|| v.get("detail")).and_then(Value::as_str).map(str::to_owned))
+        .and_then(|v| v.pointer("/error/code").and_then(Value::as_str).and_then(plan_error).map(Value::from).or_else(|| v.pointer("/error/message").cloned()).or_else(|| v.get("detail").cloned()))
+        .and_then(|v| v.as_str().map(str::to_owned))
         .unwrap_or_else(|| text.trim().to_owned())
         .chars()
         .take(MAX_ERROR_CHARS)
@@ -270,7 +283,7 @@ mod tests {
             model: "gpt-5.5".into(),
             system: "You are Mobius.".into(),
             messages: vec![
-                Message::User { text: "read it".into() },
+                Message::user("read it"),
                 Message::Assistant { text: "Reading.".into(), tool_calls: vec![ToolCall { id: "c1".into(), name: "files.read".into(), arguments: json!({ "path": "a" }) }] },
                 Message::Tool { call_id: "c1".into(), name: "files.read".into(), content: "nope".into(), is_error: true },
             ],
@@ -341,23 +354,35 @@ mod tests {
     }
 
     #[test]
-    fn the_account_headers_come_from_the_token() {
-        let token = fake_jwt(&json!({ "exp": 99, "https://api.openai.com/auth": { "chatgpt_account_id": "acct-1", "chatgpt_data_residency": "eu" } }));
+    fn plan_errors_say_what_to_do() {
+        let token = fake_jwt(&json!({ "exp": 99 }));
         assert_eq!(jwt_claims(&token).unwrap()["exp"], 99);
-        let h = chatgpt_headers(&token);
-        assert!(h.contains(&("ChatGPT-Account-ID".into(), "acct-1".into())));
-        assert!(h.contains(&("x-openai-internal-codex-residency".into(), "eu".into())));
-        assert!(h.contains(&("originator".into(), "mobius".into())));
-        let plain = chatgpt_headers("not a token");
-        assert!(!plain.iter().any(|(k, _)| k == "ChatGPT-Account-ID"), "a broken token sends no account");
+        assert_eq!(chatgpt_headers(&token).len(), 1, "only who is calling: no private headers");
+        let mut stream = ResponsesStream::default();
+        let failed = json!({ "type": "response.failed", "response": { "error": { "code": "subscription_sharing_usage_limit_exceeded", "message": "x" } } });
+        match stream.feed(&failed) {
+            Err(ProviderError::Http { status, message }) => assert!(status == 429 && message.contains("Manage usage"), "{message}"),
+            other => panic!("{other:?}"),
+        }
+        assert!(error_text(br#"{"error":{"code":"subscription_sharing_user_not_eligible","message":"no"}}"#).contains("API key"));
+        assert_eq!(error_text(br#"{"detail":"blocked"}"#), "blocked");
     }
 
     #[test]
     fn the_token_is_required_and_never_shown() {
-        assert!(ResponsesProvider::new("https://chatgpt.com/backend-api/codex", " ", vec![]).is_err());
+        assert!(ResponsesProvider::new("https://api.openai.com/v1", " ", vec![]).is_err());
         assert!(ResponsesProvider::new("http://chatgpt.example/x", "t", vec![]).is_err(), "never over plain http to another machine");
-        let p = ResponsesProvider::new("https://chatgpt.com/backend-api/codex/", "SECRET", vec![]).unwrap();
+        let p = ResponsesProvider::new("https://api.openai.com/v1/", "SECRET", vec![]).unwrap();
         assert!(!format!("{p:?}").contains("SECRET"));
-        assert_eq!(p.url, "https://chatgpt.com/backend-api/codex/responses");
+        assert_eq!(p.url, "https://api.openai.com/v1/responses");
     }
+
+    #[test]
+    fn pictures_go_as_input_images() {
+        let mut r = request();
+        r.messages = vec![Message::User { text: "look".into(), images: vec!["data:image/jpeg;base64,AAAA".into()], at_ms: None }];
+        let body = build_body(&r);
+        assert_eq!(body["input"][0]["content"][1], json!({ "type": "input_image", "image_url": "data:image/jpeg;base64,AAAA" }));
+    }
+
 }
