@@ -1512,6 +1512,18 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .mail-subject { font-size: var(--fs-lg); font-weight: 600; }
 .mail-to { font-size: var(--fs-sm); color: var(--muted); }
 .mail-reader-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
+.mail-tools { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; padding-bottom: var(--sp-2); border-bottom: 1px solid var(--hairline); }
+.mail-tools-group { display: inline-flex; align-items: center; gap: 2px; }
+.mail-tools .strip-btn { border-radius: 8px; color: var(--muted); }
+.mail-tools .strip-btn:hover { background: var(--soft); color: var(--ink); }
+.mail-tools .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.mail-tools .strip-btn[aria-pressed="true"] { background: none; color: var(--flag, #f59e0b); }
+.mail-tools .strip-btn svg [data-dot] { fill: var(--accent); stroke: none; }
+.mail-tools .strip-btn svg[data-filled="true"] path { fill: currentColor; }
+.mail-row-flag { display: inline-flex; color: var(--flag, #f59e0b); }
+.mail-row-flag svg { width: 12px; height: 12px; fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.mail-row[data-flagged]:not([data-unread])::before { content: none; }
+.btn.mail-draft-it { color: var(--accent); }
 .mail-reader-actions select { height: 30px; padding: 0 24px 0 10px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--bg) var(--chevron) no-repeat right 8px center / 12px; appearance: none; font: inherit; font-size: var(--fs-sm); color: inherit; }
 .btn.mobius { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .mail-html { width: 100%; border: 0; border-radius: var(--radius-group); background: #fff; }
