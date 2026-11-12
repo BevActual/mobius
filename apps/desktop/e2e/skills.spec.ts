@@ -140,10 +140,23 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors in on
   const page = shell().getByRole('region', { name: 'Connectors' });
   await expect(page).toContainText('No connectors yet');
   await expect(page.getByRole('switch', { name: 'Let other apps use Mobius' })).toBeVisible();
-  // Add a Connector explains mcp.json in a sheet.
+  // Add a Connector writes the server into mcp.json; it waits for Mobius to open again, and can be taken out.
   await page.getByRole('button', { name: 'Add a Connector…' }).click();
   const sheet = shell().getByRole('dialog', { name: 'Add a connector' });
-  await expect(sheet).toContainText('mcp.json');
-  await sheet.getByRole('button', { name: 'Done' }).click();
+  await sheet.getByRole('textbox', { name: 'Command' }).fill('npx');
+  await sheet.getByRole('textbox', { name: 'Arguments' }).fill('-y @modelcontextprotocol/server-github');
+  await expect(sheet.getByRole('textbox', { name: 'Name' })).toHaveValue('github');
+  await sheet.getByRole('button', { name: 'Add a Key' }).click();
+  await sheet.getByRole('textbox', { name: 'Key 1 name' }).fill('GITHUB_TOKEN');
+  await sheet.getByLabel('Key 1 value').fill('t0ken');
+  await sheet.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(sheet).toBeHidden();
+  const mcp = path.join(userData, 'mcp.json');
+  await expect.poll(() => fs.existsSync(mcp) && JSON.parse(fs.readFileSync(mcp, 'utf8')).servers?.github).toEqual({ command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_TOKEN: 't0ken' } });
+  const row = page.getByRole('listitem', { name: 'github' });
+  await expect(row).toContainText('starts when Mobius reopens');
+  await row.getByRole('button', { name: 'Remove github' }).click();
+  await row.getByRole('group', { name: 'Remove github?' }).getByRole('button', { name: 'Remove' }).click();
+  await expect(row).toBeHidden();
+  await expect.poll(() => JSON.parse(fs.readFileSync(mcp, 'utf8')).servers).toEqual({});
 });

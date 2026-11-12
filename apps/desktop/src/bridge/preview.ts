@@ -60,12 +60,22 @@ const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filte
 const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv'] };
 
 let previewLook = { ...DEFAULT_APPEARANCE };
+// Abilities › Connectors: two servers as Mobius started them, and what was added or removed since.
+const previewWaiting = new Set<string>();
+const previewLeaving = new Set<string>();
+const previewConnectors = () => ({ running: ['github'], failed: [{ server: 'linear', error: 'The command was not found' }], problem: null, waiting: [...previewWaiting], leaving: [...previewLeaving] });
 
 /** Answers for the calls that must return more than an empty list. Keyed by the call's path. */
 const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'core.getStatus': () => 'ready',
   'files.list': (path: string) => ({ path, truncated: false, entries: path === '' ? [{ name: 'docs', type: 'folder' }, { name: 'notes', type: 'folder' }, { name: 'sheets', type: 'folder' }, { name: 'tasks', type: 'folder' }, { name: 'README.md', type: 'file', bytes: 2048 }] : path === 'notes' ? [{ name: 'P2 build', type: 'folder' }, { name: 'Home', type: 'folder' }] : path === 'notes/P2 build' ? [{ name: 'Build plan.md', type: 'file', bytes: 620 }, { name: 'Supplier notes.md', type: 'file', bytes: 410 }] : [] }),
-  'extensions.connectors': () => ({ running: ['github'], failed: [{ server: 'linear', error: 'The command was not found' }], problem: null }),
+  'extensions.connectors': () => previewConnectors(),
+  'extensions.addConnector': (draft: { name: string }) => {
+    if (['github', 'linear', ...previewWaiting].includes(draft.name)) return { ok: false, error: `There is already a connector called ${draft.name}.` };
+    previewWaiting.add(draft.name);
+    return { ok: true, status: previewConnectors() };
+  },
+  'extensions.removeConnector': (name: string) => { if (!previewWaiting.delete(name)) previewLeaving.add(name); return { ok: true, status: previewConnectors() }; },
   // The look is kept for the session, so choices in the preview stick and a change never answers with a failure.
   'appearance.get': () => ({ ...previewLook }),
   'appearance.set': ((change: Partial<typeof DEFAULT_APPEARANCE>) => { previewLook = { ...previewLook, ...change }; return { ...previewLook }; }) as never,

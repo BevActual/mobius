@@ -281,6 +281,8 @@ export function createTauriBridge(): MobiusBridge {
     },
     extensions: {
       connectors: () => call('extensions', 'connectors', [], () => ({ running: [], failed: [], problem: null })),
+      addConnector: (draft) => call('extensions', 'addConnector', [draft], () => ({ ok: false as const, error: 'Not available.' })),
+      removeConnector: (name) => call('extensions', 'removeConnector', [name], () => ({ ok: false as const, error: 'Not available.' })),
     },
     share: {
       status: () => call('share', 'status', [], () => ({ enabled: false, allowChanges: false, port: 0, running: false, url: null, problem: 'Not available.' })),

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { ConnectorStatus } from '@mobius/shared';
 import { InstallDialog, SkillsSidebar } from './Skills';
@@ -8,6 +8,7 @@ import { APP_GROUPS, APPS, CORE_APPS, isInstalled, withApp, type AppId, type App
 import { APP_ICONS } from './Rail';
 import { usePreferences } from './usePreferences';
 import { ContextMenu } from './ContextMenu';
+import { isConnectorName, splitArgs, suggestName } from './connector-form';
 import './abilities.css';
 
 /**
@@ -69,14 +70,17 @@ export const appMatches = (q: string, app: AppInfo) => matches(q, app.name, app.
 /** The apps the library lists: every app that can be added, leaving out Mobius's own apps, which are always there. */
 const LIBRARY = APPS.filter((a) => a.available && !(CORE_APPS as readonly string[]).includes(a.id));
 
-/** The connectors Mobius started, looked at again once they have had a moment to start. */
+/** The connectors Mobius started, kept in one place so the sidebar's count and the page agree after a change. */
+let connectorStatus: ConnectorStatus | null = null;
+const connectorListeners = new Set<() => void>();
+const loadConnectors = () => {
+  void window.mobius.extensions?.connectors().then((next) => { connectorStatus = next; connectorListeners.forEach((l) => l()); }).catch(() => undefined);
+};
 function useConnectors(): { status: ConnectorStatus | null; reload: () => void } {
-  const api = window.mobius.extensions;
-  const [status, setStatus] = useState<ConnectorStatus | null>(null);
-  const reload = useCallback(() => { void api?.connectors().then(setStatus).catch(() => undefined); }, [api]);
-  useEffect(reload, [reload]);
-  useEffect(() => { const t = window.setTimeout(reload, 3000); return () => window.clearTimeout(t); }, [reload]);
-  return { status, reload };
+  const status = useSyncExternalStore((l) => { connectorListeners.add(l); return () => connectorListeners.delete(l); }, () => connectorStatus);
+  // Servers start in the background: look now, and again once they have had a moment.
+  useEffect(() => { loadConnectors(); const t = window.setTimeout(loadConnectors, 3000); return () => window.clearTimeout(t); }, []);
+  return { status, reload: loadConnectors };
 }
 
 function PlaceIcon({ tint, children }: { tint: string; children: ReactNode }) {
@@ -92,7 +96,7 @@ function Places({ place, onPlace, skills }: { place: ExtensionPlace; onPlace: (p
   const counts: Record<ExtensionPlace, number | null> = {
     apps: added,
     skills: skills.available ? skills.list.length : null,
-    connectors: status ? status.running.length + status.failed.length : null,
+    connectors: status ? status.running.length + status.failed.length + (status.waiting?.length ?? 0) - (status.leaving?.length ?? 0) : null,
   };
   return (
     <nav className="task-lists ext-places" aria-label="Abilities">
@@ -243,13 +247,32 @@ function AppLibrary({ onOpenApp }: { onOpenApp?: ((id: AppId) => void) | undefin
 /** The MCP servers Mobius starts from mcp.json, and Mobius offered to other apps. */
 function Connectors() {
   const api = window.mobius.extensions;
-  const { status } = useConnectors();
+  const { status, reload } = useConnectors();
   const [q] = useAbilitiesQuery();
   const [adding, setAdding] = useAddingConnector();
   const [details, setDetails] = useState<string | null>(null);
-  const none = status && status.running.length === 0 && status.failed.length === 0;
-  const running = status?.running.filter((s) => matches(q, s)) ?? [];
-  const failed = status?.failed.filter((f) => matches(q, f.server)) ?? [];
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const leaving = new Set(status?.leaving ?? []);
+  const rows: { name: string; state: 'on' | 'failed' | 'waiting'; error?: string }[] = [
+    ...(status?.running ?? []).map((name) => ({ name, state: 'on' as const })),
+    ...(status?.failed ?? []).map((f) => ({ name: f.server, state: 'failed' as const, error: f.error })),
+    ...(status?.waiting ?? []).map((name) => ({ name, state: 'waiting' as const })),
+  ];
+  const shown = rows.filter((r) => matches(q, r.name));
+  const remove = async (name: string) => {
+    setProblem(null);
+    const done = await api?.removeConnector?.(name).catch(() => null);
+    if (!done || !done.ok) { setProblem(done && !done.ok ? done.error : 'That connector could not be removed.'); return; }
+    setRemoving(null);
+    reload();
+  };
+  const sub = (r: (typeof rows)[number]) => {
+    if (leaving.has(r.name)) return 'Removed. It stops when Mobius reopens.';
+    if (r.state === 'waiting') return 'Added. It starts when Mobius reopens.';
+    if (r.state === 'failed') return 'Couldn’t start';
+    return 'Connected';
+  };
   return (
     <>
       <p className="abl-lede">Connectors give Mobius tools from other apps over MCP. Each one asks before it is used, as your approvals say.</p>
@@ -260,74 +283,116 @@ function Connectors() {
         </div>
         {!api && <p className="abl-empty settings-card">Only the desktop app runs connectors.</p>}
         {status?.problem && <p className="field-error" role="alert">{status.problem}</p>}
-        {none && <p className="abl-empty settings-card">No connectors yet. Add one to give Mobius tools from another app.</p>}
-        {(running.length > 0 || failed.length > 0) && (
+        {problem && <p className="field-error" role="alert">{problem}</p>}
+        {status && rows.length === 0 && <p className="abl-empty settings-card">No connectors yet. Add one to give Mobius tools from another app.</p>}
+        {shown.length > 0 && (
           <ul className="abl-list settings-card" role="list" aria-label="Connectors">
-            {running.map((s) => (
-              <li key={s} className="abl-row" aria-label={s}>
-                <span className="abl-dot" data-state="on" aria-hidden="true" />
-                <span className="abl-text"><span className="abl-name">{s}</span><span className="abl-sub">Connected</span></span>
-              </li>
-            ))}
-            {failed.map((f) => (
-              <li key={f.server} className="abl-row abl-row-wrap" aria-label={f.server}>
-                <span className="abl-dot" data-state="failed" aria-hidden="true" />
-                <span className="abl-text"><span className="abl-name">{f.server}</span><span className="abl-sub abl-error">Couldn’t start</span></span>
-                <button type="button" className="btn" aria-expanded={details === f.server} onClick={() => setDetails((d) => (d === f.server ? null : f.server))}>{details === f.server ? 'Hide Details' : 'Show Details'}</button>
-                {details === f.server && <p className="abl-detail">{f.error}. Fix its entry in mcp.json, then reopen Mobius to start it again.</p>}
+            {shown.map((r) => (
+              <li key={r.name} className="abl-row abl-row-wrap" aria-label={r.name}>
+                <span className="abl-dot" data-state={leaving.has(r.name) ? 'waiting' : r.state} aria-hidden="true" />
+                <span className="abl-text"><span className="abl-name">{r.name}</span><span className={r.state === 'failed' && !leaving.has(r.name) ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
+                {r.state === 'failed' && !leaving.has(r.name) && (
+                  <button type="button" className="btn" aria-expanded={details === r.name} onClick={() => setDetails((d) => (d === r.name ? null : r.name))}>{details === r.name ? 'Hide Details' : 'Show Details'}</button>
+                )}
+                {!leaving.has(r.name) && api?.removeConnector && removing !== r.name && (
+                  <button type="button" className="btn" aria-label={`Remove ${r.name}`} onClick={() => setRemoving(r.name)}>Remove…</button>
+                )}
+                {removing === r.name && (
+                  <span className="abl-confirm" role="group" aria-label={`Remove ${r.name}?`}>
+                    <span className="abl-note">Remove from mcp.json?</span>
+                    <button type="button" className="btn" onClick={() => setRemoving(null)}>Cancel</button>
+                    <button type="button" className="btn danger" onClick={() => void remove(r.name)}>Remove</button>
+                  </span>
+                )}
+                {details === r.name && r.error && <p className="abl-detail">{r.error}. Fix its entry in mcp.json, then reopen Mobius to start it again.</p>}
               </li>
             ))}
           </ul>
         )}
-        {status && !none && running.length === 0 && failed.length === 0 && <p className="abl-empty settings-card">No connectors match “{q.trim()}”.</p>}
+        {rows.length > 0 && shown.length === 0 && <p className="abl-empty settings-card">No connectors match “{q.trim()}”.</p>}
       </section>
       <section className="abl-group" aria-label="Mobius for other apps">
         <h2 className="abl-group-title">Mobius for other apps</h2>
         <div className="settings-card abl-card"><OtherApps subpage="other-apps" highlight={null} /></div>
       </section>
-      {adding && <AddConnectorSheet onClose={() => setAdding(false)} />}
+      {adding && <AddConnectorSheet onClose={() => setAdding(false)} onAdded={reload} />}
     </>
   );
 }
 
-const EXAMPLE = `{
-  "servers": {
-    "github": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"], "env": { "GITHUB_TOKEN": "…" } }
-  }
-}`;
-
 /**
- * Add a Connector: what a connector is, the lines that add one, and where they go. Mobius starts the servers in
- * mcp.json when it opens, so the last step is to reopen it.
+ * Add a Connector: the server's command, its arguments and any keys it needs, written to mcp.json for you. The
+ * connector starts the next time Mobius opens; editing the file yourself stays one click away.
  */
-function AddConnectorSheet({ onClose }: { onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => { void navigator.clipboard?.writeText(EXAMPLE).then(() => setCopied(true)).catch(() => undefined); };
+function AddConnectorSheet({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const api = window.mobius.extensions;
+  const [command, setCommand] = useState('');
+  const [argLine, setArgLine] = useState('');
+  const [name, setName] = useState('');
+  const [named, setNamed] = useState(false);
+  const [keys, setKeys] = useState<{ key: string; value: string }[]>([]);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const args = splitArgs(argLine);
+  const shownName = named ? name : suggestName(command, args);
+  const nameOk = isConnectorName(shownName);
+  const keysOk = keys.every((k) => k.key.trim() === '' || /^[A-Za-z_][A-Za-z0-9_]*$/.test(k.key.trim()));
+  const ready = command.trim() !== '' && nameOk && keysOk && !saving;
   useEffect(() => {
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [onClose]);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!ready || !api?.addConnector) return;
+    setSaving(true);
+    setProblem(null);
+    const env = Object.fromEntries(keys.filter((k) => k.key.trim() !== '').map((k) => [k.key.trim(), k.value]));
+    const done = await api.addConnector({ name: shownName, command: command.trim(), args, env }).catch(() => null);
+    setSaving(false);
+    if (!done || !done.ok) { setProblem(done && !done.ok ? done.error : 'The connector could not be added.'); return; }
+    onAdded();
+    onClose();
+  };
   return createPortal(
     <div className="cal-modal-layer" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="camera-dialog" role="dialog" aria-modal="true" aria-label="Add a connector">
+      <form className="camera-dialog abl-sheet" role="dialog" aria-modal="true" aria-label="Add a connector" onSubmit={(e) => void submit(e)}>
         <h2>Add a Connector</h2>
         <p className="camera-note">A connector is an MCP server: a small program that gives Mobius tools from another app, such as GitHub or Linear. Its maker’s page gives the command that runs it.</p>
-        <ol className="abl-steps">
-          <li>Open <b>mcp.json</b> in Mobius’s data folder (make it if it is not there).</li>
-          <li>Add the server under <code>servers</code>, with its command and any keys it needs:</li>
-        </ol>
-        <pre className="abl-code" aria-label="Example">{EXAMPLE}</pre>
-        <ol className="abl-steps" start={3}>
-          <li>Reopen Mobius. The connector appears in Connectors, and each of its tools asks before it is used.</li>
-        </ol>
-        <div className="camera-actions">
-          <button type="button" className="btn abl-link" onClick={() => void window.mobius.app.openDataFolder()}>Open Data Folder</button>
-          <span className="abl-spacer" />
-          <button type="button" className="btn" onClick={copy}>{copied ? 'Copied' : 'Copy Example'}</button>
-          <button type="button" className="btn primary" onClick={onClose}>Done</button>
+        <div className="abl-fields settings-card">
+          <label className="abl-field"><span>Command</span><input autoFocus aria-label="Command" placeholder="npx" value={command} onChange={(e) => setCommand(e.target.value)} spellCheck={false} /></label>
+          <label className="abl-field"><span>Arguments</span><input aria-label="Arguments" placeholder="-y @modelcontextprotocol/server-github" value={argLine} onChange={(e) => setArgLine(e.target.value)} spellCheck={false} /></label>
+          <label className="abl-field">
+            <span>Name</span>
+            <input aria-label="Name" placeholder="github" value={shownName} maxLength={24} aria-invalid={shownName !== '' && !nameOk} onChange={(e) => { setNamed(true); setName(e.target.value); }} spellCheck={false} />
+          </label>
         </div>
-      </div>
+        {shownName !== '' && !nameOk && <p className="field-error">Use lowercase letters, digits and _, starting with a letter.</p>}
+        <div className="abl-keys" role="group" aria-label="Keys">
+          <div className="abl-group-head"><span className="abl-group-title">Keys</span><button type="button" className="btn" onClick={() => setKeys((k) => [...k, { key: '', value: '' }])}>Add a Key</button></div>
+          {keys.length === 0 ? <p className="abl-note abl-keys-empty">Some servers need a key or token, such as GITHUB_TOKEN. They are kept in mcp.json on this computer.</p> : (
+            <ul className="abl-list settings-card" role="list">
+              {keys.map((k, i) => (
+                <li key={i} className="abl-row abl-key">
+                  <input aria-label={`Key ${i + 1} name`} placeholder="GITHUB_TOKEN" value={k.key} spellCheck={false} onChange={(e) => setKeys((all) => all.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))} />
+                  <input aria-label={`Key ${i + 1} value`} type="password" placeholder="Value" value={k.value} onChange={(e) => setKeys((all) => all.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
+                  <button type="button" className="strip-btn" aria-label={`Remove key ${i + 1}`} onClick={() => setKeys((all) => all.filter((_, j) => j !== i))}>×</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!keysOk && <p className="field-error">A key’s name uses letters, digits and _, such as API_KEY.</p>}
+        </div>
+        <p className="camera-note">It starts the next time Mobius opens, and each of its tools asks before it is used.</p>
+        {problem && <p className="field-error" role="alert">{problem}</p>}
+        <div className="camera-actions">
+          <button type="button" className="btn abl-link" onClick={() => void window.mobius.app.openDataFolder()}>Edit mcp.json Yourself…</button>
+          <span className="abl-spacer" />
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn primary" disabled={!ready}>Add</button>
+        </div>
+      </form>
     </div>,
     document.body,
   );
