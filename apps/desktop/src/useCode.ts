@@ -13,6 +13,17 @@ function remembered(): Place | null {
 }
 const keep = (place: Place) => { try { window.localStorage.setItem(LAST_KEY, JSON.stringify(place)); } catch { /* Not kept. */ } };
 
+const RECENT_KEY = 'mobius.code.recent';
+const RECENT_MAX = 8;
+/** The files opened lately in each project, newest first, for the screen shown when no file is open. */
+function recentFiles(): Record<string, string[]> {
+  try {
+    const v: unknown = JSON.parse(window.localStorage.getItem(RECENT_KEY) ?? '{}');
+    if (typeof v === 'object' && v !== null) return Object.fromEntries(Object.entries(v).filter(([, list]) => Array.isArray(list)).map(([k, list]) => [k, (list as unknown[]).filter((p): p is string => typeof p === 'string').slice(0, RECENT_MAX)]));
+  } catch { /* Nothing kept. */ }
+  return {};
+}
+
 export interface CodeTests { command: string | null; suggested: string | null; running: boolean; last: CodeTestRun | null; by: 'person' | 'assistant' | null }
 const NO_TESTS: CodeTests = { command: null, suggested: null, running: false, last: null, by: null };
 
@@ -33,6 +44,12 @@ export function useCode(active = true) {
   const [consoleRuns, setConsoleRuns] = useState<{ command: string; result: CodeTestRun | null; by: 'person' | 'assistant' }[]>([]);
   /** The files open as tabs, in order; the open one is among them. */
   const [tabs, setTabs] = useState<string[]>([]);
+  const [recentByProject, setRecentByProject] = useState<Record<string, string[]>>(recentFiles);
+  const noteRecent = (name: string, path: string) => setRecentByProject((was) => {
+    const next = { ...was, [name]: [path, ...(was[name] ?? []).filter((p) => p !== path)].slice(0, RECENT_MAX) };
+    try { window.localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch { /* Not kept. */ }
+    return next;
+  });
   /** What was typed in a tab that is not showing and not saved yet, with the version of the file it was typed over. */
   const stash = useRef(new Map<string, { draft: string; base: number }>());
   const [stashed, setStashed] = useState<ReadonlySet<string>>(new Set());
@@ -48,8 +65,14 @@ export function useCode(active = true) {
     return ok;
   }, [api]);
 
+  // Reads overlap (a change from the agent, a commit, a save each read again); only the newest one is shown, so an
+  // older answer arriving late cannot put back what was there before, such as changes that were just committed.
+  const treeRead = useRef(0);
+  const fileRead = useRef(0);
   const loadTree = useCallback(async (name: string) => {
+    const read = ++treeRead.current;
     const [tree, state] = await Promise.all([api?.tree(name), api?.git(name)]);
+    if (read !== treeRead.current) return;
     if (tree && !isNotesFailure(tree)) setEntries(tree.entries);
     setGit(state && !isNotesFailure(state) ? state : { repo: false });
   }, [api]);
@@ -61,8 +84,11 @@ export function useCode(active = true) {
 
   const openFile = useCallback(async (path: string, name = live.current.project) => {
     if (!api || !name) return false;
-    const was = live.current;
+    const read = ++fileRead.current;
     const got = await api.read(name, path);
+    // A newer open (another file, or this one read again) has taken over.
+    if (read !== fileRead.current) return true;
+    const was = live.current;
     if (isNotesFailure(got)) { setMessage(got.message); return false; }
     // Moving to another tab keeps what was typed in this one, unsaved, for coming back to.
     if (was.open && was.open.path !== path && was.project === name && was.open.text !== null && was.draft !== was.open.text) stash.current.set(was.open.path, { draft: was.draft, base: was.open.modified });
@@ -79,6 +105,7 @@ export function useCode(active = true) {
     setMessage('');
     setExpanded((was) => new Set([...was, ...parentsOf(path)]));
     keep({ project: name, path });
+    noteRecent(name, path);
     return true;
   }, [api]);
 
@@ -276,10 +303,13 @@ export function useCode(active = true) {
   /** Whether a file has typing not saved yet, in the tab showing or one behind it. */
   const unsaved = useCallback((path: string) => stashed.has(path) || (open?.path === path && open.text !== null && draft !== open.text), [stashed, open, draft]);
 
+  // Recent files that are still in the project, so a deleted one is not offered.
+  const recent = (project ? recentByProject[project] ?? [] : []).filter((p) => entries.some((e) => !e.folder && e.path === p));
+
   const toggle = useCallback((folder: string) => setExpanded((was) => { const next = new Set(was); if (next.has(folder)) next.delete(folder); else next.add(folder); return next; }), []);
 
   return {
-    available: api !== undefined, projects, project, entries, open, draft, setDraft, dirty, tabs, closeTab, unsaved, message, setMessage, expanded, toggle, tests,
+    available: api !== undefined, projects, project, recent, entries, open, draft, setDraft, dirty, tabs, closeTab, unsaved, message, setMessage, expanded, toggle, tests,
     git, commit, push, consoleRuns, runCommand, processes, startProcess, stopProcess, refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests,
   };
 }

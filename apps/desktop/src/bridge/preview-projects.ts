@@ -1,4 +1,4 @@
-import type { ConversationInfo, ProjectInfo, ProjectLevel, WikiChange } from '@mobius/shared';
+import type { ConversationInfo, ProjectInfo, ProjectLevel } from '@mobius/shared';
 
 /**
  * The preview's Projects: two projects kept in memory for as long as the preview is open, with threads, a bot's side
@@ -31,13 +31,6 @@ const MADE: Record<string, string[]> = {
   p2: [],
 };
 
-const MEMORY: Record<string, string> = {
-  'Projects/Kestrel P2 build.md': '# Kestrel P2 build\n\n- The build week is the 23rd, at Northfield.\n- Packs come from Veltro Cells: six weeks from order to the dock.\n- Priya signs off the budget; Sam owns the motor.\n',
-};
-const INCOMING: WikiChange[] = [
-  { id: 'w1', from: 'Plan the P2 build week', page: 'Projects/Kestrel P2 build.md', text: 'The deposit must be paid before Veltro holds the packs.', whenMs: now - 20 * min },
-];
-
 let nextId = 3;
 const fail = (message: string) => ({ ok: false as const, message });
 const find = (id: string) => PROJECTS.find((p) => p.id === id);
@@ -69,13 +62,13 @@ export const PREVIEW_PROJECTS: Record<string, (...args: never[]) => unknown> = {
     p.threads.push(conversation);
     return p;
   }) as never,
-  'projects.made': ((id: string) => MADE[id] ?? []) as never,
-  'wiki.read': ((page: string) => ({ page, content: MEMORY[page] ?? '' })) as never,
-  'wiki.incoming': () => [...INCOMING],
-  'wiki.keepChange': ((id: string) => {
-    const i = INCOMING.findIndex((c) => c.id === id);
-    if (i >= 0) { const [c] = INCOMING.splice(i, 1); MEMORY[c!.page] = `${MEMORY[c!.page] ?? ''}- ${c!.text}\n`; }
-    return { ok: true };
+  'projects.removeThread': ((id: string, conversation: string) => {
+    const p = find(id);
+    if (!p || !p.threads.includes(conversation)) return fail('that conversation is not in this project');
+    p.threads = p.threads.filter((t) => t !== conversation);
+    p.sides = (p.sides ?? []).filter((s) => s.parent !== conversation);
+    return p;
   }) as never,
-  'wiki.declineChange': ((id: string) => { const i = INCOMING.findIndex((c) => c.id === id); if (i >= 0) INCOMING.splice(i, 1); return { ok: true }; }) as never,
+  'projects.made': ((id: string) => MADE[id] ?? []) as never,
+  // A project's memory page and the lines offered to it are Knowledge's (wiki.*), answered in preview-knowledge.ts.
 };
