@@ -1,14 +1,16 @@
 import { RowMark } from './RowMark';
 import { FromMobius } from './FromMobius';
 import { EmptyState } from './EmptyState';
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { changedShots, cutLength, locate, parseCut, shotLength, shotStart, timecode, type Cut, type Shot } from './cut-format';
 import { useFileReview } from './useFileReview';
 import type { VideoState } from './useVideo';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
 import { emptyHistory, recorded, redone, undone, type History } from './photo-view';
-import { dropIndex, filmstrip, insertClip, moveShot, nextEdit, removeShot, rulerLabel, rulerMarks, splitAt, trimShot } from './video-view';
+import { dropIndex, duplicateShot, filmstrip, insertClip, moveShot, nextEdit, parseTimecode, removeShot, rulerLabel, rulerMarks, splitAt, trimShot } from './video-view';
 import './video.css';
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => (
@@ -22,6 +24,31 @@ const CLIP_TYPE = 'application/x-mobius-clip';
 const SHOT_TYPE = 'application/x-mobius-shot';
 const FRAME_W = 80;
 const FPS = 30;
+const MOD = () => (window.mobius?.platform === 'darwin' ? '⌘' : 'Ctrl+');
+const FULL = 'M4 8V4h4M16 8V4h-4M4 12v4h4M16 12v4h-4';
+const EXIT_FULL = 'M8 4v4H4M12 4v4h4M8 16v-4H4M12 16v-4h4';
+
+/** A menu where it was asked for, over everything (a glass sidebar would otherwise clip it). */
+type MenuAt = { x: number; y: number; label: string; items: ContextMenuItem[] };
+function Menu({ menu, onClose }: { menu: MenuAt | null; onClose: () => void }) {
+  return menu ? createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={onClose} />, document.body) : null;
+}
+
+/** A time in a shot, typed as timecode (1:05.3) or seconds: kept as typed until Enter or leaving the field, Escape puts it back. */
+function TimeField({ label, value, title, onCommit }: { label: string; value: number; title: string; onCommit: (secs: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? timecode(value);
+  const bad = draft !== null && parseTimecode(draft) === null;
+  const commit = () => { if (draft === null) return; const got = parseTimecode(draft); setDraft(null); if (got !== null && got !== value) onCommit(got); };
+  return (
+    <label className="video-field" title={title}>
+      <span>{label}</span>
+      <input aria-label={label} inputMode="decimal" spellCheck={false} value={shown} aria-invalid={bad || undefined}
+        onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } else if (e.key === 'Escape') { e.preventDefault(); setDraft(null); } }} />
+    </label>
+  );
+}
 
 /**
  * Frames from the clips, for the filmstrips and the footage list: read once with a hidden player, a clip at a time,
@@ -89,6 +116,14 @@ export function VideoSidebar({ video, pin, changed }: { video: VideoState; pin?:
   const frame = useFrames(video);
   const submit = async (e: FormEvent) => { e.preventDefault(); if (await video.createProject(name.trim() || 'Project')) { setNaming(false); setName(''); } };
   const addShot = (clip: string) => video.change(insertClip(video.cut, clip, video.lengthOf(clip)));
+  const [menu, setMenu] = useState<MenuAt | null>(null);
+  const clipMenu = (clip: string) => (e: ReactMouseEvent) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, label: clip, items: [
+      { label: 'Add to the end of the cut', run: () => addShot(clip) },
+      { action: 'reveal', label: 'Show in folder', run: () => void video.showFolder(), separated: true },
+    ] });
+  };
   return (
     <aside className="side video-side" aria-label="Video sidebar">
       <div className="side-head">
@@ -131,6 +166,7 @@ export function VideoSidebar({ video, pin, changed }: { video: VideoState; pin?:
               const poster = c.kind === 'video' && len ? frame(c.name, Math.round(Math.min(len / 2, 1) * 4) / 4) : undefined;
               return (
                 <li key={c.name} className="video-clip" draggable title={`${c.name}\nDrag into the timeline, or add it to the end`}
+                  onContextMenu={clipMenu(c.name)}
                   onDragStart={(e) => { e.dataTransfer.setData(CLIP_TYPE, c.name); e.dataTransfer.effectAllowed = 'copy'; }}>
                   <span className="video-clip-thumb" data-kind={c.kind} aria-hidden="true">{poster ? <img src={poster} alt="" draggable={false} /> : null}</span>
                   <span className="video-clip-text">
@@ -145,15 +181,17 @@ export function VideoSidebar({ video, pin, changed }: { video: VideoState; pin?:
         </section>
       )}
       <FromMobius items={video.projects.filter((p) => changed?.has(p.name)).map((p) => ({ key: p.name, name: p.name, current: video.project === p.name, onOpen: () => void video.open(p.name) }))} />
+      <Menu menu={menu} onClose={() => setMenu(null)} />
     </aside>
   );
 }
 
 /** One shot in the timeline: its filmstrip, its title above it, and handles at its ends to trim it. */
-function ShotBlock({ shot, index, width, selected, playing, proposed, frame, onSelect, onTrim, onDragStart }: {
+function ShotBlock({ shot, index, width, selected, playing, proposed, frame, onSelect, onTrim, onDragStart, onMenu }: {
   shot: Shot; index: number; width: number; selected: boolean; playing: boolean; proposed: boolean;
   frame: (clip: string, t: number) => string | undefined;
   onSelect: () => void; onTrim: (edge: 'in' | 'out') => (e: ReactPointerEvent) => void; onDragStart: (e: DragEvent) => void;
+  onMenu: (e: ReactMouseEvent) => void;
 }) {
   const times = filmstrip(shot, width, FRAME_W);
   return (
@@ -169,6 +207,7 @@ function ShotBlock({ shot, index, width, selected, playing, proposed, frame, onS
       draggable
       onDragStart={onDragStart}
       onClick={onSelect}
+      onContextMenu={onMenu}
     >
       <span className="video-shot-film" aria-hidden="true">
         {times.map((t, i) => { const src = frame(shot.clip, t); return <span key={i} className="video-shot-frame">{src ? <img src={src} alt="" draggable={false} /> : null}</span>; })}
@@ -196,6 +235,10 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   const [zoom, setZoom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
   const [width, setWidth] = useState(900);
+  const [menu, setMenu] = useState<MenuAt | null>(null);
+  const [full, setFull] = useState(false);
+  const viewer = useRef<HTMLDivElement>(null);
+  const titleField = useRef<HTMLInputElement>(null);
   const frame = useFrames(video);
   const { cut } = video;
   const file = video.project ? `video/${video.project}/cut.json` : null;
@@ -258,6 +301,33 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   const seek = (to: number) => { const at = Math.max(0, Math.min(total, to)); const where = locate(cut, at); setT(at); if (where) cue(where.index, where.clipTime, playing); };
   const split = () => { const got = splitAt(cut, t); if (got) { edit(got.cut); setSelected(got.id); } };
   const remove = (id: string) => { edit(removeShot(cut, id)); setSelected(null); };
+  const duplicate = (id: string) => { const got = duplicateShot(cut, id); if (got) { edit(got.cut); setSelected(got.id); } };
+  const nameIt = (id: string) => { setSelected(id); window.requestAnimationFrame(() => titleField.current?.focus()); };
+  // Full screen: the viewer with its transport, as QuickTime and iMovie play.
+  const fullScreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    else void viewer.current?.requestFullscreen().catch(() => undefined);
+  };
+  useEffect(() => {
+    const look = () => setFull(document.fullscreenElement !== null && document.fullscreenElement === viewer.current);
+    document.addEventListener('fullscreenchange', look);
+    return () => document.removeEventListener('fullscreenchange', look);
+  }, []);
+  /** A shot's right-click menu: the timeline's tools for that one shot, with their keys. */
+  const shotMenu = (s: Shot, i: number) => (e: ReactMouseEvent) => {
+    e.preventDefault();
+    setSelected(s.id);
+    const start = shotStart(cut, i);
+    const inside = t > start && t < start + shotLength(s);
+    setMenu({ x: e.clientX, y: e.clientY, label: `Shot ${i + 1}`, items: [
+      { label: 'Split at the playhead', keys: 'S', disabled: !inside || splitAt(cut, t) === null, run: split },
+      { action: 'duplicate', keys: `${MOD()}D`, run: () => duplicate(s.id) },
+      { action: 'rename', label: s.title ? 'Edit title' : 'Add title', run: () => nameIt(s.id) },
+      { label: 'Move earlier', disabled: i === 0, run: () => edit(moveShot(cut, s.id, i - 1)), separated: true },
+      { label: 'Move later', disabled: i === cut.shots.length - 1, run: () => edit(moveShot(cut, s.id, i + 1)) },
+      { action: 'delete', label: 'Remove shot', keys: 'Delete', danger: true, separated: true, run: () => remove(s.id) },
+    ] });
+  };
   const setShot = (id: string, tag: string, fn: (s: Shot) => void) => edit({ ...cut, shots: cut.shots.map((s) => { if (s.id !== id) return s; const n = { ...s }; fn(n); n.out = Math.max(n.in + 0.1, n.out); return n; }) }, `${tag}:${id}`);
   const playheadIn = (id: string) => cut.shots[index]?.id === id && player.current ? Math.round(player.current.currentTime * 100) / 100 : null;
 
@@ -268,14 +338,16 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
     if (mod && e.key === 'y') { e.preventDefault(); redo(); return; }
-    if (mod || e.altKey) return;
     const sel = selected && cut.shots.find((s) => s.id === selected);
+    if (mod && (e.key === 'd' || e.key === 'D') && !e.shiftKey) { if (sel) { e.preventDefault(); duplicate(sel.id); } return; }
+    if (mod || e.altKey) return;
     if (e.key === ' ' || e.key === 'k') { if (e.target instanceof HTMLButtonElement && e.key === ' ') return; e.preventDefault(); toggle(); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); seek(t + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 1 : 1 / FPS)); }
     else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const to = nextEdit(cut, t, e.key === 'ArrowDown' ? 1 : -1); if (to !== null) seek(to); }
     else if (e.key === 'Home') { e.preventDefault(); seek(0); }
     else if (e.key === 'End') { e.preventDefault(); seek(total); }
     else if (e.key === 's' || e.key === 'S') { e.preventDefault(); split(); }
+    else if (e.key === 'f' || e.key === 'F') { if (shot) { e.preventDefault(); fullScreen(); } }
     else if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); remove(sel.id); }
     else if ((e.key === 'i' || e.key === 'o') && sel) { const at = playheadIn(sel.id); if (at !== null) { e.preventDefault(); setShot(sel.id, e.key, (s) => { if (e.key === 'i') s.in = at; else s.out = at; }); } }
     else if (e.key === 'Escape' && sel) setSelected(null);
@@ -369,7 +441,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   return (
     <section ref={page} className="video-page" aria-label="Video" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <div className="video-top">
-        <div className="video-viewer">
+        <div ref={viewer} className="video-viewer" data-full={full || undefined}>
           <div className="video-screen">
             <video ref={player} className="video-player" aria-label="Viewer" playsInline onTimeUpdate={onTime} onEnded={onTime} onError={() => setUnplayable(true)} onLoadedMetadata={() => setUnplayable(false)} onClick={toggle} />
             {shot?.title && <div className="video-title">{shot.title}</div>}
@@ -381,6 +453,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
             <button type="button" className="video-play" aria-label={playing ? 'Pause' : 'Play'} title={`${playing ? 'Pause' : 'Play'} (Space)`} disabled={!shot} onClick={toggle}><Icon d={playing ? PAUSE : PLAY} fill /></button>
             <button type="button" className="strip-btn" aria-label="Next edit" title="Next edit (↓)" disabled={!shot} onClick={() => { const to = nextEdit(cut, t, 1); if (to !== null) seek(to); }}><Icon d="M13.5 5h2v10h-2zM4 5l8.5 5L4 15z" fill /></button>
             <span className="video-time" aria-label="Time">{`${timecode(t)} / ${timecode(total)}`}</span>
+            <button type="button" className="strip-btn" aria-label={full ? 'Exit full screen' : 'Full screen'} title={`${full ? 'Exit full screen' : 'Full screen'} (F)`} disabled={!shot} onClick={fullScreen}><Icon d={full ? EXIT_FULL : FULL} /></button>
           </div>
         </div>
         <aside className="video-inspector" aria-label="Shot">
@@ -393,8 +466,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
               <section className="video-group" aria-label="Trim">
                 <h3>Trim</h3>
                 <div className="video-fields">
-                  <label className="video-field"><span>In</span><input aria-label="In" type="number" step={0.1} min={0} value={sel.in} onChange={(e) => setShot(sel.id, 'in', (s) => { s.in = Math.max(0, Number(e.target.value) || 0); })} /></label>
-                  <label className="video-field"><span>Out</span><input aria-label="Out" type="number" step={0.1} min={0} value={sel.out} onChange={(e) => setShot(sel.id, 'out', (s) => { s.out = Math.min(video.lengthOf(s.clip) || Infinity, Number(e.target.value) || 0); })} /></label>
+                  <TimeField key={`in-${sel.id}`} label="In" value={sel.in} title="Where the shot starts in its clip: 0:02.5, or seconds" onCommit={(v) => setShot(sel.id, 'in', (s) => { s.in = Math.max(0, Math.min(v, s.out - 0.1)); })} />
+                  <TimeField key={`out-${sel.id}`} label="Out" value={sel.out} title="Where the shot ends in its clip: 0:06.0, or seconds" onCommit={(v) => setShot(sel.id, 'out', (s) => { s.out = Math.min(video.lengthOf(s.clip) || Infinity, v); })} />
                 </div>
                 <div className="video-pair">
                   <button type="button" className="btn" disabled={playheadIn(sel.id) === null} title="Start the shot at the playhead (I)" onClick={() => { const at = playheadIn(sel.id); if (at !== null) setShot(sel.id, 'in', (s) => { s.in = at; }); }}>Start here</button>
@@ -404,7 +477,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
               </section>
               <section className="video-group" aria-label="Title">
                 <h3>Title</h3>
-                <input className="video-text" aria-label="Title" value={sel.title} maxLength={200} placeholder="None" onChange={(e) => setShot(sel.id, 'title', (s) => { s.title = e.target.value; })} />
+                <input ref={titleField} className="video-text" aria-label="Title" value={sel.title} maxLength={200} placeholder="None" onChange={(e) => setShot(sel.id, 'title', (s) => { s.title = e.target.value; })} />
               </section>
               <section className="video-group" aria-label="Order">
                 <h3>Order</h3>
@@ -412,6 +485,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
                   <button type="button" className="btn" disabled={selIndex <= 0} onClick={() => edit(moveShot(cut, sel.id, selIndex - 1))}>Earlier</button>
                   <button type="button" className="btn" disabled={selIndex >= cut.shots.length - 1} onClick={() => edit(moveShot(cut, sel.id, selIndex + 1))}>Later</button>
                 </div>
+                <button type="button" className="btn video-wide" title={`Put a copy of the shot after it (${MOD()}D)`} onClick={() => duplicate(sel.id)}>Duplicate</button>
               </section>
               <button type="button" className="video-remove" onClick={() => remove(sel.id)}>Remove shot</button>
             </>
@@ -424,6 +498,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
                 <dt>↑ ↓</dt><dd>Previous or next edit</dd>
                 <dt>← →</dt><dd>A frame back or on</dd>
                 <dt>I, O</dt><dd>Start or end the shot here</dd>
+                <dt>{`${MOD()}D`}</dt><dd>Duplicate the shot</dd>
+                <dt>F</dt><dd>Full screen</dd>
               </dl>
             </div>
           )}
@@ -465,13 +541,15 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
               <ShotBlock key={s.id} shot={s} index={i} width={Math.max(12, shotLength(s) * pxPerSec)} selected={selected === s.id} playing={index === i} proposed={changed.has(s.id)} frame={frame}
                 onSelect={() => { setSelected(s.id); seek(shotStart(cut, i)); }}
                 onTrim={trimDown(s.id)}
-                onDragStart={(e) => { e.dataTransfer.setData(SHOT_TYPE, s.id); e.dataTransfer.effectAllowed = 'move'; }} />
+                onDragStart={(e) => { e.dataTransfer.setData(SHOT_TYPE, s.id); e.dataTransfer.effectAllowed = 'move'; }}
+                onMenu={shotMenu(s, i)} />
             ))}
             {dropAt !== null && <span className="video-drop" style={{ left: shotStart(cut, dropAt) * pxPerSec }} aria-hidden="true" />}
           </div>
           <span className="video-playhead" style={{ left: t * pxPerSec }} aria-hidden="true" onPointerDown={scrubDown} />
         </div>
       </div>
+      <Menu menu={menu} onClose={() => setMenu(null)} />
     </section>
   );
 }

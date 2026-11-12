@@ -150,7 +150,7 @@ Mobius's own apps, always there.
 <td width="50%" valign="top"><img src="docs/readme/apps/music.png" alt="The Music app in Mobius"><br><b>Music</b> · A small studio for writing songs as notes: tracks, piano roll, mixer.<br><sub>Write a tune or a sting. Mobius reads and writes notes, so it can add a bassline.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/readme/apps/video.png" alt="The Video app in Mobius"><br><b>Video</b> · Cut footage into a short film on a timeline.<br><sub>Trim, split and order shots in a filmstrip timeline, and ask Mobius about the cut.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/video.png" alt="The Video app in Mobius"><br><b>Video</b> · Cut footage into a short film on a timeline.<br><sub>Trim, split, duplicate and order shots in a filmstrip timeline, and ask Mobius about the cut.</sub></td>
 <td width="50%" valign="top"><img src="docs/readme/apps/code.png" alt="The Code app in Mobius"><br><b>Code</b> · A code editor for projects in your workspace, with git.<br><sub>Edit, find, run tests and commit. Mobius proposes changes you review line by line.</sub></td>
 </tr>
 <tr>
