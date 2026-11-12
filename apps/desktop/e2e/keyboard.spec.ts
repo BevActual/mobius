@@ -82,7 +82,7 @@ test('pressing keys while choosing does not run them, and Escape cancels', async
   await expect(page().getByRole('alert')).toContainText('Already used');
   await shell().keyboard.press('Escape');
   await expect(page()).toBeVisible();
-  await expect(page().getByRole('button', { name: 'Change Open a new tab' })).toHaveText('Change');
+  await expect(page().getByRole('button', { name: 'Change Open a new tab' })).toHaveAttribute('aria-pressed', 'false');
   expect((await shell().evaluate(() => window.mobius.browser.getState())).tabs.length).toBe(before);
   expect((await prefs()).keybindings.newTab).toBe('mod+t');
 });

@@ -273,7 +273,7 @@ test('Advanced: the step limit is enforced', async () => {
   await openSettings();
   await go('Advanced');
   await page().getByRole('spinbutton', { name: 'Steps per request' }).fill('1');
-  await page().getByRole('button', { name: 'Save' }).click();
+  await page().getByRole('spinbutton', { name: 'Steps per request' }).press('Enter');
   await expect(page().getByText('Saved')).toBeVisible();
   await shell().keyboard.press('Escape');
   await say('time again');

@@ -1,0 +1,88 @@
+/* Settings' own look, after the shared rules in styles.css. It follows macOS System Settings: one centred column,
+   a pane head with the section's icon, inset grouped cards, the name on the left and its control trailing. */
+
+/* One centred column for every pane, so the switcher, the head and the cards share the same edges. */
+.settings-page .settings-content { padding: 24px 28px 48px; }
+.settings-page .settings-column { width: 100%; max-width: 640px; margin: 0 auto; }
+.settings-page .settings-card { max-width: none; }
+.settings-page .settings-card + .settings-card { margin-top: 14px; }
+
+/* The pane's head: icon, name, one line. Centred, as at the top of a System Settings pane. */
+.settings-hero { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 4px 0 18px; text-align: center; }
+.settings-hero-icon { width: 44px; height: 44px; padding: 10px; border-radius: 11px; fill: none; stroke: #fff; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.settings-hero .settings-section-title { margin: 6px 0 0; font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+.settings-hero .settings-section-desc { margin: 0; max-width: 460px; font-size: 13px; color: var(--muted); }
+.settings-page .settings-tabs { margin: 0 auto 14px; }
+
+/* A row: the name and its help on the left, the control trailing on the same line. A wide control (a list, a
+   table, the gateways) takes the full row under the name. */
+.settings-page .settings-card .srow { min-height: 44px; }
+.settings-page .settings-card .srow-head { flex: 1 1 260px; }
+.settings-page .settings-card .srow-body { gap: 6px; }
+.settings-page .settings-card .srow-body:has(> ul, > .slist, > table, > .providers, > .provider-list, > .memory-body, > .saved-servers, > .share-setup, > .sidebar-apps, > .schedule-list) { flex: 1 1 100%; align-items: stretch; margin-left: 0; }
+/* Small print under a control (which model, what to add first) reads as help: grey, right aligned, wrapping. */
+.settings-page .settings-card .srow-body > .srow-text { max-width: 280px; font-size: 12px; color: var(--muted); text-align: right; }
+.settings-page .settings-card .srow-body:has(> ul, > .slist, > table, > .memory-list) > .srow-text { max-width: none; text-align: left; }
+.settings-page .settings-card .srow-body > .srow-text.mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; overflow-wrap: anywhere; }
+
+/* A paragraph set straight in the card (a note above the rows) gets the rows' padding and grey help text. */
+.settings-page .settings-card > .srow-text, .settings-page .settings-card > p.srow-note { margin: 0; padding: 11px 14px 0; font-size: 12px; color: var(--muted); }
+.settings-page .settings-card > .field-error { margin: 0; padding: 8px 14px; }
+
+/* Pop-up buttons: a choice of several shows its value and the up-down chevrons, never a bare box like a text field. */
+.settings-page select, .settings-page .popup {
+  appearance: none; -webkit-appearance: none;
+  height: 26px; min-width: 150px; max-width: 260px; padding: 0 26px 0 10px;
+  border: 0.5px solid var(--hairline); border-radius: 7px;
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3M1 7.5l3 3 3-3' fill='none' stroke='%238e8e93' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center; background-size: 8px 12px;
+  color: var(--ink); font: inherit; font-size: 13px; text-overflow: ellipsis;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06); cursor: default;
+}
+.settings-page select:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+@media (prefers-color-scheme: dark) { .settings-page select, .settings-page .popup { background-color: color-mix(in srgb, var(--ink) 10%, var(--bg)); } }
+
+/* Text and number fields in a row: the same height and corners as the pop-ups beside them. */
+.settings-page .settings-card .srow-body input:not([type="checkbox"]):not([type="radio"]):not([role="switch"]):not([type="range"]) { height: 26px; padding: 0 8px; border: 0.5px solid var(--hairline); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
+.settings-page .settings-card .srow-body input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.settings-page input.steps-field { width: 64px; text-align: right; }
+
+/* Keyboard: each shortcut is a key field. Click it and press the new keys; a small clear button sits inside it. */
+.shortcut-list { width: 100%; margin: 4px 0 0; padding: 0; list-style: none; }
+.shortcut-item { display: flex; align-items: center; gap: 12px; min-height: 34px; }
+.shortcut-item + .shortcut-item { border-top: 0.5px solid var(--hairline); }
+.shortcut-name { flex: 1 1 auto; min-width: 0; font-size: 13px; }
+.shortcut-name .shortcut-problem { display: block; font-size: 12px; color: var(--danger); }
+.shortcut-keys { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.key-field { min-width: 104px; height: 24px; padding: 0 10px; border: 0.5px solid var(--hairline); border-radius: 6px; background: var(--field); color: var(--ink); font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; cursor: default; }
+.key-field:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 8%, var(--field)); }
+.key-field[data-empty] { color: var(--muted); }
+.key-field[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.key-field:disabled { opacity: 1; background: transparent; border-color: transparent; color: var(--muted); }
+.key-field kbd { padding: 0; border: 0; background: none; font: inherit; }
+.key-clear { width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--ink) 14%, transparent); color: var(--bg); display: inline-grid; place-items: center; cursor: default; }
+.key-clear:hover { background: color-mix(in srgb, var(--ink) 30%, transparent); }
+.key-clear svg { width: 8px; height: 8px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.key-reset { padding: 0 2px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; cursor: default; }
+.key-reset:hover { text-decoration: underline; }
+.shortcut-foot { display: flex; justify-content: flex-end; padding-top: 8px; }
+
+/* About: the app's mark, name and version centred at the top, as an About window. */
+.settings-page .about-brand { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 14px 14px; text-align: center; }
+.settings-page .about-brand .about-name { margin: 0; font-size: 17px; font-weight: 650; }
+.settings-page .about-brand .about-line { margin: 0; font-size: 12px; color: var(--muted); }
+.settings-page .about-brand + .srow::before { left: 14px; }
+
+/* Memory: what Mobius remembers, full width under the row's name, with where it is kept in small grey print. */
+.memory-body { display: flex; flex-direction: column; gap: 8px; width: 100%; font-size: 13px; }
+.memory-body > .srow-text { margin: 0; }
+.memory-body > .memory-where { font-size: 12px; color: var(--muted); }
+
+/* Schedules with none yet: the example reads as help across the row, and New schedule… trails under it. */
+.settings-page .settings-card .srow-body:has(> .schedule-empty) { flex: 1 1 100%; margin-left: 0; }
+.settings-page .settings-card .srow-body > .schedule-empty { max-width: none; text-align: left; align-self: stretch; }
+
+/* Software Update: what the updater is doing sits beside Check for Updates, in small grey print. */
+.settings-page .settings-card .srow-body > .inline-form { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
+.settings-page .settings-card .srow-body > .inline-form > .srow-text { font-size: 12px; color: var(--muted); white-space: nowrap; }

@@ -407,7 +407,7 @@ function MemoryList() {
   if (!window.mobius.memory) return <p className="srow-text">Memory is not available here.</p>;
   if (items === null) return null;
   return (
-    <>
+    <div className="memory-body">
       {items.length === 0 ? (
         <p className="srow-text">Nothing yet. When Mobius learns something worth keeping, such as a preference you mention, it asks to remember it.</p>
       ) : (
@@ -421,8 +421,8 @@ function MemoryList() {
         </ul>
       )}
       {problem && <p className="srow-text" role="alert">{problem}</p>}
-      <p className="srow-text">Kept in memory.md in the data folder, as plain text you can edit.</p>
-    </>
+      <p className="srow-text memory-where">Kept in memory.md in the data folder, as plain text you can edit.</p>
+    </div>
   );
 }
 
@@ -673,7 +673,8 @@ const FIXED_SHORTCUTS: Array<[string, string]> = [
 ];
 const IN_APP: ShortcutAction[] = SHORTCUT_ACTIONS.filter((action) => !SHORTCUT_INFO[action].global);
 
-/** One shortcut: what it does, the keys, and buttons to change, clear or put back the usual keys. */
+/** One shortcut, as in macOS Keyboard Shortcuts: what it does, then a key field. Click the field and press the new
+ *  keys; Escape cancels. A small clear button empties it, and Reset puts back the usual keys. */
 function ShortcutRow({ action, bindings, onChange, note }: { action: ShortcutAction; bindings: KeyBindings; onChange: (next: KeyBindings) => void; note?: string }) {
   const [capturing, setCapturing] = useState(false);
   const [problem, setProblem] = useState('');
@@ -708,19 +709,42 @@ function ShortcutRow({ action, bindings, onChange, note }: { action: ShortcutAct
     return () => window.removeEventListener('keydown', onKey, true);
   }, [capturing, bindings, action, onChange]);
 
+  const keys = binding === '' ? 'Not set' : describeCombo(binding, window.mobius.platform);
+  const canReset = binding !== DEFAULT_KEYBINDINGS[action] && conflictFor(bindings, action, DEFAULT_KEYBINDINGS[action]) === null;
   return (
-    <tr>
-      <td>{label}{note ? <span className="srow-text"> {note}</span> : null}</td>
-      <td>
-        <kbd data-testid={`keys-${action}`}>{binding === '' ? 'Not set' : describeCombo(binding, window.mobius.platform)}</kbd>
-        {problem ? <span role="alert" className="srow-text"> {problem}</span> : null}
-      </td>
-      <td>
-        <button type="button" className="btn" aria-label={`Change ${label}`} onClick={() => { setProblem(''); setCapturing((on) => !on); }}>{capturing ? 'Press the keys… (Esc to cancel)' : 'Change'}</button>{' '}
-        {binding !== '' ? <button type="button" className="btn" aria-label={`Clear ${label}`} onClick={() => onChange({ ...bindings, [action]: '' })}>Clear</button> : null}{' '}
-        {binding !== DEFAULT_KEYBINDINGS[action] && conflictFor(bindings, action, DEFAULT_KEYBINDINGS[action]) === null ? <button type="button" className="btn" aria-label={`Reset ${label}`} onClick={() => onChange({ ...bindings, [action]: DEFAULT_KEYBINDINGS[action] })}>Reset</button> : null}
-      </td>
-    </tr>
+    <li className="shortcut-item">
+      <span className="shortcut-name">
+        {label}{note ? <span className="srow-text"> {note}</span> : null}
+        {problem ? <span role="alert" className="shortcut-problem">{problem}</span> : null}
+      </span>
+      <span className="shortcut-keys">
+        {canReset && !capturing ? <button type="button" className="key-reset" aria-label={`Reset ${label}`} onClick={() => onChange({ ...bindings, [action]: DEFAULT_KEYBINDINGS[action] })}>Reset</button> : null}
+        <button type="button" className="key-field" aria-label={`Change ${label}`} aria-pressed={capturing} data-empty={binding === '' || undefined}
+          onClick={() => { setProblem(''); setCapturing((on) => !on); }} onBlur={() => { setCapturing(false); }}>
+          {/* While choosing, the field asks for keys; the current ones stay in the page for screen readers and tests. */}
+          {capturing ? <span aria-hidden="true">Press keys…</span> : null}
+          <kbd data-testid={`keys-${action}`} className={capturing ? 'sr-only' : undefined}>{keys}</kbd>
+        </button>
+        {binding !== '' && !capturing ? (
+          <button type="button" className="key-clear" aria-label={`Clear ${label}`} onClick={() => onChange({ ...bindings, [action]: '' })}>
+            <svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1.5 1.5l5 5M6.5 1.5l-5 5" /></svg>
+          </button>
+        ) : <span aria-hidden="true" style={{ width: 18 }} />}
+      </span>
+    </li>
+  );
+}
+
+/** A shortcut that cannot be changed, shown the same way but not clickable. */
+function FixedShortcut({ keys, what }: { keys: string; what: string }) {
+  return (
+    <li className="shortcut-item">
+      <span className="shortcut-name">{what}</span>
+      <span className="shortcut-keys">
+        <button type="button" className="key-field" disabled aria-label={`${what}: ${keys}, cannot be changed`}><kbd>{keys}</kbd></button>
+        <span aria-hidden="true" style={{ width: 18 }} />
+      </span>
+    </li>
   );
 }
 
@@ -739,23 +763,17 @@ export function KeyboardSection({ subpage, highlight, preferences, onPreferences
   const changed = SHORTCUT_ACTIONS.some((action) => bindings[action] !== DEFAULT_KEYBINDINGS[action]);
   return (
     <>
-      <Row path={path('shortcut-list')} title="Keyboard shortcuts" description="Change the keys for each one. On a Mac, Ctrl means Command." highlight={highlight === 'shortcut-list'}>
-        <table className="stable" aria-label="Keyboard shortcuts">
-          <tbody>
-            {IN_APP.map((action) => <ShortcutRow key={action} action={action} bindings={bindings} onChange={change} />)}
-            {FIXED_SHORTCUTS.map(([keys, what]) => (
-              <tr key={keys}><td>{what}</td><td><kbd>{keys}</kbd></td><td /></tr>
-            ))}
-          </tbody>
-        </table>
-        {changed ? <p><button type="button" className="btn" onClick={() => change(DEFAULT_KEYBINDINGS)}>Reset all shortcuts</button></p> : null}
+      <Row path={path('shortcut-list')} title="Keyboard shortcuts" description="Click a shortcut and press the new keys. Esc cancels. On a Mac, Ctrl means Command." highlight={highlight === 'shortcut-list'}>
+        <ul className="shortcut-list" aria-label="Keyboard shortcuts">
+          {IN_APP.map((action) => <ShortcutRow key={action} action={action} bindings={bindings} onChange={change} />)}
+          {FIXED_SHORTCUTS.map(([keys, what]) => <FixedShortcut key={keys} keys={keys} what={what} />)}
+        </ul>
+        {changed ? <p className="shortcut-foot"><button type="button" className="btn" onClick={() => change(DEFAULT_KEYBINDINGS)}>Reset all shortcuts</button></p> : null}
       </Row>
       <Row path={path('quick-entry')} title="Quick entry from anywhere" description="A shortcut that works even when Mobius is in the background. It brings Mobius up and starts a message. It is off until you choose keys." highlight={highlight === 'quick-entry'}>
-        <table className="stable" aria-label="Quick entry">
-          <tbody>
-            <ShortcutRow action="quickEntry" bindings={bindings} onChange={change} />
-          </tbody>
-        </table>
+        <ul className="shortcut-list" aria-label="Quick entry">
+          <ShortcutRow action="quickEntry" bindings={bindings} onChange={change} />
+        </ul>
         {bindings.quickEntry !== '' && working === false ? <p role="status" className="srow-text" data-testid="quick-entry-taken">Another program is already using these keys, so this one is not working yet. Choose different keys.</p> : null}
         {bindings.quickEntry !== '' && working === true ? <p role="status" className="srow-text" data-testid="quick-entry-working">Working.</p> : null}
       </Row>
@@ -873,12 +891,15 @@ export function AdvancedSection({ subpage, highlight, settings, onSaveSettings, 
       {!settings?.baseUrl ? (
         <Empty>Set up a model first (Model).</Empty>
       ) : (
-        <div className="inline-form">
-          <label className="field compact"><span>Steps per request</span><input type="number" min={1} max={100} step={1} value={steps} onChange={(event) => { setSteps(event.target.value); setStatus(null); }} /></label>
-          <button type="button" className="btn primary" disabled={!valid} onClick={() => void save()}>Save</button>
-          {!valid && <span className="field-error">Use a whole number from 1 to 100.</span>}
+        <span className="field-inline">
+          {/* Applied as soon as it is entered (Enter or leaving the field), as a setting is: no Save button. */}
+          <input className="steps-field" type="number" aria-label="Steps per request" min={1} max={100} step={1} value={steps}
+            onChange={(event) => { setSteps(event.target.value); setStatus(null); }}
+            onBlur={() => { if (valid && number !== settings?.maxSteps) void save(); }}
+            onKeyDown={(event) => { if (event.key === 'Enter' && valid) void save(); }} />
+          {!valid && <span className="field-error" role="alert">Use a whole number from 1 to 100.</span>}
           {status && <span className={status.ok ? 'field-ok' : 'field-error'} role={status.ok ? 'status' : 'alert'}>{status.text}</span>}
-        </div>
+        </span>
       )}
     </Row>
   );
@@ -908,9 +929,9 @@ export function AboutSection({ subpage, highlight, coreStatus, preferences, onPr
         <table className="stable" aria-label="Versions">
           <tbody>
             <Fact label="Mobius">{about?.app ?? '…'}</Fact>
-            <Fact label="Core">{about?.core ? `${about.core.version} (protocol ${about.core.protocol})` : 'Not running'}</Fact>
+            <Fact label="Core">{about?.core ? `${about.core.version} (protocol ${about.core.protocol}) · ${STATUS[coreStatus]}` : STATUS[coreStatus]}</Fact>
             <Fact label="Web engine">{about?.engine ?? '…'}</Fact>
-            <Fact label="System">{about ? `${about.platform} ${about.arch}` : '…'}</Fact>
+            <Fact label="System">{about?.platform ? [about.platform, about.arch].filter(Boolean).join(' ') : '…'}</Fact>
           </tbody>
         </table>
       </Row>
@@ -918,15 +939,17 @@ export function AboutSection({ subpage, highlight, coreStatus, preferences, onPr
         <p className="srow-text mono">{about?.dataFolder ?? '…'}</p>
         <button type="button" className="btn" onClick={() => void window.mobius.app.openDataFolder()}>Open data folder</button>
       </Row>
-      {window.mobius.app.removeData && (
-        <Row path={rowPath('about', subpage, 'remove-data')} title="Remove my data" description="Deletes conversations, settings, approvals, saved pages, downloaded models and saved API keys, and your Notes and every other file in the Mobius workspace. Mobius then closes. Files you downloaded with the browser are not touched." highlight={highlight === 'remove-data'}>
-          <RemoveData />
-        </Row>
-      )}
-      <Row path={rowPath('about', subpage, 'core-status')} title="Core status" description="Whether the part that makes decisions and keeps records is running." highlight={highlight === 'core-status'}>
-        <p className="srow-text" role="status">{STATUS[coreStatus]}</p>
-      </Row>
     </>
+  );
+}
+
+/** Settings > Privacy: remove everything Mobius keeps. It sits with privacy, where people look for it, not in About. */
+export function RemoveDataRow({ subpage, highlight }: { subpage: string; highlight: string | null | undefined }) {
+  if (!window.mobius.app.removeData) return null;
+  return (
+    <Row path={rowPath('privacy', subpage, 'remove-data')} title="Remove my data" description="Deletes conversations, settings, approvals, saved pages, downloaded models and saved API keys, and your Notes and every other file in the Mobius workspace. Mobius then closes. Files you downloaded with the browser are not touched." highlight={highlight === 'remove-data'}>
+      <RemoveData />
+    </Row>
   );
 }
 
