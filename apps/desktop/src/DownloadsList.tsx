@@ -3,8 +3,6 @@ import type { DownloadEntry } from '@mobius/shared';
 import { formatBytes, percent } from './settings/models-format';
 
 const TEXT = { done: 'Done', failed: 'Failed', cancelled: 'Cancelled' } as const;
-/** How long after the button appears the downloads it is given count as already there. */
-const SETTLE_MS = 1500;
 
 /**
  * Downloads, as Safari keeps them: a button in the sidebar's head that shows how far they have got, opening a popover of
@@ -15,13 +13,18 @@ export function DownloadsButton({ entries }: { entries: DownloadEntry[] }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
   const seen = useRef(new Set(entries.map((e) => e.id)));
-  const shown = useRef(Date.now());
-  // Downloads already listed when the sidebar appears stay closed, and so do those that only finish loading just after
-  // it (the list is read once the window opens): only a download that starts while you are here opens the popover.
+  // The downloads there were when the button appeared, read once: they stay closed, even when the list given to the
+  // button only fills in just after it shows (it is read as the window opens). A download that starts after opens it.
+  const known = useRef<Set<string> | null>(null);
   useEffect(() => {
-    const fresh = entries.some((e) => !seen.current.has(e.id) && e.state === 'downloading');
+    let live = true;
+    void window.mobius.downloads.get().then((list) => { if (live) known.current = new Set([...seen.current, ...list.map((e) => e.id)]); }).catch(() => { if (live) known.current = new Set(seen.current); });
+    return () => { live = false; };
+  }, []);
+  useEffect(() => {
+    const fresh = entries.some((e) => !seen.current.has(e.id) && known.current !== null && !known.current.has(e.id));
     seen.current = new Set(entries.map((e) => e.id));
-    if (fresh && Date.now() - shown.current > SETTLE_MS) setOpen(true);
+    if (fresh) setOpen(true);
     if (entries.length === 0) setOpen(false);
   }, [entries]);
   useEffect(() => {
