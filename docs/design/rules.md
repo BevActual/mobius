@@ -108,8 +108,10 @@ and in a narrow window.
 
 ## Text, dates and numbers
 
-- Dates and times go through the shared formatter, which follows the system locale. A screen never mixes 13:00 with
-  1:00 PM, or "Nov 12" with "12 November".
+- Dates and times go through `apps/desktop/src/dates.ts` (`timeLabel`, `dayLabel`, `longDateLabel`, `monthLabel`,
+  `dateTimeLabel`, `weekdayLabel`, `nearDayLabel`, `formatWith`), which follows the computer's regional format. Don't
+  call `toLocaleString` or build a date string by hand. A screen never mixes 13:00 with 1:00 PM, or "Nov 12" with
+  "12 November".
 - Plain words in full sentences, using the names people see in the app. Titles are sentence case.
 
 ## Liquid Glass
