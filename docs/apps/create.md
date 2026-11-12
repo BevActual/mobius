@@ -44,9 +44,13 @@ Your pictures, with edits you can always take back.
 
 ![The Photo app in Mobius](../readme/apps/photo.png)
 
-- **Albums** are folders in `workspace/photos/`, shown as a grid. Your original files are never changed.
+- **Albums** are folders in `workspace/photos/`, shown as a grid. Your original files are never changed. The slider in
+  the toolbar (or **−** and **+**) makes the pictures bigger or smaller; right-click a picture to open or export it.
 - **Adjust** (exposure, highlights, shadows, contrast, saturation, warmth and more), **Filters** and **Crop** (turn,
-  flip, straighten). An adjustment can apply to all of the picture or to part of it.
+  flip, straighten). An adjustment can apply to all of the picture or to part of it. Light, Color, Effects and Where
+  each fold away, and each has its own reset once you change it.
+- Keys: **←** and **→** step through the album, hold **M** to see the original, **Z** zooms, **Esc** goes back. In
+  Crop, **R** rotates and **Enter** is Done.
 - Edits are kept beside each photo in a small file, so every change can be put back. **Export** writes a new file next
   to the photo.
 - Pictures made with your Images model are saved here.
@@ -78,8 +82,12 @@ Cut footage into a short film.
 ![The Video app in Mobius](../readme/apps/video.png)
 
 - **Projects** in the sidebar, each with its footage. Add a clip to the cut or drag it into the timeline.
-- **The timeline** shows each shot as a filmstrip. Trim from either end, split, move and remove shots.
-- **The viewer** plays the shots in order, and the chosen shot's details sit beside it.
+- **The timeline** shows each shot as a filmstrip. Trim from either end, split, duplicate, move and remove shots.
+  Right-click a shot for its menu, or a clip in Footage to add it or show its folder.
+- **The viewer** plays the shots in order, and full screen with F. The chosen shot's details sit beside it, with In
+  and Out as timecode (type `0:02.5`, or plain seconds).
+- **Keys** as in other editors: Space plays, S splits, I and O set the shot's start and end at the playhead,
+  Ctrl+D (⌘D on a Mac) duplicates, the arrows step a frame and Up and Down jump between edits.
 
 **Kept in:** `workspace/video/<project>/`, the cut as `cut.json`. Your clips are never changed.
 

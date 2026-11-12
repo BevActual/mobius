@@ -91,7 +91,19 @@ Spreadsheets with formulas.
 
 ## Database
 
-SQLite databases to query with SQL. Make one, or import one, then run any statement and see the result as a table.
+SQLite databases you can browse without writing SQL, or query with it. Make one, or import a CSV file or a sheet from
+Sheets, and each table opens with three views:
+
+- **Data** shows the rows, 100 to a page. Click a column's heading to sort by it (again for high to low, a third time
+  for no order), and type in **Filter rows** to keep the rows where any column holds those words.
+- **Structure** lists the columns with their types, which ones need a value, defaults and the key, and the statement
+  that made the table.
+- **SQL** runs any statement and shows what it gave. **History** brings back an earlier one, and **Copy as CSV** copies
+  the result.
+
+**Search** at the top of the sidebar finds a database or table by name. Right-click a table, press Shift+F10 on it, or
+use its **⋯** button, to open it, copy all of it as CSV, rename it or delete it. Right-click a
+database to import a CSV file into it or delete it. Deleting asks first, as it can't be undone.
 
 ![The Database app in Mobius](../readme/apps/database.png)
 
