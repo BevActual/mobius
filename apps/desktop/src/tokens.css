@@ -38,6 +38,11 @@
   --radius-pill: 999px;
   --control-h: 28px;
   --control-h-lg: 36px;
+  /* Menus: rows a little taller than controls, so they are easy to hit; never narrower than this. */
+  --menu-row-h: 30px;
+  --menu-min-w: 200px;
+  --menu-pad: 5px;
+  --hairline-w: 0.5px;
 
   /* Colour roles: surfaces, text, lines, accent, and status. */
   --bg: #ffffff;
@@ -70,6 +75,9 @@
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08);
   --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
   --shadow-3: 0 14px 44px rgba(0, 0, 0, 0.3);
+  /* A menu over the page: its glass edge, and a soft drop shadow. */
+  --shadow-menu: 0 18px 50px rgba(0, 0, 0, 0.22);
+  --z-menu: 950;
 
   /* Motion. */
   --ease: cubic-bezier(0.2, 0, 0, 1);

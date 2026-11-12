@@ -148,3 +148,31 @@ export function parseWhen(text: string, now: Date): { text: string; due: string;
   }
   return { text: rest, due: isoDay(date), phrase: m[0].trim() };
 }
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/**
+ * Scheduled tasks under day headings, as in Reminders: Overdue, Today, Tomorrow, each weekday of the coming week, then
+ * one heading per month. `exact` says the heading names the very day, so the rows need not repeat it. Keeps the order.
+ */
+export function byDay(rows: readonly Located[], now: Date): { key: string; label: string; exact: boolean; rows: Located[] }[] {
+  const out: { key: string; label: string; exact: boolean; rows: Located[] }[] = [];
+  for (const r of rows) {
+    if (!r.task.due) continue;
+    const date = parse(r.task.due);
+    const days = dayNumber(date) - dayNumber(now);
+    let key: string; let label: string; let exact = true;
+    if (days < 0) { key = 'overdue'; label = 'Overdue'; exact = false; }
+    else if (days === 0) { key = r.task.due; label = 'Today'; }
+    else if (days === 1) { key = r.task.due; label = 'Tomorrow'; }
+    else if (days < 7) { key = r.task.due; label = DAYS[date.getDay()]!; }
+    else {
+      key = `${date.getFullYear()}-${date.getMonth()}`; exact = false;
+      label = `${MONTH_NAMES[date.getMonth()]}${date.getFullYear() === now.getFullYear() ? '' : ` ${date.getFullYear()}`}`;
+    }
+    const group = out.find((g) => g.key === key);
+    if (group) group.rows.push(r);
+    else out.push({ key, label, exact, rows: [r] });
+  }
+  return out;
+}

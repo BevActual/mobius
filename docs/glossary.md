@@ -13,7 +13,7 @@ Mobius's own words, defined once. Pages link here instead of explaining them aga
 | **Connector** | An MCP server that gives Mobius more tools. See [Connectors](guide/abilities.md#connectors-mcp). |
 | **Core** | The part of Mobius that decides what may happen and keeps the record. It runs as its own process. See [Architecture](developers/architecture.md). |
 | **Dashed** | How a change from Mobius is drawn until you keep or discard it. |
-| **Desk** | The Agent app's home: what waits for you, what Mobius is doing, and what's next. |
+| **Desk** | The Agent app's home: what waits for you, what Mobius is doing, recent conversations, and what's next. |
 | **Discard** | Put things back as they were before Mobius's change. |
 | **Floor** | An action that is asked about every time, whatever the mode: running a command, deleting files, reading a secret, clicking or typing on a web page. |
 | **Gateway** | A connection to a model service: a plan you sign in to, an API key, or a server. See [Gateways](guide/models-and-gateways.md#gateways). |

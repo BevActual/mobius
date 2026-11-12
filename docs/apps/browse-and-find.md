@@ -7,7 +7,8 @@ A full web browser, with Mobius able to read and work on pages for you.
 ![The Browser app in Mobius](../readme/apps/browser.png)
 
 - **Tabs** live in the sidebar, as in Safari and Arc. Pinned tabs sit in their own group above the rest; drag a tab to
-  reorder it or across the line to pin it.
+  reorder it or across the line to pin it. A small Mobius mark on a tab means Mobius is reading or using it; a hand means
+  you took it back.
 - **A new tab** opens Mobius's start page: your favourites, the sites you visit most, and your reading list. It is drawn
   by Mobius, so none of it is shown to a web page.
 - **Bookmarks** with the star beside the address, **Find** (Ctrl+F), downloads and history.
@@ -58,6 +59,16 @@ Pages saved to read later, shown as plain readable text with where each came fro
 Browser, or give Reader an address.
 
 ![The Reader app in Mobius](../readme/apps/reader.png)
+
+- **The article has the page.** The bar above it says where it came from, when you saved it and how many minutes are
+  left; a thin line fills as you read, and each article opens where you stopped. Opening Reader shows your newest
+  article.
+- **Aa** sets the text size, the font (sans serif or serif) and the page colour (Match Mobius, Sepia, Grey or Night),
+  as in Safari Reader. Your choice is kept on this computer.
+- **Save a link** (the link button, or New › Save a link) shows the link field; with nothing open it is always there.
+  **Save this tab** keeps the page open in the Browser.
+- **Highlights:** select a passage and press Highlight (or H); they are listed under the article and can be copied to
+  Notes. **Done reading** (E) moves the article to Archive.
 
 **Kept in:** `workspace/reading/`, each article a Markdown file.
 

@@ -1,13 +1,16 @@
+import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { changedIds, contrast, freshId, nextFramePlace, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
+import { changedIds, contrast, freshId, moveLayer, nextFramePlace, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
 import type { NotesState } from './useNotes';
 import { onCommand } from './commands';
 import { useUndo } from './useUndo';
 import { ReviewActions, WhyThis } from './ReviewBar';
-import { alignBoxes, around, boxFrom, boxesTouching, distributeBoxes, HANDLES, resizeBox, snapBox, type AlignHow, type Guide, type Handle } from './design-view';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { alignBoxes, around, boxFrom, boxesTouching, distributeBoxes, HANDLES, resizeBox, snapBox, zoomOnto, type AlignHow, type Guide, type Handle } from './design-view';
+import { EXPORT_ALBUM, exportFrame } from './design-export';
 import './design.css';
 
 export const DESIGN_WORDS: SidebarWords = { app: 'Design', group: 'folder', groups: 'Folders', item: 'design', items: 'designs', about: 'Designs are kept as JSON files in your workspace, frames and their layers, so the agent can read and change them too.', defaultGroup: 'Designs' };
@@ -16,6 +19,9 @@ export function DesignSidebar(props: { designs: NotesState; pin: ReactNode; chan
   const { designs, ...rest } = props;
   return <NotesSidebar notes={designs} words={DESIGN_WORDS} {...rest} />;
 }
+
+/** A layer that a click or a box on the canvas can pick: not hidden, not locked. */
+const canPick = (n: DesignNode) => !n.hidden && !n.locked;
 
 function findNode(doc: DesignDoc, id: string | null): { frame: DesignFrame; node: DesignNode | null } | null {
   for (const frame of doc.frames) {
@@ -78,12 +84,12 @@ function Field({ label, value, onChange, min, step = 1, wide }: { label: string;
   );
 }
 
-function ColorField({ label, value, doc, onChange }: { label: string; value: string; doc: DesignDoc; onChange: (c: string) => void }) {
+function ColorField({ label, value, doc, onChange, bare }: { label: string; value: string; doc: DesignDoc; onChange: (c: string) => void; bare?: boolean }) {
   const shown = resolveColor(value, doc.styles);
   const plain = /^#[0-9a-f]{6}/i.test(shown) ? shown.slice(0, 7) : '#000000';
   return (
     <div className="design-color">
-      <span className="design-color-label">{label}</span>
+      {!bare && <span className="design-color-label">{label}</span>}
       <input type="color" aria-label={`${label} colour`} value={plain} onChange={(e) => onChange(e.target.value)} />
       <select aria-label={`${label} style`} value={value.startsWith('style:') ? value : ''} onChange={(e) => onChange(e.target.value || plain)}>
         <option value="">{value === 'transparent' ? 'None' : value.startsWith('style:') ? plain : value}</option>
@@ -113,6 +119,11 @@ const ICON = {
   alignLeft: 'M4 3v14M7 6h9M7 11h5', alignCenter: 'M10 3v14M5 6h10M7 12h6', alignRight: 'M16 3v14M4 6h9M8 11h5',
   alignTop: 'M3 4h14M6 7v9M11 7v5', alignMiddle: 'M3 10h14M6 5v10M12 7v6', alignBottom: 'M3 16h14M6 4v9M11 8v5',
   spreadX: 'M3 4v12M17 4v12M8 7h4v6H8z', spreadY: 'M4 3h12M4 17h12M7 8h6v4H7z',
+  shown: 'M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5zM10 12.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4z',
+  hidden: 'M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5zM3.5 3.5l13 13',
+  locked: 'M5.5 9h9v7.5h-9zM7.5 9V6.5a2.5 2.5 0 0 1 5 0V9',
+  unlocked: 'M5.5 9h9v7.5h-9zM7.5 9V6.5a2.5 2.5 0 0 1 4.9-.7',
+  front: 'M6 3h8v6H6zM4 12h12M4 15h12', forward: 'M10 15V5M6 9l4-4 4 4', backward: 'M10 5v10M6 11l4 4 4-4', back: 'M4 5h12M4 8h12M6 11h8v6H6z',
 } as const;
 const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 20 20" aria-hidden="true"><path d={d} /></svg>;
 const KIND: Record<NodeType, string> = { text: 'Text', ellipse: 'Ellipse', rect: 'Rectangle' };
@@ -134,6 +145,12 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const lastPress = useRef<{ id: string; t: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [space, setSpace] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  /** The last export: which frame, and where it went or why it did not. */
+  const [exported, setExported] = useState<{ frame: string; text: string; bad?: boolean } | null>(null);
+  const [exportScale, setExportScale] = useState(2);
+  /** A layer being dragged in the layer list, and where it would land. */
+  const [moving, setMoving] = useState<{ id: string; target?: string; place?: 'above' | 'below' } | null>(null);
   const copied = useRef<{ frame: string; nodes: DesignNode[] } | null>(null);
   const view = useRef<HTMLDivElement>(null);
   const file = designs.page ? `designs/${designs.page.path}` : null;
@@ -158,14 +175,25 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     return () => { offUndo(); offRedo(); };
   }, []);
 
-  const fit = useCallback(() => {
-    if (!doc || !view.current || doc.frames.length === 0) return;
-    const all = around(doc.frames)!;
+  /** Shows a box of the canvas in the middle of the view. */
+  const showBox = useCallback((box: { x: number; y: number; w: number; h: number }, most: number) => {
+    if (!view.current) return;
     const { width, height } = view.current.getBoundingClientRect();
-    const z = Math.max(0.05, Math.min(2, (width - 80) / (all.w || 1), (height - 100) / (all.h || 1)));
-    setZoom(Math.round(z * 100) / 100);
-    setPan({ x: (width - all.w * z) / 2 - all.x * z, y: 50 - all.y * z });
-  }, [doc]);
+    const next = zoomOnto(box, width, height, 50, most);
+    setZoom(next.zoom);
+    setPan(next.pan);
+  }, []);
+  const fit = useCallback(() => {
+    if (!doc || doc.frames.length === 0) return;
+    showBox(around(doc.frames)!, 2);
+  }, [doc, showBox]);
+  /** Shift+2: the picked frames and layers fill the view (a layer's place is inside its frame). */
+  const zoomToSelection = useCallback(() => {
+    if (!doc) return;
+    const boxes = selected.map((id) => findNode(doc, id)).filter((a) => a !== null).map((a) => (a.node ? { x: a.frame.x + a.node.x, y: a.frame.y + a.node.y, w: a.node.w, h: a.node.h } : a.frame));
+    const box = around(boxes);
+    if (box) showBox(box, 4); else fit();
+  }, [doc, selected, showBox, fit]);
   const zoomTo = useCallback((z: number) => {
     const el = view.current;
     const next = Math.max(0.05, Math.min(8, Math.round(z * 100) / 100));
@@ -226,7 +254,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
         const box = boxFrom(drag.x0, drag.y0, drag.x1, drag.y1);
         if (!drag.moved) { setSelected(drag.frame ? [drag.frame] : drag.add); return; }
         const f = drag.frame ? doc.frames.find((x) => x.id === drag.frame) : null;
-        const hits = f ? boxesTouching(f.children, { ...box, x: box.x - f.x, y: box.y - f.y }).map((n) => n.id) : boxesTouching(doc.frames, box).map((x) => x.id);
+        const hits = f ? boxesTouching(f.children.filter(canPick), { ...box, x: box.x - f.x, y: box.y - f.y }).map((n) => n.id) : boxesTouching(doc.frames, box).map((x) => x.id);
         setSelected([...new Set([...drag.add, ...hits])]);
       }
     };
@@ -243,7 +271,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       if (d.tool === 'frame') {
         const id = freshId(doc2, 'f');
         if (tiny) box = { x: d.x0, y: d.y0, w: 393, h: 852 };
-        doc2.frames.push({ id, name: `Frame ${doc2.frames.length + 1}`, x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h), fill: '#ffffff', radius: 0, children: [] });
+        doc2.frames.push({ id, name: `Frame ${doc2.frames.length + 1}`, x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h), fill: '#ffffff', radius: 0, stroke: 'transparent', strokeWidth: 0, children: [] });
         setSelected([id]);
         return;
       }
@@ -251,7 +279,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       if (!f) return;
       const id = freshId(doc2, 'n');
       const w = tiny ? (d.tool === 'text' ? 200 : 100) : box.w, h = tiny ? (d.tool === 'text' ? 32 : 100) : box.h;
-      const node: DesignNode = { id, type: d.tool, name: KIND[d.tool], x: Math.round(box.x - f.x), y: Math.round(box.y - f.y), w: Math.round(w), h: Math.round(h), fill: d.tool === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: d.tool === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left' };
+      const node: DesignNode = { id, type: d.tool, name: KIND[d.tool], x: Math.round(box.x - f.x), y: Math.round(box.y - f.y), w: Math.round(w), h: Math.round(h), fill: d.tool === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: d.tool === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left', stroke: 'transparent', strokeWidth: 0 };
       f.children.push(node);
       setSelected([id]);
       if (d.tool === 'text') setEditing(id);
@@ -263,7 +291,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const add = (type: NodeType | 'frame') => change((d) => {
     if (type === 'frame') {
       const id = freshId(d, 'f');
-      d.frames.push({ id, name: `Frame ${d.frames.length + 1}`, ...nextFramePlace(d), w: 393, h: 852, fill: '#ffffff', radius: 0, children: [] });
+      d.frames.push({ id, name: `Frame ${d.frames.length + 1}`, ...nextFramePlace(d), w: 393, h: 852, fill: '#ffffff', radius: 0, stroke: 'transparent', strokeWidth: 0, children: [] });
       setSelected([id]);
       fitNext.current = true;
       return;
@@ -272,7 +300,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     if (!at) return;
     const id = freshId(d, 'n');
     const w = type === 'text' ? 200 : 120, h = type === 'text' ? 32 : 120;
-    at.frame.children.push({ id, type, name: KIND[type], x: Math.round((at.frame.w - w) / 2), y: Math.round((at.frame.h - h) / 2), w, h, fill: type === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: type === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left' });
+    at.frame.children.push({ id, type, name: KIND[type], x: Math.round((at.frame.w - w) / 2), y: Math.round((at.frame.h - h) / 2), w, h, fill: type === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: type === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left', stroke: 'transparent', strokeWidth: 0 });
     setSelected([id]);
   });
   const remove = useCallback(() => change((d) => {
@@ -323,6 +351,23 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       list.splice(to, 0, a.node);
     }
   });
+  const copyPicked = () => {
+    const nodes = doc ? pickedNodes(doc) : [];
+    if (nodes.length) copied.current = { frame: nodes[0]!.frame.id, nodes: structuredClone(nodes.map((a) => a.node)) };
+    return nodes.length > 0;
+  };
+  /** Hide or lock the picked layers; if every one already is, show or unlock them all. */
+  const toggle = (flag: 'hidden' | 'locked', ids = selected) => change((d) => {
+    const nodes = ids.map((id) => findNode(d, id)?.node).filter((n): n is DesignNode => n != null);
+    const on = !nodes.every((n) => n[flag]);
+    for (const n of nodes) { if (on) n[flag] = true; else delete n[flag]; }
+  });
+  const dropLayer = () => {
+    const m = moving;
+    setMoving(null);
+    if (!m?.target || !m.place || m.target === m.id) return;
+    change((d) => { moveLayer(d, m.id, m.target!, m.place!); });
+  };
   const line = (how: AlignHow) => change((d) => {
     const nodes = pickedNodes(d);
     if (nodes.length === 1) { const [a] = nodes; Object.assign(a!.node, alignBoxes([a!.node], how, { x: 0, y: 0, w: a!.frame.w, h: a!.frame.h })[0]); return; }
@@ -343,15 +388,17 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
       if (mod && (key === 'z' || key === 'y')) { e.preventDefault(); if (key === 'y' || e.shiftKey) history.redo(); else history.undo(); return; }
-      if (mod && key === 'a' && doc) { e.preventDefault(); const f = findNode(doc, selected[0] ?? null)?.frame ?? doc.frames[0]; setSelected(f ? f.children.map((c) => c.id) : []); return; }
+      if (mod && key === 'a' && doc) { e.preventDefault(); const f = findNode(doc, selected[0] ?? null)?.frame ?? doc.frames[0]; setSelected(f ? f.children.filter(canPick).map((c) => c.id) : []); return; }
+      if (mod && e.shiftKey && (key === 'h' || key === 'l')) { e.preventDefault(); toggle(key === 'h' ? 'hidden' : 'locked'); return; }
       if (mod && key === 'd') { e.preventDefault(); duplicate(); return; }
-      if (mod && key === 'c' && doc) { const nodes = pickedNodes(doc); if (nodes.length) { e.preventDefault(); copied.current = { frame: nodes[0]!.frame.id, nodes: structuredClone(nodes.map((a) => a.node)) }; } return; }
-      if (mod && key === 'x' && doc) { const nodes = pickedNodes(doc); if (nodes.length) { e.preventDefault(); copied.current = { frame: nodes[0]!.frame.id, nodes: structuredClone(nodes.map((a) => a.node)) }; remove(); } return; }
+      if (mod && key === 'c') { if (copyPicked()) e.preventDefault(); return; }
+      if (mod && key === 'x') { if (copyPicked()) { e.preventDefault(); remove(); } return; }
       if (mod && key === 'v' && copied.current) { e.preventDefault(); pasteNodes(copied.current, 16); return; }
       if (mod && (e.key === ']' || e.key === '[')) { e.preventDefault(); arrange(e.key === ']' ? (e.altKey ? 'front' : 1) : (e.altKey ? 'back' : -1)); return; }
       if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomTo(zoom * 1.25); return; }
       if (mod && e.key === '-') { e.preventDefault(); zoomTo(zoom * 0.8); return; }
       if (e.shiftKey && e.code === 'Digit1') { e.preventDefault(); fit(); return; }
+      if (e.shiftKey && e.code === 'Digit2') { e.preventDefault(); zoomToSelection(); return; }
       if (e.shiftKey && e.code === 'Digit0') { e.preventDefault(); zoomTo(1); return; }
       if (e.key === ' ' && !e.repeat) { setSpace(true); e.preventDefault(); return; }
       if (!mod && !e.altKey && TOOL_KEYS[key] && !e.shiftKey) { e.preventDefault(); setTool(TOOL_KEYS[key]!); return; }
@@ -399,6 +446,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       left: p.x, top: p.y, width: p.w, height: p.h, opacity: n.opacity,
       background: n.fill === 'transparent' ? undefined : resolveColor(n.fill, doc.styles),
       borderRadius: n.type === 'ellipse' ? '50%' : n.radius,
+      ...(n.type !== 'text' ? strokeStyle(n, doc) : {}),
       ...(n.type === 'text' ? { color: resolveColor(n.color, doc.styles), fontSize: n.size, fontWeight: n.weight, textAlign: n.align, lineHeight: 1.25 } : {}),
     };
   };
@@ -442,6 +490,46 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   };
   const pickBox = drag?.kind === 'pick' && drag.moved ? boxFrom(drag.x0, drag.y0, drag.x1, drag.y1) : drag?.kind === 'draw' ? boxFrom(drag.x0, drag.y0, drag.x1, drag.y1) : null;
   const editingNode = editing ? findNode(doc, editing) : null;
+  /** A right-click picks what is under the pointer (unless it is already picked) and opens its menu there. */
+  const openMenu = (e: React.MouseEvent, id: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (id === null) setSelected([]);
+    else if (!selected.includes(id)) setSelected([id]);
+    setMenu({ x: e.clientX, y: e.clientY });
+  };
+  /** Draws the frame and saves it as a PNG in Photo's Design exports album. */
+  const exportPng = async (id: string) => {
+    const f = doc.frames.find((x) => x.id === id);
+    if (!f) return;
+    setExported({ frame: id, text: 'Exporting…' });
+    const done = await exportFrame(doc, f, exportScale).catch((e: unknown) => ({ error: e instanceof Error ? e.message : 'The picture could not be saved.' }));
+    setExported('error' in done ? { frame: id, text: done.error, bad: true } : { frame: id, text: `Saved to Photo › ${EXPORT_ALBUM} as ${done.path.slice(EXPORT_ALBUM.length + 1)}` });
+  };
+  const menuItems = (): ContextMenuItem[] => {
+    const paste: ContextMenuItem = { action: 'paste', keys: 'Ctrl+V', disabled: !copied.current, run: () => { if (copied.current) pasteNodes(copied.current, 16); } };
+    if (selected.length === 0) return [paste, { label: 'Zoom to fit', keys: 'Shift+1', separated: true, run: fit }];
+    const zoomIn: ContextMenuItem = { label: 'Zoom to selection', keys: 'Shift+2', separated: true, run: zoomToSelection };
+    const rename: ContextMenuItem = { action: 'rename', label: 'Rename…', disabled: !one, run: () => { if (one) setRenaming(one); } };
+    if (picked.length === 0) {
+      const exportOne: ContextMenuItem = { label: 'Export as PNG', separated: true, disabled: !one, run: () => { if (one) void exportPng(one); } };
+      return [paste, { action: 'duplicate', keys: 'Ctrl+D', run: duplicate }, rename, exportOne, zoomIn, { action: 'delete', label: selected.length > 1 ? 'Delete frames' : 'Delete frame', keys: 'Delete', danger: true, separated: true, run: remove }];
+    }
+    const allHidden = picked.every((a) => a.node.hidden), allLocked = picked.every((a) => a.node.locked);
+    return [
+      { action: 'cut', keys: 'Ctrl+X', run: () => { if (copyPicked()) remove(); } },
+      { action: 'copy', keys: 'Ctrl+C', run: () => void copyPicked() },
+      paste,
+      { action: 'duplicate', keys: 'Ctrl+D', run: duplicate },
+      rename,
+      { label: 'Bring to front', keys: 'Ctrl+Alt+]', separated: true, run: () => arrange('front') },
+      { label: 'Send to back', keys: 'Ctrl+Alt+[', run: () => arrange('back') },
+      { label: allHidden ? 'Show' : 'Hide', keys: 'Ctrl+Shift+H', separated: true, run: () => toggle('hidden') },
+      { label: allLocked ? 'Unlock' : 'Lock', keys: 'Ctrl+Shift+L', run: () => toggle('locked') },
+      zoomIn,
+      { action: 'delete', label: picked.length > 1 ? 'Delete layers' : 'Delete layer', keys: 'Delete', danger: true, separated: true, run: remove },
+    ];
+  };
 
   return (
     <section className="design-page" aria-label="Design">
@@ -468,19 +556,26 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
           <div className="design-panel-title">Layers</div>
           <ul role="tree" aria-label="Frames and layers" aria-multiselectable>
             {doc.frames.map((f) => (
-              <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded>
+              <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded data-drop={moving?.target === f.id || undefined} onDragOver={(e) => { if (!moving) return; e.preventDefault(); if (moving.target !== f.id) setMoving({ id: moving.id, target: f.id, place: 'above' }); }} onDrop={(e) => { e.preventDefault(); dropLayer(); }}>
                 {renaming === f.id ? <RenameField name={f.name} onDone={(name) => { setRenaming(null); if (name && name !== f.name) change((d) => { const x = d.frames.find((y) => y.id === f.id); if (x) x.name = name; }); }} /> : (
-                  <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)}>
+                  <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>
                     <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON.frame} /></span>{f.name}
                   </button>
                 )}
                 <ul role="group">
                   {[...f.children].reverse().map((n) => (
-                    <li key={n.id} role="treeitem" aria-selected={isPicked(n.id)}>
+                    <li key={n.id} role="treeitem" aria-selected={isPicked(n.id)} data-drop={moving?.target === n.id ? moving.place : undefined}
+                      draggable={renaming !== n.id} onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', n.name); setMoving({ id: n.id }); }} onDragEnd={() => setMoving(null)}
+                      onDragOver={(e) => { if (!moving) return; e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const place = e.clientY < r.top + r.height / 2 ? 'above' : 'below'; if (moving.target !== n.id || moving.place !== place) setMoving({ id: moving.id, target: n.id, place }); }}
+                      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropLayer(); }}>
                       {renaming === n.id ? <RenameField name={n.name} onDone={(name) => { setRenaming(null); if (name && name !== n.name) change((d) => { const x = findNode(d, n.id)?.node; if (x) x.name = name; }); }} /> : (
-                        <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)}>
-                          <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON[n.type]} /></span>{n.name}
-                        </button>
+                        <div className="design-layer-row" aria-current={isPicked(n.id) || undefined} data-hidden={n.hidden || undefined}>
+                          <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)} onContextMenu={(e) => openMenu(e, n.id)}>
+                            <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON[n.type]} /></span><span className="design-layer-name">{n.name}</span>
+                          </button>
+                          <button type="button" className="design-layer-flag" data-on={n.locked || undefined} aria-label={`${n.locked ? 'Unlock' : 'Lock'} ${n.name}`} title={n.locked ? 'Unlock (Ctrl+Shift+L)' : 'Lock (Ctrl+Shift+L)'} onClick={() => toggle('locked', [n.id])}><Icon d={n.locked ? ICON.locked : ICON.unlocked} /></button>
+                          <button type="button" className="design-layer-flag" data-on={n.hidden || undefined} aria-label={`${n.hidden ? 'Show' : 'Hide'} ${n.name}`} title={n.hidden ? 'Show (Ctrl+Shift+H)' : 'Hide (Ctrl+Shift+H)'} onClick={() => toggle('hidden', [n.id])}><Icon d={n.hidden ? ICON.hidden : ICON.shown} /></button>
+                        </div>
                       )}
                     </li>
                   ))}
@@ -498,6 +593,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
           data-tool={tool}
           data-panning={space || drag?.kind === 'pan' || undefined}
           onPointerDown={onCanvasDown}
+          onContextMenu={(e) => { const p = toWorld(e.clientX, e.clientY); openMenu(e, frameAt(doc, p.x, p.y)?.id ?? null); }}
           onWheel={(e) => {
             if (e.ctrlKey || e.metaKey) {
               const rect = e.currentTarget.getBoundingClientRect();
@@ -514,10 +610,10 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
               const inThis = one !== null && at?.frame.id === f.id;
               return (
                 <div key={f.id} className="design-frame" data-selected={isPicked(f.id) || undefined} data-proposed={changed.has(f.id) || undefined} aria-label={`Frame ${f.name}`} style={{ left: p.x, top: p.y, width: p.w, height: p.h, background: resolveColor(f.fill, doc.styles), borderRadius: f.radius }}>
-                  <span className="design-frame-name" style={{ fontSize: 12 / zoom, top: -18 / zoom }} onPointerDown={(e) => startMove(e, f.id, null)} onDoubleClick={() => setRenaming(f.id)}>{f.name}</span>
+                  <span className="design-frame-name" style={{ fontSize: 12 / zoom, top: -18 / zoom }} onPointerDown={(e) => startMove(e, f.id, null)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>{f.name}</span>
                   <div className="design-clip" style={{ borderRadius: f.radius }}>
-                    {f.children.map((n) => (
-                      <div key={n.id} className="design-node" data-type={n.type} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onDoubleClick={() => { if (n.type === 'text' && editing !== n.id) setEditing(n.id); }}>
+                    {f.children.filter((n) => !n.hidden).map((n) => (
+                      <div key={n.id} className="design-node" data-type={n.type} data-locked={n.locked || undefined} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onContextMenu={(e) => openMenu(e, n.id)} onDoubleClick={() => { if (n.type === 'text' && editing !== n.id) setEditing(n.id); }}>
                         {n.type === 'text' && editing !== n.id ? n.text : null}
                       </div>
                     ))}
@@ -525,6 +621,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                       <TextOnCanvas key={editingNode.node.id} node={editingNode.node} style={nodeStyle(editingNode.node)} onDone={(text) => { const id = editing; setEditing(null); if (text !== null && id) change((d) => { const n = findNode(d, id)?.node; if (n) n.text = text; }); }} />
                     )}
                   </div>
+                  {f.strokeWidth > 0 && f.stroke !== 'transparent' && <div className="design-frame-stroke" aria-hidden="true" style={{ borderRadius: f.radius, ...strokeStyle(f, doc) }} />}
                   {drag?.kind === 'move' && drag.frame === f.id && drag.guides.map((g, i) => <span key={i} className="design-guide" data-axis={g.axis} style={g.axis === 'x' ? { left: g.at, top: g.from, height: g.to - g.from } : { top: g.at, left: g.from, width: g.to - g.from }} />)}
                   {selected.filter((id) => f.children.some((c) => c.id === id)).length > 1 && f.children.filter((c) => isPicked(c.id)).map((c) => <div key={c.id} className="design-handles" data-many style={handleBox(c, true)} />)}
                   {((inThis && at?.node) || one === f.id) && (() => {
@@ -566,17 +663,6 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                 ))}
               </ul>
               <button type="button" className="btn" onClick={() => change((d) => { let n = d.styles.length + 1; while (d.styles.some((s) => s.name === `Colour ${n}`)) n++; d.styles.push({ name: `Colour ${n}`, color: '#5856d6' }); })}>Add style</button>
-              <div className="design-keys">
-                <div className="design-panel-title">Keys</div>
-                <dl>
-                  <dt>V F R O T</dt><dd>Move, frame, rectangle, ellipse, text</dd>
-                  <dt>Shift-click, drag</dt><dd>Pick more than one</dd>
-                  <dt>Ctrl D · C · V</dt><dd>Duplicate, copy, paste</dd>
-                  <dt>Space-drag</dt><dd>Move around</dd>
-                  <dt>Shift 1 · Shift 0</dt><dd>Fit, actual size</dd>
-                  <dt>Alt while moving</dt><dd>No snapping</dd>
-                </dl>
-              </div>
             </>
           )}
           {selected.length > 1 && (
@@ -604,7 +690,17 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   ))}
                 </div>
               </Section>
-              <Section title="Fill"><ColorField label="Fill" value={at.frame.fill} doc={doc} onChange={(c) => setFrame((f) => { f.fill = c; })} /></Section>
+              <Section title="Fill"><ColorField label="Fill" bare value={at.frame.fill} doc={doc} onChange={(c) => setFrame((f) => { f.fill = c; })} /></Section>
+              <BorderSection item={at.frame} doc={doc} onChange={(stroke, width) => setFrame((f) => { f.stroke = stroke; f.strokeWidth = width; })} />
+              <Section title="Export">
+                <div className="design-export">
+                  <div className="design-segment" role="radiogroup" aria-label="Export size">
+                    {[1, 2, 3].map((x) => <button key={x} type="button" role="radio" aria-checked={exportScale === x} onClick={() => setExportScale(x)}>{x}×</button>)}
+                  </div>
+                  <button type="button" className="btn" onClick={() => void exportPng(at.frame.id)}>Export PNG</button>
+                </div>
+                {exported?.frame === at.frame.id && <p className="design-hint" role="status" data-bad={exported.bad || undefined}>{exported.text}</p>}
+              </Section>
               <button type="button" className="btn danger" onClick={remove}>Delete frame</button>
             </>
           )}
@@ -646,11 +742,13 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   {textContrast !== null && <p className="design-hint" data-bad={textContrast < 4.5 || undefined}>Contrast with the frame {textContrast}:1 · {textContrast >= 4.5 ? 'passes AA' : 'below AA (4.5:1)'}</p>}
                 </Section>
               )}
-              <Section title="Fill"><ColorField label="Fill" value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} /></Section>
+              <Section title="Fill"><ColorField label="Fill" bare value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} /></Section>
+              {at.node.type !== 'text' && <BorderSection item={at.node} doc={doc} onChange={(stroke, width) => setNode((n) => { n.stroke = stroke; n.strokeWidth = width; })} />}
               <Section title="Arrange">
-                <div className="design-row">
-                  <button type="button" className="btn" title="Bring forward (Ctrl+])" onClick={() => arrange(1)}>Forward</button>
-                  <button type="button" className="btn" title="Send backward (Ctrl+[)" onClick={() => arrange(-1)}>Backward</button>
+                <div className="design-align design-arrange" role="group" aria-label="Arrange">
+                  {([['front', 'Bring to front (Ctrl+Alt+])', ICON.front], [1, 'Bring forward (Ctrl+])', ICON.forward], [-1, 'Send backward (Ctrl+[)', ICON.backward], ['back', 'Send to back (Ctrl+Alt+[)', ICON.back]] as const).map(([by, label, d]) => (
+                    <button key={String(by)} type="button" aria-label={label.replace(/ \(.*/, '')} title={label} onClick={() => arrange(by)}><Icon d={d} /></button>
+                  ))}
                 </div>
               </Section>
               <button type="button" className="btn danger" onClick={remove}>Delete layer</button>
@@ -658,6 +756,32 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
           )}
         </aside>
       </div>
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={one && at ? (at.node?.name ?? at.frame.name) : selected.length ? `${selected.length} selected` : 'Canvas'} items={menuItems()} onClose={() => setMenu(null)} />, document.body)}
+    </section>
+  );
+}
+
+/** A border drawn inside the edge, as Figma's inside stroke: an outline pulled in by its own width, so it follows the corners. */
+function strokeStyle(t: { stroke: string; strokeWidth: number }, doc: DesignDoc): CSSProperties {
+  if (t.strokeWidth <= 0 || t.stroke === 'transparent') return {};
+  return { outline: `${t.strokeWidth}px solid ${resolveColor(t.stroke, doc.styles)}`, outlineOffset: -t.strokeWidth };
+}
+
+/** Border: none until it is added; then its colour and width, and a way to take it off again. */
+function BorderSection({ item, doc, onChange }: { item: { stroke: string; strokeWidth: number }; doc: DesignDoc; onChange: (stroke: string, width: number) => void }) {
+  const on = item.strokeWidth > 0 && item.stroke !== 'transparent';
+  return (
+    <section className="design-section" aria-label="Border">
+      <div className="design-section-head">
+        <div className="design-section-title">Border</div>
+        <button type="button" className="design-section-add" aria-label={on ? 'Remove border' : 'Add border'} title={on ? 'Remove border' : 'Add border'} onClick={() => (on ? onChange('transparent', 0) : onChange('#1d1d1f', 1))}><Icon d={on ? 'M5 10h10' : 'M5 10h10M10 5v10'} /></button>
+      </div>
+      {on && (
+        <div className="design-border">
+          <ColorField label="Border" bare value={item.stroke} doc={doc} onChange={(c) => onChange(c, item.strokeWidth)} />
+          <Field label="Width" value={item.strokeWidth} min={0} onChange={(v) => onChange(v > 0 ? item.stroke : 'transparent', v)} />
+        </div>
+      )}
     </section>
   );
 }

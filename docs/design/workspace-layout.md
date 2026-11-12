@@ -83,9 +83,9 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 - **Calendar** (`calendar/*.ics`): day, week and month; subscribed links and CalDAV accounts (iCloud, Fastmail,
   Nextcloud) beside the person's own calendars; Mobius's suggestions dashed with Decline and Add. Google and Microsoft
   sign-in need app registrations ([calendar sign-in](../reference/calendar-sign-in.md)).
-- **Notes** Insert bar (from the Notebook board): a checklist or a table at the cursor, Record (up to ten minutes,
-  turned into words by the speech model and kept as a section), and Clip from web (a page's first paragraphs quoted
-  with its link).
+- **Notes** format bar: Aa (styles and marks in one panel), a checklist, a table or a link at the cursor, Record (up
+  to ten minutes, turned into words by the speech model and kept as a section), and in the ⋯ menu Clip a web page (a
+  page's first paragraphs quoted with its link) and the Markdown view.
 - **Docs** (`docs/<folder>/*.md`): a page with formatting, an outline, writing tools, and the agent's changes as
   proposals in the page.
 - **Sheets** (`sheets/<workbook>/*.csv`): formulas worked out in Rust for the window and the agent alike; cells the
@@ -103,7 +103,8 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 - **Research** (`research/<folder>/*.md`): a question Mobius looks into with `web.search` and `web.read`, answered as a
   report with web facts marked and a Sources list shown beside it; follow-ups go with the report attached.
 - **Reader** (`reading/<list>/*.md`): pages saved to read later as just their words (from a link, the open tab or
-  the Browser menu), with where each came from, text size and typeface, and Done reading moving it to Archive.
+  the Browser menu), with where each came from, an Aa panel for text size, typeface and page colour, minutes left
+  and the place you stopped kept per article, and Done reading moving it to Archive.
 - **Database** (`databases/<name>.sqlite`): CSV files imported as tables, any SQL statement of the person's with the
   rows in a grid; Mobius reads with `db.query` on a read-only connection and changes data only with `db.execute`.
 - **Terminal**: the person's commands in a folder of the workspace, one line at a time, `cd` kept inside it, history

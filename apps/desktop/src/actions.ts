@@ -1,4 +1,5 @@
 import type { HubTarget } from './search-hub';
+import { dayLabel } from './dates';
 /**
  * What an action the agent asks to take means, in plain words, for the approval card: "add “Water the plants” to
  * Inbox in Tasks", not `tasks.add {…}`. The tool's name and arguments are still shown below it for anyone who wants
@@ -41,7 +42,7 @@ export function describeAction(name: string, args: unknown): string | null {
     if (clean.startsWith('slides/')) return `the deck ${quote(clean.slice('slides/'.length).replace(/\.md$/i, '').replace('/', ' › '))}`;
     if (clean.startsWith('calendar/')) return `the calendar ${quote(clean.slice('calendar/'.length).replace(/\.ics$/i, ''))}`;
     if (clean.startsWith('tasks/')) return `the task list ${quote(clean.slice('tasks/'.length).replace(/\.md$/i, ''))}`;
-    const kinds: [string, string, RegExp][] = [['designs/', 'the design', /\.json$/i], ['boards/', 'the board', /\.json$/i], ['research/', 'the report', /\.md$/i], ['reading/', 'the article', /\.md$/i], ['studio/', 'the song', /\.json$/i], ['skills/', 'the skill', /\/SKILL\.md$/i]];
+    const kinds: [string, string, RegExp][] = [['designs/', 'the design', /\.json$/i], ['boards/', 'the board', /\.json$/i], ['views/', 'the view', /\.json$/i], ['research/', 'the report', /\.md$/i], ['reading/', 'the article', /\.md$/i], ['studio/', 'the song', /\.json$/i], ['skills/', 'the skill', /\/SKILL\.md$/i]];
     for (const [prefix, what, ext] of kinds) if (clean.startsWith(prefix)) return `${what} ${quote(clean.slice(prefix.length).replace(ext, '').replace('/', ' › '))}`;
     if (clean.startsWith('photos/') && /\.edits\.json$/i.test(clean)) return `the edits of the photo ${quote(clean.slice('photos/'.length).replace(/\.edits\.json$/i, '').replace('/', ' › '))}`;
     if (clean.startsWith('video/') && clean.endsWith('/cut.json')) return `the cut of the video ${quote(clean.slice('video/'.length, -'/cut.json'.length))}`;
@@ -53,7 +54,7 @@ export function describeAction(name: string, args: unknown): string | null {
     const [day, time] = text.split('T');
     const date = new Date(`${day}T00:00`);
     if (Number.isNaN(date.getTime())) return text;
-    const shown = date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    const shown = dayLabel(date, { weekday: 'short' });
     return time ? `${shown} at ${time}` : shown;
   };
   switch (name) {

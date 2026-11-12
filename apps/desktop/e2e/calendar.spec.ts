@@ -67,7 +67,8 @@ test('a calendar file from another app shows in the week, and events are added, 
   const change = shell().getByRole('dialog', { name: 'Edit event' });
   await expect(change.getByText('This event repeats.')).toBeVisible();
   await change.getByRole('textbox', { name: 'Title' }).fill('Team standup');
-  await change.getByRole('button', { name: 'Save' }).click();
+  // The popover has no Save: Enter keeps the change.
+  await change.getByRole('textbox', { name: 'Title' }).press('Enter');
   await expect(page().getByRole('button', { name: /^Team standup, 9:00–9:30/ }).first()).toBeVisible();
   const work = fs.readFileSync(file('Work'), 'utf8');
   expect(work).toContain('RRULE:FREQ=DAILY;COUNT=3');
@@ -75,7 +76,7 @@ test('a calendar file from another app shows in the week, and events are added, 
   expect(work).toContain(`DTSTART:${ics(today())}T090000`);
 
   await plants.click();
-  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'Delete' }).click();
+  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'Delete Event' }).click();
   await expect(plants).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).not.toContain('Water the plants');
 
@@ -103,7 +104,7 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
   await walk('10:00–10:30').click();
   const editor = shell().getByRole('dialog', { name: 'Edit event' });
   await editor.getByRole('combobox', { name: 'Repeat' }).selectOption('Every day');
-  await editor.getByRole('button', { name: 'Save' }).click();
+  await editor.getByRole('textbox', { name: 'Title' }).press('Enter');
   await expect(editor).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
 
@@ -165,7 +166,8 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await expect(view.getByText('a subscribed calendar')).toBeVisible();
   await expect(view.getByRole('button', { name: 'Delete' })).toHaveCount(0);
   await expect(view.getByRole('textbox', { name: 'Title' })).toBeDisabled();
-  await view.getByRole('button', { name: 'Close' }).click();
+  await shell().keyboard.press('Escape');
+  await expect(view).toHaveCount(0);
 
   // New events go only to calendars that can take them.
   await page().getByRole('button', { name: 'New event' }).click();
@@ -208,4 +210,55 @@ test('the agent suggests an event without asking, and it is added only when the 
   await expect(page().getByRole('button', { name: /^Prep slides, 10:00–11:00, Calendar/ })).toBeVisible();
   await expect(page().getByRole('button', { name: /Gym/ })).toHaveCount(0);
   expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('SUMMARY:Prep slides');
+});
+
+test('an event opens in a popover beside it, and the event picked out is duplicated, deleted and moved from the keys and its menu', async () => {
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${ics(today())}T110000\r\nDTEND:${ics(today())}T120000\r\nSUMMARY:Budget review\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  fs.writeFileSync(file('Home'), 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nEND:VCALENDAR\r\n');
+  await start();
+  await page().getByRole('radio', { name: 'Week' }).click();
+  const review = (title = 'Budget review') => page().getByRole('button', { name: new RegExp(`^${title}, 11:00–12:00`) });
+
+  // A popover, not a sheet over a dimmed window; a press elsewhere keeps what was typed.
+  await review().click();
+  const pop = shell().getByRole('dialog', { name: 'Edit event' });
+  await expect(pop).toHaveAttribute('data-pop', 'true');
+  await expect(shell().locator('.cal-editor-backdrop')).toHaveCount(0);
+  await expect(pop.getByRole('textbox', { name: 'Title' })).toBeFocused();
+  await pop.getByRole('textbox', { name: 'Title' }).fill('Budget review Q4');
+  await page().locator('.cal-hours').click({ position: { x: 10, y: 10 } });
+  await expect(pop).toHaveCount(0);
+  await expect(review('Budget review Q4')).toBeVisible();
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('SUMMARY:Budget review Q4');
+
+  // Opened, it stays picked out once closed: Ctrl+D copies it and Delete takes the copy away again, each with Undo.
+  await review('Budget review Q4').click();
+  await shell().keyboard.press('Escape');
+  await expect(pop).toHaveCount(0);
+  await expect(review('Budget review Q4')).toHaveAttribute('data-selected', 'true');
+  await shell().keyboard.press('Control+d');
+  await expect(review('Budget review Q4')).toHaveCount(2);
+  await expect(page().getByRole('status').filter({ hasText: 'Duplicated “Budget review Q4”' })).toBeVisible();
+  await shell().keyboard.press('Delete');
+  await expect(review('Budget review Q4')).toHaveCount(1);
+  await expect(page().getByRole('status').filter({ hasText: 'Deleted “Budget review Q4”' })).toBeVisible();
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8').match(/SUMMARY:Budget review Q4/g)?.length).toBe(1);
+
+  // Its menu moves it to another calendar.
+  await review('Budget review Q4').click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Budget review Q4' }).getByRole('menuitem', { name: 'Move to Home' }).click();
+  await expect(page().getByRole('button', { name: /^Budget review Q4, 11:00–12:00, Home/ })).toBeVisible();
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('SUMMARY:Budget review Q4');
+  expect(fs.readFileSync(file('Work'), 'utf8')).not.toContain('Budget review Q4');
+
+  // Empty time has a menu too: a new event there, edited beside it.
+  await page().locator('.cal-column').first().click({ button: 'right', position: { x: 20, y: 14 * 48 + 10 } });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'New event at 14:00' }).click();
+  const made = shell().getByRole('dialog', { name: 'New event' });
+  await expect(made).toHaveAttribute('data-pop', 'true');
+  await expect(made.getByRole('textbox', { name: 'Start time' })).toHaveValue(/2(:00)?\s?PM|14:00/);
+  await expect(made.getByRole('button', { name: /Cancel|Save|Add/ })).toHaveCount(0);
+  await shell().keyboard.press('Escape');
+  await expect(made).toHaveCount(0);
 });

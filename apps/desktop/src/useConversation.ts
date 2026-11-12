@@ -34,11 +34,14 @@ export interface Conversation {
   /** Resolves with an explanation when it could not be deleted, otherwise null. */
   remove(id: string): Promise<string | null>;
   refresh(): Promise<void>;
+  /** The app showing, set as it changes: a message counts its tokens there (Settings, Usage). */
+  sentFrom: { current: string | undefined };
 }
 
 export function useConversation(coreStatus: CoreStatus, knownBots: readonly string[] = [MAIN_BOT_ID]): Conversation {
   const knownRef = useRef(knownBots);
   knownRef.current = knownBots;
+  const appRef = useRef<string | undefined>(undefined);
   const botRef = useRef<string>(MAIN_BOT_ID);
   const [id, setId] = useState<string>(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -109,7 +112,7 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
       dispatch({ type: 'sent', text, context, images });
       const id = active.current;
       sending.current = id;
-      const extra = { ...(options.plan ? { plan: true } : {}), ...(images.length > 0 ? { images } : {}) };
+      const extra = { ...(options.plan ? { plan: true } : {}), ...(images.length > 0 ? { images } : {}), ...(appRef.current ? { app: appRef.current } : {}) };
       // A choice made just before sending (the effort, say) reaches the core first.
       await preferencesSettled();
       const result = await window.mobius.agent.send(id, text, context, Object.keys(extra).length > 0 ? extra : undefined);
@@ -214,5 +217,5 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     [],
   );
 
-  return { state, id, list, send, stop, takeOver, handBack, answer, reply, retry, edit, toolDetails, newConversation, startFresh, select, remove, refresh };
+  return { state, id, list, send, stop, takeOver, handBack, answer, reply, retry, edit, toolDetails, newConversation, startFresh, select, remove, refresh, sentFrom: appRef };
 }

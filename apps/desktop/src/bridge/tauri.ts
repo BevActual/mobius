@@ -169,7 +169,7 @@ export function createTauriBridge(): MobiusBridge {
       onStatus: (listener) => on<CoreStatus>('mobius:core-status', listener, () => call<CoreStatus>('core', 'getStatus', [], () => 'failed')),
     },
     agent: {
-      send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || (options.images && options.images.length > 0)) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
+      send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || options.app || (options.images && options.images.length > 0)) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
       models: () => call('agent', 'models', [], () => refused),
       setModel: (model) => call('agent', 'setModel', [model], () => refused),
       transcribe: (audio, mime) => call('agent', 'transcribe', [toBase64(audio), mime], () => refused),
@@ -251,6 +251,7 @@ export function createTauriBridge(): MobiusBridge {
       report: (conversation, text) => call('projects', 'report', [conversation, text], () => ({ ok: false as const, message: 'Projects are not available.' })),
       made: (id) => call('projects', 'made', [id], () => []),
       addThread: (id, conversation) => call('projects', 'addThread', [id, conversation], () => ({ ok: false as const, message: 'Projects are not available.' })),
+      removeThread: (id, conversation) => call('projects', 'removeThread', [id, conversation], () => ({ ok: false as const, message: 'Projects are not available.' })),
       onChanged: (listener) => on<null>('mobius:projects-changed', () => listener()),
     },
     updates: {
@@ -269,6 +270,12 @@ export function createTauriBridge(): MobiusBridge {
       all: (app) => call('comments', 'all', [app], () => []),
       set: (app, doc, threads) => call('comments', 'set', [app, doc, threads], () => ({ ok: false as const, message: 'Comments are not available.' })),
       onChanged: (listener) => on<{ app?: string } | null>('mobius:comments-changed', (p) => listener(p?.app ?? '')),
+    },
+    usage: {
+      query: (range) => call('usage', 'query', [range], () => []),
+      clear: async () => { await call('usage', 'clear', [], () => null); },
+      exportCsv: (csv) => call('usage', 'exportCsv', [csv], () => ({ ok: false as const, error: 'Export is not available here.' })),
+      onChange: (listener) => on<unknown>('mobius:usage-changed', () => listener()),
     },
     files: {
       list: (path) => call('files', 'list', [path], () => ({ error: 'Not available.' })),
@@ -466,6 +473,16 @@ export function createTauriBridge(): MobiusBridge {
       remove: (path) => call('boards', 'remove', [path], () => ({ ok: false as const, message: 'Canvas is not available.' })),
       search: (query) => call('boards', 'search', [query], () => []),
       onChanged: (listener) => on<NotesChange>('mobius:boards-changed', listener),
+    },
+    views: {
+      list: () => call('views', 'list', [], () => []),
+      read: (path) => call('views', 'read', [path], () => ({ ok: false as const, message: 'Views is not available.' })),
+      save: (path, content, base) => call('views', 'save', [path, content, base], () => ({ ok: false as const, message: 'Views is not available.' })),
+      createNotebook: (name) => call('views', 'createNotebook', [name], () => ({ ok: false as const, message: 'Views is not available.' })),
+      createPage: (notebook, title) => call('views', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Views is not available.' })),
+      remove: (path) => call('views', 'remove', [path], () => ({ ok: false as const, message: 'Views is not available.' })),
+      search: (query) => call('views', 'search', [query], () => []),
+      onChanged: (listener) => on<NotesChange>('mobius:views-changed', listener),
     },
     research: {
       list: () => call('research', 'list', [], () => []),

@@ -42,6 +42,25 @@ pub struct Completion {
     pub text: String,
     pub tool_calls: Vec<ToolCall>,
     pub stop: StopReason,
+    /// What the call cost in tokens, when the server said.
+    pub usage: Option<Usage>,
+}
+
+/// The tokens one model call used, as the server reported them. `cached` is the part of `input` served from the
+/// server's cache (cheaper on most services). `model` and `endpoint` say who answered; the core fills them in.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Usage {
+    pub model: String,
+    pub endpoint: String,
+    pub input: u64,
+    pub output: u64,
+    pub cached: u64,
+}
+
+impl Usage {
+    pub fn tokens(input: u64, output: u64, cached: u64) -> Usage {
+        Usage { input, output, cached: cached.min(input), ..Usage::default() }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
