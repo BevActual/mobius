@@ -28,7 +28,7 @@ import { CommentComposer, CommentList, commentLine, useNoteComments } from './No
 import { NoteHistory, dayOf } from './NoteHistory';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
-import { COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
+import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { timeLabel } from './dates';
 import './docs.css';
@@ -329,39 +329,80 @@ function Toolbar({ editor, onTool, busy, extras, trailing }: {
   );
 }
 
-/** What the agent's last turn changed in this document, as proposals: old text struck, new text marked, each with Discard. */
-function Proposals({ diff, onDiscard, render }: { diff: DiffLine[]; onDiscard: (group: number) => void; render: (markdown: string) => string | null }) {
-  const ids = changeGroups(diff);
-  const groups: { id: number; lines: DiffLine[] }[] = [];
-  diff.forEach((line, i) => {
-    const id = ids[i];
-    if (id === null || id === undefined) return;
-    const last = groups[groups.length - 1];
-    if (last && last.id === id) last.lines.push(line); else groups.push({ id, lines: [line] });
-  });
-  return (
-    <div className="doc-proposals" aria-label="Changes Mobius made">
-      {groups.map((g) => (
-        <div key={g.id} className="doc-proposal" data-group={g.id}>
-          {(['removed', 'added'] as const).map((kind) => {
-            const lines = g.lines.filter((l) => l.kind === kind).map((l) => l.text);
-            if (lines.length === 0) return null;
-            // Shown as the document shows it, headings, lists and bold included; as lines when it will not read as Markdown.
-            const html = render(lines.join('\n'));
-            const cls = `${kind === 'removed' ? 'doc-proposal-old' : 'doc-proposal-new'}`;
-            return html !== null
-              ? <div key={kind} className={cls} dangerouslySetInnerHTML={{ __html: html }} />
-              : <div key={kind} className={cls}>{lines.map((t, i) => <p key={i}>{t || ' '}</p>)}</div>;
-          })}
-          <div className="doc-proposal-actions">
-            <span>Mobius</span>
-            <button type="button" className="btn" onClick={(e) => { void settleGone(e.currentTarget.closest('.doc-proposal')).then(() => onDiscard(g.id)); }}>Discard</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+/** What Mobius's last turn changed, as the page shows it: the blocks it added marked, and a note at each change with
+ *  the words it took out and Keep and Discard for that change alone. Read from `look` when told to look again. */
+interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void }
+const changeKey = new PluginKey<DecorationSet>('doc-changes');
+function changeNote(group: number, removed: string[], view: ChangeView): HTMLElement {
+  const note = document.createElement('div');
+  note.className = 'doc-change';
+  note.contentEditable = 'false';
+  note.dataset.group = String(group);
+  note.setAttribute('role', 'group');
+  note.setAttribute('aria-label', removed.length ? 'A change Mobius made' : 'Words Mobius added');
+  if (removed.length) {
+    const old = document.createElement('div');
+    old.className = 'doc-change-old';
+    // Drawn as the page draws it (headings, lists, bold), through the editor's own schema; as lines when it will not read.
+    const html = view.render(removed.join('\n'));
+    if (html !== null) old.innerHTML = html;
+    else for (const line of removed) { const p = document.createElement('p'); p.textContent = line || ' '; old.append(p); }
+    note.append(old);
+  }
+  const bar = document.createElement('div');
+  bar.className = 'doc-change-bar';
+  const who = document.createElement('span');
+  who.textContent = removed.length ? 'Mobius changed this' : 'Mobius added this';
+  bar.append(who);
+  const button = (label: string, name: string, kind: string, run: () => void) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'review-btn';
+    b.dataset.kind = kind;
+    b.textContent = label;
+    b.setAttribute('aria-label', name);
+    b.addEventListener('mousedown', (e) => e.preventDefault());
+    b.addEventListener('click', run);
+    return b;
+  };
+  bar.append(button('Discard', 'Discard this change', 'discard', () => view.discard(group)), button('Keep', 'Keep this change', 'keep', () => view.keep(group)));
+  note.append(bar);
+  return note;
 }
+function changeDecorations(doc: PmNode, view: ChangeView | null): DecorationSet {
+  if (!view) return DecorationSet.empty;
+  const blocks: { from: number; to: number; text: string }[] = [];
+  doc.descendants((node, pos) => {
+    if (!node.isTextblock) return true;
+    blocks.push({ from: pos, to: pos + node.nodeSize, text: node.textContent.replace(/\s+/g, ' ').trim() });
+    return false;
+  });
+  const groups = changeGroups(view.diff);
+  const { added, notes } = placeChanges(view.diff, groups, blocks.map((b) => b.text));
+  const marks: Decoration[] = [];
+  for (const [b, g] of added) marks.push(Decoration.node(blocks[b]!.from, blocks[b]!.to, { class: 'doc-change-new', 'data-group': String(g) }));
+  for (const [g, at] of notes) {
+    const removed = view.diff.filter((l, i) => groups[i] === g && l.kind === 'removed').map((l) => l.text);
+    while (removed.length && !removed[removed.length - 1]!.trim()) removed.pop();
+    while (removed.length && !removed[0]!.trim()) removed.shift();
+    const pos = at.block < 0 ? 0 : at.before ? blocks[at.block]!.from : blocks[at.block]!.to;
+    marks.push(Decoration.widget(pos, () => changeNote(g, removed, view), { side: at.before ? -1 : 1, key: `change-${g}-${pos}-${removed.join('\u0000').length}`, stopEvent: () => true, ignoreSelection: true }));
+  }
+  return DecorationSet.create(doc, marks);
+}
+const docChanges = (look: () => ChangeView | null) => Extension.create({
+  name: 'docChanges',
+  addProseMirrorPlugins() {
+    return [new Plugin<DecorationSet>({
+      key: changeKey,
+      state: {
+        init: (_, state) => changeDecorations(state.doc, look()),
+        apply: (tr, old) => (tr.docChanged || tr.getMeta(changeKey) ? changeDecorations(tr.doc, look()) : old),
+      },
+      props: { decorations: (state) => changeKey.getState(state) },
+    })];
+  },
+});
 
 type ShareHow = 'markdown' | 'formatted' | 'html' | 'md' | 'print';
 
@@ -397,6 +438,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const quotesNow = useRef<string[]>([]);
   quotesNow.current = commentState.comments.filter((c) => !c.resolved).map((c) => c.quote);
   const commentMarks = useMemo(() => docComments(() => quotesNow.current), []);
+  const changesNow = useRef<ChangeView | null>(null);
+  const changeMarks = useMemo(() => docChanges(() => changesNow.current), []);
   useEffect(() => { onComments?.(commentState.comments); }, [commentState.comments, onComments]);
   const askAbout = onTool ? (c: NoteComment) => onTool('comment', commentLine(c, commentState.comments)) : undefined;
   // The selection bar sits just above the chosen words.
@@ -422,6 +465,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       Placeholder.configure({ placeholder: ({ node }) => (node.type.name === 'heading' ? 'Title' : 'Write here…') }),
       image,
       commentMarks,
+      changeMarks,
     ],
     content: '',
     editorProps: {
@@ -693,8 +737,21 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     const next = undoGroup(diff, group);
     docs.edit(next);
     const rest = compare(before, next);
-    setDiff(rest.some((line) => line.kind !== 'same') ? rest : null);
+    // Every change put back: nothing is left to decide, so the turn is settled and its bar goes.
+    if (rest.some((line) => line.kind !== 'same')) setDiff(rest); else void keepAll();
   };
+  // Keeping one change takes it into "before", so it stops showing; the last one kept keeps the whole turn.
+  const keepOne = (group: number) => {
+    if (!diff) return;
+    const was = acceptGroup(diff, changeGroups(diff), group);
+    setBefore(was);
+    const rest = compare(was, docs.text);
+    if (rest.some((line) => line.kind !== 'same')) setDiff(rest); else void keepAll();
+  };
+  // The page is told to mark the changes again whenever what it should show changes.
+  changesNow.current = null;
+  const changesKey = review && !kept && diff && before !== null ? `${path}:${before.length}:${diff.length}:${diff.map((l) => l.kind[0]).join('')}` : '';
+  useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(changeKey, true)); }, [editor, changesKey]);
 
   if (!docs.page) {
     // The editor stays mounted (hidden), so it is ready the moment a document opens.
@@ -714,6 +771,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
     try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
   };
+  if (showing) changesNow.current = { diff, render: renderMarkdown, keep: keepOne, discard: discardOne };
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
@@ -784,12 +842,11 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
                 <span className="review-dot" aria-hidden="true" />
                 <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return wholeNew ? 'Mobius wrote this document in its last turn.' : `Mobius changed ${c.added + c.removed === 1 ? 'one line' : `${c.added + c.removed} lines`} here in its last turn.`; })() : 'Mobius changed this document in its last turn.'}<WhyThis conversation={review.conversation} /></span>
                 <ReviewActions
-                  onKeep={async () => { const page = reviewBar.current?.parentElement; await Promise.all([settleKept(reviewBar.current), settleKept(page?.querySelector('.doc-proposals'))]); await keepAll(); }}
-                  onDiscard={async () => { const paper = reviewBar.current?.parentElement?.querySelector('.doc-sheet'); await Promise.all([settleGone(paper), settleGone(reviewBar.current?.parentElement?.querySelector('.doc-proposals'))]); await discardAll(); settleIn(paper); }} />
+                  onKeep={async () => { const page = reviewBar.current?.parentElement; await Promise.all([settleKept(reviewBar.current), ...[...(page?.querySelectorAll('.doc-change') ?? [])].map((n) => settleKept(n))]); await keepAll(); }}
+                  onDiscard={async () => { const paper = reviewBar.current?.parentElement?.querySelector('.doc-sheet'); await settleGone(paper); await discardAll(); settleIn(paper); }} />
               </div>
             )}
             {problem && <p className="tasks-message" role="alert">{problem}</p>}
-            {showing && <Proposals diff={diff} onDiscard={discardOne} render={renderMarkdown} />}
             <div className="doc-sheet" data-new={wholeNew || undefined}>
               <EditorContent editor={editor} className="doc-paper" onMouseUp={() => { if (editor) window.setTimeout(() => placeSelection(editor), 0); }}
                 onContextMenu={(e) => { if (!editor) return; e.preventDefault(); setEditMenu({ x: e.clientX, y: e.clientY }); }} />
