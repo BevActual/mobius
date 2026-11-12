@@ -2,14 +2,14 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/banner-dark.png">
-  <img src="docs/readme/banner-light.png" alt="Mobius, the AI workspace: your everyday apps in one app, with an agent that works across all of them">
+  <img src="docs/readme/banner-light.png" alt="Mobius. Every app. One agent. The AI workspace.">
 </picture>
 
 <h3>Mobius is an AI workspace: your everyday apps in one app, with an agent that works across all of them.</h3>
 
 <p>
   <a href="https://github.com/BevActual/mobius/releases"><b>Download</b></a> &nbsp;·&nbsp;
-  <a href="#what-you-can-do-today"><b>What it does</b></a> &nbsp;·&nbsp;
+  <a href="#every-app"><b>Every app</b></a> &nbsp;·&nbsp;
   <a href="docs/README.md"><b>Docs</b></a> &nbsp;·&nbsp;
   <a href="#where-it-stands"><b>Where it stands</b></a> &nbsp;·&nbsp;
   <a href="#build-from-source"><b>Build from source</b></a> &nbsp;·&nbsp;
@@ -79,33 +79,98 @@ own models, and are happy to try something unfinished and tell us what breaks.
 
 <br>
 
-## What you can do today
+## Every app
+
+A new install starts with **Notes, Tasks, Calendar, Mail, Docs and Browser**. Add the rest from **Abilities** whenever
+you want them; apps load the first time you open them, so the ones you don't use cost nothing. Every app shares one
+sidebar, one look and one way of reviewing what Mobius changed. More in the [app guide](docs/apps/README.md).
+
+### Assistant
+
+Mobius's own apps, always there.
 
 <table>
 <tr>
-<td width="50%" valign="top"><img src="docs/readme/docs-light.png" alt="Docs with a change from Mobius waiting for review, and Keep, Discard and Try another"><br><b>Review what Mobius changed.</b> Its edits appear in place, with why it made them. Keep, Discard or Try another.</td>
-<td width="50%" valign="top"><img src="docs/readme/notes.png" alt="Notes with notebooks, tags, a comment and a change from Mobius"><br><b>Notes and Docs.</b> Formatted pages kept as Markdown, checklists, tags, comments, history and links between pages.</td>
+<td width="50%" valign="top"><img src="docs/readme/apps/agent.png" alt="The Agent app in Mobius"><br><b>Agent</b> · Home: the desk and your conversations with Mobius, plus named agents for jobs you repeat.<br><sub>Talk to Mobius about anything in your workspace and see what it's working on.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/abilities.png" alt="The Abilities app in Mobius"><br><b>Abilities</b> · The app library, plus connectors, skills and plugins.<br><sub>Start small and add apps and tools when you need them. Removing an app keeps its files.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/readme/sheets.png" alt="Sheets with a budget and a change from Mobius marked in the cells"><br><b>Sheets and Slides.</b> Formulas, fill and sort; decks with layouts, presenter notes and a full-screen player.</td>
-<td width="50%" valign="top"><img src="docs/readme/slides.png" alt="Slides editing a deck with thumbnails, styles and Ask Mobius actions"><br><b>Ask in place.</b> Every app has its own Ask Mobius actions, like "Write presenter notes" or "Plan my week".</td>
-</tr>
-<tr>
-<td width="50%" valign="top"><img src="docs/readme/abilities.png" alt="Abilities, the app library, listing apps by group with Add and Remove"><br><b>Abilities.</b> Start with the everyday apps and add the rest when you need them. Removing an app keeps its files.</td>
-<td width="50%" valign="top"><img src="docs/readme/models.png" alt="Settings, Models: chat, second, quick, images, listen and speak models"><br><b>Models by task.</b> One model to chat, a quick one for small jobs, others to make pictures, listen and speak.</td>
+<td width="50%" valign="top"><img src="docs/readme/apps/settings.png" alt="The Settings app in Mobius"><br><b>Settings</b> · Gateways, models, voice, approvals, privacy and more.<br><sub>Choose which AI does which job and how far Mobius may go on its own.</sub></td>
+<td width="50%"></td>
 </tr>
 </table>
 
-### Apps
+### Write and plan
 
-| | |
-|---|---|
-| **Everyday apps** (in every new install) | Notes, Tasks, Calendar, Mail, Docs, Browser |
-| **Add from Abilities** | Sheets, Slides, Knowledge, Database, Search, Research, Reader, Design, Photo, Music, Video, Code, Terminal, Canvas |
-| **Always there** | Home (where you talk to Mobius and see its agents and activity), Projects, Files, Review, Abilities, Settings |
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/notes.png" alt="The Notes app in Mobius"><br><b>Notes</b> · Quick pages, saved as you type, kept as Markdown files.<br><sub>Capture ideas, checklists and #tags. Mobius tidies, links and fills them in on request.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/docs.png" alt="The Docs app in Mobius"><br><b>Docs</b> · Longer documents with an outline, comments and history.<br><sub>Write briefs and reports. Mobius drafts, proofreads and answers comments in place.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/tasks.png" alt="The Tasks app in Mobius"><br><b>Tasks</b> · Lists of things to do, in the spirit of Apple's Reminders.<br><sub>Keep track of what's due. Mobius adds and plans tasks, and you keep what you like.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/calendar.png" alt="The Calendar app in Mobius"><br><b>Calendar</b> · Your calendars by day, week or month, with due tasks.<br><sub>See your time at a glance. Quick add in plain words, and Mobius finds time for things.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/sheets.png" alt="The Sheets app in Mobius"><br><b>Sheets</b> · Spreadsheets with formulas, saved as CSV files.<br><sub>Budgets and lists any spreadsheet app can open. Mobius fills cells and explains formulas.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/database.png" alt="The Database app in Mobius"><br><b>Database</b> · SQLite databases you query with SQL.<br><sub>Ask questions of your data in words; Mobius writes the query, read-only.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/projects.png" alt="The Projects app in Mobius"><br><b>Projects</b> · A place for one piece of work: its files, rules and memory.<br><sub>Keep everything about a project together, with its own rules for what Mobius may do.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/knowledge.png" alt="The Knowledge app in Mobius"><br><b>Knowledge</b> · What Mobius knows, on pages you can read and edit.<br><sub>No hidden memory: your How I work page and each project's memory, in plain sight.</sub></td>
+</tr>
+</table>
 
-Apps load the first time you open them, so the ones you don't use cost nothing. What each app does is in the
-[app guide](docs/apps/README.md), and adding and removing them in [Abilities](docs/guide/abilities.md).
+### Browse and find
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/browser.png" alt="The Browser app in Mobius"><br><b>Browser</b> · A full web browser with tabs, favourites and downloads.<br><sub>Mobius can read pages, compare and pull facts out for you. Signing in and paying stay yours.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/mail.png" alt="The Mail app in Mobius"><br><b>Mail</b> · Your mail on this computer, sorted, with drafts in your tone.<br><sub>Get to inbox zero faster. Mobius writes drafts; it never sends, you press Send.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/search.png" alt="The Search app in Mobius"><br><b>Search</b> · One box for conversations, notes, tasks, docs, mail and pages.<br><sub>Find anything you've kept, or ask a question and Search hands it to Mobius.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/research.png" alt="The Research app in Mobius"><br><b>Research</b> · Ask a question; Mobius searches, reads and writes a report.<br><sub>Get a sourced answer to a real question; follow-ups add to the same report.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/reader.png" alt="The Reader app in Mobius"><br><b>Reader</b> · Pages saved to read later, as clean readable text.<br><sub>Read without clutter, and ask Mobius about the article you're reading.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/files.png" alt="The Files app in Mobius"><br><b>Files</b> · Your whole workspace as a drive, with Made by Mobius.<br><sub>Every note, sheet and doc is a real file you own, in one place.</sub></td>
+</tr>
+</table>
+
+### Create
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/slides.png" alt="The Slides app in Mobius"><br><b>Slides</b> · Presentations with layouts, presenter notes and a player.<br><sub>Build a deck fast. Mobius makes slides from a document and writes speaker notes.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/design.png" alt="The Design app in Mobius"><br><b>Design</b> · Frames on a canvas, with layers, styles and smart guides.<br><sub>Sketch screens and layouts. Mobius's changes come dashed, to keep or discard.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/photo.png" alt="The Photo app in Mobius"><br><b>Photo</b> · Your pictures, with crops, adjustments and filters you can undo.<br><sub>Edit without losing the original. Mobius can make pictures with your image model.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/music.png" alt="The Music app in Mobius"><br><b>Music</b> · A small studio for writing songs as notes: tracks, piano roll, mixer.<br><sub>Write a tune or a sting. Mobius reads and writes notes, so it can add a bassline.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/video.png" alt="The Video app in Mobius"><br><b>Video</b> · Cut footage into a short film on a timeline.<br><sub>Trim, split and order shots in a filmstrip timeline, and ask Mobius about the cut.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/code.png" alt="The Code app in Mobius"><br><b>Code</b> · A code editor for projects in your workspace, with git.<br><sub>Edit, find, run tests and commit. Mobius proposes changes you review line by line.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/terminal.png" alt="The Terminal app in Mobius"><br><b>Terminal</b> · Run commands in a folder of your workspace.<br><sub>For the jobs that need a command line. Mobius always asks before running one.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/canvas.png" alt="The Canvas app in Mobius"><br><b>Canvas</b> · A whiteboard of stickies, shapes, arrows and pen lines.<br><sub>Think out loud on a board. Send a sticky to Mobius to turn it into a plan.</sub></td>
+</tr>
+</table>
+
+### Review
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/readme/apps/review.png" alt="The Review app in Mobius"><br><b>Review</b> · Everything Mobius changed, from every conversation, in one place.<br><sub>Check what happened while you were away, then keep or roll back.</sub></td>
+<td width="50%"></td>
+</tr>
+</table>
+
+<sub>Screenshots from the current build, with sample data.</sub>
+
+## Your AI, your rules
 
 ### Bring your own AI
 
