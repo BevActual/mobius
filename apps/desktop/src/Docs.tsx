@@ -71,6 +71,11 @@ const STYLES = [
   { id: 'code', label: 'Code' },
 ] as const;
 
+/** The document's typeface: the app's sans-serif, as in Notes, or a serif for those who write long pieces in one. Per device. */
+type DocFont = 'sans' | 'serif';
+const FONT_KEY = 'mobius.docs.font';
+const readFont = (): DocFont => { try { return window.localStorage.getItem(FONT_KEY) === 'serif' ? 'serif' : 'sans'; } catch { return 'sans'; } };
+
 /** Whether the outline shows beside the page. Per device; shown unless hidden. */
 const OUTLINE_KEY = 'mobius.docs.outline';
 const readOutline = () => { try { return window.localStorage.getItem(OUTLINE_KEY) !== '0'; } catch { return true; } };
@@ -117,7 +122,7 @@ const keep = (e: { preventDefault: () => void }) => e.preventDefault();
 const Icon = ({ d, children }: { d?: string; children?: ReactNode }) => <svg viewBox="0 0 20 20" aria-hidden="true">{d ? <path d={d} /> : children}</svg>;
 
 /** A small menu under its button, closed by a click away or Escape. */
-function Menu({ label, button, title, children, wide }: { label: string; button: ReactNode; title: string; children: (close: () => void) => ReactNode; wide?: boolean }) {
+function Menu({ label, button, title, children, wide, pressed }: { label: string; button: ReactNode; title: string; children: (close: () => void) => ReactNode; wide?: boolean; pressed?: boolean }) {
   const [open, setOpen] = useState(false);
   const at = useRef<HTMLButtonElement>(null);
   const place = () => {
@@ -128,7 +133,7 @@ function Menu({ label, button, title, children, wide }: { label: string; button:
   };
   return (
     <>
-      <button ref={at} type="button" className="doc-tool" aria-label={label} title={title} aria-haspopup="menu" aria-expanded={open} onPointerDown={keep} onClick={() => setOpen((o) => !o)}>{button}</button>
+      <button ref={at} type="button" className="doc-tool" aria-label={label} title={title} aria-haspopup="menu" aria-expanded={open} aria-pressed={pressed} onPointerDown={keep} onClick={() => setOpen((o) => !o)}>{button}</button>
       {open && createPortal(
         <>
           <div className="doc-writing-scrim" onMouseDown={() => setOpen(false)} />
@@ -142,12 +147,43 @@ function Menu({ label, button, title, children, wide }: { label: string; button:
   );
 }
 
-function Toolbar({ editor, onTool, busy, extras }: {
+/** Aa's panel: the styles and marks, under its button, closed by a click away or Escape. Stays open while formatting. */
+function Panel({ label, buttonLabel, title, button, marked, children }: { label: string; buttonLabel: string; title: string; button: ReactNode; marked: boolean; children: () => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const at = useRef<HTMLButtonElement>(null);
+  const r = open ? at.current?.getBoundingClientRect() : undefined;
+  return (
+    <>
+      <button ref={at} type="button" className="doc-tool doc-aa-btn" aria-label={buttonLabel} title={title} aria-haspopup="dialog" aria-expanded={open} data-marked={marked || undefined} onPointerDown={keep} onClick={() => setOpen((o) => !o)}>{button}</button>
+      {open && createPortal(
+        <>
+          <div className="doc-writing-scrim" onMouseDown={() => setOpen(false)} />
+          <div className="doc-aa-panel glass" role="dialog" aria-label={label} style={{ top: (r?.bottom ?? 0) + 8, left: Math.max(8, Math.min(r?.left ?? 0, window.innerWidth - 280)) }}
+            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); at.current?.focus(); } }}>
+            {children()}
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+/** The styles in the Aa panel, biggest first, as Apple Notes and Pages list them. */
+const STYLES_SHOWN = [STYLES[1], STYLES[2], STYLES[3], STYLES[0], STYLES[4]];
+
+/**
+ * The format bar in one row, as Notes has it: Aa opens a panel with the styles, marks and lists; the bar keeps what is
+ * reached for while writing (checklist, table, link, insert), then the document's own things on the right.
+ */
+function Toolbar({ editor, onTool, busy, extras, trailing }: {
   editor: Editor;
   onTool?: (tool: WritingTool, selection: string | null) => void;
   busy: boolean;
   /** What the document can do beyond writing; absent where the folder does not keep these (the wiki). */
-  extras: { onLink: () => void; onFile?: () => void; onHistory?: () => void; onShare?: (how: ShareHow) => void; outline: boolean; onOutline: () => void; comments: number; commentsOpen: boolean; onComments?: () => void };
+  extras: { onLink: () => void; onFile?: () => void; onHistory?: () => void; onShare?: (how: ShareHow) => void; outline: boolean; onOutline: () => void; comments: number; commentsOpen: boolean; onComments?: () => void; font: DocFont; onFont: (font: DocFont) => void };
+  /** The folder's own controls at the end of the row (Knowledge's versions). */
+  trailing?: ReactNode;
 }) {
   const state = useEditorState({
     editor,
@@ -155,7 +191,7 @@ function Toolbar({ editor, onTool, busy, extras }: {
       style: e.isActive('heading', { level: 1 }) ? 'h1' : e.isActive('heading', { level: 2 }) ? 'h2' : e.isActive('heading', { level: 3 }) ? 'h3' : e.isActive('codeBlock') ? 'code' : 'p',
       bold: e.isActive('bold'), italic: e.isActive('italic'), strike: e.isActive('strike'), code: e.isActive('code'), link: e.isActive('link'),
       bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), task: e.isActive('taskList'), quote: e.isActive('blockquote'), table: e.isActive('table'),
-      empty: e.state.selection.empty, undo: e.can().undo(), redo: e.can().redo(),
+      empty: e.state.selection.empty,
     }),
   });
   const run = (f: (c: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) => () => { f(editor.chain().focus()).run(); };
@@ -170,45 +206,43 @@ function Toolbar({ editor, onTool, busy, extras }: {
     return empty ? null : editor.state.doc.textBetween(from, to, '\n');
   };
   const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+  const marked = state.bold || state.italic || state.strike || state.code || state.style !== 'p' || state.bullet || state.ordered || state.quote;
+  const [more, setMore] = useState<{ x: number; y: number } | null>(null);
   return (
     <div className="doc-toolbar" role="toolbar" aria-label="Format">
-      <button type="button" className="doc-tool" aria-label="Undo" title={`Undo (${mod}Z)`} disabled={!state.undo} onPointerDown={keep} onClick={run((c) => c.undo())}><Icon d="M7.5 6 4 9.5 7.5 13M4.5 9.5H12a4 4 0 0 1 0 8h-1.5" /></button>
-      <button type="button" className="doc-tool" aria-label="Redo" title={`Redo (${mod}Shift+Z)`} disabled={!state.redo} onPointerDown={keep} onClick={run((c) => c.redo())}><Icon d="M12.5 6 16 9.5 12.5 13M15.5 9.5H8a4 4 0 0 0 0 8h1.5" /></button>
-      <span className="doc-tool-sep" />
-      <select aria-label="Paragraph style" value={state.style} onChange={(e) => setStyle(e.target.value)}>
-        {STYLES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-      </select>
-      <span className="doc-tool-sep" />
-      <button type="button" className="doc-tool" aria-label="Bold" aria-pressed={state.bold} title={`Bold (${mod}B)`} onPointerDown={keep} onClick={run((c) => c.toggleBold())}><b>B</b></button>
-      <button type="button" className="doc-tool" aria-label="Italic" aria-pressed={state.italic} title={`Italic (${mod}I)`} onPointerDown={keep} onClick={run((c) => c.toggleItalic())}><i>I</i></button>
-      <button type="button" className="doc-tool" aria-label="Strikethrough" aria-pressed={state.strike} title={`Strikethrough (${mod}Shift+S)`} onPointerDown={keep} onClick={run((c) => c.toggleStrike())}><s>S</s></button>
-      <button type="button" className="doc-tool" aria-label="Code" aria-pressed={state.code} title={`Code (${mod}E)`} onPointerDown={keep} onClick={run((c) => c.toggleCode())}><Icon d="M7.5 6 3.5 10l4 4M12.5 6l4 4-4 4" /></button>
-      <button type="button" className="doc-tool" aria-label="Link" aria-pressed={state.link} title={state.link ? 'Remove the link' : 'Link to a web page or another document'} onPointerDown={keep} onClick={() => (state.link ? editor.chain().focus().extendMarkRange('link').unsetLink().run() : extras.onLink())}>
-        <Icon d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" />
-      </button>
-      <span className="doc-tool-sep" />
-      <button type="button" className="doc-tool" aria-label="Bulleted list" aria-pressed={state.bullet} title={`Bulleted list (${mod}Shift+8)`} onPointerDown={keep} onClick={run((c) => c.toggleBulletList())}>
-        <Icon><circle cx="5" cy="6" r="1" /><circle cx="5" cy="10" r="1" /><circle cx="5" cy="14" r="1" /><path d="M8.5 6h7M8.5 10h7M8.5 14h7" /></Icon>
-      </button>
-      <button type="button" className="doc-tool" aria-label="Numbered list" aria-pressed={state.ordered} title={`Numbered list (${mod}Shift+7)`} onPointerDown={keep} onClick={run((c) => c.toggleOrderedList())}>
-        <Icon d="M4 5h1.5v3M4 8h3M4 12.5c.5-.8 2.5-.8 2.5.3 0 .8-2.5 1.5-2.5 2.2h2.6M9.5 6h6M9.5 10h6M9.5 14h6" />
-      </button>
-      <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title={`Checklist (${mod}Shift+9)`} onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
-        <Icon><rect x="3.5" y="4" width="4" height="4" rx="1" /><path d="m4.3 13.2 1 1 1.9-2.2M10 6h6.5M10 13h6.5" /></Icon>
-      </button>
-      <button type="button" className="doc-tool" aria-label="Quote" aria-pressed={state.quote} title={`Quote (${mod}Shift+B)`} onPointerDown={keep} onClick={run((c) => c.toggleBlockquote())}><Icon d="M5 6v8M9 7h7M9 10h7M9 13h5" /></button>
-      <Menu label="Insert" title="Insert a table, a picture or a divider" button={<Icon d="M10 4v12M4 10h12" />}>
-        {(close) => (
+      <Panel label="Text format" title="Styles, bold, italic and lists" marked={marked} button={<span className="doc-aa" aria-hidden="true">Aa</span>} buttonLabel="Format text">
+        {() => (
           <>
-            <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }}>Table</button>
-            {extras.onFile && <button type="button" role="menuitem" onClick={() => { close(); extras.onFile!(); }}>Picture or file…</button>}
-            <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().setHorizontalRule().run(); }}>Divider</button>
-            <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().toggleCodeBlock().run(); }}>Code block</button>
+            <div className="doc-aa-styles" role="group" aria-label="Paragraph style">
+              {STYLES_SHOWN.map((s) => (
+                <button key={s.id} type="button" className="doc-aa-style" data-style={s.id} aria-pressed={state.style === s.id} onPointerDown={keep} onClick={() => setStyle(s.id)}>{s.label}</button>
+              ))}
+            </div>
+            <div className="doc-aa-row">
+              <div className="doc-aa-group" role="group" aria-label="Marks">
+                <button type="button" className="doc-tool" aria-label="Bold" aria-pressed={state.bold} title={`Bold (${mod}B)`} onPointerDown={keep} onClick={run((c) => c.toggleBold())}><b>B</b></button>
+                <button type="button" className="doc-tool" aria-label="Italic" aria-pressed={state.italic} title={`Italic (${mod}I)`} onPointerDown={keep} onClick={run((c) => c.toggleItalic())}><i>I</i></button>
+                <button type="button" className="doc-tool" aria-label="Strikethrough" aria-pressed={state.strike} title={`Strikethrough (${mod}Shift+S)`} onPointerDown={keep} onClick={run((c) => c.toggleStrike())}><s>S</s></button>
+                <button type="button" className="doc-tool" aria-label="Code" aria-pressed={state.code} title={`Code (${mod}E)`} onPointerDown={keep} onClick={run((c) => c.toggleCode())}><Icon d="M7.5 6 3.5 10l4 4M12.5 6l4 4-4 4" /></button>
+              </div>
+              <div className="doc-aa-group" role="group" aria-label="Lists">
+                <button type="button" className="doc-tool" aria-label="Bulleted list" aria-pressed={state.bullet} title={`Bulleted list (${mod}Shift+8)`} onPointerDown={keep} onClick={run((c) => c.toggleBulletList())}>
+                  <Icon><circle cx="5" cy="6" r="1" /><circle cx="5" cy="10" r="1" /><circle cx="5" cy="14" r="1" /><path d="M8.5 6h7M8.5 10h7M8.5 14h7" /></Icon>
+                </button>
+                <button type="button" className="doc-tool" aria-label="Numbered list" aria-pressed={state.ordered} title={`Numbered list (${mod}Shift+7)`} onPointerDown={keep} onClick={run((c) => c.toggleOrderedList())}>
+                  <Icon d="M4 5h1.5v3M4 8h3M4 12.5c.5-.8 2.5-.8 2.5.3 0 .8-2.5 1.5-2.5 2.2h2.6M9.5 6h6M9.5 10h6M9.5 14h6" />
+                </button>
+                <button type="button" className="doc-tool" aria-label="Quote" aria-pressed={state.quote} title={`Quote (${mod}Shift+B)`} onPointerDown={keep} onClick={run((c) => c.toggleBlockquote())}><Icon d="M5 6v8M9 7h7M9 10h7M9 13h5" /></button>
+              </div>
+            </div>
           </>
         )}
-      </Menu>
-      {state.table && (
-        <Menu label="Table" title="Rows and columns" button={<Icon><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></Icon>}>
+      </Panel>
+      <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title={`Checklist (${mod}Shift+9)`} onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
+        <Icon><circle cx="5.5" cy="6" r="2.2" /><path d="m4.4 6 .8.8 1.4-1.6" /><circle cx="5.5" cy="13.5" r="2.2" /><path d="M10 6h6.5M10 13.5h6.5" /></Icon>
+      </button>
+      {state.table ? (
+        <Menu label="Table" title="Rows and columns" pressed button={<Icon><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></Icon>}>
           {(close) => (
             <>
               <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().addRowBefore().run(); }}>Add a row above</button>
@@ -222,7 +256,23 @@ function Toolbar({ editor, onTool, busy, extras }: {
             </>
           )}
         </Menu>
+      ) : (
+        <button type="button" className="doc-tool" aria-label="Table" title="Insert a table" onPointerDown={keep} onClick={run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }))}>
+          <Icon><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></Icon>
+        </button>
       )}
+      <button type="button" className="doc-tool" aria-label="Link" aria-pressed={state.link} title={state.link ? 'Remove the link' : 'Link to a web page or another document'} onPointerDown={keep} onClick={() => (state.link ? editor.chain().focus().extendMarkRange('link').unsetLink().run() : extras.onLink())}>
+        <Icon d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" />
+      </button>
+      <Menu label="Insert" title="Insert a picture, a divider or code" button={<Icon d="M10 4v12M4 10h12" />}>
+        {(close) => (
+          <>
+            {extras.onFile && <button type="button" role="menuitem" onClick={() => { close(); extras.onFile!(); }}>Picture or file…</button>}
+            <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().setHorizontalRule().run(); }}>Divider</button>
+            <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().toggleCodeBlock().run(); }}>Code block</button>
+          </>
+        )}
+      </Menu>
       <span className="spacer" />
       <button type="button" className="doc-tool" aria-label="Outline" aria-pressed={extras.outline} title={extras.outline ? 'Hide the outline' : 'Show the outline'} onClick={extras.onOutline}>
         <Icon d="M4 5.5h12M6.5 10H16M9 14.5h7" />
@@ -234,6 +284,7 @@ function Toolbar({ editor, onTool, busy, extras }: {
         </button>
       )}
       {extras.onHistory && <button type="button" className="doc-tool" aria-label="History" title="Earlier versions of this document" onClick={extras.onHistory}><Icon d="M4 10a6 6 0 1 0 1.8-4.3M4 4v3.5h3.5M10 6.5V10l2.5 1.5" /></button>}
+      {trailing}
       {extras.onShare && (
         <Menu label="Share" title="Copy, export or print this document" wide button={<Icon d="M10 3.5v9M6.5 7 10 3.5 13.5 7M5.5 10.5v5h9v-5" />}>
           {(close) => (
@@ -248,6 +299,18 @@ function Toolbar({ editor, onTool, busy, extras }: {
             </>
           )}
         </Menu>
+      )}
+      <button type="button" className="doc-tool" aria-label="More" title="More for this document" aria-haspopup="menu" aria-expanded={more !== null}
+        onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMore((m) => (m ? null : { x: Math.max(8, r.right - 220), y: r.bottom + 6 })); }}>
+        <Icon><circle cx="5" cy="10" r="1.1" /><circle cx="10" cy="10" r="1.1" /><circle cx="15" cy="10" r="1.1" /></Icon>
+      </button>
+      {more && createPortal(
+        <ContextMenu x={more.x} y={more.y} label="More" onClose={() => setMore(null)} items={[
+          extras.font === 'serif'
+            ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans') }
+            : { label: 'Use a serif font', run: () => extras.onFont('serif') },
+        ]} />,
+        document.body,
       )}
       {onTool && (
         <Menu label="Writing tools" title="Ask Mobius to proofread, rewrite or summarise" wide button={<span className="doc-tool-mobius">Writing tools</span>}>
@@ -307,8 +370,10 @@ type ShareHow = 'markdown' | 'formatted' | 'html' | 'md' | 'print';
  * earlier version back; Share copies, exports or prints it. A document the agent changed shows those changes as
  * proposals to keep or discard.
  */
-export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, busy = false }: {
+export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, busy = false, toolbarEnd }: {
   docs: NotesState;
+  /** The folder's own controls, at the end of the format bar (Knowledge's versions), so the page keeps one bar. */
+  toolbarEnd?: ReactNode;
   autoFocus?: boolean;
   review?: { conversation: string } | null;
   onTool?: (tool: WritingTool, selection: string | null) => void;
@@ -453,6 +518,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
 
   const [count, setCount] = useState<CountShown>(readCount);
   const nextCount = () => setCount((c) => { const next = COUNT_ORDER[(COUNT_ORDER.indexOf(c) + 1) % COUNT_ORDER.length]!; try { window.localStorage.setItem(COUNT_KEY, next); } catch { /* Not kept. */ } return next; });
+  const [font, setFontState] = useState<DocFont>(readFont);
+  const setFont = (f: DocFont) => { setFontState(f); try { window.localStorage.setItem(FONT_KEY, f); } catch { /* Not kept. */ } };
   const [outlineOpen, setOutlineOpen] = useState(readOutline);
   const toggleOutline = () => setOutlineOpen((o) => { try { window.localStorage.setItem(OUTLINE_KEY, o ? '0' : '1'); } catch { /* Not kept. */ } return !o; });
   const openComments = commentState.comments.filter((c) => !c.resolved).length;
@@ -649,7 +716,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
-    <section ref={section} className="doc-editor" aria-label={`Document: ${title}`} data-margin={margin || undefined}>
+    <section ref={section} className="doc-editor" aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}>
       {docs.status === 'conflict' && (
         <div className="note-conflict" role="alert">
           <span>This document was changed somewhere else while you were editing it.</span>
@@ -658,7 +725,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
         </div>
       )}
       {editor && (
-        <Toolbar editor={editor} busy={busy} {...(onTool ? { onTool } : {})} extras={{
+        <Toolbar editor={editor} busy={busy} {...(onTool ? { onTool } : {})} trailing={toolbarEnd} extras={{
+          font, onFont: setFont,
           onLink: () => setLinking(''),
           ...(own?.attach ? { onFile: () => picker.current?.click() } : {}),
           ...(own?.versions ? { onHistory: () => setHistory(true) } : {}),

@@ -136,3 +136,32 @@
 .doc-proposal ul[data-type="taskList"] input { appearance: none; width: 14px; height: 14px; margin: 0; border-radius: 50%; border: 1.5px solid var(--muted); display: grid; place-items: center; pointer-events: none; }
 .doc-proposal ul[data-type="taskList"] input:checked { background: var(--accent); border-color: var(--accent); }
 .doc-proposal ul[data-type="taskList"] input:checked::after { content: ""; width: 6px; height: 3px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 0 1.6px 1.6px; transform: rotate(-45deg); }
+
+/* The typeface: the app's sans-serif by default, as Notes and Pages' blank document; serif when chosen in More, headings
+   and body both, so the two are paired on purpose. Tables and code keep their own. */
+.doc-editor .doc-page, .doc-editor .doc-page :is(h1, h2, h3) { font-family: var(--font, system-ui), sans-serif; }
+.doc-editor .doc-page { font-size: 16px; line-height: 1.6; }
+.doc-editor[data-font="serif"] .doc-page, .doc-editor[data-font="serif"] .doc-page :is(h1, h2, h3) { font-family: 'New York', 'Iowan Old Style', Charter, Georgia, serif; }
+.doc-editor[data-font="serif"] .doc-page { font-size: 16.5px; line-height: 1.65; }
+
+/* Aa: the styles, marks and lists in one panel under the bar, as in Notes. */
+.doc-editor .doc-aa-btn { padding: 0 8px; }
+.doc-aa { font-weight: 600; font-size: var(--fs-md); letter-spacing: -0.01em; }
+.doc-editor .doc-aa-btn[aria-expanded="true"], .doc-editor .doc-aa-btn[data-marked] { color: var(--accent); }
+.doc-editor .doc-aa-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.doc-aa-panel { position: fixed; z-index: 60; width: 272px; display: grid; gap: 10px; padding: 10px; border-radius: 14px; border: 0.5px solid var(--hairline); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.08); animation: app-in var(--dur-fast) var(--ease); }
+.doc-aa-styles { display: grid; gap: 1px; }
+.doc-aa-style { text-align: left; padding: 5px 10px; border-radius: 8px; color: var(--ink); line-height: 1.25; transition: background-color var(--dur-fast) var(--ease); }
+.doc-aa-style:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.doc-aa-style[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.doc-aa-style[data-style="h1"] { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.doc-aa-style[data-style="h2"] { font-size: 16px; font-weight: 700; }
+.doc-aa-style[data-style="h3"] { font-size: var(--fs-md); font-weight: 600; }
+.doc-aa-style[data-style="p"] { font-size: var(--fs-md); }
+.doc-aa-style[data-style="code"] { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: var(--fs-sm); }
+.doc-aa-row { display: flex; gap: 8px; }
+.doc-aa-group { flex: 1; display: flex; justify-content: space-between; padding: 2px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.doc-aa-group .doc-tool { flex: 1; color: var(--ink); border-radius: 8px; }
+.doc-aa-group .doc-tool:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.doc-aa-group .doc-tool[aria-pressed="true"] { color: var(--accent); background: var(--bg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+@media (prefers-reduced-motion: reduce) { .doc-aa-panel { animation: none; } }
