@@ -85,6 +85,16 @@ and in a narrow window.
 - An empty view uses the shared empty state: an icon, a short bold title, one grey line, and the New action as a
   button. Don't write instructions such as "New deck in the sidebar".
 
+## Editors
+
+- Every text editor has one toolbar row: the **Aa** panel (paragraph styles, character formats, lists), then the few
+  insert actions (checklist, table, link), then history, share and ⋯ at the trailing end. Don't stack a second bar for
+  Versions or a document's own controls; pass them into the same row.
+- Notes and Docs use the same Aa layout. The page font is the app's sans unless the person chooses a serif in ⋯, which
+  changes body and headings together.
+- Short notes show the word count in the meta line under the title. Long documents (Docs, Knowledge pages) keep a
+  quiet footer with the count and the save state, so both stay in view while scrolling. It shows one count at a time.
+
 ## Mobius in every app
 
 - You reach Mobius in two ways: the mark in the sidebar head (or on the rail) and the launcher. Don't add a third.
