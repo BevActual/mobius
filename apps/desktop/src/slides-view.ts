@@ -35,6 +35,22 @@ export const LAYOUTS: readonly Layout[] = [
   { id: 'blank', name: 'Blank', make: () => blankSlide() },
 ];
 
+/**
+ * Which layout a slide reads as, for marking it in the inspector. A deck keeps no layout, so this goes by shape:
+ * bullets make Title and bullets, a kicker over a title is a Section on dark and a Title otherwise, a title alone is a
+ * Statement, and nothing at all is Blank. A slide with body text only matches none.
+ */
+export function layoutOf(slide: Slide): LayoutId | null {
+  const has = (s: string) => s.trim().length > 0;
+  const bullets = slide.bullets.some(has);
+  if (bullets) return 'bullets';
+  if (has(slide.text)) return null;
+  if (has(slide.kicker) && has(slide.title)) return slide.style === 'dark' ? 'section' : 'title';
+  if (has(slide.title)) return 'statement';
+  if (!has(slide.kicker)) return 'blank';
+  return null;
+}
+
 /** Elapsed time as the presenter's clock shows it: 4:05, or 1:02:09 past an hour. */
 export function clock(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
