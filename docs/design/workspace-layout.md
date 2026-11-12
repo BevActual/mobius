@@ -11,7 +11,7 @@ while you work in any app.
 | Sidebar (left) | The apps by name, then the open app's own list (tabs, notebooks, lists, conversations). Folds to an icon rail. | The **Create** button follows the app (New tab / New note / New task / New conversation). Counts and dots show what is waiting and what the agent changed elsewhere. A narrow window folds it to the rail on its own. |
 | Toolbar (top) | Where you are (title + one line about it), then the app's own controls, then the agent. | Browser: back, forward, address. Notes: notebook and save state. Tasks: how many to do, Clear completed. Agent: which model. |
 | Work area | The app's content as one sheet on the window. | Only the content changes between apps; headers live in the toolbar, not in each page. |
-| Agent | One conversation across all apps. | Three sizes: **Ask** in the toolbar when the panel is put away; the **panel** beside the work (the composer turns into a live status line while the agent works); the **Agent app** full size. On-canvas actions work on text selected in a note or on a web page. |
+| Agent | One conversation across all apps. | Three sizes: **in the sidebar**, where the Mobius button turns the app's sidebar into the conversation; the **panel** beside the work (the composer turns into a live status line while the agent works); the **Agent app** full size. On-canvas actions work on text selected in a note or on a web page. |
 | App hub | Every app as a tile with a live status, ways to start something, apps still to come. | Opens from the sidebar; type to narrow it. |
 
 ## Rules taken from Apple's HIG (Sidebars, Toolbars) and Microsoft's 2026 Copilot redesign
