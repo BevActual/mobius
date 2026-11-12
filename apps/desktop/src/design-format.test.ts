@@ -34,6 +34,18 @@ describe('designs', () => {
     expect(doc(writeDesign({ version: 1, styles: [], frames: [] }))).toEqual({ version: 1, styles: [], frames: [] });
   });
 
+  it('keep a layer hidden or locked, and leave the flags out when they are off', () => {
+    const d = doc(FILE);
+    d.frames[0]!.children[1]!.hidden = true;
+    d.frames[0]!.children[0]!.locked = true;
+    const text = writeDesign(d);
+    expect(text).toContain('"radius":16,"hidden":true}');
+    expect(text).toContain('"locked":true}');
+    expect(doc(text).frames[0]!.children.map((c) => [c.hidden, c.locked])).toEqual([[undefined, true], [true, undefined]]);
+    expect(doc('{"frames":[{"children":[{"hidden":"yes","locked":1}]}]}').frames[0]!.children[0]).not.toHaveProperty('hidden');
+    expect(writeDesign(doc(FILE))).not.toContain('hidden');
+  });
+
   it('find what a turn changed, and new ids and places', () => {
     const before = doc(FILE);
     const after = doc(FILE);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ImageModelChoice, ModelCatalog, ModelGroup } from '@mobius/shared';
 import { asCatalog } from '../composer/model-catalog';
+import { Row } from './primitives';
 
 /** The value a pop-up keeps for one model: where it comes from, and its name. */
 const keyOf = (group: ModelGroup, model: string) => `${group.kind}|${group.id}|${model}`;
@@ -161,7 +162,7 @@ export function QuickPopUp({ quick, onChanged }: { quick: string; onChanged?: ()
  * The model that makes pictures, for Photo, Design and Slides: the image models of the gateways with a key, or None.
  * Each picture may cost money on that gateway.
  */
-export function ImagesPopUp({ chosen }: { chosen: string }) {
+export function ImagesRow({ path, highlight, chosen }: { path: string; highlight: boolean; chosen: string }) {
   const [choices, setChoices] = useState<ImageModelChoice[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -169,7 +170,10 @@ export function ImagesPopUp({ chosen }: { chosen: string }) {
     setChoices(got?.choices ?? []);
   }, []);
   useEffect(() => { void load(); return window.mobius.providers?.onChanged(() => void load()); }, [load]);
-  if (choices === null) return <span className="srow-text" role="status">Loading models…</span>;
+  const description = 'Makes pictures for Photo, Design and Slides when you ask. Each picture may cost money on that gateway.'
+    // With no gateway that makes pictures, what to add says so under the row's help, where every row's help is.
+    + (choices?.length === 0 ? ' Add a key for OpenAI, OpenRouter, Together AI or xAI in Gateways first.' : '');
+  if (choices === null) return <Row path={path} title="Images" description={description} highlight={highlight}><span className="srow-text" role="status">Loading models…</span></Row>;
   const choose = async (key: string) => {
     setProblem(null);
     const api = window.mobius.providers;
@@ -181,7 +185,7 @@ export function ImagesPopUp({ chosen }: { chosen: string }) {
   const gateways = [...new Set(choices.map((c) => c.gatewayName))];
   const value = choices.some((c) => `${c.gateway}|${c.model}` === chosen) ? chosen : 'none';
   return (
-    <>
+    <Row path={path} title="Images" description={description} highlight={highlight}>
       <select className="popup" aria-label="Image model" value={value} onChange={(e) => void choose(e.target.value)}>
         <option value="none">None</option>
         {gateways.map((g) => (
@@ -190,8 +194,7 @@ export function ImagesPopUp({ chosen }: { chosen: string }) {
           </optgroup>
         ))}
       </select>
-      {choices.length === 0 && <p className="srow-text">Add a key for OpenAI, OpenRouter, Together AI or xAI in Gateways to make pictures.</p>}
       {problem && <span className="field-error" role="alert">{problem}</span>}
-    </>
+    </Row>
   );
 }

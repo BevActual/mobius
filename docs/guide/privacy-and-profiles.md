@@ -33,7 +33,9 @@ interface cannot get around them. See [Working with Mobius](working-with-mobius.
 - **Settings › Browser › Sites**: sites the agent may open without asking.
 - **Settings › Browser › Network › Local addresses**: off by default, so a web page cannot steer Mobius at your router
   or a service on your network.
-- **Settings › Advanced › Agent › Steps per request**: the most model calls one request may use before it is stopped.
+- **Settings › Advanced › Agent › Steps per request**: the most model calls one request may use before it is stopped. It
+  applies as soon as you press Enter or leave the field.
+- **Settings › Privacy › Remove my data** deletes everything Mobius keeps on this computer, then closes. It asks twice.
 
 ## Profiles
 

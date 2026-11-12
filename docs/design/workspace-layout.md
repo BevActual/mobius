@@ -103,7 +103,8 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 - **Research** (`research/<folder>/*.md`): a question Mobius looks into with `web.search` and `web.read`, answered as a
   report with web facts marked and a Sources list shown beside it; follow-ups go with the report attached.
 - **Reader** (`reading/<list>/*.md`): pages saved to read later as just their words (from a link, the open tab or
-  the Browser menu), with where each came from, text size and typeface, and Done reading moving it to Archive.
+  the Browser menu), with where each came from, an Aa panel for text size, typeface and page colour, minutes left
+  and the place you stopped kept per article, and Done reading moving it to Archive.
 - **Database** (`databases/<name>.sqlite`): CSV files imported as tables, any SQL statement of the person's with the
   rows in a grid; Mobius reads with `db.query` on a read-only connection and changes data only with `db.execute`.
 - **Terminal**: the person's commands in a folder of the workspace, one line at a time, `cd` kept inside it, history

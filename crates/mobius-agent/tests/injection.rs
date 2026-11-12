@@ -56,7 +56,7 @@ fn call(id: &str, name: &str, arguments: Value) -> ToolCall {
     ToolCall { id: id.into(), name: name.into(), arguments }
 }
 fn calls(c: Vec<ToolCall>) -> Result<Completion, ProviderError> {
-    Ok(Completion { text: String::new(), tool_calls: c, stop: StopReason::ToolUse })
+    Ok(Completion { text: String::new(), tool_calls: c, stop: StopReason::ToolUse, usage: None })
 }
 
 fn drive(w: &mut World, turn: &mut Turn, provider: &ScriptedProvider, mut step: Step) -> Step {
@@ -99,7 +99,7 @@ fn a_hostile_invite_cannot_make_mobius_send_mail_in_any_mode() {
         assert_eq!(turn.parked_origin(), Some("Priya Nair's invite “Dinner”"));
         // The person says no: it never runs.
         w.core.resolve(request_id, false, Duration::Once).unwrap();
-        let provider = ScriptedProvider::new(vec![Ok(Completion { text: "I did not send it.".into(), tool_calls: vec![], stop: StopReason::EndTurn })]);
+        let provider = ScriptedProvider::new(vec![Ok(Completion { text: "I did not send it.".into(), tool_calls: vec![], stop: StopReason::EndTurn, usage: None })]);
         let step = w.engine.on_approval(&mut turn, &mut w.core, request_id, false);
         drive(&mut w, &mut turn, &provider, step);
         assert_eq!(w.sent.load(Ordering::SeqCst), 0);
@@ -181,7 +181,7 @@ fn running_the_tests_the_person_set_up_is_not_stopped_by_a_project_name_mobius_r
     let provider = ScriptedProvider::new(vec![
         calls(vec![call("c1", "code.test", json!({ "project": "offsite-planner" }))]),
         calls(vec![call("c2", "code.test", json!({ "project": "offsite-planner" }))]),
-        Ok(Completion { text: "Fixed.".into(), tool_calls: vec![], stop: StopReason::EndTurn }),
+        Ok(Completion { text: "Fixed.".into(), tool_calls: vec![], stop: StopReason::EndTurn, usage: None }),
     ]);
     let (mut turn, step) = w.engine.start(&w.core, vec![], "Why is the split test off?", 1);
     let step = drive(&mut w, &mut turn, &provider, step);

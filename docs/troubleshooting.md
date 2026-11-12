@@ -37,6 +37,6 @@ app to go back further. The [Review](apps/review.md) app lists everything Mobius
 
 ## Something isn't working
 
-**Settings › About › Core status** says whether Mobius's core is running. If it isn't, quit and reopen Mobius.
+**Settings › About › Versions** says whether Mobius's core is running. If it isn't, quit and reopen Mobius.
 
 When you report a problem, include the version from **Settings › About** and your Windows version.

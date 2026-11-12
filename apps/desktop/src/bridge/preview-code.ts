@@ -56,5 +56,5 @@ export const PREVIEW_CODE: Record<string, (...args: never[]) => unknown> = {
   'code.runTests': () => ({ ok: true, passed: false, code: 1, seconds: 0.4, timedOut: false, output: '> offsite-planner@0.1.0 test\n> node tests/budget.test.js\n\n✕ shares always add back to the total, got 5420.030000000001\n' }),
   'code.runCommand': ((_project: string, command: string) => ({ ok: true, passed: true, code: 0, seconds: 0.1, timedOut: false, output: `(the preview does not run ${command})` })) as never,
   'code.processes': () => [],
-  'code.git': () => ({ repo: true, branch: 'main', changes: [{ status: 'M', path: 'src/budget.js' }], ahead: 1 }),
+  'code.git': () => ({ repo: true, branch: 'main', changes: [{ status: 'M', path: 'src/budget.js' }, { status: '??', path: 'src/teams.json' }], ahead: 1 }),
 };

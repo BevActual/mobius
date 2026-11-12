@@ -23,7 +23,9 @@ The same conversation is available in every app through the Mobius button, pinne
 
 Agents are named helpers for jobs you repeat. Open them from the **Agents** tab in the Agent app's sidebar.
 
-- Each agent has a name, its instructions, a model, and how it starts: **when you ask**, or **also on a schedule** (weekdays or every day, at a time).
+- Each agent has a name, its instructions, a model, and how it starts: **When you ask**, or **On a schedule** (weekdays or every day, at a time; it still starts when you ask, too).
+- An agent's **More** button (⋯), or a right-click on it, has New session, Edit, Move up, Move down and Remove. Mobius
+  itself is built in, so its menu only starts a session.
 - **Make an agent from a conversation**: its name comes from the conversation's title and its instructions from what
   you first asked.
 - An agent works under the same mode and per-app settings as Mobius. Its card says what it may touch ("Off: Mail.

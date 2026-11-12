@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { MAIN_BOT_ID, MAX_BOT_INSTRUCTIONS, MAX_BOT_NAME, botOfConversation, type Bot, type BotDraft, type BotResult, type ConversationInfo, type ScheduleInfo } from '@mobius/shared';
 import { describeWhen } from './settings/Schedules';
 import { relativeTime } from './relative-time';
@@ -116,17 +118,21 @@ function BotForm({ initial, submitLabel, onSubmit, onCancel }: { initial: BotDra
       <label>Instructions<textarea rows={4} value={draft.instructions} maxLength={MAX_BOT_INSTRUCTIONS} placeholder="How this agent should behave. Added to the usual instructions." onChange={(e) => setDraft({ ...draft, instructions: e.target.value })} /></label>
       <label>Model<input type="text" value={draft.model} spellCheck={false} placeholder="The one in settings" onChange={(e) => setDraft({ ...draft, model: e.target.value })} /></label>
       {canSchedule && (
-        <fieldset className="botform-starts">
-          <legend>How it starts</legend>
-          <label className="botform-choice"><input type="radio" name="bot-starts" checked={starts === 'ask'} onChange={() => setStarts('ask')} />When you ask</label>
-          <label className="botform-choice"><input type="radio" name="bot-starts" checked={starts === 'schedule'} onChange={() => setStarts('schedule')} />Also on a schedule</label>
+        <div className="botform-starts" role="group" aria-label="How it starts">
+          <span className="botform-label">How it starts</span>
+          <span className="seg botform-seg" role="radiogroup" aria-label="How it starts">
+            {([['ask', 'When you ask'], ['schedule', 'On a schedule']] as const).map(([value, label]) => (
+              <button key={value} type="button" role="radio" aria-checked={starts === value} className="seg-btn" onClick={() => setStarts(value)}>{label}</button>
+            ))}
+          </span>
+          {starts === 'schedule' && <span className="botform-hint">It still starts whenever you ask, too.</span>}
           {starts === 'schedule' && (
             <span className="botform-when">
               <select aria-label="Which days" value={days} onChange={(e) => setDays(e.target.value as typeof days)}><option value="weekdays">Weekdays</option><option value="daily">Every day</option></select>
               <input type="time" aria-label="At" value={time} required onChange={(e) => setTime(e.target.value)} />
             </span>
           )}
-        </fieldset>
+        </div>
       )}
       <p className="botform-touch"><b>What it may touch</b> {mayTouch(preferences.value.appAccess, modeOf(preferences.value.approvalMode).name)} Change it in Settings › Safety.</p>
       {problem && <span className="field-error" role="alert">{problem}</span>}
@@ -138,10 +144,15 @@ function BotForm({ initial, submitLabel, onSubmit, onCancel }: { initial: BotDra
   );
 }
 
+/** How many sessions, in words: "No sessions", "1 session", "4 sessions". */
+const sessionCount = (n: number) => (n === 0 ? 'No sessions' : n === 1 ? '1 session' : `${n} sessions`);
+
 function BotRow({ bot, sessions, current, first, last, onOpen, onNew, onUpdate, onRemove, onMove }: { bot: Bot; sessions: number; current: boolean; first: boolean; last: boolean; onOpen: () => void; onNew: () => void; onUpdate: Props['onUpdateBot']; onRemove: Props['onRemoveBot']; onMove: Props['onMoveBot'] }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // The row's actions live in one menu, from the More button or a right-click, so the name keeps the whole row.
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const main = bot.id === MAIN_BOT_ID;
   if (editing) {
     return (
@@ -150,26 +161,36 @@ function BotRow({ bot, sessions, current, first, last, onOpen, onNew, onUpdate, 
       </li>
     );
   }
+  const items: ContextMenuItem[] = [
+    { label: 'New session', run: onNew },
+    ...(main ? [] : [
+      { action: 'rename' as const, label: 'Edit…', run: () => setEditing(true) },
+      { label: 'Move up', disabled: first, separated: true, run: () => void onMove(bot.id, 'up') },
+      { label: 'Move down', disabled: last, run: () => void onMove(bot.id, 'down') },
+      { action: 'delete' as const, label: 'Remove…', danger: true, separated: true, run: () => setConfirming(true) },
+    ]),
+  ];
+  const openMenu = (x: number, y: number) => setMenu({ x, y });
   return (
-    <li className="clist-item" data-current={current || undefined} data-bot={bot.id}>
+    <li className="clist-item bot-row" data-current={current || undefined} data-bot={bot.id}
+      onContextMenu={(e) => { e.preventDefault(); openMenu(e.clientX, e.clientY); }}
+      onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); openMenu(r.left + 12, r.bottom); } }}>
       <button type="button" className="clist-main" aria-current={current ? 'true' : undefined} onClick={onOpen}>
         <span className="clist-title">{bot.name}</span>
-        <span className="clist-sub">{bot.model || 'Model from settings'} · {sessions === 1 ? '1 session' : `${sessions} sessions`}</span>
+        <span className="clist-sub">{main ? 'Built in' : bot.model || 'Model from settings'} · {sessionCount(sessions)}</span>
       </button>
-      {confirming ? (
-        <span className="clist-confirm">
-          <span>{sessions > 0 ? `Remove ${bot.name} and its ${sessions === 1 ? 'session' : `${sessions} sessions`}?` : `Remove ${bot.name}?`}</span>
-          <button type="button" className="btn" onClick={() => setConfirming(false)}>Keep</button>
-          <button type="button" className="btn danger" onClick={() => void onRemove(bot.id).then((r) => { if (!r.ok) setProblem(r.error); setConfirming(false); })}>Remove</button>
-        </span>
-      ) : (
-        <span className="clist-tools">
-          <button type="button" className="strip-btn" aria-label={`New session with ${bot.name}`} title="New session" onClick={onNew}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>
-          {!main && <button type="button" className="strip-btn" aria-label={`Move ${bot.name} up`} title="Move up" disabled={first} onClick={() => void onMove(bot.id, 'up')}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 12 5-5 5 5" /></svg></button>}
-          {!main && <button type="button" className="strip-btn" aria-label={`Move ${bot.name} down`} title="Move down" disabled={last} onClick={() => void onMove(bot.id, 'down')}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg></button>}
-          {!main && <button type="button" className="strip-btn" aria-label={`Edit ${bot.name}`} title="Edit" onClick={() => setEditing(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 16 1-4 8-8 3 3-8 8-4 1Z" /></svg></button>}
-          {!main && <button type="button" className="strip-btn" aria-label={`Remove ${bot.name}`} title="Remove" onClick={() => setConfirming(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2M6 6l1 10h6l1-10" /></svg></button>}
-        </span>
+      <button type="button" className="bot-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
+      </button>
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={bot.name} items={items} onClose={() => setMenu(null)} />, document.body)}
+      {confirming && (
+        <div className="bot-confirm" role="alertdialog" aria-label={`Remove ${bot.name}?`}>
+          <p>{sessions > 0 ? `Remove ${bot.name} and its ${sessions === 1 ? 'session' : `${sessions} sessions`}?` : `Remove ${bot.name}?`}</p>
+          <span className="botform-actions">
+            <button type="button" className="btn" autoFocus onClick={() => setConfirming(false)}>Keep</button>
+            <button type="button" className="btn danger" onClick={() => void onRemove(bot.id).then((r) => { if (!r.ok) setProblem(r.error); setConfirming(false); })}>Remove</button>
+          </span>
+        </div>
       )}
       {problem && <span className="field-error" role="alert">{problem}</span>}
     </li>
