@@ -205,7 +205,7 @@ test('Scheduled sorts by day, a task has a right-click menu, and the keyboard mo
   await lists().getByRole('button', { name: /^Home/ }).click();
   const tap = todo().locator('.task-line', { hasText: 'Fix the tap' });
   await tap.click({ button: 'right', position: { x: 4, y: 4 } });
-  await shell().getByRole('menuitem', { name: 'Flag' }).click();
+  await shell().getByRole('menuitem', { name: 'Flag', exact: true }).click();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Fix the tap (due ${day(0)}) (flagged)`);
   await tap.click({ button: 'right', position: { x: 4, y: 4 } });
   await shell().getByRole('menuitem', { name: 'Due Tomorrow' }).click();
@@ -222,7 +222,7 @@ test('Scheduled sorts by day, a task has a right-click menu, and the keyboard mo
   const door = todo().locator('.task-line', { hasText: 'Paint the door' });
   await expect(door).toBeFocused();
   await shell().keyboard.press('Control+i');
-  await expect(page().getByRole('complementary', { name: 'Details' }).getByRole('textbox', { name: 'Task' })).toHaveValue('Paint the door');
+  await expect(page().getByRole('complementary', { name: 'Details' }).getByRole('textbox', { name: 'Task', exact: true })).toHaveValue('Paint the door');
   await door.focus();
   await shell().keyboard.press('Space');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [x] Paint the door');
