@@ -3,6 +3,8 @@ import type { DownloadEntry } from '@mobius/shared';
 import { formatBytes, percent } from './settings/models-format';
 
 const TEXT = { done: 'Done', failed: 'Failed', cancelled: 'Cancelled' } as const;
+/** How long after the button appears the downloads it is given count as already there. */
+const SETTLE_MS = 1500;
 
 /**
  * Downloads, as Safari keeps them: a button in the sidebar's head that shows how far they have got, opening a popover of
@@ -13,11 +15,13 @@ export function DownloadsButton({ entries }: { entries: DownloadEntry[] }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
   const seen = useRef(new Set(entries.map((e) => e.id)));
-  // Downloads already listed when the sidebar appears stay closed; one that arrives after opens the popover.
+  const shown = useRef(Date.now());
+  // Downloads already listed when the sidebar appears stay closed, and so do those that only finish loading just after
+  // it (the list is read once the window opens): only a download that starts while you are here opens the popover.
   useEffect(() => {
-    const fresh = entries.some((e) => !seen.current.has(e.id));
+    const fresh = entries.some((e) => !seen.current.has(e.id) && e.state === 'downloading');
     seen.current = new Set(entries.map((e) => e.id));
-    if (fresh) setOpen(true);
+    if (fresh && Date.now() - shown.current > SETTLE_MS) setOpen(true);
     if (entries.length === 0) setOpen(false);
   }, [entries]);
   useEffect(() => {

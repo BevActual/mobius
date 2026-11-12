@@ -14,7 +14,10 @@
 .browser-side .tab-icon { width: 16px; height: 16px; border-radius: 4px; }
 .browser-side .tab-icon.placeholder { display: grid; place-items: center; font-size: 10px; font-weight: 700; line-height: 1; color: #fff; background: hsl(var(--hue, 220) 60% 52%); }
 .browser-side .tab-icon.placeholder:empty { background: color-mix(in srgb, var(--ink) 12%, transparent); }
-.browser-side .tab-driver { padding: 0 6px; font-size: 10.5px; line-height: 16px; }
+.browser-side .tab .tab-driver { display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--accent); }
+.browser-side .tab-driver svg { width: 14px; height: 14px; }
+.browser-side .tab .tab-driver[data-driver="yours"] { color: var(--muted); }
+.browser-side .tab-driver[data-driver="yours"] svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .browser-side .tab-loading { width: 6px; height: 6px; animation: tab-pulse var(--dur-loop) var(--ease) infinite; }
 @keyframes tab-pulse { 50% { opacity: 0.25; } }
 
@@ -27,7 +30,8 @@
 .browser-side .tab[data-pinned="true"] .tab-pin { color: var(--accent); }
 /* The tab that is showing keeps its close button, as in Safari; its other buttons wait for the pointer. */
 .browser-side .tab[aria-current="page"] .tab-actions { opacity: 1; }
-.browser-side .tab[aria-current="page"]:not(:hover):not(:focus-within) .tab-actions > :not(.tab-x) { opacity: 0; }
+/* Its other buttons take no room until then, so they do not hide the end of its title. */
+.browser-side .tab[aria-current="page"]:not(:hover):not(:focus-within) .tab-actions > :not(.tab-x) { display: none; }
 .browser-side .tabs-empty { margin: 2px 8px; font-size: var(--fs-sm); color: var(--muted); }
 
 /* Dragging: the tab being moved fades, and a line shows where it will land. */
@@ -52,7 +56,7 @@
 @media (prefers-reduced-motion: reduce) { .address-progress::before { animation: none; width: 100%; opacity: 0.5; } .browser-side .tab-loading { animation: none; } }
 
 .address-suggestions { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 900; margin: 0; padding: 5px; list-style: none; border-radius: 12px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
-.address-suggestion { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 7px; cursor: default; }
+.address-suggestion { min-width: 0; display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 7px; cursor: default; }
 .address-suggestion[aria-selected="true"] { background: var(--accent); color: var(--on-accent, #fff); }
 .address-suggestion svg { flex: none; width: 15px; height: 15px; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .address-suggestion[aria-selected="true"] svg { stroke: currentColor; }
