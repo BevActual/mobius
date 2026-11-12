@@ -123,9 +123,14 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   }, [api, refresh, save, remember]);
 
   const remove = useCallback(async (path: string) => {
+    // The open page is closed first, so nothing of it is still in use while it goes: no save of it lands after the
+    // delete, and its pictures are no longer shown (on Windows a picture being shown can keep its folder from going).
+    if (live.current.page?.path === path) {
+      setPage(null); setText(''); setStatus('saved');
+      await new Promise((settle) => setTimeout(settle, 0));
+    }
     const done = await api?.remove(path);
-    if (done && isNotesFailure(done)) { setMessage(done.message); return; }
-    if (live.current.page?.path === path) { setPage(null); setText(''); setStatus('saved'); }
+    if (done && isNotesFailure(done)) { setMessage(done.message); await refresh(); return; }
     if (remembered() === path) remember(null);
     await refresh();
   }, [api, refresh, remembered, remember]);
