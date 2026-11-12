@@ -111,3 +111,13 @@ export function around(boxes: readonly Box[]): Box | null {
   const x = Math.min(...boxes.map((b) => b.x)), y = Math.min(...boxes.map((b) => b.y));
   return { x, y, w: Math.max(...boxes.map((b) => b.x + b.w)) - x, h: Math.max(...boxes.map((b) => b.y + b.h)) - y };
 }
+
+/**
+ * The zoom and pan that show `box` in the middle of a view `w` by `h`, with `margin` around it on screen. Never closer
+ * than `most` (so one small layer does not fill the screen) and never further out than 5%.
+ */
+export function zoomOnto(box: Box, w: number, h: number, margin = 40, most = 2): { zoom: number; pan: { x: number; y: number } } {
+  const z = Math.max(0.05, Math.min(most, (w - margin * 2) / (box.w || 1), (h - margin * 2) / (box.h || 1)));
+  const zoom = Math.round(z * 100) / 100;
+  return { zoom, pan: { x: Math.round((w - box.w * zoom) / 2 - box.x * zoom), y: Math.round((h - box.h * zoom) / 2 - box.y * zoom) } };
+}

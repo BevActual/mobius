@@ -21,6 +21,8 @@ test('the sidebar, Mobius beside the page and the toolbar are glass, and turn so
   mobius = await launch(fixture.origin + '/');
   const shell = mobius.shell;
   await expect(shell.locator('.rail[data-expanded]')).toBeAttached({ timeout: 15_000 });
+  // Mobius beside the page can mount a moment after the sidebar; wait for it too.
+  await expect(shell.locator('.dock.right:not([data-floating]) > .chat')).toBeAttached({ timeout: 15_000 });
   const glass = await blurs(shell);
   for (const [where, filter] of Object.entries(glass)) expect(filter, where).toContain('blur(24px)');
   // Reduce Transparency, as the system says it.
