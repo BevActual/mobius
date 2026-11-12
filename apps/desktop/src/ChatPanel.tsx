@@ -364,6 +364,8 @@ export interface ChatPanelProps {
   onHide?: () => void;
   /** Settings, Voice: where listening and speaking are chosen. */
   onOpenVoice?: () => void;
+  /** What the message box suggests asking in the app beside it ("Ask about your mail"). */
+  hint?: string;
   /** Before the title: the app switcher, when the panel takes the sidebar. */
   lead?: ReactNode;
   /** In the sidebar: "In Notes" opens the app switcher. */
@@ -469,7 +471,7 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice, hint }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -768,6 +770,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             takeFocus={takeFocus}
             contextUse={state.context}
             {...(onOpenVoice ? { onOpenVoice } : {})}
+            {...(hint ? { hint } : {})}
             startersIn={state.items.length === 0 ? starterSlot : null}
             started={state.items.length > 0}
             draft={draft}

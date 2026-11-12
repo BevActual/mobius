@@ -586,7 +586,7 @@ export function App() {
       { transformOrigin: '0 0', transform: 'none' },
     ], { duration: 320, easing: 'cubic-bezier(0.2, 0, 0, 1)' });
   });
-  // Shown again while it was on its way out (a shortcut, the Ask capsule, Mobius in the sidebar), it stays: a hide
+  // Shown again while it was on its way out (a shortcut, Mobius in the sidebar), it stays: a hide
   // still finishing would otherwise close it, since chatOpen never went false and the effect below does not run.
   const hides = useRef(0);
   const hideRight = useCallback(() => { const mine = ++hides.current; void morphOut(document.querySelector<HTMLElement>('.dock.right > .chat'), 'right').then(() => { if (hides.current === mine) setChatOpen(false); }); }, []);
@@ -1388,6 +1388,10 @@ export function App() {
     }
   };
 
+  // What the agent's message box suggests asking about where the person is ("Ask about your mail"). With nothing
+  // particular to point at, it keeps its own "Message Mobius".
+  const asked = settingsOpen ? 'Ask about settings' : askAbout(app, !!surface.note || (inBrowser && surface.hasPage) || (inSheets && !!sheets.data) || (inPhoto && !!photos.open) || (inVideo && !!video.project) || (inCode && !!code.open));
+  const askHint = asked === 'Ask Mobius' ? undefined : asked;
   // The agent's panel: beside the page, or in the sidebar.
   const chatPanel = (pinned: React.ReactNode) => (
           <ChatPanel
@@ -1427,6 +1431,7 @@ export function App() {
             menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
             onOpenVoice={() => openSettingsAt('voice')}
+            {...(askHint ? { hint: askHint } : {})}
           />
   );
   // The browser's own controls. With the full sidebar they live in it, under the app's name, and nothing but the
@@ -1531,21 +1536,6 @@ export function App() {
         )}
         {inBrowser && !showWide && browserChrome}
         <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
-        {hasRight && !rightOpen && !(chatInSide && chatOpen) && (
-          <form className="ask-pill" role="search" aria-label="Ask the agent" onSubmit={(e) => {
-            e.preventDefault();
-            const field = e.currentTarget.elements.namedItem('ask') as HTMLInputElement;
-            const text = field.value.trim();
-            if (!text || !settings?.configured || conversation.state.busy) return;
-            field.value = '';
-            setChatOpen(true);
-            void conversation.send(text, []);
-          }}>
-            <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
-            <input name="ask" type="text" aria-label="Ask Mobius" placeholder={settingsOpen ? 'Ask about settings' : askAbout(app, !!surface.note || (inBrowser && surface.hasPage) || (inSheets && !!sheets.data) || (inPhoto && !!photos.open) || (inVideo && !!video.project) || (inCode && !!code.open))} autoComplete="off" disabled={!settings?.configured} />
-            {activity && <span className="ask-working" role="status" aria-label="Agent activity">{activity.label}</span>}
-          </form>
-        )}
         {/* Words and icons never share a capsule: the update notice stands on its own, before the icons. */}
         <div className="strip-texts"><UpdateNotice /></div>
         <div className="strip-right" role="group" aria-label="Applications">
