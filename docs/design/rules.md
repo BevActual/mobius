@@ -27,7 +27,8 @@ and in a narrow window.
   when you open it. "Pin beside" moves it to the right only when the person asks.
 - The sidebar and a pinned Mobius panel are floating cards with the same inset (`--panel-inset`, 8px), corner radius
   (`--panel-radius`, 18px) and shadow.
-- When nothing is open, the toolbar title names the app or the section ("Docs", "Inbox"). It is never empty.
+- The toolbar title names what is open (the page, deck or database). When nothing is open, it names the app or the
+  section ("Docs", "Inbox"). It is never empty.
 - Below 980px the sidebar folds to a rail. Every control on the full sidebar, including the Mobius mark, is still
   reachable from the rail.
 
@@ -67,6 +68,9 @@ and in a narrow window.
 - **Text fields and search:** one soft focus ring on the field's own shape. Never an inner rectangle as well.
 - **Destructive actions** (Delete, Remove, Clear) are never a one-click inline icon. They go in a context menu, on the
   Delete key with Undo, or as plain red text at the end of a sheet. Anything that can't be undone asks first.
+- **Undo:** after a change that Ctrl+Z can take back (a delete, a put-back version, an edited cell), show the shared Undo
+  pill: one line saying what changed, an Undo button and a ×, opaque, centred at the bottom. It never covers content,
+  and it doesn't take focus, so Ctrl+Z keeps working where you are.
 
 ## Menus, popovers and sheets
 
