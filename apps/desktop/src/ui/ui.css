@@ -1,0 +1,26 @@
+/*
+ * The look of the shared controls in src/ui. Values come only from tokens.css (a test checks this). Base UI marks
+ * state with data attributes ([data-highlighted], [data-disabled], [data-open]), so these rules style those.
+ */
+
+.ui-menu-positioner { z-index: var(--z-menu); outline: 0; }
+.ui-menu {
+  display: flex; flex-direction: column; min-width: var(--menu-min-w); padding: var(--menu-pad);
+  border-radius: var(--radius-panel); box-shadow: var(--glass-edge), var(--shadow-menu); outline: 0;
+}
+.ui-menu-item {
+  display: flex; align-items: center; gap: var(--sp-2); height: var(--menu-row-h); padding: 0 var(--sp-2);
+  border-radius: calc(var(--radius-panel) - var(--menu-pad)); font-size: var(--fs-md); color: var(--ink);
+  cursor: default; user-select: none; outline: 0;
+}
+.ui-menu-item[data-highlighted] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ui-menu-item[data-disabled] { color: var(--muted); opacity: 0.6; }
+.ui-menu-item[data-danger] { color: var(--danger); }
+.ui-menu-item[data-separated] { position: relative; margin-top: var(--menu-pad); }
+.ui-menu-item[data-separated]::before {
+  content: ""; position: absolute; left: var(--sp-2); right: var(--sp-2); top: calc(var(--menu-pad) / -2 - var(--hairline-w));
+  border-top: var(--hairline-w) solid var(--hairline);
+}
+.ui-menu-icon { flex: none; width: var(--sp-4); height: var(--sp-4); }
+.ui-menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-menu-keys { margin-left: auto; padding-left: var(--sp-4); border: 0; background: none; font: inherit; font-size: var(--fs-xs); color: var(--muted); }

@@ -113,7 +113,7 @@ Mobius's own apps, always there.
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/readme/apps/sheets.png" alt="The Sheets app in Mobius"><br><b>Sheets</b> · Spreadsheets with formulas, saved as CSV files.<br><sub>Budgets and lists any spreadsheet app can open. Mobius fills cells and explains formulas.</sub></td>
-<td width="50%" valign="top"><img src="docs/readme/apps/database.png" alt="The Database app in Mobius"><br><b>Database</b> · SQLite databases you query with SQL.<br><sub>Ask questions of your data in words; Mobius writes the query, read-only.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/database.png" alt="The Database app in Mobius"><br><b>Database</b> · SQLite tables to browse, sort and filter, or query with SQL.<br><sub>Ask questions of your data in words; Mobius writes the query, read-only.</sub></td>
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/readme/apps/projects.png" alt="The Projects app in Mobius"><br><b>Projects</b> · A place for one piece of work: its files, rules and memory.<br><sub>Keep everything about a project together, with its own rules for what Mobius may do.</sub></td>
@@ -143,14 +143,14 @@ Mobius's own apps, always there.
 <table>
 <tr>
 <td width="50%" valign="top"><img src="docs/readme/apps/slides.png" alt="The Slides app in Mobius"><br><b>Slides</b> · Presentations with layouts, presenter notes and a player.<br><sub>Build a deck fast. Mobius makes slides from a document and writes speaker notes.</sub></td>
-<td width="50%" valign="top"><img src="docs/readme/apps/design.png" alt="The Design app in Mobius"><br><b>Design</b> · Frames on a canvas, with layers, styles and smart guides.<br><sub>Sketch screens and layouts; borders; lock, hide and drag layers to arrange them. Mobius's changes come dashed, to keep or discard.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/design.png" alt="The Design app in Mobius"><br><b>Design</b> · Frames on a canvas, with layers, styles and smart guides.<br><sub>Sketch screens and layouts; borders and PNG export; lock, hide and drag layers to arrange them. Mobius's changes come dashed, to keep or discard.</sub></td>
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/readme/apps/photo.png" alt="The Photo app in Mobius"><br><b>Photo</b> · Your pictures, with crops, adjustments and filters you can undo.<br><sub>Edit without losing the original. Mobius can make pictures with your image model.</sub></td>
 <td width="50%" valign="top"><img src="docs/readme/apps/music.png" alt="The Music app in Mobius"><br><b>Music</b> · A small studio for writing songs as notes: tracks, piano roll, mixer.<br><sub>Write a tune or a sting. Mobius reads and writes notes, so it can add a bassline.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/readme/apps/video.png" alt="The Video app in Mobius"><br><b>Video</b> · Cut footage into a short film on a timeline.<br><sub>Trim, split and order shots in a filmstrip timeline, and ask Mobius about the cut.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/video.png" alt="The Video app in Mobius"><br><b>Video</b> · Cut footage into a short film on a timeline.<br><sub>Trim, split, duplicate and order shots in a filmstrip timeline, and ask Mobius about the cut.</sub></td>
 <td width="50%" valign="top"><img src="docs/readme/apps/code.png" alt="The Code app in Mobius"><br><b>Code</b> · A code editor for projects in your workspace, with git.<br><sub>Edit, find, run tests and commit. Mobius proposes changes you review line by line.</sub></td>
 </tr>
 <tr>

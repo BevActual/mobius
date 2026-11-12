@@ -198,6 +198,14 @@ test('a conversation started outside can be moved into a project, and from then 
   await say('write the plan');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Wrote it in the project.');
   await expect(log().getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
+  // And out again: the thread's right-click menu takes it out of the project, and the conversation is kept.
+  await openProjects();
+  const again = shell().getByRole('region', { name: 'Kestrel' });
+  await again.getByRole('list', { name: 'Threads' }).getByRole('button', { name: /hello/ }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Remove from project' }).click();
+  await expect(again.getByRole('list', { name: 'Threads' }).getByRole('button')).toHaveCount(0);
+  await expect(again.getByRole('combobox', { name: 'Move a conversation into Kestrel' })).toBeVisible();
+  expect(JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0].threads).toEqual([]);
 });
 
 test('a project can be renamed, and its folder and its memory page follow the name', async () => {
@@ -220,6 +228,11 @@ test('a project can be renamed, and its folder and its memory page follow the na
   expect(fs.existsSync(workspace('projects', 'Kestrel'))).toBe(false);
   expect(fs.readFileSync(workspace('wiki', 'Projects', 'Kestrel P3.md'), 'utf8')).toContain('Builds start on Mondays');
   await expect(page.getByRole('list', { name: 'What this project knows' })).toContainText('Builds start on Mondays');
+  // A double-click on the project in the sidebar renames it too.
+  await shell().getByRole('navigation', { name: 'Projects' }).getByRole('button', { name: 'Kestrel P3' }).dblclick();
+  await expect(shell().getByRole('region', { name: 'Kestrel P3' }).getByRole('textbox', { name: 'Project name' })).toBeFocused();
+  await shell().keyboard.press('Escape');
+  await expect(shell().getByRole('region', { name: 'Kestrel P3' }).getByRole('textbox', { name: 'Project name' })).toHaveCount(0);
 });
 
 test('a bot asked from a project thread works in a side thread of its own and reports back into the thread', async () => {
