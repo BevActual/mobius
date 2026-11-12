@@ -1,10 +1,10 @@
 import { RowMark } from './RowMark';
 import { createPortal } from 'react-dom';
 import { ContextMenu } from './ContextMenu';
-import { useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem } from '@mobius/shared';
-import { byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, parseWhen, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, type Located, type SmartView } from './tasks-view';
+import { byDay, byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, parseWhen, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, type Located, type SmartView } from './tasks-view';
 import type { TasksState } from './useTasks';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { keepTurn, turnId } from './ReviewStrip';
@@ -19,6 +19,18 @@ interface Dragged { list: string; line: number; text: string }
 const dragged = (e: DragEvent): Dragged | null => { try { return JSON.parse(e.dataTransfer.getData(DRAG)) as Dragged; } catch { return null; } };
 const isTaskDrag = (e: DragEvent) => e.dataTransfer.types.includes(DRAG);
 const findTask = (tasks: TasksState, d: Dragged) => (tasks.all[d.list] ?? []).find((t) => t.line === d.line && t.text === d.text) ?? null;
+const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+
+/** Moves the keyboard to the task row before or after this one on the page (or back to the add field from the first). */
+function stepRow(from: HTMLElement, by: 1 | -1) {
+  const page = from.closest('.tasks-main');
+  if (!page) return;
+  const rows = [...page.querySelectorAll<HTMLElement>('.task-line[tabindex]')];
+  const at = rows.indexOf(from);
+  const next = rows[at + by];
+  if (next) { next.focus(); next.scrollIntoView({ block: 'nearest' }); }
+  else if (by === -1) page.querySelector<HTMLInputElement>('.task-new input[aria-label="New task"]')?.focus();
+}
 
 /** The smart lists' marks: a white glyph on a coloured circle, as in Apple's Reminders. */
 function SmartIcon({ id }: { id: SmartView }) {
@@ -220,14 +232,18 @@ interface RowProps {
   tasks: TasksState; list: string; task: TaskItem; subtasks?: TaskItem[]; showList: boolean; now: Date; proposed?: boolean;
   /** Dragging rows to reorder: only in a list, only top-level tasks. */
   reorder?: boolean;
+  /** The heading above already names the day, so the row need not say it again. */
+  hideDue?: boolean;
 }
 
-function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = false, reorder = false }: RowProps) {
+function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = false, reorder = false, hideDue = false }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [words, setWords] = useState(task.text);
   const [dating, setDating] = useState(false);
   const [dropBefore, setDropBefore] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const field = useRef<HTMLInputElement>(null);
+  const line = useRef<HTMLDivElement>(null);
   const completing = useCompleting(() => tasks.change(list, task, { done: true }));
   useEffect(() => { if (editing) field.current?.select(); }, [editing]);
   const finish = (keep: boolean) => {
@@ -237,6 +253,31 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
     else setWords(task.text);
   };
   const isPicked = tasks.picked?.list === list && tasks.picked.task.line === task.line;
+  const tick = () => { if (task.done) void tasks.change(list, task, { done: false }); else completing.toggle(); };
+  const details = () => tasks.pick(isPicked ? null : { list, text: task.text });
+  const setDue = (due: string | null) => void tasks.change(list, task, { due });
+  const remove = () => { stepRow(line.current!, 1); void tasks.remove(list, task); };
+  // The row's own keys, as in Reminders: arrows between tasks, Space ticks, Enter renames, ⌘I details, Delete deletes.
+  const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    const mod = e.metaKey || e.ctrlKey;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); stepRow(e.currentTarget, e.key === 'ArrowDown' ? 1 : -1); }
+    else if (e.key === ' ') { e.preventDefault(); tick(); }
+    else if (e.key === 'Enter') { e.preventDefault(); setWords(task.text); setEditing(true); }
+    else if (mod && e.key.toLowerCase() === 'i') { e.preventDefault(); details(); }
+    else if (e.key === 'Delete' || (e.key === 'Backspace' && mod)) { e.preventDefault(); remove(); }
+    else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left + 40, y: r.bottom - 4 }); }
+  };
+  const days = quickDays(now);
+  const others = tasks.lists.filter((l) => l.name !== list);
+  const menuItems = [
+    { label: isPicked ? 'Hide Details' : 'Show Details', keys: `${MOD}I`, run: details },
+    ...days.map((q, i) => ({ label: `Due ${q.label.replace(/\b\w/g, (c) => c.toUpperCase())}`, separated: i === 0, disabled: task.due === q.day, run: () => setDue(q.day) })),
+    ...(task.due ? [{ label: 'No Due Date', run: () => setDue(null) }] : []),
+    { label: task.flagged ? 'Unflag' : 'Flag', separated: true, run: () => void tasks.change(list, task, { flagged: !task.flagged }) },
+    ...others.map((l, i) => ({ action: 'move' as const, label: `Move to ${l.name}`, separated: i === 0, run: () => void tasks.move(list, task, l.name) })),
+    { action: 'delete' as const, label: 'Delete', danger: true, separated: true, keys: 'Del', run: remove },
+  ];
   const note = (task.notes ?? '').split('\n')[0] ?? '';
   const subsDone = subtasks.filter((s) => s.done).length;
   return (
@@ -252,9 +293,11 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
         const moving = d && findTask(tasks, d);
         if (d && moving) { e.preventDefault(); e.stopPropagation(); void tasks.move(d.list, moving, list, task); }
       } : undefined}>
-      <div className="task-line">
+      <div ref={line} className="task-line" tabIndex={-1} aria-label={task.text} data-menu={menu ? true : undefined} onKeyDown={onKey}
+        onMouseDown={(e) => { if (e.target === e.currentTarget) e.currentTarget.focus(); }}
+        onContextMenu={(e) => { if ((e.target as HTMLElement).closest('input, textarea')) return; e.preventDefault(); e.currentTarget.focus(); setMenu({ x: e.clientX, y: e.clientY }); }}>
         <button type="button" role="checkbox" aria-checked={task.done || completing.on} aria-label={task.text} className="task-check"
-          onClick={() => { if (task.done) void tasks.change(list, task, { done: false }); else completing.toggle(); }}>
+          onClick={tick}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8.5 7 11l5-6" /></svg>
         </button>
         <div className="task-body">
@@ -264,9 +307,9 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
             <button type="button" className="task-text" title="Click to change" onClick={() => { setWords(task.text); setEditing(true); }}>{task.text}</button>
           )}
           {note && <span className="task-note">{note}</span>}
-          {(task.due || showList || subtasks.length > 0) && (
+          {((task.due && !hideDue) || showList || subtasks.length > 0) && (
             <span className="task-meta">
-              {task.due && <Due due={task.due} now={now} />}
+              {task.due && !hideDue && <Due due={task.due} now={now} />}
               {showList && <span className="task-list">{list}</span>}
               {subtasks.length > 0 && <span className="task-subcount">{subsDone} of {subtasks.length}</span>}
             </span>
@@ -290,10 +333,14 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
           <button type="button" className="strip-btn" aria-pressed={task.flagged ?? false} aria-label={task.flagged ? `Unflag ${task.text}` : `Flag ${task.text}`} title={task.flagged ? 'Unflag' : 'Flag'} onClick={() => void tasks.change(list, task, { flagged: !task.flagged })}>
             <FlagGlyph />
           </button>
-          <button type="button" className="strip-btn task-info" aria-pressed={isPicked} aria-label={`Details for ${task.text}`} title="Details" onClick={() => tasks.pick(isPicked ? null : { list, text: task.text })}>
+          <button type="button" className="strip-btn task-info" aria-pressed={isPicked} aria-label={`Details for ${task.text}`} title={`Details (${MOD}I)`} onClick={details}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 9v5M10 6.4v.2" /></svg>
           </button>
         </span>
+        {menu && createPortal(
+          <ContextMenu x={menu.x} y={menu.y} label={task.text} items={menuItems} onClose={() => { setMenu(null); line.current?.focus(); }} />,
+          document.body,
+        )}
       </div>
       {subtasks.length > 0 && (
         <ul className="task-items task-subtasks" role="list" aria-label={`Subtasks of ${task.text}`}>
@@ -464,7 +511,8 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
   return (
     <form className="task-new" data-typing={text !== '' || due !== '' || undefined} onSubmit={(e) => void submit(e)}>
       <span className="task-check ghost" aria-hidden="true" />
-      <input ref={input} aria-label="New task" placeholder={placeholder} value={text} maxLength={500} onChange={(e) => { setText(e.target.value); if (!e.target.value) setLiteral(false); }} />
+      <input ref={input} aria-label="New task" placeholder={placeholder} value={text} maxLength={500} onChange={(e) => { setText(e.target.value); if (!e.target.value) setLiteral(false); }}
+        onKeyDown={(e) => { if (e.key === 'ArrowDown') { const first = e.currentTarget.closest('.tasks-main')?.querySelector<HTMLElement>('.task-line[tabindex]'); if (first) { e.preventDefault(); first.focus(); } } }} />
       {said && (
         <button type="button" className="chip task-when" title={`“${said.phrase}” sets the due date. Click to keep it as words.`} aria-label={`Due ${dueLabel(said.due, now).text}. Keep “${said.phrase}” as words instead`} onClick={() => { setLiteral(true); input.current?.focus(); }}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="12" rx="1.5" /><path d="M3.5 8h13" /></svg>
@@ -499,8 +547,8 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
   const proposal = useListReview(review?.conversation ?? null, review && view.kind === 'list' ? view.name : null);
   const picked = tasks.picked;
 
-  const row = ({ list, task }: Located, opts: { showList: boolean; reorder?: boolean; subtasks?: TaskItem[] }) => (
-    <TaskRow key={`${list}:${task.line}:${task.text}`} tasks={tasks} list={list} task={task} showList={opts.showList} now={now} reorder={opts.reorder ?? false} subtasks={opts.subtasks ?? []}
+  const row = ({ list, task }: Located, opts: { showList: boolean; reorder?: boolean; subtasks?: TaskItem[]; hideDue?: boolean }) => (
+    <TaskRow key={`${list}:${task.line}:${task.text}`} tasks={tasks} list={list} task={task} showList={opts.showList} now={now} reorder={opts.reorder ?? false} subtasks={opts.subtasks ?? []} hideDue={opts.hideDue ?? false}
       proposed={review !== null && view.kind === 'list' && proposal.isNew(task.text)} />
   );
 
@@ -559,6 +607,13 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
         <section key={g.list} className="tasks-group" data-color={listColor(g.list)} aria-label={g.list}>
           <h2 className="tasks-group-head"><button type="button" onClick={() => tasks.setView({ kind: 'list', name: g.list })}>{g.list}</button></h2>
           <ul className="task-items" role="list" aria-label={view.id === 'completed' ? 'Completed' : 'To do'}>{withSubtasks(g.rows).map(({ at, subtasks }) => row(at, { showList: false, subtasks }))}</ul>
+        </section>
+      ));
+    } else if (view.id === 'scheduled') {
+      body = byDay(rows, now).map((g) => (
+        <section key={g.key} className="tasks-group tasks-day" data-overdue={g.key === 'overdue' || undefined} aria-label={g.label}>
+          <h2 className="tasks-group-head">{g.label}</h2>
+          <ul className="task-items" role="list" aria-label="To do">{g.rows.map((r) => row(r, { showList: true, hideDue: g.exact }))}</ul>
         </section>
       ));
     } else {

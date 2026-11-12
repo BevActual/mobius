@@ -4,6 +4,7 @@ import type { Activity } from './activity';
 import { useSideFolds } from './side-fold';
 import { appName, isInstalled, type AppId } from './apps';
 import { describeCombo, type Favourite } from '@mobius/shared';
+import { PointMenu } from './ui';
 
 /** One icon per app, shared by the rail and the app hub. */
 export const APP_ICONS: Record<string, ReactNode> = {
@@ -33,6 +34,7 @@ export const APP_ICONS: Record<string, ReactNode> = {
   canvas: <><rect x="3" y="3.5" width="6" height="6" rx="1" /><rect x="11" y="10.5" width="6" height="6" rx="1" /><path d="M9 6.5h3.5a1.5 1.5 0 0 1 1.5 1.5v2.5" /></>,
   review: <><path d="M4 10a6 6 0 1 0 12 0 6 6 0 0 0-12 0" /><path d="m7.5 10 1.8 1.8 3.4-3.6" /></>,
   files: <path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" />,
+  views: <><rect x="3.5" y="3.5" width="13" height="5.5" rx="1.5" /><rect x="3.5" y="11" width="5.5" height="5.5" rx="1.5" /><rect x="11" y="11" width="5.5" height="5.5" rx="1.5" /></>,
 };
 
 /** The apps, always one click away, in the order people reach for them. */
@@ -145,7 +147,9 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   const order = listed.map((a) => a.id);
   // Right-click an app (or Shift+F10) to move or hide it: HIG asks that people can shape the sidebar.
   const [menu, setMenu] = useState<{ id: AppId; x: number; y: number } | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  // Whether an app's menu is open, for Escape: it closes the menu first, then the app switcher.
+  const menuOpen = useRef(false);
+  menuOpen.current = menu !== null;
   const railRef = useRef<HTMLElement>(null);
   useSideFolds(railRef, expanded);
   const askRef = useRef<HTMLDivElement>(null);
@@ -155,15 +159,6 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   // Something outside (the Mobius head beside the page) asks for the app switcher.
   useEffect(() => { if (switcherToken) setFace('apps'); }, [switcherToken]);
   useEffect(() => { setStill(true); }, [app]);
-  useEffect(() => {
-    if (!menu) return undefined;
-    menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
-    const away = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setMenu(null); };
-    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenu(null); };
-    window.addEventListener('pointerdown', away, true);
-    window.addEventListener('keydown', key);
-    return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', key); };
-  }, [menu]);
   const move = (id: AppId, by: -1 | 1) => {
     const at = order.indexOf(id);
     const to = at + by;
@@ -183,7 +178,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   useEffect(() => { setFace('app'); }, [app, settingsOpen, expanded]);
   useEffect(() => {
     if (!switching) return undefined;
-    const key = (event: KeyboardEvent) => { if (event.key === 'Escape' && !menuRef.current) setFace('app'); };
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape' && !menuOpen.current) setFace('app'); };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [switching]);
@@ -317,12 +312,12 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
         })}
       </Reorder.Group>}
       {menu && (
-        <div ref={menuRef} className="rail-menu" role="menu" aria-label={`${RAIL_APPS.find((a) => a.id === menu.id)?.name ?? ''} in the sidebar`} style={{ left: menu.x, top: menu.y }}>
-          <button type="button" role="menuitem" className="popmenu-item" disabled={order.indexOf(menu.id) === 0} onClick={() => { move(menu.id, -1); setMenu(null); }}>Move up</button>
-          <button type="button" role="menuitem" className="popmenu-item" disabled={order.indexOf(menu.id) === order.length - 1} onClick={() => { move(menu.id, 1); setMenu(null); }}>Move down</button>
-          <button type="button" role="menuitem" className="popmenu-item" disabled={order.length === 1} onClick={() => { onApps?.(order.filter((id) => id !== menu.id)); setMenu(null); }}>Hide from sidebar</button>
-          {onEditApps && <button type="button" role="menuitem" className="popmenu-item" onClick={() => { setMenu(null); onEditApps(); }}>Edit sidebar…</button>}
-        </div>
+        <PointMenu x={menu.x} y={menu.y} label={`${RAIL_APPS.find((a) => a.id === menu.id)?.name ?? ''} in the sidebar`} onClose={() => setMenu(null)} entries={[
+          { label: 'Move up', disabled: order.indexOf(menu.id) === 0, run: () => move(menu.id, -1) },
+          { label: 'Move down', disabled: order.indexOf(menu.id) === order.length - 1, run: () => move(menu.id, 1) },
+          { label: 'Hide from sidebar', disabled: order.length === 1, run: () => onApps?.(order.filter((id) => id !== menu.id)) },
+          ...(onEditApps ? [{ label: 'Edit sidebar…', run: onEditApps }] : []),
+        ]} />
       )}
       {showOwn && favourites.length > 0 && (
         <section className="rail-pinned" aria-label="Pinned">

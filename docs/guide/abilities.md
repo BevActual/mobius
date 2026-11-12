@@ -5,13 +5,18 @@ switcher, the launcher (Ctrl+K, then type "Abilities"), or **Settings › Abilit
 
 (Browser add-ons are a separate thing and are still called *extensions*.)
 
+The sidebar has three places, **Apps**, **Skills** and **Connectors**, each with a count. Above them,
+**Add** is one menu for everything you can add (an app, a new skill, a skill from a file, a connector), and **Search**
+narrows the apps, skills and connectors as you type.
+
 ## Apps
 
 A new install starts with the everyday apps, **Notes, Tasks, Calendar, Mail, Docs and Browser**, plus Mobius's own
 apps, which are always there: **Agent, Abilities, Projects, Files and Review**.
 
-**Abilities › Apps** lists every other app by what it is for. Adding one puts it in the switcher, the launcher and the
-sidebar. Removing one takes it away but **keeps its files**, so adding it again brings them back.
+**Abilities › Apps** lists every other app by what it is for, each with one line on what it does and a switch. Turning
+the switch on adds the app to the switcher, the launcher and the sidebar. Turning it off takes it away but **keeps its
+files**, so adding it again brings them back. Click an added app's row to open it.
 
 Apps load the first time you open them, not when Mobius starts, so adding more apps does not slow down startup.
 
@@ -26,9 +31,9 @@ A skill is a short, named set of steps Mobius follows when you ask for it, kept 
 - **Abilities › Skills** lists your skills. Open one to edit when it is used, change its steps one by one, see its
   versions, or **Run** it.
 - Type `/` and a skill's name in the message box to run it.
-- **New skill** writes one from scratch. Mobius can also propose a skill, which waits dashed for you to keep like any
+- **Add › New skill** writes one from scratch. Mobius can also propose a skill, which waits dashed for you to keep like any
   other change.
-- **Abilities › Catalogue › Install a skill…** adds a `SKILL.md` someone shared. Before it is added you see what it is
+- **Add › Install a skill…** adds a `SKILL.md` someone shared. Before it is added you see what it is
   for, its steps and what it says it will use. Nothing in it runs until you ask for it, and each tool still asks as your
   settings say.
 
@@ -49,7 +54,9 @@ Each server's tools appear to Mobius as `mcp.<server>.<tool>`. Each server has i
 as your mode says. Servers start with a minimal environment: only the variables you list under `env` are passed.
 Everything a server returns is treated as untrusted text.
 
-**Abilities › Connectors** shows the servers Mobius started and their tools.
+**Abilities › Connectors** shows each server Mobius started with a green dot, and each one that could not start with a
+red dot; **Show Details** says why. **Add a Connector…** (on the page, or in **Add**) shows what to put in `mcp.json`,
+with **Copy Example** and **Open Data Folder**; reopen Mobius after changing it.
 
 ### Mobius for other apps
 
@@ -60,9 +67,9 @@ and edit files; each change is checkpointed, so it can be undone.
 
 ## Plugins
 
-The Plugins place is ready for plugins, but none are available yet.
+Plugins are not available yet. They will get their own place in Abilities when they are.
 
 ## Updates
 
-**Abilities › Updates** shows the versions of Mobius and its core. App updates themselves come through
-[Software Update](../getting-started/install.md#updates).
+Mobius's own updates are in **Settings › About › Software Update**. Updates to skills and connectors will get a place
+in Abilities when there are some.

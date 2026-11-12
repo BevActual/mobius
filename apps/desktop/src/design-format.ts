@@ -8,14 +8,16 @@
  *           "text": "Lisbon offsite", "size": 28, "weight": 700, "color": "style:Primary" }] }] }
  *
  * Frames sit on the canvas; their layers (rectangles, ellipses and text) are placed inside them, first drawn first. A
- * colour is `#rrggbb` (or `#rrggbbaa`) or `style:<name>`, one of the design's colour styles. Anything missing takes a
- * plain default, so a hand-written file still opens.
+ * colour is `#rrggbb` (or `#rrggbbaa`) or `style:<name>`, one of the design's colour styles. A layer can be `"hidden": true`
+ * (not drawn) or `"locked": true` (drawn, but not picked or moved on the canvas). A frame or layer can have a border drawn inside its edge:
+ * `"stroke": "#rrggbb", "strokeWidth": 2`. Anything missing takes a plain default,
+ * so a hand-written file still opens.
  */
 export type NodeType = 'rect' | 'ellipse' | 'text';
 export type Align = 'left' | 'center' | 'right';
 export interface DesignStyle { name: string; color: string }
-export interface DesignNode { id: string; type: NodeType; name: string; x: number; y: number; w: number; h: number; fill: string; radius: number; opacity: number; text: string; size: number; weight: number; color: string; align: Align }
-export interface DesignFrame { id: string; name: string; x: number; y: number; w: number; h: number; fill: string; radius: number; children: DesignNode[] }
+export interface DesignNode { id: string; type: NodeType; name: string; x: number; y: number; w: number; h: number; fill: string; radius: number; opacity: number; text: string; size: number; weight: number; color: string; align: Align; stroke: string; strokeWidth: number; hidden?: boolean; locked?: boolean }
+export interface DesignFrame { id: string; name: string; x: number; y: number; w: number; h: number; fill: string; radius: number; stroke: string; strokeWidth: number; children: DesignNode[] }
 export interface DesignDoc { version: 1; styles: DesignStyle[]; frames: DesignFrame[] }
 
 const num = (v: unknown, fallback: number, min = -100_000, max = 100_000) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v * 100) / 100)) : fallback);
@@ -36,6 +38,8 @@ function readNode(v: unknown, i: number, taken: Set<string>): DesignNode {
     fill: color(o.fill, type === 'text' ? 'transparent' : '#d9d9de'), radius: num(o.radius, 0, 0, 10_000), opacity: num(o.opacity, 1, 0, 1),
     text: str(o.text, type === 'text' ? 'Text' : ''), size: num(o.size, 16, 4, 400), weight: num(o.weight, 400, 100, 900), color: color(o.color, '#1d1d1f'),
     align: o.align === 'center' || o.align === 'right' ? o.align : 'left',
+    stroke: color(o.stroke, 'transparent'), strokeWidth: num(o.strokeWidth, 0, 0, 1000),
+    ...(o.hidden === true ? { hidden: true } : {}), ...(o.locked === true ? { locked: true } : {}),
   };
 }
 
@@ -53,7 +57,7 @@ export function parseDesign(text: string): { doc: DesignDoc } | { error: string 
     taken.add(id);
     return {
       id, name: str(fo.name, `Frame ${i + 1}`, 80), x: num(fo.x, i * 460), y: num(fo.y, 0), w: num(fo.w, 393, 1), h: num(fo.h, 852, 1),
-      fill: color(fo.fill, '#ffffff'), radius: num(fo.radius, 0, 0, 10_000),
+      fill: color(fo.fill, '#ffffff'), radius: num(fo.radius, 0, 0, 10_000), stroke: color(fo.stroke, 'transparent'), strokeWidth: num(fo.strokeWidth, 0, 0, 1000),
       children: (Array.isArray(fo.children) ? fo.children : []).slice(0, 2000).map((n, j) => readNode(n, j, taken)),
     };
   });
@@ -68,9 +72,12 @@ export function writeDesign(doc: DesignDoc): string {
     if (n.radius) out.radius = n.radius;
     if (n.opacity !== 1) out.opacity = n.opacity;
     if (n.type === 'text') Object.assign(out, { text: n.text, size: n.size, weight: n.weight, color: n.color }, n.align !== 'left' ? { align: n.align } : {});
+    if (n.strokeWidth > 0 && n.stroke !== 'transparent') Object.assign(out, { stroke: n.stroke, strokeWidth: n.strokeWidth });
+    if (n.hidden) out.hidden = true;
+    if (n.locked) out.locked = true;
     return out;
   };
-  const frames = doc.frames.map((f) => ({ id: f.id, name: f.name, x: f.x, y: f.y, w: f.w, h: f.h, fill: f.fill, radius: f.radius, children: f.children.map(node) }));
+  const frames = doc.frames.map((f) => ({ id: f.id, name: f.name, x: f.x, y: f.y, w: f.w, h: f.h, fill: f.fill, radius: f.radius, ...(f.strokeWidth > 0 && f.stroke !== 'transparent' ? { stroke: f.stroke, strokeWidth: f.strokeWidth } : {}), children: f.children.map(node) }));
   // One layer per line: readable, and a change shows as the lines of the layers it touched.
   const lines = ['{', '  "version": 1,', `  "styles": [${doc.styles.length ? `\n${doc.styles.map((s) => `    ${JSON.stringify(s)}`).join(',\n')}\n  ` : ''}],`, '  "frames": ['];
   frames.forEach((f, i) => {
@@ -134,4 +141,23 @@ export function contrast(a: string, b: string): number | null {
 export function nextFramePlace(doc: DesignDoc): { x: number; y: number } {
   const right = doc.frames.reduce((m, f) => Math.max(m, f.x + f.w), -80);
   return { x: right + 80, y: doc.frames[0]?.y ?? 0 };
+}
+
+/**
+ * Moves a layer in the layer list: `above` or `below` another layer (the list shows the front-most layer first, so
+ * above is in front), or onto a frame, where it goes in front of the rest. A layer moved to another frame keeps its
+ * place on the canvas. Returns false when nothing moved.
+ */
+export function moveLayer(doc: DesignDoc, id: string, target: string, place: 'above' | 'below'): boolean {
+  if (id === target) return false;
+  const from = doc.frames.find((f) => f.children.some((c) => c.id === id));
+  if (!from) return false;
+  const toFrame = doc.frames.find((f) => f.id === target) ?? doc.frames.find((f) => f.children.some((c) => c.id === target));
+  if (!toFrame) return false;
+  const node = from.children.find((c) => c.id === id)!;
+  from.children = from.children.filter((c) => c !== node);
+  if (from !== toFrame) { node.x += from.x - toFrame.x; node.y += from.y - toFrame.y; }
+  const at = toFrame.id === target ? toFrame.children.length : toFrame.children.findIndex((c) => c.id === target) + (place === 'above' ? 1 : 0);
+  toFrame.children.splice(at, 0, node);
+  return true;
 }

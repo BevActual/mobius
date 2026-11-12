@@ -59,7 +59,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 
 test('a design is frames of layers: selected, changed in the inspector, added and deleted, and kept as JSON', async () => {
   await start();
-  await shell().getByRole('tree', { name: 'Frames and layers' }).getByRole('button', { name: 'Title' }).click();
+  await shell().getByRole('tree', { name: 'Frames and layers' }).getByRole('button', { name: 'Title', exact: true }).click();
   await expect(inspector()).toContainText('passes AA');
   await inspector().getByRole('textbox', { name: 'Text', exact: true }).fill('Porto offsite');
   await inspector().getByRole('textbox', { name: 'Y', exact: true }).fill('120');
@@ -125,8 +125,8 @@ test('layers are drawn with a tool, picked together, lined up, duplicated and ty
   await shell().mouse.up();
   await expect.poll(() => saved().frames[0]!.children.map((c) => c.type)).toEqual(['text', 'rect', 'rect']);
   // Shift-click two layers in the list, then line their left edges up.
-  await tree.getByRole('button', { name: 'Card' }).click();
-  await tree.getByRole('button', { name: 'Rectangle' }).click({ modifiers: ['Shift'] });
+  await tree.getByRole('button', { name: 'Card', exact: true }).click();
+  await tree.getByRole('button', { name: 'Rectangle', exact: true }).click({ modifiers: ['Shift'] });
   await expect(inspector()).toContainText('2 layers');
   await inspector().getByRole('button', { name: 'Align left' }).click();
   await expect.poll(() => saved().frames[0]!.children.slice(1).map((c) => c.x)).toEqual([24, 24]);
@@ -141,4 +141,67 @@ test('layers are drawn with a tool, picked together, lined up, duplicated and ty
   await expect.poll(() => saved().frames[0]!.children[0]!.text).toBe('Porto offsite');
   await shell().keyboard.press('Control+z');
   await expect.poll(() => saved().frames[0]!.children[0]!.text).toBe('Lisbon offsite');
+});
+
+test('a layer is hidden, locked and arranged from its row and its right-click menu', async () => {
+  await start();
+  // The canvas sits between the layer list and the inspector: a window this big shows the frame clear of both.
+  await resizeWindow(mobius!.app, 1440, 900);
+  const tree = shell().getByRole('tree', { name: 'Frames and layers' });
+  // Hide takes the layer off the canvas; the row stays, dimmed, with Show in its place.
+  await tree.getByRole('button', { name: 'Hide Card' }).click();
+  await expect.poll(() => saved().frames[0]!.children[1]).toMatchObject({ hidden: true });
+  await expect(canvas().getByLabel('Rectangle Card')).toHaveCount(0);
+  await tree.getByRole('button', { name: 'Show Card' }).click();
+  await expect.poll(() => saved().frames[0]!.children[1]).not.toHaveProperty('hidden');
+  await expect(canvas().getByLabel('Rectangle Card')).toBeVisible();
+  // A right-click on a layer opens its menu: Lock, then Send to back.
+  // Fit again at the bigger size, so the frame is in the middle of the canvas.
+  await canvas().focus();
+  await shell().keyboard.press('Shift+Digit1');
+  await canvas().getByLabel('Text Title').click({ button: 'right' });
+  const menu = shell().getByRole('menu', { name: 'Title' });
+  await expect(menu).toBeVisible();
+  await menu.getByRole('menuitem', { name: /^Lock/ }).click();
+  await expect.poll(() => saved().frames[0]!.children[0]).toMatchObject({ locked: true });
+  await expect(tree.getByRole('button', { name: 'Unlock Title' })).toBeVisible();
+  await tree.getByRole('button', { name: 'Card', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Card' }).getByRole('menuitem', { name: /^Send to back/ }).click();
+  await expect.poll(() => saved().frames[0]!.children.map((c) => c.name)).toEqual(['Card', 'Title']);
+  // Ctrl+Shift+L unlocks what is picked.
+  await tree.getByRole('button', { name: 'Title', exact: true }).click();
+  await canvas().focus();
+  await shell().keyboard.press('Control+Shift+L');
+  await expect.poll(() => saved().frames[0]!.children[1]).not.toHaveProperty('locked');
+});
+
+test('a layer gets a border, and is dragged in the layer list to change what is in front', async () => {
+  await start();
+  await resizeWindow(mobius!.app, 1440, 900);
+  const tree = shell().getByRole('tree', { name: 'Frames and layers' });
+  await tree.getByRole('button', { name: 'Card', exact: true }).click();
+  await inspector().getByRole('button', { name: 'Add border' }).click();
+  await expect.poll(() => saved().frames[0]!.children[1]).toMatchObject({ stroke: '#1d1d1f', strokeWidth: 1 });
+  await inspector().getByRole('textbox', { name: 'Width' }).fill('3');
+  await inspector().getByRole('textbox', { name: 'Width' }).press('Enter');
+  await expect.poll(() => saved().frames[0]!.children[1]).toMatchObject({ strokeWidth: 3 });
+  await inspector().getByRole('button', { name: 'Remove border' }).click();
+  await expect.poll(() => saved().frames[0]!.children[1]).not.toHaveProperty('stroke');
+  // The list shows the front-most layer first: dropping Card on the top half of Title puts it in front.
+  await tree.getByRole('treeitem', { name: /^Card/ }).dragTo(tree.getByRole('treeitem', { name: /^Title/ }), { targetPosition: { x: 40, y: 4 } });
+  await expect.poll(() => saved().frames[0]!.children.map((c) => c.name)).toEqual(['Title', 'Card']);
+});
+
+test('a frame is exported as a PNG into Photo', async () => {
+  await start();
+  const tree = shell().getByRole('tree', { name: 'Frames and layers' });
+  await tree.getByRole('button', { name: 'Home', exact: true }).click();
+  await inspector().getByRole('radio', { name: '1×' }).click();
+  await inspector().getByRole('button', { name: 'Export PNG' }).click();
+  await expect(inspector().getByRole('status')).toContainText('Saved to Photo › Design exports as Home.png');
+  const png = path.join(userData, 'workspace', 'photos', 'Design exports', 'Home.png');
+  const bytes = fs.readFileSync(png);
+  expect(bytes.subarray(1, 4).toString()).toBe('PNG');
+  // Its size is the frame's, at 1×.
+  expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)]).toEqual([393, 852]);
 });

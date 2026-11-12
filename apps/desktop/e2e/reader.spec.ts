@@ -39,16 +39,24 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await expect(article).toContainText('Nine rooms in Príncipe Real.');
   await expect(article).toContainText('Breakfast included.');
   await expect(article).not.toContainText('ignore()');
-  await expect(article).toContainText('1 min read');
+  const bar = page.getByRole('toolbar', { name: 'Article' });
+  await expect(bar).toContainText('1 min read');
+  await expect(bar).toContainText('Saved today');
   const file = path.join(userData, 'workspace', 'reading', 'Reading list', 'Casa Amora.md');
   const kept = fs.readFileSync(file, 'utf8');
   expect(kept).toContain(`(${fixture.origin}/casa-amora) · saved `);
   // The page's own heading is not repeated under the title.
   expect(kept.match(/Casa Amora/g)?.length).toBe(1);
 
-  // Larger text is remembered on this computer.
-  await article.getByRole('button', { name: 'Larger' }).click();
+  // Aa: larger text and a sepia page, remembered on this computer.
+  await bar.getByRole('button', { name: 'Text and page' }).click();
+  const look = page.getByRole('dialog', { name: 'Text and page' });
+  await look.getByRole('button', { name: 'Larger' }).click();
   await expect(article).toHaveAttribute('data-size', 'l');
+  await look.getByRole('button', { name: 'Sepia' }).click();
+  await expect(page).toHaveAttribute('data-theme', 'sepia');
+  await look.press('Escape');
+  await expect(look).toBeHidden();
 
   // Mobius reads along: the article goes with the request.
   await shell.getByRole('button', { name: 'Summarise this' }).click();
@@ -64,12 +72,14 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await expect(article.getByRole('region', { name: 'Highlights' })).toContainText('1 highlight');
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('==Breakfast included.==');
 
-  await article.getByRole('button', { name: 'Done reading' }).click();
+  await bar.getByRole('button', { name: 'Done reading' }).click();
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'reading', 'Archive', 'Casa Amora.md'))).toBe(true);
   await expect.poll(() => fs.existsSync(file)).toBe(false);
-  await expect(article.getByRole('button', { name: 'Done reading' })).toBeHidden();
+  await expect(bar.getByRole('button', { name: 'Done reading' })).toBeHidden();
 
-  // A page that cannot be read says so.
+  // The link field shows only when asked for while an article is open. A page that cannot be read says so.
+  await expect(page.getByRole('textbox', { name: 'Link to save' })).toBeHidden();
+  await bar.getByRole('button', { name: 'Save a link' }).click();
   await page.getByRole('textbox', { name: 'Link to save' }).fill(`${fixture.origin}/fav.png`);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('That page could not be saved');

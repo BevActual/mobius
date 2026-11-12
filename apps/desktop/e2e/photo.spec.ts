@@ -52,6 +52,12 @@ test('adjustments are kept beside the photo, which never changes, and Export sav
   expect(fs.readFileSync(path.join(album(), 'coastline.png'))).toEqual(PNG);
   await panel().getByRole('button', { name: 'Hide Adjustment 1' }).click();
   await expect.poll(() => JSON.parse(fs.readFileSync(editsFile(), 'utf8')).adjustments[0].hidden).toBe(true);
+  // Each section of sliders folds away and puts itself back with its own reset.
+  await panel().getByRole('button', { name: 'Reset Color' }).click();
+  await expect.poll(() => JSON.parse(fs.readFileSync(editsFile(), 'utf8')).adjustments[0].warmth ?? 0).toBe(0);
+  await panel().getByRole('button', { name: 'Color', exact: true }).click();
+  await expect(panel().getByRole('slider', { name: 'Warmth' })).toHaveCount(0);
+  await panel().getByRole('button', { name: 'Color', exact: true }).click();
 
   await shell().getByRole('button', { name: 'Export' }).click();
   await expect(shell().getByRole('status').filter({ hasText: 'Saved as coastline edited.jpg' })).toBeVisible();

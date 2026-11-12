@@ -20,7 +20,7 @@ export function newestPage<T extends { modified: number }>(pages: readonly T[]):
   return pages.reduce<T | undefined>((best, pg) => (!best || pg.modified > best.modified ? pg : best), undefined);
 }
 
-export type NotesKind = 'notes' | 'docs' | 'slides' | 'designs' | 'songs' | 'boards' | 'research' | 'reading' | 'wiki';
+export type NotesKind = 'notes' | 'docs' | 'slides' | 'designs' | 'songs' | 'boards' | 'research' | 'reading' | 'wiki' | 'views';
 export function useNotes(kind: NotesKind = 'notes', active = true) {
   const api = window.mobius[kind];
   const remembered = useCallback((): string | null => { try { return window.localStorage.getItem(lastKey(kind)); } catch { return null; } }, [kind]);

@@ -6,6 +6,7 @@ import { ProvidersSection } from './ProviderKeys';
 import { SchedulesSection } from './Schedules';
 import { PageBoundary } from './PageBoundary';
 import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection, VoiceModelRows } from './Voice';
+import '../settings.css';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
 
@@ -49,6 +50,23 @@ const SECTION_GLYPHS: Record<string, string> = {
   about: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M6 5.5v3M6 3.6v0.1',
 };
 
+/** The tint of each section's icon, as in System Settings: one colour per section, so the eye finds it again. */
+const SECTION_TINTS: Record<string, string> = {
+  general: '#8e8e93', appearance: '#007aff', notifications: '#ff3b30', keyboard: '#8e8e93',
+  providers: '#00c7be', model: '#5856d6', voice: '#ff2d55',
+  safety: '#ff9f0a', memory: '#a2845e', privacy: '#1f6feb',
+  browser: '#30b0c7', sessions: '#af52de', schedules: '#34c759', extensions: '#7d7aff',
+  advanced: '#3a3a3c', about: '#636366',
+};
+
+function SectionIcon({ id, className }: { id: string; className: string }) {
+  return (
+    <svg className={className} viewBox="0 0 12 12" aria-hidden="true" style={{ background: SECTION_TINTS[id] ?? '#8e8e93' }}>
+      <path d={SECTION_GLYPHS[id] ?? 'M6 1.5a4.5 4.5 0 1 0 0.01 0'} />
+    </svg>
+  );
+}
+
 export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null, onTitle, ...rest }: Passed & { onClose: () => void; initial?: SectionId; initialSubpage?: string; /** The app's sidebar: Settings' search and sections go there, as an app's own list does. */ sidebar?: HTMLElement | null; /** The page's name, for the window's title row. */ onTitle?: (title: string) => void }) {
   const [section, setSection] = useState<SectionId>(initial ?? 'general');
   const [subpage, setSubpage] = useState<string>(() => initialSubpage ?? findSection(initial ?? 'general')?.subpages[0]?.id ?? '');
@@ -69,7 +87,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
           {SETTINGS.filter((item) => (item.group ?? '') === group).map((item) => (
             <button key={item.id} type="button" className="settings-nav-item" data-section={item.id} aria-current={item.id === section && !query.trim() ? 'page' : undefined} onClick={() => openSection(item.id)}>
               {/* A coloured glyph per section, as in System Settings and the Settings board. */}
-              <svg className="settings-nav-icon" viewBox="0 0 12 12" aria-hidden="true"><path d={SECTION_GLYPHS[item.id] ?? 'M6 1.5a4.5 4.5 0 1 0 0.01 0'} /></svg>
+              <SectionIcon id={item.id} className="settings-nav-icon" />
               <span>{item.label}</span>
             </button>
           ))}
@@ -105,6 +123,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
       <div className="settings-body">
         {sidebar ? createPortal(nav, sidebar) : nav}
         <div className="settings-content">
+          <div className="settings-column">
           {query.trim() ? (
             hits.length === 0 ? (
               <p className="srow-empty">No settings match “{query.trim()}”.</p>
@@ -124,8 +143,12 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
           ) : (
             current && (
               <>
-                <h2 className="settings-section-title">{current.label}</h2>
-                <p className="settings-section-desc">{current.description}</p>
+                {/* As the head of a System Settings pane: the section's icon, its name and one line on what it is for. */}
+                <header className="settings-hero" data-section={current.id}>
+                  <SectionIcon id={current.id} className="settings-hero-icon" />
+                  <h2 className="settings-section-title">{current.label}</h2>
+                  <p className="settings-section-desc">{current.description}</p>
+                </header>
                 {current.subpages.length > 1 && (
                   <div className="settings-tabs" role="tablist" aria-label={`${current.label} pages`}>
                     {current.subpages.map((page) => (
@@ -137,6 +160,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
               </>
             )
           )}
+          </div>
         </div>
       </div>
     </section>

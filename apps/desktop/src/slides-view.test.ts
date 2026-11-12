@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LAYOUTS, clock, dropIndex, jumpTarget, moveSlide, movedTo, talkMinutes } from './slides-view';
+import { LAYOUTS, clock, dropIndex, jumpTarget, layoutOf, moveSlide, movedTo, talkMinutes } from './slides-view';
 import { blankSlide, parseDeck, writeDeck } from './slides-format';
 
 describe('moveSlide', () => {
@@ -59,5 +59,14 @@ describe('talkMinutes', () => {
     expect(talkMinutes([blankSlide(), blankSlide()])).toBe(1);
     const long = { ...blankSlide(), notes: Array.from({ length: 260 }, () => 'word').join(' ') };
     expect(talkMinutes([long, blankSlide()])).toBe(3);
+  });
+});
+
+describe('layoutOf', () => {
+  it('reads each layout back from the slide it makes', () => {
+    for (const l of LAYOUTS) expect(layoutOf(l.make())).toBe(l.id);
+  });
+  it('matches none when a slide has body text and no bullets', () => {
+    expect(layoutOf({ ...LAYOUTS[0]!.make(), text: 'A paragraph' })).toBeNull();
   });
 });

@@ -44,6 +44,7 @@ import { useCode } from './useCode';
 import { CodeEditor, CodeSidebar } from './Code';
 import { DesignEditor, DesignSidebar } from './Design';
 import { CanvasBoard, CanvasSidebar } from './Canvas';
+import { ViewPage, ViewsSidebar, newView } from './Views';
 import { ResearchPage, ResearchSidebar } from './Research';
 import { ReaderPage, ReaderSidebar, saveToReader } from './Reader';
 import { DatabasePage, DatabaseSidebar } from './Database';
@@ -59,7 +60,7 @@ import { SkillEditor } from './Skills';
 import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
-import { ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
+import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
 import { HowIWork, SharedQueue, WikiSidebar, WikiVersions, useWikiIncoming, type WikiPlace } from './Wiki';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
@@ -86,6 +87,8 @@ import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
 import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
+import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
+import { LESSONS } from './learn'; // Learn (shell/learn-view)
 import { clipToNotes } from './clip';
 import { loadPanes, savePanes, companionFor, followPane, loadShare, saveShare } from './split';
 import { TRY_ANOTHER_ASK, TryAnotherContext } from './ReviewBar';
@@ -137,6 +140,7 @@ export function App() {
   const slides = useNotes('slides', used('slides'));
   const designs = useNotes('designs', used('design'));
   const boards = useNotes('boards', used('canvas'));
+  const views = useNotes('views', used('views'));
   const research = useNotes('research', used('research'));
   const reading = useNotes('reading', used('reader'));
   // Changes are named by the pages' titles as they are now, not the file names they were made with.
@@ -253,6 +257,7 @@ export function App() {
   const inCode = app === 'code';
   const inDesign = app === 'design';
   const inCanvas = app === 'canvas';
+  const inViews = app === 'views';
   const inResearch = app === 'research';
   const inReader = app === 'reader';
   const inWiki = app === 'wiki';
@@ -306,6 +311,8 @@ export function App() {
   designsNow.current = designs;
   const boardsNow = useRef(boards);
   boardsNow.current = boards;
+  const viewsNow = useRef(views);
+  viewsNow.current = views;
   const researchNow = useRef(research);
   researchNow.current = research;
   const readingNow = useRef(reading);
@@ -336,6 +343,11 @@ export function App() {
       if (c.by === 'person' || c.by === 'undo') return;
       if (c.by === 'assistant' && c.path && showBeside('canvas')) { void boardsNow.current.open(c.path); return; }
       mark('canvas');
+    });
+    const offViews = window.mobius.views?.onChanged((c) => {
+      if (c.by === 'person' || c.by === 'undo') return;
+      if (c.by === 'assistant' && c.path && showBeside('views')) { void viewsNow.current.open(c.path); return; }
+      mark('views');
     });
     const offResearch = window.mobius.research?.onChanged((c) => {
       if (c.by === 'person' || c.by === 'undo') return;
@@ -380,7 +392,7 @@ export function App() {
       if (c.by === 'assistant' && showBeside('calendar')) return;
       mark('calendar');
     });
-    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offMail?.(); offCalendar?.(); offDesigns?.(); offBoards?.(); offResearch?.(); offReading?.(); offDatabases?.(); };
+    return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offMail?.(); offCalendar?.(); offDesigns?.(); offBoards?.(); offViews?.(); offResearch?.(); offReading?.(); offDatabases?.(); };
   }, [showBeside]);
   const [searchFocus, setSearchFocus] = useState(0);
   // Going to an app leaves Settings (from the launcher, a shortcut or a link), so the app chosen is the one showing.
@@ -407,7 +419,7 @@ export function App() {
   const surface: SurfaceState = {
     app,
     hasPage: active !== undefined && /^https?:/.test(active.url),
-    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs', ...(docComments.page === docs.page.path && docComments.outline ? { extra: docComments.outline } : {}) } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : inCanvas && boards.page ? { path: boards.page.path, title: boards.page.title, text: boards.text, folder: 'boards' } : inResearch && research.page && !askingResearch ? { path: research.page.path, title: liveTitle(research.text, research.page.title), text: research.text, folder: 'research' } : inReader && reading.page ? { path: reading.page.path, title: reading.page.title, text: reading.text, folder: 'reading' } : inTerminal && lastTerminal ? { path: lastTerminal.cwd || '~', title: `Terminal: ${lastTerminal.command}`.slice(0, 120), text: `$ ${lastTerminal.command}   (in ~/${lastTerminal.cwd})\n${lastTerminal.result!.output.slice(-20_000)}\n${lastTerminal.result!.passed ? 'Exit code 0' : `Exit code ${lastTerminal.result!.code ?? 'none'}${lastTerminal.result!.timedOut ? ' (stopped: too long)' : ''}`}`, folder: 'terminal' } : inDatabase && databases.open ? { path: `${databases.open}.sqlite`, title: `Database ${databases.open}`, text: databaseOutline(databases.open, databases.list.find((d) => d.name === databases.open)?.tables ?? []), folder: 'databases' } : null,
+    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs', ...(docComments.page === docs.page.path && docComments.outline ? { extra: docComments.outline } : {}) } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : inCanvas && boards.page ? { path: boards.page.path, title: boards.page.title, text: boards.text, folder: 'boards' } : inViews && views.page ? { path: views.page.path, title: views.page.title, text: views.text, folder: 'views' } : inResearch && research.page && !askingResearch ? { path: research.page.path, title: liveTitle(research.text, research.page.title), text: research.text, folder: 'research' } : inReader && reading.page ? { path: reading.page.path, title: reading.page.title, text: reading.text, folder: 'reading' } : inTerminal && lastTerminal ? { path: lastTerminal.cwd || '~', title: `Terminal: ${lastTerminal.command}`.slice(0, 120), text: `$ ${lastTerminal.command}   (in ~/${lastTerminal.cwd})\n${lastTerminal.result!.output.slice(-20_000)}\n${lastTerminal.result!.passed ? 'Exit code 0' : `Exit code ${lastTerminal.result!.code ?? 'none'}${lastTerminal.result!.timedOut ? ' (stopped: too long)' : ''}`}`, folder: 'terminal' } : inDatabase && databases.open ? { path: `${databases.open}.sqlite`, title: `Database ${databases.open}`, text: databaseOutline(databases.open, databases.list.find((d) => d.name === databases.open)?.tables ?? []), folder: 'databases' } : null,
     tasks: inTasks ? tasksContext(tasks) : null,
     mail: inMail && mail.open ? { id: mail.open.id, title: `Email: ${mail.open.subject || '(no subject)'}`, text: `From: ${mail.open.from.name} <${mail.open.from.email}>\nSubject: ${mail.open.subject}\nDate: ${mail.open.dateMs ? new Date(mail.open.dateMs).toString() : ''}\n\n${mail.open.text}` } : null,
     cut: inVideo && video.project ? { title: `Video: ${video.project}`, source: `video/${video.project}/cut.json`, text: `Clips in video/${video.project}/ (never change them):\n${video.clips.map((c) => `- ${c.name}${c.kind === 'audio' ? ' (sound)' : ''}: ${video.lengthOf(c.name) ?? '?'} s`).join('\n') || '(none yet)'}\n\nThe cut, video/${video.project}/cut.json:\n${writeCut(video.cut)}` } : null,
@@ -456,15 +468,17 @@ export function App() {
   }, []);
   const activity = activityOf(conversation.state);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
+  /** The views Mobius changed in its last turn and that wait for Keep. */
+  const viewMarks = useMemo(() => new Set(turnMarks.files.filter((f) => f.startsWith('views/')).map((f) => f.slice('views/'.length))), [turnMarks.files]);
   // An app Mobius changed things in loads, so its changes show there when the turn ends, even if it was never opened.
   useEffect(() => {
     const touched: AppId[] = [];
     const add = (id: AppId, set: ReadonlySet<string>) => { if (set.size > 0) touched.push(id); };
     add('slides', turnMarks.slides); add('design', turnMarks.designs); add('canvas', turnMarks.boards); add('research', turnMarks.research);
     add('reader', turnMarks.reading); add('database', turnMarks.databases); add('photo', turnMarks.photos); add('studio', turnMarks.songs);
-    add('video', turnMarks.video); add('sheets', turnMarks.sheets); add('code', turnMarks.code);
+    add('video', turnMarks.video); add('sheets', turnMarks.sheets); add('code', turnMarks.code); add('views', viewMarks);
     if (touched.length > 0) setOpened((was) => (touched.every((id) => was.has(id)) ? was : new Set([...was, ...touched])));
-  }, [turnMarks]);
+  }, [turnMarks, viewMarks]);
   // A page the agent opens while you talk to it in the Agent app shows in the browser beside the conversation.
   // Pages opened in earlier turns, or in a conversation just switched to, are already seen.
   const seenPages = useRef<{ conversation: string; calls: Set<string> } | null>(null);
@@ -477,7 +491,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -503,6 +517,7 @@ export function App() {
     photo: some(photos.albums.reduce((sum, a) => sum + a.photos.length, 0), 'photo'),
     design: some(designs.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'design'),
     canvas: some(boards.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'board'),
+    views: some(views.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'view'),
     database: some(databases.list.length, 'database'),
     review: (() => { const n = review.turns.reduce((s, t) => s + t.files.length, 0); return n ? `${plural(n, 'change')} to look at` : 'Nothing to review'; })(),
     terminal: terminal.processes.some((p) => p.running) ? `${plural(terminal.processes.filter((p) => p.running).length, 'command')} running` : 'Your workspace',
@@ -530,6 +545,9 @@ export function App() {
   const setChatPlace = (place: 'beside' | 'sidebar') => { void appearance.set({ agentPlace: place }); };
   // In the sidebar, Mobius waits to be asked and the app's own list shows; pinned beside, it is there from the start.
   const [chatOpen, setChatOpen] = useState(false);
+  // Learn (shell/learn-view): lessons beside the page, in the slot Mobius uses when pinned beside. One at a time.
+  const [learnOpen, setLearnOpen] = useState(false);
+  const learnFrom = useRef<HTMLElement | null>(null);
   const [focusToken, setFocusToken] = useState(0);
   const [switcherToken, setSwitcherToken] = useState(0);
   const [launcherOpen, setLauncherOpen] = useState(false);
@@ -539,10 +557,10 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inSearch || inAgent || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
+  const hasAppList = inBrowser || inSearch || inAgent || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -554,8 +572,10 @@ export function App() {
   const showWide = wide || (chatInSide && chatOpen && !settingsOpen);
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !showWide;
-  const rightOpen = hasRight && chatOpen && !chatInSide;
+  const rightOpen = hasRight && chatOpen && !chatInSide && !learnOpen;
   useEffect(() => { if (rightOpen && miniOpen) void window.mobius.mini.close(); }, [rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Learn (shell/learn-view): Mobius opening beside the page takes the slot back from Learn.
+  useEffect(() => { if (learnOpen && chatOpen && hasRight && !chatInSide) setLearnOpen(false); }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
   const [hovering, setHovering] = useState(false);
   const leftWidth = drag?.side === 'left' ? drag.width : appearance.value.leftWidth;
@@ -658,7 +678,7 @@ export function App() {
     return () => { live = false; };
   }, [needCover]);
   const leftAttached = hasLeft && !leftFloating && leftOpen;
-  const rightAttached = !rightFloating && rightOpen;
+  const rightAttached = (!rightFloating && rightOpen) || learnOpen;
   const layout = {
     '--col-left': leftAttached ? `${leftWidth}px` : '0px',
     '--col-right': rightAttached ? `${rightWidth}px` : '0px',
@@ -694,7 +714,8 @@ export function App() {
     const [top, ...rest] = path.split('/');
     const inner = rest.join('/');
     const title = (rest.at(-1) ?? '').replace(/\.(md|json|csv|sqlite)$/i, '');
-    if (top === 'notes' || top === 'docs' || top === 'slides' || top === 'designs' || top === 'boards' || top === 'research' || top === 'reading' || top === 'studio') {
+    if (top === 'views') { openApp('views'); void views.open(inner, title); }
+    else if (top === 'notes' || top === 'docs' || top === 'slides' || top === 'designs' || top === 'boards' || top === 'research' || top === 'reading' || top === 'studio') {
       const app = ({ notes: 'notes', docs: 'docs', slides: 'slides', designs: 'design', boards: 'canvas', research: 'research', reading: 'reader', studio: 'studio' } as const)[top];
       openTarget({ app, path: inner, title });
     } else if (top === 'sheets') openTarget({ app: 'sheets', workbook: rest[0] ?? '', sheet: title });
@@ -850,6 +871,7 @@ export function App() {
     { id: 'message', label: 'New message', app: 'mail', run: () => { closeSettings(); openApp('mail'); mail.compose(); } },
     { id: 'deck', label: 'New deck', app: 'slides', run: () => { closeSettings(); openApp('slides'); void (async () => { const folder = slides.page?.path.split('/')[0] ?? slides.notebooks[0]?.name ?? (await slides.createNotebook('Presentations')); if (folder) await slides.createPage(folder, 'Untitled deck'); })(); } },
     { id: 'design', label: 'New design', app: 'design', run: () => { closeSettings(); openApp('design'); void (async () => { const folder = designs.page?.path.split('/')[0] ?? designs.notebooks[0]?.name ?? (await designs.createNotebook('Designs')); if (folder) await designs.createPage(folder, 'Untitled design'); })(); } },
+    { id: 'view', label: 'New view', app: 'views', run: () => { closeSettings(); openApp('views'); newView(views); } },
     { id: 'board', label: 'New board', app: 'canvas', run: () => { closeSettings(); openApp('canvas'); void (async () => { const folder = boards.page?.path.split('/')[0] ?? boards.notebooks[0]?.name ?? (await boards.createNotebook('Boards')); if (folder) await boards.createPage(folder, 'Untitled board'); })(); } },
     { id: 'command', label: 'New command', app: 'terminal', run: () => { closeSettings(); openApp('terminal'); setTerminalFocus((n) => n + 1); } },
     { id: 'database', label: 'New database', app: 'database', run: () => { closeSettings(); openApp('database'); window.setTimeout(() => sendCommand('new-database'), 0); } },
@@ -925,6 +947,8 @@ export function App() {
               <ReaderSidebar reading={reading} pin={pinNode} changed={turnMarks.reading} starts={startsFor('reader')} onStart={startWithMobius} />
             ) : inResearch ? (
               <ResearchSidebar research={research} pin={pinNode} changed={turnMarks.research} starts={startsFor('research')} onStart={startWithMobius} />
+            ) : inViews ? (
+              <ViewsSidebar views={views} pin={pinNode} changed={viewMarks} starts={startsFor('views')} onStart={startWithMobius} />
             ) : inCanvas ? (
               <CanvasSidebar boards={boards} pin={pinNode} changed={turnMarks.boards} starts={startsFor('canvas')} onStart={startWithMobius} />
             ) : inCode ? (
@@ -990,6 +1014,13 @@ export function App() {
     if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign || inSlides || inPhoto) && !typing) { sendCommand(command); return; }
     document.execCommand(command);
   };
+  // Learn (shell/learn-view): opening it unpins Mobius from beside; closing puts focus back where it was.
+  const openLearn = () => {
+    learnFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (chatOpen && !chatInSide) setChatOpen(false);
+    setLearnOpen(true);
+  };
+  const closeLearn = () => { setLearnOpen(false); if (learnFrom.current?.isConnected) learnFrom.current.focus(); };
   const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
@@ -1010,6 +1041,7 @@ export function App() {
       closeTab: () => { if (active) window.mobius.browser.close(active.id); },
       settings: openSettings,
       shortcuts: () => openSettingsAt('keyboard'),
+      learn: openLearn,
       profiles: () => openSettingsAt('profiles'),
       about: () => openSettingsAt('about'),
       edit,
@@ -1264,7 +1296,7 @@ export function App() {
       case 'slides':
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':
-        if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} skills={skills} onPlace={setExtPlace} />;
+        if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} onOpenApp={openApp} />;
         return <SkillEditor skills={skills} review={skills.open && turnMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} onRun={(name) => { openApp('agent'); void conversation.send(expandSlash(`/${name}`, skills.names), []); }} />;
       case 'video':
         return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
@@ -1290,7 +1322,7 @@ export function App() {
             incoming={wikiIncoming}
             onOpenThread={(id) => { conversation.select(id); openApp('agent'); }}
             onNewThread={(pid) => { const id = conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()); void projects.addThread(pid, id).then((ok) => { if (ok) { conversation.select(id); openApp('agent'); } }); }}
-            onOpenMemory={(p) => { setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(`Projects/${p.name}.md`, p.name); }}
+            onOpenMemory={(p) => { setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(memoryPage(p), p.name); }}
             onOpenFiles={(p) => { files.setPlace({ kind: 'folder', path: `projects/${p.name}` }); openApp('files'); }}
             onOpenMade={(path) => { const target = changeTarget(path); if (target) openTarget(target); }}
           />
@@ -1303,6 +1335,20 @@ export function App() {
         return <ReaderPage reading={reading} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && turnMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'research':
         return <ResearchPage research={research} busy={conversation.state.busy} asking={askingResearch} onAskDone={() => setAskingResearch(false)} onAsk={onResearch} review={research.page && turnMarks.research.has(research.page.path) ? { conversation: conversation.state.conversation } : null} />;
+      case 'views':
+        return (
+          <ViewPage
+            views={views}
+            apps={{ tasks: tasks.all, events: calendar.events, mail: { messages: mail.messages, unread: mail.counts.all, accounts: mail.accounts.length }, notes: notes.notebooks, conversations: conversation.list }}
+            review={views.page && viewMarks.has(views.page.path) ? { conversation: conversation.state.conversation } : null}
+            onOpen={(t) => {
+              if (t.kind === 'app') openApp(t.app);
+              else if (t.kind === 'note') openTarget({ app: 'notes', path: t.path, title: t.title });
+              else if (t.kind === 'conversation') openTarget({ app: 'agent', conversation: t.id });
+              else openSettingsAt('schedules');
+            }}
+          />
+        );
       case 'canvas':
         return <CanvasBoard boards={boards} review={boards.page && turnMarks.boards.has(boards.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'code':
@@ -1338,8 +1384,9 @@ export function App() {
             surface={surface}
             onOpenItem={openTarget}
             variant="full"
-            desk={(
+            desk={(starters) => (
               <Desk
+                starters={starters}
                 rows={[
                   ...(browser.tabs.length > 0 ? [{ app: 'browser' as const, text: plural(browser.tabs.length, 'tab') + ' open' }] : []),
                   ...(mail.counts.all > 0 ? [{ app: 'mail' as const, text: `${mail.counts.all} unread` }] : []),
@@ -1470,7 +1517,7 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
@@ -1488,13 +1535,13 @@ export function App() {
         needsYou={needsYou}
         counts={{ browser: browser.tabs.length, tasks: dueToday }}
         create={createFor(app)}
-        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'] as AppId[]).includes(app)}
+        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'] as AppId[]).includes(app)}
         menus={menuBar}
         chrome={showWide && inBrowser && !settingsOpen ? browserChrome : null}
         mobius={hasRight && !settingsOpen ? {
           shown: chatInSide && chatOpen,
           onToggle: () => { if (chatInSide && chatOpen) { setChatOpen(false); } else { hides.current += 1; setChatPlace('sidebar'); setChatOpen(true); setFocusToken((n) => n + 1); } },
-          onBeside: () => { pinFrom.current = document.querySelector('.rail[data-expanded]')?.getBoundingClientRect() ?? null; setChatPlace('beside'); setChatOpen(true); },
+          onBeside: () => { setLearnOpen(false); pinFrom.current = document.querySelector('.rail[data-expanded]')?.getBoundingClientRect() ?? null; setChatPlace('beside'); setChatOpen(true); },
           panel: chatInSide && chatOpen ? chatPanel(null) : null,
         } : null}
         onLauncher={openHub}
@@ -1601,6 +1648,12 @@ export function App() {
               </button>
             </>)}
             {resizer('right', 'Resize the agent panel')}
+          </div>
+        )}
+        {learnOpen && (
+          <div className="dock right" data-learn>
+            <LearnPanel lessons={LESSONS} app={app} onClose={closeLearn} onOpenApp={(id) => { closeSettings(); openApp(id); }} />
+            {resizer('right', 'Resize Learn')}
           </div>
         )}
         {hasRight && rightFloating && !chatOpen && <div className="hotzone right" data-testid="hotzone-right" onPointerEnter={() => { rightFromEdge.current = true; setPeeked(true); setChatOpen(true); }} />}

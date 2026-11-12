@@ -548,6 +548,8 @@ export interface MobiusBridge {
     rename(id: string, name: string): Promise<ProjectInfo | NotesFailure>;
     setRule(id: string, app: string, level: ProjectLevel | 'follow'): Promise<ProjectInfo | NotesFailure>;
     addThread(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
+    /** A thread leaves the project, with the side threads asked from it; the conversation is kept. */
+    removeThread?(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
     /** Ask a bot, from one of the project's threads, to do something in a side thread of its own. */
     addSide(id: string, parent: string, conversation: string, bot: string, botName: string, ask: string): Promise<ProjectInfo | NotesFailure>;
     /** A side thread finished: what it found, for the thread it was asked from. */
@@ -744,6 +746,8 @@ export interface MobiusBridge {
   designs?: NonNullable<MobiusBridge['notes']>;
   /** The Canvas app: boards kept like notes, as JSON in `boards/<folder>/<board>.json`. Only the Tauri shell has it. */
   boards?: NonNullable<MobiusBridge['notes']>;
+  /** The Views app: dashboards kept like notes, as JSON in `views/<folder>/<view>.json`. Only the Tauri shell has it. */
+  views?: NonNullable<MobiusBridge['notes']>;
   /** The Research app: reports kept like documents, as Markdown in `research/<folder>/<report>.md`. Only the Tauri shell has it. */
   research?: NonNullable<MobiusBridge['notes']>;
   /** The Reader app: articles kept to read later, as Markdown in `reading/<folder>/<article>.md`, and fetching one. */
@@ -1373,7 +1377,8 @@ export interface PreferencesSettings {
 }
 export interface ProfilesState { current: string; list: { id: string; name: string }[] }
 /** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
-export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean }
+/** `bot` runs it as that agent (its id), with the agent's instructions and model; none is Mobius itself. */
+export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean; bot?: string }
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 /** Per app: follow the approval mode, always ask the person, or off. */
 export type AccessLevel = 'follow' | 'always' | 'off';

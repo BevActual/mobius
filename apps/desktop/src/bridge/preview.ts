@@ -1,12 +1,17 @@
 import { tagsIn } from '../note-tags';
 import { linksIn } from '../note-links';
 import { PREVIEW_TASKS } from './preview-tasks';
+import { PREVIEW_DATABASES } from './preview-databases';
+import { PREVIEW_PROJECTS } from './preview-projects';
 import { PREVIEW_CALENDAR } from './preview-calendar';
 import { PREVIEW_DOCS } from './preview-docs';
+import { PREVIEW_READING } from './preview-reading';
 import { PREVIEW_SONGS } from './preview-songs';
+import { PREVIEW_KNOWLEDGE } from './preview-knowledge';
 import { PREVIEW_BROWSER } from './preview-browser';
 import { PREVIEW_CODE } from './preview-code';
 import { PREVIEW_DESIGNS } from './preview-designs';
+import { PREVIEW_VIEWS } from './preview-views';
 import { PREVIEW_SLIDES } from './preview-slides';
 import { PREVIEW_PHOTOS } from './preview-photos';
 import { PREVIEW_VIDEO } from './preview-video';
@@ -53,7 +58,7 @@ const NOTES = () => [
   { name: 'Home', pages: [notePage('Home/Groceries.md', now - 30 * hour)] },
 ];
 /** The first line under the title, as the Rust list gives it (roughly: enough for the preview). */
-const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('# ') && !l.startsWith('|'))[0] ?? '').replace(/^#+\s*|^[-*] (\[[ x]\] )?/g, '').replace(/[*_`]/g, '').slice(0, 120);
+const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('# ') && !l.startsWith('|'))[0] ?? '').replace(/^#+\s*|^[-*] (\[[ x]\] )?/g, '').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_`]/g, '').slice(0, 120);
 /** One turn of Mobius's, still waiting to be kept, so the dashed proposals and Why this can be looked at. */
 const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv'] };
 
@@ -73,10 +78,15 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_BROWSER,
   ...PREVIEW_CODE,
   ...PREVIEW_DESIGNS,
+  ...PREVIEW_VIEWS,
   ...PREVIEW_SLIDES,
   ...PREVIEW_PHOTOS,
   ...PREVIEW_VIDEO,
-  'bots.get': () => ({ bots: [] }),
+  'bots.get': () => ({ bots: [
+    { id: 'main', name: 'Mobius', instructions: '', model: '', createdMs: 0 },
+    { id: 'rcpt01', name: 'File receipts', instructions: 'When a receipt arrives in Mail, add a row to the Expenses sheet.', model: '', createdMs: now - 6 * 86_400_000 },
+    { id: 'wkly01', name: 'Weekly P2 summary', instructions: 'Every Friday, summarise the week on the Kestrel P2 build from Notes, Tasks and Mail.', model: 'Thorough', createdMs: now - 3 * 86_400_000 },
+  ] }),
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,
   'mini.isOpen': () => false,
@@ -84,7 +94,13 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_TASKS,
   // Documents are kept in memory for as long as the preview is open.
   ...PREVIEW_DOCS,
+  // Reader's articles are kept in memory for as long as the preview is open.
+  ...PREVIEW_READING,
   ...PREVIEW_SONGS,
+  // Knowledge: How I work, the changes waiting and a few pages, kept for as long as the preview is open.
+  ...PREVIEW_KNOWLEDGE,
+  // Projects, their threads and memory are kept in memory for as long as the preview is open.
+  ...PREVIEW_PROJECTS,
   'notes.list': () => NOTES(),
   'notes.search': ((query: string) => Object.entries(NOTE_TEXT).filter(([, t]) => t.toLowerCase().includes(query.toLowerCase())).map(([path, t]) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), notebook: path.split('/')[0], line: t.split('\n').find((l) => l.toLowerCase().includes(query.toLowerCase())) ?? '' }))) as never,
   // Typing in a note is kept for as long as the preview is open, so the Markdown it is saved as can be looked at.
@@ -106,6 +122,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'notes.setComments': ((path: string, comments: unknown[]) => { NOTE_COMMENTS[path] = comments; return { path, comments }; }) as never,
   'notes.export': ((path: string, kind: string) => { const name = `${path.slice(path.indexOf('/') + 1, -3)}.${kind}`; (window as unknown as { exported?: string }).exported = name; return { path, saved: `Exports/${name}`, name }; }) as never,
   ...PREVIEW_SHEETS,
+  ...PREVIEW_DATABASES,
   'notes.read': ((path: string) => ({ path, content: NOTE_TEXT[path] ?? '', modified: now })) as never,
   'changes.lastTurn': () => ({ checkpoint: TURN.start, files: TURN.files }),
   'changes.turns': () => ({ ok: true, turns: [TURN] }),

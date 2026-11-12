@@ -3,11 +3,12 @@ import { onCommand } from './commands';
 import { NotesSidebar, type SidebarWords } from './NotesSidebar';
 import { RichText } from './RichText';
 import { useFileReview } from './useFileReview';
-import { ARCHIVE, READING_LIST, addHighlight, articleFile, articleTitle, highlightsOf, keepLook, parseArticle, readLook, removeHighlight, type ReadingLook } from './reader-format';
+import { ARCHIVE, READING_LIST, addHighlight, articleFile, articleTitle, highlightsOf, keepLook, keepPlace, parseArticle, readLook, readPlace, removeHighlight, savedWhen, stepSize, timeLeft, type ReadingLook, type ReadingTheme } from './reader-format';
 import { clipToNotes } from './clip';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { EmptyState } from './EmptyState';
+import './reader.css';
 
 export const READER_WORDS: SidebarWords = { app: 'Reader', group: 'list', groups: 'Lists', item: 'article', items: 'articles', about: 'Articles are kept as Markdown files in your workspace, so the agent can read them with you.', defaultGroup: READING_LIST };
 
@@ -28,7 +29,48 @@ export async function saveToReader(reading: NotesState, url: string, list = READ
   return path ? { ok: true, path } : { ok: false, message: 'The article could not be kept.' };
 }
 
-const SIZES: { id: ReadingLook['size']; label: string }[] = [{ id: 's', label: 'Smaller' }, { id: 'm', label: 'Medium' }, { id: 'l', label: 'Larger' }];
+const THEMES: { id: ReadingTheme; label: string }[] = [{ id: 'auto', label: 'Match Mobius' }, { id: 'sepia', label: 'Sepia' }, { id: 'grey', label: 'Grey' }, { id: 'night', label: 'Night' }];
+const FACES: { id: ReadingLook['face']; label: string }[] = [{ id: 'sans', label: 'Sans serif' }, { id: 'serif', label: 'Serif' }];
+
+/** Aa, as in Safari Reader: text size, typeface and page colour in one panel. */
+function LookPanel({ look, onChange }: { look: ReadingLook; onChange: (next: ReadingLook) => void }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    window.addEventListener('pointerdown', away);
+    return () => window.removeEventListener('pointerdown', away);
+  }, [open]);
+  const set = (change: Partial<ReadingLook>) => onChange({ ...look, ...change });
+  return (
+    <div className="reader-aa" ref={wrap}>
+      <button ref={button} type="button" className="strip-btn reader-aa-btn" aria-label="Text and page" title="Text size, font and page colour" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span aria-hidden="true">Aa</span>
+      </button>
+      {open && (
+        <div className="reader-aa-panel glass" role="dialog" aria-label="Text and page" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); button.current?.focus(); } }}>
+          <div className="reader-aa-sizes" role="group" aria-label="Text size">
+            <button type="button" data-size="down" aria-label="Smaller" disabled={look.size === 'xs'} onClick={() => set({ size: stepSize(look.size, -1) })}>A</button>
+            <button type="button" data-size="up" aria-label="Larger" disabled={look.size === 'xl'} onClick={() => set({ size: stepSize(look.size, 1) })}>A</button>
+          </div>
+          <div className="reader-aa-faces" role="group" aria-label="Font">
+            {FACES.map((f) => (
+              <button key={f.id} type="button" data-face={f.id} aria-pressed={look.face === f.id} onClick={() => set({ face: f.id })}>
+                <span>{f.label}</span>
+                {look.face === f.id && <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10.5 3.2 3L15 6.5" /></svg>}
+              </button>
+            ))}
+          </div>
+          <div className="reader-aa-themes" role="group" aria-label="Page colour">
+            {THEMES.map((t) => <button key={t.id} type="button" data-theme={t.id} aria-label={t.label} title={t.label} aria-pressed={look.theme === t.id} onClick={() => set({ theme: t.id })} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Reader: pages kept to read later, shown as plain readable text, with where each came from. */
 export function ReaderPage({ reading, review, tab }: { reading: NotesState; review?: { conversation: string } | null; tab: { url: string; title: string } | null }) {
@@ -37,14 +79,40 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
   const [message, setMessage] = useState('');
   const [look, setLook] = useState<ReadingLook>(readLook);
   const field = useRef<HTMLInputElement>(null);
-  // The New button's Save a link puts the cursor in the link field.
-  useEffect(() => onCommand('save-link', () => field.current?.focus()), []);
+  // The link field shows only when nothing is open, or when asked for: the article has the page to itself.
+  const [adding, setAdding] = useState(false);
+  // The New button's Save a link shows the link field with the cursor in it.
+  useEffect(() => onCommand('save-link', () => { setAdding(true); window.setTimeout(() => field.current?.focus(), 0); }), []);
   useEffect(() => keepLook(look), [look]);
   const page = reading.page;
   const article = useMemo(() => parseArticle(reading.text), [reading.text]);
   const file = page ? `reading/${page.path}` : null;
   const { before, keep, discard } = useFileReview(review, file, page?.base);
   const inArchive = page?.path.split('/')[0] === ARCHIVE;
+  // With nothing open, the newest article in the reading list opens, as Apple Books opens what you are reading.
+  const newest = reading.notebooks.find((nb) => nb.name === READING_LIST)?.pages.reduce<{ path: string; title: string; modified: number } | undefined>((best, pg) => (!best || pg.modified > best.modified ? pg : best), undefined);
+  useEffect(() => { if (!page && newest) reading.openIfIdle(newest.path, newest.title); }, [page, newest?.path]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // How far through the article you are: shown as a line and minutes left, and kept so it opens where you stopped.
+  const scroller = useRef<HTMLDivElement>(null);
+  const [read, setRead] = useState(0);
+  const placed = useRef<string | null>(null);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!page || !el || placed.current === page.path || !reading.text) return;
+    placed.current = page.path;
+    const at = readPlace(page.path);
+    el.scrollTop = at * Math.max(0, el.scrollHeight - el.clientHeight);
+    setRead(at);
+  });
+  const onScroll = () => {
+    const el = scroller.current;
+    if (!el || !page) return;
+    const room = el.scrollHeight - el.clientHeight;
+    const at = room <= 0 ? 1 : el.scrollTop / room;
+    setRead(at);
+    keepPlace(page.path, at);
+  };
 
   const save = async (url: string) => {
     setSaving(true);
@@ -53,6 +121,7 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
     setSaving(false);
     if (!done.ok) { setMessage(done.message); return; }
     setLink('');
+    setAdding(false);
   };
   const submit = (e: FormEvent) => { e.preventDefault(); if (link.trim()) void save(/^https?:\/\//i.test(link.trim()) ? link.trim() : `https://${link.trim()}`); };
   /** Read: moved to the Archive list, out of the way but still searchable. */
@@ -73,7 +142,7 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
   const [picked, setPicked] = useState<{ text: string; top: number; left: number } | null>(null);
   const [marked, setMarked] = useState<{ text: string; top: number; left: number } | null>(null);
   const [notice, setNotice] = useState('');
-  useEffect(() => { setPicked(null); setMarked(null); setNotice(''); }, [page?.path]);
+  useEffect(() => { setPicked(null); setMarked(null); setNotice(''); setAdding(false); }, [page?.path]);
   const highlights = useMemo(() => highlightsOf(reading.text), [reading.text]);
   const place = (rect: DOMRect) => { const box = body.current?.getBoundingClientRect(); return box ? { top: rect.top - box.top - 40, left: Math.max(0, rect.left - box.left + rect.width / 2 - 50) } : { top: 0, left: 0 }; };
   const readSelection = () => {
@@ -112,16 +181,17 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
   }, []);
 
   const saveBar = (
-    <form className="reader-save" onSubmit={submit} aria-label="Save to read later">
+    <form className="reader-save" onSubmit={submit} aria-label="Save to read later" onKeyDown={(e) => { if (e.key === 'Escape' && page) { e.preventDefault(); setAdding(false); setLink(''); setMessage(''); } }}>
       <input ref={field} aria-label="Link to save" placeholder="Paste a link to read later" value={link} maxLength={2000} onChange={(e) => setLink(e.target.value)} disabled={saving} />
       <button type="submit" className="btn primary" disabled={!link.trim() || saving}>{saving ? 'Saving…' : 'Save'}</button>
       {tab && /^https?:/i.test(tab.url) && <button type="button" className="btn" disabled={saving} title={tab.url} onClick={() => void save(tab.url)}>Save this tab</button>}
+      {page && <button type="button" className="btn" onClick={() => { setAdding(false); setLink(''); setMessage(''); }}>Cancel</button>}
     </form>
   );
 
   if (!page) {
     return (
-      <section className="reader-page" aria-label="Reader">
+      <section className="reader-page" aria-label="Reader" data-theme={look.theme}>
         {saveBar}
         {message && <p className="reader-message" role="alert">{message}</p>}
         <EmptyState app="reader" label="No article open" title={reading.notebooks.some((n) => n.pages.length) ? 'No article open' : 'Nothing saved yet'}
@@ -131,10 +201,25 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
   }
   const changed = review && before !== undefined && before !== reading.text;
   return (
-    <section className="reader-page" aria-label="Reader">
-      {saveBar}
+    <section className="reader-page" aria-label="Reader" data-theme={look.theme}>
+      {adding ? saveBar : (
+        <div className="reader-bar" role="toolbar" aria-label="Article">
+          <span className="reader-meta">
+            {article.url && <a href={article.url} title={article.url} onClick={(e) => { e.preventDefault(); void window.mobius.browser.open(article.url!); }}>{article.site}</a>}
+            {article.saved && <span>Saved {savedWhen(article.saved)}</span>}
+            <span className="reader-left" aria-live="off">{timeLeft(article.minutes, read)}</span>
+          </span>
+          <span className="reader-gap" />
+          <button type="button" className="strip-btn" aria-label="Save a link" title="Save a link to read later" onClick={() => { setAdding(true); window.setTimeout(() => field.current?.focus(), 0); }}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2l-.9.9" /><path d="M11.5 8.5a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l.9-.9" /></svg>
+          </button>
+          <LookPanel look={look} onChange={setLook} />
+          {!inArchive && <button type="button" className="btn" title="Move it to Archive (E)" onClick={() => void archive()}>Done reading</button>}
+        </div>
+      )}
       {message && <p className="reader-message" role="alert">{message}</p>}
-      <div className="reader-scroll">
+      <div className="reader-progress" role="progressbar" aria-label="Read so far" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(read * 100)}><span style={{ transform: `scaleX(${read})` }} /></div>
+      <div className="reader-scroll" ref={scroller} onScroll={onScroll}>
         <article className="reader-article" aria-label="Article" data-size={look.size} data-face={look.face}>
           {changed && (
             <div className="note-review" role="status">
@@ -143,17 +228,6 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
               <ReviewActions onKeep={keep} onDiscard={discard} />
             </div>
           )}
-          <div className="reader-meta">
-            {article.url && <a href={article.url} title={article.url} onClick={(e) => { e.preventDefault(); void window.mobius.browser.open(article.url!); }}>{article.site}</a>}
-            {article.saved && <span>Saved {article.saved}</span>}
-            <span>{article.minutes} min read</span>
-            <span className="reader-gap" />
-            <span className="reader-look" role="group" aria-label="Text">
-              <button type="button" className="strip-btn" aria-pressed={look.face === 'serif'} title="Serif" onClick={() => setLook((l) => ({ ...l, face: l.face === 'serif' ? 'sans' : 'serif' }))}>Aa</button>
-              {SIZES.map((s) => <button key={s.id} type="button" className="strip-btn" data-size={s.id} aria-pressed={look.size === s.id} aria-label={s.label} onClick={() => setLook((l) => ({ ...l, size: s.id }))}>A</button>)}
-            </span>
-            {!inArchive && <button type="button" className="btn" title="Move it to Archive (E)" onClick={() => void archive()}>Done reading</button>}
-          </div>
           <h1 className="reader-title">{article.title || page.title}</h1>
           {notice && <p className="reader-notice" role="status">{notice}</p>}
           <div

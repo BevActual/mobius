@@ -22,8 +22,11 @@ test('the server in use can be saved under a name, switched away from and back t
   const shell = mobius!.shell;
   await openSettings(shell);
   await shell.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
-  await shell.getByRole('textbox', { name: 'Name for this server' }).fill('Bench');
-  await shell.getByRole('button', { name: 'Keep current server' }).click();
+  await shell.getByRole('button', { name: 'Save Current Server…' }).click();
+  const sheet = shell.getByRole('dialog', { name: 'Save the current server' });
+  await sheet.getByRole('textbox', { name: 'Name for this server' }).fill('Bench');
+  await sheet.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(sheet).toHaveCount(0);
   const list = shell.getByRole('list', { name: 'Saved servers' });
   await expect(list.getByText('Bench')).toBeVisible();
   await expect(list.getByText(/chat-model/)).toBeVisible();
@@ -37,5 +40,10 @@ test('an empty name cannot be saved', async () => {
   const shell = mobius!.shell;
   await openSettings(shell);
   await shell.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
-  await expect(shell.getByRole('button', { name: 'Keep current server' })).toBeDisabled();
+  await shell.getByRole('button', { name: 'Save Current Server…' }).click();
+  const sheet = shell.getByRole('dialog', { name: 'Save the current server' });
+  await expect(sheet.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await shell.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(shell.getByRole('region', { name: 'Settings' })).toBeVisible();
 });
