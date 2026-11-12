@@ -94,3 +94,44 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   await expect(made).toContainText('Nothing is waiting');
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'), 'utf8')).toContain('From Mobius.');
 });
+
+test('a new folder is named in place, a file renamed with F2, and Delete moves it to the Trash with Undo', async () => {
+  await start();
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files' });
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  await page.getByRole('button', { name: 'New folder' }).click();
+  const naming = page.getByRole('textbox', { name: 'New name for New folder' });
+  await naming.fill('Battery');
+  await naming.press('Enter');
+  await expect(page.getByRole('row', { name: 'Battery', exact: true })).toBeVisible();
+  expect(fs.statSync(path.join(userData, 'workspace', 'notes', 'Work', 'Battery')).isDirectory()).toBe(true);
+
+  const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
+  await plan.click();
+  await plan.press('F2');
+  const renaming = page.getByRole('textbox', { name: 'New name for Plan.md' });
+  await renaming.fill('Build plan.md');
+  await renaming.press('Enter');
+  const renamed = page.getByRole('row', { name: 'Build plan.md', exact: true });
+  await expect(renamed).toBeVisible();
+  expect(fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Build plan.md'))).toBe(true);
+
+  await renamed.click();
+  await renamed.press('Delete');
+  await expect(page.getByRole('status')).toContainText('Moved “Build plan.md” to the Trash');
+  await expect(renamed).toHaveCount(0);
+  expect(fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Build plan.md'))).toBe(false);
+  await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect(renamed).toBeVisible();
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Build plan.md'), 'utf8')).toBe('# Plan\n');
+
+  // An app's own folder cannot be renamed or thrown away from Files.
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByRole('row', { name: 'notes', exact: true }).click({ button: 'right' });
+  const menu = shell().getByRole('menu', { name: 'notes' });
+  await expect(menu.getByRole('menuitem', { name: 'Open' })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: /Rename|Move to Trash/ })).toHaveCount(0);
+});

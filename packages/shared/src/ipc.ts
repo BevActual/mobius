@@ -523,6 +523,14 @@ export interface MobiusBridge {
   /** Only the desktop app: the workspace folder as a drive, for the person to look through. */
   files?: {
     list(path: string): Promise<{ path: string; entries: FileEntry[]; truncated: boolean } | { error: string }>;
+    /** The person's own actions in Files; the agent has none of these. Each answers with the item's new path. */
+    newFolder?(folder: string, name: string): Promise<FilesActionResult>;
+    rename?(path: string, name: string): Promise<FilesActionResult>;
+    /** Moves to the workspace's Trash; `path` in the answer is where it is held, for putBack. */
+    trash?(path: string): Promise<FilesActionResult>;
+    putBack?(held: string, path: string): Promise<FilesActionResult>;
+    /** Shows the item in Explorer or Finder. */
+    show?(path: string): Promise<void>;
   };
   /** Only the desktop app: what extends Mobius. */
   extensions?: {
@@ -1136,7 +1144,8 @@ export interface ModelGroup {
 export interface ModelCatalog { current: string; groups: ModelGroup[] }
 
 /** Settings > Advanced > Other apps. */
-export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number }
+export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number; /** When it last changed, ms since 1970 (Files only). */ modified?: number }
+export type FilesActionResult = { ok: true; path: string } | { ok: false; error: string };
 export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null }
 export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }
 

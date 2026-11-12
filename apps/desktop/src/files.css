@@ -17,7 +17,7 @@
 .files-crumbs .review-btn[aria-current="page"] { color: var(--ink); }
 
 /* The list: a header row of sortable columns, then one row per entry. */
-.files-head, .files-row { display: grid; grid-template-columns: minmax(0, 1fr) 180px 90px; align-items: center; column-gap: var(--sp-3); }
+.files-head, .files-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 150px 70px; align-items: center; column-gap: var(--sp-3); }
 .files-table[aria-label="Made by Mobius"] .files-row { grid-template-columns: minmax(0, 1fr) 90px minmax(0, 200px); }
 .files-head { padding: 0 var(--sp-3) var(--sp-1); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-1); }
 .files-col { justify-self: start; display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; margin-left: -4px; border-radius: var(--radius-small, 4px); font-size: var(--fs-xs); font-weight: var(--fw-semibold, 600); color: var(--muted); }
@@ -78,3 +78,13 @@
 
 .files-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 6px 6px 12px; width: fit-content; max-width: var(--files-col); margin-left: max(0px, calc((100% - 720px) / 2)); border-radius: var(--radius-panel); background: var(--wash); font: var(--fs-sm)/1.2 var(--font); }
 .files-review > span { margin-right: var(--sp-2); }
+
+/* New folder, renaming in place, and what just went to the Trash. */
+.files-tool { border-radius: var(--radius-control); color: var(--ink); }
+.files-tool:hover { background: var(--wash); }
+.files-tool svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.files-rename { flex: 1; min-width: 0; margin: -2px 0; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--radius-small, 4px); background: var(--bg); color: var(--ink); font: inherit; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.files-trashed, .files-notice { display: flex; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
+.files-trashed > span { flex: 1; }
+.files-notice { background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); }
+.files-notice .review-btn { margin-left: auto; }

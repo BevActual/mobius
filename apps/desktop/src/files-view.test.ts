@@ -3,10 +3,10 @@ import type { FileEntry } from '@mobius/shared';
 import { fileKind, sortEntries } from './files-view';
 
 const entries: FileEntry[] = [
-  { name: 'b.md', type: 'file', bytes: 50 },
+  { name: 'b.md', type: 'file', bytes: 50, modified: 300 },
   { name: 'Zed', type: 'folder' },
-  { name: 'a10.csv', type: 'file', bytes: 900 },
-  { name: 'a2.png', type: 'file', bytes: 10 },
+  { name: 'a10.csv', type: 'file', bytes: 900, modified: 100 },
+  { name: 'a2.png', type: 'file', bytes: 10, modified: 200 },
   { name: 'alpha', type: 'folder' },
 ];
 
@@ -27,8 +27,9 @@ describe('Files list', () => {
     expect(sortEntries(entries, { by: 'name', down: true }, '').map((e) => e.name)).toEqual(['Zed', 'alpha', 'b.md', 'a10.csv', 'a2.png']);
   });
 
-  it('sorts by size and by kind, folders still first', () => {
+  it('sorts by date, size and kind, folders still first', () => {
     expect(sortEntries(entries, { by: 'size', down: true }, '').map((e) => e.name)).toEqual(['Zed', 'alpha', 'a10.csv', 'b.md', 'a2.png']);
+    expect(sortEntries(entries, { by: 'modified', down: true }, '').map((e) => e.name)).toEqual(['Zed', 'alpha', 'b.md', 'a2.png', 'a10.csv']);
     expect(sortEntries(entries, { by: 'kind', down: false }, '').map((e) => e.name)).toEqual(['alpha', 'Zed', 'a10.csv', 'b.md', 'a2.png']);
   });
 });

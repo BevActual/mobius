@@ -4,7 +4,7 @@ import { appOf } from './review-view';
 import { appName } from './apps';
 
 /** How the open folder is sorted: by a column, and which way. Folders stay first, as in Finder and Explorer. */
-export interface FilesSort { by: 'name' | 'kind' | 'size'; down: boolean }
+export interface FilesSort { by: 'name' | 'modified' | 'kind' | 'size'; down: boolean }
 
 const BY_EXTENSION: Record<string, string> = {
   md: 'Markdown', txt: 'Text', csv: 'CSV', json: 'JSON', ics: 'Calendar', pdf: 'PDF', html: 'Web page', htm: 'Web page',
@@ -30,6 +30,7 @@ export function sortEntries(entries: readonly FileEntry[], sort: FilesSort, fold
   const dir = sort.down ? -1 : 1;
   const compare = (a: FileEntry, b: FileEntry): number => {
     if (sort.by === 'kind') return fileKind(join(a.name), a.type).localeCompare(fileKind(join(b.name), b.type)) || byName(a, b);
+    if (sort.by === 'modified') return ((a.modified ?? 0) - (b.modified ?? 0)) || byName(a, b);
     if (sort.by === 'size') return ((a.bytes ?? 0) - (b.bytes ?? 0)) || byName(a, b);
     return byName(a, b);
   };
