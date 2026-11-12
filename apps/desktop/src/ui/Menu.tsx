@@ -27,8 +27,13 @@ function useMorphingOpen(initial: boolean, onClosed?: () => void) {
   const popup = useRef<HTMLElement | null>(null);
   const closing = useRef(false);
   const then = useRef<(() => void) | undefined>(undefined);
+  // When a row was chosen, focus is left where that row puts it (a field to rename, a button to confirm); otherwise
+  // it goes back to what had it before the menu opened.
+  const chose = useRef(false);
+  const finalFocus = useCallback(() => !chose.current, []);
   const close = useCallback((after?: () => void) => {
     if (after) then.current = after;
+    chose.current = Boolean(after) || chose.current;
     if (closing.current) return;
     closing.current = true;
     if (popup.current) popup.current.style.pointerEvents = 'none';
@@ -40,13 +45,13 @@ function useMorphingOpen(initial: boolean, onClosed?: () => void) {
       run?.();
     });
   }, [onClosed]);
-  const show = useCallback(() => { closing.current = false; setOpen(true); }, []);
+  const show = useCallback(() => { closing.current = false; chose.current = false; setOpen(true); }, []);
   // The popup mounts inside a portal a moment after the menu opens, so it grows when it arrives.
   const popupRef = useCallback((node: HTMLElement | null) => {
     popup.current = node;
     if (node) growFrom(node, 'left');
   }, []);
-  return { open, show, close, popupRef };
+  return { open, show, close, popupRef, finalFocus };
 }
 
 function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: () => void) => void }) {
@@ -73,13 +78,13 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
  * choosing a row closes it, then `onClose` is called and the chosen row runs.
  */
 export function PointMenu({ x, y, label, entries, onClose }: { x: number; y: number; label: string; entries: readonly MenuEntry[]; onClose: () => void }) {
-  const { open, close, popupRef } = useMorphingOpen(true, onClose);
+  const { open, close, popupRef, finalFocus } = useMorphingOpen(true, onClose);
   const anchor = useMemo(() => ({ getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) }), [x, y]);
   return (
     <Base.Root open={open} modal={false} onOpenChange={(next) => { if (!next) close(); }}>
       <Base.Portal>
         <Base.Positioner className="ui-menu-positioner" anchor={anchor} side="bottom" align="start" collisionPadding={8}>
-          <Base.Popup ref={popupRef} className="ui-menu glass" aria-label={label} onContextMenu={(event) => event.preventDefault()}>
+          <Base.Popup ref={popupRef} finalFocus={finalFocus} className="ui-menu glass" aria-label={label} onContextMenu={(event) => event.preventDefault()}>
             <Rows entries={entries} pick={(run) => close(run)} />
           </Base.Popup>
         </Base.Positioner>
@@ -99,13 +104,13 @@ export function Menu({ label, entries, trigger, side = 'bottom', align = 'start'
   side?: 'top' | 'bottom' | 'left' | 'right';
   align?: 'start' | 'center' | 'end';
 }) {
-  const { open, show, close, popupRef } = useMorphingOpen(false);
+  const { open, show, close, popupRef, finalFocus } = useMorphingOpen(false);
   return (
     <Base.Root open={open} onOpenChange={(next) => { if (next) show(); else close(); }}>
       <Base.Trigger render={trigger} />
       <Base.Portal>
         <Base.Positioner className="ui-menu-positioner" side={side} align={align} sideOffset={4} collisionPadding={8}>
-          <Base.Popup ref={popupRef} className="ui-menu glass" aria-label={label}>
+          <Base.Popup ref={popupRef} finalFocus={finalFocus} className="ui-menu glass" aria-label={label}>
             <Rows entries={entries} pick={(run) => close(run)} />
           </Base.Popup>
         </Base.Positioner>
