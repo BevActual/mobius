@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { MemoryCategory, MemoryItem, WikiChange, WikiVersion } from '@mobius/shared';
 import type { NotesState } from './useNotes';
 import type { Item } from './conversation';
+import { createPortal } from 'react-dom';
+import { ContextMenu } from './ContextMenu';
 import { EmptyState } from './EmptyState';
+import { SideNew } from './SideNew';
 import { relativeTime } from './relative-time';
 import './knowledge.css';
 
@@ -38,6 +41,7 @@ export type WikiIncoming = ReturnType<typeof useWikiIncoming>;
 export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: NotesState; place: WikiPlace; onPlace: (p: WikiPlace) => void; incoming: WikiIncoming; pin?: ReactNode }) {
   const [naming, setNaming] = useState(false);
   const [title, setTitle] = useState('');
+  const [query, setQuery] = useState('');
   const create = async () => {
     const name = title.trim() || 'New page';
     if (!wiki.notebooks.some((n) => n.name === 'Pages')) await wiki.createNotebook('Pages');
@@ -56,13 +60,11 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
     <aside className="side wiki-side" aria-label="Knowledge sidebar">
       <div className="side-head">
         <span className="side-title">Knowledge</span>
-        <span className="side-actions">
-          {pin}
-          <button type="button" className="strip-btn" aria-label="New page" title="New page" onClick={() => setNaming(true)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-          </button>
-        </span>
+        {pin && <span className="side-actions">{pin}</span>}
       </div>
+      {/* New first, then Search, then the places and the pages: the order every app's sidebar has. */}
+      <SideNew item="page" onNew={() => setNaming(true)} />
+      <input className="side-search" type="search" aria-label="Search knowledge" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
       {naming && (
         <form className="notes-name" onSubmit={(e) => { e.preventDefault(); void create(); }}>
           <input autoFocus aria-label="Page title" placeholder="Page title" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
@@ -75,7 +77,7 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
         </ul>
       </nav>
       <nav className="task-lists wiki-pages" aria-label="Pages">
-        {sections(wiki.notebooks).map((nb) => (
+        {sections(wiki.notebooks, query).map((nb) => (
           <section key={nb.name} className="kn-side-section" aria-label={nb.name}>
             <h2 className="kn-side-heading">{nb.name}</h2>
             <ul role="list">
@@ -109,6 +111,7 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
   const [undo, setUndo] = useState<{ label: string; run: () => Promise<unknown> } | null>(null);
   const [adding, setAdding] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ text: string; x: number; y: number } | null>(null);
   const load = useCallback(async () => { setItems(await api?.items().catch(() => []) ?? []); }, [api]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => api?.onChange(() => void load()), [api, load]);
@@ -127,11 +130,13 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
   const learned = items.filter((m) => m.learned);
   const forget = (m: MemoryItem) => api.forget(m.text).then((r) => done(r, { label: `Forgot “${m.text}”.`, run: () => api.restore!(m.text, m.category, m.source) }));
   const line = (m: MemoryItem) => (
-    <li key={m.text} className="wiki-line" data-proposed={m.learned || undefined} data-editing={editing?.old === m.text || undefined} aria-label={m.learned ? `${m.text}, Mobius learned this` : m.text}>
+    <li key={m.text} className="wiki-line" data-proposed={m.learned || undefined} data-editing={editing?.old === m.text || undefined} aria-label={m.learned ? `${m.text}, Mobius learned this` : m.text}
+      onContextMenu={(e) => { if (editing?.old === m.text) return; e.preventDefault(); setMenu({ text: m.text, x: e.clientX, y: e.clientY }); }}
+      onKeyDown={(e) => { if (e.key === 'F10' && e.shiftKey && editing?.old !== m.text) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ text: m.text, x: r.left + 24, y: r.bottom - 4 }); } }}>
       {editing?.old === m.text ? (
         <form className="wiki-edit" onSubmit={(e) => { e.preventDefault(); void api.edit(editing.old, editing.text, editing.category).then((r) => done(r, null)).then(() => setEditing(null)); }}>
           <input autoFocus aria-label="Line" value={editing.text} maxLength={300} onChange={(e) => setEditing({ ...editing, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }} />
-          <select aria-label="Kind" value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value as MemoryCategory })}>{MEMORY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
+          <span className="kn-popup"><select aria-label="Kind" value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value as MemoryCategory })}>{MEMORY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select></span>
           <button type="button" className="review-btn" onClick={() => setEditing(null)}>Cancel</button>
           <button type="submit" className="review-btn" data-kind="keep">Save</button>
         </form>
@@ -151,11 +156,22 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
           ) : (
             <span className="wiki-line-actions">
               <button type="button" className="review-btn" onClick={() => setEditing({ old: m.text, text: m.text, category: m.category })}>Edit</button>
-              <button type="button" className="review-btn" aria-label={`Forget: ${m.text}`} onClick={() => void forget(m)}>Forget</button>
               <button type="button" className="review-btn" title="Offer this line to the Knowledge others share" onClick={() => void share(m)}>Share</button>
+              <button type="button" className="review-btn" data-kind="danger" aria-label={`Forget: ${m.text}`} title="Forget this line (you can undo it)" onClick={() => void forget(m)}>Forget</button>
             </span>
           )}
         </>
+      )}
+      {menu?.text === m.text && createPortal(
+        <ContextMenu x={menu.x} y={menu.y} label={m.text} onClose={() => setMenu((x) => (x?.text === m.text ? null : x))} items={m.learned ? [
+          { label: 'Keep', run: () => void keep(m) },
+          { label: 'Not true', run: () => void notTrue(m) },
+        ] : [
+          { action: 'rename', label: 'Edit', run: () => setEditing({ old: m.text, text: m.text, category: m.category }) },
+          { action: 'share', label: 'Share', run: () => void share(m) },
+          { action: 'delete', label: 'Forget', danger: true, separated: true, run: () => void forget(m) },
+        ]} />,
+        document.body,
       )}
     </li>
   );
@@ -175,7 +191,7 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
       {problem && <p className="field-error" role="alert">{problem}</p>}
       {(asks.length > 0 || learned.length > 0) && (
         <section className="kn-group" aria-label="Waiting for you" data-waiting>
-          <h2 className="kn-group-head">Waiting for you <span className="kn-group-count">{asks.length + learned.length}</span></h2>
+          <h2 className="kn-group-head">Waiting for you <span className="kn-badge" aria-label={`${asks.length + learned.length} waiting`}>{asks.length + learned.length}</span></h2>
           {asks.map((w) => {
             const args = (w.args ?? {}) as { text?: string; source?: string };
             return (
@@ -210,7 +226,7 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
       <form className="wiki-add" onSubmit={(e) => { e.preventDefault(); const t = adding.trim(); if (!t) return; void api.add(t, kind).then((r) => done(r, null)).then(() => setAdding('')); }}>
         <span className="wiki-add-plus" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg></span>
         <input aria-label="Add a line" placeholder="Add how you work, in one line" value={adding} maxLength={300} onChange={(e) => setAdding(e.target.value)} />
-        <select aria-label="Kind of line" value={kind} onChange={(e) => setKind(e.target.value as MemoryCategory)}>{MEMORY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
+        <span className="kn-popup"><select aria-label="Kind of line" value={kind} onChange={(e) => setKind(e.target.value as MemoryCategory)}>{MEMORY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select></span>
         <button type="submit" className="review-btn" data-kind="keep" disabled={!adding.trim()}>Add</button>
       </form>
     </section>
@@ -283,10 +299,14 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
 }
 
 /** The sidebar's sections: Pages first, then each project's memory, then what is shared, then any other folder. Empty ones are left out. */
-function sections(notebooks: NotesState['notebooks']): NotesState['notebooks'] {
+function sections(notebooks: NotesState['notebooks'], query = ''): NotesState['notebooks'] {
   const order = ['Pages', 'Projects', 'Shared'];
   const rank = (name: string) => { const i = order.indexOf(name); return i < 0 ? order.length : i; };
-  return notebooks.filter((nb) => nb.pages.length > 0).slice().sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
+  const q = query.trim().toLowerCase();
+  return notebooks
+    .map((nb) => (q ? { ...nb, pages: nb.pages.filter((pg) => pg.title.toLowerCase().includes(q)) } : nb))
+    .filter((nb) => nb.pages.length > 0)
+    .sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
 }
 
 const pageName = (path: string) => path.split('/').pop()?.replace(/\.md$/, '') ?? path;
