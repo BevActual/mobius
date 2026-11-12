@@ -20,6 +20,7 @@ let model: ModelFixture | undefined;
 let mobius: Launched | undefined;
 let userData: string;
 test.beforeEach(async () => {
+  lastSaved = undefined;
   fixture = await startFixture();
   userData = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-design-'));
   fs.mkdirSync(path.join(userData, 'workspace', 'designs', 'Trip app'), { recursive: true });
@@ -36,7 +37,12 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 function file() { return path.join(userData, 'workspace', 'designs', 'Trip app', 'Home.json'); }
-const saved = () => JSON.parse(fs.readFileSync(file(), 'utf8')) as typeof HOME;
+// The app may be part-way through writing the file: then the last whole read stands, and a poll asks again.
+let lastSaved: typeof HOME | undefined;
+const saved = (): typeof HOME => {
+  try { lastSaved = JSON.parse(fs.readFileSync(file(), 'utf8')) as typeof HOME; } catch (e) { if (!lastSaved) throw e; }
+  return lastSaved;
+};
 const canvas = (): Locator => shell().getByRole('application', { name: 'Canvas' });
 const inspector = (): Locator => shell().getByRole('complementary', { name: 'Inspector' });
 
