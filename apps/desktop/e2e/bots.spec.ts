@@ -298,4 +298,7 @@ test('a conversation can be made a bot: its form is filled in from it, says what
   await form.getByLabel('At', { exact: true }).fill('07:30');
   await form.getByRole('button', { name: 'Create' }).click();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.schedules?.list() ?? Promise.resolve([]))).map((s) => `${s.title} ${s.time}`)).toContain('Week planner 07:30');
+  // The schedule runs as the new agent, not as Mobius.
+  const schedules = await shell().evaluate(() => window.mobius.schedules?.list() ?? Promise.resolve([]));
+  expect(schedules.find((s) => s.title === 'Week planner')?.bot).toMatch(/^[a-z0-9]{6}$/);
 });
