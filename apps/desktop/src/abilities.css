@@ -61,3 +61,8 @@ button.abl-open:focus-visible { outline: 2px solid var(--accent); outline-offset
 .abl-keys-empty { margin: 0 0 0 14px; }
 .abl-key { min-height: 40px; gap: 8px; }
 .abl-key + .abl-key::before { left: 14px; }
+.abl-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+/* The row's ⋯: there for touch and the mouse on hover or focus, never a row of destructive buttons at rest. */
+.abl-more { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.abl-row:hover .abl-more, .abl-row:focus-within .abl-more, .abl-more[aria-expanded="true"] { opacity: 1; }
+.abl-more svg { fill: currentColor; stroke: none; }

@@ -252,6 +252,7 @@ function Connectors() {
   const [adding, setAdding] = useAddingConnector();
   const [details, setDetails] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ name: string; x: number; y: number } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const leaving = new Set(status?.leaving ?? []);
   const rows: { name: string; state: 'on' | 'failed' | 'waiting'; error?: string }[] = [
@@ -279,7 +280,7 @@ function Connectors() {
       <section className="abl-group" aria-label="Tools from other apps">
         <div className="abl-group-head">
           <h2 className="abl-group-title">Tools from other apps</h2>
-          <button type="button" className="btn" onClick={() => setAdding(true)}>Add a Connector…</button>
+          <button type="button" className="btn" onClick={() => setAdding(true)}>Add a connector…</button>
         </div>
         {!api && <p className="abl-empty settings-card">Only the desktop app runs connectors.</p>}
         {status?.problem && <p className="field-error" role="alert">{status.problem}</p>}
@@ -288,18 +289,30 @@ function Connectors() {
         {shown.length > 0 && (
           <ul className="abl-list settings-card" role="list" aria-label="Connectors">
             {shown.map((r) => (
-              <li key={r.name} className="abl-row abl-row-wrap" aria-label={r.name}>
+              <li
+                key={r.name}
+                className="abl-row abl-row-wrap"
+                aria-label={r.name}
+                tabIndex={0}
+                onContextMenu={(e) => { if (leaving.has(r.name) || !api?.removeConnector) return; e.preventDefault(); setMenu({ name: r.name, x: e.clientX, y: e.clientY }); }}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget || leaving.has(r.name) || !api?.removeConnector) return;
+                  if ((e.shiftKey && e.key === 'F10') || e.key === 'ContextMenu') { e.preventDefault(); const b = e.currentTarget.getBoundingClientRect(); setMenu({ name: r.name, x: b.right - 180, y: b.bottom - 6 }); }
+                }}
+              >
                 <span className="abl-dot" data-state={leaving.has(r.name) ? 'waiting' : r.state} aria-hidden="true" />
                 <span className="abl-text"><span className="abl-name">{r.name}</span><span className={r.state === 'failed' && !leaving.has(r.name) ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
                 {r.state === 'failed' && !leaving.has(r.name) && (
-                  <button type="button" className="btn" aria-expanded={details === r.name} onClick={() => setDetails((d) => (d === r.name ? null : r.name))}>{details === r.name ? 'Hide Details' : 'Show Details'}</button>
+                  <button type="button" className="btn" aria-expanded={details === r.name} onClick={() => setDetails((d) => (d === r.name ? null : r.name))}>{details === r.name ? 'Hide details' : 'Show details'}</button>
                 )}
                 {!leaving.has(r.name) && api?.removeConnector && removing !== r.name && (
-                  <button type="button" className="btn" aria-label={`Remove ${r.name}`} onClick={() => setRemoving(r.name)}>Remove…</button>
+                  <button type="button" className="strip-btn abl-more" aria-label={`More for ${r.name}`} title="More" aria-haspopup="menu" onClick={(e) => { const b = e.currentTarget.getBoundingClientRect(); setMenu({ name: r.name, x: b.left, y: b.bottom + 4 }); }}>
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.3" /><circle cx="10" cy="10" r="1.3" /><circle cx="15" cy="10" r="1.3" /></svg>
+                  </button>
                 )}
                 {removing === r.name && (
                   <span className="abl-confirm" role="group" aria-label={`Remove ${r.name}?`}>
-                    <span className="abl-note">Remove from mcp.json?</span>
+                    <span className="abl-note" title="It is taken out of mcp.json in the data folder.">Remove {r.name}?</span>
                     <button type="button" className="btn" onClick={() => setRemoving(null)}>Cancel</button>
                     <button type="button" className="btn danger" onClick={() => void remove(r.name)}>Remove</button>
                   </span>
@@ -316,6 +329,12 @@ function Connectors() {
         <div className="settings-card abl-card"><OtherApps subpage="other-apps" highlight={null} /></div>
       </section>
       {adding && <AddConnectorSheet onClose={() => setAdding(false)} onAdded={reload} />}
+      {menu && createPortal(
+        <ContextMenu x={menu.x} y={menu.y} label={menu.name} onClose={() => setMenu(null)} items={[
+          { label: 'Remove…', danger: true, run: () => setRemoving(menu.name) },
+        ]} />,
+        document.body,
+      )}
     </>
   );
 }
@@ -358,7 +377,7 @@ function AddConnectorSheet({ onClose, onAdded }: { onClose: () => void; onAdded:
   return createPortal(
     <div className="cal-modal-layer" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <form className="camera-dialog abl-sheet" role="dialog" aria-modal="true" aria-label="Add a connector" onSubmit={(e) => void submit(e)}>
-        <h2>Add a Connector</h2>
+        <h2>Add a connector</h2>
         <p className="camera-note">A connector is an MCP server: a small program that gives Mobius tools from another app, such as GitHub or Linear. Its maker’s page gives the command that runs it.</p>
         <div className="abl-fields settings-card">
           <label className="abl-field"><span>Command</span><input autoFocus aria-label="Command" placeholder="npx" value={command} onChange={(e) => setCommand(e.target.value)} spellCheck={false} /></label>
@@ -370,14 +389,14 @@ function AddConnectorSheet({ onClose, onAdded }: { onClose: () => void; onAdded:
         </div>
         {shownName !== '' && !nameOk && <p className="field-error">Use lowercase letters, digits and _, starting with a letter.</p>}
         <div className="abl-keys" role="group" aria-label="Keys">
-          <div className="abl-group-head"><span className="abl-group-title">Keys</span><button type="button" className="btn" onClick={() => setKeys((k) => [...k, { key: '', value: '' }])}>Add a Key</button></div>
-          {keys.length === 0 ? <p className="abl-note abl-keys-empty">Some servers need a key or token, such as GITHUB_TOKEN. They are kept in mcp.json on this computer.</p> : (
+          <div className="abl-group-head"><span className="abl-group-title">Keys</span><button type="button" className="btn" onClick={() => setKeys((k) => [...k, { key: '', value: '' }])}>Add a key</button></div>
+          {keys.length === 0 ? <p className="abl-note abl-keys-empty">Some servers need a key or token, such as GITHUB_TOKEN, named as the server’s page says. They are kept in mcp.json on this computer.</p> : (
             <ul className="abl-list settings-card" role="list">
               {keys.map((k, i) => (
                 <li key={i} className="abl-row abl-key">
-                  <input aria-label={`Key ${i + 1} name`} placeholder="GITHUB_TOKEN" value={k.key} spellCheck={false} onChange={(e) => setKeys((all) => all.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))} />
+                  <input aria-label={`Key ${i + 1} name`} placeholder="Name" value={k.key} spellCheck={false} onChange={(e) => setKeys((all) => all.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))} />
                   <input aria-label={`Key ${i + 1} value`} type="password" placeholder="Value" value={k.value} onChange={(e) => setKeys((all) => all.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
-                  <button type="button" className="strip-btn" aria-label={`Remove key ${i + 1}`} onClick={() => setKeys((all) => all.filter((_, j) => j !== i))}>×</button>
+                  <button type="button" className="strip-btn" aria-label="Remove key" title="Remove key" onClick={() => setKeys((all) => all.filter((_, j) => j !== i))}>×</button>
                 </li>
               ))}
             </ul>
@@ -387,7 +406,7 @@ function AddConnectorSheet({ onClose, onAdded }: { onClose: () => void; onAdded:
         <p className="camera-note">It starts the next time Mobius opens, and each of its tools asks before it is used.</p>
         {problem && <p className="field-error" role="alert">{problem}</p>}
         <div className="camera-actions">
-          <button type="button" className="btn abl-link" onClick={() => void window.mobius.app.openDataFolder()}>Edit mcp.json Yourself…</button>
+          <button type="button" className="btn abl-link" onClick={() => void window.mobius.app.openDataFolder()}>Edit mcp.json yourself…</button>
           <span className="abl-spacer" />
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn primary" disabled={!ready}>Add</button>

@@ -141,12 +141,12 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors in on
   await expect(page).toContainText('No connectors yet');
   await expect(page.getByRole('switch', { name: 'Let other apps use Mobius' })).toBeVisible();
   // Add a Connector writes the server into mcp.json; it waits for Mobius to open again, and can be taken out.
-  await page.getByRole('button', { name: 'Add a Connector…' }).click();
+  await page.getByRole('button', { name: 'Add a connector…' }).click();
   const sheet = shell().getByRole('dialog', { name: 'Add a connector' });
   await sheet.getByRole('textbox', { name: 'Command' }).fill('npx');
   await sheet.getByRole('textbox', { name: 'Arguments' }).fill('-y @modelcontextprotocol/server-github');
   await expect(sheet.getByRole('textbox', { name: 'Name' })).toHaveValue('github');
-  await sheet.getByRole('button', { name: 'Add a Key' }).click();
+  await sheet.getByRole('button', { name: 'Add a key' }).click();
   await sheet.getByRole('textbox', { name: 'Key 1 name' }).fill('GITHUB_TOKEN');
   await sheet.getByLabel('Key 1 value').fill('t0ken');
   await sheet.getByRole('button', { name: 'Add', exact: true }).click();
@@ -155,7 +155,9 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors in on
   await expect.poll(() => fs.existsSync(mcp) && JSON.parse(fs.readFileSync(mcp, 'utf8')).servers?.github).toEqual({ command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_TOKEN: 't0ken' } });
   const row = page.getByRole('listitem', { name: 'github' });
   await expect(row).toContainText('starts when Mobius reopens');
-  await row.getByRole('button', { name: 'Remove github' }).click();
+  // Remove is in the row's menu (⋯, a right-click or Shift+F10), never a button at rest, and asks first.
+  await row.getByRole('button', { name: 'More for github' }).click();
+  await shell().getByRole('menuitem', { name: 'Remove…' }).click();
   await row.getByRole('group', { name: 'Remove github?' }).getByRole('button', { name: 'Remove' }).click();
   await expect(row).toBeHidden();
   await expect.poll(() => JSON.parse(fs.readFileSync(mcp, 'utf8')).servers).toEqual({});
