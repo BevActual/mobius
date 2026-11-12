@@ -389,7 +389,7 @@ test('Usage counts a model call, groups it by model and app, and clears after as
   await go('Usage');
   const totals = page().getByRole('region', { name: 'Totals' });
   await expect(totals).toContainText(/Requests\s*1(?!\d)/, { timeout: 10_000 });
-  await expect(page().getByRole('table', { name: 'Usage by model' })).toContainText('chat-model');
+  await expect(page().getByRole('table', { name: 'Usage by model' })).toContainText('fake-model');
   await page().getByRole('tab', { name: 'App' }).click();
   await expect(page().getByRole('table', { name: 'Usage by app' }).getByRole('row')).toHaveCount(2);
   await expect(page().getByRole('button', { name: 'Copy as CSV' })).toBeEnabled();
