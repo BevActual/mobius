@@ -9,7 +9,7 @@
 .botform-label { color: var(--muted); }
 .botform-hint { font-size: var(--fs-xs); color: var(--muted); }
 /* How it starts: a segmented control, both halves the same width, as in Apple's pickers. */
-.botform-seg { display: flex; min-width: 0; max-width: 320px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.botform .botform-seg { display: flex; min-width: 0; max-width: 320px; background: color-mix(in srgb, var(--ink) 9%, transparent); }
 .botform-seg .seg-btn { flex: 1; min-width: 0; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .botform-seg .seg-btn[aria-checked="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
 .botform-when { display: flex; gap: 6px; max-width: 320px; }
