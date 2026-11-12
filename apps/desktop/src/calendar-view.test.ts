@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
-import { dayLabel, parseDayText, parseTimeText, allDayOn, clock, daysFor, dragged, draftEnd, movedByDays, eventsOn, heading, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { setLocaleForTests } from './dates';
+import { dayLabel, parseDayText, parseTimeText, allDayOn, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsOn, heading, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -32,9 +33,15 @@ describe('the days on screen', () => {
     expect(heading('week', day('2026-12-31'), 'en-GB')).toBe('Dec 2026 – Jan 2027');
   });
 
-  it('shows times on the 24-hour clock', () => {
+  it('shows times as the computer keeps its clock, 24-hour or with AM and PM', () => {
+    setLocaleForTests('en-GB');
     expect(clock('2026-11-12T09:05')).toBe('9:05');
     expect(clock('2026-11-12T13:30')).toBe('13:30');
+    expect(hourLabel(13)).toBe('13:00');
+    setLocaleForTests('en-US');
+    expect(clock('2026-11-12T13:30').replace(/\s/g, ' ')).toBe('1:30 PM');
+    expect(hourLabel(13).replace(/\s/g, ' ')).toBe('1 PM');
+    setLocaleForTests(null);
   });
 });
 
