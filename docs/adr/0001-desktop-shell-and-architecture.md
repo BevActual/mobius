@@ -1,6 +1,6 @@
 # ADR 0001: Desktop shell and architecture
 
-Status: accepted (shell). Agent core language: see ADR 0002 and 0003. Code - OSS integration is still proposed.
+Status: accepted; the shell choice (Electron) is superseded by [ADR 0007](0007-tauri-shell-and-rust-apps.md). Agent core language: see ADR 0002 and 0003. Code - OSS integration is still proposed.
 
 ## Context
 
