@@ -39,6 +39,13 @@ pub const CATALOG: &[Provider] = &[
     hosted("xai", "xAI", "https://api.x.ai/v1", "Grok models.", "https://console.x.ai/"),
     hosted("fireworks", "Fireworks AI", "https://api.fireworks.ai/inference/v1", "Hosted open models.", "https://app.fireworks.ai/settings/users/api-keys"),
     hosted("huggingface", "Hugging Face", "https://router.huggingface.co/v1", "Inference providers behind one address.", "https://huggingface.co/settings/tokens"),
+    hosted("cerebras", "Cerebras", "https://api.cerebras.ai/v1", "Very fast hosted open models.", "https://cloud.cerebras.ai/"),
+    hosted("perplexity", "Perplexity", "https://api.perplexity.ai", "Sonar models that search the web as they answer.", "https://www.perplexity.ai/account/api/keys"),
+    hosted("cohere", "Cohere", "https://api.cohere.ai/compatibility/v1", "Command models, through their OpenAI-compatible layer.", "https://dashboard.cohere.com/api-keys"),
+    hosted("moonshot", "Moonshot AI (Kimi)", "https://api.moonshot.ai/v1", "Kimi models.", "https://platform.moonshot.ai/console/api-keys"),
+    hosted("qwen", "Alibaba Cloud (Qwen)", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "Qwen models from Model Studio.", "https://modelstudio.console.alibabacloud.com/"),
+    hosted("zai", "Z.ai (GLM)", "https://api.z.ai/api/paas/v4", "GLM models.", "https://z.ai/manage-apikey/apikey-list"),
+    hosted("nvidia", "NVIDIA", "https://integrate.api.nvidia.com/v1", "Open models hosted by NVIDIA.", "https://build.nvidia.com/settings/api-keys"),
     local("ollama", "Ollama", "http://127.0.0.1:11434/v1", "Models you run with Ollama on this computer. No key needed."),
     local("lmstudio", "LM Studio", "http://127.0.0.1:1234/v1", "The local server in LM Studio on this computer. No key needed."),
     local("llamacpp", "llama.cpp", "http://127.0.0.1:8080/v1", "A llama-server you started on this computer. No key needed."),
@@ -87,6 +94,18 @@ pub fn subscription_models(s: &Subscription) -> &'static [(&'static str, &'stati
 
 pub fn find_subscription(id: &str) -> Option<&'static Subscription> {
     SUBSCRIPTIONS.iter().find(|s| s.id == id)
+}
+
+/// Models to offer when a gateway does not list its own (some answer chat but have no list of models). Asking the
+/// gateway always comes first; this is only what to show when it cannot say.
+pub fn known_models(base_url: &str) -> &'static [&'static str] {
+    match CATALOG.iter().find(|p| same_address(p.base_url, base_url)).map(|p| p.id) {
+        Some("perplexity") => &["sonar", "sonar-pro", "sonar-reasoning-pro", "sonar-deep-research"],
+        Some("cohere") => &["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024", "command-r7b-12-2024"],
+        Some("zai") => &["glm-4.6", "glm-4.5", "glm-4.5-air"],
+        Some("qwen") => &["qwen-max", "qwen-plus", "qwen-turbo", "qwen3-coder-plus"],
+        _ => &[],
+    }
 }
 
 pub fn find(id: &str) -> Option<&'static Provider> {
@@ -211,6 +230,16 @@ mod tests {
             assert_eq!(p.needs_key, p.key_url.is_some_and(|u| u.starts_with("https://")), "{}", p.id);
             assert!(!p.base_url.ends_with('/'), "{}", p.id);
             assert!(p.id.chars().all(|c| c.is_ascii_lowercase()), "{}", p.id);
+        }
+    }
+
+    #[test]
+    fn a_gateway_without_a_list_of_models_still_offers_its_known_ones() {
+        assert!(known_models("https://api.perplexity.ai/").contains(&"sonar"));
+        assert!(known_models("HTTPS://api.cohere.ai/compatibility/v1").iter().any(|m| m.starts_with("command")));
+        assert!(known_models("https://api.openai.com/v1").is_empty());
+        for id in ["cerebras", "perplexity", "cohere", "moonshot", "qwen", "zai", "nvidia"] {
+            assert!(find(id).is_some_and(|p| p.needs_key), "{id}");
         }
     }
 

@@ -86,7 +86,7 @@ const SECTIONS: readonly SettingsSection[] = [
     keywords: ['providers', 'provider', 'gateway', 'connect', 'elevenlabs'],
     subpages: [
       { id: 'keys', label: 'API keys', rows: [
-        row('provider-keys', 'Your gateways', 'One key per service, kept in the system\'s secret store and never shown again. A key is only ever sent to its own service. Use a provider to switch the agent to it.', 'keys', 'credentials', 'accounts', 'sign in', 'oauth', 'switch provider', 'services', 'claude', 'gpt', 'grok', 'openrouter', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'hugging face', 'gemini'),
+        row('provider-keys', 'Your gateways', 'One key per service, kept in the system\'s secret store and never shown again. A key is only ever sent to its own service. Use a provider to switch the agent to it.', 'keys', 'credentials', 'accounts', 'sign in', 'oauth', 'switch provider', 'services', 'claude', 'gpt', 'grok', 'openrouter', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'hugging face', 'gemini', 'cerebras', 'perplexity', 'cohere', 'kimi', 'moonshot', 'qwen', 'glm', 'nvidia'),
         row('custom-server', 'Custom server', 'Any server that speaks the OpenAI chat format, at an address you give.', 'custom', 'server', 'address', 'url', 'endpoint', 'self hosted', 'openai compatible'),
         row('provider', 'Service', 'Pick a service to fill in its server address.', 'openai', 'openrouter', 'anthropic', 'claude', 'gemini', 'google', 'groq', 'deepseek', 'mistral', 'ollama', 'lm studio', 'cloud', 'service', 'preset'),
         row('endpoint', 'Server address', 'Where the model is. Any server that speaks the OpenAI chat format works, including local ones.', 'url', 'endpoint', 'local', 'host'),

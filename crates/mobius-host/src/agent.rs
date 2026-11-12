@@ -646,10 +646,17 @@ impl AgentService {
         if status == 401 || status == 403 {
             return failed("The model server did not accept the key.");
         }
+        let known = crate::providers::known_models(base);
         if !(200..300).contains(&status) {
+            if !known.is_empty() {
+                return json!({ "ok": true, "models": known });
+            }
             return failed("The model server could not list its models.");
         }
         let Some(body) = response.body_mut().with_config().limit(2 * 1024 * 1024).read_to_string().ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else {
+            if !known.is_empty() {
+                return json!({ "ok": true, "models": known });
+            }
             return failed("The model server answered with something Mobius could not read.");
         };
         let mut found: Vec<String> = body.get("data").and_then(Value::as_array).into_iter().flatten().filter_map(|r| r.get("id")?.as_str().filter(|i| is_model_name(i)).map(str::to_owned)).collect();

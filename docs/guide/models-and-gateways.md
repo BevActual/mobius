@@ -22,7 +22,9 @@ each job. Two places in Settings handle this:
 store, never shown again, and only ever sent to its own service.
 
 Services with a ready-made entry: OpenAI, Anthropic, Google Gemini, OpenRouter, DeepSeek, Groq, Together AI, Mistral,
-xAI, Fireworks AI and Hugging Face. Each row links to the page where you create a key.
+xAI, Fireworks AI, Hugging Face, Cerebras, Perplexity, Cohere, Moonshot AI (Kimi), Alibaba Cloud (Qwen), Z.ai (GLM) and
+NVIDIA. Each row links to the page where you create a key. When a service does not list its own models, Mobius offers
+the ones it knows for that service, and you can still type any other model name.
 
 ### A server on your computer, or any other server
 
