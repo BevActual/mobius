@@ -49,6 +49,9 @@ pub fn find_named_where(name: &str, keep: impl Fn(&Path) -> bool) -> Option<Path
     // WinGet puts its programs here.
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
         dirs.push(PathBuf::from(local).join("Microsoft").join("WinGet").join("Links"));
+        // GitHub's Copilot CLI installer (winget install GitHub.Copilot) puts it here, and a running app's PATH
+        // does not have the folder until it restarts.
+        dirs.push(PathBuf::from(local).join("GitHubCopilotCLI"));
     }
     dirs.iter().flat_map(|d| candidates(d, name)).find(|p| p.is_file() && keep(p))
 }
