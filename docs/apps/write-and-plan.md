@@ -9,7 +9,9 @@ Quick pages, saved as you type.
 - **Notebooks** in the sidebar, newest pages first, with search, **Pinned** pages at the top and a **Tags** section
   built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
-  recordings (up to ten minutes). The **Markdown** button shows the file itself.
+  recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
+  bold, italic, strikethrough, code, lists and quote; the bar keeps Checklist, Table and Link at hand. The **⋯** menu
+  clips a web page into the note and shows the Markdown file itself.
 - **History** lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).
 - **Share** copies the page, exports it as a web page or Markdown, or prints it.
