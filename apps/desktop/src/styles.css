@@ -2201,7 +2201,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .desk .starter { height: 30px; padding: 0 14px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
 .desk .starter:hover { background: var(--soft); }
 .desk-group + .desk-group { margin-top: var(--sp-5); }
-.desk-head { margin: 0 0 var(--sp-2); padding-left: 2px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+/* Section headers in the sidebars' style: small, semibold, grey, sentence case. */
+.desk-head { margin: 0 0 var(--sp-2); padding-left: 2px; font-size: var(--fs-sm); font-weight: var(--fw-semibold); letter-spacing: 0.01em; color: var(--muted); }
 .desk-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 /* Two columns when there is room; a lone row takes the whole width rather than half. */
 .desk-rows[data-columns] { grid-template-columns: repeat(2, minmax(0, 1fr)); }

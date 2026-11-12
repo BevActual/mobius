@@ -14,9 +14,10 @@ describe('desk', () => {
   });
 
   it('the line under it names the date, then only the counts that are not zero', () => {
-    expect(deskTitle(now, { waiting: 0, working: 0, changed: 0 })).toEqual(['Monday 9 November']);
-    expect(deskTitle(now, { waiting: 2, working: 1, changed: 1 })).toEqual(['Monday 9 November', '2 waiting for you', 'Mobius is working', '1 app changed']);
-    expect(deskTitle(new Date(2026, 10, 10, 8), { waiting: 0, working: 3, changed: 2 })).toEqual(['Tuesday 10 November', 'Mobius is working on 3', '2 apps changed']);
+    expect(deskTitle(now, { waiting: 0, working: 0, changed: 0 }, 'en-GB')).toEqual(['Monday 9 November']);
+    expect(deskTitle(now, { waiting: 2, working: 1, changed: 1 }, 'en-GB')).toEqual(['Monday 9 November', '2 waiting for you', 'Mobius is working', '1 app changed']);
+    expect(deskTitle(new Date(2026, 10, 10, 8), { waiting: 0, working: 3, changed: 2 }, 'en-GB')).toEqual(['Tuesday 10 November', 'Mobius is working on 3', '2 apps changed']);
+    expect(deskTitle(now, { waiting: 0, working: 0, changed: 0 }, 'en-US')).toEqual(['Monday, November 9']);
   });
 
   it('says when a conversation was last active, in words', () => {
@@ -25,8 +26,10 @@ describe('desk', () => {
     expect(agoLabel(ago(25), now)).toBe('25 min ago');
     expect(agoLabel(ago(185), now)).toBe('3 h ago');
     expect(agoLabel(new Date(2026, 10, 8, 23, 0).getTime(), now)).toBe('Yesterday');
-    expect(agoLabel(new Date(2026, 10, 5, 9, 0).getTime(), now)).toBe('Thursday');
-    expect(agoLabel(new Date(2026, 10, 2, 9, 0).getTime(), now)).toBe('2 Nov');
+    expect(agoLabel(new Date(2026, 10, 5, 9, 0).getTime(), now, 'en-GB')).toBe('Thursday');
+    expect(agoLabel(new Date(2026, 10, 2, 9, 0).getTime(), now, 'en-GB')).toBe('2 Nov');
+    // The system's locale decides the order, as in Mail.
+    expect(agoLabel(new Date(2026, 10, 2, 9, 0).getTime(), now, 'en-US')).toBe('Nov 2');
   });
 
   it('lists conversations to pick up again, most recent first, without empty or skipped ones', () => {

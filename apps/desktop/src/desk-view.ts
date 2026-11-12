@@ -9,9 +9,9 @@ export const deskGreeting = (now: Date): string => {
   return part === 'morning' ? 'Good morning' : part === 'afternoon' ? 'Good afternoon' : 'Good evening';
 };
 
-/** The line under the greeting: the date, then only the counts that are not zero. */
-export function deskTitle(now: Date, counts: { waiting: number; working: number; changed: number }): string[] {
-  const day = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+/** The line under the greeting: the date in the system's locale, then only the counts that are not zero. */
+export function deskTitle(now: Date, counts: { waiting: number; working: number; changed: number }, locale?: string): string[] {
+  const day = now.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
   return [
     day,
     counts.waiting > 0 ? `${counts.waiting} waiting for you` : '',
@@ -21,7 +21,7 @@ export function deskTitle(now: Date, counts: { waiting: number; working: number;
 }
 
 /** When a conversation was last active, in words: "Just now", "25 min ago", "3 h ago", "Yesterday", "Monday", "2 Nov". */
-export function agoLabel(ms: number, now: Date): string {
+export function agoLabel(ms: number, now: Date, locale?: string): string {
   const minutes = Math.floor((now.getTime() - ms) / 60_000);
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes} min ago`;
@@ -29,8 +29,8 @@ export function agoLabel(ms: number, now: Date): string {
   const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime()) / 86_400_000);
   if (days <= 0) return `${Math.floor(minutes / 60)} h ago`;
   if (days === 1) return 'Yesterday';
-  if (days < 7) return at.toLocaleDateString('en-GB', { weekday: 'long' });
-  return at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  if (days < 7) return at.toLocaleDateString(locale, { weekday: 'long' });
+  return at.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 }
 
 /** The conversations to pick up again: ones with messages, most recent first, at most `limit`, leaving out `skip`. */
