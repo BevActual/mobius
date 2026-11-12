@@ -42,7 +42,7 @@ export function describeAction(name: string, args: unknown): string | null {
     if (clean.startsWith('slides/')) return `the deck ${quote(clean.slice('slides/'.length).replace(/\.md$/i, '').replace('/', ' › '))}`;
     if (clean.startsWith('calendar/')) return `the calendar ${quote(clean.slice('calendar/'.length).replace(/\.ics$/i, ''))}`;
     if (clean.startsWith('tasks/')) return `the task list ${quote(clean.slice('tasks/'.length).replace(/\.md$/i, ''))}`;
-    const kinds: [string, string, RegExp][] = [['designs/', 'the design', /\.json$/i], ['boards/', 'the board', /\.json$/i], ['research/', 'the report', /\.md$/i], ['reading/', 'the article', /\.md$/i], ['studio/', 'the song', /\.json$/i], ['skills/', 'the skill', /\/SKILL\.md$/i]];
+    const kinds: [string, string, RegExp][] = [['designs/', 'the design', /\.json$/i], ['boards/', 'the board', /\.json$/i], ['views/', 'the view', /\.json$/i], ['research/', 'the report', /\.md$/i], ['reading/', 'the article', /\.md$/i], ['studio/', 'the song', /\.json$/i], ['skills/', 'the skill', /\/SKILL\.md$/i]];
     for (const [prefix, what, ext] of kinds) if (clean.startsWith(prefix)) return `${what} ${quote(clean.slice(prefix.length).replace(ext, '').replace('/', ' › '))}`;
     if (clean.startsWith('photos/') && /\.edits\.json$/i.test(clean)) return `the edits of the photo ${quote(clean.slice('photos/'.length).replace(/\.edits\.json$/i, '').replace('/', ' › '))}`;
     if (clean.startsWith('video/') && clean.endsWith('/cut.json')) return `the cut of the video ${quote(clean.slice('video/'.length, -'/cut.json'.length))}`;

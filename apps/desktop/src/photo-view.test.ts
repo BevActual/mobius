@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { aspectRatio, dragCrop, emptyHistory, fitAspect, flippedCrop, recorded, redone, stepTo, turnedCrop, undone } from './photo-view';
+import { blankAdjustment } from './photo-edit';
+import { GRID_SIZES, aspectRatio, dragCrop, emptyHistory, fitAspect, flippedCrop, groupChanged, recorded, redone, resetGroup, stepTo, turnedCrop, undone, zoomStep } from './photo-view';
 
 describe('history', () => {
   it('undoes and redoes, and a slider dragged undoes as one step', () => {
@@ -58,5 +59,31 @@ describe('crop', () => {
     const t = turnedCrop({ x: 0.1, y: 0.2, w: 0.3, h: 0.4 });
     expect([t.x, t.y, t.w, t.h].map((n) => Math.round(n * 1000) / 1000)).toEqual([0.2, 0.6, 0.4, 0.3]);
     expect(flippedCrop({ x: 0.1, y: 0.2, w: 0.3, h: 0.4 }).x).toBeCloseTo(0.6);
+  });
+});
+
+describe('grid zoom', () => {
+  it('steps through the sizes and stops at either end', () => {
+    expect(zoomStep(2, 1)).toBe(3);
+    expect(zoomStep(0, -1)).toBe(0);
+    expect(zoomStep(GRID_SIZES.length - 1, 1)).toBe(GRID_SIZES.length - 1);
+    expect(zoomStep(Number.NaN, 0)).toBe(2);
+    expect(zoomStep(99, 0)).toBe(GRID_SIZES.length - 1);
+  });
+});
+
+describe('adjust sections', () => {
+  it('knows when a section has moved and puts only that section back', () => {
+    const a = { ...blankAdjustment('a1'), exposure: 20, warmth: 30, area: { ...blankAdjustment('x').area, kind: 'below' as const, at: 0.7 } };
+    expect(groupChanged(a, ['exposure', 'contrast'])).toBe(true);
+    expect(groupChanged(a, ['vignette'])).toBe(false);
+    expect(groupChanged(a, 'where')).toBe(true);
+    const light = resetGroup(a, ['exposure', 'contrast']);
+    expect(light.exposure).toBe(0);
+    expect(light.warmth).toBe(30);
+    expect(a.exposure).toBe(20);
+    const where = resetGroup(a, 'where');
+    expect(where.area.kind).toBe('all');
+    expect(where.warmth).toBe(30);
   });
 });
