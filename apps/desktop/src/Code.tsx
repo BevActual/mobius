@@ -523,7 +523,7 @@ function ConsolePanel({ code }: { code: CodeState }) {
 const PANEL_KEY = 'mobius.code.panel';
 
 /** The open file: as Mobius changed it (to keep or discard) or as you type it, and the project's tests below. */
-export function CodeEditor({ code, review }: { code: CodeState; review?: { conversation: string } | null }) {
+export function CodeEditor({ code, review }: { code: CodeState; review?: { conversation: string; settled?: boolean } | null }) {
   const file = code.open && code.project ? `code/${code.project}/${code.open.path}` : null;
   const [bottom, setBottom] = useState<'tests' | 'console'>('tests');
   const [panel, setPanel] = useState(() => { try { return window.localStorage.getItem(PANEL_KEY) !== 'hidden'; } catch { return true; } });
@@ -555,14 +555,15 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
     void check();
     window.addEventListener(KEPT_EVENT, check);
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
-    // Checked again when the file changes: a new turn's change is not kept yet.
-  }, [review?.conversation, file, code.open?.modified]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Checked again when the file changes (a new turn's change is not kept yet) and when a turn ends, so a check made
+    // while it ran cannot leave its change hidden.
+  }, [review?.conversation, review?.settled, file, code.open?.modified]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let live = true;
     if (!review || kept || !file) { setBefore(undefined); return; }
     void window.mobius.changes.before(review.conversation, file).then((was) => { if (live) setBefore(was && was.ok ? was.text : undefined); }).catch(() => {});
     return () => { live = false; };
-  }, [review?.conversation, kept, file, code.open?.modified]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [review?.conversation, review?.settled, kept, file, code.open?.modified]); // eslint-disable-line react-hooks/exhaustive-deps
   const rows = useMemo(() => (before !== undefined && code.open?.text != null ? lineDiff(before ?? '', code.open.text) : null), [before, code.open?.text]);
   const showSuggestion = rows !== null && rows.some((r) => r.kind !== 'same') && !code.dirty;
   const keepAll = async () => {
