@@ -59,7 +59,7 @@ import { SkillEditor } from './Skills';
 import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
-import { ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
+import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
 import { HowIWork, SharedQueue, WikiSidebar, WikiVersions, useWikiIncoming, type WikiPlace } from './Wiki';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
@@ -190,6 +190,7 @@ export function App() {
   useEffect(() => savePanes(panes), [panes]);
   const [focused, setFocused] = useState<0 | 1>(0);
   const app: AppId = (focused === 1 ? panes[1] : null) ?? panes[0];
+  conversation.sentFrom.current = app;
   const split = panes[1] !== null && !narrow;
   const other: AppId | null = split ? (focused === 0 ? panes[1] : panes[0]) : null;
   useEffect(() => {
@@ -1263,7 +1264,7 @@ export function App() {
       case 'slides':
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':
-        if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} skills={skills} onPlace={setExtPlace} />;
+        if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} onOpenApp={openApp} />;
         return <SkillEditor skills={skills} review={skills.open && turnMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} onRun={(name) => { openApp('agent'); void conversation.send(expandSlash(`/${name}`, skills.names), []); }} />;
       case 'video':
         return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
@@ -1289,7 +1290,7 @@ export function App() {
             incoming={wikiIncoming}
             onOpenThread={(id) => { conversation.select(id); openApp('agent'); }}
             onNewThread={(pid) => { const id = conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()); void projects.addThread(pid, id).then((ok) => { if (ok) { conversation.select(id); openApp('agent'); } }); }}
-            onOpenMemory={(p) => { setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(`Projects/${p.name}.md`, p.name); }}
+            onOpenMemory={(p) => { setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(memoryPage(p), p.name); }}
             onOpenFiles={(p) => { files.setPlace({ kind: 'folder', path: `projects/${p.name}` }); openApp('files'); }}
             onOpenMade={(path) => { const target = changeTarget(path); if (target) openTarget(target); }}
           />
@@ -1337,8 +1338,9 @@ export function App() {
             surface={surface}
             onOpenItem={openTarget}
             variant="full"
-            desk={(
+            desk={(starters) => (
               <Desk
+                starters={starters}
                 rows={[
                   ...(browser.tabs.length > 0 ? [{ app: 'browser' as const, text: plural(browser.tabs.length, 'tab') + ' open' }] : []),
                   ...(mail.counts.all > 0 ? [{ app: 'mail' as const, text: `${mail.counts.all} unread` }] : []),

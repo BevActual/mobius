@@ -4,6 +4,7 @@ import { appName, type AppId } from './apps';
 import { APP_ICONS } from './Rail';
 import { EmptyState } from './EmptyState';
 import { appOf, countByApp, dayOf, describeChange, filterTurns, gatherTurns, type ReviewTurn } from './review-view';
+import { timeLabel } from './dates';
 
 /** How many conversations, newest first, the Review app looks through. */
 const CONVERSATIONS = 40;
@@ -115,7 +116,7 @@ export function ReviewPage({ review, onOpenFile, onOpenConversation }: { review:
               <div className="review-turn-head">
                 <span className="review-ask">{t.ask ? `“${t.ask}”` : 'A turn'}</span>
                 <button type="button" className="review-conv" onClick={() => onOpenConversation(t.conversation)}>{t.title}</button>
-                <span className="review-when">{new Date(t.when).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="review-when">{timeLabel(t.when)}</span>
               </div>
               <ul className="review-files">
                 {t.files.map((path) => {

@@ -169,3 +169,11 @@ export function langName(path: string): string {
   const named: Record<string, string> = { js: 'JavaScript', jsx: 'JavaScript JSX', mjs: 'JavaScript', cjs: 'JavaScript', ts: 'TypeScript', tsx: 'TypeScript JSX', mts: 'TypeScript', cts: 'TypeScript', rs: 'Rust', py: 'Python', go: 'Go', json: 'JSON', jsonc: 'JSON', css: 'CSS', scss: 'SCSS', html: 'HTML', htm: 'HTML', svg: 'SVG', xml: 'XML', md: 'Markdown', markdown: 'Markdown', sh: 'Shell', bash: 'Shell', zsh: 'Shell', toml: 'TOML', yaml: 'YAML', yml: 'YAML' };
   return named[ext] ?? 'Plain text';
 }
+
+/** Whether this computer is a Mac, where shortcuts are shown with ⌘; elsewhere they say Ctrl. */
+export const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+/** A shortcut as this computer writes it: `⌘P` on a Mac, `Ctrl+P` on Windows and Linux. */
+export function keyLabel(key: string, mac = IS_MAC): string {
+  return mac ? `⌘${key}` : `Ctrl+${key}`;
+}

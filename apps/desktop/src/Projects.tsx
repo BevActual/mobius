@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { conversationIdFor, type Bot, type ConversationInfo, type Message, type ProjectInfo, type ProjectLevel, type WikiChange } from '@mobius/shared';
-import { appName, type AppId } from './apps';
+import { appName, isInstalled, type AppId } from './apps';
+import { APP_ICONS } from './Rail';
+import { ContextMenu } from './ContextMenu';
+import { projectSummary, projectThreads, ruleApps, threadLine } from './projects-view';
+import './projects.css';
 import type { WikiIncoming } from './Wiki';
 import { changeTarget } from './actions';
 import { EmptyState } from './EmptyState';
@@ -16,6 +21,9 @@ const LEVELS: readonly { id: ProjectLevel | 'follow'; name: string }[] = [
   { id: 'propose', name: 'Propose' },
   { id: 'act', name: 'Act' },
 ];
+
+/** A project's name being changed, or its deletion being confirmed, on the page. */
+interface Asking { id: string; kind: 'rename' | 'delete' }
 
 /** The projects, and the one open. */
 export function useProjects() {
@@ -65,16 +73,32 @@ export function useProjects() {
     if (!sent || !sent.ok) { setProblem(sent && !sent.ok ? sent.error : 'The agent could not be asked.'); return false; }
     return true;
   };
-  const remove = async (id: string) => { await api?.remove(id).catch(() => null); setOpenId(null); await load(); };
+  /** Delete the project only: its threads, its folder in Files and its memory page in Knowledge are kept. */
+  const remove = async (id: string) => {
+    const r = await api?.remove(id).catch(() => null);
+    const why = r ? failed(r) : 'Projects are not available here.';
+    setProblem(why);
+    if (!why) { setOpenId(null); setAsking(null); }
+    await load();
+    return why === null;
+  };
+  // Rename and Delete are asked for from the page's More menu or a sidebar row's menu, and answered on the page.
+  const [asking, setAsking] = useState<Asking | null>(null);
+  const ask = (id: string, kind: Asking['kind']) => { setOpenId(id); setProblem(null); setAsking({ id, kind }); };
   const open = list.find((p) => p.id === openId) ?? list[0] ?? null;
-  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, addThread, askBot, remove, problem };
+  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, addThread, askBot, remove, problem, asking, ask, stopAsking: () => setAsking(null) };
 }
 export type ProjectsState = ReturnType<typeof useProjects>;
+
+const Chevron = () => <svg className="proj-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>;
+const ThreadGlyph = () => <svg className="proj-glyph" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3h0A1.5 1.5 0 0 1 4 11.5z" /></svg>;
+const AppTile = ({ app }: { app: string }) => <svg className="proj-tile" viewBox="0 0 20 20" aria-hidden="true" style={{ background: `var(--app-${app})` }}>{APP_ICONS[app]}</svg>;
 
 export function ProjectsSidebar({ projects, pin, conversations }: { projects: ProjectsState; pin?: ReactNode; conversations: readonly ConversationInfo[] }) {
   const [naming, setNaming] = useState(false);
   useEffect(() => { const go = () => setNaming(true); window.addEventListener(NEW_PROJECT, go); return () => window.removeEventListener(NEW_PROJECT, go); }, []);
   const [name, setName] = useState('');
+  const [menu, setMenu] = useState<{ x: number; y: number; project: ProjectInfo } | null>(null);
   const waiting = (p: ProjectInfo) => conversations.filter((c) => p.threads.includes(c.id)).reduce((n, c) => n + c.waiting, 0);
   return (
     <aside className="side projects-side" aria-label="Projects sidebar">
@@ -92,13 +116,14 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
           <input autoFocus aria-label="Project name" placeholder="Project name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
         </form>
       )}
-      {projects.problem && <p className="field-error" role="alert">{projects.problem}</p>}
+      {naming && projects.problem && <p className="field-error" role="alert">{projects.problem}</p>}
       {projects.list.length === 0 && !naming && <p className="side-empty">No projects yet.</p>}
       <nav className="task-lists" aria-label="Projects">
         <ul role="list">
           {projects.list.map((p) => (
-            <li key={p.id}>
-              <button type="button" className="list-row" aria-current={projects.open?.id === p.id ? 'page' : undefined} onClick={() => projects.setOpenId(p.id)}>
+            <li key={p.id} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, project: p }); }}>
+              <button type="button" className="list-row proj-side-row" aria-current={projects.open?.id === p.id ? 'page' : undefined} onClick={() => projects.setOpenId(p.id)}>
+                <svg className="proj-side-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.projects}</svg>
                 <span className="list-name">{p.name}</span>
                 {waiting(p) > 0 && <span className="list-count" aria-label={`${waiting(p)} waiting for you`}>{waiting(p)}</span>}
               </button>
@@ -106,6 +131,14 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
           ))}
         </ul>
       </nav>
+      {menu && createPortal(
+        <ContextMenu x={menu.x} y={menu.y} label={menu.project.name} onClose={() => setMenu(null)} items={[
+          { action: 'open', run: () => projects.setOpenId(menu.project.id) },
+          { action: 'rename', label: 'Rename…', run: () => projects.ask(menu.project.id, 'rename') },
+          { action: 'delete', label: 'Delete project…', danger: true, separated: true, run: () => projects.ask(menu.project.id, 'delete') },
+        ]} />,
+        document.body,
+      )}
     </aside>
   );
 }
@@ -116,7 +149,7 @@ function MoveHere({ projects, project, conversations }: { projects: ProjectsStat
   const free = conversations.filter((c) => !taken.has(c.id) && c.messages > 0);
   if (free.length === 0) return null;
   return (
-    <select aria-label={`Move a conversation into ${project.name}`} value="" onChange={(e) => { if (e.target.value) void projects.addThread(project.id, e.target.value); }}>
+    <select className="popup proj-move" aria-label={`Move a conversation into ${project.name}`} value="" onChange={(e) => { if (e.target.value) void projects.addThread(project.id, e.target.value); }}>
       <option value="">Move a conversation here…</option>
       {free.map((c) => <option key={c.id} value={c.id}>{c.title || 'A conversation'}</option>)}
     </select>
@@ -155,29 +188,78 @@ export function SideThreads({ projects, conversation, bots, onOpen }: { projects
   );
 }
 
-/** The project's name, and Rename: its folder in Files and its memory page in the Wiki follow the new name. */
-function ProjectTitle({ projects, project }: { projects: ProjectsState; project: ProjectInfo }) {
-  const [naming, setNaming] = useState<string | null>(null);
-  if (naming === null) {
+/**
+ * The top of a project's page. Its name is the toolbar's title, so the page starts with one line about it, New thread,
+ * and More (Rename, the folder, the memory page, Delete). Renaming and the delete check take the line's place.
+ */
+function ProjectHead({ projects, project, summary, onNewThread, onOpenFiles, onOpenMemory }: {
+  projects: ProjectsState; project: ProjectInfo; summary: string; onNewThread: () => void; onOpenFiles: () => void; onOpenMemory: () => void;
+}) {
+  const asking = projects.asking?.id === project.id ? projects.asking.kind : null;
+  const [naming, setNaming] = useState(project.name);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => { if (asking === 'rename') setNaming(project.name); }, [asking, project.name]);
+  if (asking === 'rename') {
     return (
-      <div className="project-title">
-        <h1 className="ext-title">{project.name}</h1>
-        <button type="button" className="review-btn" onClick={() => setNaming(project.name)}>Rename</button>
+      <form className="proj-head" aria-label="Rename the project" onSubmit={(e) => { e.preventDefault(); void projects.rename(project.id, naming).then((ok) => { if (ok) projects.stopAsking(); }); }}>
+        <input className="proj-name-field" autoFocus aria-label="Project name" value={naming} maxLength={60} onChange={(e) => setNaming(e.target.value)} onFocus={(e) => e.currentTarget.select()} onKeyDown={(e) => { if (e.key === 'Escape') projects.stopAsking(); }} />
+        <span className="proj-head-actions">
+          <button type="button" className="btn" onClick={() => projects.stopAsking()}>Cancel</button>
+          <button type="submit" className="btn primary">Save</button>
+        </span>
+        {projects.problem && <p className="field-error proj-head-note" role="alert">{projects.problem}</p>}
+      </form>
+    );
+  }
+  if (asking === 'delete') {
+    return (
+      <div className="proj-head proj-confirm" role="alertdialog" aria-label={`Delete ${project.name}?`}>
+        <p className="proj-confirm-text"><b>Delete “{project.name}”?</b> Its threads, its folder in Files and its memory page in Knowledge are kept. Only the project and its rules go.</p>
+        <span className="proj-head-actions">
+          <button type="button" className="btn" autoFocus onClick={() => projects.stopAsking()}>Cancel</button>
+          <button type="button" className="btn danger" onClick={() => void projects.remove(project.id)}>Delete</button>
+        </span>
+        {projects.problem && <p className="field-error proj-head-note" role="alert">{projects.problem}</p>}
       </div>
     );
   }
   return (
-    <form className="project-title" onSubmit={(e) => { e.preventDefault(); void projects.rename(project.id, naming).then((ok) => { if (ok) setNaming(null); }); }}>
-      <input autoFocus aria-label="Project name" value={naming} maxLength={60} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(null); }} />
-      <button type="button" className="review-btn" onClick={() => setNaming(null)}>Cancel</button>
-      <button type="submit" className="review-btn" data-kind="keep">Save</button>
-      {projects.problem && <span className="field-error" role="alert">{projects.problem}</span>}
-    </form>
+    <div className="proj-head">
+      <p className="proj-summary">{summary}</p>
+      <span className="proj-head-actions">
+        <button type="button" className="strip-btn proj-more" aria-label="More" title="More" aria-haspopup="menu" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom + 4 }); }}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
+        </button>
+        <button type="button" className="btn primary" onClick={onNewThread}>New thread</button>
+      </span>
+      {menu && createPortal(
+        <ContextMenu x={menu.x} y={menu.y} label={`${project.name} menu`} onClose={() => setMenu(null)} items={[
+          { action: 'rename', label: 'Rename…', run: () => projects.ask(project.id, 'rename') },
+          { action: 'reveal', label: 'Show the folder in Files', run: onOpenFiles },
+          { action: 'open', label: 'Open memory in Knowledge', run: onOpenMemory },
+          { action: 'delete', label: 'Delete project…', danger: true, separated: true, run: () => projects.ask(project.id, 'delete') },
+        ]} />,
+        document.body,
+      )}
+    </div>
   );
 }
 
 /** The project's memory page, as Markdown in the Wiki. */
 export const memoryPage = (project: ProjectInfo) => `Projects/${project.name.trim().replace(/\.+$/, '')}.md`;
+
+/** A section of the page, as in Apple's grouped lists: a heading outside, with one link at its right, and a card. */
+function Group({ label, heading, link, children, tone }: { label: string; heading: string; link?: { label: string; run: () => void; expanded?: boolean }; children: ReactNode; tone?: 'attention' }) {
+  return (
+    <section className="proj-group" aria-label={label} data-tone={tone}>
+      <div className="proj-group-head">
+        <h2 className="proj-group-title">{heading}</h2>
+        {link && <button type="button" className="btn link" aria-expanded={link.expanded} onClick={link.run}>{link.label}</button>}
+      </div>
+      <div className="proj-card">{children}</div>
+    </section>
+  );
+}
 
 /**
  * What the project knows: its memory page's lines, and what Mobius proposed for it in the project's threads, dashed
@@ -203,54 +285,58 @@ function ProjectMemory({ project, incoming, onOpen }: { project: ProjectInfo; in
     await load();
   };
   return (
-    <section className="project-card" aria-label="Project memory">
-      <h2 className="ext-heading">Memory</h2>
-      <p className="wiki-private">What this project knows, as a page in Knowledge that you and Mobius both read.</p>
-      {problem && <p className="field-error" role="alert">{problem}</p>}
-      <ul className="wiki-lines" role="list" aria-label="What this project knows">
-        {lines.map((l, i) => <li key={`${i}-${l}`} className="wiki-line"><span className="wiki-line-text">{l}</span></li>)}
+    <Group label="Project memory" heading="Memory" link={{ label: 'Open in Knowledge', run: onOpen }}>
+      {problem && <p className="field-error proj-row-note" role="alert">{problem}</p>}
+      <ul className="proj-rows" role="list" aria-label="What this project knows">
+        {lines.map((l, i) => <li key={`${i}-${l}`} className="proj-row proj-fact"><span className="proj-row-title">{l}</span></li>)}
         {proposed.map((c) => (
-          <li key={c.id} className="wiki-line" data-proposed aria-label={`${c.text}, proposed by ${c.from}`}>
-            <span className="wiki-line-text">{c.text}</span>
-            <span className="wiki-line-actions">
-              <span className="wiki-learned">Proposed by {c.from}</span>
-              <button type="button" className="review-btn" onClick={() => void act(c, false)}>Discard</button>
-              <button type="button" className="review-btn" data-kind="keep" onClick={() => void act(c, true)}>Keep</button>
+          <li key={c.id} className="proj-row proj-fact" data-proposed aria-label={`${c.text}, proposed by ${c.from}`}>
+            <span className="proj-row-text"><span className="proj-row-title">{c.text}</span><span className="proj-row-sub">Proposed by {c.from}</span></span>
+            <span className="proj-row-actions">
+              <button type="button" className="btn" onClick={() => void act(c, false)}>Discard</button>
+              <button type="button" className="btn primary" onClick={() => void act(c, true)}>Keep</button>
             </span>
           </li>
         ))}
       </ul>
-      {lines.length === 0 && proposed.length === 0 && <p className="note-empty">Nothing yet. What Mobius learns in this project's threads waits here for you to keep.</p>}
-      <button type="button" className="btn" onClick={onOpen}>Open in Knowledge</button>
-    </section>
+      {lines.length === 0 && proposed.length === 0 && <p className="proj-empty">Nothing yet. What Mobius learns in this project's threads waits here for you to keep.</p>}
+    </Group>
   );
 }
 
 /** What the project's threads made or changed, newest first, each opening in its app. */
-function ProjectMade({ project, conversations, onOpenMade, onOpenFiles }: { project: ProjectInfo; conversations: readonly ConversationInfo[]; onOpenMade: (path: string) => void; onOpenFiles: () => void }) {
+function ProjectMade({ items, onOpenMade, onOpenFiles }: { items: readonly { path: string; app: AppId }[] | null; onOpenMade: (path: string) => void; onOpenFiles: () => void }) {
+  return (
+    <Group label="Made in this project" heading="Made in this project" link={{ label: "Open the project's folder", run: onOpenFiles }}>
+      {items !== null && items.length === 0 && <p className="proj-empty">Nothing yet. What Mobius makes or changes in this project's threads shows here.</p>}
+      {items !== null && items.length > 0 && (
+        <ul className="proj-rows" role="list" aria-label="Made in this project">
+          {items.map(({ path, app }) => (
+            <li key={path}>
+              <button type="button" className="proj-row" onClick={() => onOpenMade(path)}>
+                <AppTile app={app} />
+                <span className="proj-row-text"><span className="proj-row-title">{madeTitle(path)}</span><span className="proj-row-sub">{appName(app)}</span></span>
+                <Chevron />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Group>
+  );
+}
+
+/** The paths the project's threads made, asked again when a thread grows, since a finished turn may have made something. */
+function useMade(project: ProjectInfo, conversations: readonly ConversationInfo[]) {
   const [made, setMade] = useState<string[] | null>(null);
-  // Asked again when a thread grows, since a finished turn may have made something.
   const growth = conversations.filter((c) => project.threads.includes(c.id)).reduce((n, c) => n + c.messages, 0);
+  // The page is keyed by the project, so a new project starts from nothing; a thread that grows asks again.
   useEffect(() => {
     let live = true;
     void window.mobius.projects?.made?.(project.id).then((got) => { if (live) setMade(Array.isArray(got) ? got : []); }).catch(() => { if (live) setMade([]); });
     return () => { live = false; };
   }, [project.id, growth]);
-  const items = (made ?? []).map((path) => ({ path, target: changeTarget(path) })).filter((m) => m.target !== null);
-  return (
-    <section className="project-card" aria-label="Made in this project">
-      <h2 className="ext-heading">Made in this project</h2>
-      {made !== null && items.length === 0 && <p className="note-empty">Nothing yet. What Mobius makes or changes in this project's threads shows here.</p>}
-      {items.length > 0 && (
-        <ul className="clist" role="list" aria-label="Made in this project">
-          {items.map(({ path, target }) => (
-            <li key={path}><button type="button" className="files-row" onClick={() => onOpenMade(path)}><span className="ext-name">{madeTitle(path)}</span><span className="ext-state">{appName(target!.app)}</span></button></li>
-          ))}
-        </ul>
-      )}
-      <button type="button" className="btn" onClick={onOpenFiles}>Open the project's folder</button>
-    </section>
-  );
+  return made === null ? null : made.map((path) => ({ path, target: changeTarget(path) })).filter((m) => m.target !== null).map((m) => ({ path: m.path, app: (m.target!.app === 'open' ? 'files' : m.target!.app) as AppId }));
 }
 
 /** A made item's name: the file's name without its kind, or the workbook for a sheet. */
@@ -263,24 +349,22 @@ export function madeTitle(path: string): string {
 
 /** The project's rules, folded into one line until asked for: most projects keep what Settings says. */
 function ProjectRules({ projects, project: p }: { projects: ProjectsState; project: ProjectInfo }) {
-  const changed = RULE_APPS.filter((app) => (p.rules[app] ?? 'follow') !== 'follow');
+  const apps = ruleApps(RULE_APPS, p.rules, isInstalled);
+  const changed = apps.filter((app) => (p.rules[app] ?? 'follow') !== 'follow');
   const [open, setOpen] = useState(false);
-  const summary = changed.length === 0 ? 'As in Settings' : changed.map((app) => `${appName(app)}: ${LEVELS.find((l) => l.id === p.rules[app])?.name ?? ''}`).join(' · ');
+  const summary = changed.length === 0 ? 'Every app as in Settings' : changed.map((app) => `${appName(app)}: ${LEVELS.find((l) => l.id === p.rules[app])?.name ?? ''}`).join(' · ');
   return (
-    <section className="project-card" aria-label="Rules for this project">
-      <div className="project-rules-head">
-        <h2 className="ext-heading">Rules</h2>
-        <span className="ext-state">{summary}</span>
-        <button type="button" className="btn link" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Done' : 'Change'}</button>
-      </div>
+    <Group label="Rules for this project" heading="Rules" link={{ label: open ? 'Done' : 'Change', run: () => setOpen((o) => !o), expanded: open }}>
+      {!open && <p className="proj-row proj-rules-summary"><span className="proj-row-title">{summary}</span></p>}
       {open && (
         <>
-          <p className="wiki-private">How much Mobius may do in each app here. Paying, sending, deleting and commands always ask.</p>
-          <ul className="project-rules" role="list">
-            {RULE_APPS.map((app) => (
-              <li key={app} className="project-rule">
-                <span>{appName(app)}</span>
-                <select aria-label={`${appName(app)} in ${p.name}`} value={p.rules[app] ?? 'follow'} onChange={(e) => void projects.setRule(p.id, app, e.target.value as ProjectLevel | 'follow')}>
+          <p className="proj-row-note">How much Mobius may do in each app here. Paying, sending, deleting and commands always ask.</p>
+          <ul className="proj-rows proj-rules" role="list">
+            {apps.map((app) => (
+              <li key={app} className="proj-row">
+                <AppTile app={app} />
+                <span className="proj-row-title">{appName(app)}</span>
+                <select className="popup" aria-label={`${appName(app)} in ${p.name}`} value={p.rules[app] ?? 'follow'} onChange={(e) => void projects.setRule(p.id, app, e.target.value as ProjectLevel | 'follow')}>
                   {LEVELS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </li>
@@ -288,7 +372,7 @@ function ProjectRules({ projects, project: p }: { projects: ProjectsState; proje
           </ul>
         </>
       )}
-    </section>
+    </Group>
   );
 }
 
@@ -318,40 +402,57 @@ export function ProjectPage({ projects, conversations, incoming, onOpenThread, o
       </section>
     );
   }
-  const threads = p.threads.map((id) => ({ id, info: conversations.find((c) => c.id === id) }));
+  return <OpenProject key={p.id} {...{ projects, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles, onOpenMade }} project={p} />;
+}
+
+function OpenProject({ projects, project: p, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles, onOpenMade }: Parameters<typeof ProjectPage>[0] & { project: ProjectInfo }) {
+  const made = useMade(p, conversations);
+  const now = Date.now();
+  const threads = projectThreads(p, conversations);
   const waiting = threads.filter((t) => (t.info?.waiting ?? 0) > 0);
+  const sides = p.sides ?? [];
   return (
     <section className="skills-page project-page" aria-label={p.name}>
-      <ProjectTitle key={p.id} projects={projects} project={p} />
+      <ProjectHead projects={projects} project={p} summary={projectSummary(p, conversations, made?.length ?? 0, now)}
+        onNewThread={() => onNewThread(p.id)} onOpenFiles={() => onOpenFiles(p)} onOpenMemory={() => onOpenMemory(p)} />
       {waiting.length > 0 && (
-        <section className="project-card project-waiting" aria-label="Waiting on you">
-          <h2 className="ext-heading">Waiting on you</h2>
-          <ul className="clist" role="list">
-            {waiting.map((t) => <li key={t.id}><button type="button" className="files-row" onClick={() => onOpenThread(t.id)}><span className="ext-name">{t.info?.title || 'A thread'}</span><span className="ext-state">{t.info?.waiting === 1 ? '1 question' : `${t.info?.waiting} questions`}</span></button></li>)}
+        <Group label="Waiting on you" heading="Waiting on you" tone="attention">
+          <ul className="proj-rows" role="list">
+            {waiting.map((t) => (
+              <li key={t.id}>
+                <button type="button" className="proj-row" onClick={() => onOpenThread(t.id)}>
+                  <span className="proj-dot" aria-hidden="true" />
+                  <span className="proj-row-text"><span className="proj-row-title">{t.info?.title || 'A thread'}</span><span className="proj-row-sub">{t.info?.waiting === 1 ? '1 question' : `${t.info?.waiting} questions`}</span></span>
+                  <Chevron />
+                </button>
+              </li>
+            ))}
           </ul>
-        </section>
+        </Group>
       )}
-      <section className="project-card" aria-label="Chat and threads">
-        <h2 className="ext-heading">Threads</h2>
-        {threads.length === 0 && <p className="note-empty">No threads yet.</p>}
-        <ul className="clist" role="list" aria-label="Threads">
+      <Group label="Chat and threads" heading="Threads">
+        {threads.length === 0 && <p className="proj-empty">No threads yet. A thread here follows the project's rules and can add to its memory.</p>}
+        <ul className="proj-rows" role="list" aria-label="Threads">
           {threads.map((t) => (
             <li key={t.id}>
-              <button type="button" className="files-row" onClick={() => onOpenThread(t.id)}><span className="ext-name">{t.info?.title || 'New thread'}</span>{t.info && <span className="ext-state">{t.info.messages === 1 ? '1 message' : `${t.info.messages} messages`}</span>}</button>
-              {(p.sides ?? []).filter((s) => s.parent === t.id).map((s) => (
-                <button key={s.conversation} type="button" className="files-row project-side" onClick={() => onOpenThread(s.conversation)}>
-                  <span className="ext-name">{s.botName}</span><span className="ext-state">{s.report ? 'Reported back' : 'Working'} · {s.ask}</span>
+              <button type="button" className="proj-row" onClick={() => onOpenThread(t.id)}>
+                <ThreadGlyph />
+                <span className="proj-row-text"><span className="proj-row-title">{t.info?.title || 'New thread'}</span><span className="proj-row-sub">{threadLine(t.info, now)}</span></span>
+                <Chevron />
+              </button>
+              {sides.filter((s) => s.parent === t.id).map((s) => (
+                <button key={s.conversation} type="button" className="proj-row project-side" data-working={s.report ? undefined : true} onClick={() => onOpenThread(s.conversation)}>
+                  <svg className="proj-glyph" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="7" width="11" height="8.5" rx="2.5" /><path d="M10 7V4.5M8 11h.01M12 11h.01" /></svg>
+                  <span className="proj-row-text"><span className="proj-row-title">{s.botName}</span><span className="proj-row-sub">{s.report ? 'Reported back' : 'Working'} · {s.ask}</span></span>
+                  <Chevron />
                 </button>
               ))}
             </li>
           ))}
         </ul>
-        <div className="project-thread-actions">
-          <button type="button" className="btn primary" onClick={() => onNewThread(p.id)}>New thread</button>
-          <MoveHere projects={projects} project={p} conversations={conversations} />
-        </div>
-      </section>
-      <ProjectMade project={p} conversations={conversations} onOpenMade={onOpenMade} onOpenFiles={() => onOpenFiles(p)} />
+        <MoveHere projects={projects} project={p} conversations={conversations} />
+      </Group>
+      <ProjectMade items={made} onOpenMade={onOpenMade} onOpenFiles={() => onOpenFiles(p)} />
       <ProjectMemory project={p} incoming={incoming} onOpen={() => onOpenMemory(p)} />
       <ProjectRules projects={projects} project={p} />
     </section>

@@ -1762,38 +1762,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .db-grid tbody tr:hover td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 
 /* Reader: a save bar, then the article as plain readable text. */
-.stage .reader-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
-.reader-save { display: flex; gap: var(--sp-2); padding: 8px 12px; border-bottom: 1px solid var(--line); }
-.reader-save input { flex: 1; min-width: 0; height: 30px; padding: 0 12px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--field); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
-.reader-message { margin: 8px 16px 0; color: var(--danger); font-size: var(--fs-sm); }
-.reader-scroll { flex: 1; min-height: 0; overflow-y: auto; }
-.reader-article { width: min(680px, calc(100% - 48px)); margin: 0 auto; padding: var(--sp-4) 0 80px; --read-size: 17px; }
-.reader-article[data-size="s"] { --read-size: 15px; }
-.reader-article[data-size="l"] { --read-size: 20px; }
-.reader-article[data-face="serif"] .reader-body, .reader-article[data-face="serif"] .reader-title { font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; }
-.reader-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: var(--fs-sm); }
-.reader-meta a { color: var(--accent); text-decoration: none; }
-.reader-gap { flex: 1; }
-.reader-look { display: inline-flex; gap: 2px; }
-.reader-look .strip-btn { min-width: 28px; height: 26px; font-weight: 600; }
-.reader-look .strip-btn[data-size="s"] { font-size: 11px; }
-.reader-look .strip-btn[data-size="m"] { font-size: 14px; }
-.reader-look .strip-btn[data-size="l"] { font-size: 17px; }
-.reader-title { margin: 20px 0 16px; font-size: calc(var(--read-size) * 1.75); line-height: 1.2; letter-spacing: -0.01em; }
-.reader-body { position: relative; font-size: var(--read-size); line-height: 1.65; }
-.reader-body mark, .research-text mark { background: color-mix(in srgb, #ffd60a 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; cursor: pointer; }
-.reader-mark-bar { position: absolute; z-index: 3; }
-.reader-mark-bar kbd { margin-left: 4px; opacity: 0.6; font-size: 10px; }
-.reader-notice { margin: 8px 0; color: var(--muted); font-size: var(--fs-sm); }
-.reader-highlights { margin-top: var(--sp-6); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
-.reader-highlights-head { display: flex; align-items: center; justify-content: space-between; }
-.reader-highlights h2 { margin: 0; font-size: var(--fs-md, 15px); }
-.reader-highlights ul { margin: var(--sp-2) 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.reader-highlights li { padding-left: 10px; border-left: 3px solid #ffd60a; color: var(--ink); font-size: var(--fs-sm); line-height: 1.5; }
-.reader-body h1, .reader-body h2 { font-size: 1.25em; margin: 1.6em 0 0.5em; }
-.reader-body h3 { font-size: 1.08em; margin: 1.4em 0 0.4em; }
-.reader-body p { margin: 0 0 1em; }
-.reader-body blockquote { margin: 0 0 1em; padding-left: 1em; border-left: 3px solid var(--line); color: var(--muted); }
+.research-text mark { background: color-mix(in srgb, #ffd60a 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; cursor: pointer; }
 
 /* Research: a question form, then the report beside its sources. */
 .stage .research-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
@@ -2179,32 +2148,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .rail-ask-beside:hover { color: var(--ink); background: color-mix(in srgb, var(--soft) 70%, transparent); }
 .rail-ask > :not(.rail-ask-bar) { flex: 1; min-height: 0; background: transparent; }
 
-/* The desk: the Agent app's home, under the greeting of an empty conversation. It spans the message box's column. */
-.desk { display: none; }
-.chat.full[data-empty] .desk { display: block; container-type: inline-size; margin: 36px 0 0; padding: 0 4px; text-align: left; }
-.desk-title { margin: 0 0 var(--sp-4); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--hairline); font-size: var(--fs-sm); color: var(--muted); }
-.desk-title > span:first-child { color: var(--ink); font-weight: var(--fw-medium); }
-.desk-quiet { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
-.desk-group + .desk-group { margin-top: var(--sp-5); }
-.desk-head { margin: 0 0 var(--sp-2); padding-left: 2px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
-.desk-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.desk-rows[data-columns] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.desk-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 6px 0 8px; border: 1px solid transparent; border-radius: 12px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--hairline), 0 1px 2px rgba(0, 0, 0, 0.04); color: var(--ink); text-align: left; }
-button.desk-row { padding-right: 12px; }
-button.desk-row:hover:not(:disabled) { background: color-mix(in srgb, var(--soft) 60%, var(--bg)); }
-button.desk-row:disabled { opacity: 1; cursor: default; }
-.desk-row > svg { flex: none; width: 24px; height: 24px; padding: 4.5px; border-radius: 7px; color: #fff; stroke-width: 1.9; }
-.desk-row > svg.desk-clock { background: var(--soft); color: var(--muted); stroke-width: 1.6; fill: none; stroke: currentColor; }
-.desk-name { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); font-weight: var(--fw-medium); }
-.desk-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: var(--fs-sm); color: var(--muted); }
-.desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { text-align: left; }
-.desk-act { flex: none; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
-.desk-act:hover:not(:disabled) { background: var(--soft); }
-.desk-act[data-primary] { color: var(--on-accent); background: var(--accent); box-shadow: none; }
-.desk-act[data-primary]:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); }
-.desk-row[data-changed] { box-shadow: none; border: 1px dashed var(--accent); }
-.desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--accent); }
-@container (max-width: 520px) { .desk-rows[data-columns] { grid-template-columns: 1fr; } }
 
 /* Activity: the open conversation's turns, each with Rewind to here. */
 .turn-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 6px var(--sp-2); }
@@ -2218,10 +2161,26 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .approval-head { margin: 0 0 2px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.02em; color: var(--accent); }
 
 /* A bot's form: how it starts, and what it may touch. */
-.botform-starts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0; padding: 0; border: 0; font-size: var(--fs-sm); }
-.botform-starts legend { padding: 0; margin-bottom: 2px; font-weight: var(--fw-medium); }
-.botform-choice { display: inline-flex; align-items: center; gap: 4px; }
-.botform-when { display: inline-flex; gap: 6px; flex-basis: 100%; }
+.botform-starts { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); }
+.botform-label { color: var(--muted); }
+.botform-hint { font-size: var(--fs-xs); color: var(--muted); }
+/* How it starts: a segmented control, both halves the same width, as in Apple's pickers. */
+.botform-seg { display: flex; min-width: 0; }
+.botform-seg .seg-btn { flex: 1; min-width: 0; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.botform-seg .seg-btn[aria-checked="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+.botform-when { display: flex; gap: 6px; }
+.botform-when select, .botform-when input { flex: 1; min-width: 0; height: 28px; padding: 0 7px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; }
+/* An agent row: the name and one line under it take the row; its actions are in the More menu. */
+.bot-row { flex-wrap: wrap; }
+.bot-row .clist-main { min-width: 0; }
+.bot-row .clist-title, .bot-row .clist-sub { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-row .clist-sub { display: block; }
+.bot-more { flex: none; width: 24px; height: 24px; margin-right: 4px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
+.bot-more svg { width: 16px; height: 16px; fill: currentColor; }
+.bot-row:hover .bot-more, .bot-more:focus-visible, .bot-more[aria-expanded="true"] { opacity: 1; }
+.bot-more:hover { background: var(--wash); color: var(--ink); }
+.bot-confirm { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; margin: 0 8px 8px; padding: 8px 10px; border-radius: 10px; background: var(--soft); font-size: var(--fs-sm); }
+.bot-confirm p { margin: 0; }
 .botform-touch { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
 .botform-touch b { color: var(--ink); font-weight: var(--fw-medium); }
 
@@ -2326,29 +2285,7 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 
 /* Projects: a place, with its cards. */
 .hub-icon[data-app="projects"], .launcher-icon svg[data-app="projects"], .review-filter svg[data-app="projects"] { background: var(--app-projects); }
-.project-card { display: grid; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--hairline); border-radius: var(--radius-panel); }
-.project-waiting { border-color: var(--accent); }
-.project-rules { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px var(--sp-3); }
-.project-rule { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
-.project-rules-head { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; }
-.project-rules-head .ext-heading { margin: 0; }
-.project-rules-head .ext-state { flex: 1; min-width: 0; }
-.project-card > .btn { justify-self: start; }
-
-.project-thread-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
-.project-title { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-.project-title input { font: inherit; font-size: var(--fs-xl); padding: 2px 8px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--field); color: inherit; }
-
-/* A project thread's side threads: bots asked to do something, and what they reported back. */
-.side-threads { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }
-.side-thread { display: grid; gap: 4px; padding: 6px 10px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
-.side-thread[data-working] .side-thread-head { color: var(--muted); }
-.side-thread-head { font-weight: 500; }
-.side-thread-report { margin: 0; white-space: pre-wrap; }
-.side-thread > .review-btn { justify-self: start; }
-.side-thread-ask { display: flex; gap: 6px; }
-.side-thread-ask input { flex: 1; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }
-.project-side { padding-left: var(--sp-6); }
+/* The rest of Projects is in projects.css. */
 
 /* ---- The Mobius panel, v172 (Apple HIG style) ---- */
 .dock.right .chat { border-radius: 22px; box-shadow: inset 0 0 0 0.5px var(--hairline); }
@@ -2803,10 +2740,8 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .search-box:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); }
 .search-box input:focus, .search-box input:focus-visible, .hub-search input:focus-visible { outline: none; box-shadow: none; }
 
-/* The Agent home: the greeting and what is in your apps take the message box's width, centred with it. The desk is a
-   size container, so it is given that width rather than left to shrink inside the centred column. */
+/* The Agent home: the greeting takes the message box's width, centred with it. The desk's own styles are in desk.css. */
 .chat.full[data-empty] .empty { width: 100%; padding: 0; }
-.chat.full[data-empty] .desk { width: 100%; max-width: 760px; justify-self: stretch; align-self: stretch; margin-left: auto; margin-right: auto; box-sizing: border-box; }
 
 /* ---- Liquid Glass: one system ----------------------------------------------------------------------------------------
    Glass is for controls that float over content: the sidebar and the Mobius panel, toolbars, popovers, menus and the
@@ -2931,3 +2866,13 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
 .ability-icon { width: 26px; height: 26px; flex: none; padding: 4px; border-radius: 7px; fill: none; color: #fff; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .ability-name { flex: 1; min-width: 0; font-weight: var(--fw-medium); }
 .ability-state { color: var(--muted); font-size: var(--fs-xs); }
+
+/* One search field for every sidebar (Notes, Docs, Sheets, Mail, Code, Sessions, Settings and the rest): 28px tall,
+   a magnifier at its start, the same in every app. `flex: none` keeps a column sidebar from squashing it. Specific
+   enough to win over the older per-place rules above (`.dock.left .side-search`). */
+input.side-search.side-search, body :is(.rail-app, .dock.left, .settings-side) :is(input.side-search, input.settings-search) {
+  flex: none; box-sizing: border-box; height: 28px; min-height: 28px; padding: 0 10px 0 28px; font-size: 13px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238e8e93' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.75'/%3E%3Cpath d='m10.5 10.5 3.25 3.25'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: 9px 50%; background-size: 13px 13px;
+}
+:is(.side-search, .settings-search)::-webkit-search-cancel-button { margin-right: -4px; }

@@ -1,5 +1,5 @@
 //! Everything the daemon's main loop can be woken up by.
-use mobius_agent::provider::{Completion, ProviderError};
+use mobius_agent::provider::{Completion, ProviderError, Usage};
 
 pub enum Line {
     Eof,
@@ -16,6 +16,8 @@ pub enum Inbox {
     Switched { turn_id: u64, model: String, why: String },
     /// A worker thread finished its model call.
     ModelDone { turn_id: u64, result: Result<Completion, ProviderError> },
+    /// What a model call used, sent just before its result. `kind` is `chat` or `quick` (a review).
+    Usage { turn_id: u64, kind: &'static str, usage: Usage },
     /// A worker thread finished asking the reviewer model about a question (smart approvals).
     Verdict { turn_id: u64, request_id: u64, result: Result<Completion, ProviderError> },
     /// A background search for models finished.

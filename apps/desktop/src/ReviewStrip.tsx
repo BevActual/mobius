@@ -3,6 +3,7 @@ import type { TurnChanges, TurnRecord } from '@mobius/shared';
 import { ReviewActions } from './ReviewBar';
 import { changeTarget } from './actions';
 import type { HubTarget } from './search-hub';
+import { dateTimeLabel, nearDayLabel, timeLabel } from './dates';
 
 /**
  * Pages' titles as their apps list them ("docs/Documents/Untitled.md" → "Release notes" once it has a heading), so a
@@ -237,12 +238,7 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
   );
 }
 
-const when = (ms: number) => {
-  const d = new Date(ms);
-  const today = new Date();
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  return d.toDateString() === today.toDateString() ? time : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
-};
+const when = (ms: number) => (nearDayLabel(ms) === 'Today' ? timeLabel(ms) : dateTimeLabel(ms));
 
 /**
  * Every earlier turn of the conversation that changed something, newest first: what was asked, what it changed, and

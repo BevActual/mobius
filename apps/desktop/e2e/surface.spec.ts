@@ -37,20 +37,23 @@ const openApp = async (name: string) => {
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
   await shell().keyboard.press('Enter');
 };
+/** The desk's large title. */
+const GREETING = /^Good (morning|afternoon|evening)$/;
 const sent = () => JSON.stringify(model!.requests.at(-1)?.messages ?? []);
 
-test('an empty Agent app greets you in the middle and suggests a start, which is sent as is', async () => {
+test('an empty Agent app is the desk: one greeting, suggestions under it, which are sent as is', async () => {
   await start([says(['Here is an overview.'])]);
   await openApp('Agent');
   const region = shell().getByRole('region', { name: 'Agent conversation' });
-  await expect(region.getByRole('heading', { name: 'What can I help with?' })).toBeVisible();
-  // Under the greeting is the desk: what is open in your apps, each row one press from its app.
+  await expect(region.getByRole('heading', { name: GREETING })).toBeVisible();
+  await expect(region.getByRole('heading', { name: 'What can I help with?' })).toHaveCount(0);
+  // The desk shows what is open in your apps, each row one press from its app.
   await expect(region.getByRole('region', { name: 'Desk' }).getByRole('button', { name: /Browser.*1 tab open/ })).toBeVisible();
   await region.getByRole('group', { name: 'Suggestions' }).getByRole('button', { name: 'What is in my notes?' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('Here is an overview.');
   expect(sent()).toContain('give me a short overview');
-  // A conversation has started, so the greeting has gone; the suggestions hide while you type.
-  await expect(region.getByRole('heading', { name: 'What can I help with?' })).toHaveCount(0);
+  // A conversation has started, so the desk has gone; the suggestions hide while you type.
+  await expect(region.getByRole('heading', { name: GREETING })).toHaveCount(0);
   await turnEnded(composer());
   await composer().fill('x');
   await expect(region.getByRole('group', { name: 'Suggestions' })).toHaveCount(0);
@@ -66,14 +69,21 @@ test('the desk is the Agent app’s home: what waits is allowed in place, and wh
   await openApp('Agent');
   await shell().getByRole('button', { name: 'Create' }).click();
   const desk = shell().getByRole('region', { name: 'Agent conversation' }).getByRole('region', { name: 'Desk' });
-  await expect(shell().getByRole('heading', { name: 'What can I help with?' })).toBeVisible();
+  await expect(desk.getByRole('heading', { name: GREETING })).toBeVisible();
   await expect(desk.locator('.desk-title')).toContainText('1 waiting for you');
+  // The conversation that waits is under Now, not again under Recent.
+  await expect(desk.getByRole('group', { name: 'Recent' })).toHaveCount(0);
   const now = desk.getByRole('group', { name: 'Now' });
   await expect(now.getByRole('listitem')).toContainText('Wants to');
   await expect(desk.getByRole('group', { name: 'Next' }).getByRole('button', { name: /Morning brief.*at 08:00/ })).toBeVisible();
   await now.getByRole('button', { name: /^Allow .* once$/ }).click();
   await expect(desk.getByRole('group', { name: 'Now' })).toHaveCount(0);
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(true);
+  // Once it has finished it is under Recent, and one press picks it up again.
+  const recent = desk.getByRole('group', { name: 'Recent' }).getByRole('button');
+  await expect(recent).toHaveCount(1);
+  await recent.click();
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
 });
 
 test('Try another puts the change back and asks Mobius to do it another way', async () => {
