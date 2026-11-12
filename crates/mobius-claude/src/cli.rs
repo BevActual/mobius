@@ -34,8 +34,18 @@ pub fn find(explicit: Option<&Path>) -> Option<PathBuf> {
     if let Some(p) = explicit {
         return p.is_file().then(|| p.to_path_buf());
     }
+    find_named("claude")
+}
+
+/// A program by name on PATH or in the usual install folders (`claude`, `copilot`).
+pub fn find_named(name: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH").unwrap_or_default();
-    std::env::split_paths(&path).chain(known_dirs()).flat_map(|d| candidates(&d, "claude")).find(|p| p.is_file())
+    let mut dirs: Vec<PathBuf> = std::env::split_paths(&path).chain(known_dirs()).collect();
+    // WinGet puts its programs here.
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        dirs.push(PathBuf::from(local).join("Microsoft").join("WinGet").join("Links"));
+    }
+    dirs.iter().flat_map(|d| candidates(d, name)).find(|p| p.is_file())
 }
 
 pub fn quiet(command: &mut Command) -> &mut Command {

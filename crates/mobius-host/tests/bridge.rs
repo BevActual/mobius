@@ -1419,6 +1419,64 @@ fn a_hugging_face_sign_in_shows_a_code_and_keeps_the_token() {
     assert!(!every_file_text(dir.path()).contains("hf_oauth_signed_in_1234"));
 }
 
+/// The GitHub Copilot plan: sign in with GitHub using a code, then the plan can be chosen; signing out forgets it.
+#[test]
+fn a_copilot_sign_in_shows_a_code_and_lets_the_plan_be_used() {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let site_url = format!("http://{}", site.local_addr().unwrap());
+    let page = site_url.clone();
+    std::thread::spawn(move || {
+        for stream in site.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut first = String::new();
+            reader.read_line(&mut first).unwrap();
+            let mut length = 0usize;
+            loop {
+                let mut header = String::new();
+                reader.read_line(&mut header).unwrap();
+                if header.trim().is_empty() {
+                    break;
+                }
+                if let Some(v) = header.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            let reply = if first.starts_with("POST /login/device/code ") {
+                format!(r#"{{"device_code":"g1","user_code":"COPI-LOT1","verification_uri":"{page}/login/device","interval":0}}"#)
+            } else {
+                r#"{"access_token":"gho_copilot_signed_in_1234","token_type":"bearer"}"#.to_owned()
+            };
+            let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
+        }
+    });
+    let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    b.enable_test_hooks();
+    let fake_cli = dir.path().join(if cfg!(windows) { "copilot.exe" } else { "copilot" });
+    std::fs::write(&fake_cli, b"").unwrap();
+    b.use_copilot_for_tests(&site_url, "gh-test-client", &fake_cli);
+    let accounts = call(&b, "providers", "accounts", json!([]));
+    assert!(accounts.as_array().unwrap().iter().any(|a| a["id"] == "copilot"), "{accounts}");
+    assert_eq!(call(&b, "providers", "use", json!(["copilot", "gpt-5"]))["ok"], false, "not signed in yet");
+    let started = call(&b, "providers", "signIn", json!(["copilot"]));
+    assert_eq!(started["code"], "COPI-LOT1", "{started}");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while call(&b, "providers", "accountStatus", json!(["copilot"]))["signedIn"] != true {
+        assert!(std::time::Instant::now() < deadline, "the sign-in was not kept");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert_eq!(call(&b, "providers", "accountStatus", json!(["copilot"]))["installed"], true);
+    assert_eq!(call(&b, "providers", "use", json!(["copilot", "gpt-5; rm"]))["ok"], false);
+    assert_eq!(call(&b, "providers", "use", json!(["copilot", "gpt-5"]))["ok"], true);
+    assert_eq!(call(&b, "agent", "getSettings", json!([]))["baseUrl"], "copilot://subscription");
+    assert!(!every_file_text(dir.path()).contains("gho_copilot_signed_in_1234"));
+    call(&b, "providers", "signOut", json!(["copilot"]));
+    assert_eq!(call(&b, "providers", "accountStatus", json!(["copilot"]))["signedIn"], false);
+}
+
 /// The quick model (the Act mode's reviewer) comes from a gateway with its key, is kept in the preferences, and goes
 /// when its key does.
 #[test]

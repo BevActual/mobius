@@ -16,6 +16,10 @@ pub const HUGGING_FACE: &str = "https://huggingface.co";
 /// Mobius's public client id at Hugging Face. Empty until the app is registered: then there is no sign-in button.
 pub const HUGGING_FACE_CLIENT_ID: &str = "";
 pub const HUGGING_FACE_SCOPES: &str = "openid profile inference-api";
+pub const GITHUB: &str = "https://github.com";
+/// Mobius's public client id for its GitHub OAuth app (device flow on). Empty until the app is registered.
+pub const GITHUB_CLIENT_ID: &str = "";
+pub const GITHUB_SCOPES: &str = "read:user";
 const MAX_BODY: u64 = 64 * 1024;
 /// The longest the service may ask Mobius to wait, whatever it says.
 const LONGEST_WAIT: Duration = Duration::from_secs(15 * 60);
@@ -42,6 +46,8 @@ pub struct DeviceSignIn {
     site: String,
     client_id: String,
     scopes: &'static str,
+    /// Where to ask for a code, and where to ask whether it was approved.
+    paths: (&'static str, &'static str),
     agent: ureq::Agent,
     state: Mutex<State>,
     /// How often to ask; the service can only make it slower. Shorter in tests.
@@ -59,11 +65,18 @@ fn form(pairs: &[(&str, &str)]) -> String {
 impl DeviceSignIn {
     pub fn new(name: &'static str, site: &str, client_id: &str, scopes: &'static str) -> DeviceSignIn {
         let agent: ureq::Agent = ureq::Agent::config_builder().http_status_as_error(false).max_redirects(0).timeout_connect(Some(Duration::from_secs(10))).timeout_global(Some(Duration::from_secs(20))).build().into();
-        DeviceSignIn { name, site: site.trim_end_matches('/').to_owned(), client_id: client_id.to_owned(), scopes, agent, state: Mutex::default(), poll: Duration::from_secs(5) }
+        DeviceSignIn { name, site: site.trim_end_matches('/').to_owned(), client_id: client_id.to_owned(), scopes, paths: ("/oauth/device", "/oauth/token"), agent, state: Mutex::default(), poll: Duration::from_secs(5) }
     }
 
     pub fn hugging_face() -> DeviceSignIn {
         DeviceSignIn::new("Hugging Face", HUGGING_FACE, HUGGING_FACE_CLIENT_ID, HUGGING_FACE_SCOPES)
+    }
+
+    /// GitHub's device flow, at `site` (github.com except in tests).
+    pub fn github(site: &str, client_id: &str) -> DeviceSignIn {
+        let mut d = DeviceSignIn::new("GitHub", site, client_id, GITHUB_SCOPES);
+        d.paths = ("/login/device/code", "/login/oauth/access_token");
+        d
     }
 
     /// Ask more often (for tests against a pretend service).
@@ -101,7 +114,7 @@ impl DeviceSignIn {
         if let Some(p) = &lock(&self.state).pending {
             return Ok((p.url.clone(), p.code.clone()));
         }
-        let (status, answer) = self.post("/oauth/device", &form(&[("client_id", &self.client_id), ("scope", self.scopes)]))?;
+        let (status, answer) = self.post(self.paths.0, &form(&[("client_id", &self.client_id), ("scope", self.scopes)]))?;
         if status != 200 {
             return Err(format!("{} could not start the sign-in (HTTP {status}).", self.name));
         }
@@ -135,14 +148,14 @@ impl DeviceSignIn {
                 if Instant::now() > until {
                     break Err(format!("The sign-in code ran out. Sign in to {} again.", me.name));
                 }
-                let asked = me.post("/oauth/token", &form(&[("grant_type", "urn:ietf:params:oauth:grant-type:device_code"), ("device_code", &device), ("client_id", &me.client_id)]));
+                let asked = me.post(me.paths.1, &form(&[("grant_type", "urn:ietf:params:oauth:grant-type:device_code"), ("device_code", &device), ("client_id", &me.client_id)]));
                 let (status, answer) = match asked {
                     Ok(x) => x,
                     // A dropped connection is retried at the next turn.
                     Err(_) => continue,
                 };
                 match (status, answer.get("error").and_then(Value::as_str)) {
-                    (200, _) => {
+                    (200, None) => {
                         break answer.get("access_token").and_then(Value::as_str).map(str::trim).filter(|t| crate::providers::is_key_text(t)).map(str::to_owned).ok_or_else(|| format!("{} did not send a token.", me.name));
                     }
                     (_, Some("authorization_pending")) => {}
@@ -258,6 +271,51 @@ mod tests {
         let none = Arc::new(DeviceSignIn::new("Hugging Face", &site, "", HUGGING_FACE_SCOPES));
         assert!(!none.available());
         assert!(none.start(Arc::new(|_| {})).is_err());
+    }
+
+    /// GitHub answers "not yet" with HTTP 200 and an error field, at its own paths.
+    #[test]
+    fn github_s_device_flow_waits_through_its_pending_answers() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let site = format!("http://{}", listener.local_addr().unwrap());
+        let page = site.clone();
+        let asked = Arc::new(AtomicUsize::new(0));
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut first = String::new();
+                reader.read_line(&mut first).unwrap();
+                let mut length = 0usize;
+                loop {
+                    let mut header = String::new();
+                    reader.read_line(&mut header).unwrap();
+                    if header.trim().is_empty() {
+                        break;
+                    }
+                    if let Some(v) = header.to_ascii_lowercase().strip_prefix("content-length:") {
+                        length = v.trim().parse().unwrap();
+                    }
+                }
+                let mut body = vec![0; length];
+                reader.read_exact(&mut body).unwrap();
+                let reply = if first.starts_with("POST /login/device/code ") {
+                    format!(r#"{{"device_code":"g1","user_code":"WDJB-MJHT","verification_uri":"{page}/login/device","interval":0}}"#)
+                } else if first.starts_with("POST /login/oauth/access_token ") && asked.fetch_add(1, Ordering::SeqCst) < 2 {
+                    r#"{"error":"authorization_pending"}"#.to_owned()
+                } else if first.starts_with("POST /login/oauth/access_token ") {
+                    r#"{"access_token":"gho_from_github","token_type":"bearer","scope":"read:user"}"#.to_owned()
+                } else {
+                    r#"{"error":"not_found"}"#.to_owned()
+                };
+                let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
+            }
+        });
+        let sign_in = Arc::new(DeviceSignIn::github(&site, "gh-client").polling_every(Duration::from_millis(20)));
+        let (tx, rx) = mpsc::channel();
+        let (url, code) = sign_in.start(Arc::new(move |r| tx.send(r).unwrap())).unwrap();
+        assert_eq!((url, code.as_str()), (format!("{site}/login/device"), "WDJB-MJHT"));
+        assert_eq!(rx.recv_timeout(Duration::from_secs(5)).unwrap(), Ok("gho_from_github".to_owned()));
     }
 
     #[test]

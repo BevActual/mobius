@@ -215,6 +215,8 @@ pub struct Bridge {
     /// Signing in to a gateway that hands out a key (OpenRouter); tests point it at a pretend site.
     key_sign_in: Mutex<Arc<crate::key_sign_in::KeySignIn>>,
     hf_sign_in: Mutex<Arc<crate::device_sign_in::DeviceSignIn>>,
+    copilot: Arc<crate::copilot_account::CopilotAccount>,
+    copilot_command: Mutex<Option<PathBuf>>,
     /// The Claude Code CLI to use; tests set a fake one.
     claude_command: Mutex<Option<PathBuf>>,
     /// Other apps using Mobius's tools over MCP.
@@ -244,6 +246,9 @@ impl Bridge {
         let agent = AgentService::new(core.clone(), data_dir.join("agent-settings.json"), secrets.clone());
         let source = chatgpt.clone();
         agent.add_token_source(crate::providers::CHATGPT_ADDRESS, Arc::new(move || lock(&source).clone().access_token()));
+        let copilot = Arc::new(crate::copilot_account::CopilotAccount::new(secrets.clone()));
+        let account = copilot.clone();
+        agent.add_token_source(crate::providers::COPILOT_ADDRESS, Arc::new(move || Ok(account.token())));
         let notes_emit = emit.clone();
         let mcp_server = crate::mcp_server::McpServer::open(
             data_dir.join("mcp-server.json"),
@@ -339,6 +344,8 @@ impl Bridge {
             providers: Arc::new(crate::providers::Providers::new(secrets.clone())),
             key_sign_in: Mutex::new(Arc::new(crate::key_sign_in::KeySignIn::new(crate::key_sign_in::OPENROUTER))),
             hf_sign_in: Mutex::new(Arc::new(crate::device_sign_in::DeviceSignIn::hugging_face())),
+            copilot,
+            copilot_command: Mutex::new(None),
             claude_command: Mutex::new(None),
             signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
@@ -1571,6 +1578,14 @@ impl Bridge {
         }
     }
 
+    /// Sign in with GitHub at this pretend site, and use this Copilot CLI. Does nothing unless the test hooks are on.
+    pub fn use_copilot_for_tests(&self, site: &str, client_id: &str, command: &Path) {
+        if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
+            self.copilot.use_site_for_tests(site, client_id);
+            *lock(&self.copilot_command) = Some(command.to_path_buf());
+        }
+    }
+
     /// Sign in to ChatGPT at this pretend OpenAI. Does nothing unless the test hooks are on.
     pub fn use_chatgpt_for_tests(&self, issuer: &str) {
         if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
@@ -1612,6 +1627,53 @@ impl Bridge {
                 let Some(model) = model.map(str::trim).filter(|m| !m.is_empty()) else { return failed("Choose a model.") };
                 if model.len() > 100 || !model.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | ':' | '/')) {
                     return failed("That is not a ChatGPT model.");
+                }
+                let result = self.agent.use_endpoint(sub.address, model, None);
+                (self.emit)("mobius:providers-changed", Value::Null);
+                (self.emit)("mobius:agent-settings", self.agent.settings());
+                result
+            }
+            _ => failed("unknown"),
+        }
+    }
+
+    fn copilot_call(&self, method: &str, sub: &crate::providers::Subscription, model: Option<&str>) -> Value {
+        let active = self.agent.base_url().eq_ignore_ascii_case(sub.address);
+        let command = lock(&self.copilot_command).clone();
+        match method {
+            "accountStatus" => {
+                let mut status = self.copilot.status(command.as_deref());
+                status["active"] = json!(active);
+                status
+            }
+            "signIn" => {
+                let emit = self.emit.clone();
+                match self.copilot.start_sign_in(Arc::new(move || emit("mobius:providers-changed", Value::Null))) {
+                    Ok((url, code)) => json!({ "ok": true, "url": url, "code": code }),
+                    Err(e) => failed(e),
+                }
+            }
+            "cancelSignIn" => {
+                self.copilot.cancel_sign_in();
+                json!({ "ok": true })
+            }
+            "signOut" => {
+                self.copilot.sign_out();
+                if active {
+                    self.agent.mark_stopped();
+                }
+                (self.emit)("mobius:providers-changed", Value::Null);
+                json!({ "ok": true })
+            }
+            "useFallback" => failed("GitHub Copilot cannot be the second model yet. Choose another."),
+            "models" => json!({ "ok": true, "models": mobius_claude::copilot::MODELS.iter().map(|(id, _)| *id).collect::<Vec<_>>() }),
+            "use" => {
+                let Some(model) = model.map(str::trim).filter(|m| !m.is_empty()) else { return failed("Choose a model.") };
+                if model.len() > 100 || !model.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_')) {
+                    return failed("That is not a Copilot model.");
+                }
+                if self.copilot.token().is_none() {
+                    return failed(mobius_claude::copilot::SIGN_IN_HINT);
                 }
                 let result = self.agent.use_endpoint(sub.address, model, None);
                 (self.emit)("mobius:providers-changed", Value::Null);
@@ -1677,9 +1739,13 @@ impl Bridge {
             let subs: Vec<_> = crate::providers::SUBSCRIPTIONS
                 .iter()
                 .map(|s| {
-                    let (command, chatgpt) = (claude_command.clone(), chatgpt.clone());
+                    let (command, chatgpt, copilot) = (claude_command.clone(), chatgpt.clone(), self.copilot.clone());
                     scope.spawn(move || {
-                        let signed_in = if s.address == crate::providers::CHATGPT_ADDRESS { chatgpt.status()["signedIn"] == true } else { mobius_claude::cli::status(command.as_deref())["signedIn"] == true };
+                        let signed_in = match s.address {
+                            crate::providers::CHATGPT_ADDRESS => chatgpt.status()["signedIn"] == true,
+                            crate::providers::COPILOT_ADDRESS => copilot.token().is_some(),
+                            _ => mobius_claude::cli::status(command.as_deref())["signedIn"] == true,
+                        };
                         (s, signed_in)
                     })
                 })
@@ -1867,6 +1933,9 @@ impl Bridge {
         if let Some(sub) = text(0).and_then(crate::providers::find_subscription) {
             if sub.address == crate::providers::CHATGPT_ADDRESS {
                 return self.chatgpt_call(method, sub, text(1));
+            }
+            if sub.address == crate::providers::COPILOT_ADDRESS {
+                return self.copilot_call(method, sub, text(1));
             }
             return match method {
                 "accountStatus" => {

@@ -14,6 +14,7 @@ each job. Two places in Settings handle this:
 | --- | --- |
 | **ChatGPT** | **Sign in…** opens OpenAI's own "Sign in with ChatGPT" page in your browser. Mobius never sees your password; it keeps a token that refreshes itself. Use counts against your ChatGPT plan. |
 | **Claude Pro or Max** | Uses the official **Claude Code** program, which must be installed. **Sign in…** opens Claude Code's own sign-in; come back and choose **Check again** when it is done. Use counts against your Claude plan's limits. Mobius keeps its own tools and approvals. |
+| **GitHub Copilot** | Uses GitHub's official **Copilot CLI**, which must be installed (`winget install GitHub.Copilot`). **Sign in with GitHub** shows a short code: enter it on the GitHub page that opens and approve Mobius. Use counts against your Copilot plan's premium requests. Mobius keeps its own tools and approvals; the CLI's own tools are always switched off. |
 | **OpenRouter** | **Sign in…** uses OpenRouter's own sign-in to create a key for Mobius, so you don't have to copy one. |
 
 ### Paste an API key

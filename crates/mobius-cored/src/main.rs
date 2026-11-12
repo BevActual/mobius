@@ -146,6 +146,10 @@ fn main() -> ExitCode {
                 Some(path) => claude.command = Some(PathBuf::from(path)),
                 None => return usage(),
             },
+            "--copilot-command" => match args.next() {
+                Some(path) => claude.copilot_command = Some(PathBuf::from(path)),
+                None => return usage(),
+            },
             "--claude-upstream" => match args.next() {
                 Some(url) => claude.upstream = Some(url),
                 None => return usage(),

@@ -156,12 +156,18 @@ fn window_for(base_url: &str, model: &str, explicit: Option<u64>, known: &KnownW
     if base_url.trim().eq_ignore_ascii_case(CLAUDE_CODE_ADDRESS) {
         return Ok(Some(if mobius_claude::frames::native_model(model).ends_with("[1m]") { 1_000_000 } else { 200_000 }));
     }
+    if base_url.trim().eq_ignore_ascii_case(COPILOT_ADDRESS) {
+        return Ok(Some(128_000));
+    }
     let key = base_url.trim().trim_end_matches('/');
     Ok(known.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(key).copied())
 }
 
 /// The address that means "Claude through the Claude Code CLI on this computer" instead of an HTTP server.
 pub const CLAUDE_CODE_ADDRESS: &str = "claude-code://subscription";
+
+/// The address that means "a GitHub Copilot plan through GitHub's Copilot CLI on this computer".
+pub const COPILOT_ADDRESS: &str = "copilot://subscription";
 
 /// The address that means "the ChatGPT plan through OpenAI's public Responses API, with the sign-in token as the key".
 pub const CHATGPT_ADDRESS: &str = "chatgpt://subscription";
@@ -176,6 +182,8 @@ pub struct ClaudeSetup {
     pub workdir: Option<std::path::PathBuf>,
     /// Where ChatGPT sign-in requests go (`CHATGPT_UPSTREAM` except in tests).
     pub chatgpt_upstream: Option<String>,
+    /// The Copilot CLI to run (a fake one in tests), else `copilot` where it is usually installed.
+    pub copilot_command: Option<std::path::PathBuf>,
 }
 
 impl ClaudeSetup {
@@ -195,6 +203,13 @@ impl ClaudeSetup {
 fn provider_for(base_url: &str, api_key: Option<String>, claude: &ClaudeSetup) -> Result<Arc<dyn Provider>, String> {
     if base_url.trim().eq_ignore_ascii_case(CLAUDE_CODE_ADDRESS) {
         return Ok(Arc::new(claude.provider()?));
+    }
+    if base_url.trim().eq_ignore_ascii_case(COPILOT_ADDRESS) {
+        let token = api_key.ok_or(mobius_claude::copilot::SIGN_IN_HINT)?;
+        let here = std::env::current_exe().ok().and_then(|p| p.parent().map(std::path::Path::to_path_buf)).unwrap_or_default();
+        let inert = claude.inert_mcp.clone().unwrap_or_else(|| here.join(if cfg!(windows) { "mobius-inert-mcp.exe" } else { "mobius-inert-mcp" }));
+        let workdir = claude.workdir.clone().map_or_else(|| std::env::temp_dir().join("mobius-copilot-work"), |w| w.join("copilot"));
+        return Ok(Arc::new(mobius_claude::copilot::CopilotProvider::new(claude.copilot_command.as_deref(), inert, workdir, &token)?));
     }
     if base_url.trim().eq_ignore_ascii_case(CHATGPT_ADDRESS) {
         let token = api_key.ok_or("Sign in to ChatGPT first.")?;

@@ -628,6 +628,9 @@ impl AgentService {
         if base.eq_ignore_ascii_case(crate::providers::CLAUDE_CODE_ADDRESS) {
             return json!({ "ok": true, "models": mobius_claude::frames::MODELS.iter().map(|(id, _)| *id).collect::<Vec<_>>() });
         }
+        if base.eq_ignore_ascii_case(crate::providers::COPILOT_ADDRESS) {
+            return json!({ "ok": true, "models": mobius_claude::copilot::MODELS.iter().map(|(id, _)| *id).collect::<Vec<_>>() });
+        }
         Self::models_at(&base, &key)
     }
 

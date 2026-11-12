@@ -237,7 +237,7 @@ export interface CalendarChanged { calendar: string | null; by: 'person' | 'assi
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
 export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'browser'; models: Array<{ id: string; label: string }> }
 /** A browser sign-in waiting for the person to finish it at `url`. */
-export interface PendingSignIn { url: string }
+export interface PendingSignIn { url: string; /** The code to enter on that page (a GitHub sign-in). */ code?: string | null }
 export interface AccountStatus { installed: boolean; signedIn: boolean; version?: string | null; account?: string | null; hint?: string | null; active?: boolean; pending?: PendingSignIn | null; /** Where the plan's usage limits are seen and changed. */ manageUsage?: string }
 
 /** A model provider in Settings > Providers. The key itself is never sent to the window. */

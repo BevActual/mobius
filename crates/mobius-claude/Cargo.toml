@@ -23,5 +23,9 @@ path = "src/bin/inert_mcp.rs"
 name = "fake-claude"
 path = "src/bin/fake_claude.rs"
 
+[[bin]]
+name = "fake-copilot"
+path = "src/bin/fake_copilot.rs"
+
 [lints]
 workspace = true

@@ -240,7 +240,7 @@ function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged
     if (!r.ok) { setProblem(r.error); return; }
     setProblem(null); setChoosing(false); onChanged();
   };
-  const said = status === null ? 'Checking…' : !status.installed ? 'Claude Code is not installed' : status.signedIn ? `Signed in${status.account ? ` as ${status.account}` : ''}` : waiting ? 'Waiting for you to sign in' : 'Not signed in';
+  const said = status === null ? 'Checking…' : !status.installed ? (a.id === 'copilot' ? 'Copilot CLI is not installed' : 'Claude Code is not installed') : status.signedIn ? `Signed in${status.account ? ` as ${status.account}` : ''}` : waiting ? 'Waiting for you to sign in' : 'Not signed in';
   return (
     <li className="prow" aria-label={a.name} data-active={a.active || undefined}>
       <div className="prow-main">
@@ -249,7 +249,7 @@ function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged
       </div>
       <span className="prow-status" role="status" data-has-key={status?.signedIn === true}>{said}</span>
       <span className="prow-actions">
-        {status?.installed && !status.signedIn && !waiting && <button type="button" className="btn" aria-label={`Sign in to ${a.name}`} onClick={() => void signIn()}>{browser ? `Continue with ${a.name.replace(/ subscription$/, '')}` : 'Sign in…'}</button>}
+        {status?.installed && !status.signedIn && !waiting && <button type="button" className="btn" aria-label={`Sign in to ${a.name}`} onClick={() => void signIn()}>{a.id === 'copilot' ? 'Sign in with GitHub' : browser ? `Continue with ${a.name.replace(/ subscription$/, '')}` : 'Sign in…'}</button>}
         {waiting && <button type="button" className="btn" onClick={() => void api.cancelSignIn(a.id).then(check)}>Cancel</button>}
         {browser && status?.signedIn && status.manageUsage && <button type="button" className="btn link" onClick={() => void window.mobius.browser.open(status.manageUsage!)}>Manage usage</button>}
         {browser && status?.signedIn && <button type="button" className="btn" aria-label={`Sign out of ${a.name}`} onClick={() => void signOut()}>Sign out</button>}
@@ -260,7 +260,9 @@ function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged
       {!browser && status?.installed && !status.signedIn && <span className="prow-note prow-problem">Sign in opens Claude Code's own sign-in in a window. Come back and choose Check again when it is done.</span>}
       {waiting && (
         <div className="prow-form" aria-label="Signing in">
-          <span className="prow-note">Finish signing in on {a.name.replace(/ subscription$/, '')}'s page. Mobius picks it up by itself.</span>
+          {waiting.code
+            ? <span className="prow-note">On the page that opened, enter the code <strong className="prow-code">{waiting.code}</strong> and approve Mobius. Mobius picks it up by itself.</span>
+            : <span className="prow-note">Finish signing in on {a.name.replace(/ subscription$/, '')}'s page. Mobius picks it up by itself.</span>}
           <button type="button" className="btn link" onClick={() => void window.mobius.browser.open(waiting.url)}>Open the page again</button>
         </div>
       )}

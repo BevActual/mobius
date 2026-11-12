@@ -87,6 +87,8 @@ pub const CLAUDE_CODE_ADDRESS: &str = "claude-code://subscription";
 
 pub const CHATGPT_ADDRESS: &str = "chatgpt://subscription";
 
+pub const COPILOT_ADDRESS: &str = "copilot://subscription";
+
 pub const SUBSCRIPTIONS: &[Subscription] = &[
     Subscription {
         id: "claude-code",
@@ -102,13 +104,24 @@ pub const SUBSCRIPTIONS: &[Subscription] = &[
         note: "Your ChatGPT plan, through OpenAI's Sign in with ChatGPT for open-source apps. Requests count against your plan's usage. You sign in on ChatGPT's own page; the sign-in is kept in this computer's secret store and only ever sent to OpenAI.",
         kind: "browser",
     },
+    Subscription {
+        id: "copilot",
+        name: "GitHub Copilot",
+        address: COPILOT_ADDRESS,
+        note: "Your GitHub Copilot plan, through GitHub's Copilot CLI on this computer. Requests count against your plan's premium requests. You sign in with GitHub using a code; the sign-in is kept in this computer's secret store and only ever sent to GitHub.",
+        kind: "browser",
+    },
 ];
 
 /// Models to offer for the ChatGPT plan when OpenAI's own list for the account cannot be had, newest first.
 pub const CHATGPT_MODELS: &[(&str, &str)] = &[("gpt-5.5", "GPT-5.5"), ("gpt-5.4", "GPT-5.4"), ("gpt-5.4-mini", "GPT-5.4 mini"), ("gpt-6-sol", "GPT-6 Sol"), ("gpt-6-luna", "GPT-6 Luna")];
 
 pub fn subscription_models(s: &Subscription) -> &'static [(&'static str, &'static str)] {
-    if s.address == CHATGPT_ADDRESS { CHATGPT_MODELS } else { mobius_claude::frames::MODELS }
+    match s.address {
+        CHATGPT_ADDRESS => CHATGPT_MODELS,
+        COPILOT_ADDRESS => mobius_claude::copilot::MODELS,
+        _ => mobius_claude::frames::MODELS,
+    }
 }
 
 pub fn find_subscription(id: &str) -> Option<&'static Subscription> {
