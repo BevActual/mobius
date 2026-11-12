@@ -38,10 +38,10 @@ export function modelChoices(catalog: ModelCatalog | null): string[] {
 }
 
 /**
- * The schedules an agent made when it was created. A schedule does not yet say which agent it is for, so these are
- * the ones with the agent's name as their title, as the New agent form names them.
+ * The schedules that run as an agent. Schedules made before they could name their agent are matched by title, as the
+ * New agent form named them after the agent.
  */
-export function agentSchedules(name: string, schedules: readonly ScheduleInfo[]): ScheduleInfo[] {
-  const wanted = name.trim().toLowerCase();
-  return wanted ? schedules.filter((s) => s.title.trim().toLowerCase() === wanted) : [];
+export function agentSchedules(bot: { id: string; name: string }, schedules: readonly ScheduleInfo[]): ScheduleInfo[] {
+  const wanted = bot.name.trim().toLowerCase();
+  return schedules.filter((s) => (s.bot ? s.bot === bot.id : wanted !== '' && s.title.trim().toLowerCase() === wanted));
 }

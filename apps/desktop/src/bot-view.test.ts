@@ -20,9 +20,10 @@ describe('bots', () => {
     expect(modelChoices(null)).toEqual([]);
   });
 
-  it('find the schedules made with them, by name', () => {
-    const at = (title: string) => ({ id: title, title, prompt: '', time: '08:00', days: [1], enabled: true, lastRunMs: null });
-    expect(agentSchedules('Weekly summary', [at('weekly summary '), at('Other')]).map((s) => s.id)).toEqual(['weekly summary ']);
-    expect(agentSchedules('  ', [at('')])).toEqual([]);
+  it('find the schedules that run as them, and older ones by name', () => {
+    const at = (title: string, bot?: string) => ({ id: `${title}:${bot ?? ''}`, title, prompt: '', time: '08:00', days: [1], enabled: true, lastRunMs: null, ...(bot ? { bot } : {}) });
+    const list = [at('Renamed since', 'wkly01'), at('weekly summary '), at('Weekly summary', 'other1'), at('Other')];
+    expect(agentSchedules({ id: 'wkly01', name: 'Weekly summary' }, list).map((s) => s.id)).toEqual(['Renamed since:wkly01', 'weekly summary :']);
+    expect(agentSchedules({ id: 'abc123', name: '  ' }, [at('')])).toEqual([]);
   });
 });

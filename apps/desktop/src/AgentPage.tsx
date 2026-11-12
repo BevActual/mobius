@@ -41,7 +41,7 @@ function useSchedules(): ScheduleInfo[] {
 }
 
 /** Making or changing an agent: its name, instructions, model, how it starts, and what it may touch. */
-export function BotForm({ initial, submitLabel, onSubmit, onCancel, onOpenSafety }: { initial: BotDraft; submitLabel: string; onSubmit: (draft: BotDraft) => Promise<string | null>; onCancel: () => void; onOpenSafety?: () => void }) {
+export function BotForm({ initial, submitLabel, onSubmit, onSaved, onCancel, onOpenSafety }: { initial: BotDraft; submitLabel: string; onSubmit: (draft: BotDraft) => Promise<BotResult<{ bot: Bot }>>; onSaved: (bot: Bot) => void; onCancel: () => void; onOpenSafety?: () => void }) {
   const [draft, setDraft] = useState(initial);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -55,13 +55,15 @@ export function BotForm({ initial, submitLabel, onSubmit, onCancel, onOpenSafety
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
-    let error = await onSubmit(draft);
-    if (!error && canSchedule && starts === 'schedule') {
-      const made = await window.mobius.schedules!.add({ title: draft.name.trim(), prompt: draft.instructions.trim() || draft.name.trim(), time, days: days === 'daily' ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5], enabled: true }).catch(() => null);
-      if (!made || !made.ok) error = made && !made.ok ? made.error : 'The agent was made, but its schedule was not.';
+    const saved = await onSubmit(draft);
+    if (!saved.ok) { setProblem(saved.error); setSaving(false); return; }
+    if (canSchedule && starts === 'schedule') {
+      // The schedule runs as this agent: its instructions and model.
+      const made = await window.mobius.schedules!.add({ title: draft.name.trim(), prompt: draft.instructions.trim() || draft.name.trim(), time, days: days === 'daily' ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5], enabled: true, bot: saved.bot.id }).catch(() => null);
+      if (!made || !made.ok) { setProblem(made && !made.ok ? made.error : 'The agent was made, but its schedule was not.'); setSaving(false); return; }
     }
-    setProblem(error);
     setSaving(false);
+    onSaved(saved.bot);
   };
   return (
     <form className="botform" aria-label={submitLabel === 'Create' ? 'New agent' : 'Edit agent'} onSubmit={submit} onKeyDown={(event) => event.key === 'Escape' && onCancel()}>
@@ -131,7 +133,7 @@ export function AgentPage({ view, bots, conversations, onShow, onCreate, onUpdat
         <div className="agent-card">
           <BotForm key={`new:${view.draft.name}`} initial={view.draft} submitLabel="Create" {...(onOpenSafety ? { onOpenSafety } : {})}
             onCancel={() => onShow({ kind: 'show', id: MAIN_BOT_ID })}
-            onSubmit={async (draft) => { const r = await onCreate(draft); if (!r.ok) return r.error; onNewSession(r.bot.id); return null; }} />
+            onSubmit={onCreate} onSaved={(made) => onNewSession(made.id)} />
         </div>
       </section>
     );
@@ -141,7 +143,7 @@ export function AgentPage({ view, bots, conversations, onShow, onCreate, onUpdat
   const main = bot.id === MAIN_BOT_ID;
   const known = bots.map((b) => b.id);
   const sessions = conversations.filter((c) => botOfConversation(c.id, known) === bot.id).sort((a, b) => b.updated_ms - a.updated_ms);
-  const runs = main ? [] : agentSchedules(bot.name, schedules);
+  const runs = main ? [] : agentSchedules(bot, schedules);
   const now = Date.now();
   return (
     <section className="agent-page" aria-label={bot.name}>
@@ -160,7 +162,7 @@ export function AgentPage({ view, bots, conversations, onShow, onCreate, onUpdat
         <div className="agent-card">
           <BotForm key={`edit:${bot.id}`} initial={{ name: bot.name, instructions: bot.instructions, model: bot.model }} submitLabel="Save" {...(onOpenSafety ? { onOpenSafety } : {})}
             onCancel={() => onShow({ kind: 'show', id: bot.id })}
-            onSubmit={async (draft) => { const r = await onUpdate(bot.id, draft); if (!r.ok) return r.error; onShow({ kind: 'show', id: bot.id }); return null; }} />
+            onSubmit={(draft) => onUpdate(bot.id, draft)} onSaved={() => onShow({ kind: 'show', id: bot.id })} />
         </div>
       ) : (
         <>
