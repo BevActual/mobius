@@ -5,6 +5,7 @@ import { describeAction } from './actions';
 import { appName, type AppId } from './apps';
 import { agoLabel, deskGreeting, deskTitle, recent, upcoming, whenLabel } from './desk-view';
 import { APP_ICONS } from './Rail';
+import './desk.css';
 
 export interface DeskRow {
   app: AppId;
