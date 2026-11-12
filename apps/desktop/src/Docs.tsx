@@ -333,7 +333,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing }: {
  *  the words it took out and Keep and Discard for that change alone. Read from `look` when told to look again. */
 interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void }
 const changeKey = new PluginKey<DecorationSet>('doc-changes');
-function changeNote(group: number, removed: string[], view: ChangeView): HTMLElement {
+function changeNote(group: number, removed: string[], view: ChangeView, look: () => ChangeView | null): HTMLElement {
   const note = document.createElement('div');
   note.className = 'doc-change';
   note.contentEditable = 'false';
@@ -365,11 +365,13 @@ function changeNote(group: number, removed: string[], view: ChangeView): HTMLEle
     b.addEventListener('click', run);
     return b;
   };
-  bar.append(button('Discard', 'Discard this change', 'discard', () => view.discard(group)), button('Keep', 'Keep this change', 'keep', () => view.keep(group)));
+  // Asked through `look` when pressed: the note can outlive the render it was drawn in, and its change's number holds.
+  bar.append(button('Discard', 'Discard this change', 'discard', () => look()?.discard(group)), button('Keep', 'Keep this change', 'keep', () => look()?.keep(group)));
   note.append(bar);
   return note;
 }
-function changeDecorations(doc: PmNode, view: ChangeView | null): DecorationSet {
+function changeDecorations(doc: PmNode, look: () => ChangeView | null): DecorationSet {
+  const view = look();
   if (!view) return DecorationSet.empty;
   const blocks: { from: number; to: number; text: string }[] = [];
   doc.descendants((node, pos) => {
@@ -386,7 +388,7 @@ function changeDecorations(doc: PmNode, view: ChangeView | null): DecorationSet 
     while (removed.length && !removed[removed.length - 1]!.trim()) removed.pop();
     while (removed.length && !removed[0]!.trim()) removed.shift();
     const pos = at.block < 0 ? 0 : at.before ? blocks[at.block]!.from : blocks[at.block]!.to;
-    marks.push(Decoration.widget(pos, () => changeNote(g, removed, view), { side: at.before ? -1 : 1, key: `change-${g}-${pos}-${removed.join('\u0000').length}`, stopEvent: () => true, ignoreSelection: true }));
+    marks.push(Decoration.widget(pos, () => changeNote(g, removed, view, look), { side: at.before ? -1 : 1, key: `change-${g}-${pos}-${removed.join('\u0000').length}`, stopEvent: () => true, ignoreSelection: true }));
   }
   return DecorationSet.create(doc, marks);
 }
@@ -396,8 +398,8 @@ const docChanges = (look: () => ChangeView | null) => Extension.create({
     return [new Plugin<DecorationSet>({
       key: changeKey,
       state: {
-        init: (_, state) => changeDecorations(state.doc, look()),
-        apply: (tr, old) => (tr.docChanged || tr.getMeta(changeKey) ? changeDecorations(tr.doc, look()) : old),
+        init: (_, state) => changeDecorations(state.doc, look),
+        apply: (tr, old) => (tr.docChanged || tr.getMeta(changeKey) ? changeDecorations(tr.doc, look) : old),
       },
       props: { decorations: (state) => changeKey.getState(state) },
     })];
@@ -737,16 +739,18 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     const next = undoGroup(diff, group);
     docs.edit(next);
     const rest = compare(before, next);
-    // Every change put back: nothing is left to decide, so the turn is settled and its bar goes.
-    if (rest.some((line) => line.kind !== 'same')) setDiff(rest); else void keepAll();
+    // Every change put back: nothing is left to decide, so the turn is settled and its bar goes. Counted from the
+    // changes shown, not from comparing texts again, which a save's small tidying could make differ.
+    if (lastChange(diff) || !rest.some((line) => line.kind !== 'same')) void keepAll(); else setDiff(rest);
   };
+  const lastChange = (lines: DiffLine[]) => new Set(changeGroups(lines).filter((g) => g !== null)).size <= 1;
   // Keeping one change takes it into "before", so it stops showing; the last one kept keeps the whole turn.
   const keepOne = (group: number) => {
     if (!diff) return;
     const was = acceptGroup(diff, changeGroups(diff), group);
     setBefore(was);
     const rest = compare(was, docs.text);
-    if (rest.some((line) => line.kind !== 'same')) setDiff(rest); else void keepAll();
+    if (lastChange(diff) || !rest.some((line) => line.kind !== 'same')) void keepAll(); else setDiff(rest);
   };
   // The page is told to mark the changes again whenever what it should show changes.
   changesNow.current = null;
