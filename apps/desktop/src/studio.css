@@ -45,7 +45,7 @@
 .studio-page .studio-add select option { color: var(--ink); background: var(--bg); }
 
 /* ---------- Arrangement ---------- */
-.studio-page .studio-arrange { flex: 0 1 auto; max-height: 50%; min-height: 96px; overflow: auto; padding: 0; position: relative; }
+.studio-page .studio-arrange { flex: none; min-height: 96px; overflow: auto; padding: 0; position: relative; }
 .studio-ruler-row { position: sticky; top: 0; z-index: 4; display: grid; grid-template-columns: var(--head) max-content; height: 24px; background: color-mix(in srgb, var(--ink) 3%, var(--bg)); border-bottom: 0.5px solid var(--line); }
 .studio-ruler-head { position: sticky; left: 0; z-index: 1; display: flex; align-items: center; padding: 0 12px; background: inherit; border-right: 0.5px solid var(--line); font-size: 11px; color: var(--muted); }
 .studio-ruler { position: relative; height: 24px; cursor: pointer; outline: none; }
@@ -87,7 +87,13 @@
 .studio-page .studio-review { margin: 6px var(--sp-3); }
 
 /* ---------- Piano roll ---------- */
-.studio-editor { flex: 1 1 auto; min-height: 180px; display: flex; flex-direction: column; border-top: 0.5px solid var(--line); }
+.studio-editor { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+/* The divider between the tracks and the notes: a hairline with a wider grab area, as in Logic's split. */
+.studio-divider { flex: none; position: relative; height: 1px; background: var(--line); cursor: row-resize; z-index: 5; touch-action: none; outline: none; }
+.studio-divider::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }
+.studio-divider::after { content: ""; position: absolute; left: 50%; top: -2px; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 18%, transparent); opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.studio-divider:hover::after, .studio-divider:focus-visible::after { opacity: 1; }
+.studio-divider:focus-visible { background: var(--accent); }
 .studio-roll-bar { flex: none; display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 var(--sp-3); border-bottom: 0.5px solid var(--line); background: color-mix(in srgb, var(--tc) 6%, var(--bg)); font-size: var(--fs-sm); }
 .studio-roll-title { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; white-space: nowrap; }
 .studio-field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; }
@@ -99,7 +105,7 @@
 .studio-picked { font-weight: 600; white-space: nowrap; }
 .studio-hint { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.studio-page .studio-roll { flex: 1 1 auto; min-height: 0; overflow: auto; border-top: 0; outline: none; background: var(--bg); }
+.studio-page .studio-roll { flex: 0 1 auto; min-height: 0; overflow: auto; border-top: 0; outline: none; background: var(--bg); }
 .studio-page .studio-roll-inner { position: relative; touch-action: none; user-select: none; }
 .studio-page .studio-row { position: absolute; left: 0; right: 0; display: flex; }
 .studio-page .studio-row[data-shade] .studio-row-cells { background-color: color-mix(in srgb, var(--ink) 3.5%, transparent); }
@@ -112,11 +118,11 @@
     linear-gradient(90deg, color-mix(in srgb, var(--ink) 22%, transparent) 1px, transparent 1px);
 }
 /* The keyboard: white keys with black ones short and dark, C named on each octave. */
-.studio-key { position: sticky; left: 0; z-index: 2; flex: none; width: 64px; height: 100%; padding-right: 6px; box-sizing: border-box; text-align: right; font: 600 9px/14px var(--font); color: transparent; background: #fbfbfd; border-bottom: 0.5px solid #d2d2d7; border-right: 0.5px solid var(--line); cursor: pointer; }
+.studio-key { position: sticky; left: 0; z-index: 2; flex: none; width: var(--keys, 64px); height: 100%; padding-right: 6px; box-sizing: border-box; text-align: right; font: 600 9px/var(--row, 14px) var(--font); color: transparent; background: #fbfbfd; border-bottom: 0.5px solid #d2d2d7; border-right: 0.5px solid var(--line); cursor: pointer; }
 .studio-key[data-c] { color: #6e6e73; }
 .studio-key[data-black] { background: linear-gradient(90deg, #1d1d1f 0 62%, #fbfbfd 62%); border-bottom-color: #1d1d1f; }
 .studio-key:active { background: color-mix(in srgb, var(--tc) 30%, #fbfbfd); }
-.studio-key[data-drum] { padding: 0 8px; text-align: left; font: 500 10.5px/14px var(--font); color: var(--ink); background: color-mix(in srgb, var(--ink) 3%, var(--bg)); border-bottom-color: var(--line); }
+.studio-key[data-drum] { padding: 0 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: 500 12px/var(--row, 26px) var(--font); color: var(--ink); background: color-mix(in srgb, var(--ink) 3%, var(--bg)); border-bottom-color: var(--line); }
 .studio-page .studio-note { position: absolute; top: 1px; bottom: 1px; border-radius: 3px; background: color-mix(in srgb, var(--tc) calc(45% + var(--vel, 0.8) * 55%), var(--bg)); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--tc) 70%, #000); cursor: grab; }
 /* The end of a note, to drag to stretch it. */
 .studio-page .studio-note-end { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: ew-resize; }
@@ -133,6 +139,17 @@
 :root[data-theme="dark"] .studio-key[data-c] { color: #aeaeb2; }
 :root[data-theme="dark"] .studio-key[data-black] { background: linear-gradient(90deg, #0b0b0c 0 62%, #3a3a3c 62%); }
 :root[data-theme="dark"] .studio-key[data-drum] { background: color-mix(in srgb, var(--ink) 4%, var(--bg)); color: var(--ink); }
+
+/* The velocity lane: one bar per note, taller for louder, under the roll and scrolled with it. */
+.studio-page .studio-vel { flex: none; position: relative; overflow: hidden; border-top: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--bg)); }
+.studio-vel-label { position: absolute; left: 0; top: 0; bottom: 0; z-index: 2; width: var(--keys, 64px); box-sizing: border-box; padding: 6px 8px 0 0; text-align: right; font: 600 10px/1 var(--font); color: var(--muted); background: color-mix(in srgb, var(--ink) 3%, var(--bg)); border-right: 0.5px solid var(--line); }
+.studio-vel-inner { position: absolute; top: 0; bottom: 0; left: var(--keys, 64px); background-image: linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 1px); }
+.studio-page .studio-vel-bar { position: absolute; bottom: 0; width: 3px; margin-left: 1px; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--tc) 55%, var(--bg)); cursor: ns-resize; touch-action: none; outline: none; }
+/* A round head on each bar, like Logic's velocity stems; a wider invisible grab area around the thin line. */
+.studio-page .studio-vel-bar::before { content: ""; position: absolute; left: -5px; right: -5px; top: -6px; bottom: 0; }
+.studio-page .studio-vel-bar::after { content: ""; position: absolute; top: -3px; left: -2.5px; width: 8px; height: 8px; border-radius: 50%; background: var(--tc); }
+.studio-page .studio-vel-bar[data-picked] { background: var(--tc); }
+.studio-page .studio-vel-bar[data-picked]::after { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--tc); }
 
 /* ---------- Empty ---------- */
 .studio-empty { display: grid; justify-items: center; gap: 6px; max-width: 340px; text-align: center; color: var(--muted); font-size: var(--fs-sm); }

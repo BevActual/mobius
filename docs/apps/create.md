@@ -53,7 +53,11 @@ A small studio for writing songs as notes.
 
 - **Tracks** laid out by bar, each with an instrument (Piano, Bass, Pad, Lead or Drums), volume, mute and solo.
 - **The piano roll** for the chosen track: draw, move and stretch notes, select with a box, snap to the grid. Drums
-  get a lane per drum.
+  get a tall row per drum, named in full.
+- **Velocity lane** under the roll: one bar per note. Drag a bar up to make the note louder, down to make it softer;
+  picked notes move together.
+- **The divider** between the tracks and the roll: the track list fits its tracks, and dragging the divider (or
+  Up and Down on it) gives more room to either side. Home fits it to the tracks again.
 - **Transport** to play, with the song's tempo and key.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
 
