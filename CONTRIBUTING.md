@@ -75,5 +75,4 @@ claude mcp add --scope project mobius-drive -- node apps/desktop/scripts/drive-m
 
 ## Security
 
-Please don't report security problems in public issues. Use
-[GitHub's private vulnerability reporting](https://github.com/BevActual/mobius/security/advisories/new) instead.
+See [SECURITY.md](SECURITY.md). Please don't report security problems in public issues.

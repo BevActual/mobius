@@ -133,7 +133,7 @@ missing features and changes between versions. It is not yet ready to be the onl
 - **Coming next:** making the current apps hold up in daily use before adding new ones, then a guided first run and
   signed installers.
 
-Found a bug or have an idea? [Open an issue](https://github.com/BevActual/mobius/issues).
+Found a bug or have an idea? [Open an issue](https://github.com/BevActual/mobius/issues/new/choose).
 
 <br>
 
@@ -162,8 +162,9 @@ runs as its own process. The interface is React and TypeScript in a Tauri shell,
 
 ## Contributing
 
-Mobius is young and moving quickly, so issues and ideas help most right now. If you'd like to send code, read
-[CONTRIBUTING.md](CONTRIBUTING.md) first.
+Mobius is young and moving quickly, so [bug reports and ideas](https://github.com/BevActual/mobius/issues/new/choose)
+help most right now. If you'd like to send code, read [CONTRIBUTING.md](CONTRIBUTING.md) first. Please follow the
+[code of conduct](CODE_OF_CONDUCT.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
