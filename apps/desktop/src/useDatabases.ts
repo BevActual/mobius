@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNotesFailure, type DbCell, type DbInfo, type DbResult } from '@mobius/shared';
-import { browseQuery, countQuery, databaseNameFor, dropTableSql, FIRST_BROWSE, isReading, quoteIdent, queryHistory, rememberQuery, renameTableSql, tableNameFor, tableQuery, toCsv, type Browse } from './db-view';
+import { addRowSql, browseQuery, countQuery, PAGE_ROWS, deleteRowSql, restoreRowSql, structureQuery, updateCellSql, databaseNameFor, dropTableSql, FIRST_BROWSE, isReading, quoteIdent, queryHistory, rememberQuery, renameTableSql, tableNameFor, tableQuery, toCsv, type Browse } from './db-view';
 
 const LAST_KEY = 'mobius.database.last';
 const remembered = (): string | null => { try { return window.localStorage.getItem(LAST_KEY); } catch { return null; } };
@@ -20,6 +20,10 @@ export function useDatabases(active = true) {
   /** The Data view's page of rows, and how many rows its filter keeps. */
   const [rows, setRows] = useState<DbResult | null>(null);
   const [total, setTotal] = useState<number | null>(null);
+  /** Whether the Data view's rows can be changed: a table with rowids (not a view, nor WITHOUT ROWID). */
+  const [editable, setEditable] = useState(false);
+  /** The last change made in the Data view, and the statement that takes it back. */
+  const [undo, setUndo] = useState<{ label: string; sql: string; db: string; table: string } | null>(null);
   const [sql, setSql] = useState('');
   const [result, setResult] = useState<DbResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -40,9 +44,12 @@ export function useDatabases(active = true) {
   const look = useCallback(async (name = live.current.open, t = live.current.table, b = live.current.browse, known = live.current.list) => {
     if (!api || !name || !t) { setRows(null); setTotal(null); return; }
     const columns = known.find((d) => d.name === name)?.tables.find((x) => x.name === t)?.columns.map((c) => c.name) ?? [];
-    const [page, count] = await Promise.all([api.query(name, browseQuery(t, columns, b)), api.query(name, countQuery(t, columns, b.filter))]);
+    const [withId, count] = await Promise.all([api.query(name, browseQuery(t, columns, b, true)), api.query(name, countQuery(t, columns, b.filter))]);
+    // A table without rowids (or a view) is shown as it is, and cannot be changed here.
+    const page = withId.ok ? withId : await api.query(name, browseQuery(t, columns, b));
     // Only what is still open is shown: a slower answer for a table left behind is dropped.
     if (live.current.open !== name || live.current.table !== t) return;
+    setEditable(withId.ok);
     setRows(page);
     setTotal(count.ok && typeof count.rows[0]?.[0] === 'number' ? count.rows[0][0] : null);
   }, [api]);
@@ -155,6 +162,56 @@ export function useDatabases(active = true) {
     else await refresh();
   }, [change, choose, refresh]);
 
+  /** A change made in the Data view: run, then the page read again; the statement that undoes it is kept. */
+  const edit = useCallback(async (statement: string, back: { label: string; sql: string } | null) => {
+    const name = live.current.open, t = live.current.table;
+    if (!name || !t || !(await change(name, statement))) return false;
+    setUndo(back && { ...back, db: name, table: t });
+    const known = await refresh();
+    await look(name, t, undefined, known);
+    return true;
+  }, [change, refresh, look]);
+
+  const setCell = useCallback((rowid: number, column: string, before: DbCell, after: DbCell) => {
+    const t = live.current.table;
+    if (!t || before === after) return Promise.resolve(true);
+    return edit(updateCellSql(t, column, rowid, after), { label: `Changed ${column}`, sql: updateCellSql(t, column, rowid, before) });
+  }, [edit]);
+
+  const deleteRow = useCallback((rowid: number, columns: string[], values: DbCell[]) => {
+    const t = live.current.table;
+    if (!t) return Promise.resolve(false);
+    return edit(deleteRowSql(t, rowid), { label: 'Deleted a row', sql: restoreRowSql(t, rowid, columns, values) });
+  }, [edit]);
+
+  /** A new empty row, shown on the last page unless the rows are sorted. */
+  const addRow = useCallback(async () => {
+    const name = live.current.open, t = live.current.table;
+    if (!api || !name || !t) return null;
+    // Columns that need a value and have no default would refuse an empty row, so they start blank.
+    const cols = await api.query(name, structureQuery(t));
+    const needed = cols.ok ? cols.rows.filter(([, , notnull, dflt, pk]) => notnull && dflt === null && !pk).map(([n, type]) => ({ name: String(n), type: String(type ?? '') })) : [];
+    if (!(await change(name, addRowSql(t, needed)))) return null;
+    const id = await api.query(name, 'SELECT last_insert_rowid()');
+    const rowid = id.ok && typeof id.rows[0]?.[0] === 'number' ? id.rows[0][0] : null;
+    setUndo(rowid === null ? null : { label: 'Added a row', sql: deleteRowSql(t, rowid), db: name, table: t });
+    const known = await refresh();
+    const rows = known.find((d) => d.name === name)?.tables.find((x) => x.name === t)?.rows ?? 0;
+    const next = { ...live.current.browse, filter: '', page: live.current.browse.sort ? 0 : Math.max(0, Math.ceil(rows / PAGE_ROWS) - 1) };
+    setBrowseState(next);
+    live.current.browse = next;
+    await look(name, t, next, known);
+    return rowid;
+  }, [api, change, refresh, look]);
+
+  const undoLast = useCallback(async () => {
+    if (!undo) return;
+    setUndo(null);
+    if (!(await change(undo.db, undo.sql))) return;
+    const known = await refresh();
+    if (live.current.open === undo.db && live.current.table === undo.table) await look(undo.db, undo.table, undefined, known);
+  }, [undo, change, refresh, look]);
+
   /** Every row of a table as CSV, read a thousand at a time (the most one query gives). */
   const tableCsv = useCallback(async (name: string, t: string): Promise<string | null> => {
     if (!api) return null;
@@ -190,6 +247,7 @@ export function useDatabases(active = true) {
 
   return {
     available: api !== undefined, list, open, table, view, show, browse, setBrowse, rows, total, sql, setSql, result, running, message, setMessage, history,
+    editable, undo, setUndo, setCell, deleteRow, addRow, undoLast,
     run, choose, create, remove, renameTable, dropTable, tableCsv, importFile, refresh,
   };
 }

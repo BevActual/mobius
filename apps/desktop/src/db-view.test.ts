@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { browseQuery, columnDecimals, showCellIn, countQuery, FIRST_BROWSE, nextSort, pageLine, renameTableSql, sqlString, sheetToCsv, databaseNameFor, isReading, quoteIdent, showCell, tableNameFor, tableQuery, toCsv } from './db-view';
+import { addRowSql, deleteRowSql, editText, restoreRowSql, sqlLiteral, typedValue, updateCellSql, browseQuery, columnDecimals, showCellIn, countQuery, FIRST_BROWSE, nextSort, pageLine, renameTableSql, sqlString, sheetToCsv, databaseNameFor, isReading, quoteIdent, showCell, tableNameFor, tableQuery, toCsv } from './db-view';
 
 describe('database view', () => {
   it('quotes names and opens a table with its first rows', () => {
@@ -55,5 +55,19 @@ describe('database view', () => {
     expect(showCellIn(8420, 2)).toBe((8420).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     expect(showCellIn(12, 0)).toBe('12');
     expect(showCellIn(null, 2)).toBe('NULL');
+  });
+
+  it('changes rows by rowid, and keeps what was typed as the column\'s kind of value', () => {
+    expect(browseQuery('t', [], FIRST_BROWSE, true)).toBe('SELECT rowid AS "__mobius_rowid", * FROM "t" LIMIT 100 OFFSET 0');
+    expect(typedValue(' 1,250.5 ', 'REAL')).toBe(1250.5);
+    expect(typedValue('', 'INTEGER')).toBeNull();
+    expect(typedValue('n/a', 'INTEGER')).toBe('n/a');
+    expect(typedValue('007', 'TEXT')).toBe('007');
+    expect(editText(null)).toBe('');
+    expect(sqlLiteral("O'Neil")).toBe("'O''Neil'");
+    expect(updateCellSql('t', 'Price', 3, 9.5)).toBe('UPDATE "t" SET "Price" = 9.5 WHERE rowid = 3');
+    expect(deleteRowSql('t', 3)).toBe('DELETE FROM "t" WHERE rowid = 3');
+    expect(addRowSql('t')).toBe('INSERT INTO "t" DEFAULT VALUES');
+    expect(restoreRowSql('t', 3, ['a', 'b'], [null, 'x'])).toBe('INSERT INTO "t" (rowid, "a", "b") VALUES (3, NULL, \'x\')');
   });
 });

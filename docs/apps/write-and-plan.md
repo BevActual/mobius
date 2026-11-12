@@ -96,6 +96,10 @@ Sheets, and each table opens with three views:
 
 - **Data** shows the rows, 100 to a page. Click a column's heading to sort by it (again for high to low, a third time
   for no order), and type in **Filter rows** to keep the rows where any column holds those words.
+  In a table you can change, double-click a cell to type a new value (Enter keeps it, Escape puts it back), and
+  **Add row** adds an empty row and opens its first cell. Right-click a cell to edit it, copy its value, set it to
+  NULL or delete its row. The last change shows **Undo** at the bottom. A view, or a table made WITHOUT ROWID, is
+  shown read-only: change it in SQL.
 - **Structure** lists the columns with their types, which ones need a value, defaults and the key, and the statement
   that made the table.
 - **SQL** runs any statement and shows what it gave. **History** brings back an earlier one, and **Copy as CSV** copies

@@ -60,6 +60,24 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await expect(page.getByRole('status')).toHaveText('1 row matches');
   await filter.fill('');
   await expect(grid.getByRole('row')).toHaveCount(4);
+
+  // A double-click changes a cell and Undo puts it back; Add row opens a new row's first cell; a row's menu deletes it.
+  const casaRooms = () => grid.getByRole('row', { name: /Casa Amora/ }).getByRole('cell').nth(1);
+  await casaRooms().dblclick();
+  const cell = grid.getByRole('textbox', { name: 'Cell value' });
+  await cell.fill('12');
+  await cell.press('Enter');
+  await expect(casaRooms()).toHaveText('12');
+  await page.getByRole('status').filter({ hasText: 'Changed Rooms' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(casaRooms()).toHaveText('9');
+  await page.getByRole('button', { name: 'Add row' }).click();
+  await expect(grid.getByRole('row')).toHaveCount(5);
+  await cell.fill('Pestana');
+  await cell.press('Enter');
+  await grid.getByRole('row', { name: /Pestana/ }).getByRole('cell').first().click({ button: 'right' });
+  await shell.getByRole('menuitem', { name: 'Delete row' }).click();
+  await expect(grid.getByRole('row')).toHaveCount(4);
+  await expect(grid.getByRole('row', { name: /Pestana/ })).toHaveCount(0);
   await page.getByRole('radio', { name: 'Structure' }).click();
   await expect(page.getByRole('table', { name: 'Columns' }).getByRole('row', { name: /Rooms/ })).toContainText('INTEGER');
 

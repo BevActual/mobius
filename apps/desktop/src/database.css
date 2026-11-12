@@ -78,6 +78,20 @@
 /* SQL: a line before anything has run. */
 .db-hint { margin-top: var(--sp-3); }
 
+/* Changing rows: a double-click types into a cell; Add row in the bar; the last change can be undone, as in Tasks. */
+.db-grid[data-editable] tbody td { cursor: default; }
+/* Room under the last row, so the Undo pill never covers it. */
+.db-grid-wrap:has(> .db-grid[data-editable]) { padding-bottom: 64px; }
+.db-grid td[data-editing] { padding: 0; overflow: visible; }
+.db-cell-input { width: 100%; min-width: 80px; height: 28px; padding: 0 9px; border: 0; outline: 2px solid var(--accent); outline-offset: -2px; background: var(--bg); color: var(--ink); font: inherit; }
+.db-add { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--radius-pill); font-size: var(--fs-sm); }
+.db-add svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.db-undo { position: absolute; z-index: 30; left: 50%; bottom: var(--sp-6); transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border: 0.5px solid var(--line); border-radius: var(--radius-pill); background: var(--bg); box-shadow: var(--shadow-2); font-size: var(--fs-md); white-space: nowrap; animation: db-up var(--dur-med) var(--ease); }
+.db-undo .btn { height: 26px; border-radius: var(--radius-pill); color: var(--accent); font-weight: var(--fw-semibold); }
+.db-undo-x { width: 24px; height: 24px; padding: 0; border-radius: 50%; color: var(--muted); }
+.db-undo-x:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+@keyframes db-up { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
 @media (prefers-reduced-motion: reduce) {
-  .db-confirm { animation: none; }
+  .db-confirm, .db-undo { animation: none; }
 }

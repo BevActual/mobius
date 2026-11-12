@@ -3,9 +3,10 @@ import type { DbCell, DbResult } from '@mobius/shared';
 /**
  * The preview's Database: two databases kept in memory for as long as the preview is open, so the app can be used and
  * looked at without the Rust core. It understands the statements the app writes itself (a page of rows, sorted and
- * filtered; a count; a table's columns; a rename; a drop), and a plain SELECT * of a table. Anything else is refused.
+ * filtered; a count; a table's columns; a rename; a drop; changing a cell, adding, deleting and putting back a row), and a
+ * plain SELECT * of a table. Anything else is refused.
  */
-interface Table { columns: { name: string; type: string; notnull?: boolean; pk?: boolean }[]; rows: DbCell[][] }
+interface Table { columns: { name: string; type: string; notnull?: boolean; pk?: boolean }[]; rows: DbCell[][]; ids?: number[] }
 
 const SUPPLIERS = ['Veltro', 'Ardent Cells', 'Harlow Steel', 'Pike Fasteners', 'Lumen Glass'];
 const PARTS: [string, string, number][] = [
@@ -46,10 +47,66 @@ const unquote = (s: string) => s.replace(/^"|"$/g, '').replace(/""/g, '"');
 const text = (v: DbCell) => (v === null ? '' : String(v)).toLowerCase();
 let listeners: ((change: { name: string | null; by: 'person' }) => void)[] = [];
 
+/** Each row's rowid, given once and kept as rows come and go. */
+const ids = (t: Table): number[] => (t.ids ??= t.rows.map((_, i) => i + 1));
+let lastId = 0;
+/** One SQL value: NULL, a number, or text in single quotes. */
+function literal(src: string): DbCell {
+  const t = src.trim();
+  if (/^null$/i.test(t)) return null;
+  if (t.startsWith("'")) return t.slice(1, -1).replace(/''/g, "'");
+  return Number(t);
+}
+/** A list of values, split at the commas outside quotes. */
+function literals(src: string): DbCell[] {
+  const out: string[] = [];
+  let cur = '', quoted = false;
+  for (const ch of src) {
+    if (ch === "'") quoted = !quoted;
+    if (ch === ',' && !quoted) { out.push(cur); cur = ''; } else cur += ch;
+  }
+  out.push(cur);
+  return out.map(literal);
+}
+
 function query(name: string, raw: string): DbResult {
   const db = DBS[name];
   if (!db) return fail('no such database');
   const sql = raw.trim().replace(/;$/, '');
+  if (/^SELECT last_insert_rowid\(\)$/i.test(sql)) return ok(['last_insert_rowid()'], [[lastId]]);
+  let e = /^UPDATE ("(?:[^"]|"")+") SET ("(?:[^"]|"")+") = (.+) WHERE rowid = (\d+)$/i.exec(sql);
+  if (e) {
+    const t = db[unquote(e[1]!)]; if (!t) return fail('no such table');
+    const col = t.columns.findIndex((c) => c.name === unquote(e![2]!)); const at = ids(t).indexOf(Number(e[4]));
+    if (col < 0) return fail('no such column'); if (at >= 0) t.rows[at]![col] = literal(e[3]!);
+    return ok([], [], at >= 0 ? 1 : 0);
+  }
+  e = /^DELETE FROM ("(?:[^"]|"")+") WHERE rowid = (\d+)$/i.exec(sql);
+  if (e) { const t = db[unquote(e[1]!)]; if (!t) return fail('no such table'); const at = ids(t).indexOf(Number(e[2])); if (at >= 0) { t.rows.splice(at, 1); ids(t).splice(at, 1); } return ok([], [], at >= 0 ? 1 : 0); }
+  e = /^INSERT INTO ("(?:[^"]|"")+") DEFAULT VALUES$/i.exec(sql);
+  if (e) {
+    const t = db[unquote(e[1]!)]; if (!t) return fail('no such table');
+    const bad = t.columns.find((c) => c.notnull && !c.pk); if (bad) return fail(`NOT NULL constraint failed: ${unquote(e[1]!)}.${bad.name}`);
+    lastId = Math.max(0, ...ids(t)) + 1;
+    t.rows.push(t.columns.map((c) => (c.pk && c.type === 'INTEGER' ? lastId : null))); ids(t).push(lastId);
+    return ok([], [], 1);
+  }
+  e = /^INSERT INTO ("(?:[^"]|"")+") \(((?!rowid)"[^)]+)\) VALUES \((.+)\)$/i.exec(sql);
+  if (e) {
+    const t = db[unquote(e[1]!)]; if (!t) return fail('no such table');
+    const names = e[2]!.split(/,\s*/).map(unquote); const values = literals(e[3]!);
+    lastId = Math.max(0, ...ids(t)) + 1;
+    t.rows.push(t.columns.map((c) => { const at = names.indexOf(c.name); return at >= 0 ? values[at]! : c.pk && c.type === 'INTEGER' ? lastId : null; })); ids(t).push(lastId);
+    return ok([], [], 1);
+  }
+  e = /^INSERT INTO ("(?:[^"]|"")+") \(rowid, (.+?)\) VALUES \((.+)\)$/i.exec(sql);
+  if (e) {
+    const t = db[unquote(e[1]!)]; if (!t) return fail('no such table');
+    const [id, ...values] = literals(e[3]!);
+    const at = ids(t).findIndex((x) => x > Number(id)); const place = at < 0 ? t.rows.length : at;
+    t.rows.splice(place, 0, values); ids(t).splice(place, 0, Number(id));
+    return ok([], [], 1);
+  }
   let m = /^ALTER TABLE ("(?:[^"]|"")+") RENAME TO ("(?:[^"]|"")+")$/i.exec(sql);
   if (m) { const [from, to] = [unquote(m[1]!), unquote(m[2]!)]; if (!db[from]) return fail(`no such table: ${from}`); db[to] = db[from]!; delete db[from]; return ok([], [], 0); }
   m = /^DROP TABLE ("(?:[^"]|"")+")$/i.exec(sql);
@@ -62,21 +119,22 @@ function query(name: string, raw: string): DbResult {
     const t = db[n];
     return t ? ok(['sql'], [[`CREATE TABLE "${n}" (\n${t.columns.map((c) => `  "${c.name}" ${c.type}${c.pk ? ' PRIMARY KEY' : ''}${c.notnull ? ' NOT NULL' : ''}`).join(',\n')}\n)`]]) : ok(['sql'], []);
   }
-  m = /^SELECT (\*|count\(\*\)) FROM ("(?:[^"]|"")+")(?: WHERE .*?, '((?:[^']|'')*)'\) > 0.*?)?(?: ORDER BY ("(?:[^"]|"")+") (ASC|DESC))?(?: LIMIT (\d+))?(?: OFFSET (\d+))?$/i.exec(sql);
+  m = /^SELECT (?:rowid AS "__mobius_rowid", )?(\*|count\(\*\)) FROM ("(?:[^"]|"")+")(?: WHERE .*?, '((?:[^']|'')*)'\) > 0.*?)?(?: ORDER BY ("(?:[^"]|"")+") (ASC|DESC))?(?: LIMIT (\d+))?(?: OFFSET (\d+))?$/i.exec(sql);
   if (!m) return fail('The preview runs only simple statements, such as SELECT * FROM "parts" LIMIT 100. The app runs any.');
   const t = db[unquote(m[2]!)];
   if (!t) return fail(`no such table: ${unquote(m[2]!)}`);
   const words = m[3]?.replace(/''/g, "'");
-  let rows = words ? t.rows.filter((r) => r.some((v) => text(v).includes(words))) : [...t.rows];
+  const withId = /^SELECT rowid AS/i.test(sql);
+  let rows = t.rows.map((r, i) => (withId ? [ids(t)[i]!, ...r] : r)).filter((r) => !words || r.slice(withId ? 1 : 0).some((v) => text(v).includes(words)));
   if (m[1] !== '*') return ok(['count(*)'], [[rows.length]]);
   if (m[4]) {
-    const at = t.columns.findIndex((c) => c.name === unquote(m![4]!));
+    const at = t.columns.findIndex((c) => c.name === unquote(m![4]!)) + (withId ? 1 : 0);
     const sign = m[5]!.toUpperCase() === 'DESC' ? -1 : 1;
     rows.sort((a, b) => { const [x, y] = [a[at] ?? null, b[at] ?? null]; return x === y ? 0 : x === null ? -sign : y === null ? sign : (x < y ? -1 : 1) * sign; });
   }
   const offset = Number(m[7] ?? 0);
   rows = rows.slice(offset, m[6] ? offset + Number(m[6]) : undefined);
-  return ok(t.columns.map((c) => c.name), rows);
+  return ok([...(withId ? ['__mobius_rowid'] : []), ...t.columns.map((c) => c.name)], rows);
 }
 
 const info = () => Object.entries(DBS).map(([name, tables]) => ({ name, modified: Date.now(), tables: Object.entries(tables).map(([t, x]) => ({ name: t, columns: x.columns.map((c) => ({ name: c.name, type: c.type })), rows: x.rows.length })) }));
