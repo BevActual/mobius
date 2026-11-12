@@ -1,6 +1,7 @@
 import { tagsIn } from '../note-tags';
 import { linksIn } from '../note-links';
 import { PREVIEW_TASKS } from './preview-tasks';
+import { PREVIEW_DATABASES } from './preview-databases';
 import { PREVIEW_PROJECTS } from './preview-projects';
 import { PREVIEW_CALENDAR } from './preview-calendar';
 import { PREVIEW_DOCS } from './preview-docs';
@@ -118,6 +119,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'notes.setComments': ((path: string, comments: unknown[]) => { NOTE_COMMENTS[path] = comments; return { path, comments }; }) as never,
   'notes.export': ((path: string, kind: string) => { const name = `${path.slice(path.indexOf('/') + 1, -3)}.${kind}`; (window as unknown as { exported?: string }).exported = name; return { path, saved: `Exports/${name}`, name }; }) as never,
   ...PREVIEW_SHEETS,
+  ...PREVIEW_DATABASES,
   'notes.read': ((path: string) => ({ path, content: NOTE_TEXT[path] ?? '', modified: now })) as never,
   'changes.lastTurn': () => ({ checkpoint: TURN.start, files: TURN.files }),
   'changes.turns': () => ({ ok: true, turns: [TURN] }),

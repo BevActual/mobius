@@ -113,7 +113,7 @@ Mobius's own apps, always there.
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/readme/apps/sheets.png" alt="The Sheets app in Mobius"><br><b>Sheets</b> · Spreadsheets with formulas, saved as CSV files.<br><sub>Budgets and lists any spreadsheet app can open. Mobius fills cells and explains formulas.</sub></td>
-<td width="50%" valign="top"><img src="docs/readme/apps/database.png" alt="The Database app in Mobius"><br><b>Database</b> · SQLite databases you query with SQL.<br><sub>Ask questions of your data in words; Mobius writes the query, read-only.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/database.png" alt="The Database app in Mobius"><br><b>Database</b> · SQLite tables to browse, sort and filter, or query with SQL.<br><sub>Ask questions of your data in words; Mobius writes the query, read-only.</sub></td>
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/readme/apps/projects.png" alt="The Projects app in Mobius"><br><b>Projects</b> · A place for one piece of work: its files, rules and memory.<br><sub>Keep everything about a project together, with its own rules for what Mobius may do.</sub></td>
