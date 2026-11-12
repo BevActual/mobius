@@ -30,6 +30,7 @@ import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { timeLabel } from './dates';
 import './docs.css';
 
 export const DOCS_WORDS: SidebarWords = { app: 'Docs', group: 'folder', groups: 'Folders', item: 'document', items: 'documents', about: 'Documents are kept as Markdown files in your workspace, so other apps and the agent can open them too.', defaultGroup: 'Documents' };
@@ -620,7 +621,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const [restored, setRestored] = useState<{ was: string; label: string } | null>(null);
   useEffect(() => { setHistory(false); setRestored(null); }, [path]);
   const restore = (content: string, whenMs: number) => {
-    const at = new Date(whenMs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const at = timeLabel(whenMs);
     setRestored({ was: docs.text, label: `${dayOf(whenMs, Date.now())}, ${at}` });
     docs.edit(content);
     setHistory(false);
