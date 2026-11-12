@@ -32,7 +32,8 @@ const OWN_MENUS = [
 describe('menus come from src/ui', () => {
   const drawn = walk(src, '.tsx')
     .filter((file) => !rel(file).startsWith('ui/'))
-    .filter((file) => /role=\{?["']menu["']/.test(fs.readFileSync(file, 'utf8')))
+    // A JSX attribute (` role="menu"`), not a selector string such as `closest('[role="menu"]')`.
+    .filter((file) => /\srole=\{?["']menu["']/.test(fs.readFileSync(file, 'utf8')))
     .map(rel)
     .sort();
 

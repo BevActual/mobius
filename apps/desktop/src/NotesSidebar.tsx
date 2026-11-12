@@ -86,7 +86,10 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         <button type="button" className="note-row" data-proposed={changed?.has(pg.path) || undefined} aria-current={notes.page?.path === pg.path ? 'page' : undefined} aria-label={pg.title} aria-describedby={sub ? subId : undefined} onClick={() => void notes.open(pg.path, pg.title)}>
           <span className="note-lines">
             <span className="note-title">{pg.title}</span>
-            {sub && <span className="note-sub" id={subId}>{sub}</span>}
+            {/* Notes: the time stands out and the preview follows it, as in Apple Notes ("1 hr ago  Veltro Cells"). */}
+            {sub && (words === NOTES_WORDS
+              ? <span className="note-sub" id={subId}>{where && `${where} · `}{when && <span className="note-when">{when}</span>}{when && pg.preview ? '\u2002' : ''}{pg.preview}</span>
+              : <span className="note-sub" id={subId}>{sub}</span>)}
           </span>
           <RowMark changed={changed?.has(pg.path) === true} />
         </button>
@@ -114,7 +117,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   );
 
   return (
-    <aside className="side notes-side" aria-label={`${words.app} sidebar`}>
+    <aside className="side notes-side" data-app={words === NOTES_WORDS ? 'notes' : undefined} aria-label={`${words.app} sidebar`}>
       <div className="side-head">
         <span className="side-title" title={words.about}>{words.groups}</span>
         <span className="side-actions">
