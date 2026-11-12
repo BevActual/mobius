@@ -63,6 +63,16 @@ Browser, or give Reader an address.
 
 ![The Reader app in Mobius](../readme/apps/reader.png)
 
+- **The article has the page.** The bar above it says where it came from, when you saved it and how many minutes are
+  left; a thin line fills as you read, and each article opens where you stopped. Opening Reader shows your newest
+  article.
+- **Aa** sets the text size, the font (sans serif or serif) and the page colour (Match Mobius, Sepia, Grey or Night),
+  as in Safari Reader. Your choice is kept on this computer.
+- **Save a link** (the link button, or New › Save a link) shows the link field; with nothing open it is always there.
+  **Save this tab** keeps the page open in the Browser.
+- **Highlights:** select a passage and press Highlight (or H); they are listed under the article and can be copied to
+  Notes. **Done reading** (E) moves the article to Archive.
+
 **Kept in:** `workspace/reading/`, each article a Markdown file.
 
 ## Files

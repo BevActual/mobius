@@ -70,6 +70,12 @@ test('a deck is a Markdown file of slides, edited on the slide and played full s
   await expect(shell().getByRole('dialog', { name: /^Playing slide 1 of 3/ })).toContainText('Welcome everyone.');
   await shell().keyboard.press('Escape');
   await expect(shell().getByRole('dialog', { name: /^Playing/ })).toHaveCount(0);
+  // The inspector's Deck pane holds the deck's length and Play from the start.
+  await page().getByRole('radiogroup', { name: 'Show' }).getByRole('radio', { name: 'Deck' }).click();
+  await expect(page().getByRole('complementary', { name: 'Format' })).toContainText('3 slides');
+  await page().getByRole('button', { name: 'Play from the start' }).click();
+  await expect(shell().getByRole('dialog', { name: /^Playing slide 1 of 3/ })).toBeVisible();
+  await shell().keyboard.press('Escape');
 });
 
 test('slides are picked, moved and duplicated from the navigator by key, and Undo takes each step back', async () => {
@@ -93,6 +99,11 @@ test('slides are picked, moved and duplicated from the navigator by key, and Und
   await shell().getByRole('menu', { name: 'Slide layouts' }).getByRole('menuitem', { name: 'Section' }).click();
   await expect(nav().getByRole('button', { name: /^Slide 3: Section title/ })).toBeVisible();
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toContain('<!-- style: dark -->\n### Part 2\n## Section title');
+  // Delete is one click because Undo brings the slide back.
+  await page().getByRole('button', { name: 'Delete slide' }).click();
+  await expect(nav().getByRole('button')).toHaveCount(2);
+  await shell().keyboard.press('Control+z');
+  await expect(nav().getByRole('button', { name: /^Slide 3: Section title/ })).toBeVisible();
 });
 
 test('slides Mobius adds are dashed in the navigator until kept', async () => {

@@ -216,3 +216,14 @@
 .task-went { flex-basis: 100%; display: flex; align-items: center; gap: var(--sp-2); margin: 2px 0 0 33px; color: var(--muted); font-size: var(--fs-sm); animation: tasks-pop var(--dur-med) var(--ease); }
 .task-went > span { flex: 1; min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .task-went { animation: none; } }
+
+/* ---------- Keyboard and menu ---------- */
+/* The row the keyboard is on (or whose menu is open) reads as selected, like a Reminders row. */
+.task-line:focus { outline: none; }
+.task-line:focus, .task-line[data-menu] { background: color-mix(in srgb, var(--lc, var(--accent)) 12%, transparent); --tools-bg: color-mix(in srgb, var(--lc, var(--accent)) 12%, var(--bg)); }
+.task-line:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--lc, var(--accent)) 55%, transparent); }
+.task-line:focus::after, .task-line[data-menu]::after { opacity: 0; }
+
+/* Scheduled: day headings in the ink colour, Overdue in red, as in Reminders. */
+.tasks-day .tasks-group-head { font-size: var(--fs-lg); color: var(--ink); }
+.tasks-day[data-overdue] .tasks-group-head { color: var(--danger); }

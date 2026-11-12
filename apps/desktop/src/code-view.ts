@@ -161,3 +161,28 @@ export function parentsOf(path: string): string[] {
   const parts = path.split('/');
   return parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join('/'));
 }
+
+/** What git says about a changed file, as Xcode's source control marks it: one letter and its meaning. */
+export interface GitMark { letter: 'M' | 'A' | 'D' | 'R' | '?' | 'C'; label: string }
+
+/** One of `git status --porcelain` lines' two status letters (trimmed) as a mark: `??` is a file git does not track yet. */
+export function gitMark(status: string): GitMark {
+  const s = status.trim();
+  if (s === '??') return { letter: '?', label: 'Not tracked by git yet' };
+  if (/U|AA|DD/.test(s)) return { letter: 'C', label: 'In conflict' };
+  const first = s.replace(/\s/g, '')[0] ?? 'M';
+  if (first === 'A') return { letter: 'A', label: 'Added' };
+  if (first === 'D') return { letter: 'D', label: 'Deleted' };
+  if (first === 'R' || first === 'C') return { letter: 'R', label: 'Renamed' };
+  return { letter: 'M', label: 'Modified' };
+}
+
+/** The changed files by path, a rename under its new name, so the tree can mark each one. */
+export function gitMarks(changes: readonly { status: string; path: string }[]): Map<string, GitMark> {
+  const marks = new Map<string, GitMark>();
+  for (const c of changes) {
+    const path = c.path.includes(' -> ') ? c.path.slice(c.path.lastIndexOf(' -> ') + 4) : c.path;
+    marks.set(path.replace(/^"|"$/g, ''), gitMark(c.status));
+  }
+  return marks;
+}

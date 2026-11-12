@@ -29,14 +29,14 @@ fn setup() -> (Core, Host) {
 }
 
 fn text(t: &str) -> Result<Completion, ProviderError> {
-    Ok(Completion { text: t.into(), tool_calls: vec![], stop: StopReason::EndTurn })
+    Ok(Completion { text: t.into(), tool_calls: vec![], stop: StopReason::EndTurn, usage: None })
 }
 fn tool(id: &str, args: Value) -> Result<Completion, ProviderError> {
-    Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: id.into(), name: "demo.echo".into(), arguments: args }], stop: StopReason::ToolUse })
+    Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: id.into(), name: "demo.echo".into(), arguments: args }], stop: StopReason::ToolUse, usage: None })
 }
 
 fn other_tool(id: &str) -> Result<Completion, ProviderError> {
-    Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: id.into(), name: "demo.other".into(), arguments: json!({}) }], stop: StopReason::ToolUse })
+    Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: id.into(), name: "demo.other".into(), arguments: json!({}) }], stop: StopReason::ToolUse, usage: None })
 }
 
 fn model_call(outs: &[Out]) -> Option<(u64, ChatRequest)> {
@@ -313,7 +313,7 @@ fn the_history_includes_the_turn_in_progress_and_the_parked_call_can_be_found() 
 }
 
 fn remote_call(id: &str) -> Result<Completion, ProviderError> {
-    Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: id.into(), name: "demo.remote".into(), arguments: json!({ "n": 1 }) }], stop: StopReason::ToolUse })
+    Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: id.into(), name: "demo.remote".into(), arguments: json!({ "n": 1 }) }], stop: StopReason::ToolUse, usage: None })
 }
 
 fn run_tool(outs: &[Out]) -> Option<(u64, String, String, Value)> {
@@ -758,7 +758,7 @@ fn taking_back_a_message_the_summary_covers_forgets_the_summary() {
 }
 
 fn remote(id: &str) -> Result<Completion, ProviderError> {
-    Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: id.into(), name: "demo.remote".into(), arguments: json!({ "url": "https://example.com/" }) }], stop: StopReason::ToolUse })
+    Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: id.into(), name: "demo.remote".into(), arguments: json!({ "url": "https://example.com/" }) }], stop: StopReason::ToolUse, usage: None })
 }
 fn allow_remote(core: &mut Core) {
     if let mobius_core::core::InvokeOutcome::NeedsApproval { request_id } = core.invoke(&agent(), "demo.remote", &json!({})).unwrap() {
@@ -824,7 +824,7 @@ fn while_a_tool_runs_the_next_model_request_waits_and_is_told_to_read_again() {
 fn the_pause_names_the_step_of_the_plan() {
     let (mut core, mut host) = setup();
     let (turn, _) = host.send(&core, "c1", "go").unwrap();
-    let plan = Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: "p1".into(), name: "todo.write".into(), arguments: json!({ "items": [{ "text": "Read", "status": "done" }, { "text": "Write", "status": "in_progress" }, { "text": "Send", "status": "pending" }] }) }], stop: StopReason::ToolUse });
+    let plan = Ok(Completion { text: String::new(), tool_calls: vec![ToolCall { id: "p1".into(), name: "todo.write".into(), arguments: json!({ "items": [{ "text": "Read", "status": "done" }, { "text": "Write", "status": "in_progress" }, { "text": "Send", "status": "pending" }] }) }], stop: StopReason::ToolUse, usage: None });
     host.model_result(&mut core, turn, plan);
     let outs = host.take_over("c1").unwrap();
     assert_eq!(event_of(&outs, "paused"), Some(json!({ "kind": "paused", "step": 2, "of": 3 })));

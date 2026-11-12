@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { setLocaleForTests } from './dates';
 import { relativeTime } from './relative-time';
+
+beforeAll(() => setLocaleForTests('en-US'));
+afterAll(() => setLocaleForTests(null));
 
 const now = Date.UTC(2026, 10, 3, 12, 0, 0);
 const ago = (ms: number) => relativeTime(now - ms, now);
