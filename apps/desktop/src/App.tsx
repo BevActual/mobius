@@ -1002,7 +1002,7 @@ export function App() {
     if (chatOpen && !chatInSide) setChatOpen(false);
     setLearnOpen(true);
   };
-  const closeLearn = () => { setLearnOpen(false); learnFrom.current?.focus(); };
+  const closeLearn = () => { setLearnOpen(false); if (learnFrom.current?.isConnected) learnFrom.current.focus(); };
   const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,

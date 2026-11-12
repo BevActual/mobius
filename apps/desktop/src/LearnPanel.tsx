@@ -25,7 +25,12 @@ export function LearnPanel({ lessons, app, onClose, onOpenApp }: { lessons: read
   const siblings = lesson ? lessons.filter((l) => l.topic === lesson.topic) : [];
   const at = lesson ? siblings.indexOf(lesson) : -1;
 
-  useEffect(() => { root.current?.querySelector<HTMLElement>(lesson ? '.learn-lesson h2' : 'input[type="search"]')?.focus(); }, [lesson]);
+  // After a frame: opened from the launcher or a menu, those put focus back where it was as they close, and Learn
+  // should have it.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(lesson ? '.learn-lesson h2' : 'input[type="search"]')?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [lesson]);
   useEffect(() => { reading.current?.scrollTo?.({ top: 0 }); }, [openId]);
 
   const onKeyDown = (event: KeyboardEvent) => {

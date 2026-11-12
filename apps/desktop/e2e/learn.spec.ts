@@ -24,7 +24,7 @@ const openLearn = async () => {
   const find = shell().getByRole('combobox', { name: 'Find apps, pages and commands' });
   await expect(find).toBeFocused();
   await find.fill('Learn Mobius');
-  await shell().getByRole('option', { name: /Learn Mobius/ }).first().click();
+  await shell().getByRole('option', { name: /^Learn Mobius/ }).click();
 };
 
 test('Help › Learn Mobius opens lessons beside the page in place of Mobius, and Escape closes it', async () => {
