@@ -14,7 +14,7 @@ const APPS: Array<[string, string]> = [
   ['Browser', 'browser'], ['Agent', 'agent'], ['Mail', 'mail'], ['Notes', 'notes'], ['Docs', 'docs'], ['Projects', 'projects'],
   ['Knowledge', 'wiki'], ['Sheets', 'sheets'], ['Slides', 'slides'], ['Tasks', 'tasks'], ['Database', 'database'], ['Calendar', 'calendar'],
   ['Search', 'search'], ['Research', 'research'], ['Reader', 'reader'], ['Design', 'design'], ['Photo', 'photo'], ['Music', 'studio'],
-  ['Video', 'video'], ['Code', 'code'], ['Terminal', 'terminal'], ['Canvas', 'canvas'], ['Files', 'files'], ['Review', 'review'],
+  ['Video', 'video'], ['Code', 'code'], ['Terminal', 'terminal'], ['Canvas', 'canvas'], ['Files', 'files'], ['Review', 'review'], ['Views', 'views'],
 ];
 
 const SONG = { version: 1, tempo: 112, key: 'A minor', bars: 4, tracks: [{ id: 't1', name: 'Keys', instrument: 'piano', volume: 0.8, notes: [57, 60, 64, 67].map((pitch, i) => ({ pitch, start: i * 2, length: 2, velocity: 0.7 })) }] };
@@ -28,6 +28,7 @@ function seed(userData: string): void {
   write('slides/Talks/Kickoff.md', '## Kickoff\n\nWhy we are here\n\n---\n\n## Plan\n\n- Research\n- Build\n- Ship\n');
   write('tasks/Inbox.md', '# Inbox\n\n- [ ] Buy tulip bulbs\n- [ ] Call the bank\n- [x] Book the terrace\n');
   write('studio/Songs/Night Drive.json', JSON.stringify(SONG));
+  write('views/Views/Today.json', JSON.stringify({ version: 1, tiles: [{ id: 't1', kind: 'mobius', size: 'wide' }, { id: 't2', kind: 'tasks', size: 'small', show: 'all' }, { id: 't3', kind: 'calendar', size: 'small', show: 'week' }, { id: 't4', kind: 'notes', size: 'small' }, { id: 't5', kind: 'next', size: 'small' }] }));
 }
 
 /** Fonts loaded, nothing still loading, and a moment for layout and motion to finish. */

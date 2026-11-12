@@ -33,6 +33,7 @@ export const APP_ICONS: Record<string, ReactNode> = {
   canvas: <><rect x="3" y="3.5" width="6" height="6" rx="1" /><rect x="11" y="10.5" width="6" height="6" rx="1" /><path d="M9 6.5h3.5a1.5 1.5 0 0 1 1.5 1.5v2.5" /></>,
   review: <><path d="M4 10a6 6 0 1 0 12 0 6 6 0 0 0-12 0" /><path d="m7.5 10 1.8 1.8 3.4-3.6" /></>,
   files: <path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" />,
+  views: <><rect x="3.5" y="3.5" width="13" height="5.5" rx="1.5" /><rect x="3.5" y="11" width="5.5" height="5.5" rx="1.5" /><rect x="11" y="11" width="5.5" height="5.5" rx="1.5" /></>,
 };
 
 /** The apps, always one click away, in the order people reach for them. */

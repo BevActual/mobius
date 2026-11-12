@@ -186,6 +186,8 @@ pub struct Bridge {
     slides: mobius_workspace::notes::Notes,
     designs: mobius_workspace::notes::Notes,
     boards: mobius_workspace::notes::Notes,
+    /// The Views app's dashboards: JSON files of tiles in `views/<folder>/<view>.json`.
+    views: mobius_workspace::notes::Notes,
     research: mobius_workspace::notes::Notes,
     reading: mobius_workspace::notes::Notes,
     /// The Wiki app's pages, and the changes offered to it that wait.
@@ -277,6 +279,9 @@ impl Bridge {
                 if let Some(board) = path.replace('\\', "/").strip_prefix("boards/") {
                     notes_emit("mobius:boards-changed", json!({ "path": board, "by": "another app" }));
                 }
+                if let Some(view) = path.replace('\\', "/").strip_prefix("views/") {
+                    notes_emit("mobius:views-changed", json!({ "path": view, "by": "another app" }));
+                }
                 if let Some(report) = path.replace('\\', "/").strip_prefix("research/") {
                     notes_emit("mobius:research-changed", json!({ "path": report, "by": "another app" }));
                 }
@@ -357,6 +362,7 @@ impl Bridge {
             songs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "studio").of_files("json", mobius_workspace::notes::song_starter),
             designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter),
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
+            views: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "views").of_files("json", mobius_workspace::notes::view_starter),
             research: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "research"),
             reading: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "reading"),
             wiki: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "wiki").without_kept_versions(),
@@ -511,6 +517,7 @@ impl Bridge {
             ("songs", _) => Ok(self.notes_call(&self.songs, "mobius:songs-changed", method, args)),
             ("designs", _) => Ok(self.notes_call(&self.designs, "mobius:designs-changed", method, args)),
             ("boards", _) => Ok(self.notes_call(&self.boards, "mobius:boards-changed", method, args)),
+            ("views", _) => Ok(self.notes_call(&self.views, "mobius:views-changed", method, args)),
             ("research", _) => Ok(self.notes_call(&self.research, "mobius:research-changed", method, args)),
             // Reader keeps pages the person chose to read later; fetching one is their request, not the agent's.
             ("reading", "fetch") => Ok(crate::web::fetch_article(arg(0).as_str().unwrap_or("")).unwrap_or_else(|e| json!({ "ok": false, "message": e }))),
@@ -1261,6 +1268,9 @@ impl Bridge {
                 }
                 if let Some(board) = path.strip_prefix("boards/") {
                     (self.emit)("mobius:boards-changed", json!({ "path": board, "by": "assistant" }));
+                }
+                if let Some(view) = path.strip_prefix("views/") {
+                    (self.emit)("mobius:views-changed", json!({ "path": view, "by": "assistant" }));
                 }
                 if let Some(report) = path.strip_prefix("research/") {
                     (self.emit)("mobius:research-changed", json!({ "path": report, "by": "assistant" }));
@@ -2859,6 +2869,7 @@ impl Bridge {
         (self.emit)("mobius:slides-changed", json!({ "path": path.and_then(|p| p.strip_prefix("slides/")), "by": "undo" }));
         (self.emit)("mobius:designs-changed", json!({ "path": path.and_then(|p| p.strip_prefix("designs/")), "by": "undo" }));
         (self.emit)("mobius:boards-changed", json!({ "path": path.and_then(|p| p.strip_prefix("boards/")), "by": "undo" }));
+        (self.emit)("mobius:views-changed", json!({ "path": path.and_then(|p| p.strip_prefix("views/")), "by": "undo" }));
         (self.emit)("mobius:research-changed", json!({ "path": path.and_then(|p| p.strip_prefix("research/")), "by": "undo" }));
         (self.emit)("mobius:reading-changed", json!({ "path": path.and_then(|p| p.strip_prefix("reading/")), "by": "undo" }));
         (self.emit)("mobius:databases-changed", json!({ "name": path.and_then(|p| p.strip_prefix("databases/")).and_then(|p| p.strip_suffix(".sqlite")), "by": "undo" }));
