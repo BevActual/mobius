@@ -36,9 +36,13 @@ Your pictures, with edits you can always take back.
 
 ![The Photo app in Mobius](../readme/apps/photo.png)
 
-- **Albums** are folders in `workspace/photos/`, shown as a grid. Your original files are never changed.
+- **Albums** are folders in `workspace/photos/`, shown as a grid. Your original files are never changed. The slider in
+  the toolbar (or **−** and **+**) makes the pictures bigger or smaller; right-click a picture to open or export it.
 - **Adjust** (exposure, highlights, shadows, contrast, saturation, warmth and more), **Filters** and **Crop** (turn,
-  flip, straighten). An adjustment can apply to all of the picture or to part of it.
+  flip, straighten). An adjustment can apply to all of the picture or to part of it. Light, Color, Effects and Where
+  each fold away, and each has its own reset once you change it.
+- Keys: **←** and **→** step through the album, hold **M** to see the original, **Z** zooms, **Esc** goes back. In
+  Crop, **R** rotates and **Enter** is Done.
 - Edits are kept beside each photo in a small file, so every change can be put back. **Export** writes a new file next
   to the photo.
 - Pictures made with your Images model are saved here.
