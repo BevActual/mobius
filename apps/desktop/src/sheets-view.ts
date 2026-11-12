@@ -306,3 +306,23 @@ export function hasFooter(cells: readonly (readonly string[])[]): boolean {
   const last = cells[cells.length - 1] ?? [];
   return cells.length > 2 && last.some((t) => t.startsWith('=') && /[A-Za-z]+\d+:[A-Za-z]+\d+/.test(t));
 }
+
+/**
+ * Every cell that holds the words looked for, row by row as a person reads: what the cell shows, or the formula behind
+ * it, matched without regard to case.
+ */
+export function findCells(cells: readonly (readonly string[])[], values: readonly (readonly string[])[], query: string): { r: number; c: number }[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const out: { r: number; c: number }[] = [];
+  const rows = Math.max(cells.length, values.length);
+  for (let r = 0; r < rows; r++) {
+    const cols = Math.max(cells[r]?.length ?? 0, values[r]?.length ?? 0);
+    for (let c = 0; c < cols; c++) {
+      const shown = (values[r]?.[c] ?? '').toLowerCase();
+      const raw = (cells[r]?.[c] ?? '').toLowerCase();
+      if (shown.includes(q) || (raw.startsWith('=') && raw.includes(q))) out.push({ r, c });
+    }
+  }
+  return out;
+}

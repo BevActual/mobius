@@ -77,6 +77,7 @@ Spreadsheets with formulas.
   the rows above reads as the total, in bold with a rule above it.
 - Each column letter has a menu (hover it for the chevron) to sort by that column, add or delete columns and fit the
   width. Sorting keeps the header and total rows where they are.
+- **Find** with Ctrl+F: matching cells are tinted, and Enter (or Shift+Enter) moves from one to the next.
 - Sheets are tabs below the grid. Insert and remove rows and columns; Ctrl+Z undoes any step.
 
 **Kept in:** `workspace/sheets/`, each workbook a folder and each sheet a CSV file that any spreadsheet app can open.

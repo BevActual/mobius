@@ -165,5 +165,18 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await expect(shell().getByLabel('Selected cell')).toHaveText(/^B1:B\d+$/);
   // The total row reads as one, set apart from the rows it adds up.
   await expect(shell().locator('tr.sheet-footer-row')).toContainText('Total');
+
+  // Ctrl+F finds cells by what they show, moving the selection from match to match; Escape closes it.
+  await cell('A2').click();
+  await shell().keyboard.press('Control+f');
+  await shell().getByRole('searchbox', { name: 'Find in sheet' }).fill('e');
+  await expect(shell().getByRole('search', { name: 'Find in sheet' })).toContainText(/1 of \d+/);
+  const first = await shell().getByLabel('Selected cell').textContent();
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByLabel('Selected cell')).not.toHaveText(first ?? '');
+  await shell().getByRole('searchbox', { name: 'Find in sheet' }).fill('Terrace');
+  await expect(shell().getByLabel('Selected cell')).toHaveText('A4');
+  await shell().keyboard.press('Escape');
+  await expect(shell().getByRole('search', { name: 'Find in sheet' })).toHaveCount(0);
   await expect(cell('A1')).toHaveText('Item');
 });

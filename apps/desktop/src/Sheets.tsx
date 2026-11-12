@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, inRange, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
+import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, inRange, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
 import './sheets.css';
 import type { SheetsState } from './useSheets';
 import { ReviewActions, WhyThis } from './ReviewBar';
@@ -207,6 +207,9 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   // A column's own menu, from the chevron on its letter, as in Numbers.
   const [colMenu, setColMenu] = useState<{ c: number; x: number; y: number } | null>(null);
+  // Find in the sheet (Ctrl+F): what is looked for, and which match is current.
+  const [finding, setFinding] = useState<{ query: string; at: number } | null>(null);
+  const findInput = useRef<HTMLInputElement>(null);
   const [suggest, setSuggest] = useState(0);
   const [, setTick] = useState(0);
   const drag = useRef<'select' | 'ref' | 'fill' | null>(null);
@@ -228,7 +231,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const shown = (r: number, c: number) => data?.values[r]?.[c] ?? '';
   const sel = rangeOf(anchor, focus);
   const select = (a: Pos, b: Pos = a) => { setAnchor(a); setFocus(b); };
-  useEffect(() => { select({ r: 0, c: 0 }); setEdit(null); setPick(null); }, [data?.workbook, data?.sheet]);
+  useEffect(() => { select({ r: 0, c: 0 }); setEdit(null); setPick(null); setFinding((f) => (f ? { ...f, at: 0 } : f)); }, [data?.workbook, data?.sheet]);
   useEffect(() => { if (edit?.where === 'cell') cellInput.current?.focus(); }, [edit?.where, edit?.at.r, edit?.at.c]); // eslint-disable-line react-hooks/exhaustive-deps
   // After a reference or a function is put in, the caret goes after it.
   useLayoutEffect(() => {
@@ -521,6 +524,21 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     window.addEventListener('pointerup', up);
   };
 
+  // ---------- Find ----------
+  const matches = finding ? findCells(data.cells, data.values, finding.query) : [];
+  const matchKeys = new Set(matches.map((m) => `${m.r}:${m.c}`));
+  const openFind = () => {
+    setFinding((f) => f ?? { query: '', at: 0 });
+    requestAnimationFrame(() => { findInput.current?.focus(); findInput.current?.select(); });
+  };
+  const goMatch = (at: number) => {
+    if (!finding || matches.length === 0) return;
+    const i = ((at % matches.length) + matches.length) % matches.length;
+    setFinding({ ...finding, at: i });
+    select(matches[i]!);
+  };
+  const closeFind = () => { setFinding(null); grid.current?.focus(); };
+
   const onGridKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const mod = e.ctrlKey || e.metaKey;
     // Keys typed before the cell's editor has focus still go into it.
@@ -529,6 +547,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
       return;
     }
     const k = e.key;
+    if (mod && !e.altKey && !e.shiftKey && k.toLowerCase() === 'f') { openFind(); e.preventDefault(); e.stopPropagation(); return; }
     const arrows: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
     const go = (p: Pos) => { const q = { r: Math.max(0, Math.min(height + 200, p.r)), c: Math.max(0, Math.min(51, p.c)) }; if (e.shiftKey) setFocus(q); else select(q); };
     if (arrows[k]) {
@@ -609,6 +628,35 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
           <ToolMenu label="Sort" title="Sort the rows" button={<><Icon d={ICONS.sort} /><span>Sort</span></>}>{sortMenu}</ToolMenu>
         </span>
       </div>
+      {finding && (
+        <div className="sheet-find" role="search" aria-label="Find in sheet">
+          <svg className="sheet-find-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M8.5 3.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM12.2 12.2 16.5 16.5" /></svg>
+          <input
+            ref={findInput}
+            type="search"
+            aria-label="Find in sheet"
+            placeholder="Find in sheet"
+            value={finding.query}
+            spellCheck={false}
+            onChange={(e) => {
+              const query = e.target.value;
+              const found = findCells(data.cells, data.values, query);
+              setFinding({ query, at: 0 });
+              if (found[0]) select(found[0]);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { goMatch(finding.at + (e.shiftKey ? -1 : 1)); e.preventDefault(); }
+              else if (e.key === 'Escape') { closeFind(); e.preventDefault(); }
+            }}
+          />
+          <span className="sheet-find-count" role="status" aria-live="polite">{finding.query.trim() ? (matches.length ? `${Math.min(finding.at, matches.length - 1) + 1} of ${matches.length}` : 'Not found') : ''}</span>
+          <span className="sheet-tool-group">
+            <button type="button" className="sheet-tool" aria-label="Previous match" title="Previous (Shift+Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at - 1)}><Icon d="M12.5 5 7.5 10l5 5" /></button>
+            <button type="button" className="sheet-tool" aria-label="Next match" title="Next (Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at + 1)}><Icon d="M7.5 5l5 5-5 5" /></button>
+          </span>
+          <button type="button" className="btn sheet-find-done" onClick={closeFind}>Done</button>
+        </div>
+      )}
       {showReview && (
         <div className="note-review sheet-review" role="status">
           <span className="review-dot" aria-hidden="true" />
@@ -710,6 +758,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
                       data-formula={raw(r, c).startsWith('=') || undefined}
                       data-changed={showReview && changed.has(key) ? true : undefined}
                       data-fresh={sheets.fresh.has(key) || undefined}
+                      data-match={matchKeys.has(key) || undefined}
                       title={raw(r, c).startsWith('=') ? raw(r, c) : undefined}
                       style={shadows.length ? { boxShadow: shadows.join(', ') } : undefined}
                       onMouseDown={(e) => {
