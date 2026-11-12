@@ -9,7 +9,9 @@ Quick pages, saved as you type.
 - **Notebooks** in the sidebar, newest pages first, with search, **Pinned** pages at the top and a **Tags** section
   built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
-  recordings (up to ten minutes). The **Markdown** button shows the file itself.
+  recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
+  bold, italic, strikethrough, code, lists and quote; the bar keeps Checklist, Table and Link at hand. The **⋯** menu
+  clips a web page into the note and shows the Markdown file itself.
 - **History** lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).
 - **Share** copies the page, exports it as a web page or Markdown, or prints it.
@@ -25,7 +27,11 @@ Longer documents, with an outline and comments.
 ![The Docs app in Mobius](../readme/apps/docs.png)
 
 - **A page to write on**: headings, lists, checklists, tables, pictures and links to other documents, kept as Markdown.
-- **The outline** of headings sits beside the page; hide it if you prefer.
+  **Aa** in the bar holds the styles, bold, italic and lists, as in Notes; checklist, table, link and insert sit beside it.
+  **More** (⋯) switches the page between the sans-serif font and a serif one.
+- **The outline** of headings sits beside the page and marks the part you are looking at as you scroll. It folds away
+  when the window is narrow; hide it if you prefer. A document opens at its top.
+- **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
 - **Mobius's writing tools** work on the selection or the whole document. What Mobius changes comes back as

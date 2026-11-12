@@ -129,3 +129,38 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
   await expect.poll(() => saved().tracks.map((t) => t.id)).toEqual(['t1']);
   await expect(tracks().getByRole('listitem', { name: 'Bass' })).toHaveCount(0);
 });
+
+test('velocity is drawn under the roll and dragged per note; the track list fits its tracks and resizes', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
+  await start();
+  await resizeWindow(mobius!.app, 1440, 900);
+  await expect(tracks().getByRole('listitem', { name: 'Bass' })).toBeInViewport();
+  // Each note has a bar in the velocity lane; dragging one up makes that note louder and leaves the others alone. The
+  // chord's notes share a beat, so A3 is picked first: a picked note's bar is drawn on top.
+  await shell().getByRole('grid', { name: 'Notes of Keys' }).getByLabel('A3 at beat 1, 4 beats').click({ position: { x: 20, y: 4 } });
+  const lane = shell().getByRole('group', { name: 'Velocity of Keys' });
+  const bar = lane.getByRole('slider', { name: 'Velocity of A3 at beat 1', exact: true });
+  await expect(bar).toHaveAttribute('aria-valuenow', String(Math.round(0.7 * 127)));
+  const box = (await bar.boundingBox())!;
+  await shell().mouse.move(box.x + box.width / 2, box.y + 4);
+  await shell().mouse.down();
+  await shell().mouse.move(box.x + box.width / 2, box.y - 8, { steps: 4 });
+  await shell().mouse.up();
+  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 57)!.velocity).toBeGreaterThan(0.7);
+  expect(saved().tracks[0]!.notes.find((n) => n.pitch === 60)!.velocity).toBe(0.7);
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 57)!.velocity).toBe(0.7);
+  // The divider gives the notes more room from the keyboard, and Home fits the list to its tracks again.
+  const divider = shell().getByRole('separator', { name: 'Resize tracks and notes' });
+  const fit = Number(await divider.getAttribute('aria-valuenow'));
+  await divider.focus();
+  await shell().keyboard.press('ArrowUp');
+  await expect(divider).toHaveAttribute('aria-valuenow', String(Math.max(96, fit - 24)));
+  await shell().keyboard.press('Home');
+  await expect(divider).toHaveAttribute('aria-valuenow', String(fit));
+  // Drums get rows tall enough to name each drum in full.
+  await tracks().getByRole('listitem', { name: 'Bass' }).click();
+  await shell().getByRole('combobox', { name: 'Add a track' }).selectOption('drums');
+  const head = shell().getByRole('grid', { name: 'Notes of Drums' }).getByRole('rowheader', { name: 'Closed hat' });
+  expect((await head.boundingBox())!.height).toBeGreaterThanOrEqual(26);
+});

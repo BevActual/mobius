@@ -31,6 +31,8 @@ Frames on a canvas, as in Sketch and Figma.
   Ctrl+Shift+H): a hidden layer is not drawn, and a locked one stays put while you work around it.
 - Right-click a layer, a frame or the canvas for cut, copy, paste, duplicate, rename, bring to front, send to back,
   hide, lock and delete, each with its shortcut. **Shift+1** fits everything, **Shift+2** zooms to what is picked.
+- Give a frame or shape a **Border** from the inspector (colour or style, and width). Drag layers up or down the layer
+  list to change what is in front, or onto another frame to move them there.
 - Mobius's changes are dashed to keep or discard. It can also make pictures with your
   [Images model](../guide/models-and-gateways.md#a-model-for-each-job).
 
@@ -59,7 +61,11 @@ A small studio for writing songs as notes.
 
 - **Tracks** laid out by bar, each with an instrument (Piano, Bass, Pad, Lead or Drums), volume, mute and solo.
 - **The piano roll** for the chosen track: draw, move and stretch notes, select with a box, snap to the grid. Drums
-  get a lane per drum.
+  get a tall row per drum, named in full.
+- **Velocity lane** under the roll: one bar per note. Drag a bar up to make the note louder, down to make it softer;
+  picked notes move together.
+- **The divider** between the tracks and the roll: the track list fits its tracks, and dragging the divider (or
+  Up and Down on it) gives more room to either side. Home fits it to the tracks again.
 - **Transport** to play, with the song's tempo and key.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
 

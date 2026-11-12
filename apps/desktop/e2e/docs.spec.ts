@@ -45,7 +45,9 @@ test('a new document is written on the page with formatting and kept as Markdown
   await expect.poll(() => fs.existsSync(file('Documents/Untitled.md'))).toBe(true);
   await page().click();
   await shell().keyboard.press('Control+End');
-  await shell().getByRole('combobox', { name: 'Paragraph style' }).selectOption('h2');
+  // Styles are in the Aa panel, as in Notes; it stays open while formatting and the keys still go to the page.
+  await editor().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Format text' }).click();
+  await shell().getByRole('dialog', { name: 'Text format' }).getByRole('button', { name: 'Heading', exact: true }).click();
   await shell().keyboard.type('Plan');
   await shell().keyboard.press('Enter');
   await shell().keyboard.type('Book the ');
