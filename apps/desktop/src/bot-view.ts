@@ -1,4 +1,4 @@
-import type { AppAccess } from '@mobius/shared';
+import type { AppAccess, ModelCatalog, ScheduleInfo } from '@mobius/shared';
 
 const APP_NAMES: Record<string, string> = {
   browser: 'Browser', notes: 'Notes', docs: 'Docs', sheets: 'Sheets', slides: 'Slides', tasks: 'Tasks', calendar: 'Calendar', mail: 'Mail',
@@ -28,4 +28,20 @@ export function botFromConversation(title: string, firstAsk: string | null): { n
   const name = title.trim().slice(0, 40) || 'New agent';
   const ask = (firstAsk ?? '').trim();
   return { name, instructions: ask ? `Do this, as in the conversation “${name}”: ${ask}` : '', model: '' };
+}
+
+/** Every model id in the catalog, once each, in the order shown: the Model field's suggestions. */
+export function modelChoices(catalog: ModelCatalog | null): string[] {
+  const seen = new Set<string>();
+  for (const group of catalog?.groups ?? []) for (const model of group.models) if (model.id) seen.add(model.id);
+  return [...seen];
+}
+
+/**
+ * The schedules an agent made when it was created. A schedule does not yet say which agent it is for, so these are
+ * the ones with the agent's name as their title, as the New agent form names them.
+ */
+export function agentSchedules(name: string, schedules: readonly ScheduleInfo[]): ScheduleInfo[] {
+  const wanted = name.trim().toLowerCase();
+  return wanted ? schedules.filter((s) => s.title.trim().toLowerCase() === wanted) : [];
 }

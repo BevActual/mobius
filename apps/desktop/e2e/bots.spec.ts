@@ -65,7 +65,7 @@ const fromMenu = async (agent: string, item: string) => {
 async function newBot(name: string, instructions = '', modelName = ''): Promise<void> {
   await tab('Agents').click();
   await list().getByRole('button', { name: 'New agent' }).click();
-  const form = list().getByRole('form', { name: 'New agent' });
+  const form = shell().getByRole('form', { name: 'New agent' });
   await form.getByLabel('Name').fill(name);
   await form.getByLabel('Instructions').fill(instructions);
   await form.getByLabel('Model').fill(modelName);
@@ -125,7 +125,13 @@ test('sessions are grouped under their bot and a bot opens its latest session', 
   await expect(list().getByRole('region', { name: 'Writer' })).toContainText('writer question');
   await expect(list().getByRole('region', { name: 'Mobius' })).toContainText('plain question');
   await tab('Agents').click();
+  // An agent's row opens its page, which lists its sessions; choosing one opens it.
   await list().getByRole('button', { name: /^Mobius/ }).first().click();
+  const page = shell().getByRole('region', { name: 'Mobius' }).filter({ has: shell().getByRole('heading', { name: 'Mobius', level: 1 }) });
+  await expect(page.getByRole('list', { name: 'Sessions with Mobius' })).toContainText('plain question');
+  await expect(page.getByRole('list', { name: 'Sessions with Mobius' })).not.toContainText('writer question');
+  await page.getByRole('button', { name: /plain question/ }).click();
+  await expect(tab('Sessions')).toHaveAttribute('aria-selected', 'true');
   await expect(log().locator('.msg.user')).toHaveText('plain question');
 });
 
@@ -134,7 +140,7 @@ test('a bot can be renamed and its instructions changed, and the next message us
   await newBot('Helper', 'Old rules.');
   await tab('Agents').click();
   await fromMenu('Helper', 'Edit…');
-  const form = list().getByRole('form', { name: 'Edit agent' });
+  const form = shell().getByRole('form', { name: 'Edit agent' });
   await form.getByLabel('Name').fill('Coach');
   await form.getByLabel('Instructions').fill('New rules.');
   await form.getByRole('button', { name: 'Save' }).click();
@@ -152,13 +158,13 @@ test('a name already in use or an empty one is refused with a reason', async () 
   await newBot('Twin');
   await tab('Agents').click();
   await list().getByRole('button', { name: 'New agent' }).click();
-  const form = list().getByRole('form', { name: 'New agent' });
+  const form = shell().getByRole('form', { name: 'New agent' });
   await expect(form.getByRole('button', { name: 'Create' })).toBeDisabled();
   await form.getByLabel('Name').fill('twin');
   await form.getByRole('button', { name: 'Create' }).click();
   await expect(form.getByRole('alert')).toContainText('already an agent called');
   await form.getByRole('button', { name: 'Cancel' }).click();
-  await expect(list().getByRole('form', { name: 'New agent' })).toHaveCount(0);
+  await expect(shell().getByRole('form', { name: 'New agent' })).toHaveCount(0);
 });
 
 test('removing a bot asks first, takes its sessions with it, and leaves the others', async () => {
@@ -283,7 +289,7 @@ test('a conversation can be made a bot: its form is filled in from it, says what
   const row = list().getByRole('listitem').filter({ hasText: 'Look at my tasks and calendar' }).first();
   await row.hover();
   await row.getByRole('button', { name: /^Make .* an agent$/ }).click();
-  const form = list().getByRole('form', { name: 'New agent' });
+  const form = shell().getByRole('form', { name: 'New agent' });
   await expect(tab('Agents')).toHaveAttribute('aria-selected', 'true');
   await expect(form.getByRole('textbox').nth(1)).toHaveValue(/Look at my tasks and calendar and plan the week/);
   await expect(form).toContainText('What it may touch');

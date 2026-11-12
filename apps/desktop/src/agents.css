@@ -1,0 +1,61 @@
+/* The Agents app: the agent rows in the Agent app's sidebar, the New/Edit agent form, and each agent's page. */
+
+/* The form, on an agent's page: grouped like Settings, in a card. */
+.botform { display: flex; flex-direction: column; gap: 12px; font-size: var(--fs-md); }
+.botform label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: var(--fs-sm); }
+.botform input, .botform textarea { padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-md); resize: vertical; }
+.botform-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.botform-starts { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); }
+.botform-label { color: var(--muted); }
+.botform-hint { font-size: var(--fs-xs); color: var(--muted); }
+/* How it starts: a segmented control, both halves the same width, as in Apple's pickers. */
+.botform-seg { display: flex; min-width: 0; max-width: 320px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.botform-seg .seg-btn { flex: 1; min-width: 0; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.botform-seg .seg-btn[aria-checked="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+.botform-when { display: flex; gap: 6px; max-width: 320px; }
+.botform-when select, .botform-when input { flex: 1; min-width: 0; height: 28px; padding: 0 7px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; }
+.botform-touch { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+.botform-touch b { color: var(--ink); font-weight: var(--fw-medium); }
+.botform-touch .link-btn { margin-left: 2px; }
+
+/* An agent row: the name and one line under it take the row; its actions are in the More menu. */
+.bot-row { flex-wrap: wrap; }
+.bot-row .clist-main { min-width: 0; }
+.bot-row .clist-title, .bot-row .clist-sub { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-row .clist-sub { display: block; }
+.bot-more { flex: none; width: 24px; height: 24px; margin-right: 4px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
+.bot-more svg { width: 16px; height: 16px; fill: currentColor; }
+.bot-row:hover .bot-more, .bot-more:focus-visible, .bot-more[aria-expanded="true"] { opacity: 1; }
+.bot-more:hover { background: var(--wash); color: var(--ink); }
+.bot-confirm { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; margin: 0 8px 8px; padding: 8px 10px; border-radius: 10px; background: var(--soft); font-size: var(--fs-sm); }
+.bot-confirm p { margin: 0; }
+
+/* An agent's page: a header, then inset groups with small titles above them, as in Apple's Settings. */
+.agent-page { height: 100%; overflow-y: auto; padding: var(--sp-8) var(--sp-6) var(--sp-8); }
+.agent-page > * { max-width: 640px; margin-left: auto; margin-right: auto; }
+.agent-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-6); }
+.agent-avatar { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 13px; background: color-mix(in srgb, var(--accent) 16%, var(--bg)); color: var(--accent); font-size: var(--fs-2xl); font-weight: 600; }
+.agent-avatar[data-main] { background: var(--accent); color: var(--on-accent); }
+.agent-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.agent-name { margin: 0; font-size: var(--fs-2xl); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-sub { color: var(--muted); font-size: var(--fs-md); }
+.agent-actions { flex: none; display: flex; gap: var(--sp-2); }
+.agent-group-title { display: flex; align-items: baseline; gap: 6px; margin: var(--sp-5) auto 6px; padding: 0 var(--sp-3); font-size: var(--fs-sm); font-weight: 500; color: var(--muted); }
+.agent-count { font-weight: 400; }
+.agent-card { padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-panel); background: var(--soft); }
+.agent-instructions p { margin: 0; white-space: pre-wrap; line-height: 1.45; }
+.agent-muted { color: var(--muted); }
+.agent-empty { margin-top: 0; margin-bottom: 0; }
+.agent-rows { margin-top: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; }
+.agent-row { display: grid; grid-template-columns: 130px 1fr; gap: var(--sp-3); padding: 10px 0; border-bottom: 0.5px solid var(--line); }
+.agent-row:last-child { border-bottom: 0; }
+.agent-row dt { color: var(--muted); }
+.agent-row dd { margin: 0; }
+.agent-row .link-btn { margin-left: 6px; }
+.agent-sessions { list-style: none; margin-top: 0; margin-bottom: 0; padding: 0 var(--sp-2); }
+.agent-sessions li + li { border-top: 0.5px solid var(--line); }
+.agent-session { width: 100%; display: flex; align-items: center; gap: var(--sp-2); padding: 10px var(--sp-2); text-align: left; border-radius: var(--radius-control); }
+.agent-session:hover { background: var(--wash); }
+.agent-session-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-session-when { flex: none; color: var(--muted); font-size: var(--fs-sm); }
+.agent-chev { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.5; }

@@ -1,16 +1,15 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { MAIN_BOT_ID, MAX_BOT_INSTRUCTIONS, MAX_BOT_NAME, botOfConversation, type Bot, type BotDraft, type BotResult, type ConversationInfo, type ScheduleInfo } from '@mobius/shared';
+import { MAIN_BOT_ID, botOfConversation, type Bot, type BotResult, type ConversationInfo, type ScheduleInfo } from '@mobius/shared';
+import { EMPTY_DRAFT, type AgentView } from './AgentPage';
 import { describeWhen } from './settings/Schedules';
 import { relativeTime } from './relative-time';
 import { activityBoard } from './activity-board';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { ReviewActions } from './ReviewBar';
 import { Turns } from './Rewind';
-import { botFromConversation, mayTouch } from './bot-view';
-import { modeOf } from './approval-modes';
-import { usePreferences } from './usePreferences';
+import { botFromConversation } from './bot-view';
 
 interface Props {
   /** Open Settings › Schedules. */
@@ -29,11 +28,10 @@ interface Props {
   bots: Bot[];
   mode: SideMode;
   onMode: (mode: SideMode) => void;
-  /** Start a conversation with this bot (or open its latest one). */
-  onOpenBot: (bot: string) => void;
+  /** What the Agents page in the main area shows, and how to show something else there. */
+  agentView: AgentView | null;
+  onShowAgent: (view: AgentView) => void;
   onNewWithBot: (bot: string) => void;
-  onCreateBot: (draft: BotDraft) => Promise<BotResult<{ bot: Bot }>>;
-  onUpdateBot: (id: string, draft: BotDraft) => Promise<BotResult<{ bot: Bot }>>;
   onRemoveBot: (id: string) => Promise<BotResult<{ removedSessions: number }>>;
   onMoveBot: (id: string, direction: 'up' | 'down') => Promise<BotResult>;
 }
@@ -91,80 +89,19 @@ function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived,
   );
 }
 
-function BotForm({ initial, submitLabel, onSubmit, onCancel }: { initial: BotDraft; submitLabel: string; onSubmit: (draft: BotDraft) => Promise<string | null>; onCancel: () => void }) {
-  const [draft, setDraft] = useState(initial);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  // How it starts: when you ask, or also at a time of day (a schedule, as in Settings › Schedules).
-  const [starts, setStarts] = useState<'ask' | 'schedule'>('ask');
-  const [time, setTime] = useState('08:00');
-  const [days, setDays] = useState<'weekdays' | 'daily'>('weekdays');
-  const preferences = usePreferences();
-  const canSchedule = submitLabel === 'Create' && window.mobius.schedules !== undefined;
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    setSaving(true);
-    let error = await onSubmit(draft);
-    if (!error && canSchedule && starts === 'schedule') {
-      const made = await window.mobius.schedules!.add({ title: draft.name.trim(), prompt: draft.instructions.trim() || draft.name.trim(), time, days: days === 'daily' ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5], enabled: true }).catch(() => null);
-      if (!made || !made.ok) error = made && !made.ok ? made.error : 'The agent was made, but its schedule was not.';
-    }
-    setProblem(error);
-    setSaving(false);
-  };
-  return (
-    <form className="botform" aria-label={submitLabel === 'Create' ? 'New agent' : 'Edit agent'} onSubmit={submit} onKeyDown={(event) => event.key === 'Escape' && onCancel()}>
-      <label>Name<input type="text" value={draft.name} maxLength={MAX_BOT_NAME} autoFocus onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
-      <label>Instructions<textarea rows={4} value={draft.instructions} maxLength={MAX_BOT_INSTRUCTIONS} placeholder="How this agent should behave. Added to the usual instructions." onChange={(e) => setDraft({ ...draft, instructions: e.target.value })} /></label>
-      <label>Model<input type="text" value={draft.model} spellCheck={false} placeholder="The one in settings" onChange={(e) => setDraft({ ...draft, model: e.target.value })} /></label>
-      {canSchedule && (
-        <div className="botform-starts" role="group" aria-label="How it starts">
-          <span className="botform-label">How it starts</span>
-          <span className="seg botform-seg" role="radiogroup" aria-label="How it starts">
-            {([['ask', 'When you ask'], ['schedule', 'On a schedule']] as const).map(([value, label]) => (
-              <button key={value} type="button" role="radio" aria-checked={starts === value} className="seg-btn" onClick={() => setStarts(value)}>{label}</button>
-            ))}
-          </span>
-          {starts === 'schedule' && <span className="botform-hint">It still starts whenever you ask, too.</span>}
-          {starts === 'schedule' && (
-            <span className="botform-when">
-              <select aria-label="Which days" value={days} onChange={(e) => setDays(e.target.value as typeof days)}><option value="weekdays">Weekdays</option><option value="daily">Every day</option></select>
-              <input type="time" aria-label="At" value={time} required onChange={(e) => setTime(e.target.value)} />
-            </span>
-          )}
-        </div>
-      )}
-      <p className="botform-touch"><b>What it may touch</b> {mayTouch(preferences.value.appAccess, modeOf(preferences.value.approvalMode).name)} Change it in Settings › Safety.</p>
-      {problem && <span className="field-error" role="alert">{problem}</span>}
-      <span className="botform-actions">
-        <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn primary" disabled={saving || draft.name.trim() === ''}>{submitLabel}</button>
-      </span>
-    </form>
-  );
-}
-
 /** How many sessions, in words: "No sessions", "1 session", "4 sessions". */
 const sessionCount = (n: number) => (n === 0 ? 'No sessions' : n === 1 ? '1 session' : `${n} sessions`);
 
-function BotRow({ bot, sessions, current, first, last, onOpen, onNew, onUpdate, onRemove, onMove }: { bot: Bot; sessions: number; current: boolean; first: boolean; last: boolean; onOpen: () => void; onNew: () => void; onUpdate: Props['onUpdateBot']; onRemove: Props['onRemoveBot']; onMove: Props['onMoveBot'] }) {
-  const [editing, setEditing] = useState(false);
+function BotRow({ bot, sessions, current, first, last, onOpen, onEdit, onNew, onRemove, onMove }: { bot: Bot; sessions: number; current: boolean; first: boolean; last: boolean; onOpen: () => void; onEdit: () => void; onNew: () => void; onRemove: Props['onRemoveBot']; onMove: Props['onMoveBot'] }) {
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   // The row's actions live in one menu, from the More button or a right-click, so the name keeps the whole row.
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const main = bot.id === MAIN_BOT_ID;
-  if (editing) {
-    return (
-      <li className="clist-item">
-        <BotForm initial={{ name: bot.name, instructions: bot.instructions, model: bot.model }} submitLabel="Save" onCancel={() => setEditing(false)} onSubmit={async (draft) => { const r = await onUpdate(bot.id, draft); if (r.ok) setEditing(false); return r.ok ? null : r.error; }} />
-      </li>
-    );
-  }
   const items: ContextMenuItem[] = [
     { label: 'New session', run: onNew },
     ...(main ? [] : [
-      { action: 'rename' as const, label: 'Edit…', run: () => setEditing(true) },
+      { action: 'rename' as const, label: 'Edit…', run: onEdit },
       { label: 'Move up', disabled: first, separated: true, run: () => void onMove(bot.id, 'up') },
       { label: 'Move down', disabled: last, run: () => void onMove(bot.id, 'down') },
       { action: 'delete' as const, label: 'Remove…', danger: true, separated: true, run: () => setConfirming(true) },
@@ -300,14 +237,12 @@ function ActivityBoard({ conversations, active, onSelect, onDelete, onOpenSchedu
   );
 }
 
-export function ConversationSidebar({ conversations: everything, archived = [], onArchive, active, canStartNew, onNew, onSelect, onDelete, pin, bots, mode, onMode, onOpenBot, onNewWithBot, onCreateBot, onUpdateBot, onRemoveBot, onMoveBot, onOpenSchedules }: Props) {
-  const [adding, setAdding] = useState(false);
-  // A bot being made from a conversation: the form opens filled in from it.
-  const [fromConversation, setFromConversation] = useState<BotDraft | null>(null);
+export function ConversationSidebar({ conversations: everything, archived = [], onArchive, active, canStartNew, onNew, onSelect, onDelete, pin, bots, mode, onMode, agentView, onShowAgent, onNewWithBot, onRemoveBot, onMoveBot, onOpenSchedules }: Props) {
   const makeBot = async (conversation: ConversationInfo) => {
     const history = await window.mobius.agent.history(conversation.id).catch(() => []);
     const first = history.find((m) => m.role === 'user');
-    setFromConversation(botFromConversation(conversation.title, first && first.role === 'user' ? first.text : null));
+    // The New agent page opens filled in from it.
+    onShowAgent({ kind: 'new', draft: botFromConversation(conversation.title, first && first.role === 'user' ? first.text : null) });
     onMode('bots');
   };
   const [collapsed, setCollapsed] = useState<string[]>(readCollapsed);
@@ -320,6 +255,8 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
   const needle = query.trim().toLowerCase();
   const known = bots.map((bot) => bot.id);
   const activeBot = botOfConversation(active, known);
+  // The agent whose page is open: the one chosen, or else the one you are talking to.
+  const shownBot = agentView === null ? activeBot : agentView.kind === 'show' ? agentView.id : null;
   const grouped = bots.length > 1;
   const conversations = everything.filter((c) => !archived.includes(c.id));
   const putAway = everything.filter((c) => archived.includes(c.id));
@@ -340,7 +277,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
             </button>
           ) : (
-            <button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => setAdding(true)}>
+            <button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => onShowAgent({ kind: 'new', draft: EMPTY_DRAFT })}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
             </button>
           )}
@@ -350,12 +287,9 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
         <ActivityBoard conversations={conversations} active={active} onSelect={onSelect} onDelete={onDelete} onOpenSchedules={onOpenSchedules} />
       ) : mode === 'bots' ? (
         <>
-          {(adding || fromConversation) && (
-            <BotForm key={fromConversation ? `from:${fromConversation.name}` : 'new'} initial={fromConversation ?? { name: '', instructions: '', model: '' }} submitLabel="Create" onCancel={() => { setAdding(false); setFromConversation(null); }} onSubmit={async (draft) => { const r = await onCreateBot(draft); if (!r.ok) return r.error; setAdding(false); setFromConversation(null); onNewWithBot(r.bot.id); onMode('sessions'); return null; }} />
-          )}
           <ul className="clist" role="list" aria-label="Agents">
             {bots.map((bot, index) => (
-              <BotRow key={bot.id} bot={bot} first={index <= 1} last={index === bots.length - 1} onMove={onMoveBot} sessions={sessionsOf(bot.id).length} current={bot.id === activeBot} onOpen={() => { onOpenBot(bot.id); onMode('sessions'); }} onNew={() => { onNewWithBot(bot.id); onMode('sessions'); }} onUpdate={onUpdateBot} onRemove={onRemoveBot} />
+              <BotRow key={bot.id} bot={bot} first={index <= 1} last={index === bots.length - 1} onMove={onMoveBot} sessions={sessionsOf(bot.id).length} current={shownBot === bot.id} onOpen={() => onShowAgent({ kind: 'show', id: bot.id })} onEdit={() => onShowAgent({ kind: 'show', id: bot.id, editing: true })} onNew={() => { onNewWithBot(bot.id); onMode('sessions'); }} onRemove={onRemoveBot} />
             ))}
           </ul>
           <p className="srow-empty side-empty">An agent is Mobius with its own instructions, and optionally its own model. Each keeps its own sessions.</p>
