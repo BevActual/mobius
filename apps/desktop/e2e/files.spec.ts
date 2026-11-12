@@ -41,10 +41,29 @@ test('Files shows the workspace as a drive, folder by folder, and a file opens i
   await start();
   await openFiles();
   const page = shell().getByRole('region', { name: 'Files' });
-  await page.getByRole('button', { name: 'notes', exact: true }).click();
-  await page.getByRole('button', { name: 'Work', exact: true }).click();
+  // As in Finder: a click selects, a double-click opens.
+  const notes = page.getByRole('row', { name: 'notes', exact: true });
+  await notes.click();
+  await expect(notes).toHaveAttribute('aria-selected', 'true');
+  await expect(notes).toContainText('Notes folder');
+  await notes.dblclick();
+  await expect(page.getByRole('heading', { name: 'Notes' })).toBeVisible();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › notes › Work');
-  await page.getByRole('button', { name: 'Plan.md', exact: true }).click();
+  // Back and Forward walk the folders visited; the sidebar lists the workspace's folders.
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByRole('heading', { name: 'Notes' })).toBeVisible();
+  await page.getByRole('button', { name: 'Forward' }).click();
+  await expect(page.getByRole('heading', { name: 'Work' })).toBeVisible();
+  await expect(shell().getByRole('list', { name: 'Folders' }).getByRole('button', { name: 'Notes' })).toHaveAttribute('aria-current', 'page');
+  // The filter narrows the folder; the keyboard selects and opens.
+  await page.getByRole('searchbox', { name: 'Filter this folder' }).fill('nothing like it');
+  await expect(page).toContainText('Nothing here matches');
+  await page.getByRole('searchbox', { name: 'Filter this folder' }).fill('pla');
+  const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
+  await plan.click();
+  await expect(plan).toContainText('Note');
+  await plan.press('Enter');
   await expect(shell().getByRole('region', { name: 'Note: Plan' })).toBeVisible();
 });
 
@@ -63,13 +82,13 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   const side = shell().getByRole('navigation', { name: 'Files' });
   await side.getByRole('button', { name: /Made by Mobius/ }).click();
   const made = shell().getByRole('region', { name: 'Made by Mobius' });
-  await expect(made.getByRole('button', { name: 'Work / Brief, from Mobius' })).toHaveAttribute('data-proposed');
+  await expect(made.getByRole('option', { name: 'Work / Brief, from Mobius' })).toHaveAttribute('data-proposed');
   await side.getByRole('button', { name: 'Workspace' }).click();
   const page = shell().getByRole('region', { name: 'Files' });
-  await expect(page.getByRole('button', { name: 'notes, from Mobius' })).toBeVisible();
-  await page.getByRole('button', { name: 'notes, from Mobius' }).click();
-  await page.getByRole('button', { name: 'Work, from Mobius' }).click();
-  await expect(page.getByRole('button', { name: 'Brief.md, from Mobius' })).toBeVisible();
+  await expect(page.getByRole('row', { name: 'notes, from Mobius' })).toContainText('1 from Mobius');
+  await page.getByRole('row', { name: 'notes, from Mobius' }).dblclick();
+  await page.getByRole('row', { name: 'Work, from Mobius' }).dblclick();
+  await expect(page.getByRole('row', { name: 'Brief.md, from Mobius' })).toHaveAttribute('data-proposed');
   await side.getByRole('button', { name: /Made by Mobius/ }).click();
   await made.getByRole('group', { name: "Mobius's change" }).getByRole('button', { name: 'Keep' }).click();
   await expect(made).toContainText('Nothing is waiting');

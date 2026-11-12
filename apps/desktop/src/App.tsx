@@ -1274,7 +1274,7 @@ export function App() {
       case 'design':
         return <DesignEditor designs={designs} review={designs.page && turnMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'files':
-        return <FilesPage files={files} onOpenFile={openChangedFile} />;
+        return <FilesPage files={files} onOpenFile={openChangedFile} onAsk={startWithMobius} />;
       case 'review':
         return <ReviewPage review={review} onOpenFile={openChangedFile} onOpenConversation={(id) => { conversation.select(id); openApp('agent'); }} />;
       case 'terminal':
