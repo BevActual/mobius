@@ -69,11 +69,16 @@ test('screens: every app, Home, Settings and the Mobius panel, light and dark', 
       await open(name, id);
       await both(shell, id === 'agent' ? 'agent' : name.toLowerCase());
     }
-    // Home: the start page of a new tab.
+    // Home: the Agent app's desk, with something scheduled next.
+    await shell.evaluate(() => window.mobius.schedules?.add({ title: 'Morning brief', prompt: 'What is on today?', time: '08:00', days: [1, 2, 3, 4, 5, 6, 7], enabled: true }));
+    await open('Agent', 'agent');
+    await expect(shell.getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Next' })).toBeVisible();
+    await both(shell, 'home');
+    // The start page of a new tab.
     await open('Browser', 'browser');
     await shell.getByRole('button', { name: 'New tab' }).click();
     await expect(shell.getByRole('region', { name: 'New tab' })).toBeVisible();
-    await both(shell, 'home');
+    await both(shell, 'new-tab');
     // Settings.
     await openSettings(shell);
     await both(shell, 'settings');
