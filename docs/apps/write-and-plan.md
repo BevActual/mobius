@@ -6,7 +6,7 @@ Quick pages, saved as you type.
 
 ![The Notes app in Mobius](../readme/apps/notes.png)
 
-- **Notebooks** in the sidebar, newest pages first, with search, **Pinned** pages at the top and a **Tags** section
+- **Notebooks** in the sidebar, newest pages first, each row showing when it was edited and how it starts, with search, **Pinned** pages at the top and a **Tags** section
   built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
   recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
@@ -131,6 +131,8 @@ A place for one piece of work.
 - **Rules**: how much Mobius may do in each app inside the project (Ask first, Propose or Act). Paying, sending,
   deleting and running commands always ask, whatever a project says.
 - **Threads**: the project's conversations. Move an existing conversation in and the project's rules apply to it.
+  Right-click a thread and choose **Remove from project** to take it out again: the conversation is kept, and the
+  project's rules no longer count in it.
 - **Memory**: the project's page in [Knowledge](#knowledge). What Mobius proposes in its threads waits dashed until
   kept.
 - **Files**: the project's folder in Files, and a list of what its threads made or changed, newest first.
@@ -138,7 +140,7 @@ A place for one piece of work.
 
 The page opens with one line about the project (its threads, what they made, what waits on you and when it last
 moved), **New thread**, and **More** (⋯): Rename, Show the folder in Files, Open memory in Knowledge and Delete
-project. Right-click a project in the sidebar for the same Rename and Delete. Each part is a grouped list: a thread
+project. Right-click a project in the sidebar for the same Rename and Delete, or double-click it to rename. Each part is a grouped list: a thread
 shows how many messages it has and when it last moved, and something made shows its app's icon.
 
 Renaming a project renames its folder and its memory page too. Deleting a project asks first, and keeps its threads,
