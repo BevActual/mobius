@@ -33,6 +33,8 @@ Frames on a canvas, as in Sketch and Figma.
   hide, lock and delete, each with its shortcut. **Shift+1** fits everything, **Shift+2** zooms to what is picked.
 - Give a frame or shape a **Border** from the inspector (colour or style, and width). Drag layers up or down the layer
   list to change what is in front, or onto another frame to move them there.
+- **Export** a frame as a PNG at 1×, 2× or 3× from the inspector (or right-click › Export as PNG). It is saved in
+  Photo, in a **Design exports** album.
 - Mobius's changes are dashed to keep or discard. It can also make pictures with your
   [Images model](../guide/models-and-gateways.md#a-model-for-each-job).
 
