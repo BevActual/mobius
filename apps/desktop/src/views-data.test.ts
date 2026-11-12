@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConversationInfo, MailMessage } from '@mobius/shared';
+import { setLocaleForTests } from './dates';
 import { tileContent, tileSummary, type ViewSources } from './views-data';
 
 const now = new Date(2026, 10, 12, 10, 30);
@@ -72,8 +73,11 @@ describe('tiles', () => {
 
   it('Next lists the schedules that run soonest', () => {
     const schedules = [{ id: 's1', title: 'Morning brief', enabled: true, days: [1, 2, 3, 4, 5], time: '08:00', lastRunMs: null }] as unknown as ViewSources['schedules'];
+    // Times follow the computer's clock (dates.ts); pin one so the test does not depend on where it runs.
+    setLocaleForTests('en-GB');
     const t = tileContent({ id: 's', kind: 'next', size: 'small' }, { ...src, schedules }, now);
-    expect(t.rows.map((r) => `${r.text} ${r.detail}`)).toEqual(['Morning brief Tomorrow at 08:00']);
+    setLocaleForTests(null);
+    expect(t.rows.map((r) => `${r.text} ${r.detail}`)).toEqual(['Morning brief Tomorrow at 8:00']);
     expect(tileSummary('Next', tileContent({ id: 's', kind: 'next', size: 'small' }, src, now))).toBe('Next: Nothing scheduled. Add a schedule in Settings.');
   });
 });
