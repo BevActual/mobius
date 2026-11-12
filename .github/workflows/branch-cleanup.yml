@@ -22,7 +22,7 @@ jobs:
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
           MERGED: ${{ github.event.pull_request.merged }}
-          KEEP: main claude/project-thread-upbgu0 claude/project-thread-mnujis
+          KEEP: main
         run: |
           for k in $KEEP; do
             if [ "$BRANCH" = "$k" ]; then echo "$BRANCH is long-lived; kept."; KEPT=1; fi
