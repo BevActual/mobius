@@ -53,7 +53,7 @@ const NOTES = () => [
   { name: 'Home', pages: [notePage('Home/Groceries.md', now - 30 * hour)] },
 ];
 /** The first line under the title, as the Rust list gives it (roughly: enough for the preview). */
-const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('# ') && !l.startsWith('|'))[0] ?? '').replace(/^#+\s*|^[-*] (\[[ x]\] )?/g, '').replace(/[*_`]/g, '').slice(0, 120);
+const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('# ') && !l.startsWith('|'))[0] ?? '').replace(/^#+\s*|^[-*] (\[[ x]\] )?/g, '').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_`]/g, '').slice(0, 120);
 /** One turn of Mobius's, still waiting to be kept, so the dashed proposals and Why this can be looked at. */
 const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv'] };
 
