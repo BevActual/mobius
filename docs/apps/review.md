@@ -13,6 +13,25 @@ Everything Mobius changed, from every conversation, in one place.
 Review is the place to check what Mobius did while you were away. Changes themselves are kept or discarded in their
 apps; see [Keep, Discard, Try another](../guide/working-with-mobius.md#keep-discard-try-another).
 
+## Views
+
+Dashboards of live tiles from your other apps.
+
+![The Views app in Mobius](../readme/apps/views.png)
+
+- **A view** is a grid of tiles. Each tile shows something live from one app: **Mobius** (what waits for you and what
+  is working), **Tasks** (due today, scheduled, flagged or all), **Calendar** (the rest of today, or the next seven
+  days), **Mail** (unread in the inbox), **Notes** (the newest, or one notebook's) and **Next** (schedules that run
+  next). Click a row to open it in its app.
+- **Add tile** adds one at the end. A tile's **…** menu (or a right-click) makes it wide or small, changes what it
+  shows, moves it, or removes it. **Edit** shows a remove button on every tile and lets you drag tiles into a new order;
+  **Alt+←/→** moves the focused tile. Removing a tile can be undone.
+- **A new view** starts with the usual tiles. Views are kept in folders in the sidebar, like notes.
+
+Views only point at things: the tasks, events, mail and notes stay in their own apps, and a view never changes them.
+Each view is a JSON file in `views/<folder>/<view>.json`, so Mobius can make one ("Make a view for the Kestrel build")
+or add tiles to the open one. Its changes show dashed, to keep or discard.
+
 ## Comments
 
 Comment on anything in Mobius, as you would in a design tool.

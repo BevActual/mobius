@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { morphOut, useMorphIn } from './motion';
+import type { ReactNode } from 'react';
+import { PointMenu, type MenuEntry } from './ui';
 
 /** The standard actions, each with one icon used everywhere: a row's hover buttons, its context menu, toolbars. */
 export type ActionName = 'copy' | 'cut' | 'paste' | 'delete' | 'duplicate' | 'rename' | 'share' | 'pin' | 'unpin' | 'move' | 'open' | 'reveal' | 'undo';
@@ -47,50 +47,18 @@ export interface ContextMenuItem {
 
 /**
  * A row's context menu: glass, growing out of where it was asked for and going back there when it closes. Its first
- * items should be the row's own hover actions, in the same order, so the two never disagree. Escape, a click elsewhere
- * or choosing an item closes it; the arrow keys move between items.
+ * items should be the row's own hover actions, in the same order, so the two never disagree. Built on the shared
+ * menu (ui/Menu), so Escape, a click elsewhere, the arrow keys and typing a name all work as in every other menu.
  */
 export function ContextMenu({ x, y, label, items, onClose }: { x: number; y: number; label: string; items: readonly ContextMenuItem[]; onClose: () => void }) {
-  const menu = useRef<HTMLDivElement>(null);
-  const [place, setPlace] = useState({ left: x, top: y });
-  useMorphIn(menu, true, 'left');
-  const closing = useRef(false);
-  const close = (then?: () => void) => {
-    if (closing.current) return;
-    closing.current = true;
-    if (menu.current) menu.current.style.pointerEvents = 'none';
-    void morphOut(menu.current, 'left').then(() => { onClose(); then?.(); });
-  };
-  // Kept inside the window: it opens up or to the left where there is no room below or to the right.
-  useLayoutEffect(() => {
-    const box = menu.current?.getBoundingClientRect();
-    if (!box) return;
-    setPlace({ left: Math.max(8, Math.min(x, window.innerWidth - box.width - 8)), top: Math.max(8, y + box.height > window.innerHeight - 8 ? y - box.height : y) });
-  }, [x, y]);
-  useEffect(() => {
-    menu.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
-    const away = (event: PointerEvent) => { if (!menu.current?.contains(event.target as Node)) close(); };
-    document.addEventListener('pointerdown', away, true);
-    return () => document.removeEventListener('pointerdown', away, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const onKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Escape') { event.preventDefault(); close(); return; }
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    event.preventDefault();
-    const list = [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [])];
-    const at = list.indexOf(document.activeElement as HTMLElement);
-    list[(at + (event.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length]?.focus();
-  };
-  return (
-    <div ref={menu} className="context-menu glass" role="menu" aria-label={label} style={place} onKeyDown={onKeyDown} onContextMenu={(e) => e.preventDefault()}>
-      {items.map((item, i) => (
-        <button key={`${item.action ?? ''}-${item.label ?? ''}-${i}`} type="button" role="menuitem" className="context-menu-item" data-danger={item.danger || undefined} data-separated={item.separated || undefined} disabled={item.disabled} onClick={() => close(item.run)}>
-          {item.action ? <ActionIcon action={item.action} /> : <span className="action-icon" aria-hidden="true" />}
-          <span>{item.label ?? (item.action ? ACTION_LABELS[item.action] : '')}</span>
-          {item.keys && <kbd className="context-menu-keys">{item.keys}</kbd>}
-        </button>
-      ))}
-    </div>
-  );
+  const entries: MenuEntry[] = items.map((item) => ({
+    label: item.label ?? (item.action ? ACTION_LABELS[item.action] : ''),
+    icon: item.action ? <ActionIcon action={item.action} /> : undefined,
+    run: item.run,
+    danger: item.danger,
+    disabled: item.disabled,
+    separated: item.separated,
+    keys: item.keys,
+  }));
+  return <PointMenu x={x} y={y} label={label} entries={entries} onClose={onClose} />;
 }

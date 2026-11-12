@@ -23,7 +23,7 @@ export interface SurfaceState {
   hasPage: boolean;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
   /** `extra` is what is said about it, such as its open comments, sent after its text. */
-  note: { path: string; title: string; text: string; extra?: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' | 'terminal' } | null;
+  note: { path: string; title: string; text: string; extra?: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'views' | 'research' | 'reading' | 'databases' | 'terminal' } | null;
   /** The view open in Tasks, written out as a checklist, if Tasks is open. */
   tasks?: { title: string; text: string } | null;
   /** The sheet open in Sheets, as values with their formulas, if Sheets is open. */
@@ -191,6 +191,16 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Add ideas', prompt: 'Add six more stickies with new ideas to this board, near the others and in the same style. Keep everything already there as it is.', attach: 'note' },
           ]
         : [{ label: 'Start a board', prompt: 'Make a board in my Canvas, with stickies laid out in columns, for ' }];
+    case 'views':
+      return state.note
+        ? [
+            { label: 'Add tiles for…', prompt: 'Add tiles to this view (keep the ids of the tiles already there) for ', attach: 'note' },
+            { label: 'What stands out?', prompt: 'Look at what this view shows (its tiles read my apps) and tell me in a few lines what needs me first today. Change nothing.', attach: 'note' },
+          ]
+        : [
+            { label: 'Make a view for…', prompt: 'Make a view in my Views app (views/Views/<a short name>.json) with the tiles that fit, for ' },
+            { label: 'A morning view', prompt: 'Make a view in my Views app called Morning (views/Views/Morning.json): what Mobius needs from me, tasks due today, today\'s events, unread mail and what runs next.' },
+          ];
     case 'code':
       return state.code
         ? [
@@ -224,7 +234,7 @@ export function databaseOutline(name: string, tables: { name: string; rows: numb
 }
 
 /** The open note as an attachment, cut to what one attachment may carry. */
-export function noteContext(note: { path: string; title: string; text: string; extra?: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'research' | 'reading' | 'databases' | 'terminal' }): ContextItem {
+export function noteContext(note: { path: string; title: string; text: string; extra?: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'views' | 'research' | 'reading' | 'databases' | 'terminal' }): ContextItem {
   // What is said about the page (its open comments) goes after it, and is never cut off by a long page.
   const extra = note.extra ? `\n\n---\n${note.extra.slice(0, MAX_CONTEXT_ITEM_CHARS / 4)}` : '';
   return { kind: 'file', title: note.title || note.path, source: `${note.folder ?? 'notes'}/${note.path}`, text: note.text.slice(0, MAX_CONTEXT_ITEM_CHARS - extra.length) + extra };
@@ -275,7 +285,7 @@ export interface Here {
   item: ContextItem;
 }
 
-const NOTE_WORDS: Record<string, string> = { docs: 'document', slides: 'deck', designs: 'design', studio: 'song', boards: 'board', research: 'report', reading: 'article', databases: 'database', terminal: 'terminal' };
+const NOTE_WORDS: Record<string, string> = { docs: 'document', slides: 'deck', designs: 'design', studio: 'song', boards: 'board', views: 'view', research: 'report', reading: 'article', databases: 'database', terminal: 'terminal' };
 
 /** A chip already says what kind of thing it is (Email, Photo, Cut), so its name drops that word. */
 const bare = (title: string) => title.replace(/^(Email|Photo|Video): /, '');
