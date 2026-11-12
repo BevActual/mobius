@@ -192,7 +192,8 @@ export function useDatabases(active = true) {
     const cols = await api.query(name, structureQuery(t));
     const needed = cols.ok ? cols.rows.filter(([, , notnull, dflt, pk]) => notnull && dflt === null && !pk).map(([n, type]) => ({ name: String(n), type: String(type ?? '') })) : [];
     if (!(await change(name, addRowSql(t, needed)))) return null;
-    const id = await api.query(name, 'SELECT last_insert_rowid()');
+    // Each query has its own connection, so last_insert_rowid() would say 0: the new row is the one with the highest rowid.
+    const id = await api.query(name, `SELECT max(rowid) FROM ${quoteIdent(t)}`);
     const rowid = id.ok && typeof id.rows[0]?.[0] === 'number' ? id.rows[0][0] : null;
     setUndo(rowid === null ? null : { label: 'Added a row', sql: deleteRowSql(t, rowid), db: name, table: t });
     const known = await refresh();

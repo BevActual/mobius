@@ -73,7 +73,8 @@ function query(name: string, raw: string): DbResult {
   const db = DBS[name];
   if (!db) return fail('no such database');
   const sql = raw.trim().replace(/;$/, '');
-  if (/^SELECT last_insert_rowid\(\)$/i.test(sql)) return ok(['last_insert_rowid()'], [[lastId]]);
+  const top = /^SELECT max\(rowid\) FROM ("(?:[^"]|"")+")$/i.exec(sql);
+  if (top) { const t = db[unquote(top[1]!)]; return t ? ok(['max(rowid)'], [[Math.max(0, ...ids(t)) || null]]) : fail('no such table'); }
   let e = /^UPDATE ("(?:[^"]|"")+") SET ("(?:[^"]|"")+") = (.+) WHERE rowid = (\d+)$/i.exec(sql);
   if (e) {
     const t = db[unquote(e[1]!)]; if (!t) return fail('no such table');
