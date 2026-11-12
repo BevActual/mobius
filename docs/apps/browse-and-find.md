@@ -26,7 +26,7 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 - **Accounts** sign in with an app password. Ready-made settings for iCloud, Fastmail, Gmail and Yahoo, or any provider by its IMAP and SMTP servers.
 - **Mailboxes:** Inbox, Drafts, Flagged, Sent and Archive. Flagged and Archive gather your flagged and archived mail.
 - **Categories:** Primary, Transactions, Updates and All. Move a message to another with **Move to…** in its toolbar or its right-click menu.
-- **The message toolbar,** as in Apple Mail: Reply, Reply All, Forward, Archive, Flag, Mark as Unread and Remind Me Tomorrow. Right-click a message in the list for the same actions without opening it.
+- **The message toolbar** in the window's top row, as in Apple Mail: Reply, Reply All, Forward, Archive, Flag, Mark as Unread and Remind Me Tomorrow. Right-click a message in the list for the same actions without opening it.
 - **Replies quote the message** under where you write, and forwards carry who it was from and to. Attachments are not forwarded yet.
 - **Keys:** the up and down arrows move through the list; E archives, R replies and H brings the message back tomorrow at 8:00.
 - **Email is shown safely:** no scripts, and nothing loaded from the web, so tracking pixels don't fire.

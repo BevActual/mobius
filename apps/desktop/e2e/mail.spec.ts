@@ -73,7 +73,7 @@ test('an account signs in with an app password, mail is sorted here, and only th
   await page().getByRole('tab', { name: /^Primary/ }).click();
   await list.getByRole('option').first().click();
   await expect(page().getByRole('article')).toContainText('hold the terrace for eight');
-  await page().getByRole('button', { name: 'Reply', exact: true }).click();
+  await shell().getByRole('toolbar', { name: 'Message' }).getByRole('button', { name: 'Reply', exact: true }).click();
   const compose = page().getByRole('form', { name: 'Reply' });
   await expect(compose.getByRole('textbox', { name: 'To' })).toHaveValue('rui@example.com');
   await expect(compose.getByRole('textbox', { name: 'Subject' })).toHaveValue('Re: Terrace + lunch for the 13th');
@@ -112,7 +112,7 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
 test('the message toolbar: Reply All quotes the message, Flag files it under Flagged, Archive under Archive and back', async () => {
   await start();
   const list = page().getByRole('listbox', { name: 'Messages' });
-  const tools = page().getByRole('toolbar', { name: 'Message' });
+  const tools = shell().getByRole('toolbar', { name: 'Message' });
   const boxes = shell().getByRole('navigation', { name: 'Mailboxes' });
   await list.getByRole('option').first().click();
   // Reply All starts above the quoted message, with the cursor there.

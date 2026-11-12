@@ -36,7 +36,7 @@ import { TasksPage, TasksSidebar } from './Tasks';
 import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { SheetGrid, SheetsSidebar } from './Sheets';
-import { BOX_NAMES, MailPage, MailSidebar } from './Mail';
+import { BOX_NAMES, MailPage, MailSidebar, MailToolbar } from './Mail';
 import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
 import { useSheets } from './useSheets';
@@ -1528,6 +1528,7 @@ export function App() {
             <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
           </div>
         )}
+        {inMail && <MailToolbar mail={mail} />}
         {inBrowser && !showWide && browserChrome}
         <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
         {hasRight && !rightOpen && !(chatInSide && chatOpen) && (

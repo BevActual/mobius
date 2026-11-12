@@ -32,6 +32,9 @@ export function when(ms: number, now = new Date()): string {
 }
 /** Mail's own toolbar glyphs, drawn like the standard action icons (20 units, stroked). */
 const MAIL_ICONS = {
+  inbox: <><path d="M3 11.5 5 4.5h10l2 7v3.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15z" /><path d="M3 11.5h4l1 2h4l1-2h4" /></>,
+  drafts: <><path d="M5.5 3h6l3.5 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 4 15.5v-11A1.5 1.5 0 0 1 5.5 3z" /><path d="M11 3v4h4M7 10.5h6M7 13.5h4" /></>,
+  sent: <path d="M17 3 3 9l5.5 2.5L11 17zM8.5 11.5 17 3" />,
   reply: <path d="M8 5 3.5 9.5 8 14M3.5 9.5h7a6 6 0 0 1 6 6v.5" />,
   replyAll: <><path d="M10 5 5.5 9.5 10 14M5.5 9.5h5.5a5.5 5.5 0 0 1 5.5 5.5v.5" /><path d="M6 5 1.5 9.5 6 14" /></>,
   forward: <path d="M12 5l4.5 4.5L12 14M16.5 9.5h-7a6 6 0 0 0-6 6v.5" />,
@@ -44,6 +47,12 @@ const MAIL_ICONS = {
 } as const;
 function Glyph({ name, filled = false }: { name: keyof typeof MAIL_ICONS; filled?: boolean }) {
   return <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={filled || undefined}>{MAIL_ICONS[name]}</svg>;
+}
+
+/** A mailbox's glyph in the sidebar, tinted like Apple Mail's. */
+const BOX_GLYPH = { inbox: 'inbox', drafts: 'drafts', flagged: 'flag', sent: 'sent', archive: 'archive' } as const;
+function BoxGlyph({ name }: { name: keyof typeof BOX_GLYPH }) {
+  return <svg className="mail-box-icon" data-box={name} viewBox="0 0 20 20" aria-hidden="true">{MAIL_ICONS[BOX_GLYPH[name]]}</svg>;
 }
 
 /** Where a mailbox's list comes from, as the sidebar names it. */
@@ -109,7 +118,7 @@ export function MailSidebar({ mail, pin, starts, onStart }: { mail: MailState; p
   const [removing, setRemoving] = useState<string | null>(null);
   const v = mail.view;
   const here = (kind: MailBox | 'drafts') => (kind === 'drafts' ? v.kind === 'drafts' : v.kind === 'box' && v.box === kind) ? 'page' : undefined;
-  const box = (b: 'sent' | 'flagged' | 'archive') => <li><button type="button" className="list-row" aria-current={here(b)} onClick={() => mail.setView({ kind: 'box', box: b, category: 'all' })}><span className="list-name">{BOX_NAMES[b]}</span></button></li>;
+  const box = (b: 'sent' | 'flagged' | 'archive') => <li><button type="button" className="list-row" aria-current={here(b)} onClick={() => mail.setView({ kind: 'box', box: b, category: 'all' })}><BoxGlyph name={b} /><span className="list-name">{BOX_NAMES[b]}</span></button></li>;
   return (
     <aside className="side mail-side" aria-label="Mail sidebar">
       <SideNew item="message" onNew={mail.compose} disabled={mail.accounts.length === 0} title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} {...(mail.accounts.length > 0 && starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
@@ -124,8 +133,8 @@ export function MailSidebar({ mail, pin, starts, onStart }: { mail: MailState; p
       </div>
       <nav className="task-lists" aria-label="Mailboxes">
         <ul role="list">
-          <li><button type="button" className="list-row" aria-current={here('inbox')} onClick={() => mail.setView({ kind: 'box', box: 'inbox', category: v.kind === 'box' && v.box === 'inbox' ? v.category : 'primary' })}><span className="list-name">Inbox</span><span className="list-count">{mail.counts.all || ''}</span></button></li>
-          <li><button type="button" className="list-row" aria-current={here('drafts')} onClick={() => mail.setView({ kind: 'drafts' })}><span className="list-name">Drafts</span><span className="list-count">{mail.counts.drafts + mail.counts.suggested || ''}</span></button></li>
+          <li><button type="button" className="list-row" aria-current={here('inbox')} onClick={() => mail.setView({ kind: 'box', box: 'inbox', category: v.kind === 'box' && v.box === 'inbox' ? v.category : 'primary' })}><BoxGlyph name="inbox" /><span className="list-name">Inbox</span><span className="list-count">{mail.counts.all || ''}</span></button></li>
+          <li><button type="button" className="list-row" aria-current={here('drafts')} onClick={() => mail.setView({ kind: 'drafts' })}><BoxGlyph name="drafts" /><span className="list-name">Drafts</span><span className="list-count">{mail.counts.drafts + mail.counts.suggested || ''}</span></button></li>
           {box('flagged')}
           {box('sent')}
           {box('archive')}
@@ -270,7 +279,15 @@ const moveItems = (mail: MailState, id: string, now: MailCategory | undefined, t
   run: () => void mail.sort(id, c.id as MailCategory).then(then),
 }));
 
-/** A message's actions, in the toolbar over it, Apple Mail's order: reply, reply all, forward | archive, flag, unread, later, move. */
+/**
+ * The open message's actions, in the window's toolbar row as in Apple Mail, in three capsules:
+ * reply, reply all, forward | archive, flag, unread | remind me, move to.
+ */
+export function MailToolbar({ mail }: { mail: MailState }) {
+  if (!mail.open || mail.editing) return null;
+  return <MessageTools mail={mail} content={mail.open} />;
+}
+
 function MessageTools({ mail, content }: { mail: MailState; content: MailContent }) {
   const row = mail.messages.find((m) => m.id === content.id);
   const flagged = row?.flagged ?? false;
@@ -282,7 +299,7 @@ function MessageTools({ mail, content }: { mail: MailState; content: MailContent
     </button>
   );
   return (
-    <div className="mail-tools" role="toolbar" aria-label="Message">
+    <div className="strip-middle toolbar-tools mail-tools" role="toolbar" aria-label="Message">
       <span className="mail-tools-group">
         {tool('reply', 'Reply', () => mail.reply(content), { keys: 'R' })}
         {tool('replyAll', 'Reply All', () => mail.reply(content, true))}
@@ -292,6 +309,8 @@ function MessageTools({ mail, content }: { mail: MailState; content: MailContent
         {archived ? tool('unarchive', 'Move to Inbox', () => void mail.archive(content.id, false)) : tool('archive', 'Archive', () => void mail.archive(content.id), { keys: 'E' })}
         {tool('flag', flagged ? 'Unflag' : 'Flag', () => void mail.flag(content.id, 'flagged', !flagged), { pressed: flagged, filled: flagged })}
         {tool('unread', 'Mark as Unread', () => { void mail.flag(content.id, 'seen', false); mail.setOpen(null); })}
+      </span>
+      <span className="mail-tools-group">
         {!archived && row?.box !== 'sent' && tool('later', 'Remind Me Tomorrow', () => void mail.remindTomorrow(content.id), { keys: 'H' })}
         {tool('move', 'Move to…', (e) => { const r = e.currentTarget.getBoundingClientRect(); setMoving({ x: r.left, y: r.bottom + 4 }); })}
       </span>
@@ -316,7 +335,6 @@ function Reader({ mail, content, onDraftReply }: { mail: MailState; content: Mai
           <div className="mail-to">To: {content.to.map(shownName).join(', ') || 'you'}{content.cc.length > 0 && <> · Cc: {content.cc.map(shownName).join(', ')}</>}</div>
         </div>
       </header>
-      <MessageTools mail={mail} content={content} />
       {((onDraftReply && suggestions.length === 0) || content.html) && (
         <div className="mail-reader-actions">
           {onDraftReply && suggestions.length === 0 && <button type="button" className="btn mail-draft-it" onClick={() => onDraftReply(content)}>Draft a reply with Mobius</button>}
