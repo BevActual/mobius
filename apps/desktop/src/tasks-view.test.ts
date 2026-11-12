@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TaskItem } from '@mobius/shared';
-import { byList, dueLabel, LIST_COLORS, listColor, nest, parseWhen, searchTasks, smartView, splitDone, tasksIn } from './tasks-view';
+import { byDay, byList, dueLabel, LIST_COLORS, listColor, nest, parseWhen, searchTasks, smartView, splitDone, tasksIn } from './tasks-view';
 
 const t = (text: string, due: string | null = null, done = false, line = 0): TaskItem => ({ line, text, done, due });
 const today = new Date(2026, 10, 6, 15, 0); // 6 November 2026, afternoon
@@ -81,5 +81,18 @@ describe('a date said in words at the end of a new task', () => {
     expect(when('tomorrow')).toBeNull();
     expect(when('Pay 31 feb')).toBeNull();
     expect(when('Buy a monitor')).toBeNull();
+  });
+});
+
+describe('scheduled by day', () => {
+  it('puts late tasks under Overdue, the coming week under each day, and later ones under their month', () => {
+    const at = (due: string, text = due) => ({ list: 'Inbox', task: t(text, due) });
+    const groups = byDay([at('2026-10-30'), at('2026-11-05'), at('2026-11-06'), at('2026-11-07'), at('2026-11-10'), at('2026-11-10', 'second'), at('2026-11-20'), at('2026-11-28'), at('2027-01-02')], today);
+    expect(groups.map((g) => [g.label, g.exact, g.rows.length])).toEqual([
+      ['Overdue', false, 2], ['Today', true, 1], ['Tomorrow', true, 1], ['Tuesday', true, 2], ['November', false, 2], ['January 2027', false, 1],
+    ]);
+  });
+  it('leaves out tasks without a date', () => {
+    expect(byDay([{ list: 'Inbox', task: t('no date') }], today)).toEqual([]);
   });
 });

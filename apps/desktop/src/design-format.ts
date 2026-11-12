@@ -8,13 +8,14 @@
  *           "text": "Lisbon offsite", "size": 28, "weight": 700, "color": "style:Primary" }] }] }
  *
  * Frames sit on the canvas; their layers (rectangles, ellipses and text) are placed inside them, first drawn first. A
- * colour is `#rrggbb` (or `#rrggbbaa`) or `style:<name>`, one of the design's colour styles. Anything missing takes a
- * plain default, so a hand-written file still opens.
+ * colour is `#rrggbb` (or `#rrggbbaa`) or `style:<name>`, one of the design's colour styles. A layer can be `"hidden": true`
+ * (not drawn) or `"locked": true` (drawn, but not picked or moved on the canvas). Anything missing takes a plain default,
+ * so a hand-written file still opens.
  */
 export type NodeType = 'rect' | 'ellipse' | 'text';
 export type Align = 'left' | 'center' | 'right';
 export interface DesignStyle { name: string; color: string }
-export interface DesignNode { id: string; type: NodeType; name: string; x: number; y: number; w: number; h: number; fill: string; radius: number; opacity: number; text: string; size: number; weight: number; color: string; align: Align }
+export interface DesignNode { id: string; type: NodeType; name: string; x: number; y: number; w: number; h: number; fill: string; radius: number; opacity: number; text: string; size: number; weight: number; color: string; align: Align; hidden?: boolean; locked?: boolean }
 export interface DesignFrame { id: string; name: string; x: number; y: number; w: number; h: number; fill: string; radius: number; children: DesignNode[] }
 export interface DesignDoc { version: 1; styles: DesignStyle[]; frames: DesignFrame[] }
 
@@ -36,6 +37,7 @@ function readNode(v: unknown, i: number, taken: Set<string>): DesignNode {
     fill: color(o.fill, type === 'text' ? 'transparent' : '#d9d9de'), radius: num(o.radius, 0, 0, 10_000), opacity: num(o.opacity, 1, 0, 1),
     text: str(o.text, type === 'text' ? 'Text' : ''), size: num(o.size, 16, 4, 400), weight: num(o.weight, 400, 100, 900), color: color(o.color, '#1d1d1f'),
     align: o.align === 'center' || o.align === 'right' ? o.align : 'left',
+    ...(o.hidden === true ? { hidden: true } : {}), ...(o.locked === true ? { locked: true } : {}),
   };
 }
 
@@ -68,6 +70,8 @@ export function writeDesign(doc: DesignDoc): string {
     if (n.radius) out.radius = n.radius;
     if (n.opacity !== 1) out.opacity = n.opacity;
     if (n.type === 'text') Object.assign(out, { text: n.text, size: n.size, weight: n.weight, color: n.color }, n.align !== 'left' ? { align: n.align } : {});
+    if (n.hidden) out.hidden = true;
+    if (n.locked) out.locked = true;
     return out;
   };
   const frames = doc.frames.map((f) => ({ id: f.id, name: f.name, x: f.x, y: f.y, w: f.w, h: f.h, fill: f.fill, radius: f.radius, children: f.children.map(node) }));

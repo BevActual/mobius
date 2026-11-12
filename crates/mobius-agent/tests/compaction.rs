@@ -22,7 +22,7 @@ fn setup(max_steps: u32) -> (Core, Engine) {
 }
 
 fn answer(t: &str) -> Result<Completion, ProviderError> {
-    Ok(Completion { text: t.into(), tool_calls: vec![], stop: StopReason::EndTurn })
+    Ok(Completion { text: t.into(), tool_calls: vec![], stop: StopReason::EndTurn, usage: None })
 }
 
 fn chat(pairs: usize, size: usize) -> Vec<Message> {

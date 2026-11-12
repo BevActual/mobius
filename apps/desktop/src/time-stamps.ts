@@ -1,3 +1,5 @@
+import { systemLocale } from './dates';
+
 /** A gap longer than this between messages starts a new group, with its time above it. */
 export const GROUP_GAP_MS = 15 * 60 * 1000;
 
@@ -10,7 +12,7 @@ const startOfDay = (ms: number): number => {
 };
 
 /** "Today 9:12", "Yesterday 18:40", "Mon 9:12", or "3 Nov 9:12" (with the year when it is not this year). */
-export function stampLabel(at: number, now: number, locale?: string): string {
+export function stampLabel(at: number, now: number, locale: string | undefined = systemLocale()): string {
   const time = new Date(at).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
   const days = Math.round((startOfDay(now) - startOfDay(at)) / DAY_MS);
   if (days <= 0) return `Today ${time}`;

@@ -55,10 +55,10 @@ fn call(id: &str, name: &str, arguments: Value) -> ToolCall {
     ToolCall { id: id.into(), name: name.into(), arguments }
 }
 fn text(t: &str) -> Result<Completion, ProviderError> {
-    Ok(Completion { text: t.into(), tool_calls: vec![], stop: StopReason::EndTurn })
+    Ok(Completion { text: t.into(), tool_calls: vec![], stop: StopReason::EndTurn, usage: None })
 }
 fn calls(t: &str, calls: Vec<ToolCall>) -> Result<Completion, ProviderError> {
-    Ok(Completion { text: t.into(), tool_calls: calls, stop: StopReason::ToolUse })
+    Ok(Completion { text: t.into(), tool_calls: calls, stop: StopReason::ToolUse, usage: None })
 }
 
 /// Play model calls until the turn needs something other than a model.

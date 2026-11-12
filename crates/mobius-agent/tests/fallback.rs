@@ -10,7 +10,7 @@ fn request() -> ChatRequest {
 }
 
 fn ok(text: &str) -> Result<Completion, ProviderError> {
-    Ok(Completion { text: text.into(), tool_calls: Vec::new(), stop: StopReason::EndTurn })
+    Ok(Completion { text: text.into(), tool_calls: Vec::new(), stop: StopReason::EndTurn, usage: None })
 }
 
 fn http(status: u16) -> Result<Completion, ProviderError> {

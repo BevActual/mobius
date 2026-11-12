@@ -1649,3 +1649,21 @@ fn a_new_install_starts_with_the_everyday_apps_and_an_old_one_keeps_them_all() {
     assert_eq!(call(&b, "preferences", "set", json!([{ "installedApps": ["notes", "photo"] }]))["installedApps"], json!(["notes", "photo"]));
     assert_eq!(call(&b, "preferences", "set", json!([{ "installedApps": ["Bad App"] }]))["installedApps"], json!(["notes", "photo"]));
 }
+
+#[test]
+fn a_model_calls_tokens_are_counted_for_settings_usage_and_the_window_is_told() {
+    let (b, _core, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let used = json!({ "conversation": "c-1", "turn": 1, "kind": "chat", "model": "qwen3:8b", "endpoint": "http://127.0.0.1:11434/v1", "input": 300, "output": 20, "cached": 0 });
+    b.on_core_notification("agent.usage", &used);
+    b.on_core_notification("agent.usage", &used);
+    b.on_core_notification("agent.usage", &json!({ "conversation": "c-1", "turn": 1, "kind": "nonsense", "model": "m", "endpoint": "", "input": 1, "output": 1, "cached": 0 }));
+    // Not passed on as conversation progress.
+    assert_eq!(events.lock().unwrap().iter().filter(|(n, _)| n == "mobius:agent-notification").count(), 0);
+    assert!(events.lock().unwrap().iter().any(|(n, _)| n == "mobius:usage-changed"));
+    let rows = call(&b, "usage", "query", json!([{ "from": "2000-01-01", "to": "2999-12-31" }]));
+    assert_eq!(rows, json!([{ "day": rows[0]["day"], "gateway": "ollama", "model": "qwen3:8b", "app": "agent", "kind": "chat", "requests": 2, "inputTokens": 600, "outputTokens": 40, "costUsd": 0.0 }]));
+    assert!(dir.path().join("usage.json").exists());
+    assert_eq!(call(&b, "usage", "query", json!([{ "from": "yesterday", "to": "today" }]))["ok"], false);
+    call(&b, "usage", "clear", json!([]));
+    assert_eq!(call(&b, "usage", "query", json!([{ "from": "2000-01-01", "to": "2999-12-31" }])), json!([]));
+}
