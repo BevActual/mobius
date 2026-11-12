@@ -446,6 +446,8 @@ export function createTauriBridge(): MobiusBridge {
       createPage: (notebook, title) => call('slides', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Slides is not available.' })),
       remove: (path) => call('slides', 'remove', [path], () => ({ ok: false as const, message: 'Slides is not available.' })),
       search: (query) => call('slides', 'search', [query], () => []),
+      attach: (path, name, base64) => call('slides', 'attach', [path, name, base64], () => ({ ok: false as const, message: 'Slides is not available.' })),
+      asset: (path, reference) => call('slides', 'asset', [path, reference], () => ({ ok: false as const, message: 'Slides is not available.' })),
       onChanged: (listener) => on<NotesChange>('mobius:slides-changed', listener),
     },
     designs: {

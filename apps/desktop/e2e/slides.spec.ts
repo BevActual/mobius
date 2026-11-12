@@ -123,3 +123,25 @@ test('slides Mobius adds are dashed in the navigator until kept', async () => {
   await expect(nav().locator('[data-proposed]')).toHaveCount(0);
   expect(fs.readFileSync(file(), 'utf8')).toContain('## Three days');
 });
+
+test('a picture is kept beside the deck, a skipped slide is left out of Play, and a transition is written down', async () => {
+  await start();
+  await nav().getByRole('button', { name: /^Slide 2: Plan next year/ }).click();
+  // A picture added to the slide is saved in "<deck> files/" and written into the slide as an image line.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  await page().locator('input[type="file"]').setInputFiles({ name: 'site.png', mimeType: 'image/png', buffer: png });
+  await expect.poll(() => fs.readFileSync(file(), 'utf8')).toContain('![](Offsite%20kickoff%20files/site.png)');
+  expect(fs.existsSync(path.join(userData, 'workspace', 'slides', 'Presentations', 'Offsite kickoff files', 'site.png'))).toBe(true);
+  await expect(page().locator('.slides-canvas img.slide-picture')).toBeVisible();
+  // Slide 1 is skipped and moves on with Push.
+  await nav().getByRole('button', { name: /^Slide 1: Lisbon/ }).click();
+  await page().getByRole('switch', { name: 'Skip this slide' }).check();
+  await page().getByRole('combobox', { name: 'Transition' }).selectOption('push');
+  await expect.poll(() => fs.readFileSync(file(), 'utf8')).toMatch(/^<!-- style: warm -->\n<!-- skip -->\n<!-- transition: push -->\n### Offsite 2027/);
+  await expect(nav().getByRole('button', { name: /^Slide 1: Lisbon, together \(skipped\)/ })).toBeVisible();
+  // Play from the start begins on the first slide not skipped.
+  await page().getByRole('radiogroup', { name: 'Show' }).getByRole('radio', { name: 'Deck' }).click();
+  await page().getByRole('button', { name: 'Play from the start' }).click();
+  await expect(shell().getByRole('dialog', { name: /^Playing slide 2 of 2/ })).toContainText('Plan next year');
+  await shell().keyboard.press('Escape');
+});

@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
-import { SLIDE_STYLES, blankSlide, changedSlides, parseDeck, writeDeck, type Slide, type SlideStyle } from './slides-format';
-import { LAYOUTS, clock, layoutOf, dropIndex, jumpTarget, moveSlide, movedTo, talkMinutes, type Layout } from './slides-view';
+import { SLIDE_STYLES, TRANSITIONS, blankSlide, type Transition, changedSlides, parseDeck, writeDeck, type Slide, type SlideStyle } from './slides-format';
+import { LAYOUTS, clock, layoutOf, playOrder, dropIndex, jumpTarget, moveSlide, movedTo, talkMinutes, type Layout } from './slides-view';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
@@ -27,6 +27,7 @@ const TOOLS: { id: SlidesTool; label: string }[] = [
   { id: 'rehearse', label: 'Rehearse with me' },
 ];
 const STYLE_NAMES: Record<SlideStyle, string> = { light: 'Light', dark: 'Dark', warm: 'Warm', accent: 'Accent' };
+const TRANSITION_NAMES: Record<Transition, string> = { none: 'None', dissolve: 'Dissolve', push: 'Push', 'move-in': 'Move in' };
 const FORMAT_KEY = 'mobius.slides.format';
 const PANE_KEY = 'mobius.slides.pane';
 type Pane = 'slide' | 'deck';
@@ -40,12 +41,46 @@ const ICON = {
   trash: 'M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10',
   play: 'M6 4.5v11l9-5.5z',
   format: 'M3 4h14v12H3zM12 4v12',
+  picture: 'M3 5h14v10H3zM3 13l4-4 3 3 2-2 5 5M13 8.5a1 1 0 1 0 0-.01',
 };
+
+/** The open deck's path, so a slide's picture is read from the files kept beside it. */
+const DeckPath = createContext<string | null>(null);
+/** Pictures read once per deck and link, so drawing a slide again (or its thumbnail) does not read them again. */
+const pictures = new Map<string, Promise<string | null>>();
+function slidePicture(deck: string, ref: string): Promise<string | null> {
+  if (/^(https:|data:image\/)/i.test(ref)) return Promise.resolve(ref);
+  if (/^[a-z][a-z0-9+.-]*:/i.test(ref) || ref.startsWith('/')) return Promise.resolve(null);
+  const key = `${deck}\n${ref}`;
+  let got = pictures.get(key);
+  if (!got) {
+    const read = window.mobius.slides?.asset;
+    got = read ? read(deck, ref).then((r) => ('dataUrl' in r ? r.dataUrl : null)).catch(() => null) : Promise.resolve(null);
+    pictures.set(key, got);
+    void got.then((v) => { if (v === null) pictures.delete(key); });
+  }
+  return got;
+}
+function usePicture(ref: string): string | null {
+  const deck = useContext(DeckPath);
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    setSrc(null);
+    if (ref && deck) void slidePicture(deck, ref).then((v) => { if (live) setSrc(v); });
+    return () => { live = false; };
+  }, [deck, ref]);
+  return src;
+}
+/** How a slide's picture sits: beside the words when there are any, filling the slide when there are none. */
+const pictureFit = (s: Slide) => (!s.picture ? undefined : s.title.trim() || s.kicker.trim() || s.text.trim() || s.bullets.some((b) => b.trim()) ? 'side' : 'full');
 
 /** One slide drawn at any size: the same picture in the navigator, the editor and Play. */
 function SlideFace({ slide, children }: { slide: Slide; children?: ReactNode }) {
+  const src = usePicture(slide.picture);
   return (
-    <div className="slide-face" data-style={slide.style}>
+    <div className="slide-face" data-style={slide.style} data-picture={pictureFit(slide)}>
+      {slide.picture && (src ? <img className="slide-picture" src={src} alt="" draggable={false} /> : <span className="slide-picture missing" aria-hidden="true" />)}
       {children ?? (
         <>
           {slide.kicker && <span className="slide-kicker">{slide.kicker}</span>}
@@ -64,15 +99,38 @@ function SlideFace({ slide, children }: { slide: Slide; children?: ReactNode }) 
  * next slide, the notes and the clock, and Esc stops.
  */
 function Play({ slides, start, onClose }: { slides: Slide[]; start: number; onClose: () => void }) {
-  const [at, setAt] = useState(start);
+  // The slides that play, by their number in the deck: skipped ones are left out (all of them play if every one is skipped).
+  const shown = useMemo(() => { const s = playOrder(slides); return s.length ? s : slides.map((_, i) => i); }, [slides]);
+  const [at, setAtRaw] = useState(() => shown.find((i) => i >= start) ?? shown[shown.length - 1] ?? 0);
+  // The slide going away and how, while the next one comes in.
+  const [leaving, setLeaving] = useState<{ slide: Slide; move: Transition; back: boolean; key: number } | null>(null);
+  const reduce = useMemo(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false, []);
+  const atNow = useRef(at);
+  const setAt = useCallback((next: number | ((n: number) => number)) => {
+    const n = atNow.current;
+    const to = typeof next === 'function' ? next(n) : next;
+    if (to === n) return;
+    const back = to < n;
+    const kind: Transition = reduce ? 'none' : ((back ? slides[to] : slides[n])?.transition ?? 'dissolve');
+    setLeaving(kind === 'push' || kind === 'move-in' ? { slide: slides[n] ?? blankSlide(), move: kind, back, key: Date.now() } : null);
+    setMove({ kind, back });
+    atNow.current = to;
+    setAtRaw(to);
+  }, [slides, reduce]);
+  const [move, setMove] = useState<{ kind: Transition; back: boolean }>({ kind: 'none', back: false });
   const [presenter, setPresenter] = useState(false);
   const [black, setBlack] = useState(false);
   const [typed, setTyped] = useState('');
   const [began] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   const [idle, setIdle] = useState(false);
-  const last = slides.length - 1;
-  const go = useCallback((by: number) => { setBlack(false); setAt((n) => Math.max(0, Math.min(last, n + by))); }, [last]);
+  const pos = Math.max(0, shown.indexOf(at));
+  const first = shown[0] ?? 0;
+  const last = shown[shown.length - 1] ?? 0;
+  const go = useCallback((by: number) => {
+    setBlack(false);
+    setAt((n) => { const i = shown.indexOf(n); return shown[Math.max(0, Math.min(shown.length - 1, (i < 0 ? 0 : i) + by))] ?? n; });
+  }, [shown, setAt]);
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(id); }, []);
   // The hint and the pointer go after a moment without the mouse moving, as in Keynote.
   useEffect(() => {
@@ -89,7 +147,7 @@ function Play({ slides, start, onClose }: { slides: Slide[]; start: number; onCl
       setTyped('');
       if (['ArrowRight', 'ArrowDown', ' ', 'PageDown', 'Enter', 'n'].includes(k)) { go(1); e.preventDefault(); }
       else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(k)) { go(-1); e.preventDefault(); }
-      else if (k === 'Home') { setAt(0); e.preventDefault(); }
+      else if (k === 'Home') { setAt(first); e.preventDefault(); }
       else if (k === 'End') { setAt(last); e.preventDefault(); }
       else if (k === 'Escape') { onClose(); e.preventDefault(); }
       else if (k.toLowerCase() === 'b') { setBlack((v) => !v); e.preventDefault(); }
@@ -98,9 +156,9 @@ function Play({ slides, start, onClose }: { slides: Slide[]; start: number; onCl
     };
     window.addEventListener('keydown', key, true);
     return () => window.removeEventListener('keydown', key, true);
-  }, [slides.length, last, go, onClose, typed]);
+  }, [slides.length, first, last, go, onClose, typed, setAt]);
   const slide = slides[at] ?? blankSlide();
-  const next = slides[at + 1];
+  const next = slides[shown[pos + 1] ?? -1];
   return createPortal(
     <div className="slide-play" role="dialog" aria-modal="true" aria-label={`Playing slide ${at + 1} of ${slides.length}`} data-idle={idle || undefined} data-presenter={presenter || undefined}
       onClick={(e) => { if (presenter) return; go(e.clientX < window.innerWidth / 3 ? -1 : 1); }}>
@@ -114,18 +172,21 @@ function Play({ slides, start, onClose }: { slides: Slide[]; start: number; onCl
             <span className="slide-presenter-label">Notes</span>
             <p className="slide-presenter-notes">{slide.notes || 'No notes on this slide.'}</p>
             <div className="slide-presenter-go">
-              <button type="button" onClick={() => go(-1)} disabled={at === 0}>Back</button>
+              <button type="button" onClick={() => go(-1)} disabled={at === first}>Back</button>
               <button type="button" onClick={() => go(1)} disabled={at === last}>Next</button>
             </div>
           </div>
         </div>
       ) : (
-        <div className="slide-play-stage" key={at}><SlideFace slide={slide} /></div>
+        <div className="slide-play-frame">
+          {leaving && <div className="slide-play-stage leaving" key={`out-${leaving.key}`} data-move={leaving.move} data-back={leaving.back || undefined} onAnimationEnd={() => setLeaving(null)}><SlideFace slide={leaving.slide} /></div>}
+          <div className="slide-play-stage" key={at} data-move={move.kind} data-back={move.back || undefined}><SlideFace slide={slide} /></div>
+        </div>
       )}
       {black && <div className="slide-play-black" aria-label="Screen blacked out" />}
       {typed && <span className="slide-play-typed" role="status">Go to slide {typed}</span>}
-      <div className="slide-play-progress" aria-hidden="true"><span style={{ width: `${((at + 1) / slides.length) * 100}%` }} /></div>
-      <span className="slide-play-hint">{at + 1} / {slides.length} · arrows to move · P presenter view · B black · Esc to stop</span>
+      <div className="slide-play-progress" aria-hidden="true"><span style={{ width: `${((pos + 1) / shown.length) * 100}%` }} /></div>
+      <span className="slide-play-hint">{pos + 1} / {shown.length} · arrows to move · P presenter view · B black · Esc to stop</span>
     </div>,
     document.body,
   );
@@ -173,6 +234,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const [menu, setMenu] = useState<{ x: number; y: number; i: number } | null>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
+  const [dropPicture, setDropPicture] = useState(false);
   const [formatOpen, setFormatOpen] = useState(() => { try { return localStorage.getItem(FORMAT_KEY) !== '0'; } catch { return true; } });
   const [pane, setPane] = useState<Pane>(() => { try { return localStorage.getItem(PANE_KEY) === 'deck' ? 'deck' : 'slide'; } catch { return 'slide'; } });
   useEffect(() => { try { localStorage.setItem(PANE_KEY, pane); } catch { /* the choice is only for this session */ } }, [pane]);
@@ -230,6 +292,31 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
     save(next);
     setAt(movedTo(from, to));
   };
+  // A picture added to the slide: kept beside the deck, in `<deck> files/`, and written into the slide as an image line.
+  const picker = useRef<HTMLInputElement>(null);
+  const [adding, setAdding] = useState(false);
+  const [pictureProblem, setPictureProblem] = useState<string | null>(null);
+  const canPicture = !!window.mobius.slides?.attach;
+  const addPicture = async (file: File | undefined) => {
+    const attach = window.mobius.slides?.attach;
+    if (!file || !path || !attach) return;
+    setPictureProblem(null);
+    if (!file.type.startsWith('image/')) { setPictureProblem(`${file.name} is not a picture.`); return; }
+    if (file.size > 20 * 1024 * 1024) { setPictureProblem(`${file.name} is too big to add (20 MB at most).`); return; }
+    setAdding(true);
+    try {
+      const data = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => reject(r.error); r.readAsDataURL(file); });
+      const got = await attach(path, file.name || 'Pasted.png', data);
+      if ('ref' in got) change({ picture: got.ref });
+      else setPictureProblem(`${file.name} could not be added: ${got.message}.`);
+    } catch { setPictureProblem(`${file.name} could not be read.`); }
+    finally { setAdding(false); }
+  };
+  const pictureIn = (list: DataTransferItemList | FileList | null | undefined) => {
+    const files = list instanceof FileList ? [...list] : [...(list ?? [])].filter((i) => i.kind === 'file').map((i) => i.getAsFile()).filter((f): f is File => !!f);
+    return files.find((f) => f.type.startsWith('image/'));
+  };
+  const toggleSkip = (i = at) => { if (i === at) change({ skip: !current.skip }); else save(slides.map((s, j) => (j === i ? { ...s, skip: !s.skip } : s))); };
   const pickLayout = (l: Layout) => { setLayoutsAt(null); insert(l.make()); window.setTimeout(() => titleRef.current?.select(), 0); };
 
   // What the agent's last turn changed, dashed in the navigator until kept or discarded.
@@ -332,10 +419,12 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
     { action: 'duplicate', keys: 'Ctrl+D', run: () => duplicate(i) },
     { label: 'Move up', keys: 'Alt+↑', disabled: i === 0, run: () => moveTo(i, i - 1), separated: true },
     { label: 'Move down', keys: 'Alt+↓', disabled: i === slides.length - 1, run: () => moveTo(i, i + 2) },
+    { label: slides[i]?.skip ? "Don't skip slide" : 'Skip slide', run: () => toggleSkip(i) },
     { label: 'Play from here', keys: 'Ctrl+Enter', run: () => setPlaying(i) },
     { action: 'delete', label: 'Delete slide', keys: 'Delete', danger: true, disabled: slides.length <= 1, run: () => remove(i), separated: true },
   ];
   return (
+    <DeckPath.Provider value={path}>
     <section ref={pageRef} className="slides-page" aria-label={`Deck: ${deck.page.title}`} onKeyDown={onPageKey}>
       {deck.status === 'conflict' && (
         <div className="note-conflict" role="alert">
@@ -357,10 +446,17 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
           <button type="button" className="slides-tool icon" aria-label="Duplicate slide" title="Duplicate (Ctrl+D)" onClick={() => duplicate()}><Icon d={ICON.duplicate} /></button>
           <button type="button" className="slides-tool icon" aria-label="Delete slide" title="Delete slide (Delete). Ctrl+Z brings it back" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
         </div>
+        {canPicture && (
+          <button type="button" className="slides-tool" aria-label="Picture" title={adding ? 'Adding…' : 'Add a picture to this slide (or paste or drop one on it)'} aria-busy={adding || undefined} disabled={adding} onClick={() => picker.current?.click()}>
+            <Icon d={ICON.picture} /><span>Picture</span>
+          </button>
+        )}
+        <input ref={picker} type="file" accept="image/*" hidden onChange={(e) => { void addPicture(e.target.files?.[0]); e.target.value = ''; }} />
         <span className="spacer" />
         <button type="button" className="slides-tool icon" aria-label="Format" title="Format" aria-pressed={formatOpen} onClick={() => setFormatOpen((o) => !o)}><Icon d={ICON.format} /></button>
         <button type="button" className="slides-play-btn" title="Play from this slide (Ctrl+Enter). While playing: P presenter view, B black, Esc stop" onClick={() => setPlaying(at)}><Icon d={ICON.play} /><span>Play</span></button>
       </div>
+      {pictureProblem && <p className="slides-problem" role="alert">{pictureProblem}<button type="button" className="slides-tool" onClick={() => setPictureProblem(null)}>OK</button></p>}
       {proposing && (
         <div className="note-review sheet-review" role="status">
           <span className="review-dot" aria-hidden="true" />
@@ -375,8 +471,9 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
               aria-current={i === at ? 'true' : undefined}
               data-proposed={proposing && changed.has(i) ? true : undefined}
               data-dragging={dragFrom === i || undefined}
+              data-skipped={s.skip || undefined}
               data-drop={dropAt === i ? 'before' : dropAt === i + 1 && i === slides.length - 1 ? 'after' : undefined}
-              aria-label={`Slide ${i + 1}: ${s.title || 'Untitled'}${proposing && changed.has(i) ? ' (proposed by Mobius)' : ''}`}
+              aria-label={`Slide ${i + 1}: ${s.title || 'Untitled'}${s.skip ? ' (skipped)' : ''}${proposing && changed.has(i) ? ' (proposed by Mobius)' : ''}`}
               draggable
               onDragStart={(e) => { setDragFrom(i); setAt(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i + 1)); }}
               onDragOver={(e) => dragOver(e, i)}
@@ -392,7 +489,12 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
         </nav>
         <main className="slides-main">
           <div className="slides-stage">
-            <div className="slides-canvas" data-proposed={proposing && changed.has(at) ? true : undefined} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDraft(null); }}>
+            <div className="slides-canvas" data-proposed={proposing && changed.has(at) ? true : undefined}
+              data-dropping={dropPicture || undefined}
+              onDragOver={(e) => { if (canPicture && dragFrom === null && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDropPicture(true); } }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropPicture(false); }}
+              onDrop={(e) => { const f = pictureIn(e.dataTransfer.files); setDropPicture(false); if (f) { e.preventDefault(); void addPicture(f); } }}
+              onPaste={(e) => { const f = pictureIn(e.clipboardData?.items); if (f) { e.preventDefault(); void addPicture(f); } }} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDraft(null); }}>
               <SlideFace slide={current}>
                 <input className="slide-kicker" aria-label="Kicker" placeholder="Kicker" value={current.kicker} onChange={(e) => change({ kicker: e.target.value }, 'kicker')} />
                 <textarea ref={titleRef} className="slide-title" aria-label="Title" placeholder="Title" rows={1} value={current.title} onChange={(e) => change({ title: e.target.value.replace(/\n/g, ' ') }, 'title')} />
@@ -432,12 +534,32 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
                   <div className="slides-section-title">Layout</div>
                   <div className="slides-layout-grid">
                     {LAYOUTS.map((l) => (
-                      <button key={l.id} type="button" className="slides-layout-pick" aria-pressed={layoutOf(current) === l.id} title={`Start slide ${at + 1} again as ${l.name}`} onClick={() => change(l.make())}>
+                      <button key={l.id} type="button" className="slides-layout-pick" aria-pressed={layoutOf(current) === l.id} title={`Start slide ${at + 1} again as ${l.name}`} onClick={() => change({ ...l.make(), skip: current.skip, transition: current.transition, picture: current.picture })}>
                         <span className="slides-layout-face"><SlideFace slide={l.make()} /></span>
                         <span>{l.name}</span>
                       </button>
                     ))}
                   </div>
+                </section>
+                {current.picture && (
+                  <section className="slides-section" aria-label="Picture">
+                    <div className="slides-section-title">Picture</div>
+                    <div className="slides-pair">
+                      <button type="button" className="btn" disabled={adding} onClick={() => picker.current?.click()}>Replace…</button>
+                      <button type="button" className="btn" onClick={() => change({ picture: '' })}>Remove</button>
+                    </div>
+                  </section>
+                )}
+                <section className="slides-section">
+                  <div className="slides-section-title">In Play</div>
+                  <label className="slides-row"><span>Transition</span>
+                    <select className="slides-popup" aria-label="Transition" value={current.transition} onChange={(e) => change({ transition: e.target.value as Transition })}>
+                      {TRANSITIONS.map((t) => <option key={t} value={t}>{TRANSITION_NAMES[t]}</option>)}
+                    </select>
+                  </label>
+                  <label className="slides-row switch-line"><span>Skip this slide</span>
+                    <input type="checkbox" role="switch" className="slides-switch" aria-label="Skip this slide" checked={current.skip} onChange={() => toggleSkip()} />
+                  </label>
                 </section>
               </>
             ) : (
@@ -465,5 +587,6 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={`Slide ${menu.i + 1}`} items={menuFor(menu.i)} onClose={() => setMenu(null)} />, document.body)}
       {playing !== null && <Play slides={slides} start={Math.min(playing, slides.length - 1)} onClose={() => setPlaying(null)} />}
     </section>
+    </DeckPath.Provider>
   );
 }

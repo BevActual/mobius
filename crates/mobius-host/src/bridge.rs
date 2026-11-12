@@ -369,7 +369,7 @@ impl Bridge {
             signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             docs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "docs"),
-            slides: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "slides").named_by_file(),
+            slides: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "slides").named_by_file().with_files(),
             photos: mobius_workspace::photos::Photos::new(data_dir.join("workspace")),
             skills: mobius_workspace::skills::Skills::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             video: mobius_workspace::video::Video::new(data_dir.join("workspace")),

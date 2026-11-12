@@ -9,6 +9,10 @@ Presentations, played as Keynote plays them.
 - **Slides** down the side, the chosen one at 16:9 to edit, its presenter notes, and a **Format** inspector with two
   panes: **Slide** (its style and layout) and **Deck** (how long it runs, Play from the start, and Ask Mobius). New
   slides start from a menu of layouts. Bullets keep their dots while you type them.
+- **Pictures:** add one with **Picture** in the toolbar, or paste or drop it on the slide. It sits beside the words, or
+  fills a slide that has none, and is kept in a `<deck> files` folder beside the deck.
+- **In Play** (in the Slide pane): pick how Play moves on from a slide (None, Dissolve, Push or Move in), and **Skip**
+  a slide to leave it out of Play. A skipped slide stays in the navigator, dimmed and short.
 - **Keys:** ↑ ↓ pick a slide, Alt+↑ ↓ moves it, Ctrl+D duplicates, Delete removes, and Ctrl+Enter plays from the
   picked slide. The same keys show in each slide's right-click menu and the toolbar's tooltips.
 - **Play** shows each slide full screen. Arrows, Space or a click go on (a click on the left third goes back), a
@@ -16,7 +20,8 @@ Presentations, played as Keynote plays them.
   clock, and **Esc** stops.
 - **Ask Mobius** about the deck; what it changes comes back as dashed slides, and **Keep** keeps every slide it changed.
 
-**Kept in:** `workspace/slides/`, each deck a Markdown file with slides split by `---`.
+**Kept in:** `workspace/slides/`, each deck a Markdown file with slides split by `---`, and its pictures in a
+`<deck> files` folder beside it.
 
 ## Design
 

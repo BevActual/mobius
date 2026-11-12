@@ -22,6 +22,8 @@ pub struct Notes {
     workspace: PathBuf,
     /// Pages are called by their file name rather than their first heading (a deck's first slide is not its name).
     named_by_file: bool,
+    /// Whether pages named by their file still take files beside them (Slides' pictures). Pages named by title always do.
+    takes_files: bool,
     /// The pages' file extension, `md` unless another kind of file is kept this way (designs are `json`).
     ext: &'static str,
     /// What a new page holds, from its title.
@@ -308,7 +310,7 @@ impl Notes {
     /// The same kind of store in another folder of the workspace: Docs keeps its documents in `docs/<folder>/<doc>.md`.
     pub fn in_folder(workspace: impl Into<PathBuf>, checkpoint_store: impl Into<PathBuf>, folder: &str) -> Notes {
         let workspace = workspace.into();
-        Notes { root: workspace.join(folder), checkpoints: Checkpoints::new(checkpoint_store), workspace, named_by_file: false, ext: "md", starter: markdown_starter, keeps_versions: true }
+        Notes { root: workspace.join(folder), checkpoints: Checkpoints::new(checkpoint_store), workspace, named_by_file: false, takes_files: false, ext: "md", starter: markdown_starter, keeps_versions: true }
     }
 
     /// Saves keep no versions of their own: the store's history comes from the workspace checkpoints alone.
@@ -320,6 +322,12 @@ impl Notes {
     /// Pages called by their file names, as Slides calls its decks.
     pub fn named_by_file(mut self) -> Notes {
         self.named_by_file = true;
+        self
+    }
+
+    /// Pages named by their file that still take files beside them, as Slides keeps a deck's pictures in `<deck> files/`.
+    pub fn with_files(mut self) -> Notes {
+        self.takes_files = true;
         self
     }
 
@@ -576,7 +584,7 @@ impl Notes {
     /// Add a file to a page: saved in the page's files folder under a safe name (never replacing one there), and the
     /// link to put in the page returned as `ref`, relative to the page and with spaces written `%20`.
     pub fn attach(&self, path: &str, name: &str, base64: &str) -> Res<Value> {
-        if self.ext != "md" || self.named_by_file {
+        if self.ext != "md" || (self.named_by_file && !self.takes_files) {
             return Err("only pages take files".into());
         }
         let page = self.page(path)?;
@@ -1122,6 +1130,30 @@ mod tests {
         assert_eq!(notes.list().unwrap()[0]["pages"].as_array().unwrap().len(), 1);
         notes.remove_page(&path).unwrap();
         assert!(!notes.root.join("Work/Battery files").exists());
+    }
+
+    #[test]
+    fn a_deck_takes_pictures_beside_it_and_they_go_when_it_is_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let plain = Notes::in_folder(dir.path().join("workspace"), dir.path().join("checkpoints"), "slides").named_by_file();
+        let slides = Notes::in_folder(dir.path().join("workspace"), dir.path().join("checkpoints"), "slides").named_by_file().with_files();
+        slides.create_notebook("Presentations").unwrap();
+        let path = slides.create_page("Presentations", "Kickoff").unwrap()["path"].as_str().unwrap().to_owned();
+        let png = to_base64(b"\x89PNG fake");
+        assert!(plain.attach(&path, "site.png", &png).is_err(), "a store named by file takes no files unless asked");
+        let added = slides.attach(&path, "site.png", &png).unwrap();
+        assert_eq!(added["ref"], "Kickoff%20files/site.png");
+        assert_eq!(slides.asset(&path, "Kickoff%20files/site.png").unwrap()["dataUrl"], format!("data:image/png;base64,{png}"));
+        for bad in ["../x.md", "../../notes/Work/Battery.md", "/etc/passwd"] {
+            assert!(slides.attach(bad, "a.png", &png).is_err(), "{bad} should be refused");
+        }
+        for bad in ["Kickoff files/../Kickoff.md", "../notes/x.png", "Other files/x.png"] {
+            assert!(slides.asset(&path, bad).is_err(), "{bad} should be refused");
+        }
+        // The files folder is not a deck, and deleting the deck takes it along.
+        assert_eq!(slides.list().unwrap()[0]["pages"].as_array().unwrap().len(), 1);
+        slides.remove_page(&path).unwrap();
+        assert!(!dir.path().join("workspace/slides/Presentations/Kickoff files").exists());
     }
 
     #[test]
