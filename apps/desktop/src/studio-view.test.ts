@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNote, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { addNote, fitTracks, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -44,5 +44,17 @@ describe('editing notes on the roll', () => {
   it('shows the position as bars and time', () => {
     expect(position(0, 120)).toEqual({ bars: '1.1.1', time: '0:00.0' });
     expect(position(5.5, 120)).toEqual({ bars: '2.2.3', time: '0:02.8' });
+  });
+});
+
+describe('velocity lane and track list', () => {
+  it('nudges picked notes by the same amount, keeping each between 0 and 1', () => {
+    const vs = [n(60, 0, 1, 0.5), n(62, 1, 1, 0.95), n(64, 2, 1, 0.1)];
+    expect(nudgeVelocity(vs, new Set([0, 1]), 0.1).map((x) => x.velocity)).toEqual([0.6, 1, 0.1]);
+    expect(nudgeVelocity(vs, new Set([2]), -0.5)[2]!.velocity).toBe(0);
+  });
+  it('fits the track list to its tracks', () => {
+    expect(fitTracks(4)).toBe(24 + 4 * 49);
+    expect(fitTracks(0)).toBe(24 + 49);
   });
 });

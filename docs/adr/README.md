@@ -12,6 +12,7 @@ kept as written; a later ADR that changes an earlier one says so at the top of b
 | [0005](0005-tools-run-by-the-application.md) | Tools run by the application, and the browser tools | Accepted |
 | [0006](0006-local-models.md) | Finding, downloading and running local models | Accepted |
 | [0007](0007-tauri-shell-and-rust-apps.md) | Tauri shell, Rust apps, CEF for the browser | Accepted; current shell decision |
+| [0008](0008-shared-controls-on-base-ui.md) | Shared controls on Base UI, styled with tokens | Accepted |
 
 For how these fit together today, read [Architecture](../developers/architecture.md).
 

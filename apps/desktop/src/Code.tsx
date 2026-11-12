@@ -3,7 +3,7 @@ import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { EmptyState } from './EmptyState';
 import { FromMobius } from './FromMobius';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
-import { onCommand } from './commands';
+import { onCommand, sendCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { IS_MAC, cursorAt, deletePair, findAll, indentLines, keyLabel, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
 import { applyGroups, badgeOf, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, type DiffRow, type GitMark, type Lang } from './code-view';
@@ -551,6 +551,51 @@ function ConsolePanel({ code }: { code: CodeState }) {
   );
 }
 
+/**
+ * What shows while no file is open, as Xcode's and Nova's start pages: the project, the files opened lately, and the
+ * few things to do next with their shortcuts.
+ */
+function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void }) {
+  const files = code.entries.filter((e) => !e.folder);
+  const changed = code.git.repo ? code.git.changes.length : 0;
+  return (
+    <div className="code-none" role="region" aria-label="No file open">
+      <div className="code-none-inner">
+        <h2 className="code-none-title">{code.project}</h2>
+        <p className="code-none-sub">{files.length === 1 ? '1 file' : `${files.length} files`}{code.git.repo ? ` · ${code.git.branch || 'no branch'}${changed ? ` · ${changed === 1 ? '1 change' : `${changed} changes`}` : ''}` : ''}</p>
+        {code.recent.length > 0 && (
+          <section className="code-none-group" aria-label="Recent files">
+            <h3>Recent</h3>
+            <ul>
+              {code.recent.slice(0, 5).map((path) => {
+                const name = path.split('/').pop() ?? path;
+                const where = path.slice(0, path.length - name.length - 1);
+                return (
+                  <li key={path}>
+                    <button type="button" className="code-none-row" onClick={() => void code.openFile(path)}>
+                      <span className="code-badge" data-lang={langOf(path)} aria-hidden="true">{badgeOf(path)}</span>
+                      <span className="code-none-name">{name}</span>
+                      {where && <span className="code-none-where">{where}</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+        <section className="code-none-group" aria-label="Start">
+          <h3>Start</h3>
+          <ul>
+            <li><button type="button" className="code-none-row" onClick={onQuick}><span className="code-none-name">Open a file…</span><kbd>{keyLabel('P')}</kbd></button></li>
+            <li><button type="button" className="code-none-row" onClick={() => sendCommand('new-file')}><span className="code-none-name">New file…</span></button></li>
+            {code.tests.command && <li><button type="button" className="code-none-row" disabled={code.tests.running} onClick={() => void code.runTests()}><span className="code-none-name">Run tests</span><code className="code-none-where">{code.tests.command}</code></button></li>}
+          </ul>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 const PANEL_KEY = 'mobius.code.panel';
 
 /** The open file: as Mobius changed it (to keep or discard) or as you type it, and the project's tests below. */
@@ -658,10 +703,7 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
             )}
           </>
         ) : (
-          <div className="code-none">
-            <p>Choose a file on the left, or open one by name.</p>
-            <button type="button" className="btn" onClick={() => setQuick(true)}>Open a file… <kbd>{keyLabel('P')}</kbd></button>
-          </div>
+          <NoFileOpen code={code} onQuick={() => setQuick(true)} />
         )}
       </div>
       {quick && <QuickOpen code={code} onClose={() => setQuick(false)} />}
