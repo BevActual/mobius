@@ -58,3 +58,50 @@ export function rememberQuery(db: string, sql: string): string[] {
   try { window.localStorage.setItem(historyKey(db), JSON.stringify(next)); } catch { /* Not kept. */ }
   return next;
 }
+
+/** Text as an SQL string: in single quotes, any inside doubled. */
+export const sqlString = (text: string): string => `'${text.replace(/'/g, "''")}'`;
+
+/** How the Data view shows a table: sorted by a column or not, filtered by words in any column, and which page. */
+export interface Browse { sort: { column: string; desc: boolean } | null; filter: string; page: number }
+export const FIRST_BROWSE: Browse = { sort: null, filter: '', page: 0 };
+/** Rows on each page of the Data view. */
+export const PAGE_ROWS = 100;
+
+/** The rows where any column holds the words, ignoring case; nothing when there are no words. */
+function whereFilter(columns: readonly string[], filter: string): string {
+  const words = filter.trim().toLowerCase();
+  if (!words || columns.length === 0) return '';
+  return ` WHERE ${columns.map((c) => `instr(lower(CAST(${quoteIdent(c)} AS TEXT)), ${sqlString(words)}) > 0`).join(' OR ')}`;
+}
+
+/** The statement for one page of the Data view. */
+export function browseQuery(table: string, columns: readonly string[], b: Browse): string {
+  const order = b.sort ? ` ORDER BY ${quoteIdent(b.sort.column)} ${b.sort.desc ? 'DESC' : 'ASC'}` : '';
+  return `SELECT * FROM ${quoteIdent(table)}${whereFilter(columns, b.filter)}${order} LIMIT ${PAGE_ROWS} OFFSET ${b.page * PAGE_ROWS}`;
+}
+
+/** How many rows the Data view's filter keeps. */
+export const countQuery = (table: string, columns: readonly string[], filter: string): string => `SELECT count(*) FROM ${quoteIdent(table)}${whereFilter(columns, filter)}`;
+
+/** A click on a column's heading: sort up by it, then down, then not at all. */
+export function nextSort(now: Browse['sort'], column: string): Browse['sort'] {
+  if (now?.column !== column) return { column, desc: false };
+  return now.desc ? null : { column, desc: true };
+}
+
+/** The line under the Data view: which rows of how many are shown. */
+export function pageLine(page: number, shown: number, total: number | null, filtered: boolean): string {
+  const of = total === null ? '' : ` of ${total.toLocaleString()}`;
+  if (shown === 0) return filtered ? 'No rows match' : 'No rows yet';
+  const first = page * PAGE_ROWS + 1;
+  const what = total === 1 ? 'row' : 'rows';
+  return shown === total ? `${shown.toLocaleString()} ${what}${filtered ? (shown === 1 ? ' matches' : ' match') : ''}` : `${first.toLocaleString()}–${(first + shown - 1).toLocaleString()}${of} ${what}`;
+}
+
+export const renameTableSql = (from: string, to: string): string => `ALTER TABLE ${quoteIdent(from)} RENAME TO ${quoteIdent(to)}`;
+export const dropTableSql = (table: string): string => `DROP TABLE ${quoteIdent(table)}`;
+/** A table's columns as SQLite keeps them: name, type, whether a value is needed, the default, and the key. */
+export const structureQuery = (table: string): string => `SELECT name, type, "notnull", dflt_value, pk FROM pragma_table_info(${sqlString(table)})`;
+/** The statement that made the table. */
+export const createdQuery = (table: string): string => `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ${sqlString(table)}`;
