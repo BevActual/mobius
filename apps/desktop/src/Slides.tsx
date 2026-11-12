@@ -28,6 +28,9 @@ const TOOLS: { id: SlidesTool; label: string }[] = [
 ];
 const STYLE_NAMES: Record<SlideStyle, string> = { light: 'Light', dark: 'Dark', warm: 'Warm', accent: 'Accent' };
 const FORMAT_KEY = 'mobius.slides.format';
+const PANE_KEY = 'mobius.slides.pane';
+type Pane = 'slide' | 'deck';
+const PANES: { id: Pane; name: string }[] = [{ id: 'slide', name: 'Slide' }, { id: 'deck', name: 'Deck' }];
 
 const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 20 20" aria-hidden="true"><path d={d} /></svg>;
 const ICON = {
@@ -135,7 +138,7 @@ function LayoutMenu({ anchor, onPick, onClose }: { anchor: DOMRect; onPick: (l: 
   return createPortal(
     <>
       <div className="slides-scrim" onMouseDown={onClose} />
-      <div className="slides-menu slides-layouts" role="menu" aria-label="Slide layouts" style={{ top: anchor.bottom + 6, left: anchor.left }}
+      <div className="slides-menu slides-layouts glass" role="menu" aria-label="Slide layouts" style={{ top: anchor.bottom + 6, left: anchor.left }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') { onClose(); return; }
           if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -171,6 +174,8 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
   const [formatOpen, setFormatOpen] = useState(() => { try { return localStorage.getItem(FORMAT_KEY) !== '0'; } catch { return true; } });
+  const [pane, setPane] = useState<Pane>(() => { try { return localStorage.getItem(PANE_KEY) === 'deck' ? 'deck' : 'slide'; } catch { return 'slide'; } });
+  useEffect(() => { try { localStorage.setItem(PANE_KEY, pane); } catch { /* the choice is only for this session */ } }, [pane]);
   const saved = slides[Math.min(at, slides.length - 1)]!;
   // The slide being typed in, as typed: an empty new bullet line stays until the person leaves the slide.
   // It belongs to one slide of one deck: once another slide is shown, it no longer stands in for that one.
@@ -283,9 +288,23 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
     else if (mod && k.toLowerCase() === 'd') { e.preventDefault(); duplicate(); focusThumb(at + 1); }
     else if (k === 'Enter' && !mod) { e.preventDefault(); titleRef.current?.focus(); }
   };
+  // Ctrl+Enter plays from the picked slide wherever focus is, unless it is typing somewhere else (the composer sends with it).
+  const atRef = useRef(at); atRef.current = at;
+  const pageRef = useRef<HTMLElement>(null);
+  const playingRef = useRef(false); playingRef.current = playing !== null;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key !== 'Enter' || e.defaultPrevented || playingRef.current) return;
+      const inPage = e.target instanceof Node && !!pageRef.current?.contains(e.target);
+      if (!inPage && (typing(e.target) || document.querySelector('[role="dialog"][aria-modal="true"]'))) return;
+      e.preventDefault();
+      setPlaying(atRef.current);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
   const onPageKey = (e: ReactKeyboardEvent) => {
     const mod = e.ctrlKey || e.metaKey;
-    if (mod && e.key === 'Enter') { e.preventDefault(); setPlaying(at); return; }
     if (typing(e.target)) return;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
     else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
@@ -313,11 +332,11 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
     { action: 'duplicate', keys: 'Ctrl+D', run: () => duplicate(i) },
     { label: 'Move up', keys: 'Alt+↑', disabled: i === 0, run: () => moveTo(i, i - 1), separated: true },
     { label: 'Move down', keys: 'Alt+↓', disabled: i === slides.length - 1, run: () => moveTo(i, i + 2) },
-    { label: 'Play from here', run: () => setPlaying(i) },
+    { label: 'Play from here', keys: 'Ctrl+Enter', run: () => setPlaying(i) },
     { action: 'delete', label: 'Delete slide', keys: 'Delete', danger: true, disabled: slides.length <= 1, run: () => remove(i), separated: true },
   ];
   return (
-    <section className="slides-page" aria-label={`Deck: ${deck.page.title}`} onKeyDown={onPageKey}>
+    <section ref={pageRef} className="slides-page" aria-label={`Deck: ${deck.page.title}`} onKeyDown={onPageKey}>
       {deck.status === 'conflict' && (
         <div className="note-conflict" role="alert">
           <span>This deck was changed somewhere else while you were editing it.</span>
@@ -327,7 +346,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
       )}
       <div className="slides-bar" role="toolbar" aria-label="Slides">
         <div className="slides-add">
-          <button type="button" className="slides-tool" aria-label="Add slide" title="Add a slide like this one's layout" onClick={() => insert({ ...blankSlide(), style: current.style })}>
+          <button type="button" className="slides-tool" aria-label="Add slide" title="Add a slide in this style" onClick={() => insert({ ...blankSlide(), style: current.style })}>
             <Icon d={ICON.add} /><span>Add slide</span>
           </button>
           <button type="button" className="slides-tool slides-add-more" aria-label="Choose a layout" aria-haspopup="menu" aria-expanded={layoutsAt !== null} onClick={(e) => setLayoutsAt(e.currentTarget.parentElement!.getBoundingClientRect())}>
@@ -335,10 +354,10 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
           </button>
         </div>
         <button type="button" className="slides-tool icon" aria-label="Duplicate slide" title="Duplicate (Ctrl+D)" onClick={() => duplicate()}><Icon d={ICON.duplicate} /></button>
-        <button type="button" className="slides-tool icon" aria-label="Delete slide" title="Delete slide" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
+        <button type="button" className="slides-tool icon" aria-label="Delete slide" title="Delete slide (Delete)" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
         <span className="spacer" />
         <button type="button" className="slides-tool icon" aria-label="Format" title="Format" aria-pressed={formatOpen} onClick={() => setFormatOpen((o) => !o)}><Icon d={ICON.format} /></button>
-        <button type="button" className="slides-play-btn" title="Play from this slide (Ctrl+Enter)" onClick={() => setPlaying(at)}><Icon d={ICON.play} /><span>Play</span></button>
+        <button type="button" className="slides-play-btn" title="Play from this slide (Ctrl+Enter). While playing: P presenter view, B black, Esc stop" onClick={() => setPlaying(at)}><Icon d={ICON.play} /><span>Play</span></button>
       </div>
       {proposing && (
         <div className="note-review sheet-review" role="status">
@@ -375,7 +394,11 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
               <SlideFace slide={current}>
                 <input className="slide-kicker" aria-label="Kicker" placeholder="Kicker" value={current.kicker} onChange={(e) => change({ kicker: e.target.value }, 'kicker')} />
                 <textarea ref={titleRef} className="slide-title" aria-label="Title" placeholder="Title" rows={1} value={current.title} onChange={(e) => change({ title: e.target.value.replace(/\n/g, ' ') }, 'title')} />
-                <textarea className="slide-bullets-edit" aria-label="Bullets, one a line" placeholder="Bullets, one a line" rows={Math.max(2, current.bullets.length + 1)} value={current.bullets.join('\n')} onChange={(e) => change({ bullets: e.target.value.split('\n') }, 'bullets')} />
+                {/* The field sits over a list of the same lines, so each bullet keeps its dot as it is typed, as on the slide. */}
+                <div className="slide-bullets-field" data-empty={current.bullets.length === 0 || undefined}>
+                  <ul className="slide-bullets" aria-hidden="true">{current.bullets.map((b, i) => <li key={i}><span>{b || '\u200b'}</span></li>)}</ul>
+                  <textarea className="slide-bullets-edit" aria-label="Bullets, one a line" placeholder="Bullets, one a line" rows={1} value={current.bullets.join('\n')} onChange={(e) => change({ bullets: e.target.value === '' ? [] : e.target.value.split('\n') }, 'bullets')} />
+                </div>
                 <textarea className="slide-text-edit" aria-label="Body text" placeholder="Body text" rows={Math.max(1, current.text.split('\n').length)} value={current.text} onChange={(e) => change({ text: e.target.value }, 'text')} />
               </SlideFace>
             </div>
@@ -386,48 +409,53 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
         </main>
         {formatOpen && (
           <aside className="slides-format" aria-label="Format">
-            <div className="slides-format-title">Slide {at + 1}</div>
-            <section className="slides-section">
-              <div className="slides-section-title">Style</div>
-              <div className="slides-swatches" role="radiogroup" aria-label="Slide style">
-                {SLIDE_STYLES.map((s) => (
-                  <button key={s} type="button" role="radio" aria-checked={current.style === s} aria-label={STYLE_NAMES[s]} className="slides-swatch" onClick={() => change({ style: s })}>
-                    <span className="slide-face" data-style={s}><span className="slide-title">Aa</span></span>
-                    <span className="slides-swatch-name">{STYLE_NAMES[s]}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-            {onTool && (
-              <section className="slides-section" aria-label="Ask Mobius">
-                {/* The one place in the deck to hand Mobius a job; anything else goes in the Ask field above. */}
-                <div className="slides-section-title">Ask Mobius to</div>
-                <div className="slides-layout-list">
-                  {TOOLS.map((t) => <button key={t.id} type="button" className="slides-chip" disabled={busy} onClick={() => onTool(t.id, at)}>{t.label}</button>)}
-                </div>
-              </section>
+            {/* As Keynote's inspector: one segmented control at the top, and only what belongs to that choice below it. */}
+            <div className="segmented slides-panes" role="radiogroup" aria-label="Show">
+              {PANES.map((p) => <button key={p.id} type="button" role="radio" aria-checked={pane === p.id} onClick={() => setPane(p.id)}>{p.name}</button>)}
+            </div>
+            {pane === 'slide' ? (
+              <>
+                <section className="slides-section">
+                  <div className="slides-section-title">Style</div>
+                  <div className="slides-swatches" role="radiogroup" aria-label="Slide style">
+                    {SLIDE_STYLES.map((s) => (
+                      <button key={s} type="button" role="radio" aria-checked={current.style === s} aria-label={STYLE_NAMES[s]} className="slides-swatch" onClick={() => change({ style: s })}>
+                        <span className="slide-face" data-style={s}><span className="slide-title">Aa</span></span>
+                        <span className="slides-swatch-name">{STYLE_NAMES[s]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                <section className="slides-section">
+                  <div className="slides-section-title">Layout</div>
+                  <div className="slides-layout-grid">
+                    {LAYOUTS.map((l) => (
+                      <button key={l.id} type="button" className="slides-layout-pick" title={`Start slide ${at + 1} again as ${l.name}`} onClick={() => change(l.make())}>
+                        <span className="slides-layout-face"><SlideFace slide={l.make()} /></span>
+                        <span>{l.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </>
+            ) : (
+              <>
+                <section className="slides-section">
+                  <div className="slides-section-title">Length</div>
+                  <p className="slides-deck-facts">{slides.length === 1 ? '1 slide' : `${slides.length} slides`} · about {talkMinutes(slides)} min</p>
+                  <button type="button" className="btn" title="Play from slide 1" onClick={() => setPlaying(0)}>Play from the start</button>
+                </section>
+                {onTool && (
+                  <section className="slides-section" aria-label="Ask Mobius">
+                    {/* The one place in the deck to hand Mobius a job; anything else goes in the Ask field above. */}
+                    <div className="slides-section-title">Ask Mobius to</div>
+                    <div className="slides-tool-list">
+                      {TOOLS.map((t) => <button key={t.id} type="button" className="slides-ask" disabled={busy} onClick={() => onTool(t.id, at)}>{t.label}</button>)}
+                    </div>
+                  </section>
+                )}
+              </>
             )}
-            <section className="slides-section">
-              <div className="slides-section-title">Start again from a layout</div>
-              <div className="slides-layout-list">
-                {LAYOUTS.map((l) => <button key={l.id} type="button" className="slides-chip" onClick={() => change(l.make())}>{l.name}</button>)}
-              </div>
-            </section>
-            <section className="slides-section">
-              <div className="slides-section-title">Deck</div>
-              <p className="slides-deck-facts">{slides.length === 1 ? '1 slide' : `${slides.length} slides`} · about {talkMinutes(slides)} min</p>
-              <button type="button" className="btn" onClick={() => setPlaying(0)}>Play from the start</button>
-            </section>
-            <section className="slides-section slides-keys">
-              <div className="slides-section-title">Keys</div>
-              <dl>
-                <dt>↑ ↓</dt><dd>Pick a slide</dd>
-                <dt>Alt ↑ ↓</dt><dd>Move it</dd>
-                <dt>Ctrl D</dt><dd>Duplicate</dd>
-                <dt>Ctrl Enter</dt><dd>Play</dd>
-                <dt>P · B</dt><dd>Presenter view, black, while playing</dd>
-              </dl>
-            </section>
           </aside>
         )}
       </div>

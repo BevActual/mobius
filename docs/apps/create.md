@@ -6,8 +6,11 @@ Presentations, played as Keynote plays them.
 
 ![The Slides app in Mobius](../readme/apps/slides.png)
 
-- **Slides** down the side, the chosen one at 16:9 to edit, its presenter notes, and a **Format** inspector. New slides
-  start from a menu of layouts.
+- **Slides** down the side, the chosen one at 16:9 to edit, its presenter notes, and a **Format** inspector with two
+  panes: **Slide** (its style and layout) and **Deck** (how long it runs, Play from the start, and Ask Mobius). New
+  slides start from a menu of layouts. Bullets keep their dots while you type them.
+- **Keys:** ↑ ↓ pick a slide, Alt+↑ ↓ moves it, Ctrl+D duplicates, Delete removes, and Ctrl+Enter plays from the
+  picked slide. The same keys show in each slide's right-click menu and the toolbar's tooltips.
 - **Play** shows each slide full screen. Arrows, Space or a click go on (a click on the left third goes back), a
   number and Return jumps, **B** blacks the screen, **P** shows the presenter view with the next slide, notes and the
   clock, and **Esc** stops.

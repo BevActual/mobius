@@ -70,6 +70,12 @@ test('a deck is a Markdown file of slides, edited on the slide and played full s
   await expect(shell().getByRole('dialog', { name: /^Playing slide 1 of 3/ })).toContainText('Welcome everyone.');
   await shell().keyboard.press('Escape');
   await expect(shell().getByRole('dialog', { name: /^Playing/ })).toHaveCount(0);
+  // The inspector's Deck pane holds the deck's length and Play from the start.
+  await page().getByRole('radiogroup', { name: 'Show' }).getByRole('radio', { name: 'Deck' }).click();
+  await expect(page().getByRole('complementary', { name: 'Format' })).toContainText('3 slides');
+  await page().getByRole('button', { name: 'Play from the start' }).click();
+  await expect(shell().getByRole('dialog', { name: /^Playing slide 1 of 3/ })).toBeVisible();
+  await shell().keyboard.press('Escape');
 });
 
 test('slides are picked, moved and duplicated from the navigator by key, and Undo takes each step back', async () => {
