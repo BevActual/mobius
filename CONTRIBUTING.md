@@ -6,7 +6,8 @@ Thanks for your interest. Mobius is an early preview and changes quickly, so the
 - **Ideas.** Open an issue that describes the problem you'd like Mobius to solve, not only the feature.
 - **Small, focused pull requests.** For anything larger, open an issue first so we can agree on the approach.
 
-By contributing you agree that your work is released under the [MIT license](LICENSE).
+By contributing you agree that your work is released under the [MIT license](LICENSE), and to follow the
+[code of conduct](CODE_OF_CONDUCT.md).
 
 ## Principles
 
@@ -39,8 +40,9 @@ covers the end-to-end suite.
 2. Make your change, with tests: a unit test for logic, an end-to-end spec in `apps/desktop/e2e/` for behaviour in the
    real window.
 3. If you changed a Rust type the interface uses, run `npm run gen:types` and commit the result.
-4. If the change affects what a person sees or does, update the matching page in [`docs/`](docs/README.md) in the same
-   pull request.
+4. If the change affects what a person sees or does, update the matching page in [`docs/`](docs/README.md) and retake
+   any screenshot it changes, in the same pull request. [Writing the docs](docs/writing-docs.md) says where pages go
+   and how they're shaped.
 5. Make sure `npm test`, `npm run typecheck` and `npm run check:types` pass, then open a pull request that says what
    changed and why. Add screenshots, light and dark, for interface changes.
 
@@ -59,5 +61,4 @@ If you work with Claude Code, the `mobius-drive` MCP server lets it launch your 
 
 ## Security
 
-Please don't report security problems in public issues. Use
-[GitHub's private vulnerability reporting](https://github.com/BevActual/mobius/security/advisories/new) instead.
+Please don't report security problems in public issues. See the [security policy](SECURITY.md).

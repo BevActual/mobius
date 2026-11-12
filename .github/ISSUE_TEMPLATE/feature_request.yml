@@ -1,0 +1,21 @@
+name: Idea or feature request
+description: Suggest a way to make Mobius better.
+labels: ["idea"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The problem or the moment in your day this is about. This matters more than the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you imagine Mobius handling it.
+  - type: input
+    id: app
+    attributes:
+      label: Which app, if any
+      placeholder: Mail, Calendar, the agent, Abilities, ...
