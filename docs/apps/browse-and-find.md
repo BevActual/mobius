@@ -67,7 +67,9 @@ Browser, or give Reader an address.
 - **Save a link** (the link button, or New › Save a link) shows the link field; with nothing open it is always there.
   **Save this tab** keeps the page open in the Browser.
 - **Highlights:** select a passage and press Highlight (or H); they are listed under the article and can be copied to
-  Notes. **Done reading** (E) moves the article to Archive.
+  Notes. **Ask Mobius** on a selected passage or a highlight starts a message with it quoted, the article attached.
+- **J** and **K** move to the next and previous article in the list. **Done reading** (E) moves the article to Archive
+  and opens the next one.
 
 **Kept in:** `workspace/reading/`, each article a Markdown file.
 

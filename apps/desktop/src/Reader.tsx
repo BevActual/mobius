@@ -3,7 +3,7 @@ import { onCommand } from './commands';
 import { NotesSidebar, type SidebarWords } from './NotesSidebar';
 import { RichText } from './RichText';
 import { useFileReview } from './useFileReview';
-import { ARCHIVE, READING_LIST, addHighlight, articleFile, articleTitle, highlightsOf, keepLook, keepPlace, parseArticle, readLook, readPlace, removeHighlight, savedWhen, stepSize, timeLeft, type ReadingLook, type ReadingTheme } from './reader-format';
+import { ARCHIVE, READING_LIST, addHighlight, articleFile, articleTitle, highlightsOf, keepLook, keepPlace, parseArticle, readLook, readPlace, neighbour, removeHighlight, savedWhen, stepSize, timeLeft, type ReadingLook, type ReadingTheme } from './reader-format';
 import { clipToNotes } from './clip';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
@@ -73,7 +73,7 @@ function LookPanel({ look, onChange }: { look: ReadingLook; onChange: (next: Rea
 }
 
 /** Reader: pages kept to read later, shown as plain readable text, with where each came from. */
-export function ReaderPage({ reading, review, tab }: { reading: NotesState; review?: { conversation: string } | null; tab: { url: string; title: string } | null }) {
+export function ReaderPage({ reading, review, tab, onAsk }: { reading: NotesState; review?: { conversation: string } | null; tab: { url: string; title: string } | null; /** Starts a message to Mobius with this text; the open article goes with it. */ onAsk?: (prompt: string) => void }) {
   const [link, setLink] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -124,7 +124,14 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
     setAdding(false);
   };
   const submit = (e: FormEvent) => { e.preventDefault(); if (link.trim()) void save(/^https?:\/\//i.test(link.trim()) ? link.trim() : `https://${link.trim()}`); };
-  /** Read: moved to the Archive list, out of the way but still searchable. */
+  /** The articles beside this one in its list, for J and K. */
+  const listOf = (path: string) => reading.notebooks.find((nb) => nb.name === path.split('/')[0])?.pages ?? [];
+  const step = (by: 1 | -1) => {
+    if (!page) return;
+    const next = neighbour(listOf(page.path), page.path, by);
+    if (next) void reading.open(next.path, next.title);
+  };
+  /** Read: moved to the Archive list, out of the way but still searchable, and the next article opens. */
   const archive = async () => {
     const api = window.mobius.reading;
     if (!api || !page) return;
@@ -132,9 +139,11 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
     if (!folder) return;
     const text = reading.text;
     const old = page.path;
+    const next = neighbour(listOf(old), old, 1) ?? neighbour(listOf(old), old, -1);
     const made = await reading.createPage(folder, page.title || article.title || 'Article', text);
-    if (made) await reading.remove(old);
-    else setMessage('It could not be moved to the archive.');
+    if (!made) { setMessage('It could not be moved to the archive.'); return; }
+    await reading.remove(old);
+    if (next) await reading.open(next.path, next.title);
   };
 
   // Highlights, as in Readwise Reader: select a passage and press Highlight (or H); click one to take it off.
@@ -144,7 +153,7 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
   const [notice, setNotice] = useState('');
   useEffect(() => { setPicked(null); setMarked(null); setNotice(''); setAdding(false); }, [page?.path]);
   const highlights = useMemo(() => highlightsOf(reading.text), [reading.text]);
-  const place = (rect: DOMRect) => { const box = body.current?.getBoundingClientRect(); return box ? { top: rect.top - box.top - 40, left: Math.max(0, rect.left - box.left + rect.width / 2 - 50) } : { top: 0, left: 0 }; };
+  const place = (rect: DOMRect) => { const box = body.current?.getBoundingClientRect(); return box ? { top: rect.top - box.top - 40, left: Math.max(0, rect.left - box.left + rect.width / 2) } : { top: 0, left: 0 }; };
   const readSelection = () => {
     const sel = window.getSelection();
     const text = sel?.toString().trim() ?? '';
@@ -166,8 +175,16 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
     const done = await clipToNotes({ kind: 'page', title: article.title || page?.title || 'Article', source: article.url ?? `reading/${page?.path ?? ''}`, text: highlights.join('\n\n') });
     setNotice(done.ok ? `Highlights copied to Notes (${done.path.replace(/\.md$/, '')}).` : done.error);
   };
-  const keys = useRef({ highlight, archive, picked, inArchive });
-  keys.current = { highlight, archive, picked, inArchive };
+  /** Ask Mobius about a passage: the message starts with it quoted, and the article goes with it. */
+  const ask = (text: string) => {
+    if (!onAsk) return;
+    setPicked(null);
+    setMarked(null);
+    window.getSelection()?.removeAllRanges();
+    onAsk(`About this passage:\n\n> ${text.replace(/\s+/g, ' ').trim()}\n\n`);
+  };
+  const keys = useRef({ highlight, archive, picked, inArchive, step });
+  keys.current = { highlight, archive, picked, inArchive, step };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -175,6 +192,8 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
       if (!t?.closest('.reader-page') && t !== document.body) return;
       if (e.key === 'h' && keys.current.picked) { e.preventDefault(); keys.current.highlight(); }
       else if (e.key === 'e' && !keys.current.inArchive) { e.preventDefault(); void keys.current.archive(); }
+      else if (e.key === 'j') { e.preventDefault(); keys.current.step(1); }
+      else if (e.key === 'k') { e.preventDefault(); keys.current.step(-1); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -238,8 +257,8 @@ export function ReaderPage({ reading, review, tab }: { reading: NotesState; revi
             onClick={(e) => { const m = (e.target as HTMLElement).closest('mark'); if (m && !window.getSelection()?.toString()) setMarked({ text: m.textContent ?? '', ...place(m.getBoundingClientRect()) }); else if (!m) setMarked(null); }}
           >
             <RichText text={article.body} />
-            {picked && <div className="selection-bar reader-mark-bar" role="toolbar" aria-label="Selected text" style={{ top: picked.top, left: picked.left }}><button type="button" className="selection-btn" onPointerDown={(e) => e.preventDefault()} onClick={() => highlight()}>Highlight <kbd>H</kbd></button></div>}
-            {marked && <div className="selection-bar reader-mark-bar" role="toolbar" aria-label="Highlight" style={{ top: marked.top, left: marked.left }}><button type="button" className="selection-btn" onClick={() => unmark(marked.text)}>Remove highlight</button></div>}
+            {picked && <div className="selection-bar reader-mark-bar" role="toolbar" aria-label="Selected text" style={{ top: picked.top, left: picked.left }}><button type="button" className="selection-btn" onPointerDown={(e) => e.preventDefault()} onClick={() => highlight()}>Highlight <kbd>H</kbd></button>{onAsk && <button type="button" className="selection-btn" onPointerDown={(e) => e.preventDefault()} onClick={() => ask(picked.text)}>Ask Mobius</button>}</div>}
+            {marked && <div className="selection-bar reader-mark-bar" role="toolbar" aria-label="Highlight" style={{ top: marked.top, left: marked.left }}><button type="button" className="selection-btn" onClick={() => unmark(marked.text)}>Remove highlight</button>{onAsk && <button type="button" className="selection-btn" onClick={() => ask(marked.text)}>Ask Mobius</button>}</div>}
           </div>
           {highlights.length > 0 && (
             <section className="reader-highlights" aria-label="Highlights">

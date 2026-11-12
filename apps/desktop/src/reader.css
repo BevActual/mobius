@@ -61,7 +61,7 @@
 .reader-title { margin: 0 0 20px; font-size: calc(var(--read-size) * 1.75); line-height: 1.2; letter-spacing: -0.015em; }
 .reader-body { position: relative; font-size: var(--read-size); line-height: 1.65; }
 .reader-body mark { background: color-mix(in srgb, #ffd60a 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; cursor: pointer; }
-.reader-mark-bar { position: absolute; z-index: 3; }
+.reader-mark-bar { position: absolute; z-index: 3; transform: translateX(-50%); white-space: nowrap; }
 .reader-mark-bar kbd { margin-left: 4px; opacity: 0.6; font-size: 10px; }
 .reader-notice { margin: 8px 0; color: var(--muted); font-size: var(--fs-sm); }
 .reader-highlights { margin-top: var(--sp-6); padding-top: var(--sp-3); border-top: 0.5px solid var(--line); }
