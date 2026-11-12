@@ -4,6 +4,7 @@ import { PREVIEW_TASKS } from './preview-tasks';
 import { PREVIEW_PROJECTS } from './preview-projects';
 import { PREVIEW_CALENDAR } from './preview-calendar';
 import { PREVIEW_DOCS } from './preview-docs';
+import { PREVIEW_READING } from './preview-reading';
 import { PREVIEW_SONGS } from './preview-songs';
 import { PREVIEW_BROWSER } from './preview-browser';
 import { PREVIEW_CODE } from './preview-code';
@@ -85,6 +86,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_TASKS,
   // Documents are kept in memory for as long as the preview is open.
   ...PREVIEW_DOCS,
+  // Reader's articles are kept in memory for as long as the preview is open.
+  ...PREVIEW_READING,
   ...PREVIEW_SONGS,
   // Projects, their threads and memory are kept in memory for as long as the preview is open.
   ...PREVIEW_PROJECTS,
