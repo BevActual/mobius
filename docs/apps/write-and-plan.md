@@ -76,7 +76,8 @@ Your calendars by day, week or month.
   Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
 - **The event you clicked stays picked out.** Press Delete to remove it, Enter to open it or Ctrl+D to duplicate it;
   each change can be undone. Right-click an event for Open, Duplicate, Move to another calendar and Delete.
-- **The current time** is a red line across the week, with the time written in the hour column.
+- **The current time** is a red line across the week, with the time written in the hour column. Times follow your
+  computer's clock, 24-hour or with AM and PM.
 - **Suggestions from Mobius** are drawn dashed. Open one to see why, then **Keep** (add it), **Discard** (decline it) or
   **Try another**.
 
