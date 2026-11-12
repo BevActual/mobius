@@ -548,6 +548,8 @@ export interface MobiusBridge {
     rename(id: string, name: string): Promise<ProjectInfo | NotesFailure>;
     setRule(id: string, app: string, level: ProjectLevel | 'follow'): Promise<ProjectInfo | NotesFailure>;
     addThread(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
+    /** A thread leaves the project, with the side threads asked from it; the conversation is kept. */
+    removeThread?(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
     /** Ask a bot, from one of the project's threads, to do something in a side thread of its own. */
     addSide(id: string, parent: string, conversation: string, bot: string, botName: string, ask: string): Promise<ProjectInfo | NotesFailure>;
     /** A side thread finished: what it found, for the thread it was asked from. */

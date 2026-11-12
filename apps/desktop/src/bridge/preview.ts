@@ -7,6 +7,7 @@ import { PREVIEW_CALENDAR } from './preview-calendar';
 import { PREVIEW_DOCS } from './preview-docs';
 import { PREVIEW_READING } from './preview-reading';
 import { PREVIEW_SONGS } from './preview-songs';
+import { PREVIEW_KNOWLEDGE } from './preview-knowledge';
 import { PREVIEW_BROWSER } from './preview-browser';
 import { PREVIEW_CODE } from './preview-code';
 import { PREVIEW_DESIGNS } from './preview-designs';
@@ -96,6 +97,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   // Reader's articles are kept in memory for as long as the preview is open.
   ...PREVIEW_READING,
   ...PREVIEW_SONGS,
+  // Knowledge: How I work, the changes waiting and a few pages, kept for as long as the preview is open.
+  ...PREVIEW_KNOWLEDGE,
   // Projects, their threads and memory are kept in memory for as long as the preview is open.
   ...PREVIEW_PROJECTS,
   'notes.list': () => NOTES(),
