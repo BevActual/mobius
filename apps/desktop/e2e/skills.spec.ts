@@ -103,7 +103,7 @@ test('a skill someone shared shows what it is for and what it can touch before i
   expect(fs.readFileSync(file('compare-stays'), 'utf8')).toContain('name: compare-stays\ndescription: When choosing where to stay');
 });
 
-test('Abilities is one of Mobius’s own apps: apps, skills, connectors and updates in one place', async () => {
+test('Abilities is one of Mobius’s own apps: apps, skills and connectors in one place', async () => {
   model = await startModel([]);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
@@ -111,7 +111,7 @@ test('Abilities is one of Mobius’s own apps: apps, skills, connectors and upda
   if ((await rail.getAttribute('data-face')) !== 'apps') await rail.locator('[data-app-switcher]').click();
   await rail.getByRole('region', { name: 'Mobius’s apps' }).getByRole('button', { name: 'Abilities', exact: true }).click();
   const places = shell().getByRole('navigation', { name: 'Abilities' });
-  await expect(places.getByRole('button')).toHaveText([/^Apps\d+$/, /^Skills\d*$/, /^Connectors\d*$/, 'Updates']);
+  await expect(places.getByRole('button')).toHaveText([/^Apps\d+$/, /^Skills\d*$/, /^Connectors\d*$/]);
   await expect(places.getByRole('button', { name: /^Apps/ })).toHaveAttribute('aria-current', 'page');
   // Each app says what it is for and has one switch. Removing one takes it out of the switcher and keeps its files;
   // adding it brings it back.
@@ -140,7 +140,10 @@ test('Abilities is one of Mobius’s own apps: apps, skills, connectors and upda
   const page = shell().getByRole('region', { name: 'Connectors' });
   await expect(page).toContainText('No connectors yet');
   await expect(page.getByRole('switch', { name: 'Let other apps use Mobius' })).toBeVisible();
-  await places.getByRole('button', { name: 'Updates' }).click();
-  await expect(shell().getByRole('region', { name: 'Updates' }).getByRole('table', { name: 'Versions' })).toBeVisible();
-  await expect(shell().getByRole('region', { name: 'Updates' }).getByRole('button', { name: 'Check for Updates' })).toBeVisible();
+  // Add a Connector explains mcp.json in a sheet.
+  await page.getByRole('button', { name: 'Add a Connector…' }).click();
+  const sheet = shell().getByRole('dialog', { name: 'Add a connector' });
+  await expect(sheet).toContainText('mcp.json');
+  await sheet.getByRole('button', { name: 'Done' }).click();
+  await expect(sheet).toBeHidden();
 });

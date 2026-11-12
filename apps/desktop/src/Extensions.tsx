@@ -1,26 +1,24 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { AboutInfo, ConnectorStatus } from '@mobius/shared';
+import type { ConnectorStatus } from '@mobius/shared';
 import { InstallDialog, SkillsSidebar } from './Skills';
 import type { SkillsState } from './useSkills';
 import { OtherApps } from './settings/sections';
 import { APP_GROUPS, APPS, CORE_APPS, isInstalled, withApp, type AppId, type AppInfo } from './apps';
 import { APP_ICONS } from './Rail';
 import { usePreferences } from './usePreferences';
-import { useUpdates } from './useUpdates';
 import { ContextMenu } from './ContextMenu';
 import './abilities.css';
 
 /**
- * The places in Abilities: the apps you add, and what gives Mobius more to work with, in one app. Plugins come back as
- * a place once there are plugins to show; adding anything starts from the Add menu at the top of the sidebar.
+ * The places in Abilities: the apps you add, and what gives Mobius more to work with, in one app. Plugins, and updates
+ * to skills and connectors, come back as places once there are some (Mobius's own updates live in Settings); adding anything starts from the Add menu at the top of the sidebar.
  */
-export type ExtensionPlace = 'apps' | 'skills' | 'connectors' | 'updates';
+export type ExtensionPlace = 'apps' | 'skills' | 'connectors';
 export const EXTENSION_PLACES: readonly { id: ExtensionPlace; name: string; tint: string; icon: ReactNode }[] = [
   { id: 'apps', name: 'Apps', tint: 'var(--app-skills, #8e8e93)', icon: <><rect x="4" y="4" width="5" height="5" rx="1.4" /><rect x="11" y="4" width="5" height="5" rx="1.4" /><rect x="4" y="11" width="5" height="5" rx="1.4" /><rect x="11" y="11" width="5" height="5" rx="1.4" /></> },
   { id: 'skills', name: 'Skills', tint: '#5e5ce6', icon: <><path d="M6 5.5h8M6 10h8M6 14.5h5" /><path d="M3.5 5.5h.01M3.5 10h.01M3.5 14.5h.01" /></> },
   { id: 'connectors', name: 'Connectors', tint: '#30b0c7', icon: <><path d="M8 4v3M12 4v3M6.5 7h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13.5V16" /></> },
-  { id: 'updates', name: 'Updates', tint: '#34c759', icon: <><path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9" /><path d="M15.5 4v3h-3" /></> },
 ];
 
 /** One sentence on what each app is for, shown in the library under its name. */
@@ -46,6 +44,15 @@ const APP_PURPOSE: Partial<Record<AppId, string>> = {
   terminal: 'Run commands in a folder of your workspace.',
   canvas: 'A whiteboard of stickies, shapes, arrows and pen lines.',
 };
+
+/** Whether the Add a Connector sheet is open: Add in the sidebar and the Connectors page both open it. */
+let addingConnector = false;
+const sheetListeners = new Set<() => void>();
+const setAddingConnector = (next: boolean) => { addingConnector = next; sheetListeners.forEach((l) => l()); };
+function useAddingConnector(): [boolean, (next: boolean) => void] {
+  const value = useSyncExternalStore((l) => { sheetListeners.add(l); return () => sheetListeners.delete(l); }, () => addingConnector);
+  return [value, setAddingConnector];
+}
 
 /** What is typed in the sidebar's search: it narrows the apps, the skills and the connectors. */
 let query = '';
@@ -86,7 +93,6 @@ function Places({ place, onPlace, skills }: { place: ExtensionPlace; onPlace: (p
     apps: added,
     skills: skills.available ? skills.list.length : null,
     connectors: status ? status.running.length + status.failed.length : null,
-    updates: null,
   };
   return (
     <nav className="task-lists ext-places" aria-label="Abilities">
@@ -126,15 +132,16 @@ function AddMenu({ skills, onPlace, onNewSkill }: { skills: SkillsState; onPlace
       >
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
         <span>Add</span>
+        <svg viewBox="0 0 20 20" aria-hidden="true" className="abl-chevron"><path d="m7 8.5 3 3 3-3" /></svg>
       </button>
       <input ref={picker} type="file" accept=".md,text/markdown,text/plain" hidden aria-label="Choose a SKILL.md" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void f.text().then(setShared); }} />
       {shared !== null && <InstallDialog text={shared} skills={skills} onClose={() => { setShared(null); if (skills.open) onPlace('skills'); }} />}
       {menu && createPortal(
         <ContextMenu x={menu.x} y={menu.y} label="Add" onClose={() => setMenu(null)} items={[
-          { label: 'An app…', run: () => { setQuery(''); onPlace('apps'); } },
+          { label: 'Add an app…', run: () => { setQuery(''); onPlace('apps'); } },
           { label: 'New skill', run: onNewSkill, separated: true, disabled: !skills.available },
           { label: 'Install a skill…', run: () => picker.current?.click(), disabled: !skills.available },
-          { label: 'A connector…', run: () => onPlace('connectors'), separated: true },
+          { label: 'Add a connector…', run: () => { onPlace('connectors'); setAddingConnector(true); }, separated: true },
         ]} />,
         document.body,
       )}
@@ -176,7 +183,6 @@ export function ExtensionsPage({ place, onOpenApp }: { place: Exclude<ExtensionP
         <h1 className="abl-title">{name}</h1>
         {place === 'apps' && <AppLibrary onOpenApp={onOpenApp} />}
         {place === 'connectors' && <Connectors />}
-        {place === 'updates' && <Updates />}
       </div>
     </section>
   );
@@ -204,7 +210,7 @@ function AppLibrary({ onOpenApp }: { onOpenApp?: ((id: AppId) => void) | undefin
       {groups.map(({ group, members }) => (
         <section key={group} className="abl-group" aria-label={group}>
           <h2 className="abl-group-title">{group}</h2>
-          <ul role="list" className="abl-list">
+          <ul role="list" className="abl-list settings-card">
             {members.map((app) => {
               const added = isInstalled(app.id);
               const body = (
@@ -239,6 +245,8 @@ function Connectors() {
   const api = window.mobius.extensions;
   const { status } = useConnectors();
   const [q] = useAbilitiesQuery();
+  const [adding, setAdding] = useAddingConnector();
+  const [details, setDetails] = useState<string | null>(null);
   const none = status && status.running.length === 0 && status.failed.length === 0;
   const running = status?.running.filter((s) => matches(q, s)) ?? [];
   const failed = status?.failed.filter((f) => matches(q, f.server)) ?? [];
@@ -246,12 +254,15 @@ function Connectors() {
     <>
       <p className="abl-lede">Connectors give Mobius tools from other apps over MCP. Each one asks before it is used, as your approvals say.</p>
       <section className="abl-group" aria-label="Tools from other apps">
-        <h2 className="abl-group-title">Tools from other apps</h2>
-        {!api && <p className="abl-empty">Only the desktop app runs connectors.</p>}
+        <div className="abl-group-head">
+          <h2 className="abl-group-title">Tools from other apps</h2>
+          <button type="button" className="btn" onClick={() => setAdding(true)}>Add a Connector…</button>
+        </div>
+        {!api && <p className="abl-empty settings-card">Only the desktop app runs connectors.</p>}
         {status?.problem && <p className="field-error" role="alert">{status.problem}</p>}
-        {none && <p className="abl-empty">No connectors yet. MCP servers listed in mcp.json in the data folder start when Mobius opens.</p>}
+        {none && <p className="abl-empty settings-card">No connectors yet. Add one to give Mobius tools from another app.</p>}
         {(running.length > 0 || failed.length > 0) && (
-          <ul className="abl-list" role="list" aria-label="Connectors">
+          <ul className="abl-list settings-card" role="list" aria-label="Connectors">
             {running.map((s) => (
               <li key={s} className="abl-row" aria-label={s}>
                 <span className="abl-dot" data-state="on" aria-hidden="true" />
@@ -259,57 +270,65 @@ function Connectors() {
               </li>
             ))}
             {failed.map((f) => (
-              <li key={f.server} className="abl-row" aria-label={f.server}>
+              <li key={f.server} className="abl-row abl-row-wrap" aria-label={f.server}>
                 <span className="abl-dot" data-state="failed" aria-hidden="true" />
-                <span className="abl-text"><span className="abl-name">{f.server}</span><span className="abl-sub abl-error">Couldn’t start: {f.error}</span></span>
+                <span className="abl-text"><span className="abl-name">{f.server}</span><span className="abl-sub abl-error">Couldn’t start</span></span>
+                <button type="button" className="btn" aria-expanded={details === f.server} onClick={() => setDetails((d) => (d === f.server ? null : f.server))}>{details === f.server ? 'Hide Details' : 'Show Details'}</button>
+                {details === f.server && <p className="abl-detail">{f.error}. Fix its entry in mcp.json, then reopen Mobius to start it again.</p>}
               </li>
             ))}
           </ul>
         )}
-        {status && !none && running.length === 0 && failed.length === 0 && <p className="abl-empty">No connectors match “{q.trim()}”.</p>}
-        {api && (
-          <div className="abl-actions">
-            <button type="button" className="btn" onClick={() => void window.mobius.app.openDataFolder()}>Open Data Folder</button>
-            <span className="abl-note">Add a server to mcp.json there, then reopen Mobius.</span>
-          </div>
-        )}
+        {status && !none && running.length === 0 && failed.length === 0 && <p className="abl-empty settings-card">No connectors match “{q.trim()}”.</p>}
       </section>
       <section className="abl-group" aria-label="Mobius for other apps">
         <h2 className="abl-group-title">Mobius for other apps</h2>
-        <div className="abl-card"><OtherApps subpage="other-apps" highlight={null} /></div>
+        <div className="settings-card abl-card"><OtherApps subpage="other-apps" highlight={null} /></div>
       </section>
+      {adding && <AddConnectorSheet onClose={() => setAdding(false)} />}
     </>
   );
 }
 
-/** What is running, and Software Update, in the same grouped list as the rest of Abilities. */
-function Updates() {
-  const [about, setAbout] = useState<AboutInfo | null>(null);
-  const { info, check, restart } = useUpdates();
-  useEffect(() => { void window.mobius.app.about().then(setAbout).catch(() => undefined); }, []);
-  const busy = info.state === 'checking' || info.state === 'downloading';
-  return (
-    <>
-      <section className="abl-group" aria-label="Software Update">
-        <h2 className="abl-group-title">Software Update</h2>
-        <ul className="abl-list" role="list">
-          <li className="abl-row">
-            <span className="abl-text"><span className="abl-name">{info.current ? `Mobius ${info.current}` : 'Mobius'}</span><span className="abl-sub" role="status" data-update-state={info.state}>{info.status}</span></span>
-            {info.state === 'ready'
-              ? <button type="button" className="btn primary" onClick={() => void restart()}>Restart to Install</button>
-              : <button type="button" className="btn" disabled={info.state === 'off' || busy} onClick={() => void check()}>Check for Updates</button>}
-          </li>
-        </ul>
-      </section>
-      <section className="abl-group" aria-label="Installed">
-        <h2 className="abl-group-title">Installed</h2>
-        <table className="abl-list abl-table" aria-label="Versions">
-          <tbody>
-            <tr className="abl-row"><th scope="row" className="abl-name">Mobius</th><td>{about?.app ?? '…'}</td></tr>
-            <tr className="abl-row"><th scope="row" className="abl-name">Core</th><td>{about?.core ? `${about.core.version} (protocol ${about.core.protocol})` : 'Not running'}</td></tr>
-          </tbody>
-        </table>
-      </section>
-    </>
+const EXAMPLE = `{
+  "servers": {
+    "github": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"], "env": { "GITHUB_TOKEN": "…" } }
+  }
+}`;
+
+/**
+ * Add a Connector: what a connector is, the lines that add one, and where they go. Mobius starts the servers in
+ * mcp.json when it opens, so the last step is to reopen it.
+ */
+function AddConnectorSheet({ onClose }: { onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => { void navigator.clipboard?.writeText(EXAMPLE).then(() => setCopied(true)).catch(() => undefined); };
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [onClose]);
+  return createPortal(
+    <div className="cal-modal-layer" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="camera-dialog" role="dialog" aria-modal="true" aria-label="Add a connector">
+        <h2>Add a Connector</h2>
+        <p className="camera-note">A connector is an MCP server: a small program that gives Mobius tools from another app, such as GitHub or Linear. Its maker’s page gives the command that runs it.</p>
+        <ol className="abl-steps">
+          <li>Open <b>mcp.json</b> in Mobius’s data folder (make it if it is not there).</li>
+          <li>Add the server under <code>servers</code>, with its command and any keys it needs:</li>
+        </ol>
+        <pre className="abl-code" aria-label="Example">{EXAMPLE}</pre>
+        <ol className="abl-steps" start={3}>
+          <li>Reopen Mobius. The connector appears in Connectors, and each of its tools asks before it is used.</li>
+        </ol>
+        <div className="camera-actions">
+          <button type="button" className="btn abl-link" onClick={() => void window.mobius.app.openDataFolder()}>Open Data Folder</button>
+          <span className="abl-spacer" />
+          <button type="button" className="btn" onClick={copy}>{copied ? 'Copied' : 'Copy Example'}</button>
+          <button type="button" className="btn primary" onClick={onClose}>Done</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

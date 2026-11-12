@@ -5,7 +5,7 @@ switcher, the launcher (Ctrl+K, then type "Abilities"), or **Settings › Abilit
 
 (Browser add-ons are a separate thing and are still called *extensions*.)
 
-The sidebar has four places, **Apps**, **Skills**, **Connectors** and **Updates**, each with a count. Above them,
+The sidebar has three places, **Apps**, **Skills** and **Connectors**, each with a count. Above them,
 **Add** is one menu for everything you can add (an app, a new skill, a skill from a file, a connector), and **Search**
 narrows the apps, skills and connectors as you type.
 
@@ -55,7 +55,8 @@ as your mode says. Servers start with a minimal environment: only the variables 
 Everything a server returns is treated as untrusted text.
 
 **Abilities › Connectors** shows each server Mobius started with a green dot, and each one that could not start with a
-red dot and the reason. **Open Data Folder** takes you to `mcp.json`; reopen Mobius after changing it.
+red dot; **Show Details** says why. **Add a Connector…** (on the page, or in **Add**) shows what to put in `mcp.json`,
+with **Copy Example** and **Open Data Folder**; reopen Mobius after changing it.
 
 ### Mobius for other apps
 
@@ -70,5 +71,5 @@ Plugins are not available yet. They will get their own place in Abilities when t
 
 ## Updates
 
-**Abilities › Updates** shows the versions of Mobius and its core, with **Check for Updates** (the same
-[Software Update](../getting-started/install.md#updates) as in Settings › About).
+Mobius's own updates are in **Settings › About › Software Update**. Updates to skills and connectors will get a place
+in Abilities when there are some.
