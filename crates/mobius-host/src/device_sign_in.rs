@@ -17,8 +17,8 @@ pub const HUGGING_FACE: &str = "https://huggingface.co";
 pub const HUGGING_FACE_CLIENT_ID: &str = "";
 pub const HUGGING_FACE_SCOPES: &str = "openid profile inference-api";
 pub const GITHUB: &str = "https://github.com";
-/// Mobius's public client id for its GitHub OAuth app (device flow on). Empty until the app is registered.
-pub const GITHUB_CLIENT_ID: &str = "";
+/// Mobius's public client id for its GitHub OAuth app (device flow on). Public by design: no secret goes with it.
+pub const GITHUB_CLIENT_ID: &str = "Ov23li0bZT09BJ8e5zDi";
 pub const GITHUB_SCOPES: &str = "read:user";
 const MAX_BODY: u64 = 64 * 1024;
 /// The longest the service may ask Mobius to wait, whatever it says.
