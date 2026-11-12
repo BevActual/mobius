@@ -41,6 +41,7 @@ const ICON = {
   trash: 'M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10',
   play: 'M6 4.5v11l9-5.5z',
   format: 'M3 4h14v12H3zM12 4v12',
+  skipped: 'M3 10s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5zM8 10a2 2 0 1 0 4 0 2 2 0 1 0-4 0M3 3l14 14',
   picture: 'M3 5h14v10H3zM3 13l4-4 3 3 2-2 5 5M13 8.5a1 1 0 1 0 0-.01',
 };
 
@@ -381,7 +382,15 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const playingRef = useRef(false); playingRef.current = playing !== null;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.key !== 'Enter' || e.defaultPrevented || playingRef.current) return;
+      if (!(e.ctrlKey || e.metaKey) || e.defaultPrevented || playingRef.current) return;
+      // Undo with nothing focused (after a control that removed itself, such as the picture's Remove) still undoes here.
+      const k = e.key.toLowerCase();
+      if ((k === 'z' || k === 'y') && (e.target === document.body || e.target === document.documentElement)) {
+        e.preventDefault();
+        if (k === 'y' || e.shiftKey) redoRef.current(); else undoRef.current();
+        return;
+      }
+      if (e.key !== 'Enter') return;
       const inPage = e.target instanceof Node && !!pageRef.current?.contains(e.target);
       if (!inPage && (typing(e.target) || document.querySelector('[role="dialog"][aria-modal="true"]'))) return;
       e.preventDefault();
@@ -447,9 +456,11 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
           <button type="button" className="slides-tool icon" aria-label="Delete slide" title="Delete slide (Delete). Ctrl+Z brings it back" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
         </div>
         {canPicture && (
-          <button type="button" className="slides-tool" aria-label="Picture" title={adding ? 'Adding…' : 'Add a picture to this slide (or paste or drop one on it)'} aria-busy={adding || undefined} disabled={adding} onClick={() => picker.current?.click()}>
-            <Icon d={ICON.picture} /><span>Picture</span>
-          </button>
+          <div className="slides-group" role="group" aria-label="Insert">
+            <button type="button" className="slides-tool icon" aria-label="Insert picture" title={adding ? 'Adding…' : 'Insert picture (or paste or drop one on the slide)'} aria-busy={adding || undefined} disabled={adding} onClick={() => picker.current?.click()}>
+              <Icon d={ICON.picture} />
+            </button>
+          </div>
         )}
         <input ref={picker} type="file" accept="image/*" hidden onChange={(e) => { void addPicture(e.target.files?.[0]); e.target.value = ''; }} />
         <span className="spacer" />
@@ -484,6 +495,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
               onClick={() => setAt(i)}>
               <span className="slides-num">{i + 1}</span>
               <SlideFace slide={s} />
+              {s.skip && <span className="slides-skipped" title="Skipped in Play" aria-hidden="true"><Icon d={ICON.skipped} /></span>}
             </button>
           ))}
         </nav>

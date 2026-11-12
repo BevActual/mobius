@@ -178,9 +178,12 @@
 .slides-page .slides-popup:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* A skipped slide stays in the navigator, dimmed and short, as Keynote collapses it. */
-.slides-page .slides-thumb[data-skipped] .slide-face { aspect-ratio: 16 / 3; opacity: 0.45; }
-.slides-page .slides-thumb[data-skipped] .slide-face > * { display: none; }
-.slides-page .slides-thumb[data-skipped] .slides-num { text-decoration: line-through; }
+.slides-page .slides-thumb[data-skipped] .slide-face { aspect-ratio: 16 / 3.2; justify-content: center; padding-right: 28px; opacity: 0.5; }
+.slides-page .slides-thumb[data-skipped] .slide-face > :not(.slide-title) { display: none; }
+.slides-page .slides-thumb[data-skipped] .slide-face .slide-title { font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slides-page .slides-thumb[data-skipped] .slide-face[data-picture] { display: flex; }
+.slides-page .slides-skipped { position: absolute; right: 10px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 18px; height: 18px; color: var(--muted); }
+.slides-page .slides-skipped svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Play's transitions. Dissolve fades the slide in; Push slides the old one out as the new one comes in beside it;
    Move in brings the new one over the old. Going back runs them the other way. None cuts. */
@@ -215,3 +218,4 @@
 .slides-page .slides-problem { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 12px; border-bottom: 0.5px solid var(--line); background: color-mix(in srgb, var(--danger) 8%, var(--bg)); font-size: var(--fs-sm); color: var(--ink); }
 .slides-page .slides-problem .slides-tool { margin-left: auto; height: 24px; }
 .slides-page .slide-face textarea.slide-title { field-sizing: content; min-height: 1.1em; }
+.slides-page .slides-group .slides-tool.icon:only-child { border-radius: 7px; }
