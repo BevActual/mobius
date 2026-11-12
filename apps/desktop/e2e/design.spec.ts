@@ -145,6 +145,8 @@ test('layers are drawn with a tool, picked together, lined up, duplicated and ty
 
 test('a layer is hidden, locked and arranged from its row and its right-click menu', async () => {
   await start();
+  // The canvas sits between the layer list and the inspector: a window this big shows the frame clear of both.
+  await resizeWindow(mobius!.app, 1440, 900);
   const tree = shell().getByRole('tree', { name: 'Frames and layers' });
   // Hide takes the layer off the canvas; the row stays, dimmed, with Show in its place.
   await tree.getByRole('button', { name: 'Hide Card' }).click();
