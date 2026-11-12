@@ -70,7 +70,13 @@ Your calendars by day, week or month.
   read only), and CalDAV accounts with an app password, such as iCloud, Fastmail and Nextcloud. Google and Outlook can
   be subscribed to through their private iCal address; signing in to them directly needs app registrations (see
   [calendar sign-in](../reference/calendar-sign-in.md)).
-- **Make an event** by sweeping across the hours, or with New event. Drag an event to move it, in any view.
+- **Make an event** by sweeping across the hours, double-clicking a time, right-clicking empty time, or with New event.
+  Drag an event to move it, in any view.
+- **Open an event** with a click: it edits in a popover beside it. Changes are kept when you click elsewhere or press
+  Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
+- **The event you clicked stays picked out.** Press Delete to remove it, Enter to open it or Ctrl+D to duplicate it;
+  each change can be undone. Right-click an event for Open, Duplicate, Move to another calendar and Delete.
+- **The current time** is a red line across the week, with the time written in the hour column.
 - **Suggestions from Mobius** are drawn dashed. Open one to see why, then **Keep** (add it), **Discard** (decline it) or
   **Try another**.
 
@@ -137,8 +143,9 @@ Abilities, plus any other app that already has a rule of its own.
 
 ## Knowledge
 
-What Mobius knows: your private **How I work** page and shared pages such as each project's memory. See
-[Memory and Knowledge](../guide/memory-and-knowledge.md).
+What Mobius knows: your private **How I work** page, grouped by kind with what Mobius learned waiting on top, and
+shared pages such as each project's memory, listed by folder in the sidebar. Lines offered to a shared page wait under
+**Suggested changes**. See [Memory and Knowledge](../guide/memory-and-knowledge.md).
 
 
 ![The Knowledge app in Mobius](../readme/apps/knowledge.png)

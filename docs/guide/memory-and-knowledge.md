@@ -16,7 +16,10 @@ your team. You can always see, correct and forget what it remembers.
 The **Knowledge** app opens on **How I work**, the page only you and your Mobius see. It shows what Mobius remembers,
 grouped as About you, Preferences, Projects, People and Learned skills.
 
-- Something Mobius learned is drawn **dashed** until you **Keep** it, or say **Not true** and it is forgotten.
+- Something Mobius learned waits at the top under **Waiting for you**, drawn **dashed**, until you **Keep** it, or say
+  **Not true** and it is forgotten.
+- Point at a line (or reach it with Tab) to **Edit**, **Forget** or **Share** it. Add a line, with its kind, in the row
+  at the foot of the page.
 - **Settings › Memory** lists the same facts with **Forget**.
 
 ## Shared knowledge
@@ -25,7 +28,8 @@ Knowledge also keeps pages that are shared, such as a project's memory page. Cha
 written straight in: a line from How I work you chose to share, a line Mobius proposes, or one from someone else. Each
 waits under **Suggested changes** with **Decline**, **Edit first** and **Keep**, and either answer can be undone.
 
-Pages are Markdown files in `workspace/wiki/`. Their earlier versions come from the workspace checkpoints, so any page
+Pages are Markdown files in `workspace/wiki/`, listed in the sidebar under their folder: **Pages**, **Projects** and
+**Shared**. Their earlier versions come from the workspace checkpoints, so any page
 can be put back as it was.
 
 ## Project memory
