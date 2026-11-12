@@ -35,6 +35,10 @@ Frames on a canvas, as in Sketch and Figma.
   list to change what is in front, or onto another frame to move them there.
 - **Export** a frame as a PNG at 1×, 2× or 3× from the inspector (or right-click › Export as PNG). It is saved in
   Photo, in a **Design exports** album.
+- **Components**: pick layers and choose **Create component** (Ctrl+Alt+K). They move to a component frame, marked in
+  purple, and a copy takes their place. Insert more copies from the component's inspector. Change the component and
+  every copy follows; a copy can still have its own text and colours. **Go to main** selects the component, and
+  **Detach** turns a copy back into plain layers.
 - Mobius's changes are dashed to keep or discard. It can also make pictures with your
   [Images model](../guide/models-and-gateways.md#a-model-for-each-job).
 
