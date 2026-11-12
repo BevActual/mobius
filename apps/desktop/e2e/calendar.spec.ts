@@ -67,7 +67,8 @@ test('a calendar file from another app shows in the week, and events are added, 
   const change = shell().getByRole('dialog', { name: 'Edit event' });
   await expect(change.getByText('This event repeats.')).toBeVisible();
   await change.getByRole('textbox', { name: 'Title' }).fill('Team standup');
-  await change.getByRole('button', { name: 'Save' }).click();
+  // The popover has no Save: Enter keeps the change.
+  await change.getByRole('textbox', { name: 'Title' }).press('Enter');
   await expect(page().getByRole('button', { name: /^Team standup, 9:00–9:30/ }).first()).toBeVisible();
   const work = fs.readFileSync(file('Work'), 'utf8');
   expect(work).toContain('RRULE:FREQ=DAILY;COUNT=3');
@@ -75,7 +76,7 @@ test('a calendar file from another app shows in the week, and events are added, 
   expect(work).toContain(`DTSTART:${ics(today())}T090000`);
 
   await plants.click();
-  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'Delete' }).click();
+  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'Delete Event' }).click();
   await expect(plants).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).not.toContain('Water the plants');
 
@@ -103,7 +104,7 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
   await walk('10:00–10:30').click();
   const editor = shell().getByRole('dialog', { name: 'Edit event' });
   await editor.getByRole('combobox', { name: 'Repeat' }).selectOption('Every day');
-  await editor.getByRole('button', { name: 'Save' }).click();
+  await editor.getByRole('textbox', { name: 'Title' }).press('Enter');
   await expect(editor).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
 
@@ -165,7 +166,8 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await expect(view.getByText('a subscribed calendar')).toBeVisible();
   await expect(view.getByRole('button', { name: 'Delete' })).toHaveCount(0);
   await expect(view.getByRole('textbox', { name: 'Title' })).toBeDisabled();
-  await view.getByRole('button', { name: 'Close' }).click();
+  await shell().keyboard.press('Escape');
+  await expect(view).toHaveCount(0);
 
   // New events go only to calendars that can take them.
   await page().getByRole('button', { name: 'New event' }).click();
@@ -256,6 +258,7 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   const made = shell().getByRole('dialog', { name: 'New event' });
   await expect(made).toHaveAttribute('data-pop', 'true');
   await expect(made.getByRole('textbox', { name: 'Start time' })).toHaveValue(/2(:00)?\s?PM|14:00/);
-  await made.getByRole('button', { name: 'Cancel' }).click();
+  await expect(made.getByRole('button', { name: /Cancel|Save|Add/ })).toHaveCount(0);
+  await shell().keyboard.press('Escape');
   await expect(made).toHaveCount(0);
 });

@@ -61,8 +61,8 @@ Your calendars by day, week or month.
   [calendar sign-in](../reference/calendar-sign-in.md)).
 - **Make an event** by sweeping across the hours, double-clicking a time, right-clicking empty time, or with New event.
   Drag an event to move it, in any view.
-- **Open an event** with a click: it edits in a popover beside it, and clicking elsewhere keeps what you typed (Escape
-  or Cancel leaves it as it was).
+- **Open an event** with a click: it edits in a popover beside it. Changes are kept when you click elsewhere or press
+  Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
 - **The event you clicked stays picked out.** Press Delete to remove it, Enter to open it or Ctrl+D to duplicate it;
   each change can be undone. Right-click an event for Open, Duplicate, Move to another calendar and Delete.
 - **The current time** is a red line across the week, with the time written in the hour column.

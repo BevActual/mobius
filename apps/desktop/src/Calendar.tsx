@@ -751,14 +751,19 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
   // Opened from a place on the grid, it is a popover beside that place, on whichever side has room and never off the
   // window. A press anywhere else closes it, keeping what was typed, as Calendar's popover does.
   const at = editing.at;
-  const [place, setPlace] = useState<{ left: number; top: number } | null>(null);
+  // `side` is where the event is, so the arrow points back at it; `arrow` is how far down the popover it sits.
+  const [place, setPlace] = useState<{ left: number; top: number; side: 'left' | 'right' | null; arrow: number } | null>(null);
   useLayoutEffect(() => {
     if (!at || !sheet.current) return;
     const { width, height } = sheet.current.getBoundingClientRect();
     const gap = 12;
     const right = at.right + gap;
-    const left = right + width <= window.innerWidth - gap ? right : at.left - gap - width >= gap ? at.left - gap - width : Math.max(gap, Math.min(window.innerWidth - width - gap, at.left + at.width / 2 - width / 2));
-    setPlace({ left, top: Math.max(gap, Math.min(window.innerHeight - height - gap, at.top - 24)) });
+    const side = right + width <= window.innerWidth - gap ? 'left' : at.left - gap - width >= gap ? 'right' : null;
+    const left = side === 'left' ? right : side === 'right' ? at.left - gap - width : Math.max(gap, Math.min(window.innerWidth - width - gap, at.left + at.width / 2 - width / 2));
+    const top = Math.max(gap, Math.min(window.innerHeight - height - gap, at.top - 24));
+    // Level with the top of the event (or the middle of a short one), kept off the popover's rounded corners.
+    const arrow = Math.max(18, Math.min(height - 18, at.top + Math.min(at.height, 36) / 2 - top));
+    setPlace({ left, top, side, arrow });
   }, [at]);
   // The title takes the keys once the editor can be seen: a popover is hidden until it has its place.
   useEffect(() => { if (!at || place) field.current?.focus(); }, [at, place !== null]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -783,7 +788,20 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
     return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape); };
   }, [at, onClose]);
   const form = (
-      <form ref={sheet} className="cal-editor" data-pop={at ? true : undefined} style={at ? { left: place?.left ?? 0, top: place?.top ?? 0, visibility: place ? undefined : 'hidden' } : undefined} role="dialog" aria-modal="true" aria-label={locked ? 'Event' : original ? 'Edit event' : 'New event'} onSubmit={(e) => void save(e)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+      <form
+        ref={sheet} className="cal-editor" data-pop={at ? true : undefined} data-side={place?.side ?? undefined}
+        style={at ? { left: place?.left ?? 0, top: place?.top ?? 0, visibility: place ? undefined : 'hidden', ['--arrow' as string]: `${place?.arrow ?? 0}px` } : undefined}
+        role="dialog" aria-modal="true" aria-label={locked ? 'Event' : original ? 'Edit event' : 'New event'} onSubmit={(e) => void save(e)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { e.stopPropagation(); onClose(); return; }
+          // The popover has no Save: Enter in a line of text keeps the change, as a click elsewhere does. A day or time
+          // field takes its own Enter, to read what was typed.
+          if (at && e.key === 'Enter' && !e.defaultPrevented && (e.target as HTMLElement).matches('input:not([type="checkbox"])')) {
+            e.preventDefault();
+            if (live.current.changed()) void save(); else onClose();
+          }
+        }}
+      >
         <fieldset className="cal-editor-fields" disabled={locked}>
         <input ref={field} className="cal-editor-title" aria-label="Title" placeholder="New event" value={title} maxLength={200} required onChange={(e) => setTitle(e.target.value)} />
         <input className="cal-editor-place" aria-label="Place" placeholder="Add a place" value={where} maxLength={200} onChange={(e) => setWhere(e.target.value)} />
@@ -816,12 +834,16 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
         {locked && <p className="cal-editor-note">From {original.calendar}, a subscribed calendar: it can be read here but not changed.</p>}
         {original?.repeats && !locked && <p className="cal-editor-note">This event repeats. A change to its time moves every time it happens by as much.</p>}
         {calendar.message && <p className="tasks-message" role="alert">{calendar.message}</p>}
+        {/* The popover keeps changes as they are made (a click elsewhere or Enter), and Escape takes them back: it needs
+            no Cancel or Save, only Delete, as plain red words at its foot. */}
+        {at ? (original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete Event</button>) : (
         <div className="cal-editor-actions">
           {original && !locked && <button type="button" className="btn cal-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete</button>}
           <span className="spacer" />
           <button type="button" className="btn" onClick={onClose}>{locked ? 'Close' : 'Cancel'}</button>
           {!locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
         </div>
+        )}
       </form>
   );
   if (at) return createPortal(<div className="cal-pop-layer">{form}</div>, document.body);

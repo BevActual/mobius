@@ -207,3 +207,12 @@
 .cal-editor[data-pop] .cal-editor-title:focus, .cal-editor[data-pop] .cal-editor-place:focus { outline: none; box-shadow: none !important; }
 /* Undo keeps an edge in dark, where the page and the toast are the same colour. */
 .calendar-page .cal-undo { box-shadow: var(--shadow-3), 0 0 0 0.5px var(--line); }
+/* The popover points at what opened it: a small arrow on the side the event is, level with it. */
+.cal-pop-layer > .cal-editor[data-pop] { overflow: visible; }
+.cal-editor[data-pop][data-side]::before { content: ""; position: absolute; top: calc(var(--arrow) - 8px); width: 16px; height: 16px; background: var(--bg); transform: rotate(45deg); box-shadow: -1px 1px 0 0 color-mix(in srgb, var(--line) 60%, transparent); }
+.cal-editor[data-pop][data-side="left"]::before { left: -8px; }
+.cal-editor[data-pop][data-side="right"]::before { right: -8px; transform: rotate(225deg); }
+/* Delete in the popover: plain red words, centred at its foot, as in Calendar. */
+.cal-pop-delete { align-self: center; padding: 4px 10px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--danger); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer; }
+.cal-pop-delete:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.cal-pop-delete:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
