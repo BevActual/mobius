@@ -28,6 +28,8 @@ Frames on a canvas, as in Sketch and Figma.
   Ctrl+Shift+H): a hidden layer is not drawn, and a locked one stays put while you work around it.
 - Right-click a layer, a frame or the canvas for cut, copy, paste, duplicate, rename, bring to front, send to back,
   hide, lock and delete, each with its shortcut. **Shift+1** fits everything, **Shift+2** zooms to what is picked.
+- Give a frame or shape a **Border** from the inspector (colour or style, and width). Drag layers up or down the layer
+  list to change what is in front, or onto another frame to move them there.
 - Mobius's changes are dashed to keep or discard. It can also make pictures with your
   [Images model](../guide/models-and-gateways.md#a-model-for-each-job).
 
