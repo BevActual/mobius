@@ -388,7 +388,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
     const onKey = (e: KeyboardEvent) => {
       const m = keys.current;
       const t = e.target instanceof HTMLElement ? e.target : null;
-      if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]') || m.editing) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role=menu]') || m.editing) return;
       // The up and down arrows open the message before or after the one open, as in Apple Mail's list.
       if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && m.view.kind === 'box' && m.messages.length > 0 && (!t || t === document.body || t.closest('.mail-page'))) {
         e.preventDefault();

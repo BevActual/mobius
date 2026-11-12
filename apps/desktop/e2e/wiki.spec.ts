@@ -121,7 +121,8 @@ test('in How I work a line can be added with its kind, changed and forgotten, in
   await start();
   await openWiki();
   const page = shell().getByRole('region', { name: 'How I work' });
-  const lines = page.getByRole('list', { name: 'How I work' });
+  // How I work groups its lines by kind, each kind its own list: count them across the page.
+  const lines = page;
   await expect(lines.getByRole('listitem')).toHaveCount(3);
   await expect(lines.getByRole('listitem', { name: 'Likes boutique hotels' })).toContainText('From Browser, June');
   await page.getByRole('textbox', { name: 'Add a line' }).fill('Ana and Ken fly from London');

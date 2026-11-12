@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { AgentWaiting, ConversationInfo, ScheduleInfo } from '@mobius/shared';
 import type { Activity } from './activity';
 import { describeAction } from './actions';
 import { appName, type AppId } from './apps';
-import { deskTitle, upcoming, whenLabel } from './desk-view';
+import { agoLabel, deskGreeting, deskTitle, recent, upcoming, whenLabel } from './desk-view';
 import { APP_ICONS } from './Rail';
+import './desk.css';
 
 export interface DeskRow {
   app: AppId;
@@ -23,6 +24,8 @@ interface Props {
   onOpenConversation: (id: string) => void;
   /** Settings › Schedules, for a row under Next. */
   onOpenSchedules?: () => void;
+  /** Where the message box puts its suggestions, under the greeting. */
+  starters?: ReactNode;
   now?: Date;
 }
 
@@ -57,11 +60,12 @@ function useSchedules(): ScheduleInfo[] {
 const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="true" style={{ background: `var(--app-${app})` }}>{APP_ICONS[app]}</svg>;
 
 /**
- * The desk: the Agent app's home, where an empty conversation used to show nothing. What waits for you and what Mobius
- * is doing come first, each answerable in place; then what is open in your apps (an app Mobius changed carries its
+ * The desk: the Agent app's home, where an empty conversation used to show nothing. One greeting with the date and what
+ * is in flight, and the suggestions under it. What waits for you and what Mobius is doing come first, each answerable in
+ * place; then the conversations to pick up again; then what is open in your apps (an app Mobius changed carries its
  * dashed edge until you look); then what is scheduled next.
  */
-export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenConversation, onOpenSchedules, now = new Date() }: Props) {
+export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenConversation, onOpenSchedules, starters, now = new Date() }: Props) {
   const waiting = conversations.filter((c) => c.waiting > 0);
   const working = conversations.filter((c) => c.activity === 'working' && c.waiting === 0);
   const approvals = useFirstApprovals(waiting);
@@ -70,7 +74,8 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   const apps = [...rows];
   for (const app of changed) if (!apps.some((row) => row.app === app)) apps.push({ app, text: 'Changed by Mobius' });
   const title = deskTitle(now, { waiting: waiting.length, working: working.length, changed: changed.size });
-  const quiet = waiting.length === 0 && working.length === 0 && apps.length === 0 && next.length === 0;
+  const earlier = recent(conversations, new Set([...waiting, ...working].map((c) => c.id)));
+  const quiet = waiting.length === 0 && working.length === 0 && changed.size === 0;
   const hold = (id: string, run: () => Promise<unknown>) => {
     setBusy((cur) => new Set(cur).add(id));
     void run().finally(() => setBusy((cur) => { const left = new Set(cur); left.delete(id); return left; }));
@@ -78,8 +83,11 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   const name = (c: ConversationInfo) => c.title.trim() || 'New conversation';
   return (
     <section className="desk" aria-label="Desk">
-      <p className="desk-title">{title.map((part, i) => <span key={part}>{i > 0 && <span aria-hidden="true"> · </span>}{part}</span>)}</p>
-      {quiet && <p className="desk-quiet">All quiet. Nothing is waiting for you.</p>}
+      <header className="desk-hello">
+        <h2 className="greeting">{deskGreeting(now)}</h2>
+        <p className="desk-title">{title.map((part, i) => <span key={part}>{i > 0 && <span aria-hidden="true"> · </span>}{part}</span>)}{quiet && <span><span aria-hidden="true"> · </span>Nothing waiting for you</span>}</p>
+        {starters}
+      </header>
       {(waiting.length > 0 || working.length > 0) && (
         <div className="desk-group" role="group" aria-label="Now">
           <h3 className="desk-head">Now</h3>
@@ -109,6 +117,22 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
           </ul>
         </div>
       )}
+      {earlier.length > 0 && (
+        <div className="desk-group" role="group" aria-label="Recent">
+          <h3 className="desk-head">Recent</h3>
+          <ul className="desk-rows" data-columns>
+            {earlier.map((c) => (
+              <li key={c.id}>
+                <button type="button" className="desk-row" aria-label={`${name(c)}, ${agoLabel(c.updated_ms, now)}`} onClick={() => onOpenConversation(c.id)}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true" className="desk-glyph"><path d="M4 5.5A2 2 0 0 1 6 3.5h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-3.5 3v-3H6a2 2 0 0 1-2-2z" /></svg>
+                  <span className="desk-name">{name(c)}</span>
+                  <span className="desk-text">{agoLabel(c.updated_ms, now)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {apps.length > 0 && (
         <div className="desk-group" role="group" aria-label="In your apps">
           <h3 className="desk-head">In your apps</h3>
@@ -132,7 +156,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
             {next.map(({ schedule, at }) => (
               <li key={schedule.id}>
                 <button type="button" className="desk-row" onClick={onOpenSchedules} disabled={!onOpenSchedules}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true" className="desk-clock"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.6" /></svg>
+                  <svg viewBox="0 0 20 20" aria-hidden="true" className="desk-glyph"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.6" /></svg>
                   <span className="desk-name">{schedule.title}</span>
                   <span className="desk-text">{whenLabel(at, now)}</span>
                 </button>

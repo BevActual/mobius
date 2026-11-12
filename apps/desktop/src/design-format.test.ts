@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changedIds, contrast, freshId, nextFramePlace, parseDesign, resolveColor, writeDesign, type DesignDoc } from './design-format';
+import { changedIds, contrast, freshId, moveLayer, nextFramePlace, parseDesign, resolveColor, writeDesign, type DesignDoc } from './design-format';
 
 const FILE = JSON.stringify({
   version: 1,
@@ -56,5 +56,31 @@ describe('designs', () => {
     expect(nextFramePlace(before)).toEqual({ x: 933, y: 0 });
     expect(contrast('#ffffff', '#000000')).toBe(21);
     expect(contrast('#777777', '#ffffff')).toBeLessThan(4.5);
+  });
+
+  it('keep a border only when it has a colour and a width', () => {
+    const d = doc(FILE);
+    expect(d.frames[0]).toMatchObject({ stroke: 'transparent', strokeWidth: 0 });
+    d.frames[0]!.children[1]!.stroke = '#ff0000';
+    d.frames[0]!.children[1]!.strokeWidth = 2;
+    d.frames[1]!.stroke = 'style:Primary';
+    d.frames[1]!.strokeWidth = 1;
+    const text = writeDesign(d);
+    expect(text).toContain('"radius":16,"stroke":"#ff0000","strokeWidth":2}');
+    expect(doc(text)).toEqual(d);
+    d.frames[0]!.children[1]!.strokeWidth = 0;
+    expect(writeDesign(d)).not.toContain('#ff0000');
+  });
+
+  it('move a layer in the list, in front of or behind another, or onto another frame where it keeps its place', () => {
+    const d = doc(FILE);
+    expect(moveLayer(d, 'n1', 'n2', 'above')).toBe(true);
+    expect(d.frames[0]!.children.map((c) => c.id)).toEqual(['n2', 'n1']);
+    moveLayer(d, 'n1', 'n2', 'below');
+    expect(d.frames[0]!.children.map((c) => c.id)).toEqual(['n1', 'n2']);
+    expect(moveLayer(d, 'n1', 'f2', 'above')).toBe(true);
+    expect(d.frames[1]!.children[0]).toMatchObject({ id: 'n1', x: 24 - 460, y: 80 });
+    expect(moveLayer(d, 'n2', 'n2', 'above')).toBe(false);
+    expect(moveLayer(d, 'f1', 'n2', 'above')).toBe(false);
   });
 });

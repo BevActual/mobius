@@ -3,7 +3,7 @@ import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { BEATS_PER_BAR, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, writeSong, type Instrument, type Song, type SongNote, type Track } from './song-format';
 import { play, previewNote, type Player } from './studio-audio';
-import { GRIDS, addNote, duplicateNotes, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes, type Picked } from './studio-view';
+import { GRIDS, addNote, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes, type Picked } from './studio-view';
 import { useFileReview } from './useFileReview';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
@@ -26,6 +26,13 @@ const ROW_H = 14;
 const MELODY_TOP = 84;
 const MELODY_BOTTOM = 36;
 const ZOOMS = [0.5, 0.75, 1, 1.5, 2, 3];
+/** Drums get taller rows and room for their names, since there are only a few of them. */
+const DRUM_ROW_H = 26;
+const DRUM_KEYS_W = 96;
+/** The velocity lane under the roll. */
+const VEL_H = 64;
+/** The least room left for the note editor when the track list is made taller. */
+const EDITOR_MIN = 200;
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => <svg viewBox="0 0 20 20" aria-hidden="true" data-fill={fill || undefined}><path d={d} /></svg>;
 const ICONS = {
@@ -83,6 +90,25 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   // with the pointer captured by the roll it does not reach the note in every engine.
   const lastPress = useRef<{ i: number; t: number; x: number; y: number } | null>(null);
   const [box, setBox] = useState<{ b0: number; b1: number; r0: number; r1: number } | null>(null);
+  // How tall the track list is, once its divider has been dragged; until then it fits its tracks.
+  const [arrangeH, setArrangeH] = useState<number | null>(null);
+  const [scrollX, setScrollX] = useState(0);
+  // A drag on the velocity lane: which notes, and how much louder or softer so far.
+  const [velDrag, setVelDrag] = useState<{ these: Picked; y: number; by: number } | null>(null);
+  const page = useRef<HTMLElement>(null);
+  const [pageH, setPageH] = useState(840);
+  useEffect(() => {
+    const el = page.current;
+    if (!el) return;
+    // The room under the transport, which can wrap onto two lines in a narrow window.
+    const measure = () => setPageH(el.clientHeight - (el.querySelector<HTMLElement>('.studio-transport')?.offsetHeight ?? 52));
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    const bar = el.querySelector('.studio-transport');
+    if (bar) ro.observe(bar);
+    measure();
+    return () => ro.disconnect();
+  }, [song !== null]); // eslint-disable-line react-hooks/exhaustive-deps
   const [, setTick] = useState(0);
   const player = useRef<Player | null>(null);
   const roll = useRef<HTMLDivElement>(null);
@@ -204,6 +230,10 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const total = song.bars * BEATS_PER_BAR;
   const inKey = keyPitches(song.key);
   const drums = track?.instrument === 'drums';
+  // Drum rows grow to fill the editor (there are only six), up to a comfortable pad size.
+  const listFor = Math.max(96, Math.min(arrangeH ?? fitTracks(song.tracks.length), Math.max(96, pageH - EDITOR_MIN)));
+  const rowH = drums ? Math.max(DRUM_ROW_H, Math.min(40, Math.floor((pageH - listFor - 1 - 38 - VEL_H - 2) / DRUMS.length))) : ROW_H;
+  const keysW = drums ? DRUM_KEYS_W : KEYS_W;
   const rows = drums ? DRUMS.map((d) => ({ pitch: d.pitch, label: d.name, shade: false, black: false, c: true })) : Array.from({ length: MELODY_TOP - MELODY_BOTTOM + 1 }, (_, i) => MELODY_TOP - i).map((p) => ({ pitch: p, label: noteName(p), shade: !inKey.has(p % 12), black: isBlack(p), c: p % 12 === 0 }));
   const rowOf = (pitch: number) => rows.findIndex((r) => r.pitch === pitch);
   const rbw = ROLL_BEAT_W * zoom;
@@ -250,7 +280,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   // ---------- The piano roll's pointer ----------
   const at = (e: { clientX: number; clientY: number }) => {
     const r = inner.current!.getBoundingClientRect();
-    return { beat: Math.max(0, Math.min(total - 1e-6, (e.clientX - r.left - KEYS_W) / rbw)), row: Math.max(0, Math.min(rows.length - 1, Math.floor((e.clientY - r.top) / ROW_H))) };
+    return { beat: Math.max(0, Math.min(total - 1e-6, (e.clientX - r.left - keysW) / rbw)), row: Math.max(0, Math.min(rows.length - 1, Math.floor((e.clientY - r.top) / rowH))) };
   };
   const onRollDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || !track) return;
@@ -287,7 +317,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     if (!g) return;
     if (g.kind === 'move') {
       const db = Math.round((e.clientX - g.x) / rbw / grid) * grid;
-      const dr = Math.round((e.clientY - g.y) / ROW_H);
+      const dr = Math.round((e.clientY - g.y) / rowH);
       if (db !== g.db || dr !== g.dr || (!g.moved && Math.abs(e.clientX - g.x) + Math.abs(e.clientY - g.y) > 3)) setGesture({ ...g, db, dr, moved: g.moved || Math.abs(e.clientX - g.x) + Math.abs(e.clientY - g.y) > 3 });
     } else if (g.kind === 'stretch') {
       const dl = Math.round((e.clientX - g.x) / rbw / grid) * grid;
@@ -354,10 +384,43 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   // While a note is dragged, the picked notes are drawn where they would land.
   const dragShift = gesture?.kind === 'move' && gesture.moved ? { db: gesture.db, dr: gesture.dr } : null;
   const dragStretch = gesture?.kind === 'stretch' ? gesture.dl : 0;
+  // The track list fits its tracks unless its divider was dragged, and always leaves the editor some room.
+  const room = pageH - EDITOR_MIN;
+  const listH = listFor;
+  const onDividerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const y = e.clientY, h = listH;
+    const el = e.currentTarget;
+    const move = (m: PointerEvent) => setArrangeH(Math.max(96, Math.min(h + m.clientY - y, Math.max(96, room))));
+    const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  };
+  /** A press on a note's velocity bar: drag up for louder, down for softer; picked notes move together. */
+  const onVelDown = (e: ReactPointerEvent<HTMLElement>, i: number) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const these = picked.has(i) ? picked : new Set([i]);
+    if (!picked.has(i)) setPicked(e.shiftKey ? new Set([...picked, i]) : these);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setVelDrag({ these: e.shiftKey && !picked.has(i) ? new Set([...picked, i]) : these, y: e.clientY, by: 0 });
+  };
+  const onVelMove = (e: ReactPointerEvent<HTMLElement>) => { if (velDrag) setVelDrag({ ...velDrag, by: Math.round(((velDrag.y - e.clientY) / (VEL_H - 8)) * 100) / 100 }); };
+  const onVelUp = () => {
+    if (!velDrag) return;
+    if (velDrag.by !== 0) setNotes((n) => nudgeVelocity(n, velDrag.these, velDrag.by), 'velocity');
+    setVelDrag(null);
+  };
+  const shownVelocity = (j: number, v: number) => (velDrag && velDrag.these.has(j) ? Math.max(0, Math.min(1, v + velDrag.by)) : v);
+
   const velocity = pickedNotes.length ? pickedNotes.reduce((a, n) => a + n.velocity, 0) / pickedNotes.length : null;
 
   return (
-    <section className="studio-page" aria-label="Music">
+    <section className="studio-page" aria-label="Music" ref={page}>
       <div className="studio-transport" role="toolbar" aria-label="Transport">
         <div className="studio-buttons">
           <button type="button" className="studio-tbtn" aria-label="Go to start" title="Go to start (Return)" onClick={() => seek(0)}><Icon d={ICONS.start} fill /></button>
@@ -390,7 +453,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           </select>
         </label>
       </div>
-      <div className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px` }}>
+      <div className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, height: listH }}>
         <div className="studio-ruler-row">
           <div className="studio-ruler-head">{song.tracks.length === 1 ? '1 track' : `${song.tracks.length} tracks`}</div>
           <div
@@ -446,6 +509,19 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           <ReviewActions onKeep={keep} onDiscard={discard} />
         </div>
       )}
+      <div
+        className="studio-divider"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize tracks and notes"
+        aria-valuemin={96}
+        aria-valuemax={Math.max(96, room)}
+        aria-valuenow={Math.round(listH)}
+        tabIndex={0}
+        title="Drag to show more tracks or more notes"
+        onPointerDown={onDividerDown}
+        onKeyDown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setArrangeH(Math.max(96, Math.min(listH + (e.key === 'ArrowUp' ? -24 : 24), Math.max(96, room)))); } else if (e.key === 'Home') { e.preventDefault(); setArrangeH(null); } }}
+      />
       {track && (
         <div className="studio-editor" data-instrument={track.instrument}>
           <div className="studio-roll-bar" role="toolbar" aria-label="Notes">
@@ -462,18 +538,18 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
               </>
             ) : <span className="studio-hint">Click to draw a note, drag to move it, drag its end to stretch it.</span>}
           </div>
-          <div className="studio-roll" ref={roll} role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey}>
+          <div className="studio-roll" ref={roll} role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
             <div
               className="studio-roll-inner"
               ref={inner}
-              style={{ width: KEYS_W + total * rbw, height: rows.length * ROW_H }}
+              style={{ width: keysW + total * rbw, height: rows.length * rowH, ['--row' as string]: `${rowH}px`, ['--keys' as string]: `${keysW}px` }}
               onPointerDown={onRollDown}
               onPointerMove={onRollMove}
               onPointerUp={onRollUp}
               onPointerCancel={() => { setGesture(null); setBox(null); }}
             >
               {rows.map((r, i) => (
-                <div key={r.pitch} className="studio-row" role="row" data-shade={r.shade || undefined} data-black={r.black || undefined} style={{ top: i * ROW_H, height: ROW_H }}>
+                <div key={r.pitch} className="studio-row" role="row" data-shade={r.shade || undefined} data-black={r.black || undefined} style={{ top: i * rowH, height: rowH }}>
                   <span className="studio-key" role="rowheader" data-black={r.black || undefined} data-c={r.c || undefined} data-drum={drums || undefined} onPointerDown={(e) => { e.stopPropagation(); previewNote(track.instrument, r.pitch); }}>{r.label}</span>
                   <div
                     className="studio-row-cells"
@@ -496,7 +572,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                           role="button"
                           aria-pressed={isPicked}
                           aria-label={`${r.label} at beat ${n.start + 1}, ${n.length} beats`}
-                          style={{ left, width, transform: isPicked && dragShift ? `translateY(${dragShift.dr * ROW_H}px)` : undefined, ['--vel' as string]: n.velocity }}
+                          style={{ left, width, transform: isPicked && dragShift ? `translateY(${dragShift.dr * rowH}px)` : undefined, ['--vel' as string]: n.velocity }}
                         >{width > 10 && <span className="studio-note-end" aria-hidden="true" />}</span>
                       );
                     })}
@@ -506,9 +582,35 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
               {box && (() => {
                 const [b0, b1] = box.b0 < box.b1 ? [box.b0, box.b1] : [box.b1, box.b0];
                 const [r0, r1] = box.r0 < box.r1 ? [box.r0, box.r1] : [box.r1, box.r0];
-                return <span className="studio-box" style={{ left: KEYS_W + b0 * rbw, width: (b1 - b0) * rbw, top: r0 * ROW_H, height: (r1 - r0 + 1) * ROW_H }} aria-hidden="true" />;
+                return <span className="studio-box" style={{ left: keysW + b0 * rbw, width: (b1 - b0) * rbw, top: r0 * rowH, height: (r1 - r0 + 1) * rowH }} aria-hidden="true" />;
               })()}
-              <span className="studio-playhead" style={{ left: KEYS_W + beat * rbw }} aria-hidden="true" />
+              <span className="studio-playhead" style={{ left: keysW + beat * rbw }} aria-hidden="true" />
+            </div>
+          </div>
+          <div className="studio-vel" role="group" aria-label={`Velocity of ${track.name}`} style={{ height: VEL_H, ['--keys' as string]: `${keysW}px` }}>
+            <span className="studio-vel-label" aria-hidden="true">Velocity</span>
+            <div className="studio-vel-inner" style={{ width: total * rbw, transform: `translateX(${-scrollX}px)`, backgroundSize: `${rbw}px 100%, ${rbw * BEATS_PER_BAR}px 100%` }} onPointerMove={onVelMove} onPointerUp={onVelUp} onPointerCancel={() => setVelDrag(null)}>
+              {notes.map((n, j) => {
+                const v = shownVelocity(j, n.velocity);
+                const label = drums ? (DRUMS.find((d) => d.pitch === n.pitch)?.name ?? noteName(n.pitch)) : noteName(n.pitch);
+                return (
+                  <span
+                    key={j}
+                    className="studio-vel-bar"
+                    role="slider"
+                    tabIndex={-1}
+                    aria-label={`Velocity of ${label} at beat ${n.start + 1}`}
+                    aria-valuemin={0}
+                    aria-valuemax={127}
+                    aria-valuenow={Math.round(v * 127)}
+                    data-picked={picked.has(j) || undefined}
+                    style={{ left: n.start * rbw, height: `${Math.max(2, v * (VEL_H - 8))}px` }}
+                    onPointerDown={(e) => onVelDown(e, j)}
+                    onKeyDown={(e) => { if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return; e.preventDefault(); e.stopPropagation(); setNotes((ns) => nudgeVelocity(ns, picked.has(j) ? picked : new Set([j]), (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 0.1 : 1 / 127)), 'velocity'); }}
+                  />
+                );
+              })}
+              <span className="studio-playhead" style={{ left: beat * rbw }} aria-hidden="true" />
             </div>
           </div>
         </div>

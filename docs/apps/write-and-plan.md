@@ -9,7 +9,9 @@ Quick pages, saved as you type.
 - **Notebooks** in the sidebar, newest pages first, with search, **Pinned** pages at the top and a **Tags** section
   built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
-  recordings (up to ten minutes). The **Markdown** button shows the file itself.
+  recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
+  bold, italic, strikethrough, code, lists and quote; the bar keeps Checklist, Table and Link at hand. The **⋯** menu
+  clips a web page into the note and shows the Markdown file itself.
 - **History** lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).
 - **Share** copies the page, exports it as a web page or Markdown, or prints it.
@@ -25,7 +27,11 @@ Longer documents, with an outline and comments.
 ![The Docs app in Mobius](../readme/apps/docs.png)
 
 - **A page to write on**: headings, lists, checklists, tables, pictures and links to other documents, kept as Markdown.
-- **The outline** of headings sits beside the page; hide it if you prefer.
+  **Aa** in the bar holds the styles, bold, italic and lists, as in Notes; checklist, table, link and insert sit beside it.
+  **More** (⋯) switches the page between the sans-serif font and a serif one.
+- **The outline** of headings sits beside the page and marks the part you are looking at as you scroll. It folds away
+  when the window is narrow; hide it if you prefer. A document opens at its top.
+- **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
 - **Mobius's writing tools** work on the selection or the whole document. What Mobius changes comes back as
@@ -64,7 +70,13 @@ Your calendars by day, week or month.
   read only), and CalDAV accounts with an app password, such as iCloud, Fastmail and Nextcloud. Google and Outlook can
   be subscribed to through their private iCal address; signing in to them directly needs app registrations (see
   [calendar sign-in](../reference/calendar-sign-in.md)).
-- **Make an event** by sweeping across the hours, or with New event. Drag an event to move it, in any view.
+- **Make an event** by sweeping across the hours, double-clicking a time, right-clicking empty time, or with New event.
+  Drag an event to move it, in any view.
+- **Open an event** with a click: it edits in a popover beside it. Changes are kept when you click elsewhere or press
+  Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
+- **The event you clicked stays picked out.** Press Delete to remove it, Enter to open it or Ctrl+D to duplicate it;
+  each change can be undone. Right-click an event for Open, Duplicate, Move to another calendar and Delete.
+- **The current time** is a red line across the week, with the time written in the hour column.
 - **Suggestions from Mobius** are drawn dashed. Open one to see why, then **Keep** (add it), **Discard** (decline it) or
   **Try another**.
 
@@ -85,7 +97,19 @@ Spreadsheets with formulas.
 
 ## Database
 
-SQLite databases to query with SQL. Make one, or import one, then run any statement and see the result as a table.
+SQLite databases you can browse without writing SQL, or query with it. Make one, or import a CSV file or a sheet from
+Sheets, and each table opens with three views:
+
+- **Data** shows the rows, 100 to a page. Click a column's heading to sort by it (again for high to low, a third time
+  for no order), and type in **Filter rows** to keep the rows where any column holds those words.
+- **Structure** lists the columns with their types, which ones need a value, defaults and the key, and the statement
+  that made the table.
+- **SQL** runs any statement and shows what it gave. **History** brings back an earlier one, and **Copy as CSV** copies
+  the result.
+
+**Search** at the top of the sidebar finds a database or table by name. Right-click a table, press Shift+F10 on it, or
+use its **⋯** button, to open it, copy all of it as CSV, rename it or delete it. Right-click a
+database to import a CSV file into it or delete it. Deleting asks first, as it can't be undone.
 
 ![The Database app in Mobius](../readme/apps/database.png)
 
@@ -119,8 +143,9 @@ Abilities, plus any other app that already has a rule of its own.
 
 ## Knowledge
 
-What Mobius knows: your private **How I work** page and shared pages such as each project's memory. See
-[Memory and Knowledge](../guide/memory-and-knowledge.md).
+What Mobius knows: your private **How I work** page, grouped by kind with what Mobius learned waiting on top, and
+shared pages such as each project's memory, listed by folder in the sidebar. Lines offered to a shared page wait under
+**Suggested changes**. See [Memory and Knowledge](../guide/memory-and-knowledge.md).
 
 
 ![The Knowledge app in Mobius](../readme/apps/knowledge.png)

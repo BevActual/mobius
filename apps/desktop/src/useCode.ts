@@ -48,8 +48,14 @@ export function useCode(active = true) {
     return ok;
   }, [api]);
 
+  // Reads overlap (a change from the agent, a commit, a save each read again); only the newest one is shown, so an
+  // older answer arriving late cannot put back what was there before, such as changes that were just committed.
+  const treeRead = useRef(0);
+  const fileRead = useRef(0);
   const loadTree = useCallback(async (name: string) => {
+    const read = ++treeRead.current;
     const [tree, state] = await Promise.all([api?.tree(name), api?.git(name)]);
+    if (read !== treeRead.current) return;
     if (tree && !isNotesFailure(tree)) setEntries(tree.entries);
     setGit(state && !isNotesFailure(state) ? state : { repo: false });
   }, [api]);
@@ -61,8 +67,11 @@ export function useCode(active = true) {
 
   const openFile = useCallback(async (path: string, name = live.current.project) => {
     if (!api || !name) return false;
-    const was = live.current;
+    const read = ++fileRead.current;
     const got = await api.read(name, path);
+    // A newer open (another file, or this one read again) has taken over.
+    if (read !== fileRead.current) return true;
+    const was = live.current;
     if (isNotesFailure(got)) { setMessage(got.message); return false; }
     // Moving to another tab keeps what was typed in this one, unsaved, for coming back to.
     if (was.open && was.open.path !== path && was.project === name && was.open.text !== null && was.draft !== was.open.text) stash.current.set(was.open.path, { draft: was.draft, base: was.open.modified });

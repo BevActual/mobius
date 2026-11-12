@@ -108,3 +108,25 @@ export function filmstrip(shot: Shot, widthPx: number, frameWidth: number): numb
   // Rounded to a quarter second, so neighbouring shots of the same clip share frames.
   return Array.from({ length: n }, (_, i) => Math.round((shot.in + ((i + 0.5) / n) * len) * 4) / 4);
 }
+
+/** The cut with a copy of a shot put in right after it, and the copy's id; null when there is no such shot. */
+export function duplicateShot(cut: Cut, id: string): { cut: Cut; id: string } | null {
+  const i = cut.shots.findIndex((s) => s.id === id);
+  if (i < 0) return null;
+  const copy = { ...cut.shots[i]!, id: freshShotId(cut) };
+  const shots = [...cut.shots];
+  shots.splice(i + 1, 0, copy);
+  return { cut: { ...cut, shots }, id: copy.id };
+}
+
+/**
+ * Seconds from what someone typed in a timecode field: "1:05.3", "0:05", "65.3" or "5". Null when it is not a time.
+ * Hours are allowed ("1:02:03.5"), as is a comma for the decimal point.
+ */
+export function parseTimecode(text: string): number | null {
+  const parts = text.trim().replace(',', '.').split(':');
+  if (parts.length === 0 || parts.length > 3 || parts.some((p) => !/^\d+(\.\d*)?$|^\.\d+$/.test(p))) return null;
+  if (parts.slice(0, -1).some((p) => p.includes('.'))) return null;
+  const secs = parts.reduce((sum, p) => sum * 60 + Number(p), 0);
+  return Number.isFinite(secs) ? round(secs) : null;
+}
