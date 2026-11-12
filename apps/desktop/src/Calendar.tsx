@@ -11,6 +11,7 @@ import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
 import { ReviewActions } from './ReviewBar';
 import type { Start } from './SideNew';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 
 const HOUR_PX = 48;
 /** How many events and tasks a month cell lists before "more". */
@@ -214,7 +215,14 @@ export function CalendarSidebar({ calendar, pin }: { calendar: CalendarState; pi
 }
 
 /** What the editor opens with: an event to change, or the start (and, swept out, the end) of a new one. */
-type Editing = { event: CalendarEvent } | { start: string; end?: string; allDay: boolean };
+type Editing = ({ event: CalendarEvent } | { start: string; end?: string; allDay: boolean }) & {
+  /** Where it was opened from: the editor opens beside it, as Calendar's popover does. Without it, a sheet in the middle. */
+  at?: DOMRect;
+};
+/** A new event's place on the grid while its editor is open, so the time it will take is drawn there. */
+type Pending = { start: string; end: string };
+/** What a right-click opens: a menu of what can be done to an event or a stretch of time. */
+type Menu = { x: number; y: number; label: string; items: ContextMenuItem[] };
 
 /** An event on screen; a suggestion from Mobius carries what it suggests, and is drawn dashed until answered. */
 type Shown = CalendarEvent & { suggestion?: CalendarSuggestion };
@@ -237,8 +245,11 @@ export type MoveEvent = (event: Shown, to: { start: string; end: string }) => Pr
 /** The event being carried to another day in Month or the all-day row, and the day it was picked up from. */
 let carrying: { event: Shown; from: Date } | null = null;
 
-function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDown, onResize, dragging, span }: {
-  calendar: CalendarState; event: Shown; style?: React.CSSProperties; onOpen: (e: Shown, at?: DOMRect) => void; compact?: boolean;
+/** What the grids share with the page: the event picked out, and its right-click menu. */
+type Picking = { selected: string | null; onMenu: (e: Shown, x: number, y: number) => void };
+
+function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDown, onResize, dragging, span, picking }: {
+  calendar: CalendarState; event: Shown; style?: React.CSSProperties; onOpen: (e: Shown, at?: DOMRect) => void; compact?: boolean; picking: Picking;
   /** Where this day falls in an event of several days, so the days join into one bar; `quiet` leaves its title to the first part. */
   span?: { from: boolean; to: boolean; quiet: boolean };
   /** The day it is drawn on, so it can be carried to another (Month and the all-day row). */
@@ -265,6 +276,10 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       data-joins-after={(span && !span.to) || undefined}
       data-quiet={span?.quiet || undefined}
       data-dragging={dragging || undefined}
+      data-key={keyOf(event)}
+      data-selected={picking.selected === keyOf(event) || undefined}
+      aria-current={picking.selected === keyOf(event) || undefined}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setTip(false); picking.onMenu(event, e.clientX, e.clientY); }}
       data-movable={(carry || onPointerDown !== undefined) || undefined}
       style={{ ...style, ['--event' as string]: color }}
       aria-label={`${event.suggestion ? 'Suggested: ' : ''}${event.title}, ${when}${event.location ? `, ${event.location}` : ''}, ${event.calendar}${task ? `, also a task in ${task.list}` : ''}`}
@@ -328,14 +343,43 @@ function useDrop(onMove: MoveEvent) {
 type Drag = { key: string; event: Shown; resize: boolean; x: number; y: number; day: number; byDays: number; byMinutes: number; moved: boolean; saving: boolean };
 type Sweep = { day: number; column: HTMLElement; y: number; from: number; to: number; moved: boolean };
 
-function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: Shown, at?: DOMRect) => void; onMove: MoveEvent }) {
+/** The box on screen of a stretch of time in a day's column, for an editor or menu to open beside. */
+const slotRect = (column: HTMLElement, minutes: number, length: number) => {
+  const r = column.getBoundingClientRect();
+  return new DOMRect(r.left, r.top + minutes / 60 * HOUR_PX, r.width, length / 60 * HOUR_PX);
+};
+/** Minutes into its day of a local time; an end on the next day (midnight) counts as the end of this one. */
+const minutesIn = (text: string, from?: string) => {
+  const t = localDate(text);
+  const m = t.getHours() * 60 + t.getMinutes();
+  return from && m === 0 && !sameDay(t, localDate(from)) ? 24 * 60 : m;
+};
+
+function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onSlotMenu, onEmpty }: {
+  calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: Shown, at?: DOMRect) => void; onMove: MoveEvent; picking: Picking;
+  /** A new event whose editor is open, drawn where it will go. */
+  pending: Pending | null;
+  /** A right-click on empty time: the time there, or the day for the all-day row. */
+  onSlotMenu: (at: { day: Date; minutes: number | null; rect: DOMRect }, x: number, y: number) => void;
+  /** A press on empty time, which lets go of the event picked out. */
+  onEmpty: () => void;
+}) {
   const all = onScreen(calendar);
   const scroller = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
-  // Opens on the working day, not at midnight.
-  useEffect(() => { if (scroller.current) scroller.current.scrollTop = 8 * HOUR_PX - 8; }, []);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(t); }, []);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const todayShown = days.some((d) => sameDay(d, now));
+  // Opens on the working day, not at midnight, with half an hour above it so the first hour's label is clear of the
+  // edge. On today, late in the day, it goes down only as far as keeps the current time two hours above the foot.
+  useEffect(() => {
+    const box = scroller.current;
+    if (!box) return;
+    const morning = 7.5 * HOUR_PX;
+    const nowY = nowMinutes / 60 * HOUR_PX;
+    box.scrollTop = todayShown ? Math.max(morning, nowY + 2 * HOUR_PX - box.clientHeight) : morning;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDragState] = useState<Drag | null>(null);
   const [sweep, setSweepState] = useState<Sweep | null>(null);
   // A drag ends in a click on the event; that click must not open it.
@@ -395,7 +439,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calenda
       setSweep(null);
       if (!s) return;
       const [a, b] = [Math.min(s.from, s.to), Math.max(s.from, s.to)];
-      if (s.moved && b > a) onNew({ start: atMinutes(days[s.day]!, a), end: atMinutes(days[s.day]!, b), allDay: false });
+      if (s.moved && b > a) onNew({ start: atMinutes(days[s.day]!, a), end: atMinutes(days[s.day]!, b), allDay: false, at: slotRect(s.column, a, b - a) });
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
@@ -432,8 +476,8 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calenda
         <div className="cal-all-day" style={columns}>
           <span className="cal-hour">all-day</span>
           {allDay.map((list, i) => (
-            <div key={isoDay(days[i]!)} className="cal-all-day-cell" {...drop(days[i]!)}>
-              {list.map((e) => <EventBlock key={keyOf(e)} calendar={calendar} event={e} onOpen={onOpen} compact from={days[i]!} span={spanOn(e, days[i]!, i === 0)} />)}
+            <div key={isoDay(days[i]!)} className="cal-all-day-cell" {...drop(days[i]!)} onPointerDown={(e) => { if (e.target === e.currentTarget) onEmpty(); }} onContextMenu={(e) => { if (e.target !== e.currentTarget) return; e.preventDefault(); onSlotMenu({ day: days[i]!, minutes: null, rect: e.currentTarget.getBoundingClientRect() }, e.clientX, e.clientY); }}>
+              {list.map((e) => <EventBlock key={keyOf(e)} calendar={calendar} event={e} onOpen={onOpen} picking={picking} compact from={days[i]!} span={spanOn(e, days[i]!, i === 0)} />)}
               {due[i]!.map((t) => <TaskChip key={`${t.list}:${t.task.line}`} calendar={calendar} item={t} />)}
             </div>
           ))}
@@ -442,8 +486,12 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calenda
       <div className="cal-scroll" ref={scroller}>
         <div className="cal-grid" ref={grid} style={{ ...columns, height: 24 * HOUR_PX }} data-dragging={drag?.moved || sweep?.moved || undefined}>
           <div className="cal-hours">
-            {Array.from({ length: 24 }, (_, h) => <span key={h} className="cal-hour" style={{ top: h * HOUR_PX }}>{h === 0 ? '' : `${h}:00`}</span>)}
+            {/* The hour the current time sits on gives its place to the time itself, in red, as in Calendar. */}
+            {Array.from({ length: 24 }, (_, h) => <span key={h} className="cal-hour" style={{ top: h * HOUR_PX, visibility: todayShown && Math.abs(nowMinutes - h * 60) < 14 ? 'hidden' : undefined }}>{h === 0 ? '' : `${h}:00`}</span>)}
+            {todayShown && <span className="cal-now-time" style={{ top: nowMinutes / 60 * HOUR_PX }} aria-hidden="true">{clock(isoTime(now))}</span>}
           </div>
+          {/* The current time runs faintly across every day on screen, and strongly across today. */}
+          {todayShown && days.length > 1 && <span className="cal-now-across" style={{ top: nowMinutes / 60 * HOUR_PX }} aria-hidden="true" />}
           {days.map((d, i) => (
             <div
               key={isoDay(d)}
@@ -455,10 +503,17 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calenda
               style={{ backgroundSize: `100% ${HOUR_PX}px` }}
               onPointerDown={(e) => {
                 if (e.button !== 0 || e.target !== e.currentTarget) return;
+                onEmpty();
                 const from = snapMinutes(Math.floor(minutesAt(e.currentTarget, e.clientY) / 15) * 15);
                 setSweep({ day: i, column: e.currentTarget, y: e.clientY, from, to: from, moved: false });
               }}
-              onDoubleClick={(e) => { if (e.target === e.currentTarget) onNew({ start: slotAt(d, e.clientY - e.currentTarget.getBoundingClientRect().top), allDay: false }); }}
+              onDoubleClick={(e) => { if (e.target === e.currentTarget) onNew({ start: slotAt(d, e.clientY - e.currentTarget.getBoundingClientRect().top), allDay: false, at: slotRect(e.currentTarget, minutesAt(e.currentTarget, e.clientY) - 15, 60) }); }}
+              onContextMenu={(e) => {
+                if (e.target !== e.currentTarget) return;
+                e.preventDefault();
+                const minutes = Math.max(0, Math.min(23 * 60 + 30, Math.floor(minutesAt(e.currentTarget, e.clientY) / 30) * 30));
+                onSlotMenu({ day: d, minutes, rect: slotRect(e.currentTarget, minutes, 60) }, e.clientX, e.clientY);
+              }}
             >
               {placeDay(shown, d, 30).map((p) => {
                 const can = movable(calendar, p.event);
@@ -470,6 +525,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calenda
                     calendar={calendar}
                     event={p.event}
                     onOpen={open}
+                    picking={picking}
                     compact={p.height < 36}
                     dragging={isDragged}
                     {...(can ? { onPointerDown: (e: React.PointerEvent) => begin(e, p.event, i, false), onResize: (e: React.PointerEvent) => begin(e, p.event, i, true) } : {})}
@@ -477,6 +533,11 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calenda
                   />
                 );
               })}
+              {!sweep?.moved && pending && sameDay(localDate(pending.start), d) && (
+                <span className="cal-sweep" data-pending aria-hidden="true" style={{ top: minutesIn(pending.start) / 60 * HOUR_PX + 1, height: Math.max(15, minutesIn(pending.end, pending.start) - minutesIn(pending.start)) / 60 * HOUR_PX - 2 }}>
+                  New event · {clock(pending.start)}
+                </span>
+              )}
               {sweep?.moved && sweep.day === i && sweep.to !== sweep.from && (
                 <span className="cal-sweep" aria-hidden="true" style={{ top: Math.min(sweep.from, sweep.to) / 60 * HOUR_PX + 1, height: Math.abs(sweep.to - sweep.from) / 60 * HOUR_PX - 2 }}>
                   New event · {clock(atMinutes(d, Math.min(sweep.from, sweep.to)))}–{clock(atMinutes(d, Math.max(sweep.from, sweep.to)))}
@@ -507,7 +568,10 @@ function spanOn(e: Shown, day: Date, rowStart: boolean, timed = false): { from: 
   return { from, to: sameDay(day, last), quiet: !from && !rowStart };
 }
 
-function MonthGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: Shown, at?: DOMRect) => void; onMove: MoveEvent }) {
+function MonthGrid({ calendar, days, onNew, onOpen, onMove, picking, onSlotMenu, onEmpty }: {
+  calendar: CalendarState; days: Date[]; onNew: (e: Editing) => void; onOpen: (e: Shown, at?: DOMRect) => void; onMove: MoveEvent; picking: Picking;
+  onSlotMenu: (at: { day: Date; minutes: number | null; rect: DOMRect }, x: number, y: number) => void; onEmpty: () => void;
+}) {
   const shown = onScreen(calendar);
   const today = new Date();
   const month = calendar.anchor.getMonth();
@@ -528,9 +592,9 @@ function MonthGrid({ calendar, days, onNew, onOpen, onMove }: { calendar: Calend
           const shownTasks = tasks.slice(0, CELL_ROWS - shownEvents.length);
           const hidden = on.length + tasks.length - shownEvents.length - shownTasks.length;
           return (
-            <div key={isoDay(d)} className="cal-month-cell" role="group" aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} data-outside={d.getMonth() !== month || undefined} data-today={sameDay(d, today) || undefined} data-weekend={[0, 6].includes(d.getDay()) || undefined} onDoubleClick={(e) => { if (e.target === e.currentTarget) onNew({ start: `${isoDay(d)}T09:00`, allDay: false }); }} {...drop(d)}>
+            <div key={isoDay(d)} className="cal-month-cell" role="group" aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} data-outside={d.getMonth() !== month || undefined} data-today={sameDay(d, today) || undefined} data-weekend={[0, 6].includes(d.getDay()) || undefined} onDoubleClick={(e) => { if (e.target === e.currentTarget) onNew({ start: `${isoDay(d)}T09:00`, allDay: false, at: e.currentTarget.getBoundingClientRect() }); }} onPointerDown={(e) => { if (e.target === e.currentTarget) onEmpty(); }} onContextMenu={(e) => { if (e.target !== e.currentTarget) return; e.preventDefault(); onSlotMenu({ day: d, minutes: null, rect: e.currentTarget.getBoundingClientRect() }, e.clientX, e.clientY); }} {...drop(d)}>
               <button type="button" className="cal-month-day" title="Open this day" onClick={() => { calendar.setAnchor(d); calendar.setMode('day'); }}>{d.getDate() === 1 ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : d.getDate()}</button>
-              {shownEvents.map((e) => <EventBlock key={keyOf(e)} calendar={calendar} event={e} onOpen={onOpen} compact from={d} span={spanOn(e, d, i % 7 === 0, true)} />)}
+              {shownEvents.map((e) => <EventBlock key={keyOf(e)} calendar={calendar} event={e} onOpen={onOpen} picking={picking} compact from={d} span={spanOn(e, d, i % 7 === 0, true)} />)}
               {shownTasks.map((t) => <TaskChip key={`${t.list}:${t.task.line}`} calendar={calendar} item={t} />)}
               {hidden > 0 && <button type="button" className="cal-more" onClick={() => { calendar.setAnchor(d); calendar.setMode('day'); }}>{hidden} more</button>}
             </div>
@@ -654,9 +718,8 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
   const locked = original?.readOnly === true;
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLInputElement>(null);
-  useEffect(() => { field.current?.focus(); }, []);
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
+  const save = async (event?: FormEvent) => {
+    event?.preventDefault();
     const draft: CalendarDraft = {
       title: title.trim(),
       start: allDay ? startDay : `${startDay}T${startTime}`,
@@ -685,9 +748,42 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
   };
   const sheet = useRef<HTMLFormElement>(null);
   useMorphIn(sheet, true);
-  return (
-    <div className="cal-editor-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <form ref={sheet} className="cal-editor" role="dialog" aria-modal="true" aria-label={locked ? 'Event' : original ? 'Edit event' : 'New event'} onSubmit={(e) => void save(e)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+  // Opened from a place on the grid, it is a popover beside that place, on whichever side has room and never off the
+  // window. A press anywhere else closes it, keeping what was typed, as Calendar's popover does.
+  const at = editing.at;
+  const [place, setPlace] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!at || !sheet.current) return;
+    const { width, height } = sheet.current.getBoundingClientRect();
+    const gap = 12;
+    const right = at.right + gap;
+    const left = right + width <= window.innerWidth - gap ? right : at.left - gap - width >= gap ? at.left - gap - width : Math.max(gap, Math.min(window.innerWidth - width - gap, at.left + at.width / 2 - width / 2));
+    setPlace({ left, top: Math.max(gap, Math.min(window.innerHeight - height - gap, at.top - 24)) });
+  }, [at]);
+  // The title takes the keys once the editor can be seen: a popover is hidden until it has its place.
+  useEffect(() => { if (!at || place) field.current?.focus(); }, [at, place !== null]); // eslint-disable-line react-hooks/exhaustive-deps
+  const live = useRef({ save, busy, changed: () => false as boolean });
+  live.current = {
+    save, busy,
+    changed: () => !locked && title.trim() !== '' && (title !== (original?.title ?? '') || where !== (original?.location ?? '') || notes !== (original?.notes ?? '') || allDay !== initialAllDay || repeat !== initialRepeat || startDay !== startText.slice(0, 10) || endDay !== endText.slice(0, 10) || (!allDay && (startTime !== startText.slice(11, 16) || endTime !== endText.slice(11, 16))) || !original),
+  };
+  useEffect(() => {
+    if (!at) return undefined;
+    const away = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (sheet.current?.contains(t) || t?.closest?.('.context-menu')) return;
+      const l = live.current;
+      if (l.busy) return;
+      if (l.changed()) void l.save(); else onClose();
+    };
+    // Escape closes it wherever the keys are, as the popover has no backdrop to hold them.
+    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !(e.target as Element | null)?.closest?.('.context-menu')) { e.preventDefault(); onClose(); } };
+    window.addEventListener('pointerdown', away, true);
+    window.addEventListener('keydown', escape);
+    return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape); };
+  }, [at, onClose]);
+  const form = (
+      <form ref={sheet} className="cal-editor" data-pop={at ? true : undefined} style={at ? { left: place?.left ?? 0, top: place?.top ?? 0, visibility: place ? undefined : 'hidden' } : undefined} role="dialog" aria-modal="true" aria-label={locked ? 'Event' : original ? 'Edit event' : 'New event'} onSubmit={(e) => void save(e)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
         <fieldset className="cal-editor-fields" disabled={locked}>
         <input ref={field} className="cal-editor-title" aria-label="Title" placeholder="New event" value={title} maxLength={200} required onChange={(e) => setTitle(e.target.value)} />
         <input className="cal-editor-place" aria-label="Place" placeholder="Add a place" value={where} maxLength={200} onChange={(e) => setWhere(e.target.value)} />
@@ -727,6 +823,11 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
           {!locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
         </div>
       </form>
+  );
+  if (at) return createPortal(<div className="cal-pop-layer">{form}</div>, document.body);
+  return (
+    <div className="cal-editor-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      {form}
     </div>
   );
 }
@@ -857,30 +958,101 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
     return ok;
   };
   const [asking, setAsking] = useState<{ id: string; at: DOMRect } | null>(null);
+  // The event picked out: the last one opened or clicked. Delete, Enter and Ctrl+D act on it, as in Calendar.
+  const [selected, setSelected] = useState<string | null>(null);
+  const [menu, setMenu] = useState<Menu | null>(null);
   // A suggestion in the grid opens nothing to edit: it opens beside itself, to be kept or declined.
   const open = (event: Shown, at?: DOMRect) => {
+    setSelected(keyOf(event));
     if (event.suggestion) setAsking({ id: event.suggestion.id, at: at ?? new DOMRect(window.innerWidth / 2, 120, 0, 0) });
-    else setEditing({ event });
+    else setEditing({ event, ...(at ? { at } : {}) });
   };
   const days = daysFor(calendar.mode, calendar.anchor);
   const writable = calendar.calendars.filter((c) => !calendar.readOnly(c));
   const into = writable.find((c) => !calendar.hidden.has(c)) ?? writable[0] ?? 'Calendar';
   const create = () => setEditing({ start: newStart(calendar.anchor), allDay: false });
   useEffect(() => { if (newToken) create(); }, [newToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A new event being made is drawn on the grid where it will go, until it is added or let go.
+  const pending: Pending | null = editing && !('event' in editing) && !editing.allDay
+    ? { start: editing.start, end: editing.end ?? isoTime(new Date(localDate(editing.start).getTime() + 3600_000)) }
+    : null;
+
+  /** What is on screen for a picked-out key, and where it is drawn, for the editor to open beside. */
+  const find = (key: string | null) => (key ? onScreen(calendar).find((e) => keyOf(e) === key) : undefined);
+  const rectOf = (key: string) => page.current?.querySelector(`.cal-event[data-key="${CSS.escape(key)}"]`)?.getBoundingClientRect();
+  const removeEvent = async (event: Shown) => {
+    setSelected(null);
+    if (event.suggestion) { await calendar.decline(event.suggestion.id); return; }
+    if (!movable(calendar, event)) return;
+    if (await calendar.remove(event)) deleted(event);
+  };
+  /** A copy at the same time, in the same calendar, or the first that can take it when that one is read only. */
+  const duplicate = async (event: Shown) => {
+    if (event.suggestion) return;
+    const to = calendar.readOnly(event.calendar) || event.readOnly ? into : event.calendar;
+    const made = await calendar.add(to, { title: event.title, start: event.start, end: draftEnd(event), location: event.location, notes: event.notes });
+    if (!made) return;
+    setSelected(keyOf(made));
+    setUndoable({ text: `Duplicated “${event.title}”.`, undo: () => calendar.remove(made) });
+  };
+  /** Into another calendar: added there, then taken out of this one. A repeating event stays, as its first time is not on screen. */
+  const moveTo = async (event: Shown, to: string) => {
+    const draft: CalendarDraft = { title: event.title, start: event.start, end: draftEnd(event), location: event.location, notes: event.notes };
+    const made = await calendar.add(to, draft);
+    if (!made) return;
+    if (!(await calendar.remove(event))) { await calendar.remove(made); return; }
+    setSelected(keyOf(made));
+    setUndoable({ text: `Moved “${event.title}” to ${to}.`, undo: async () => { if (await calendar.add(event.calendar, draft)) await calendar.remove(made); } });
+  };
+  const eventMenu = (event: Shown, x: number, y: number) => {
+    setSelected(keyOf(event));
+    const items: ContextMenuItem[] = event.suggestion
+      ? [
+        { label: 'Keep', run: () => void calendar.accept(event.suggestion!.id) },
+        { label: 'Discard', run: () => void calendar.decline(event.suggestion!.id) },
+      ]
+      : [
+        { action: 'open', label: movable(calendar, event) ? 'Open' : 'Show details', keys: 'Enter', run: () => open(event, rectOf(keyOf(event))) },
+        { action: 'duplicate', keys: 'Ctrl+D', run: () => void duplicate(event) },
+        ...(movable(calendar, event) && !event.repeats
+          ? writable.filter((c) => c !== event.calendar).map((c, i) => ({ action: 'move' as const, label: `Move to ${c}`, separated: i === 0, run: () => void moveTo(event, c) }))
+          : []),
+        ...(movable(calendar, event) ? [{ action: 'delete' as const, keys: 'Delete', danger: true, separated: true, run: () => void removeEvent(event) }] : []),
+      ];
+    setMenu({ x, y, label: event.title, items });
+  };
+  const slotMenu = ({ day, minutes, rect }: { day: Date; minutes: number | null; rect: DOMRect }, x: number, y: number) => {
+    setSelected(null);
+    const dayName = day.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    const items: ContextMenuItem[] = [
+      minutes === null
+        ? { label: `New event on ${dayName}`, run: () => setEditing({ start: `${isoDay(day)}T09:00`, allDay: false, at: rect }) }
+        : { label: `New event at ${clock(atMinutes(day, minutes))}`, run: () => setEditing({ start: atMinutes(day, minutes), end: atMinutes(day, minutes + 60), allDay: false, at: rect }) },
+      { label: 'New all-day event', run: () => setEditing({ start: isoDay(day), allDay: true, at: rect }) },
+    ];
+    setMenu({ x, y, label: dayName, items });
+  };
+  const picking: Picking = { selected, onMenu: eventMenu };
 
   // Keys as in other calendars: T for today, arrows back and forward, D, W and M for the view, N for a new event.
   const page = useRef<HTMLElement>(null);
   useGridSlide(page, calendar.mode, days[0] ? isoDay(days[0]) : '');
-  const keys = useRef({ calendar, editing, create });
-  keys.current = { calendar, editing, create };
+  const keys = useRef({ calendar, editing, create, selected, find, open, rectOf, removeEvent, duplicate, menu });
+  keys.current = { calendar, editing, create, selected, find, open, rectOf, removeEvent, duplicate, menu };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { calendar: c, editing: ed, create: make } = keys.current;
-      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || ed || !page.current?.isConnected) return;
+      const { calendar: c, editing: ed, create: make, selected: key, find: lookUp, open: show, rectOf: where, removeEvent: drop, duplicate: copy, menu: m } = keys.current;
+      if (e.defaultPrevented || e.altKey || ed || m || !page.current?.isConnected) return;
       const t = e.target as HTMLElement | null;
-      if (t?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"], [role="radiogroup"], [aria-modal="true"]') || document.querySelector('[aria-modal="true"]')) return;
+      if (t?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"], [role="radiogroup"], [aria-modal="true"], [role="menu"]') || document.querySelector('[aria-modal="true"]')) return;
       const k = e.key.toLowerCase();
-      if (k === 't') c.setAnchor(new Date());
+      const picked = lookUp(key);
+      if ((e.ctrlKey || e.metaKey) && k === 'd' && picked) { e.preventDefault(); void copy(picked); return; }
+      if (e.metaKey || e.ctrlKey) return;
+      if (picked && (e.key === 'Delete' || e.key === 'Backspace')) void drop(picked);
+      else if (picked && e.key === 'Enter') show(picked, where(key!));
+      else if (key && e.key === 'Escape') setSelected(null);
+      else if (k === 't') c.setAnchor(new Date());
       else if (e.key === 'ArrowLeft') c.setAnchor(step(c.mode, c.anchor, -1));
       else if (e.key === 'ArrowRight') c.setAnchor(step(c.mode, c.anchor, 1));
       else if (k === 'd') c.setMode('day');
@@ -920,8 +1092,9 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
       </header>
       {calendar.message && !editing && <p className="tasks-message" role="alert">{calendar.message}</p>}
       {calendar.mode === 'month'
-        ? <MonthGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} />
-        : <TimeGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} />}
+        ? <MonthGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} picking={picking} onSlotMenu={slotMenu} onEmpty={() => setSelected(null)} />
+        : <TimeGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} picking={picking} pending={pending} onSlotMenu={slotMenu} onEmpty={() => setSelected(null)} />}
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={() => setMenu(null)} />, document.body)}
       {undoable && (
         <p className="cal-undo" role="status">
           <span>{undoable.text}</span>

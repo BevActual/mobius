@@ -184,3 +184,26 @@
 .calendar-page .cal-month-cell .cal-event[data-compact][data-span]:not([data-all-day]) { background: color-mix(in srgb, var(--event) 78%, var(--bg)); color: #fff; padding-left: 6px; }
 .calendar-page .cal-month-cell .cal-event[data-compact][data-span]:not([data-all-day])::before { display: none; }
 .calendar-page .cal-month-cell .cal-event[data-compact][data-span]:not([data-all-day]):hover { background: var(--event); }
+
+/* An event opened from the grid edits in a popover beside it, as in Calendar: no dimmed window, the week stays in view. */
+.cal-pop-layer { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
+.cal-pop-layer > .cal-editor[data-pop] { position: fixed; width: min(392px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow-y: auto; pointer-events: auto; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22), 0 0 0 0.5px var(--line); }
+/* The new event a popover is making, drawn where it will go. */
+.calendar-page .cal-sweep[data-pending] { box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 25%, transparent); }
+
+/* The event picked out is filled with its colour, its words in white, as Calendar marks a selection. */
+.calendar-page .cal-event[data-selected], .calendar-page .cal-event[data-selected]:hover { background: var(--event); color: #fff; }
+.calendar-page .cal-event[data-selected] span { color: rgba(255, 255, 255, 0.85); }
+.calendar-page .cal-month-cell .cal-event[data-compact][data-selected]:not([data-all-day]) { background: var(--event); color: #fff; }
+.calendar-page .cal-month-cell .cal-event[data-compact][data-selected]:not([data-all-day])::before { background: #fff; }
+
+/* The current time: faint across the week, strong across today, and written in red in the hour column. */
+.calendar-page .cal-now-across { position: absolute; left: 52px; right: 0; height: 1px; background: color-mix(in srgb, var(--danger) 40%, transparent); pointer-events: none; z-index: 1; }
+.calendar-page .cal-now-time { position: absolute; right: 4px; z-index: 2; transform: translateY(-50%); padding: 1px 4px; border-radius: 4px; background: var(--bg); color: var(--danger); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* In the popover the row names take less room, so a whole date fits beside its time. */
+.cal-editor[data-pop] .cal-editor-group > .cal-editor-row > span { width: 56px; }
+.cal-editor[data-pop] .cal-field-time { width: 84px; }
+/* The popover's title and place read as text being written, without a ring around them. */
+.cal-editor[data-pop] .cal-editor-title:focus, .cal-editor[data-pop] .cal-editor-place:focus { outline: none; box-shadow: none !important; }
+/* Undo keeps an edge in dark, where the page and the toast are the same colour. */
+.calendar-page .cal-undo { box-shadow: var(--shadow-3), 0 0 0 0.5px var(--line); }

@@ -209,3 +209,53 @@ test('the agent suggests an event without asking, and it is added only when the 
   await expect(page().getByRole('button', { name: /Gym/ })).toHaveCount(0);
   expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('SUMMARY:Prep slides');
 });
+
+test('an event opens in a popover beside it, and the event picked out is duplicated, deleted and moved from the keys and its menu', async () => {
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${ics(today())}T110000\r\nDTEND:${ics(today())}T120000\r\nSUMMARY:Budget review\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  fs.writeFileSync(file('Home'), 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nEND:VCALENDAR\r\n');
+  await start();
+  await page().getByRole('radio', { name: 'Week' }).click();
+  const review = (title = 'Budget review') => page().getByRole('button', { name: new RegExp(`^${title}, 11:00–12:00`) });
+
+  // A popover, not a sheet over a dimmed window; a press elsewhere keeps what was typed.
+  await review().click();
+  const pop = shell().getByRole('dialog', { name: 'Edit event' });
+  await expect(pop).toHaveAttribute('data-pop', 'true');
+  await expect(shell().locator('.cal-editor-backdrop')).toHaveCount(0);
+  await expect(pop.getByRole('textbox', { name: 'Title' })).toBeFocused();
+  await pop.getByRole('textbox', { name: 'Title' }).fill('Budget review Q4');
+  await page().locator('.cal-hours').click({ position: { x: 10, y: 10 } });
+  await expect(pop).toHaveCount(0);
+  await expect(review('Budget review Q4')).toBeVisible();
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('SUMMARY:Budget review Q4');
+
+  // Opened, it stays picked out once closed: Ctrl+D copies it and Delete takes the copy away again, each with Undo.
+  await review('Budget review Q4').click();
+  await shell().keyboard.press('Escape');
+  await expect(pop).toHaveCount(0);
+  await expect(review('Budget review Q4')).toHaveAttribute('data-selected', 'true');
+  await shell().keyboard.press('Control+d');
+  await expect(review('Budget review Q4')).toHaveCount(2);
+  await expect(page().getByRole('status').filter({ hasText: 'Duplicated “Budget review Q4”' })).toBeVisible();
+  await shell().keyboard.press('Delete');
+  await expect(review('Budget review Q4')).toHaveCount(1);
+  await expect(page().getByRole('status').filter({ hasText: 'Deleted “Budget review Q4”' })).toBeVisible();
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8').match(/SUMMARY:Budget review Q4/g)?.length).toBe(1);
+
+  // Its menu moves it to another calendar.
+  await review('Budget review Q4').click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Budget review Q4' }).getByRole('menuitem', { name: 'Move to Home' }).click();
+  await expect(page().getByRole('button', { name: /^Budget review Q4, 11:00–12:00, Home/ })).toBeVisible();
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('SUMMARY:Budget review Q4');
+  expect(fs.readFileSync(file('Work'), 'utf8')).not.toContain('Budget review Q4');
+
+  // Empty time has a menu too: a new event there, edited beside it.
+  await page().locator('.cal-column').first().click({ button: 'right', position: { x: 20, y: 14 * 48 + 10 } });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'New event at 14:00' }).click();
+  const made = shell().getByRole('dialog', { name: 'New event' });
+  await expect(made).toHaveAttribute('data-pop', 'true');
+  await expect(made.getByRole('textbox', { name: 'Start time' })).toHaveValue(/2(:00)?\s?PM|14:00/);
+  await made.getByRole('button', { name: 'Cancel' }).click();
+  await expect(made).toHaveCount(0);
+});
