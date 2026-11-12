@@ -30,8 +30,8 @@ program. Install it, sign in, then choose **Check again**. See
 **Mobius keeps asking before doing things.** You're in **Ask first**, or the action is one that always asks. Switch
 modes with Shift+Tab in the message box. See [Working with Mobius](guide/working-with-mobius.md).
 
-**I don't want a change Mobius made.** Choose **Discard** in the app, or **Rewind to here** in the conversation's
-Activity to go back further. The [Review](apps/review.md) app lists everything Mobius changed.
+**I don't want a change Mobius made.** Choose **Discard** in the app, or **Rewind to here** in the Activity
+app to go back further. The [Review](apps/review.md) app lists everything Mobius changed.
 
 **An app is missing.** It may not be added yet. Add it from [Abilities](guide/abilities.md#apps).
 

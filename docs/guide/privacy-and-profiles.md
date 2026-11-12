@@ -23,7 +23,7 @@ you quit.
 ## The activity log
 
 **Settings › Approvals and safety › Activity** is a record of what was asked, allowed and run. It never contains what
-was typed or read.
+was typed or read. The [Activity app](../apps/assistant.md#activity) shows the same log as plain sentences, a day at a time.
 
 ## Safety rules
 

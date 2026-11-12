@@ -11,6 +11,7 @@ import { PREVIEW_SLIDES } from './preview-slides';
 import { PREVIEW_PHOTOS } from './preview-photos';
 import { PREVIEW_VIDEO } from './preview-video';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
+import { PREVIEW_ACTIVITY } from './preview-activity';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
 
 /**
@@ -76,6 +77,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_SLIDES,
   ...PREVIEW_PHOTOS,
   ...PREVIEW_VIDEO,
+  ...PREVIEW_ACTIVITY,
   'bots.get': () => ({ bots: [] }),
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,
