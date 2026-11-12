@@ -31,7 +31,12 @@ test.beforeEach(async () => {
   fs.writeFileSync(path.join(project, 'tests', 'budget.test.js'), TEST);
   fs.writeFileSync(path.join(project, 'package.json'), '{ "type": "module" }\n');
 });
-test.afterEach(async () => {
+test.afterEach(async ({}, info) => {
+  // A failure says what Code showed, since the trace stays on the CI machine.
+  if (info.status !== info.expectedStatus && mobius) {
+    const seen = await mobius.shell.locator('section[aria-label="Code"]').ariaSnapshot({ timeout: 2_000 }).catch((e: Error) => `(no snapshot: ${e.message})`);
+    console.log(`[e2e code] ${info.title}: what Code showed\n${seen.slice(0, 4000)}`);
+  }
   await mobius?.close();
   mobius = undefined;
   await model?.close();

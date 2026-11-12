@@ -1305,7 +1305,7 @@ export function App() {
       case 'canvas':
         return <CanvasBoard boards={boards} review={boards.page && turnMarks.boards.has(boards.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'code':
-        return <CodeEditor code={code} review={code.open && code.project && turnMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation } : null} />;
+        return <CodeEditor code={code} review={code.open && code.project && turnMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation, settled: !conversation.state.busy } : null} />;
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'sheets':
