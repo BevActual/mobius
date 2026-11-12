@@ -37,9 +37,13 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   live.current = { page, text, status };
   const timer = useRef<number | undefined>(undefined);
 
+  // Lists overlap (a change on disk, a delete, a new page each list again); only the newest is shown, so an older
+  // answer arriving late cannot bring back a page that was just deleted.
+  const listed = useRef(0);
   const refresh = useCallback(async () => {
+    const read = ++listed.current;
     const list = await api?.list();
-    if (list && !isNotesFailure(list)) setNotebooks(list);
+    if (read === listed.current && list && !isNotesFailure(list)) setNotebooks(list);
     return list && !isNotesFailure(list) ? list : null;
   }, [api]);
 
