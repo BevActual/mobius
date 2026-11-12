@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { NoteVersion } from '@mobius/shared';
 import { diffCounts, diffLines } from './line-diff';
+import { daysFrom, formatWith, timeLabel } from './dates';
 
-/** "Today", "Yesterday", or the date: the heading a version sits under. */
+/** "Today", "Yesterday", or the date in this computer's regional format: the heading a version sits under. */
 export function dayOf(ms: number, now: number): string {
-  const day = (t: number) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
-  const diff = Math.round((day(now) - day(ms)) / 86_400_000);
+  const diff = -daysFrom(ms, now);
   if (diff <= 0) return 'Today';
   if (diff === 1) return 'Yesterday';
-  const d = new Date(ms);
-  return d.toLocaleDateString(undefined, { weekday: diff < 7 ? 'long' : undefined, day: 'numeric', month: 'long', year: d.getFullYear() === new Date(now).getFullYear() ? undefined : 'numeric' });
+  const sameYear = new Date(ms).getFullYear() === new Date(now).getFullYear();
+  return formatWith(ms, { ...(diff < 7 ? { weekday: 'long' as const } : {}), day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' as const }) });
 }
 
 /** What restoring would do, in words: "2 lines come back, 1 goes". */
@@ -21,7 +21,7 @@ export function restoreSummary({ added, removed }: { added: number; removed: num
   return parts.length ? parts.join(', ') : 'The same as the page now';
 }
 
-const timeOf = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+const timeOf = (ms: number) => timeLabel(ms);
 
 /** Versions grouped under their day, newest first. */
 export function byDay(versions: readonly NoteVersion[], now: number): { day: string; versions: NoteVersion[] }[] {
