@@ -26,11 +26,18 @@
 .sheet-page .sheet-table tbody th { z-index: 2; cursor: default; }
 .sheet-page .sheet-table th[data-on] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--accent); font-weight: 600; }
 .sheet-corner { cursor: default; }
+.sheet-col-more { position: absolute; top: 3px; right: 6px; width: 16px; height: 16px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; opacity: 0; cursor: default; transition: opacity var(--dur-fast) var(--ease); }
+.sheet-col-more svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.sheet-page .sheet-table thead th:hover .sheet-col-more, .sheet-col-more:focus-visible, .sheet-page .sheet-table thead th[data-menu] .sheet-col-more { opacity: 1; }
+.sheet-col-more:hover, .sheet-page .sheet-table thead th[data-menu] .sheet-col-more { background: color-mix(in srgb, currentColor 16%, transparent); }
 .sheet-col-resize { position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
 .sheet-col-resize:hover { background: linear-gradient(to right, transparent 3px, var(--accent) 3px, var(--accent) 4px, transparent 4px); }
 .sheet-page .sheet-table td { max-width: none; height: 24px; padding: 0 7px; border-right: 0.5px solid color-mix(in srgb, var(--line) 75%, transparent); border-bottom: 0.5px solid color-mix(in srgb, var(--line) 75%, transparent); outline: none; overflow: visible; text-overflow: clip; }
 .sheet-page .sheet-table td { overflow: hidden; text-overflow: ellipsis; }
 .sheet-page .sheet-table td[aria-selected="true"] { outline: none; }
+/* Picking cells selects cells, not the words in them: dragging or Shift-clicking never paints page text. */
+.sheet-page .sheet-table td { user-select: none; -webkit-user-select: none; }
+.sheet-page .sheet-cell-input { user-select: text; -webkit-user-select: text; }
 .sheet-page .sheet-table td[data-in] { background: color-mix(in srgb, var(--accent) 11%, var(--bg)); }
 .sheet-page .sheet-table td[data-focus] { z-index: 1; }
 .sheet-page .sheet-table td[data-formula]:not([data-error]) { color: var(--ink); }
@@ -53,6 +60,21 @@
 .sheet-page .sheet-header-row td { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); font-weight: 600; border-bottom: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); }
 .sheet-page .sheet-header-row td[data-in] { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); }
 .sheet-page .sheet-table .sheet-header-row th { z-index: 3; }
+
+/* A total row: bold, with a rule above it, as Numbers sets a footer row apart. */
+.sheet-page .sheet-footer-row td { font-weight: 600; border-top: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); background: color-mix(in srgb, var(--ink) 2.5%, var(--bg)); }
+.sheet-page .sheet-footer-row td[data-in] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
+
+/* ---------- Find ---------- */
+.sheet-find { display: flex; align-items: center; gap: 8px; padding: 6px var(--sp-3); border-bottom: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--bg)); animation: sheet-pop var(--dur-fast) var(--ease); }
+.sheet-find-icon { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; }
+.sheet-find input { flex: 0 1 320px; min-width: 120px; height: 26px; padding: 0 9px; border: 0; border-radius: 7px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--line); color: var(--ink); font: inherit; font-size: var(--fs-sm); outline: none; }
+.sheet-find input:focus { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.sheet-find-count { min-width: 64px; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sheet-find-done { margin-left: auto; height: 26px; padding: 0 12px; }
+/* Cells that match what is looked for are tinted yellow, as a find highlights words on a page. */
+.sheet-page .sheet-table td[data-match] { background: color-mix(in srgb, #ffd60a 30%, var(--bg)); }
+.sheet-page .sheet-table td[data-match][data-focus] { background: color-mix(in srgb, #ffd60a 55%, var(--bg)); }
 
 /* ---------- Menus and the function list ---------- */
 .sheet-scrim { position: fixed; inset: 0; z-index: 900; }
@@ -98,6 +120,6 @@
 .sheet-empty-icon svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 
 @media print {
-  .sheet-toolbar, .sheet-foot, .sheet-fill { display: none; }
+  .sheet-toolbar, .sheet-find, .sheet-foot, .sheet-fill { display: none; }
   .sheet-page .sheet-scroll { overflow: visible; }
 }
