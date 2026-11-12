@@ -69,7 +69,7 @@ export function SchedulesSection({ subpage, highlight, onOpenConversation }: Sec
   };
   return (
     <Row path={path('schedules')} title="Scheduled requests" description="Ask Mobius something at a time of day, on the days you choose. Each run is a new conversation, and it asks before acting as usual." highlight={highlight === 'schedules'}>
-      {list && list.length === 0 && editing === null && <p className="srow-text">Nothing scheduled. For example: every weekday at 8:00, “Look at my tasks for today and tell me what to do first.”</p>}
+      {list && list.length === 0 && editing === null && <p className="srow-text schedule-empty">Nothing scheduled. For example: every weekday at 8:00, “Look at my tasks for today and tell me what to do first.”</p>}
       {list && list.length > 0 && (
         <ul className="schedule-list" aria-label="Schedules">
           {list.map((s) => editing === s.id ? (

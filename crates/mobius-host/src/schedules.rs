@@ -27,6 +27,25 @@ pub struct Schedule {
     /// When it last ran (ms since the epoch), if it has.
     #[serde(default)]
     pub last_run_ms: Option<u64>,
+    /// The agent it runs as (its id), with that agent's instructions and model. None is Mobius itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bot: Option<String>,
+}
+
+/// What the window sends for a new or changed schedule, checked.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Draft {
+    pub title: String,
+    pub prompt: String,
+    pub time: String,
+    pub days: Vec<u8>,
+    pub enabled: bool,
+    pub bot: Option<String>,
+}
+
+/// An agent's id, as the Agents app makes them: six lowercase letters and digits. `main` (Mobius) is no agent.
+fn is_bot_id(id: &str) -> bool {
+    id.len() == 6 && id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
 }
 
 fn parse_time(time: &str) -> Option<NaiveTime> {
@@ -37,8 +56,8 @@ fn parse_time(time: &str) -> Option<NaiveTime> {
     NaiveTime::from_hms_opt(h.parse().ok()?, m.parse().ok()?, 0)
 }
 
-/// What the window sends for a new or changed schedule, checked. The id and last run are not the window's to set.
-pub fn parse_draft(v: &Value) -> Option<(String, String, String, Vec<u8>, bool)> {
+/// The id and last run are not the window's to set. An agent that is not an id is refused; "main" or none is Mobius.
+pub fn parse_draft(v: &Value) -> Option<Draft> {
     let s = |k: &str| v.get(k).and_then(Value::as_str).map(str::trim);
     let title = s("title").filter(|t| !t.is_empty() && t.chars().count() <= MAX_TITLE && !t.chars().any(char::is_control))?;
     let prompt = s("prompt").filter(|p| !p.is_empty() && p.chars().count() <= MAX_PROMPT && !p.contains('\0'))?;
@@ -50,7 +69,13 @@ pub fn parse_draft(v: &Value) -> Option<(String, String, String, Vec<u8>, bool)>
         return None;
     }
     let enabled = v.get("enabled").and_then(Value::as_bool).unwrap_or(true);
-    Some((title.to_owned(), prompt.to_owned(), time.to_owned(), days, enabled))
+    let bot = match v.get("bot") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(b)) if b == "main" || b.is_empty() => None,
+        Some(Value::String(b)) if is_bot_id(b) => Some(b.clone()),
+        Some(_) => return None,
+    };
+    Some(Draft { title: title.to_owned(), prompt: prompt.to_owned(), time: time.to_owned(), days, enabled, bot })
 }
 
 /// The moment today that `schedule` is due, if it runs today at all.
@@ -122,23 +147,23 @@ impl Schedules {
     }
 
     pub fn add(&self, draft: &Value) -> Result<Schedule, String> {
-        let (title, prompt, time, days, enabled) = parse_draft(draft).ok_or("That schedule is not complete: it needs a name, what to ask, a time and at least one day.")?;
+        let Draft { title, prompt, time, days, enabled, bot } = parse_draft(draft).ok_or("That schedule is not complete: it needs a name, what to ask, a time and at least one day.")?;
         let mut list = self.list.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if list.len() >= MAX_SCHEDULES {
             return Err(format!("There can be at most {MAX_SCHEDULES} schedules."));
         }
         // Made now: it does not run for a time that already passed today.
-        let schedule = Schedule { id: new_id(), title, prompt, time, days, enabled, last_run_ms: Some(now_ms()) };
+        let schedule = Schedule { id: new_id(), title, prompt, time, days, enabled, last_run_ms: Some(now_ms()), bot };
         list.push(schedule.clone());
         self.save(&list);
         Ok(schedule)
     }
 
     pub fn update(&self, id: &str, draft: &Value) -> Result<Schedule, String> {
-        let (title, prompt, time, days, enabled) = parse_draft(draft).ok_or("That schedule is not complete: it needs a name, what to ask, a time and at least one day.")?;
+        let Draft { title, prompt, time, days, enabled, bot } = parse_draft(draft).ok_or("That schedule is not complete: it needs a name, what to ask, a time and at least one day.")?;
         let mut list = self.list.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let schedule = list.iter_mut().find(|s| s.id == id).ok_or("That schedule is gone.")?;
-        *schedule = Schedule { id: schedule.id.clone(), title, prompt, time, days, enabled, last_run_ms: Some(now_ms()) };
+        *schedule = Schedule { id: schedule.id.clone(), title, prompt, time, days, enabled, last_run_ms: Some(now_ms()), bot };
         let changed = schedule.clone();
         self.save(&list);
         Ok(changed)
@@ -196,9 +221,13 @@ pub fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
-/// A conversation id for one run: never mistaken for a bot's conversation (those are `c-` and six characters, then `-`).
-pub fn conversation_for_run() -> String {
-    format!("c-scheduled-{}{}", new_id(), new_id())
+/// A conversation id for one run. Mobius's own is never mistaken for an agent's (those are `c-`, the agent's six
+/// characters, then `-`); an agent's run is one of that agent's conversations, so it shows on its page.
+pub fn conversation_for_run(bot: Option<&str>) -> String {
+    match bot.filter(|b| is_bot_id(b)) {
+        Some(bot) => format!("c-{bot}-scheduled-{}{}", new_id(), new_id()),
+        None => format!("c-scheduled-{}{}", new_id(), new_id()),
+    }
 }
 
 #[cfg(test)]
@@ -211,7 +240,7 @@ mod tests {
         FixedOffset::west_opt(8 * 3600).unwrap().with_ymd_and_hms(2026, 11, day, hour, minute, 0).unwrap()
     }
     fn schedule(time: &str, days: &[u8], last: Option<DateTime<FixedOffset>>) -> Schedule {
-        Schedule { id: "a".into(), title: "Brief".into(), prompt: "Brief me".into(), time: time.into(), days: days.to_vec(), enabled: true, last_run_ms: last.map(|l| l.timestamp_millis() as u64) }
+        Schedule { id: "a".into(), title: "Brief".into(), prompt: "Brief me".into(), time: time.into(), days: days.to_vec(), enabled: true, last_run_ms: last.map(|l| l.timestamp_millis() as u64), bot: None }
     }
 
     #[test]
@@ -230,7 +259,16 @@ mod tests {
     #[test]
     fn drafts_are_checked() {
         let good = json!({ "title": "Brief", "prompt": "Brief me on my tasks", "time": "08:05", "days": [5, 1, 1] });
-        assert_eq!(parse_draft(&good), Some(("Brief".into(), "Brief me on my tasks".into(), "08:05".into(), vec![1, 5], true)));
+        assert_eq!(parse_draft(&good), Some(Draft { title: "Brief".into(), prompt: "Brief me on my tasks".into(), time: "08:05".into(), days: vec![1, 5], enabled: true, bot: None }));
+        let mut as_agent = good.clone();
+        as_agent["bot"] = json!("ab12cd");
+        assert_eq!(parse_draft(&as_agent).unwrap().bot.as_deref(), Some("ab12cd"));
+        as_agent["bot"] = json!("main");
+        assert_eq!(parse_draft(&as_agent).unwrap().bot, None);
+        for bad_bot in [json!("../x"), json!("ABCDEF"), json!(7)] {
+            as_agent["bot"] = bad_bot;
+            assert_eq!(parse_draft(&as_agent), None);
+        }
         for bad in [
             json!({ "title": "", "prompt": "p", "time": "08:00", "days": [1] }),
             json!({ "title": "t", "prompt": "", "time": "08:00", "days": [1] }),
@@ -254,6 +292,9 @@ mod tests {
         assert_eq!(again.list(), vec![made.clone()]);
         assert!(again.remove(&made.id));
         assert!(again.list().is_empty());
-        assert!(conversation_for_run().starts_with("c-scheduled-") && crate::agent::is_conversation_id(&conversation_for_run()));
+        assert!(conversation_for_run(None).starts_with("c-scheduled-") && crate::agent::is_conversation_id(&conversation_for_run(None)));
+        let agents = conversation_for_run(Some("ab12cd"));
+        assert!(agents.starts_with("c-ab12cd-scheduled-") && crate::agent::is_conversation_id(&agents), "{agents}");
+        assert!(conversation_for_run(Some("../../x")).starts_with("c-scheduled-"));
     }
 }

@@ -1264,7 +1264,7 @@ export function App() {
       case 'slides':
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':
-        if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} skills={skills} onPlace={setExtPlace} />;
+        if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} onOpenApp={openApp} />;
         return <SkillEditor skills={skills} review={skills.open && turnMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} onRun={(name) => { openApp('agent'); void conversation.send(expandSlash(`/${name}`, skills.names), []); }} />;
       case 'video':
         return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
@@ -1338,8 +1338,9 @@ export function App() {
             surface={surface}
             onOpenItem={openTarget}
             variant="full"
-            desk={(
+            desk={(starters) => (
               <Desk
+                starters={starters}
                 rows={[
                   ...(browser.tabs.length > 0 ? [{ app: 'browser' as const, text: plural(browser.tabs.length, 'tab') + ' open' }] : []),
                   ...(mail.counts.all > 0 ? [{ app: 'mail' as const, text: `${mail.counts.all} unread` }] : []),

@@ -164,7 +164,7 @@ const SECTIONS: readonly SettingsSection[] = [
   {
     id: 'keyboard',
     label: 'Keyboard',
-    description: 'Shortcuts.',
+    description: 'Click a shortcut to change it.',
     subpages: [{ id: 'shortcuts', label: 'Shortcuts', rows: [
       row('shortcut-list', 'Keyboard shortcuts', 'Change the keys for each shortcut.', 'keys', 'hotkeys', 'keybindings', 'rebind', 'remap', 'ctrl', 'command', 'reset shortcuts'),
       row('quick-entry', 'Quick entry from anywhere', 'A shortcut that works even when Mobius is in the background.', 'global shortcut', 'global hotkey', 'summon', 'bring up', 'wake', 'launch'),
@@ -190,9 +190,8 @@ const SECTIONS: readonly SettingsSection[] = [
     subpages: [{ id: 'app', label: 'This app', rows: [
       row('software-update', 'Software Update', 'The version running, and Check for Updates.', 'update', 'updates', 'upgrade', 'new version', 'check for updates', 'version', 'install'),
       row('auto-update', 'Automatically install updates', 'Install a downloaded update the next time Mobius quits.', 'automatic', 'auto update', 'updates', 'install'),
-      row('versions', 'Versions', 'Mobius, its core, and the parts it runs on.', 'version', 'engine', 'chromium', 'build'),
+      row('versions', 'Versions', 'Mobius, its core, and the parts it runs on.', 'version', 'engine', 'chromium', 'build', 'core status', 'health', 'running', 'restart'),
       row('data-folder', 'Data folder', 'Where settings, approvals and conversations are stored on this computer.', 'path', 'folder', 'files'),
-      row('core-status', 'Core status', 'Whether the part that makes decisions and keeps records is running.', 'health', 'running', 'restart'),
     ] }],
   },
   {
@@ -248,6 +247,7 @@ const SECTIONS: readonly SettingsSection[] = [
         row('privacy-report', 'Privacy report', 'What Mobius read and changed in the last seven days, by app, and where your requests are answered.', 'privacy', 'report', 'what was read', 'data', 'local', 'on device', 'where'),
         row('key-storage', 'Key storage', 'Whether your API key is stored encrypted by the system or only kept until you quit.', 'keychain', 'encrypted', 'secret'),
         row('web-content', 'Web content', 'Text from web pages is treated as untrusted and never as instructions.', 'prompt injection', 'untrusted', 'pages'),
+        row('remove-data', 'Remove my data', 'Delete everything Mobius keeps on this computer, then close.', 'delete', 'erase', 'reset', 'wipe', 'uninstall', 'clear all', 'factory'),
       ] },
     ],
   },

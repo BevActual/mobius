@@ -1,6 +1,6 @@
 import { RowMark } from './RowMark';
 import { FromMobius } from './FromMobius';
-import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { lineDiff } from './code-view';
 import { parseSkill, writeSkill, type Skill } from './skill-format';
@@ -8,31 +8,33 @@ import { useFileReview } from './useFileReview';
 import type { SkillsState } from './useSkills';
 import { ReviewActions, WhyThis } from './ReviewBar';
 
-/** The skills Mobius keeps, by name, with New skill. */
-export function SkillsSidebar({ skills, pin, changed, places }: { skills: SkillsState; pin?: ReactNode; changed?: ReadonlySet<string>; /** Extensions' places, above the skills. */ places?: ReactNode }) {
-  const [naming, setNaming] = useState(false);
+/**
+ * The skills Mobius keeps, by name. Inside Abilities, Add and Search come first (`places`); `query` narrows the list and
+ * each new `nameToken` opens the naming field (New skill in the Add menu).
+ */
+export function SkillsSidebar({ skills, pin, changed, places, query = '', nameToken = 0 }: { skills: SkillsState; pin?: ReactNode; changed?: ReadonlySet<string>; /** Abilities' Add, Search and places, above the skills. */ places?: ReactNode; query?: string; nameToken?: number }) {
+  const [naming, setNaming] = useState(nameToken > 0);
   const [name, setName] = useState('');
   const [about, setAbout] = useState('');
+  useEffect(() => { if (nameToken > 0) setNaming(true); }, [nameToken]);
   const submit = async (e: FormEvent) => { e.preventDefault(); if (await skills.create(name.trim() || 'New skill', about)) { setNaming(false); setName(''); setAbout(''); } };
-  const picker = useRef<HTMLInputElement>(null);
-  const [shared, setShared] = useState<string | null>(null);
+  const q = query.trim().toLowerCase();
+  const shown = q ? skills.list.filter((s) => s.name.toLowerCase().includes(q) || (s.description ?? '').toLowerCase().includes(q)) : skills.list;
   return (
     <aside className="side skills-side" aria-label="Skills sidebar">
       <div className="side-head">
         <span className="side-title">{places ? 'Abilities' : 'Skills'}</span>
-        <span className="side-actions">
-          {pin}
-          <button type="button" className="strip-btn" aria-label="New skill" title="New skill" onClick={() => setNaming(true)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-          </button>
-        </span>
+        <span className="side-actions">{pin}</span>
       </div>
       {places}
       {naming && (
         <form className="skill-new" onSubmit={(e) => void submit(e)}>
           <input autoFocus aria-label="Skill name" placeholder="Compare stays" value={name} maxLength={64} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
-          <input aria-label="When to use it" placeholder="When to use it, in one sentence" value={about} maxLength={300} onChange={(e) => setAbout(e.target.value)} />
-          <button type="submit" className="btn primary">Create</button>
+          <input aria-label="When to use it" placeholder="When to use it, in one sentence" value={about} maxLength={300} onChange={(e) => setAbout(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
+          <span className="skill-new-actions">
+            <button type="button" className="btn" onClick={() => setNaming(false)}>Cancel</button>
+            <button type="submit" className="btn primary">Create</button>
+          </span>
         </form>
       )}
       {skills.list.length === 0 && !naming && (
@@ -41,14 +43,10 @@ export function SkillsSidebar({ skills, pin, changed, places }: { skills: Skills
           <button type="button" className="btn primary" onClick={() => setNaming(true)}>New skill</button>
         </div>
       )}
-      <div className="skill-install-row">
-        <button type="button" className="btn" onClick={() => picker.current?.click()}>Install a skill…</button>
-        <input ref={picker} type="file" accept=".md,text/markdown,text/plain" hidden aria-label="Choose a SKILL.md" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void f.text().then(setShared); }} />
-      </div>
-      {shared !== null && <InstallDialog text={shared} skills={skills} onClose={() => setShared(null)} />}
+      {skills.list.length > 0 && shown.length === 0 && <p className="side-empty">No skills match “{query.trim()}”.</p>}
       <nav className="task-lists" aria-label="Skills">
         <ul role="list">
-          {skills.list.map((s) => (
+          {shown.map((s) => (
             <li key={s.name}>
               <button type="button" className="list-row skill-row" aria-current={skills.open?.name === s.name ? 'page' : undefined} onClick={() => void skills.openSkill(s.name)}>
                 <span className="list-name">/{s.name}</span>
