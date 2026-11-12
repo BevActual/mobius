@@ -858,13 +858,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .stage { border-color: color-mix(in srgb, var(--line) 55%, transparent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); }
 .stage .tasks-page { padding-top: var(--sp-6); }
 
-/* Ask from the toolbar while the agent panel is put away: one entry point above the work, widening as you type. */
-.ask-pill { flex: none; display: flex; align-items: center; gap: var(--sp-2); width: 220px; height: 30px; padding: 0 var(--sp-2) 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-group); background: var(--bg); transition: width var(--dur-med) var(--ease), border-color var(--dur-fast) var(--ease); }
-.ask-pill:focus-within { width: min(420px, 40vw); border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
-.ask-pill svg { width: 15px; height: 15px; color: var(--accent); }
-.ask-pill input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; font-size: var(--fs-sm); }
-.ask-working { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--accent); }
-@media (prefers-reduced-motion: reduce) { .ask-pill { transition: none; } }
 /* The Agent app's title is in the toolbar now; the conversation does not repeat it, or keep an empty row for it. */
 .chat.full .chat-head { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
@@ -910,8 +903,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .address input { height: 32px; padding: 0 16px; border: 0; border-radius: var(--radius-pill); background: var(--field); }
 .address input:focus { background: var(--bg); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
 .spinner { top: 10px; right: 14px; }
-.ask-pill { height: 32px; border: 0; border-radius: var(--radius-pill); background: var(--field); }
-.ask-pill:focus-within { background: var(--bg); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); }
 .tool-btn { height: 30px; border: 0; border-radius: var(--radius-pill); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
 .findbar { height: 32px; border: 0; border-radius: var(--radius-pill); background: var(--field); }
 .toolbar-place .strip-title { font-size: var(--fs-lg); font-weight: 700; letter-spacing: -0.01em; }
@@ -2882,13 +2873,12 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .rail-menu, .menu-panel, .
 html .launcher, html .hub { border-radius: var(--sheet-radius); }
 .hub-search { border-radius: calc(var(--sheet-radius) - var(--sp-3)); }
 
-/* Toolbar groups: the window's icons in one glass capsule; the Ask capsule is its own group, with space between. */
+/* Toolbar groups: the window's icons in one glass capsule. */
 .strip-right { display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: var(--glass-tint); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-edge); }
 .strip-right:empty { display: none; }
 .strip-right .strip-btn { border-radius: 999px; }
 .strip-texts { display: flex; align-items: center; gap: var(--sp-2); }
 .strip-texts:empty { display: none; }
-.ask-pill { margin-right: var(--sp-2); }
 
 /* Scroll edges: where content scrolls under a title bar, it fades out rather than meeting a hard line. */
 @keyframes scroll-edge { to { --scroll-edge: 16px; } }
@@ -2912,8 +2902,8 @@ html .launcher, html .hub { border-radius: var(--sheet-radius); }
 input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):focus-visible, textarea:focus-visible, select:focus-visible, [contenteditable="true"][role="textbox"]:not([aria-multiline="true"]):focus-visible {
   outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
-:is(.ask-pill, .search-box, .hub-search, .launcher-search, .composer, .model-find-box, .chips-field) :is(input, textarea, [contenteditable]):is(:focus, :focus-visible) { outline: none; box-shadow: none; }
-:is(.ask-pill, .search-box, .hub-search):focus-within { border-color: transparent; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+:is(.search-box, .hub-search, .launcher-search, .composer, .model-find-box, .chips-field) :is(input, textarea, [contenteditable]):is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+:is(.search-box, .hub-search):focus-within { border-color: transparent; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 .settings-side .settings-search:focus, .settings-side .settings-search:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 
 /* The shared context menu (ContextMenu.tsx): glass, the standard actions' icons, Delete in red. */
