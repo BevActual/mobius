@@ -107,8 +107,9 @@ Renaming a project renames its folder and its memory page too.
 
 ## Knowledge
 
-What Mobius knows: your private **How I work** page and shared pages such as each project's memory. See
-[Memory and Knowledge](../guide/memory-and-knowledge.md).
+What Mobius knows: your private **How I work** page, grouped by kind with what Mobius learned waiting on top, and
+shared pages such as each project's memory, listed by folder in the sidebar. Lines offered to a shared page wait under
+**Suggested changes**. See [Memory and Knowledge](../guide/memory-and-knowledge.md).
 
 
 ![The Knowledge app in Mobius](../readme/apps/knowledge.png)

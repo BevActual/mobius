@@ -2300,27 +2300,8 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .mail-later-suggested[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; color: var(--accent); }
 .mail-needs-reply { color: var(--accent); }
 
-/* Wiki: How I work, Shared with this wiki, and a page's versions. */
+/* Knowledge: the app icon's colour. The app's own styles are in knowledge.css. */
 .hub-icon[data-app="wiki"], .launcher-icon svg[data-app="wiki"], .review-filter svg[data-app="wiki"] { background: var(--app-wiki); }
-.wiki-private { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
-.wiki-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.wiki-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 10px; border-radius: 8px; }
-.wiki-line[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
-.wiki-line-text { flex: 1; min-width: 12em; }
-.wiki-line-actions { display: inline-flex; align-items: center; gap: 6px; }
-.wiki-learned, .wiki-from { color: var(--accent); font-size: var(--fs-xs); }
-.wiki-from { flex-basis: 100%; }
-.wiki-add input, .wiki-edit input { width: 100%; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }
-.wiki-edit { display: flex; flex: 1; gap: 6px; }
-.wiki-doc { position: absolute; inset: 0; display: flex; flex-direction: column; }
-.wiki-doc > :last-child { flex: 1; position: relative; }
-.wiki-versions { display: flex; flex-wrap: wrap; gap: var(--sp-2); padding: 6px var(--sp-3); }
-.wiki-versions-list { flex-basis: 100%; display: grid; gap: 4px; }
-.wiki-versions-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
-.wiki-version pre { max-height: 240px; overflow: auto; padding: 8px; border-radius: 8px; background: var(--wash); white-space: pre-wrap; }
-.wiki-from-line { color: var(--muted); font-size: var(--fs-xs); }
-.wiki-add { display: flex; gap: 6px; }
-.wiki-add input { flex: 1; }
 
 /* Notes' list: each page with how it starts; Pinned and Tags fold like notebooks; a tag lists its pages. */
 .note-lines { flex: 1; min-width: 0; display: grid; gap: 1px; }

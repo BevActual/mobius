@@ -1,0 +1,73 @@
+/*
+ * Knowledge: How I work, Suggested changes, the sidebar's sections and a page's versions.
+ * The base line styles are shared with Projects (a project's memory page), so they stay plain; what is only the
+ * Knowledge app's look is scoped to .wiki-page and .wiki-side.
+ */
+.wiki-private { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.wiki-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.wiki-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 10px; border-radius: 8px; }
+.wiki-line[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
+.wiki-line-text { flex: 1; min-width: 12em; }
+.wiki-line-actions { display: inline-flex; align-items: center; gap: 6px; }
+.wiki-learned, .wiki-from { color: var(--accent); font-size: var(--fs-xs); }
+.wiki-from { flex-basis: 100%; }
+.wiki-from-line { color: var(--muted); font-size: var(--fs-xs); }
+.wiki-add input, .wiki-edit input { width: 100%; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }
+.wiki-edit { display: flex; flex: 1; gap: 6px; }
+.wiki-add { display: flex; gap: 6px; }
+.wiki-add input { flex: 1; }
+
+/* The page: a large title and one grey line, then the lines in groups, as Reminders and Settings list things. */
+.wiki-page.skills-page { gap: var(--sp-5); padding-top: var(--sp-8); }
+.wiki-page > .cal-undo, .wiki-page > .field-error { margin-top: calc(var(--sp-2) * -1); margin-bottom: 0; }
+.kn-head { display: grid; gap: 4px; }
+.kn-head h1 { margin: 0; font-size: var(--fs-2xl); font-weight: var(--fw-semibold); letter-spacing: -0.01em; }
+.kn-group { display: grid; gap: 6px; }
+.kn-group-head { display: flex; align-items: baseline; gap: var(--sp-2); margin: 0; padding: 0 4px; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.kn-group-count { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* Each group is one rounded card of rows with hairlines between them. */
+.wiki-page .wiki-lines { gap: 0; border-radius: 10px; background: var(--field); overflow: hidden; }
+.wiki-page .wiki-line { min-height: 40px; padding: 8px 12px; border-radius: 0; flex-wrap: nowrap; }
+.wiki-page .wiki-lines > .wiki-line + .wiki-line { box-shadow: inset 0 0.5px 0 var(--hairline); }
+.wiki-page .wiki-line[data-proposed] { outline: 0; background: color-mix(in srgb, var(--accent) 6%, transparent); }
+/* What Mobius proposes is dashed, as everywhere in Mobius: here the whole Waiting card is. */
+.wiki-page .kn-group[data-waiting] .wiki-lines, .wiki-page .wiki-ask, .wiki-page .kn-changes { outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -1px; }
+.wiki-page .wiki-ask { border-radius: 10px; margin-bottom: 4px; }
+.wiki-line-body { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.wiki-page .wiki-line-text { min-width: 0; }
+.wiki-page .wiki-line-actions { flex: none; }
+.wiki-page .wiki-line[data-editing] { padding: 6px 8px; }
+
+/* Edit, Forget and Share wait until the pointer is on the line, or a key reaches it: the words come first. */
+.wiki-page .wiki-line-actions:not([data-always]) { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.wiki-page .wiki-line:hover .wiki-line-actions, .wiki-page .wiki-line-actions:focus-within { opacity: 1; }
+
+/* Suggested changes: who offered it and for which page on top, the line, then the three answers. */
+.wiki-page .kn-changes .wiki-line { flex-wrap: wrap; padding: 10px 12px; }
+.wiki-page .kn-changes .wiki-line-text { flex: 1 1 16em; }
+
+/* Adding a line: a quiet row at the foot, as a new reminder is. */
+.wiki-page .wiki-add { align-items: center; gap: var(--sp-2); padding: 4px 4px 4px 12px; border-radius: 10px; background: var(--field); }
+.wiki-page .wiki-add input { padding: 6px 0; border: 0; background: none; outline: none; }
+.wiki-page .wiki-add select, .wiki-page .wiki-edit select { height: 26px; padding: 0 6px; border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); font: inherit; font-size: var(--fs-sm); }
+.wiki-page .wiki-add select:hover, .wiki-page .wiki-edit select:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.wiki-add-plus { display: grid; place-items: center; width: 18px; height: 18px; color: var(--accent); }
+.wiki-add-plus svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.wiki-page .wiki-add .review-btn:disabled { opacity: 0.4; }
+.wiki-page .empty-state { min-height: 0; padding: var(--sp-6) var(--sp-4); }
+
+/* The sidebar: each folder of pages under its own small heading. */
+.wiki-side .wiki-pages { flex: 1; min-height: 0; overflow: auto; padding-bottom: var(--sp-3); }
+.kn-side-section { margin-top: var(--sp-3); }
+.kn-side-heading { margin: 0 var(--sp-2) var(--sp-1); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); letter-spacing: 0.02em; }
+
+/* A page: a slim bar with its versions above the editor. The editor fills the rest instead of covering the bar. */
+.wiki-doc { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.wiki-doc > :last-child { flex: 1; position: relative; }
+.stage .wiki-doc > .doc-editor { position: relative; inset: auto; flex: 1; min-height: 0; }
+.wiki-versions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); padding: 6px var(--sp-3); background: var(--panel); box-shadow: inset 0 -0.5px 0 var(--hairline); }
+.wiki-versions > .btn { height: 26px; padding: 0 12px; font-size: var(--fs-sm); }
+.wiki-versions-list { flex-basis: 100%; display: grid; gap: 4px; }
+.wiki-versions-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.wiki-version pre { max-height: 240px; overflow: auto; padding: 8px; border-radius: 8px; background: var(--wash); white-space: pre-wrap; }
