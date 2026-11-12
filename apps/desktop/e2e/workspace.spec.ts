@@ -255,21 +255,21 @@ test('a narrow window folds the sidebar to the rail without changing the choice'
   expect((await shell().evaluate(() => window.mobius.appearance.get())).navigation).toBe('sidebar');
 });
 
-test('with the agent panel put away, asking from the toolbar opens it with the answer', async () => {
+test('with the agent panel put away, Mobius opens in the sidebar and its message box says what it would ask about', async () => {
   await start([says(['That page is the fixture home.'])]);
-  // No panel toggle in the window's corner: Mobius opens from the sidebar's trefoil or the Ask capsule, and the other
-  // corner glyphs say what they are.
+  // No panel toggle and no second ask box in the toolbar: Mobius opens from the sidebar's trefoil, and the corner
+  // glyphs say what they are.
   await expect(shell().getByRole('button', { name: 'Show agent' })).toHaveCount(0);
+  await expect(shell().getByRole('search', { name: 'Ask the agent' })).toHaveCount(0);
   for (const glyph of await shell().getByRole('group', { name: 'Applications' }).getByRole('button').all()) expect(await glyph.getAttribute('title')).toBeTruthy();
   await shell().getByRole('complementary', { name: 'Agent' }).getByRole('button', { name: 'Hide' }).click();
   await expect(shell().getByRole('complementary', { name: 'Agent' })).toHaveCount(0);
-  const ask = shell().getByRole('textbox', { name: 'Ask Mobius' });
+  await rail().locator('[data-mobius-face]').click();
+  const ask = rail().getByRole('textbox', { name: 'Message Mobius' });
   await expect(ask).toHaveAttribute('placeholder', 'Ask about this page');
   await ask.fill('What is this page?');
   await ask.press('Enter');
-  await expect(shell().getByRole('complementary', { name: 'Agent' })).toBeVisible();
-  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('That page is the fixture home.');
-  await expect(ask).toHaveCount(0);
+  await expect(rail().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('That page is the fixture home.');
 });
 
 test('Mobius’s own apps sit in the switcher: Bots and Activity open their views of the Agent app, and Settings opens Settings', async () => {
