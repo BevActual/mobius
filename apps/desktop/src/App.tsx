@@ -11,7 +11,7 @@ import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
 import { growFrom, morphOut, useMorphIn } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
-import { ActivityPage, ActivitySidebar, useActivityFeed } from './Activity';
+import { ActivityPage, ActivitySidebar, useActivityFeed } from './ActivityApp';
 import { useBookmarks } from './useBookmarks';
 import { useArchive } from './useArchive';
 import { useBots } from './useBots';
