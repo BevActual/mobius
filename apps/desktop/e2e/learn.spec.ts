@@ -15,6 +15,8 @@ test.afterEach(async () => {
 
 const shell = () => mobius.shell;
 const learn = () => shell().getByRole('complementary', { name: 'Learn' });
+/** Mobius pinned beside the page (its message box is named after where you are, so find the panel itself). */
+const mobiusBeside = () => shell().locator('.dock.right:not([data-learn])');
 
 /** Help › Learn Mobius, as the launcher finds it (the launcher lists the menus' commands). */
 const openLearn = async () => {
@@ -27,10 +29,10 @@ const openLearn = async () => {
 
 test('Help › Learn Mobius opens lessons beside the page in place of Mobius, and Escape closes it', async () => {
   // These tests start with Mobius pinned beside the page: Learn takes that place.
-  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeVisible({ timeout: 15_000 });
+  await expect(mobiusBeside()).toBeVisible({ timeout: 15_000 });
   await openLearn();
   await expect(learn()).toBeVisible();
-  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeHidden();
+  await expect(mobiusBeside()).toBeHidden();
   await expect(learn().getByRole('searchbox', { name: 'Search lessons' })).toBeFocused();
 
   // In the Browser, its own lesson comes first; lessons are the docs pages.
