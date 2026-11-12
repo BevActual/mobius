@@ -112,6 +112,8 @@ A code editor for projects in your workspace.
 - **Source control**: the branch, each file changed since the last commit with git's mark (M modified, A added,
   D deleted, R renamed, ? not tracked yet, C in conflict) in the list and in the file tree, **Commit** and **Push**.
   Mobius asks before either.
+- **With no file open**, a start page shows the project, the files you opened lately, and Open a file, New file and
+  Run tests.
 - **Shortcuts** show as your computer writes them: Ctrl on Windows and Linux, ⌘ on a Mac.
 - **Console**: Mobius can run a command in the project's folder (it asks every time, and stops after five minutes)
   beside your own.
