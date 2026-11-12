@@ -76,7 +76,11 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_SLIDES,
   ...PREVIEW_PHOTOS,
   ...PREVIEW_VIDEO,
-  'bots.get': () => ({ bots: [] }),
+  'bots.get': () => ({ bots: [
+    { id: 'main', name: 'Mobius', instructions: '', model: '', createdMs: 0 },
+    { id: 'rcpt01', name: 'File receipts', instructions: 'When a receipt arrives in Mail, add a row to the Expenses sheet.', model: '', createdMs: now - 6 * 86_400_000 },
+    { id: 'wkly01', name: 'Weekly P2 summary', instructions: 'Every Friday, summarise the week on the Kestrel P2 build from Notes, Tasks and Mail.', model: 'Thorough', createdMs: now - 3 * 86_400_000 },
+  ] }),
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,
   'mini.isOpen': () => false,

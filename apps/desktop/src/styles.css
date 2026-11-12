@@ -2227,10 +2227,26 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .approval-head { margin: 0 0 2px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.02em; color: var(--accent); }
 
 /* A bot's form: how it starts, and what it may touch. */
-.botform-starts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0; padding: 0; border: 0; font-size: var(--fs-sm); }
-.botform-starts legend { padding: 0; margin-bottom: 2px; font-weight: var(--fw-medium); }
-.botform-choice { display: inline-flex; align-items: center; gap: 4px; }
-.botform-when { display: inline-flex; gap: 6px; flex-basis: 100%; }
+.botform-starts { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); }
+.botform-label { color: var(--muted); }
+.botform-hint { font-size: var(--fs-xs); color: var(--muted); }
+/* How it starts: a segmented control, both halves the same width, as in Apple's pickers. */
+.botform-seg { display: flex; min-width: 0; }
+.botform-seg .seg-btn { flex: 1; min-width: 0; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.botform-seg .seg-btn[aria-checked="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+.botform-when { display: flex; gap: 6px; }
+.botform-when select, .botform-when input { flex: 1; min-width: 0; height: 28px; padding: 0 7px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; }
+/* An agent row: the name and one line under it take the row; its actions are in the More menu. */
+.bot-row { flex-wrap: wrap; }
+.bot-row .clist-main { min-width: 0; }
+.bot-row .clist-title, .bot-row .clist-sub { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-row .clist-sub { display: block; }
+.bot-more { flex: none; width: 24px; height: 24px; margin-right: 4px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
+.bot-more svg { width: 16px; height: 16px; fill: currentColor; }
+.bot-row:hover .bot-more, .bot-more:focus-visible, .bot-more[aria-expanded="true"] { opacity: 1; }
+.bot-more:hover { background: var(--wash); color: var(--ink); }
+.bot-confirm { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; margin: 0 8px 8px; padding: 8px 10px; border-radius: 10px; background: var(--soft); font-size: var(--fs-sm); }
+.bot-confirm p { margin: 0; }
 .botform-touch { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
 .botform-touch b { color: var(--ink); font-weight: var(--fw-medium); }
 
