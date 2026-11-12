@@ -28,7 +28,10 @@
 @keyframes db-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
 /* The head: the table's name and where it is at the start, the view switch centred above what it switches. */
-.db-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--sp-2) var(--sp-4); padding: 12px var(--sp-4) 10px; }
+/* Title and an empty end share the room equally, so the switch stays centred; in a narrow page it wraps under the title. */
+.db-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-4); padding: 12px var(--sp-4) 10px; }
+.db-head::after { content: ""; flex: 1 1 0; }
+.db-head > .db-title { flex: 1 1 0; min-width: 140px; }
 .db-title { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .db-title h2 { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-semibold); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-sub { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
@@ -40,7 +43,7 @@
 .db-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-4) 10px; }
 .db-filter { width: min(280px, 50%); margin: 0; }
 .db-side > .side-search { margin: 0 var(--sp-2) var(--sp-2); }
-.db-bar .db-status { margin: 0; font-variant-numeric: tabular-nums; }
+.db-bar .db-status { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .db-pager { display: inline-flex; padding: 2px; border-radius: var(--radius-pill); background: var(--soft); }
 .db-pager .strip-btn { width: 26px; min-width: 26px; height: 26px; padding: 0; }
 .db-pager .strip-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
