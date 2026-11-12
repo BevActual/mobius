@@ -4,14 +4,14 @@
 .files-bar, .files-crumbs, .files-table, .files-empty, .files-page > .field-error { width: var(--files-col); margin-inline: auto; }
 
 /* The bar: Back and Forward, the place's name, the filter. */
-.files-bar { display: flex; align-items: center; gap: var(--sp-2); min-height: 34px; }
+.files-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); min-height: 34px; }
 .files-nav { display: inline-flex; gap: 2px; }
 .files-nav .strip-btn { border-radius: var(--radius-control); color: var(--ink); }
 .files-nav .strip-btn:hover:not(:disabled) { background: var(--wash); }
 .files-nav .strip-btn:disabled { color: var(--muted); opacity: 0.45; }
 .files-nav svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.files-title { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-semibold, 600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.files-filter { margin: 0; width: 200px; }
+.files-title { flex: 1 1 8em; min-width: 6em; margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-semibold, 600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-filter { flex: 0 1 200px; min-width: 96px; margin: 0; width: auto; }
 
 .files-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-top: calc(-1 * var(--sp-2)); color: var(--muted); font-size: var(--fs-sm); }
 .files-crumbs .review-btn[aria-current="page"] { color: var(--ink); }
@@ -88,3 +88,14 @@
 .files-trashed > span { flex: 1; }
 .files-notice { background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); }
 .files-notice .review-btn { margin-left: auto; }
+
+/* A narrow page (Mobius pinned beside, a small window): the name and size stay, Date and Kind step out first. */
+.files-page { container-type: inline-size; }
+@container (max-width: 620px) {
+  .files-head, .files-row { grid-template-columns: minmax(0, 1fr) 150px 64px; }
+  .files-head [data-col="modified"], .files-date { display: none; }
+}
+@container (max-width: 440px) {
+  .files-head, .files-row { grid-template-columns: minmax(0, 1fr) 64px; }
+  .files-head [data-col="kind"], .files-kind { display: none; }
+}
