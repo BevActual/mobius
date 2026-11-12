@@ -191,3 +191,17 @@ test('a layer gets a border, and is dragged in the layer list to change what is 
   await tree.getByRole('treeitem', { name: /^Card/ }).dragTo(tree.getByRole('treeitem', { name: /^Title/ }), { targetPosition: { x: 40, y: 4 } });
   await expect.poll(() => saved().frames[0]!.children.map((c) => c.name)).toEqual(['Title', 'Card']);
 });
+
+test('a frame is exported as a PNG into Photo', async () => {
+  await start();
+  const tree = shell().getByRole('tree', { name: 'Frames and layers' });
+  await tree.getByRole('button', { name: 'Home', exact: true }).click();
+  await inspector().getByRole('radio', { name: '1×' }).click();
+  await inspector().getByRole('button', { name: 'Export PNG' }).click();
+  await expect(inspector().getByRole('status')).toContainText('Saved to Photo › Design exports as Home.png');
+  const png = path.join(userData, 'workspace', 'photos', 'Design exports', 'Home.png');
+  const bytes = fs.readFileSync(png);
+  expect(bytes.subarray(1, 4).toString()).toBe('PNG');
+  // Its size is the frame's, at 1×.
+  expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)]).toEqual([393, 852]);
+});

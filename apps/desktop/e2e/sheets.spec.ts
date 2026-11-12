@@ -154,5 +154,29 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await expect(cell('A5')).toHaveText('Total');
   await expect(cell('D5')).toHaveText('5420');
   await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toBe('Item,Qty,Unit,Total\nLunch,=People!B1,40,=B2*C2\nTerrace venue,1,620,=B3*C3\nHotel,14,320,=B4*C4,"=ROUND(D4/14,0)"\nTotal,,,=SUM(D2:D4)\n');
+
+  // Sorted again from column B's own menu, largest first: the whole column picked still leaves the header and total row put.
+  await shell().getByRole('columnheader', { name: /^B/ }).hover();
+  await shell().getByRole('button', { name: 'Column B options' }).click();
+  await shell().getByRole('menu', { name: 'Column B' }).getByRole('menuitem', { name: 'Sort Z to A' }).click();
+  await expect(cell('A2')).toHaveText('Hotel');
+  await expect(cell('A4')).toHaveText('Terrace venue');
+  await expect(cell('A5')).toHaveText('Total');
+  await expect(shell().getByLabel('Selected cell')).toHaveText(/^B1:B\d+$/);
+  // The total row reads as one, set apart from the rows it adds up.
+  await expect(shell().locator('tr.sheet-footer-row')).toContainText('Total');
+
+  // Ctrl+F finds cells by what they show, moving the selection from match to match; Escape closes it.
+  await cell('A2').click();
+  await shell().keyboard.press('Control+f');
+  await shell().getByRole('searchbox', { name: 'Find in sheet' }).fill('e');
+  await expect(shell().getByRole('search', { name: 'Find in sheet' })).toContainText(/1 of \d+/);
+  const first = await shell().getByLabel('Selected cell').textContent();
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByLabel('Selected cell')).not.toHaveText(first ?? '');
+  await shell().getByRole('searchbox', { name: 'Find in sheet' }).fill('Terrace');
+  await expect(shell().getByLabel('Selected cell')).toHaveText('A4');
+  await shell().keyboard.press('Escape');
+  await expect(shell().getByRole('search', { name: 'Find in sheet' })).toHaveCount(0);
   await expect(cell('A1')).toHaveText('Item');
 });

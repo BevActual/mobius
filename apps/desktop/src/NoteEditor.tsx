@@ -25,6 +25,7 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { showTag, tagRanges, tagsIn } from './note-tags';
 import { countWords } from './Docs';
 import { relativeTime } from './relative-time';
+import { timeLabel } from './dates';
 import { NoteHistory, dayOf } from './NoteHistory';
 import './notes.css';
 import { CommentComposer, CommentList, useNoteComments } from './NoteComments';
@@ -469,7 +470,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   const [restored, setRestored] = useState<{ was: string; label: string } | null>(null);
   useEffect(() => { setHistory(false); setRestored(null); }, [path]);
   const restore = (content: string, whenMs: number) => {
-    const at = new Date(whenMs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const at = timeLabel(whenMs);
     setRestored({ was: notes.text, label: `${dayOf(whenMs, Date.now())}, ${at}` });
     notes.edit(content);
     setHistory(false);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Cut } from './cut-format';
-import { dropIndex, editPoints, filmstrip, insertClip, moveShot, nextEdit, removeShot, rulerLabel, rulerMarks, splitAt, trimShot } from './video-view';
+import { dropIndex, duplicateShot, editPoints, filmstrip, insertClip, moveShot, nextEdit, parseTimecode, removeShot, rulerLabel, rulerMarks, splitAt, trimShot } from './video-view';
 
 const cut: Cut = { version: 1, shots: [
   { id: 's1', clip: 'a.mp4', in: 1, out: 4, title: 'Hello' },
@@ -56,5 +56,33 @@ describe('the timeline', () => {
   it('picks a frame for each part of a shot', () => {
     expect(filmstrip(cut.shots[0]!, 180, 60)).toEqual([1.5, 2.5, 3.5]);
     expect(filmstrip(cut.shots[1]!, 20, 60)).toEqual([1]);
+  });
+});
+
+describe('duplicateShot', () => {
+  it('puts a copy with a fresh id right after the shot, and keeps its trim and title', () => {
+    const got = duplicateShot(cut, cut.shots[0]!.id)!;
+    expect(got.cut.shots).toHaveLength(cut.shots.length + 1);
+    const copy = got.cut.shots[1]!;
+    expect(copy.id).toBe(got.id);
+    expect(cut.shots.some((s) => s.id === copy.id)).toBe(false);
+    expect({ ...copy, id: '' }).toEqual({ ...cut.shots[0]!, id: '' });
+    expect(got.cut.shots[2]).toBe(cut.shots[1]);
+  });
+  it('is null for a shot that is not there', () => expect(duplicateShot(cut, 'nope')).toBeNull());
+});
+
+describe('parseTimecode', () => {
+  it('reads timecode and plain seconds', () => {
+    expect(parseTimecode('1:05.3')).toBe(65.3);
+    expect(parseTimecode('0:05')).toBe(5);
+    expect(parseTimecode(' 2.5 ')).toBe(2.5);
+    expect(parseTimecode('7')).toBe(7);
+    expect(parseTimecode('1:02:03.5')).toBe(3723.5);
+    expect(parseTimecode('0:02,5')).toBe(2.5);
+    expect(parseTimecode('.5')).toBe(0.5);
+  });
+  it('is null for anything else', () => {
+    for (const bad of ['', 'abc', '1:', ':5', '-1', '1.5:00', '1:2:3:4', '5s']) expect(parseTimecode(bad)).toBeNull();
   });
 });
