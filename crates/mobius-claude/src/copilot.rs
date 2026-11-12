@@ -49,8 +49,13 @@ impl std::fmt::Debug for CopilotProvider {
 pub fn find(explicit: Option<&Path>) -> Option<PathBuf> {
     match explicit {
         Some(p) => p.is_file().then(|| p.to_path_buf()),
-        None => cli::find_named("copilot"),
+        None => cli::find_named_where("copilot", |p| !is_shim(p)),
     }
+}
+
+/// VS Code puts a `copilot` in `bin\copilot-shim` that only says the CLI is missing; it is not the CLI.
+fn is_shim(path: &Path) -> bool {
+    path.components().any(|c| c.as_os_str().eq_ignore_ascii_case("copilot-shim"))
 }
 
 /// The name a Mobius tool has inside the CLI (`files.read` is `files-read`).
@@ -376,6 +381,12 @@ mod tests {
         assert_eq!(mobius_tool(&json!({ "title": "Run shell command" }), &names()), None);
         assert_eq!(mobius_tool(&json!({ "title": "shell", "rawInput": { "command": "files-read" } }), &names()), None, "only the tool's own name counts");
         assert_eq!(wire_name("files.read"), "files-read");
+    }
+
+    #[test]
+    fn vs_codes_stand_in_is_not_the_cli() {
+        assert!(is_shim(Path::new("C:/Program Files/Microsoft VS Code/bin/copilot-shim/copilot.exe")));
+        assert!(!is_shim(Path::new("C:/Users/me/AppData/Local/Microsoft/WinGet/Links/copilot.exe")));
     }
 
     #[test]

@@ -39,13 +39,18 @@ pub fn find(explicit: Option<&Path>) -> Option<PathBuf> {
 
 /// A program by name on PATH or in the usual install folders (`claude`, `copilot`).
 pub fn find_named(name: &str) -> Option<PathBuf> {
+    find_named_where(name, |_| true)
+}
+
+/// Like `find_named`, skipping any match `keep` turns down.
+pub fn find_named_where(name: &str, keep: impl Fn(&Path) -> bool) -> Option<PathBuf> {
     let path = std::env::var_os("PATH").unwrap_or_default();
     let mut dirs: Vec<PathBuf> = std::env::split_paths(&path).chain(known_dirs()).collect();
     // WinGet puts its programs here.
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
         dirs.push(PathBuf::from(local).join("Microsoft").join("WinGet").join("Links"));
     }
-    dirs.iter().flat_map(|d| candidates(d, name)).find(|p| p.is_file())
+    dirs.iter().flat_map(|d| candidates(d, name)).find(|p| p.is_file() && keep(p))
 }
 
 pub fn quiet(command: &mut Command) -> &mut Command {
