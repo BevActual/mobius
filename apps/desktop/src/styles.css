@@ -1097,9 +1097,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .chat:not(.full) .review-strip { margin-left: 12px; margin-right: 12px; }
 
 /* Shaping the sidebar: the app menu, and the list in Settings. */
-.rail-menu { position: fixed; z-index: 60; display: flex; flex-direction: column; min-width: 190px; padding: 5px; border-radius: 14px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: var(--shadow-3), 0 0 0 1px var(--hairline); }
-.rail-menu .popmenu-item { padding: 6px 10px; border-radius: 9px; }
-.rail-menu .popmenu-item:disabled { color: var(--muted); opacity: 0.55; }
 .sidebar-apps { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 2px; min-width: 260px; border-radius: var(--radius-group); background: var(--field); }
 .sidebar-app { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 4px 0 8px; border-radius: var(--radius-control); }
 .sidebar-app[data-hidden] { color: var(--muted); }
@@ -2751,7 +2748,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 @media (prefers-contrast: more) { :root { --glass-edge: inset 0 0 0 1px var(--line-strong); } }
 
 .glass,
-html .context-strip, html .launcher, html .hub, html .popmenu-list, html .convo-menu, html .rail-menu, html .menu-panel,
+html .context-strip, html .launcher, html .hub, html .popmenu-list, html .convo-menu, html .menu-panel,
 html .selection-menu, html .selection-bar, html .address-suggestions, html .code-quick,
 html .code-bar, html .sheet-menu, html .sheet-suggest, html .note-share-menu, html .note-comment-composer, html .tasks-undo,
 html .doc-editor .doc-toolbar, html .chat.full .composer, html .dock[data-floating] {
@@ -2763,7 +2760,7 @@ html .rail[data-expanded]::before, html .dock.left:not([data-floating]) > .side,
   background: var(--glass-tint); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
   box-shadow: var(--glass-edge), var(--panel-shadow);
 }
-html :is(.launcher, .hub, .popmenu-list, .convo-menu, .rail-menu, .menu-panel, .selection-menu, .sheet-menu) { border: 0; box-shadow: var(--glass-edge), 0 18px 50px rgba(0, 0, 0, 0.22); }
+html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-menu, .sheet-menu) { border: 0; box-shadow: var(--glass-edge), 0 18px 50px rgba(0, 0, 0, 0.22); }
 /* No glass on glass: what sits on the sidebar or the panel is not glass again. */
 :is(.rail-app, .dock.left, .rail[data-expanded]) :is(.settings-nav, .side) { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border: 0; }
 
@@ -2809,13 +2806,6 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
 .settings-side .settings-search:focus, .settings-side .settings-search:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 
 /* The shared context menu (ContextMenu.tsx): glass, the standard actions' icons, Delete in red. */
-.context-menu { position: fixed; z-index: 950; display: flex; flex-direction: column; min-width: 200px; padding: 5px; border-radius: 14px; box-shadow: var(--glass-edge), 0 18px 50px rgba(0, 0, 0, 0.22); }
-.context-menu-item { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: calc(14px - 5px); font-size: var(--fs-md); color: var(--ink); text-align: left; }
-.context-menu-keys { margin-left: auto; padding: 0 0 0 16px; border: 0; background: none; font: inherit; font-size: var(--fs-xs); color: var(--muted); }
-.context-menu-item:hover:not(:disabled), .context-menu-item:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
-.context-menu-item[data-danger] { color: var(--danger); }
-.context-menu-item[data-separated] { margin-top: 5px; position: relative; }
-.context-menu-item[data-separated]::before { content: ""; position: absolute; left: 8px; right: 8px; top: -3px; border-top: 0.5px solid var(--hairline); }
 .action-icon { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
 /* A tool step reads as what it did, in the interface's own type; its status sits by Details at the end of the line. */
