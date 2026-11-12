@@ -21,7 +21,8 @@ app you have open (the note, the page, the selected text) and can work across al
 
 - **Pin beside** keeps the conversation open next to the page instead of in the sidebar.
 - **Little Mobius** (Ctrl+Shift+M) is the conversation in a small window that stays above your other apps.
-- The ask box in an app's title row ("Ask about this note") starts a message about what is open.
+- The message box says what Mobius would ask about where you are ("Ask about this note"), and what is open goes
+  with your message.
 
 ## The desk
 
