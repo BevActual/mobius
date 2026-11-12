@@ -75,7 +75,7 @@ test('the desk is the Agent app’s home: what waits is allowed in place, and wh
   await expect(desk.getByRole('group', { name: 'Recent' })).toHaveCount(0);
   const now = desk.getByRole('group', { name: 'Now' });
   await expect(now.getByRole('listitem')).toContainText('Wants to');
-  await expect(desk.getByRole('group', { name: 'Next' }).getByRole('button', { name: /Morning brief.*at 08:00/ })).toBeVisible();
+  await expect(desk.getByRole('group', { name: 'Next' }).getByRole('button', { name: /Morning brief.*at 0?8:00/ })).toBeVisible();
   await now.getByRole('button', { name: /^Allow .* once$/ }).click();
   await expect(desk.getByRole('group', { name: 'Now' })).toHaveCount(0);
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(true);

@@ -47,7 +47,24 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await expect(shell.getByRole('list', { name: 'Tables in Data' })).toContainText('hotels');
   expect(fs.existsSync(path.join(userData, 'workspace', 'databases', 'Data.sqlite'))).toBe(true);
 
+  // Browsing needs no SQL: a column's heading sorts (again for high to low), the filter keeps rows holding the words,
+  // and Structure lists the columns with their types.
+  const price = grid.getByRole('columnheader', { name: 'Price' }).getByRole('button');
+  await price.click();
+  await price.click();
+  await expect(grid.getByRole('columnheader', { name: 'Price' })).toHaveAttribute('aria-sort', 'descending');
+  await expect(grid.getByRole('row').nth(1)).toContainText('Memmo');
+  const filter = page.getByRole('searchbox', { name: 'Filter rows' });
+  await filter.fill('alfama');
+  await expect(grid.getByRole('row')).toHaveCount(2);
+  await expect(page.getByRole('status')).toHaveText('1 row matches');
+  await filter.fill('');
+  await expect(grid.getByRole('row')).toHaveCount(4);
+  await page.getByRole('radio', { name: 'Structure' }).click();
+  await expect(page.getByRole('table', { name: 'Columns' }).getByRole('row', { name: /Rooms/ })).toContainText('INTEGER');
+
   // A statement of your own; a mistake says what is wrong.
+  await page.getByRole('radio', { name: 'SQL' }).click();
   const sql = page.getByRole('textbox', { name: 'SQL' });
   await sql.fill('SELECT Area FROM hotels WHERE Rooms > 30 ORDER BY Area');
   await sql.press('Control+Enter');
@@ -97,4 +114,17 @@ test('a sheet from Sheets becomes a table, with its worked-out values', async ()
   const grid = shell.getByRole('region', { name: 'Database' }).getByRole('table', { name: 'Rows' });
   await expect(grid.getByRole('row', { name: /Total/ })).toContainText('2000');
   await expect(shell.getByRole('list', { name: 'Tables in Data' })).toContainText('Costs');
+
+  // A table's menu renames it, and deletes it once asked.
+  await side.getByRole('button', { name: 'More for Costs' }).click();
+  await shell.getByRole('menuitem', { name: 'Rename…' }).click();
+  const rename = side.getByRole('textbox', { name: 'New name for Costs' });
+  await rename.fill('Trip costs');
+  await rename.press('Enter');
+  await expect(shell.getByRole('list', { name: 'Tables in Data' })).toContainText('Trip costs');
+  await expect(shell.getByRole('region', { name: 'Database' }).getByRole('heading', { name: 'Trip costs' })).toBeVisible();
+  await side.getByRole('button', { name: 'More for Trip costs' }).click();
+  await shell.getByRole('menuitem', { name: 'Delete table…' }).click();
+  await side.getByRole('alertdialog', { name: 'Delete the table “Trip costs”?' }).getByRole('button', { name: 'Delete' }).click();
+  await expect(shell.getByRole('list', { name: 'Tables in Data' })).toHaveText('No tables yet');
 });

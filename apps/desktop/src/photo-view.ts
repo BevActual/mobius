@@ -1,4 +1,4 @@
-import type { Crop } from './photo-edit';
+import { wholeArea, type Adjustment, type Amount, type Crop } from './photo-edit';
 
 /**
  * The Photo app's arithmetic, kept apart from the screen so it can be tested: undo, stepping through an album,
@@ -101,3 +101,26 @@ export function dragCrop(start: Crop, handle: Handle, dx: number, dy: number, k:
 export const turnedCrop = (c: Crop): Crop => ({ x: c.y, y: 1 - c.x - c.w, w: c.h, h: c.w });
 /** The crop with the picture flipped left to right. */
 export const flippedCrop = (c: Crop): Crop => ({ ...c, x: 1 - c.x - c.w });
+
+/** The album grid's tile sizes, smallest first, as the zoom slider steps through them. */
+export const GRID_SIZES = [90, 120, 160, 220, 300] as const;
+/** The zoom step after moving `by`, kept within the sizes there are; anything unreadable is the middle size. */
+export function zoomStep(at: number, by: number): number {
+  const n = Number.isFinite(at) ? Math.round(at) : 2;
+  return Math.max(0, Math.min(GRID_SIZES.length - 1, n + by));
+}
+
+/** One section of the Adjust panel: its sliders, or 'where' for the part of the photo it applies to. */
+export type Section = readonly Amount[] | 'where';
+/** Whether a section has been moved from where it starts, so it shows its reset. */
+export function groupChanged(a: Adjustment, section: Section): boolean {
+  if (section === 'where') return a.area.kind !== 'all';
+  return section.some((k) => a[k] !== 0);
+}
+/** The adjustment with one section put back to where it starts. */
+export function resetGroup(a: Adjustment, section: Section): Adjustment {
+  if (section === 'where') return { ...a, area: wholeArea() };
+  const out = { ...a };
+  for (const k of section) out[k] = 0;
+  return out;
+}

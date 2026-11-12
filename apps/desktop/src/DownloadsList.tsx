@@ -13,9 +13,16 @@ export function DownloadsButton({ entries }: { entries: DownloadEntry[] }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
   const seen = useRef(new Set(entries.map((e) => e.id)));
-  // Downloads already listed when the sidebar appears stay closed; one that arrives after opens the popover.
+  // The downloads there were when the button appeared, read once: they stay closed, even when the list given to the
+  // button only fills in just after it shows (it is read as the window opens). A download that starts after opens it.
+  const known = useRef<Set<string> | null>(null);
   useEffect(() => {
-    const fresh = entries.some((e) => !seen.current.has(e.id));
+    let live = true;
+    void window.mobius.downloads.get().then((list) => { if (live) known.current = new Set([...seen.current, ...list.map((e) => e.id)]); }).catch(() => { if (live) known.current = new Set(seen.current); });
+    return () => { live = false; };
+  }, []);
+  useEffect(() => {
+    const fresh = entries.some((e) => !seen.current.has(e.id) && known.current !== null && !known.current.has(e.id));
     seen.current = new Set(entries.map((e) => e.id));
     if (fresh) setOpen(true);
     if (entries.length === 0) setOpen(false);
