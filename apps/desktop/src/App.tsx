@@ -585,7 +585,8 @@ export function App() {
       { transformOrigin: '0 0', transform: 'none' },
     ], { duration: 320, easing: 'cubic-bezier(0.2, 0, 0, 1)' });
   });
-  // Shown again while it was on its way out (a shortcut, the Ask capsule), it stays.
+  // Shown again while it was on its way out (a shortcut, the Ask capsule, Mobius in the sidebar), it stays: a hide
+  // still finishing would otherwise close it, since chatOpen never went false and the effect below does not run.
   const hides = useRef(0);
   const hideRight = useCallback(() => { const mine = ++hides.current; void morphOut(document.querySelector<HTMLElement>('.dock.right > .chat'), 'right').then(() => { if (hides.current === mine) setChatOpen(false); }); }, []);
   useEffect(() => { if (chatOpen) hides.current += 1; }, [chatOpen]);
@@ -1485,7 +1486,7 @@ export function App() {
         chrome={showWide && inBrowser && !settingsOpen ? browserChrome : null}
         mobius={hasRight && !settingsOpen ? {
           shown: chatInSide && chatOpen,
-          onToggle: () => { if (chatInSide && chatOpen) { setChatOpen(false); } else { setChatPlace('sidebar'); setChatOpen(true); setFocusToken((n) => n + 1); } },
+          onToggle: () => { if (chatInSide && chatOpen) { setChatOpen(false); } else { hides.current += 1; setChatPlace('sidebar'); setChatOpen(true); setFocusToken((n) => n + 1); } },
           onBeside: () => { pinFrom.current = document.querySelector('.rail[data-expanded]')?.getBoundingClientRect() ?? null; setChatPlace('beside'); setChatOpen(true); },
           panel: chatInSide && chatOpen ? chatPanel(null) : null,
         } : null}
