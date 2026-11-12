@@ -52,7 +52,8 @@ pub fn build_request_body(request: &ChatRequest) -> Value {
             }),
         });
     }
-    let mut body = json!({ "model": request.model, "messages": messages, "stream": true });
+    // Asks for the token count in a last chunk, for Settings, Usage. Servers that do not know it leave it out.
+    let mut body = json!({ "model": request.model, "messages": messages, "stream": true, "stream_options": { "include_usage": true } });
     if let Some(effort) = request.effort.as_deref().filter(|e| *e != crate::provider::NO_REASONING) {
         body["reasoning_effort"] = json!(effort);
     }
@@ -90,6 +91,7 @@ pub struct StreamAccumulator {
     text: String,
     calls: BTreeMap<u64, PartialCall>,
     finish_reason: Option<String>,
+    usage: Option<crate::provider::Usage>,
 }
 
 #[derive(Default)]
@@ -110,6 +112,11 @@ impl StreamAccumulator {
         if let Some(error) = chunk.get("error") {
             let message = error.get("message").and_then(Value::as_str).map_or_else(|| error.to_string(), str::to_owned);
             return Err(protocol(format!("the provider reported an error: {}", message.chars().take(300).collect::<String>())));
+        }
+        // Sent once, usually in a last chunk with no choices (`stream_options.include_usage`).
+        if let Some(usage) = chunk.get("usage").filter(|u| u.is_object()) {
+            let n = |p: &str| usage.pointer(p).and_then(Value::as_u64).unwrap_or(0);
+            self.usage = Some(crate::provider::Usage::tokens(n("/prompt_tokens"), n("/completion_tokens"), n("/prompt_tokens_details/cached_tokens")));
         }
         let choices = match chunk.get("choices") {
             None | Some(Value::Null) => return Ok(None),
@@ -197,7 +204,7 @@ impl StreamAccumulator {
             Some("length") => StopReason::Length,
             Some(other) => StopReason::Other(other.to_owned()),
         };
-        Completion { text: self.text, tool_calls, stop }
+        Completion { text: self.text, tool_calls, stop, usage: self.usage }
     }
 }
 
@@ -299,12 +306,33 @@ fn chunk_from_full_reply(reply: &Value) -> Result<Value, ProviderError> {
         }).collect();
         delta.insert("tool_calls".to_owned(), Value::Array(calls));
     }
-    Ok(json!({ "choices": [{ "delta": delta, "finish_reason": choice.get("finish_reason").cloned().unwrap_or(Value::Null) }] }))
+    let mut chunk = json!({ "choices": [{ "delta": delta, "finish_reason": choice.get("finish_reason").cloned().unwrap_or(Value::Null) }] });
+    if let Some(usage) = reply.get("usage") {
+        chunk["usage"] = usage.clone();
+    }
+    Ok(chunk)
 }
 
 impl Provider for OpenAiProvider {
     fn complete(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
-        let body = body_for(request, self.local).to_string();
+        let body = body_for(request, self.local);
+        match self.complete_body(&body, on_text) {
+            // A server that refuses the request for the token count is asked again without it.
+            Err(ProviderError::Http { status: 400, message }) if message.to_ascii_lowercase().contains("stream_options") => {
+                let mut plain = body;
+                if let Some(o) = plain.as_object_mut() {
+                    o.remove("stream_options");
+                }
+                self.complete_body(&plain, on_text)
+            }
+            other => other,
+        }
+    }
+}
+
+impl OpenAiProvider {
+    fn complete_body(&self, body: &Value, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
+        let body = body.to_string();
         let mut call = self.agent.post(&format!("{}/chat/completions", self.base_url)).header("Content-Type", "application/json").header("Accept", "text/event-stream, application/json");
         if let Some(key) = &self.api_key {
             call = call.header("Authorization", &format!("Bearer {key}"));
@@ -575,4 +603,16 @@ mod tests {
         assert_eq!(body["messages"][0]["content"], json!([{ "type": "text", "text": "what is this?" }, { "type": "image_url", "image_url": { "url": picture } }]));
     }
 
+
+    #[test]
+    fn the_token_count_in_the_last_chunk_or_a_whole_reply_is_kept() {
+        let (_, c) = feed_all(vec![delta(json!({ "content": "ok" })), finish("stop"), json!({ "choices": [], "usage": { "prompt_tokens": 50, "completion_tokens": 4, "prompt_tokens_details": { "cached_tokens": 80 } } })]).unwrap();
+        // More cached than sent is not believed.
+        assert_eq!(c.usage, Some(crate::provider::Usage::tokens(50, 4, 50)));
+        let (_, plain) = feed_all(vec![delta(json!({ "content": "ok" })), finish("stop")]).unwrap();
+        assert_eq!(plain.usage, None);
+        let whole = chunk_from_full_reply(&json!({ "choices": [{ "message": { "content": "hi" }, "finish_reason": "stop" }], "usage": { "prompt_tokens": 9, "completion_tokens": 2 } })).unwrap();
+        let (_, c) = feed_all(vec![whole]).unwrap();
+        assert_eq!(c.usage, Some(crate::provider::Usage::tokens(9, 2, 0)));
+    }
 }

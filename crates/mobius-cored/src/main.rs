@@ -293,6 +293,7 @@ fn main() -> ExitCode {
             Inbox::Text { turn_id, text } => work.extend(agent.on_text(turn_id, &text)),
             Inbox::Switched { turn_id, model, why } => work.extend(agent.on_switched(turn_id, &model, &why)),
             Inbox::ModelDone { turn_id, result } => work.extend(agent.on_model_done(&mut core, turn_id, result)),
+            Inbox::Usage { turn_id, kind, usage } => work.extend(agent.on_usage(turn_id, kind, &usage)),
             Inbox::Verdict { turn_id, request_id, result } => work.extend(agent.on_review_done(&mut core, turn_id, request_id, result)),
             Inbox::Job { job, result } => work.push(Out::Notify(models.on_job(&job, &result))),
             Inbox::Notify(note) => work.push(Out::Notify(note)),

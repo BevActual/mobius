@@ -212,6 +212,13 @@ pub struct Bridge {
     /// Requests to make at times of day.
     schedules: crate::schedules::Schedules,
     providers: Arc<crate::providers::Providers>,
+    /// Settings, Usage: the tokens each model call used, and the price list that estimates what they cost.
+    usage: Arc<crate::usage::UsageBook>,
+    prices: Arc<crate::usage::PriceList>,
+    /// Off in the tests, which must not reach the internet.
+    fetch_prices: bool,
+    /// For each conversation, the app its last message was sent from ("mail"), so its use is counted there.
+    sent_from: Mutex<std::collections::HashMap<String, String>>,
     /// Signing in to a gateway that hands out a key (OpenRouter); tests point it at a pretend site.
     key_sign_in: Mutex<Arc<crate::key_sign_in::KeySignIn>>,
     hf_sign_in: Mutex<Arc<crate::device_sign_in::DeviceSignIn>>,
@@ -342,6 +349,10 @@ impl Bridge {
             marking: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             mcp: Arc::default(),
             providers: Arc::new(crate::providers::Providers::new(secrets.clone())),
+            usage: Arc::new(crate::usage::UsageBook::open(data_dir.join("usage.json"))),
+            prices: Arc::new(crate::usage::PriceList::new(data_dir.join("usage-prices.json"))),
+            fetch_prices: std::env::var_os("MOBIUS_TEST").is_none(),
+            sent_from: Mutex::new(std::collections::HashMap::new()),
             key_sign_in: Mutex::new(Arc::new(crate::key_sign_in::KeySignIn::new(crate::key_sign_in::OPENROUTER))),
             hf_sign_in: Mutex::new(Arc::new(crate::device_sign_in::DeviceSignIn::hugging_face())),
             copilot,
@@ -545,6 +556,25 @@ impl Bridge {
                 Ok(self.mcp_server.set(flag("enabled"), flag("allowChanges"), port))
             }
             ("agent", _) => self.agent_call(method, args),
+            ("usage", "query") => {
+                let range = arg(0);
+                let day = |k: &str| range.get(k).and_then(Value::as_str).filter(|d| crate::usage::is_day(d)).map(str::to_owned);
+                let (Some(from), Some(to)) = (day("from"), day("to")) else { return Ok(failed("Give the days as YYYY-MM-DD.")) };
+                if self.fetch_prices && self.prices.stale() {
+                    let (prices, emit) = (Arc::clone(&self.prices), self.emit.clone());
+                    std::thread::spawn(move || {
+                        if prices.refresh() {
+                            emit("mobius:usage-changed", json!({}));
+                        }
+                    });
+                }
+                Ok(self.usage.query(&from, &to, &self.prices.prices()))
+            }
+            ("usage", "clear") => {
+                self.usage.clear();
+                (self.emit)("mobius:usage-changed", json!({}));
+                Ok(ok(json!({})))
+            }
             ("changes", _) => self.changes_call(method, args),
             ("signins", _) => Ok(self.signins_call(method, args)),
             ("extensions", "connectors") => Ok(self.mcp_status()),
@@ -3135,6 +3165,10 @@ impl Bridge {
                 if let Some(plan) = arg(3).get("plan") {
                     request["plan"] = plan.clone();
                 }
+                // and { app: "mail" } says where it was sent from, for Settings, Usage.
+                if let (Some(c), Some(app)) = (arg(0).as_str(), arg(3).get("app").and_then(Value::as_str).filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))) {
+                    lock(&self.sent_from).insert(c.to_owned(), app.to_owned());
+                }
                 // and { images: [data URLs] } attaches pictures, for models that read them.
                 if let Some(images) = arg(3).get("images") {
                     request["images"] = images.clone();
@@ -3297,8 +3331,33 @@ impl Bridge {
         (self.emit)("mobius:agent-settings", self.agent.settings());
     }
 
+    /// A model call's tokens, counted under the day, the gateway that answered, the model, and the app the conversation
+    /// was last written to from.
+    fn record_usage(&self, p: &Value) {
+        let n = |k: &str| p.get(k).and_then(Value::as_u64).unwrap_or(0);
+        let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or("");
+        let kind = match text("kind") { k @ ("chat" | "quick") => k, _ => return };
+        let conversation = text("conversation");
+        let app = lock(&self.sent_from).get(conversation).cloned().unwrap_or_else(|| "agent".to_owned());
+        self.usage.record(&crate::usage::Call {
+            day: chrono::Local::now().format("%Y-%m-%d").to_string(),
+            gateway: crate::usage::gateway_of(text("endpoint"), &self.providers),
+            model: text("model").to_owned(),
+            app,
+            kind: kind.to_owned(),
+            input: n("input"),
+            output: n("output"),
+            cached: n("cached"),
+        });
+        (self.emit)("mobius:usage-changed", json!({}));
+    }
+
     /// A message from the core that is not an answer. Only well formed conversation progress reaches the window.
     pub fn on_core_notification(&self, method: &str, params: &Value) {
+        if method == "agent.usage" {
+            self.record_usage(params);
+            return;
+        }
         if self.models.get().is_some_and(|m| m.handle_notification(method, params)) {
             return;
         }
