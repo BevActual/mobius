@@ -293,7 +293,7 @@ impl Provider for CopilotProvider {
                     return Err(rpc_error(e));
                 }
                 let stop = v.pointer("/result/stopReason").and_then(Value::as_str).unwrap_or("end_turn");
-                return Ok(Completion { text, tool_calls: Vec::new(), stop: if stop == "max_tokens" { StopReason::Length } else { StopReason::EndTurn } });
+                return Ok(Completion { text, tool_calls: Vec::new(), stop: if stop == "max_tokens" { StopReason::Length } else { StopReason::EndTurn }, usage: None });
             }
             let method = v.get("method").and_then(Value::as_str).unwrap_or("");
             // Whether the call is complete enough to run: it has its arguments, or the CLI has moved past asking.
@@ -341,7 +341,7 @@ impl Provider for CopilotProvider {
             // A call for one of Mobius's tools ends the turn here: Mobius runs it, and asks again with its result.
             if !calls.is_empty() && (ready || calls.iter().all(|c| c.arguments.as_object().is_some_and(|a| !a.is_empty()))) {
                 let _ = s.send(&json!({ "jsonrpc": "2.0", "method": "session/cancel", "params": { "sessionId": session } }));
-                return Ok(Completion { text, tool_calls: calls, stop: StopReason::ToolUse });
+                return Ok(Completion { text, tool_calls: calls, stop: StopReason::ToolUse, usage: None });
             }
         }
     }

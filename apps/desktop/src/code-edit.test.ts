@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cursorAt, deletePair, findAll, indentLines, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
+import { cursorAt, deletePair, findAll, indentLines, keyLabel, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
 
 const apply = (text: string, e: Edit) => `${text.slice(0, e.from)}${e.insert}${text.slice(e.to)}`;
 
@@ -84,5 +84,12 @@ describe('finding and quick open', () => {
     expect(langName('src/a.js')).toBe('JavaScript');
     expect(langName('Cargo.toml')).toBe('TOML');
     expect(langName('LICENSE')).toBe('Plain text');
+  });
+});
+
+describe('keyLabel', () => {
+  it('writes shortcuts as the computer does', () => {
+    expect(keyLabel('P', true)).toBe('⌘P');
+    expect(keyLabel('P', false)).toBe('Ctrl+P');
   });
 });

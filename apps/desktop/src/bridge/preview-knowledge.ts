@@ -21,6 +21,7 @@ let MEMORY: MemoryItem[] = [
 
 let INCOMING: WikiChange[] = [
   { id: 'w1', from: 'Tomás', page: 'Pages/Pilot line.md', text: 'The pilot line runs two shifts from the 30th.', whenMs: now - 2 * hour },
+  { id: 'w3', from: 'Plan the P2 build week', page: 'Projects/Kestrel P2 build.md', text: 'The deposit must be paid before Veltro holds the packs.', whenMs: now - 20 * 60_000 },
   { id: 'w2', from: 'Mobius', page: 'Pages/Battery pack.md', text: 'Veltro packs take six weeks from order to the dock (Mail · Veltro, Tue).', whenMs: now - 5 * hour },
 ];
 
@@ -52,18 +53,19 @@ The pilot line at Northfield builds the P2 chassis before the main line takes ov
 - **Sled**: the crash test rig at Northfield
 - **Balance window**: how far apart the cells in a pack may drift
 `,
-  'Projects/Kestrel P2.md': `# Kestrel P2
+  // A project's memory page, as Projects shows it.
+  'Projects/Kestrel P2 build.md': `# Kestrel P2 build
 
-- Builds start on Mondays
-- Packs come from Veltro; motors from Axion
-- Priya signs off the build plan
+- The build week is the 23rd, at Northfield.
+- Packs come from Veltro Cells: six weeks from order to the dock.
+- Priya signs off the budget; Sam owns the motor.
 `,
   'Shared/Shared notes.md': `# Shared notes
 
 - The team eats together on Thursdays
 `,
 };
-const MODIFIED: Record<string, number> = { 'Pages/Battery pack.md': now - hour, 'Pages/Pilot line.md': now - 26 * hour, 'Pages/Glossary.md': now - 72 * hour, 'Projects/Kestrel P2.md': now - 4 * hour, 'Shared/Shared notes.md': now - 50 * hour };
+const MODIFIED: Record<string, number> = { 'Pages/Battery pack.md': now - hour, 'Pages/Pilot line.md': now - 26 * hour, 'Pages/Glossary.md': now - 72 * hour, 'Projects/Kestrel P2 build.md': now - 4 * hour, 'Shared/Shared notes.md': now - 50 * hour };
 const FOLDERS = new Set(['Pages', 'Projects', 'Shared']);
 
 const title = (path: string) => path.slice(path.indexOf('/') + 1, -3);

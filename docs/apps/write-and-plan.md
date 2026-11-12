@@ -103,7 +103,14 @@ A place for one piece of work.
 - **Files**: the project's folder in Files, and a list of what its threads made or changed, newest first.
 - **Ask a bot** sends one of your [Agents](assistant.md#agents) off to do something on the side.
 
-Renaming a project renames its folder and its memory page too.
+The page opens with one line about the project (its threads, what they made, what waits on you and when it last
+moved), **New thread**, and **More** (⋯): Rename, Show the folder in Files, Open memory in Knowledge and Delete
+project. Right-click a project in the sidebar for the same Rename and Delete. Each part is a grouped list: a thread
+shows how many messages it has and when it last moved, and something made shows its app's icon.
+
+Renaming a project renames its folder and its memory page too. Deleting a project asks first, and keeps its threads,
+its folder and its memory page: only the project and its rules go. **Rules** lists the apps you have added from
+Abilities, plus any other app that already has a rule of its own.
 
 ## Knowledge
 

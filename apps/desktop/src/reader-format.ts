@@ -52,16 +52,71 @@ export function parseArticle(markdown: string): Article {
   return { title, url: link?.[2] ?? null, site: link ? (link[1] || siteOf(link[2]!)) : null, saved, minutes: readingMinutes(body), body };
 }
 
-/** How the reader shows text: size and typeface, kept per device. */
-export interface ReadingLook { size: 's' | 'm' | 'l'; face: 'sans' | 'serif' }
+/** How the reader shows text, as in Safari Reader: size, typeface and page colour, kept per device. */
+export interface ReadingLook { size: ReadingSize; face: 'sans' | 'serif'; theme: ReadingTheme }
+export const READING_SIZES = ['xs', 's', 'm', 'l', 'xl'] as const;
+export type ReadingSize = (typeof READING_SIZES)[number];
+/** The page colours: `auto` follows Mobius's light or dark look; the others are the reader's own. */
+export const READING_THEMES = ['auto', 'sepia', 'grey', 'night'] as const;
+export type ReadingTheme = (typeof READING_THEMES)[number];
 const LOOK_KEY = 'mobius.reader.look';
 export function readLook(): ReadingLook {
   try {
     const v = JSON.parse(window.localStorage.getItem(LOOK_KEY) ?? 'null') as Partial<ReadingLook> | null;
-    return { size: v?.size === 's' || v?.size === 'l' ? v.size : 'm', face: v?.face === 'serif' ? 'serif' : 'sans' };
-  } catch { return { size: 'm', face: 'sans' }; }
+    return {
+      size: READING_SIZES.includes(v?.size as ReadingSize) ? v!.size! : 'm',
+      face: v?.face === 'serif' ? 'serif' : 'sans',
+      theme: READING_THEMES.includes(v?.theme as ReadingTheme) ? v!.theme! : 'auto',
+    };
+  } catch { return { size: 'm', face: 'sans', theme: 'auto' }; }
 }
 export const keepLook = (look: ReadingLook) => { try { window.localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch { /* Not kept. */ } };
+
+/** The next text size up (+1) or down (-1); the same size at either end. */
+export function stepSize(size: ReadingSize, by: 1 | -1): ReadingSize {
+  const at = READING_SIZES.indexOf(size);
+  return READING_SIZES[Math.min(READING_SIZES.length - 1, Math.max(0, at + by))]!;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+/** When an article was saved, as a person says it: today, yesterday, a weekday this week, else the date. */
+export function savedWhen(day: string, now: Date = new Date()): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!m) return day;
+  const saved = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const ago = Math.round((today.getTime() - saved.getTime()) / 86_400_000);
+  if (ago === 0) return 'today';
+  if (ago === 1) return 'yesterday';
+  if (ago > 1 && ago < 7) return DAYS[saved.getDay()]!;
+  const date = `${MONTHS[saved.getMonth()]} ${saved.getDate()}`;
+  return saved.getFullYear() === now.getFullYear() ? date : `${date}, ${saved.getFullYear()}`;
+}
+
+/** What is left of an article: its length before you start, the minutes left while reading, and the end. */
+export function timeLeft(minutes: number, read: number): string {
+  if (read < 0.02) return `${minutes} min read`;
+  if (read > 0.98) return 'Finished';
+  return `${Math.max(1, Math.ceil(minutes * (1 - read)))} min left`;
+}
+
+/** How far through each article you are, by path, kept per device so an article opens where you stopped. */
+const PLACE_KEY = 'mobius.reader.place';
+const PLACES_KEPT = 200;
+export function readPlace(path: string): number {
+  try { return Number((JSON.parse(window.localStorage.getItem(PLACE_KEY) ?? '{}') as Record<string, number>)[path]) || 0; } catch { return 0; }
+}
+export function keepPlace(path: string, read: number): void {
+  try {
+    const all = JSON.parse(window.localStorage.getItem(PLACE_KEY) ?? '{}') as Record<string, number>;
+    delete all[path];
+    all[path] = Math.round(Math.min(1, Math.max(0, read)) * 1000) / 1000;
+    const paths = Object.keys(all);
+    for (const old of paths.slice(0, Math.max(0, paths.length - PLACES_KEPT))) delete all[old];
+    window.localStorage.setItem(PLACE_KEY, JSON.stringify(all));
+  } catch { /* Not kept. */ }
+}
 
 /** The article with a passage marked as a highlight, `==passage==`; null when the passage is not in it as written. */
 export function addHighlight(markdown: string, passage: string): string | null {

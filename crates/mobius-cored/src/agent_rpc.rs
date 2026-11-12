@@ -10,7 +10,7 @@ use mobius_agent::fallback::FallbackProvider;
 use mobius_agent::engine::TurnSetup;
 use mobius_agent::host::{DEFAULT_MAX_STEPS, Host, HostError, Out};
 use mobius_agent::openai::OpenAiProvider;
-use mobius_agent::provider::{Completion, Provider, ProviderError};
+use mobius_agent::provider::{ChatRequest, Completion, Provider, ProviderError, Usage};
 use mobius_core::core::Core;
 use mobius_core::model::{Principal, PrincipalKind};
 use mobius_core::rpc::{Extension, ExtensionError, params_as};
@@ -200,7 +200,30 @@ impl ClaudeSetup {
 }
 
 /// The provider for an address: the Claude Code CLI for its special address, else an OpenAI-compatible server.
+/// A provider that says who answered on each completion's usage: the model asked for and the address it was asked at,
+/// for Settings, Usage. A server that reported no tokens still counts as one request.
+struct Metered {
+    inner: Arc<dyn Provider>,
+    endpoint: String,
+}
+
+impl Provider for Metered {
+    fn complete(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
+        let mut completion = self.inner.complete(request, on_text)?;
+        let mut usage = completion.usage.take().unwrap_or_default();
+        usage.model = request.model.clone();
+        usage.endpoint = self.endpoint.clone();
+        completion.usage = Some(usage);
+        Ok(completion)
+    }
+}
+
 fn provider_for(base_url: &str, api_key: Option<String>, claude: &ClaudeSetup) -> Result<Arc<dyn Provider>, String> {
+    let inner = unmetered(base_url, api_key, claude)?;
+    Ok(Arc::new(Metered { inner, endpoint: base_url.trim().to_owned() }))
+}
+
+fn unmetered(base_url: &str, api_key: Option<String>, claude: &ClaudeSetup) -> Result<Arc<dyn Provider>, String> {
     if base_url.trim().eq_ignore_ascii_case(CLAUDE_CODE_ADDRESS) {
         return Ok(Arc::new(claude.provider()?));
     }
@@ -274,6 +297,15 @@ impl Agent {
         self.host.review_result(core, turn_id, request_id, result)
     }
 
+    /// What a model call used, passed on to the application, which keeps the tally (Settings, Usage).
+    pub fn on_usage(&self, turn_id: u64, kind: &str, usage: &Usage) -> Vec<Out> {
+        let Some(conversation) = self.host.conversation_of(turn_id) else { return Vec::new() };
+        vec![Out::Notify(json!({ "jsonrpc": "2.0", "method": "agent.usage", "params": {
+            "conversation": conversation, "turn": turn_id, "kind": kind, "model": usage.model, "endpoint": usage.endpoint,
+            "input": usage.input, "output": usage.output, "cached": usage.cached,
+        } }))]
+    }
+
     pub fn poll(&mut self, core: &mut Core) -> Vec<Out> {
         self.host.poll(core)
     }
@@ -320,6 +352,9 @@ impl Agent {
                     std::thread::spawn(move || {
                         let result = catch_unwind(AssertUnwindSafe(|| provider.complete(&request, &mut |_| !cancel.load(Ordering::SeqCst))))
                             .unwrap_or_else(|_| Err(ProviderError::Protocol("the model connection failed unexpectedly".to_owned())));
+                        if let Ok(Completion { usage: Some(usage), .. }) = &result {
+                            inbox.send(Inbox::Usage { turn_id, kind: "quick", usage: usage.clone() }).ok();
+                        }
                         inbox.send(Inbox::Verdict { turn_id, request_id, result }).ok();
                     });
                 }
@@ -348,6 +383,9 @@ impl Agent {
                             })
                         }))
                         .unwrap_or_else(|_| Err(ProviderError::Protocol("the model connection failed unexpectedly".to_owned())));
+                        if let Ok(Completion { usage: Some(usage), .. }) = &result {
+                            inbox.send(Inbox::Usage { turn_id, kind: "chat", usage: usage.clone() }).ok();
+                        }
                         inbox.send(Inbox::ModelDone { turn_id, result }).ok();
                     });
                 }

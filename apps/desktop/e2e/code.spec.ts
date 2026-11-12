@@ -137,8 +137,12 @@ test('a project that is a git repository is committed from Code, and Mobius comm
   git('config', 'user.name', 'Test');
   await start([callsTool('code-commit', { project: 'offsite-planner', message: 'Split cents exactly' }), says(['Committed.'])]);
   const bar = shell().getByRole('region', { name: 'Git' });
-  await expect(bar).toContainText('⎇ main');
+  await expect(bar).toContainText('main');
   await expect(bar.getByRole('status')).toHaveText('3 changes');
+  // Each changed file is listed with git's mark: here all three are new to git.
+  const changes = bar.getByRole('list', { name: 'Changed files' });
+  await expect(changes.getByRole('listitem')).toHaveCount(3);
+  await expect(changes.getByRole('button', { name: 'src/budget.js, not tracked by git yet' })).toBeVisible();
   await bar.getByRole('button', { name: 'Commit…' }).click();
   await bar.getByRole('textbox', { name: 'Commit message' }).fill('Start the offsite planner');
   await bar.getByRole('button', { name: 'Commit' }).click();

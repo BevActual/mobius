@@ -151,7 +151,9 @@ test('earlier turns keep what they changed, each item put back as it was before 
   // The plan, changed only in the second turn, goes back as it was before it; the others are left.
   const second = earlier.getByRole('listitem', { name: /^Turn at/ }).filter({ hasText: 'add the venue to the plan' });
   await second.getByRole('button', { name: 'Put back Work / Plan as it was before this turn' }).click();
-  await expect.poll(() => fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
+  // The put-back replaces the file, so for a moment it may not be there; keep polling until it is.
+  const plan = () => { try { return fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8'); } catch { return null; } };
+  await expect.poll(plan).toBe('# Plan\n');
   expect(fs.readFileSync(workspace('notes', 'Work', 'Ideas.md'), 'utf8')).toContain('Boat trip');
 
   // The ideas page changed again in the last turn, so putting back the first turn's change asks first.
