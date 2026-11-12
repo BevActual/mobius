@@ -49,6 +49,7 @@ Pass `--trace off` unless you need traces; turn them on to debug a failure (`--t
 | **Windows end-to-end** ([`windows-e2e.yml`](../../.github/workflows/windows-e2e.yml)) | Pull requests, pushes to `main`, and by hand | The Playwright suite against the real app on Windows, in three shards, with one summary check named `e2e` |
 | **macOS build** ([`macos-build.yml`](../../.github/workflows/macos-build.yml)) | Pull requests and pushes to `main` | Compiles the shell on macOS so macOS-only code is checked. Nothing runs the app there yet |
 | **Release** ([`release.yml`](../../.github/workflows/release.yml)) | A `v*` tag | Builds, signs and drafts a release; see [Releases and updates](releasing.md) |
+| **Branch cleanup** ([`branch-cleanup.yml`](../../.github/workflows/branch-cleanup.yml)) | A pull request closes | Deletes the merged branch and its screenshots branch, keeping `main` |
 
 To run the Windows suite by hand for one branch or a few files: **Actions › Windows end-to-end › Run workflow**, and
 give the spec paths (for example `e2e/mobius2.spec.ts`).
@@ -58,6 +59,10 @@ give the spec paths (for example `e2e/mobius2.spec.ts`).
 `e2e/screens.spec.ts` captures every app in light and dark. Each Windows run uploads them as artifacts and publishes
 them as one commit on the branch `ci-screens/<branch>`, replaced on every run, so reviewers can open them at
 `https://raw.githubusercontent.com/BevActual/mobius/ci-screens/<branch>/<App>-light.png`.
+
+When a pull request merges, the **Branch cleanup** workflow deletes its branch and its `ci-screens/<branch>` branch
+(a closed, unmerged pull request loses only the screenshots). `main` is never deleted. A deleted branch can be
+restored from its pull request page.
 
 ## When a test fails
 
