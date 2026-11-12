@@ -1,4 +1,5 @@
 import type { HubTarget } from './search-hub';
+import { dayLabel } from './dates';
 /**
  * What an action the agent asks to take means, in plain words, for the approval card: "add “Water the plants” to
  * Inbox in Tasks", not `tasks.add {…}`. The tool's name and arguments are still shown below it for anyone who wants
@@ -53,7 +54,7 @@ export function describeAction(name: string, args: unknown): string | null {
     const [day, time] = text.split('T');
     const date = new Date(`${day}T00:00`);
     if (Number.isNaN(date.getTime())) return text;
-    const shown = date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    const shown = dayLabel(date, { weekday: 'short' });
     return time ? `${shown} at ${time}` : shown;
   };
   switch (name) {

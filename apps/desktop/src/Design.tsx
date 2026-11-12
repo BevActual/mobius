@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
@@ -7,7 +8,8 @@ import type { NotesState } from './useNotes';
 import { onCommand } from './commands';
 import { useUndo } from './useUndo';
 import { ReviewActions, WhyThis } from './ReviewBar';
-import { alignBoxes, around, boxFrom, boxesTouching, distributeBoxes, HANDLES, resizeBox, snapBox, type AlignHow, type Guide, type Handle } from './design-view';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { alignBoxes, around, boxFrom, boxesTouching, distributeBoxes, HANDLES, resizeBox, snapBox, zoomOnto, type AlignHow, type Guide, type Handle } from './design-view';
 import './design.css';
 
 export const DESIGN_WORDS: SidebarWords = { app: 'Design', group: 'folder', groups: 'Folders', item: 'design', items: 'designs', about: 'Designs are kept as JSON files in your workspace, frames and their layers, so the agent can read and change them too.', defaultGroup: 'Designs' };
@@ -16,6 +18,9 @@ export function DesignSidebar(props: { designs: NotesState; pin: ReactNode; chan
   const { designs, ...rest } = props;
   return <NotesSidebar notes={designs} words={DESIGN_WORDS} {...rest} />;
 }
+
+/** A layer that a click or a box on the canvas can pick: not hidden, not locked. */
+const canPick = (n: DesignNode) => !n.hidden && !n.locked;
 
 function findNode(doc: DesignDoc, id: string | null): { frame: DesignFrame; node: DesignNode | null } | null {
   for (const frame of doc.frames) {
@@ -78,12 +83,12 @@ function Field({ label, value, onChange, min, step = 1, wide }: { label: string;
   );
 }
 
-function ColorField({ label, value, doc, onChange }: { label: string; value: string; doc: DesignDoc; onChange: (c: string) => void }) {
+function ColorField({ label, value, doc, onChange, bare }: { label: string; value: string; doc: DesignDoc; onChange: (c: string) => void; bare?: boolean }) {
   const shown = resolveColor(value, doc.styles);
   const plain = /^#[0-9a-f]{6}/i.test(shown) ? shown.slice(0, 7) : '#000000';
   return (
     <div className="design-color">
-      <span className="design-color-label">{label}</span>
+      {!bare && <span className="design-color-label">{label}</span>}
       <input type="color" aria-label={`${label} colour`} value={plain} onChange={(e) => onChange(e.target.value)} />
       <select aria-label={`${label} style`} value={value.startsWith('style:') ? value : ''} onChange={(e) => onChange(e.target.value || plain)}>
         <option value="">{value === 'transparent' ? 'None' : value.startsWith('style:') ? plain : value}</option>
@@ -113,6 +118,11 @@ const ICON = {
   alignLeft: 'M4 3v14M7 6h9M7 11h5', alignCenter: 'M10 3v14M5 6h10M7 12h6', alignRight: 'M16 3v14M4 6h9M8 11h5',
   alignTop: 'M3 4h14M6 7v9M11 7v5', alignMiddle: 'M3 10h14M6 5v10M12 7v6', alignBottom: 'M3 16h14M6 4v9M11 8v5',
   spreadX: 'M3 4v12M17 4v12M8 7h4v6H8z', spreadY: 'M4 3h12M4 17h12M7 8h6v4H7z',
+  shown: 'M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5zM10 12.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4z',
+  hidden: 'M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5zM3.5 3.5l13 13',
+  locked: 'M5.5 9h9v7.5h-9zM7.5 9V6.5a2.5 2.5 0 0 1 5 0V9',
+  unlocked: 'M5.5 9h9v7.5h-9zM7.5 9V6.5a2.5 2.5 0 0 1 4.9-.7',
+  front: 'M6 3h8v6H6zM4 12h12M4 15h12', forward: 'M10 15V5M6 9l4-4 4 4', backward: 'M10 5v10M6 11l4 4 4-4', back: 'M4 5h12M4 8h12M6 11h8v6H6z',
 } as const;
 const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 20 20" aria-hidden="true"><path d={d} /></svg>;
 const KIND: Record<NodeType, string> = { text: 'Text', ellipse: 'Ellipse', rect: 'Rectangle' };
@@ -134,6 +144,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const lastPress = useRef<{ id: string; t: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [space, setSpace] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const copied = useRef<{ frame: string; nodes: DesignNode[] } | null>(null);
   const view = useRef<HTMLDivElement>(null);
   const file = designs.page ? `designs/${designs.page.path}` : null;
@@ -158,14 +169,25 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     return () => { offUndo(); offRedo(); };
   }, []);
 
-  const fit = useCallback(() => {
-    if (!doc || !view.current || doc.frames.length === 0) return;
-    const all = around(doc.frames)!;
+  /** Shows a box of the canvas in the middle of the view. */
+  const showBox = useCallback((box: { x: number; y: number; w: number; h: number }, most: number) => {
+    if (!view.current) return;
     const { width, height } = view.current.getBoundingClientRect();
-    const z = Math.max(0.05, Math.min(2, (width - 80) / (all.w || 1), (height - 100) / (all.h || 1)));
-    setZoom(Math.round(z * 100) / 100);
-    setPan({ x: (width - all.w * z) / 2 - all.x * z, y: 50 - all.y * z });
-  }, [doc]);
+    const next = zoomOnto(box, width, height, 50, most);
+    setZoom(next.zoom);
+    setPan(next.pan);
+  }, []);
+  const fit = useCallback(() => {
+    if (!doc || doc.frames.length === 0) return;
+    showBox(around(doc.frames)!, 2);
+  }, [doc, showBox]);
+  /** Shift+2: the picked frames and layers fill the view (a layer's place is inside its frame). */
+  const zoomToSelection = useCallback(() => {
+    if (!doc) return;
+    const boxes = selected.map((id) => findNode(doc, id)).filter((a) => a !== null).map((a) => (a.node ? { x: a.frame.x + a.node.x, y: a.frame.y + a.node.y, w: a.node.w, h: a.node.h } : a.frame));
+    const box = around(boxes);
+    if (box) showBox(box, 4); else fit();
+  }, [doc, selected, showBox, fit]);
   const zoomTo = useCallback((z: number) => {
     const el = view.current;
     const next = Math.max(0.05, Math.min(8, Math.round(z * 100) / 100));
@@ -226,7 +248,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
         const box = boxFrom(drag.x0, drag.y0, drag.x1, drag.y1);
         if (!drag.moved) { setSelected(drag.frame ? [drag.frame] : drag.add); return; }
         const f = drag.frame ? doc.frames.find((x) => x.id === drag.frame) : null;
-        const hits = f ? boxesTouching(f.children, { ...box, x: box.x - f.x, y: box.y - f.y }).map((n) => n.id) : boxesTouching(doc.frames, box).map((x) => x.id);
+        const hits = f ? boxesTouching(f.children.filter(canPick), { ...box, x: box.x - f.x, y: box.y - f.y }).map((n) => n.id) : boxesTouching(doc.frames, box).map((x) => x.id);
         setSelected([...new Set([...drag.add, ...hits])]);
       }
     };
@@ -323,6 +345,17 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       list.splice(to, 0, a.node);
     }
   });
+  const copyPicked = () => {
+    const nodes = doc ? pickedNodes(doc) : [];
+    if (nodes.length) copied.current = { frame: nodes[0]!.frame.id, nodes: structuredClone(nodes.map((a) => a.node)) };
+    return nodes.length > 0;
+  };
+  /** Hide or lock the picked layers; if every one already is, show or unlock them all. */
+  const toggle = (flag: 'hidden' | 'locked', ids = selected) => change((d) => {
+    const nodes = ids.map((id) => findNode(d, id)?.node).filter((n): n is DesignNode => n != null);
+    const on = !nodes.every((n) => n[flag]);
+    for (const n of nodes) { if (on) n[flag] = true; else delete n[flag]; }
+  });
   const line = (how: AlignHow) => change((d) => {
     const nodes = pickedNodes(d);
     if (nodes.length === 1) { const [a] = nodes; Object.assign(a!.node, alignBoxes([a!.node], how, { x: 0, y: 0, w: a!.frame.w, h: a!.frame.h })[0]); return; }
@@ -343,15 +376,17 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
       if (mod && (key === 'z' || key === 'y')) { e.preventDefault(); if (key === 'y' || e.shiftKey) history.redo(); else history.undo(); return; }
-      if (mod && key === 'a' && doc) { e.preventDefault(); const f = findNode(doc, selected[0] ?? null)?.frame ?? doc.frames[0]; setSelected(f ? f.children.map((c) => c.id) : []); return; }
+      if (mod && key === 'a' && doc) { e.preventDefault(); const f = findNode(doc, selected[0] ?? null)?.frame ?? doc.frames[0]; setSelected(f ? f.children.filter(canPick).map((c) => c.id) : []); return; }
+      if (mod && e.shiftKey && (key === 'h' || key === 'l')) { e.preventDefault(); toggle(key === 'h' ? 'hidden' : 'locked'); return; }
       if (mod && key === 'd') { e.preventDefault(); duplicate(); return; }
-      if (mod && key === 'c' && doc) { const nodes = pickedNodes(doc); if (nodes.length) { e.preventDefault(); copied.current = { frame: nodes[0]!.frame.id, nodes: structuredClone(nodes.map((a) => a.node)) }; } return; }
-      if (mod && key === 'x' && doc) { const nodes = pickedNodes(doc); if (nodes.length) { e.preventDefault(); copied.current = { frame: nodes[0]!.frame.id, nodes: structuredClone(nodes.map((a) => a.node)) }; remove(); } return; }
+      if (mod && key === 'c') { if (copyPicked()) e.preventDefault(); return; }
+      if (mod && key === 'x') { if (copyPicked()) { e.preventDefault(); remove(); } return; }
       if (mod && key === 'v' && copied.current) { e.preventDefault(); pasteNodes(copied.current, 16); return; }
       if (mod && (e.key === ']' || e.key === '[')) { e.preventDefault(); arrange(e.key === ']' ? (e.altKey ? 'front' : 1) : (e.altKey ? 'back' : -1)); return; }
       if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomTo(zoom * 1.25); return; }
       if (mod && e.key === '-') { e.preventDefault(); zoomTo(zoom * 0.8); return; }
       if (e.shiftKey && e.code === 'Digit1') { e.preventDefault(); fit(); return; }
+      if (e.shiftKey && e.code === 'Digit2') { e.preventDefault(); zoomToSelection(); return; }
       if (e.shiftKey && e.code === 'Digit0') { e.preventDefault(); zoomTo(1); return; }
       if (e.key === ' ' && !e.repeat) { setSpace(true); e.preventDefault(); return; }
       if (!mod && !e.altKey && TOOL_KEYS[key] && !e.shiftKey) { e.preventDefault(); setTool(TOOL_KEYS[key]!); return; }
@@ -442,6 +477,37 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   };
   const pickBox = drag?.kind === 'pick' && drag.moved ? boxFrom(drag.x0, drag.y0, drag.x1, drag.y1) : drag?.kind === 'draw' ? boxFrom(drag.x0, drag.y0, drag.x1, drag.y1) : null;
   const editingNode = editing ? findNode(doc, editing) : null;
+  /** A right-click picks what is under the pointer (unless it is already picked) and opens its menu there. */
+  const openMenu = (e: React.MouseEvent, id: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (id === null) setSelected([]);
+    else if (!selected.includes(id)) setSelected([id]);
+    setMenu({ x: e.clientX, y: e.clientY });
+  };
+  const menuItems = (): ContextMenuItem[] => {
+    const paste: ContextMenuItem = { action: 'paste', keys: 'Ctrl+V', disabled: !copied.current, run: () => { if (copied.current) pasteNodes(copied.current, 16); } };
+    if (selected.length === 0) return [paste, { label: 'Zoom to fit', keys: 'Shift+1', separated: true, run: fit }];
+    const zoomIn: ContextMenuItem = { label: 'Zoom to selection', keys: 'Shift+2', separated: true, run: zoomToSelection };
+    const rename: ContextMenuItem = { action: 'rename', label: 'Rename…', disabled: !one, run: () => { if (one) setRenaming(one); } };
+    if (picked.length === 0) {
+      return [paste, { action: 'duplicate', keys: 'Ctrl+D', run: duplicate }, rename, zoomIn, { action: 'delete', label: selected.length > 1 ? 'Delete frames' : 'Delete frame', keys: 'Delete', danger: true, separated: true, run: remove }];
+    }
+    const allHidden = picked.every((a) => a.node.hidden), allLocked = picked.every((a) => a.node.locked);
+    return [
+      { action: 'cut', keys: 'Ctrl+X', run: () => { if (copyPicked()) remove(); } },
+      { action: 'copy', keys: 'Ctrl+C', run: () => void copyPicked() },
+      paste,
+      { action: 'duplicate', keys: 'Ctrl+D', run: duplicate },
+      rename,
+      { label: 'Bring to front', keys: 'Ctrl+Alt+]', separated: true, run: () => arrange('front') },
+      { label: 'Send to back', keys: 'Ctrl+Alt+[', run: () => arrange('back') },
+      { label: allHidden ? 'Show' : 'Hide', keys: 'Ctrl+Shift+H', separated: true, run: () => toggle('hidden') },
+      { label: allLocked ? 'Unlock' : 'Lock', keys: 'Ctrl+Shift+L', run: () => toggle('locked') },
+      zoomIn,
+      { action: 'delete', label: picked.length > 1 ? 'Delete layers' : 'Delete layer', keys: 'Delete', danger: true, separated: true, run: remove },
+    ];
+  };
 
   return (
     <section className="design-page" aria-label="Design">
@@ -470,7 +536,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
             {doc.frames.map((f) => (
               <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded>
                 {renaming === f.id ? <RenameField name={f.name} onDone={(name) => { setRenaming(null); if (name && name !== f.name) change((d) => { const x = d.frames.find((y) => y.id === f.id); if (x) x.name = name; }); }} /> : (
-                  <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)}>
+                  <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>
                     <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON.frame} /></span>{f.name}
                   </button>
                 )}
@@ -478,9 +544,13 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   {[...f.children].reverse().map((n) => (
                     <li key={n.id} role="treeitem" aria-selected={isPicked(n.id)}>
                       {renaming === n.id ? <RenameField name={n.name} onDone={(name) => { setRenaming(null); if (name && name !== n.name) change((d) => { const x = findNode(d, n.id)?.node; if (x) x.name = name; }); }} /> : (
-                        <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)}>
-                          <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON[n.type]} /></span>{n.name}
-                        </button>
+                        <div className="design-layer-row" aria-current={isPicked(n.id) || undefined} data-hidden={n.hidden || undefined}>
+                          <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)} onContextMenu={(e) => openMenu(e, n.id)}>
+                            <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON[n.type]} /></span><span className="design-layer-name">{n.name}</span>
+                          </button>
+                          <button type="button" className="design-layer-flag" data-on={n.locked || undefined} aria-label={`${n.locked ? 'Unlock' : 'Lock'} ${n.name}`} title={n.locked ? 'Unlock (Ctrl+Shift+L)' : 'Lock (Ctrl+Shift+L)'} onClick={() => toggle('locked', [n.id])}><Icon d={n.locked ? ICON.locked : ICON.unlocked} /></button>
+                          <button type="button" className="design-layer-flag" data-on={n.hidden || undefined} aria-label={`${n.hidden ? 'Show' : 'Hide'} ${n.name}`} title={n.hidden ? 'Show (Ctrl+Shift+H)' : 'Hide (Ctrl+Shift+H)'} onClick={() => toggle('hidden', [n.id])}><Icon d={n.hidden ? ICON.hidden : ICON.shown} /></button>
+                        </div>
                       )}
                     </li>
                   ))}
@@ -498,6 +568,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
           data-tool={tool}
           data-panning={space || drag?.kind === 'pan' || undefined}
           onPointerDown={onCanvasDown}
+          onContextMenu={(e) => { const p = toWorld(e.clientX, e.clientY); openMenu(e, frameAt(doc, p.x, p.y)?.id ?? null); }}
           onWheel={(e) => {
             if (e.ctrlKey || e.metaKey) {
               const rect = e.currentTarget.getBoundingClientRect();
@@ -514,10 +585,10 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
               const inThis = one !== null && at?.frame.id === f.id;
               return (
                 <div key={f.id} className="design-frame" data-selected={isPicked(f.id) || undefined} data-proposed={changed.has(f.id) || undefined} aria-label={`Frame ${f.name}`} style={{ left: p.x, top: p.y, width: p.w, height: p.h, background: resolveColor(f.fill, doc.styles), borderRadius: f.radius }}>
-                  <span className="design-frame-name" style={{ fontSize: 12 / zoom, top: -18 / zoom }} onPointerDown={(e) => startMove(e, f.id, null)} onDoubleClick={() => setRenaming(f.id)}>{f.name}</span>
+                  <span className="design-frame-name" style={{ fontSize: 12 / zoom, top: -18 / zoom }} onPointerDown={(e) => startMove(e, f.id, null)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>{f.name}</span>
                   <div className="design-clip" style={{ borderRadius: f.radius }}>
-                    {f.children.map((n) => (
-                      <div key={n.id} className="design-node" data-type={n.type} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onDoubleClick={() => { if (n.type === 'text' && editing !== n.id) setEditing(n.id); }}>
+                    {f.children.filter((n) => !n.hidden).map((n) => (
+                      <div key={n.id} className="design-node" data-type={n.type} data-locked={n.locked || undefined} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onContextMenu={(e) => openMenu(e, n.id)} onDoubleClick={() => { if (n.type === 'text' && editing !== n.id) setEditing(n.id); }}>
                         {n.type === 'text' && editing !== n.id ? n.text : null}
                       </div>
                     ))}
@@ -566,17 +637,6 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                 ))}
               </ul>
               <button type="button" className="btn" onClick={() => change((d) => { let n = d.styles.length + 1; while (d.styles.some((s) => s.name === `Colour ${n}`)) n++; d.styles.push({ name: `Colour ${n}`, color: '#5856d6' }); })}>Add style</button>
-              <div className="design-keys">
-                <div className="design-panel-title">Keys</div>
-                <dl>
-                  <dt>V F R O T</dt><dd>Move, frame, rectangle, ellipse, text</dd>
-                  <dt>Shift-click, drag</dt><dd>Pick more than one</dd>
-                  <dt>Ctrl D · C · V</dt><dd>Duplicate, copy, paste</dd>
-                  <dt>Space-drag</dt><dd>Move around</dd>
-                  <dt>Shift 1 · Shift 0</dt><dd>Fit, actual size</dd>
-                  <dt>Alt while moving</dt><dd>No snapping</dd>
-                </dl>
-              </div>
             </>
           )}
           {selected.length > 1 && (
@@ -604,7 +664,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   ))}
                 </div>
               </Section>
-              <Section title="Fill"><ColorField label="Fill" value={at.frame.fill} doc={doc} onChange={(c) => setFrame((f) => { f.fill = c; })} /></Section>
+              <Section title="Fill"><ColorField label="Fill" bare value={at.frame.fill} doc={doc} onChange={(c) => setFrame((f) => { f.fill = c; })} /></Section>
               <button type="button" className="btn danger" onClick={remove}>Delete frame</button>
             </>
           )}
@@ -646,11 +706,12 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   {textContrast !== null && <p className="design-hint" data-bad={textContrast < 4.5 || undefined}>Contrast with the frame {textContrast}:1 · {textContrast >= 4.5 ? 'passes AA' : 'below AA (4.5:1)'}</p>}
                 </Section>
               )}
-              <Section title="Fill"><ColorField label="Fill" value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} /></Section>
+              <Section title="Fill"><ColorField label="Fill" bare value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} /></Section>
               <Section title="Arrange">
-                <div className="design-row">
-                  <button type="button" className="btn" title="Bring forward (Ctrl+])" onClick={() => arrange(1)}>Forward</button>
-                  <button type="button" className="btn" title="Send backward (Ctrl+[)" onClick={() => arrange(-1)}>Backward</button>
+                <div className="design-align design-arrange" role="group" aria-label="Arrange">
+                  {([['front', 'Bring to front (Ctrl+Alt+])', ICON.front], [1, 'Bring forward (Ctrl+])', ICON.forward], [-1, 'Send backward (Ctrl+[)', ICON.backward], ['back', 'Send to back (Ctrl+Alt+[)', ICON.back]] as const).map(([by, label, d]) => (
+                    <button key={String(by)} type="button" aria-label={label.replace(/ \(.*/, '')} title={label} onClick={() => arrange(by)}><Icon d={d} /></button>
+                  ))}
                 </div>
               </Section>
               <button type="button" className="btn danger" onClick={remove}>Delete layer</button>
@@ -658,6 +719,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
           )}
         </aside>
       </div>
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={one && at ? (at.node?.name ?? at.frame.name) : selected.length ? `${selected.length} selected` : 'Canvas'} items={menuItems()} onClose={() => setMenu(null)} />, document.body)}
     </section>
   );
 }

@@ -40,7 +40,9 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 
 test('a skill is plain steps kept as SKILL.md, and every change keeps the version before it', async () => {
   await start();
-  await shell().getByRole('button', { name: 'New skill' }).first().click();
+  // New skill is in Add, first in the sidebar as New is in every app.
+  await shell().getByRole('button', { name: 'Add', exact: true }).click();
+  await shell().getByRole('menuitem', { name: 'New skill' }).click();
   await shell().getByRole('textbox', { name: 'Skill name' }).fill('Compare stays');
   await shell().getByRole('textbox', { name: 'When to use it' }).fill('When choosing where to stay');
   await shell().getByRole('textbox', { name: 'When to use it' }).press('Enter');
@@ -101,7 +103,7 @@ test('a skill someone shared shows what it is for and what it can touch before i
   expect(fs.readFileSync(file('compare-stays'), 'utf8')).toContain('name: compare-stays\ndescription: When choosing where to stay');
 });
 
-test('Abilities is one of Mobius’s own apps: apps, connectors, skills, plugins, catalogue and updates in one place', async () => {
+test('Abilities is one of Mobius’s own apps: apps, skills and connectors in one place', async () => {
   model = await startModel([]);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
@@ -109,18 +111,39 @@ test('Abilities is one of Mobius’s own apps: apps, connectors, skills, plugins
   if ((await rail.getAttribute('data-face')) !== 'apps') await rail.locator('[data-app-switcher]').click();
   await rail.getByRole('region', { name: 'Mobius’s apps' }).getByRole('button', { name: 'Abilities', exact: true }).click();
   const places = shell().getByRole('navigation', { name: 'Abilities' });
-  await expect(places.getByRole('button', { name: 'Apps' })).toHaveAttribute('aria-current', 'page');
-  // Removing an app takes it out of the switcher and keeps its files; adding it brings it back.
+  await expect(places.getByRole('button')).toHaveText([/^Apps\d+$/, /^Skills\d*$/, /^Connectors\d*$/]);
+  await expect(places.getByRole('button', { name: /^Apps/ })).toHaveAttribute('aria-current', 'page');
+  // Each app says what it is for and has one switch. Removing one takes it out of the switcher and keeps its files;
+  // adding it brings it back.
   const library = shell().getByRole('region', { name: 'Apps' });
-  await library.getByRole('button', { name: 'Remove Sheets' }).click();
-  await expect(library.getByRole('button', { name: 'Add Sheets' })).toBeVisible();
+  await expect(library.getByRole('region', { name: 'Write and plan' })).toContainText('Spreadsheets with formulas');
+  const sheets = library.getByRole('switch', { name: 'Sheets' });
+  await expect(sheets).toBeChecked();
+  await sheets.click();
+  await expect(sheets).not.toBeChecked();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).installedApps).not.toContain('sheets');
-  await library.getByRole('button', { name: 'Add Sheets' }).click();
-  await expect(library.getByRole('button', { name: 'Remove Sheets' })).toBeVisible();
-  await places.getByRole('button', { name: 'Connectors' }).click();
+  await expect(library.getByRole('button', { name: 'Open Sheets' })).toHaveCount(0);
+  await sheets.click();
+  await expect(sheets).toBeChecked();
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).installedApps).toContain('sheets');
+  // Search narrows the library.
+  await shell().getByRole('searchbox', { name: 'Search abilities' }).fill('spreadsheet');
+  await expect(library.getByRole('switch')).toHaveCount(1);
+  await shell().getByRole('searchbox', { name: 'Search abilities' }).fill('');
+  // An added app opens from its row.
+  await library.getByRole('button', { name: 'Open Sheets' }).click();
+  await expect(rail.locator('[data-app-switcher]')).toHaveAttribute('aria-label', 'Switch app. Current: Sheets');
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Extensions');
+  await shell().keyboard.press('Enter');
+  await places.getByRole('button', { name: /^Connectors/ }).click();
   const page = shell().getByRole('region', { name: 'Connectors' });
   await expect(page).toContainText('No connectors yet');
   await expect(page.getByRole('switch', { name: 'Let other apps use Mobius' })).toBeVisible();
-  await places.getByRole('button', { name: 'Updates' }).click();
-  await expect(shell().getByRole('region', { name: 'Updates' }).getByRole('table', { name: 'Versions' })).toBeVisible();
+  // Add a Connector explains mcp.json in a sheet.
+  await page.getByRole('button', { name: 'Add a Connector…' }).click();
+  const sheet = shell().getByRole('dialog', { name: 'Add a connector' });
+  await expect(sheet).toContainText('mcp.json');
+  await sheet.getByRole('button', { name: 'Done' }).click();
+  await expect(sheet).toBeHidden();
 });

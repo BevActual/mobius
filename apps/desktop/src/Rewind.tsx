@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnRecord } from '@mobius/shared';
 import { describeChange } from './ReviewStrip';
+import { timeLabel } from './dates';
 
 const APP_OF_KIND: Record<string, string> = {
   Note: 'Notes', Doc: 'Docs', Deck: 'Slides', Sheet: 'Sheets', Tasks: 'Tasks', Calendar: 'Calendar', Code: 'Code', Design: 'Design',
@@ -19,7 +20,7 @@ export function rewindQuestion(later: number, apps: readonly string[]): string {
   return `${turns} ${change}`;
 }
 
-const when = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const when = (ms: number) => timeLabel(ms);
 
 /**
  * The open conversation's turns, newest first, in Activity. "Rewind to here" puts every app back as it was right after

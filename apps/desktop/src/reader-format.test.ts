@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addHighlight, articleFile, articleTitle, highlightsOf, parseArticle, readingMinutes, removeHighlight } from './reader-format';
+import { addHighlight, articleFile, articleTitle, highlightsOf, parseArticle, readingMinutes, removeHighlight, savedWhen, stepSize, timeLeft } from './reader-format';
 
 describe('reader', () => {
   it('writes a fetched page as an article, without repeating its title', () => {
@@ -24,5 +24,29 @@ describe('reader', () => {
     expect(a.body.startsWith('word word')).toBe(true);
     expect(parseArticle('# Notes\n\nJust text.')).toEqual({ title: 'Notes', url: null, site: null, saved: null, minutes: 1, body: 'Just text.' });
     expect(readingMinutes('')).toBe(1);
+  });
+});
+
+describe('reader look and place', () => {
+  it('says when an article was saved as a person would', () => {
+    const now = new Date(2026, 10, 12, 15, 0);
+    expect(savedWhen('2026-11-12', now)).toBe('today');
+    expect(savedWhen('2026-11-11', now)).toBe('yesterday');
+    expect(savedWhen('2026-11-09', now)).toBe('Monday');
+    expect(savedWhen('2026-10-31', now)).toBe('Oct 31');
+    expect(savedWhen('2025-12-02', now)).toBe('Dec 2, 2025');
+  });
+
+  it('counts down the minutes left while reading', () => {
+    expect(timeLeft(6, 0)).toBe('6 min read');
+    expect(timeLeft(6, 0.5)).toBe('3 min left');
+    expect(timeLeft(6, 0.95)).toBe('1 min left');
+    expect(timeLeft(6, 1)).toBe('Finished');
+  });
+
+  it('steps the text size and stops at either end', () => {
+    expect(stepSize('m', 1)).toBe('l');
+    expect(stepSize('xl', 1)).toBe('xl');
+    expect(stepSize('xs', -1)).toBe('xs');
   });
 });
