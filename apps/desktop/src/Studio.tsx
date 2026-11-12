@@ -80,7 +80,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [loop, setLoop] = useState(true);
   // The bars the loop goes round, as picked on the ruler (counted from 0); null loops the whole song.
   const [range, setRange] = useState<{ a: number; b: number } | null>(null);
-  const loopDrag = useRef<{ a: number; t: number } | null>(null);
+  const loopDrag = useRef<{ a: number; moved: boolean } | null>(null);
+  // When the top of the ruler was last let go after a press that did not drag, so a second press soon after can loop the whole song.
   const lastZonePress = useRef(0);
   const [menu, setMenu] = useState<{ x: number; y: number; label: string; items: ContextMenuItem[] } | null>(null);
   const [click, setClick] = useState(false);
@@ -292,10 +293,10 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     const x = e.clientX - r.left;
     if (e.clientY - r.top < 11) {
       e.currentTarget.setPointerCapture(e.pointerId);
-      if (e.timeStamp - lastZonePress.current < 400) { lastZonePress.current = 0; loopDrag.current = null; setRange(null); setLoop(true); return; }
-      lastZonePress.current = e.timeStamp;
+      if (lastZonePress.current && e.timeStamp - lastZonePress.current < 500) { lastZonePress.current = 0; loopDrag.current = null; setRange(null); setLoop(true); return; }
+      lastZonePress.current = 0;
       const bar = Math.max(0, Math.min(song.bars - 1, Math.floor(x / (BEATS_PER_BAR * bw))));
-      loopDrag.current = { a: bar, t: e.timeStamp };
+      loopDrag.current = { a: bar, moved: false };
       setRange({ a: bar, b: bar });
       setLoop(true);
       return;
@@ -307,6 +308,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     if (!d) return;
     const r = e.currentTarget.getBoundingClientRect();
     const bar = Math.max(0, Math.min(song.bars - 1, Math.floor((e.clientX - r.left) / (BEATS_PER_BAR * bw))));
+    if (bar !== d.a) d.moved = true;
     setRange((was) => (was && was.a === d.a && was.b === bar ? was : { a: d.a, b: bar }));
   };
   /** A track's menu, from a right-click on its header: the same things as its buttons. */
@@ -514,7 +516,11 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             title="Click to move the playhead. Drag along the top to loop some bars."
             onPointerDown={onRulerDown}
             onPointerMove={onRulerMove}
-            onPointerUp={() => { loopDrag.current = null; }}
+            onPointerUp={(e) => { if (loopDrag.current && !loopDrag.current.moved) lastZonePress.current = e.timeStamp; loopDrag.current = null; }}
+            onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, label: 'Loop', items: [
+              { label: 'Loop Whole Song', disabled: loop && !range, run: () => { setRange(null); setLoop(true); } },
+              { label: loop ? 'Turn Loop Off' : 'Turn Loop On', run: () => setLoop((l) => !l) },
+            ] }); }}
             onPointerCancel={() => { loopDrag.current = null; }}
             onKeyDown={(e) => { if (e.key === 'ArrowRight') seek(Math.min(total - 1, Math.floor(beat) + (e.shiftKey ? 1 : BEATS_PER_BAR))); else if (e.key === 'ArrowLeft') seek(Math.max(0, Math.floor(beat) - (e.shiftKey ? 1 : BEATS_PER_BAR))); else return; e.preventDefault(); }}
           >

@@ -174,7 +174,7 @@ test('velocity is drawn under the roll and dragged per note; the track list fits
 test('the loop goes round bars picked on the ruler, and a track has a menu', async () => {
   await start();
   await resizeWindow(mobius!.app, 1440, 900);
-  // Dragging along the top of the ruler from bar 2 to bar 3 loops those bars; a quick second press loops the whole song.
+  // Dragging along the top of the ruler from bar 2 to bar 3 loops those bars; the ruler's menu loops the whole song again.
   const ruler = shell().getByRole('slider', { name: 'Playhead' });
   const r = (await ruler.boundingBox())!;
   const bar = 4 * 28;
@@ -183,11 +183,8 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await shell().mouse.move(r.x + bar * 2.5, r.y + 4, { steps: 4 });
   await shell().mouse.up();
   await expect(ruler.getByRole('img', { name: 'Loop: bars 2 to 3' })).toBeVisible();
-  await shell().mouse.move(r.x + bar * 0.5, r.y + 4);
-  await shell().mouse.down();
-  await shell().mouse.up();
-  await shell().mouse.down();
-  await shell().mouse.up();
+  await ruler.click({ button: 'right', position: { x: bar * 0.5, y: 16 } });
+  await shell().getByRole('menu', { name: 'Loop' }).getByRole('menuitem', { name: 'Loop Whole Song' }).click();
   await expect(ruler.getByRole('img', { name: 'Loop: the whole song' })).toBeVisible();
   // A right-click on a track's header offers what its buttons do.
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
