@@ -143,7 +143,7 @@ Mobius's own apps, always there.
 <table>
 <tr>
 <td width="50%" valign="top"><img src="docs/readme/apps/slides.png" alt="The Slides app in Mobius"><br><b>Slides</b> · Presentations with layouts, presenter notes and a player.<br><sub>Build a deck fast. Mobius makes slides from a document and writes speaker notes.</sub></td>
-<td width="50%" valign="top"><img src="docs/readme/apps/design.png" alt="The Design app in Mobius"><br><b>Design</b> · Frames on a canvas, with layers, styles and smart guides.<br><sub>Sketch screens and layouts; lock, hide and arrange layers. Mobius's changes come dashed, to keep or discard.</sub></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/design.png" alt="The Design app in Mobius"><br><b>Design</b> · Frames on a canvas, with layers, styles and smart guides.<br><sub>Sketch screens and layouts; borders; lock, hide and drag layers to arrange them. Mobius's changes come dashed, to keep or discard.</sub></td>
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/readme/apps/photo.png" alt="The Photo app in Mobius"><br><b>Photo</b> · Your pictures, with crops, adjustments and filters you can undo.<br><sub>Edit without losing the original. Mobius can make pictures with your image model.</sub></td>

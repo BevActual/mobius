@@ -174,3 +174,20 @@ test('a layer is hidden, locked and arranged from its row and its right-click me
   await shell().keyboard.press('Control+Shift+L');
   await expect.poll(() => saved().frames[0]!.children[1]).not.toHaveProperty('locked');
 });
+
+test('a layer gets a border, and is dragged in the layer list to change what is in front', async () => {
+  await start();
+  await resizeWindow(mobius!.app, 1440, 900);
+  const tree = shell().getByRole('tree', { name: 'Frames and layers' });
+  await tree.getByRole('button', { name: 'Card', exact: true }).click();
+  await inspector().getByRole('button', { name: 'Add border' }).click();
+  await expect.poll(() => saved().frames[0]!.children[1]).toMatchObject({ stroke: '#1d1d1f', strokeWidth: 1 });
+  await inspector().getByRole('textbox', { name: 'Width' }).fill('3');
+  await inspector().getByRole('textbox', { name: 'Width' }).press('Enter');
+  await expect.poll(() => saved().frames[0]!.children[1]).toMatchObject({ strokeWidth: 3 });
+  await inspector().getByRole('button', { name: 'Remove border' }).click();
+  await expect.poll(() => saved().frames[0]!.children[1]).not.toHaveProperty('stroke');
+  // The list shows the front-most layer first: dropping Card on the top half of Title puts it in front.
+  await tree.getByRole('treeitem', { name: /^Card/ }).dragTo(tree.getByRole('treeitem', { name: /^Title/ }), { targetPosition: { x: 40, y: 4 } });
+  await expect.poll(() => saved().frames[0]!.children.map((c) => c.name)).toEqual(['Title', 'Card']);
+});
