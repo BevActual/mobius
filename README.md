@@ -164,7 +164,7 @@ Mobius's own apps, always there.
 <table>
 <tr>
 <td width="50%" valign="top"><img src="docs/readme/apps/review.png" alt="The Review app in Mobius"><br><b>Review</b> · Everything Mobius changed, from every conversation, in one place.<br><sub>Check what happened while you were away, then keep or roll back.</sub></td>
-<td width="50%"></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/views.png" alt="The Views app in Mobius"><br><b>Views</b> · Dashboards of live tiles from your other apps.<br><sub>Tasks due, today's events, unread mail, recent notes and what Mobius is doing, at a glance. Ask Mobius to make one.</sub></td>
 </tr>
 </table>
 
