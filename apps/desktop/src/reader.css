@@ -1,0 +1,75 @@
+/* Reader: an article with the page to itself, as in Safari Reader and Apple Books. */
+.stage .reader-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); overflow: hidden; transition: background-color var(--dur-med) var(--ease), color var(--dur-med) var(--ease); }
+
+/* Page colours. Match Mobius keeps the app's own light or dark look. */
+.reader-page[data-theme="sepia"] { --bg: #f8f1e3; --ink: #4f321c; --muted: #8a6f55; --line: rgba(79, 50, 28, 0.16); --hairline: rgba(79, 50, 28, 0.14); --field: rgba(79, 50, 28, 0.06); --soft: #efe4cf; --capsule: #fdf8ee; --line-strong: rgba(79, 50, 28, 0.28); color-scheme: light; }
+.reader-page[data-theme="grey"] { --bg: #4a4a4d; --ink: #e8e8ea; --muted: #b8b8bd; --line: rgba(255, 255, 255, 0.16); --hairline: rgba(255, 255, 255, 0.14); --field: rgba(255, 255, 255, 0.08); --soft: #58585c; --capsule: #5a5a5e; --line-strong: rgba(255, 255, 255, 0.24); color-scheme: dark; }
+.reader-page[data-theme="night"] { --bg: #121212; --ink: #c9c9cc; --muted: #8e8e93; --line: rgba(255, 255, 255, 0.12); --hairline: rgba(255, 255, 255, 0.1); --field: rgba(255, 255, 255, 0.06); --soft: #242426; --capsule: #1f1f21; --line-strong: rgba(255, 255, 255, 0.2); color-scheme: dark; }
+
+/* The bar: where it came from and time left on the left; save a link, Aa and Done reading on the right. */
+.reader-bar { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px 0 16px; }
+.reader-bar .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.reader-meta { display: flex; align-items: center; gap: 0; min-width: 0; color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
+.reader-meta > * + *::before { content: "·"; margin: 0 7px; color: var(--muted); }
+.reader-meta a { color: var(--accent); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
+.reader-meta a:hover { text-decoration: underline; }
+.reader-left { font-variant-numeric: tabular-nums; }
+.reader-gap { flex: 1; }
+
+.reader-save { display: flex; align-items: center; gap: var(--sp-2); min-height: 44px; padding: 0 12px; }
+.reader-save input { flex: 1; min-width: 0; height: 30px; padding: 0 12px; border-radius: var(--radius-pill); border: 0.5px solid var(--hairline); background: var(--field); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
+.reader-message { margin: 4px 16px 0; color: var(--danger); font-size: var(--fs-sm); }
+
+/* How far through: a hairline that fills as you read. */
+.reader-progress { position: relative; height: 2px; background: var(--hairline); flex: none; }
+.reader-progress span { position: absolute; inset: 0; background: var(--accent); transform-origin: left center; transition: transform var(--dur-fast) var(--ease); }
+
+/* Aa. */
+.reader-aa { position: relative; display: inline-flex; }
+.reader-aa-btn { font-weight: 600; font-size: var(--fs-md); letter-spacing: -0.01em; padding: 0 8px; }
+.reader-aa-btn[aria-expanded="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.reader-aa-panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 248px; display: grid; gap: 10px; padding: 10px; border-radius: 14px; border: 0.5px solid var(--hairline); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.08); color: var(--ink); animation: reader-sheet-in var(--dur-fast) var(--ease); }
+@keyframes reader-sheet-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+.reader-aa-sizes { display: flex; padding: 2px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.reader-aa-sizes button { flex: 1; height: 34px; border-radius: 8px; color: var(--ink); font-weight: 500; transition: background-color var(--dur-fast) var(--ease); }
+.reader-aa-sizes button[data-size="down"] { font-size: 13px; }
+.reader-aa-sizes button[data-size="up"] { font-size: 20px; }
+.reader-aa-sizes button + button { box-shadow: inset 0.5px 0 0 var(--hairline); }
+.reader-aa-sizes button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.reader-aa-sizes button:disabled { opacity: 0.35; }
+.reader-aa-faces { display: grid; gap: 1px; }
+.reader-aa-faces button { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 8px; color: var(--ink); font-size: var(--fs-md); text-align: left; transition: background-color var(--dur-fast) var(--ease); }
+.reader-aa-faces button:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.reader-aa-faces button[data-face="serif"] { font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; font-size: calc(var(--fs-md) + 1px); }
+.reader-aa-faces svg { width: 16px; height: 16px; fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.reader-aa-themes { display: flex; justify-content: space-between; padding: 2px 6px; }
+.reader-aa-themes button { width: 36px; height: 36px; border-radius: 50%; border: 0.5px solid rgba(0, 0, 0, 0.18); box-shadow: 0 0 0 0 transparent; transition: box-shadow var(--dur-fast) var(--ease); }
+.reader-aa-themes button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--panel-bg, var(--bg)), 0 0 0 4px var(--accent); }
+.reader-aa-themes button[data-theme="auto"] { background: linear-gradient(135deg, #ffffff 50%, #1c1c1e 50%); }
+.reader-aa-themes button[data-theme="sepia"] { background: #f8f1e3; }
+.reader-aa-themes button[data-theme="grey"] { background: #4a4a4d; }
+.reader-aa-themes button[data-theme="night"] { background: #121212; border-color: rgba(255, 255, 255, 0.2); }
+
+/* The article. */
+.reader-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.reader-article { width: min(680px, calc(100% - 48px)); margin: 0 auto; padding: var(--sp-6) 0 96px; --read-size: 17px; }
+.reader-article[data-size="xs"] { --read-size: 14px; }
+.reader-article[data-size="s"] { --read-size: 15px; }
+.reader-article[data-size="l"] { --read-size: 20px; }
+.reader-article[data-size="xl"] { --read-size: 23px; }
+.reader-article[data-face="serif"] .reader-body, .reader-article[data-face="serif"] .reader-title { font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; }
+.reader-title { margin: 0 0 20px; font-size: calc(var(--read-size) * 1.75); line-height: 1.2; letter-spacing: -0.015em; }
+.reader-body { position: relative; font-size: var(--read-size); line-height: 1.65; }
+.reader-body mark { background: color-mix(in srgb, #ffd60a 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; cursor: pointer; }
+.reader-mark-bar { position: absolute; z-index: 3; }
+.reader-mark-bar kbd { margin-left: 4px; opacity: 0.6; font-size: 10px; }
+.reader-notice { margin: 8px 0; color: var(--muted); font-size: var(--fs-sm); }
+.reader-highlights { margin-top: var(--sp-6); padding-top: var(--sp-3); border-top: 0.5px solid var(--line); }
+.reader-highlights-head { display: flex; align-items: center; justify-content: space-between; }
+.reader-highlights h2 { margin: 0; font-size: var(--fs-md, 15px); }
+.reader-highlights ul { margin: var(--sp-2) 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.reader-highlights li { padding-left: 10px; border-left: 3px solid #ffd60a; color: var(--ink); font-size: var(--fs-sm); line-height: 1.5; }
+.reader-body h1, .reader-body h2 { font-size: 1.25em; margin: 1.6em 0 0.5em; }
+.reader-body h3 { font-size: 1.08em; margin: 1.4em 0 0.4em; }
+.reader-body p { margin: 0 0 1em; }
+.reader-body blockquote { margin: 0 0 1em; padding-left: 1em; border-left: 3px solid var(--line); color: var(--muted); }

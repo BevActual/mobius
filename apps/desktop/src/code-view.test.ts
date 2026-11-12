@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyGroups, badgeOf, changeGroups, highlight, langOf, lineDiff, parentsOf, testLineKind } from './code-view';
+import { applyGroups, badgeOf, changeGroups, gitMark, gitMarks, highlight, langOf, lineDiff, parentsOf, testLineKind } from './code-view';
 
 const OLD = `import { Share } from './types'
 
@@ -59,5 +59,21 @@ describe('code', () => {
     expect(testLineKind('test result: ok. 3 passed; 0 failed')).toBe('pass');
     expect(testLineKind('Tests  1 failed | 1 passed (2)')).toBe('fail');
     expect(testLineKind('running 3 tests')).toBe('plain');
+  });
+});
+
+describe('git marks', () => {
+  it('reads porcelain status letters as Xcode marks them', () => {
+    expect(gitMark('M').letter).toBe('M');
+    expect(gitMark('MM').letter).toBe('M');
+    expect(gitMark('AM').letter).toBe('A');
+    expect(gitMark('D').letter).toBe('D');
+    expect(gitMark('R').letter).toBe('R');
+    expect(gitMark('??')).toEqual({ letter: '?', label: 'Not tracked by git yet' });
+    expect(gitMark('UU').letter).toBe('C');
+  });
+  it('marks a renamed file under its new name', () => {
+    const marks = gitMarks([{ status: 'R', path: 'src/old.js -> src/new.js' }, { status: '??', path: 'notes.txt' }]);
+    expect([...marks.keys()]).toEqual(['src/new.js', 'notes.txt']);
   });
 });

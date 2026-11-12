@@ -113,6 +113,7 @@ pub struct ResponsesStream {
     calls: Vec<ToolCall>,
     status: Option<String>,
     incomplete_reason: Option<String>,
+    usage: Option<crate::provider::Usage>,
 }
 
 fn status_for(code: &str) -> u16 {
@@ -151,6 +152,10 @@ impl ResponsesStream {
                 let response = event.get("response").unwrap_or(&Value::Null);
                 self.status = Some(response.get("status").and_then(Value::as_str).unwrap_or(if kind == "response.completed" { "completed" } else { "incomplete" }).to_owned());
                 self.incomplete_reason = response.pointer("/incomplete_details/reason").and_then(Value::as_str).map(str::to_owned);
+                if let Some(usage) = response.get("usage").filter(|u| u.is_object()) {
+                    let n = |p: &str| usage.pointer(p).and_then(Value::as_u64).unwrap_or(0);
+                    self.usage = Some(crate::provider::Usage::tokens(n("/input_tokens"), n("/output_tokens"), n("/input_tokens_details/cached_tokens")));
+                }
             }
             "response.failed" | "error" => {
                 let error = event.pointer("/response/error").or_else(|| event.get("error")).unwrap_or(event);
@@ -174,7 +179,7 @@ impl ResponsesStream {
         } else {
             StopReason::EndTurn
         };
-        Ok(Completion { text: self.text, tool_calls: self.calls, stop })
+        Ok(Completion { text: self.text, tool_calls: self.calls, stop, usage: self.usage })
     }
 }
 
@@ -385,4 +390,12 @@ mod tests {
         assert_eq!(body["input"][0]["content"][1], json!({ "type": "input_image", "image_url": "data:image/jpeg;base64,AAAA" }));
     }
 
+
+    #[test]
+    fn the_token_count_comes_with_the_finished_response() {
+        let mut s = ResponsesStream::default();
+        s.feed(&json!({ "type": "response.output_text.delta", "delta": "ok" })).unwrap();
+        s.feed(&json!({ "type": "response.completed", "response": { "status": "completed", "usage": { "input_tokens": 70, "output_tokens": 5, "input_tokens_details": { "cached_tokens": 64 } } } })).unwrap();
+        assert_eq!(s.finish().unwrap().usage, Some(crate::provider::Usage::tokens(70, 5, 64)));
+    }
 }

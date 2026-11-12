@@ -24,7 +24,10 @@ Frames on a canvas, as in Sketch and Figma.
 - Draw with a tool (**V** move, **F** frame, **R** rectangle, **O** oval, **T** text) or add from the toolbar.
 - Pick with a click, Shift-click or a box. Move with smart guides, size from any edge, line layers up from the
   inspector, copy and duplicate. Double-click a text layer to type on the canvas.
-- Rename layers and frames in the layer list.
+- Rename layers and frames in the layer list. Each layer row has **Lock** and **Hide** buttons (or Ctrl+Shift+L and
+  Ctrl+Shift+H): a hidden layer is not drawn, and a locked one stays put while you work around it.
+- Right-click a layer, a frame or the canvas for cut, copy, paste, duplicate, rename, bring to front, send to back,
+  hide, lock and delete, each with its shortcut. **Shift+1** fits everything, **Shift+2** zooms to what is picked.
 - Mobius's changes are dashed to keep or discard. It can also make pictures with your
   [Images model](../guide/models-and-gateways.md#a-model-for-each-job).
 
@@ -77,13 +80,15 @@ A code editor for projects in your workspace.
 
 ![The Code app in Mobius](../readme/apps/code.png)
 
-- **Projects** with their files as a tree. Files Mobius changed in its last turn are marked.
+- **Projects** with their files as a tree. Files Mobius changed in its last turn have the same dot as in every app.
 - **The editor** types like a text field and reads like code, as in Xcode: the current line is lit, brackets and quotes
   close themselves, Tab and Shift+Tab indent, Ctrl+/ comments lines, Ctrl+F finds and Ctrl+G goes to a line. Every
   change can be undone with Ctrl+Z.
 - **Review Mobius's change** as removed and added lines, keeping or putting back each one.
-- **Source control**: the branch, what changed since the last commit, **Commit** and **Push**. Mobius asks before
-  either.
+- **Source control**: the branch, each file changed since the last commit with git's mark (M modified, A added,
+  D deleted, R renamed, ? not tracked yet, C in conflict) in the list and in the file tree, **Commit** and **Push**.
+  Mobius asks before either.
+- **Shortcuts** show as your computer writes them: Ctrl on Windows and Linux, ⌘ on a Mac.
 - **Console**: Mobius can run a command in the project's folder (it asks every time, and stops after five minutes)
   beside your own.
 

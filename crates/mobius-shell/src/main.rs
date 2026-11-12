@@ -615,8 +615,13 @@ fn main() {
             let _ = WEB_DATA.set(data_dir.join("webview"));
             let interface_view = WebviewBuilder::new("main", WebviewUrl::default())
                 // What the system asks of the interface before it draws: no see-through glass when transparency effects
-                // are off (Windows Settings, Personalization, Colors), as prefers-reduced-transparency may not say.
-                .initialization_script(format!("window.__MOBIUS_SYSTEM__ = {{ reducedTransparency: {} }};", transparency_off()));
+                // are off (Windows Settings, Personalization, Colors), as prefers-reduced-transparency may not say. And the
+                // regional format, which dates and times follow (the web view knows only the display language).
+                .initialization_script(format!(
+                    "window.__MOBIUS_SYSTEM__ = {{ reducedTransparency: {}, locale: {} }};",
+                    transparency_off(),
+                    serde_json::to_string(&mobius_host::bridge::system_locale()).unwrap_or_else(|_| "null".to_owned())
+                ));
             #[cfg(windows)]
             let interface_view = match webview2_args() { Some(args) => interface_view.additional_browser_args(&args), None => interface_view };
             #[cfg(target_os = "linux")]

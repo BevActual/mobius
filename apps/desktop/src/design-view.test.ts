@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignBoxes, around, boxFrom, boxesTouching, distributeBoxes, resizeBox, snapBox } from './design-view';
+import { alignBoxes, around, boxFrom, boxesTouching, distributeBoxes, resizeBox, snapBox, zoomOnto } from './design-view';
 
 const b = (x: number, y: number, w: number, h: number) => ({ x, y, w, h });
 
@@ -56,5 +56,13 @@ describe('picking with a box', () => {
     expect(boxesTouching(items, boxFrom(0, 0, 100, 100)).map((i) => i.id)).toEqual(['a', 'b']);
     expect(around(items)).toEqual(b(0, 0, 60, 60));
     expect(around([])).toBeNull();
+  });
+});
+
+describe('zooming onto a box', () => {
+  it('centres it with a margin, no closer than the limit', () => {
+    expect(zoomOnto(b(0, 0, 400, 200), 1000, 600)).toEqual({ zoom: 2, pan: { x: 100, y: 100 } });
+    expect(zoomOnto(b(100, 100, 1840, 1040), 1000, 600)).toEqual({ zoom: 0.5, pan: { x: -10, y: -10 } });
+    expect(zoomOnto(b(0, 0, 10, 10), 1000, 600, 40, 1).zoom).toBe(1);
   });
 });

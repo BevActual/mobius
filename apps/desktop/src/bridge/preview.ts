@@ -1,8 +1,10 @@
 import { tagsIn } from '../note-tags';
 import { linksIn } from '../note-links';
 import { PREVIEW_TASKS } from './preview-tasks';
+import { PREVIEW_PROJECTS } from './preview-projects';
 import { PREVIEW_CALENDAR } from './preview-calendar';
 import { PREVIEW_DOCS } from './preview-docs';
+import { PREVIEW_READING } from './preview-reading';
 import { PREVIEW_SONGS } from './preview-songs';
 import { PREVIEW_BROWSER } from './preview-browser';
 import { PREVIEW_CODE } from './preview-code';
@@ -11,7 +13,7 @@ import { PREVIEW_SLIDES } from './preview-slides';
 import { PREVIEW_PHOTOS } from './preview-photos';
 import { PREVIEW_VIDEO } from './preview-video';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
-import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge } from '@mobius/shared';
+import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge, type UsageRow } from '@mobius/shared';
 
 /**
  * A stand-in bridge for looking at the interface alone (`npm run dev` in a plain browser, no Rust core).
@@ -76,7 +78,11 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_SLIDES,
   ...PREVIEW_PHOTOS,
   ...PREVIEW_VIDEO,
-  'bots.get': () => ({ bots: [] }),
+  'bots.get': () => ({ bots: [
+    { id: 'main', name: 'Mobius', instructions: '', model: '', createdMs: 0 },
+    { id: 'rcpt01', name: 'File receipts', instructions: 'When a receipt arrives in Mail, add a row to the Expenses sheet.', model: '', createdMs: now - 6 * 86_400_000 },
+    { id: 'wkly01', name: 'Weekly P2 summary', instructions: 'Every Friday, summarise the week on the Kestrel P2 build from Notes, Tasks and Mail.', model: 'Thorough', createdMs: now - 3 * 86_400_000 },
+  ] }),
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,
   'mini.isOpen': () => false,
@@ -84,7 +90,11 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_TASKS,
   // Documents are kept in memory for as long as the preview is open.
   ...PREVIEW_DOCS,
+  // Reader's articles are kept in memory for as long as the preview is open.
+  ...PREVIEW_READING,
   ...PREVIEW_SONGS,
+  // Projects, their threads and memory are kept in memory for as long as the preview is open.
+  ...PREVIEW_PROJECTS,
   'notes.list': () => NOTES(),
   'notes.search': ((query: string) => Object.entries(NOTE_TEXT).filter(([, t]) => t.toLowerCase().includes(query.toLowerCase())).map(([path, t]) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), notebook: path.split('/')[0], line: t.split('\n').find((l) => l.toLowerCase().includes(query.toLowerCase())) ?? '' }))) as never,
   // Typing in a note is kept for as long as the preview is open, so the Markdown it is saved as can be looked at.
@@ -124,6 +134,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   // Gateways: one service with a key, one on this computer, and the rest to add.
   // Voice: dictation hears a fixed sentence, and replies are read as a moment of silence.
   'agent.transcribe': () => ({ ok: true, text: 'Hello from the preview.' }),
+  // Settings, Usage: a week of sample use, so the page has something to show.
+  'usage.query': ((range: { from: string; to: string }) => PREVIEW_USAGE().filter((r) => r.day >= range.from && r.day <= range.to)) as never,
   'voice.speak': () => ({ ok: true, audio: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=' }),
   'updates.get': () => ({ state: 'off', status: 'Updates are off in the preview.', current: '0.1.0' }),
   'providers.list': () => [
@@ -172,6 +184,18 @@ function make(path: string): unknown {
     },
     apply(_target, _self, args: unknown[]) { return answer(path, args); },
   });
+}
+
+function PREVIEW_USAGE(): UsageRow[] {
+  const rows: UsageRow[] = [];
+  for (let back = 0; back < 7; back += 1) {
+    const d = day(-back);
+    rows.push({ day: d, gateway: 'openrouter', model: 'anthropic/claude-sonnet-5.5', app: back % 2 ? 'mail' : 'notes', kind: 'chat', requests: 12 + back, inputTokens: 84_000 + back * 9_000, outputTokens: 6_200 + back * 700, cachedTokens: 40_000, costUsd: Number((0.31 + back * 0.04).toFixed(4)) });
+    rows.push({ day: d, gateway: 'openrouter', model: 'openai/gpt-5.4-mini', app: 'agent', kind: 'quick', requests: 3, inputTokens: 2_400, outputTokens: 90, costUsd: 0.0007 });
+    if (back % 3 === 0) rows.push({ day: d, gateway: 'ollama', model: 'qwen3:8b', app: 'docs', kind: 'chat', requests: 5, inputTokens: 21_000, outputTokens: 3_100, costUsd: 0 });
+    if (back === 1) rows.push({ day: d, gateway: 'claude-code', model: 'sonnet', app: 'code', kind: 'chat', requests: 9, inputTokens: 120_000, outputTokens: 8_800, costUsd: null });
+  }
+  return rows;
 }
 
 export function installPreviewBridge(): boolean {
