@@ -33,7 +33,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'canvas', name: 'Canvas', available: true, group: 'Create' },
   { id: 'files', name: 'Files', available: true, group: 'Browse and find', also: 'Drive Made by Mobius Artifacts' },
   { id: 'review', name: 'Review', available: true, group: 'Review' },
-  { id: 'views', name: 'Views', available: true, group: 'Review', also: 'Dashboard Dashboards Live view Overview Widgets' },
+  { id: 'views', name: 'Views', available: true, group: 'Browse and find', also: 'Dashboard Dashboards Live view Overview Widgets' },
 ];
 
 export const findApp = (id: string): AppInfo | undefined => APPS.find((app) => app.id === id);
