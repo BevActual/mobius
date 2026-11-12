@@ -190,6 +190,7 @@ export function App() {
   useEffect(() => savePanes(panes), [panes]);
   const [focused, setFocused] = useState<0 | 1>(0);
   const app: AppId = (focused === 1 ? panes[1] : null) ?? panes[0];
+  conversation.sentFrom.current = app;
   const split = panes[1] !== null && !narrow;
   const other: AppId | null = split ? (focused === 0 ? panes[1] : panes[0]) : null;
   useEffect(() => {

@@ -229,7 +229,17 @@ pub fn completion(message: &Value, names: &HashMap<String, String>) -> Completio
     };
     // A refused turn must not run the call the refusal cut off.
     let tool_calls = if matches!(&stop, StopReason::Other(r) if r == "refusal") { Vec::new() } else { tool_calls };
-    Completion { text, tool_calls, stop }
+    Completion { text, tool_calls, stop, usage: usage_of(&message["usage"]) }
+}
+
+/// Anthropic's usage: `input_tokens` counts only what was not read from or written to the cache, so the whole input
+/// is the three together, and the cached part is what was read.
+fn usage_of(usage: &Value) -> Option<mobius_agent::provider::Usage> {
+    let n = |k: &str| usage[k].as_u64().unwrap_or(0);
+    usage.is_object().then(|| {
+        let cached = n("cache_read_input_tokens");
+        mobius_agent::provider::Usage::tokens(n("input_tokens") + cached + n("cache_creation_input_tokens"), n("output_tokens"), cached)
+    })
 }
 
 #[cfg(test)]

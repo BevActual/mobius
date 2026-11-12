@@ -28,6 +28,7 @@ pub mod key_sign_in;
 pub mod loopback;
 pub mod mcp_server;
 pub mod awake;
+pub mod usage;
 pub mod bridge;
 mod mcp;
 pub mod context;
