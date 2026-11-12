@@ -73,7 +73,10 @@ Spreadsheets with formulas.
 
 - Type in the cell or the formula bar. Formulas such as `=SUM(B2:B4)`, `=D2/People!B1` and `=IF(A1>0,"yes","no")` work
   across sheets, with a hint for the function you are in.
-- Columns size themselves to fit, and a first row of words over numbers reads as a header.
+- Columns size themselves to fit, and a first row of words over numbers reads as a header. A last row that adds up
+  the rows above reads as the total, in bold with a rule above it.
+- Each column letter has a menu (hover it for the chevron) to sort by that column, add or delete columns and fit the
+  width. Sorting keeps the header and total rows where they are.
 - Sheets are tabs below the grid. Insert and remove rows and columns; Ctrl+Z undoes any step.
 
 **Kept in:** `workspace/sheets/`, each workbook a folder and each sheet a CSV file that any spreadsheet app can open.

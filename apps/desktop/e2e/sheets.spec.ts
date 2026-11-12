@@ -154,5 +154,16 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await expect(cell('A5')).toHaveText('Total');
   await expect(cell('D5')).toHaveText('5420');
   await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toBe('Item,Qty,Unit,Total\nLunch,=People!B1,40,=B2*C2\nTerrace venue,1,620,=B3*C3\nHotel,14,320,=B4*C4,"=ROUND(D4/14,0)"\nTotal,,,=SUM(D2:D4)\n');
+
+  // Sorted again from column B's own menu, largest first: the whole column picked still leaves the header and total row put.
+  await shell().getByRole('columnheader', { name: /^B/ }).hover();
+  await shell().getByRole('button', { name: 'Column B options' }).click();
+  await shell().getByRole('menu', { name: 'Column B' }).getByRole('menuitem', { name: 'Sort Z to A' }).click();
+  await expect(cell('A2')).toHaveText('Hotel');
+  await expect(cell('A4')).toHaveText('Terrace venue');
+  await expect(cell('A5')).toHaveText('Total');
+  await expect(shell().getByLabel('Selected cell')).toHaveText(/^B1:B\d+$/);
+  // The total row reads as one, set apart from the rows it adds up.
+  await expect(shell().locator('tr.sheet-footer-row')).toContainText('Total');
   await expect(cell('A1')).toHaveText('Item');
 });

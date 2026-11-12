@@ -26,11 +26,18 @@
 .sheet-page .sheet-table tbody th { z-index: 2; cursor: default; }
 .sheet-page .sheet-table th[data-on] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--accent); font-weight: 600; }
 .sheet-corner { cursor: default; }
+.sheet-col-more { position: absolute; top: 3px; right: 6px; width: 16px; height: 16px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; opacity: 0; cursor: default; transition: opacity var(--dur-fast) var(--ease); }
+.sheet-col-more svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.sheet-page .sheet-table thead th:hover .sheet-col-more, .sheet-col-more:focus-visible, .sheet-page .sheet-table thead th[data-menu] .sheet-col-more { opacity: 1; }
+.sheet-col-more:hover, .sheet-page .sheet-table thead th[data-menu] .sheet-col-more { background: color-mix(in srgb, currentColor 16%, transparent); }
 .sheet-col-resize { position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
 .sheet-col-resize:hover { background: linear-gradient(to right, transparent 3px, var(--accent) 3px, var(--accent) 4px, transparent 4px); }
 .sheet-page .sheet-table td { max-width: none; height: 24px; padding: 0 7px; border-right: 0.5px solid color-mix(in srgb, var(--line) 75%, transparent); border-bottom: 0.5px solid color-mix(in srgb, var(--line) 75%, transparent); outline: none; overflow: visible; text-overflow: clip; }
 .sheet-page .sheet-table td { overflow: hidden; text-overflow: ellipsis; }
 .sheet-page .sheet-table td[aria-selected="true"] { outline: none; }
+/* Picking cells selects cells, not the words in them: dragging or Shift-clicking never paints page text. */
+.sheet-page .sheet-table td { user-select: none; -webkit-user-select: none; }
+.sheet-page .sheet-cell-input { user-select: text; -webkit-user-select: text; }
 .sheet-page .sheet-table td[data-in] { background: color-mix(in srgb, var(--accent) 11%, var(--bg)); }
 .sheet-page .sheet-table td[data-focus] { z-index: 1; }
 .sheet-page .sheet-table td[data-formula]:not([data-error]) { color: var(--ink); }
@@ -53,6 +60,10 @@
 .sheet-page .sheet-header-row td { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); font-weight: 600; border-bottom: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); }
 .sheet-page .sheet-header-row td[data-in] { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); }
 .sheet-page .sheet-table .sheet-header-row th { z-index: 3; }
+
+/* A total row: bold, with a rule above it, as Numbers sets a footer row apart. */
+.sheet-page .sheet-footer-row td { font-weight: 600; border-top: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); background: color-mix(in srgb, var(--ink) 2.5%, var(--bg)); }
+.sheet-page .sheet-footer-row td[data-in] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
 
 /* ---------- Menus and the function list ---------- */
 .sheet-scrim { position: fixed; inset: 0; z-index: 900; }

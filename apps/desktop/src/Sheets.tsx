@@ -205,6 +205,8 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const [pick, setPick] = useState<{ start: number; end: number; from: Pos } | null>(null);
   const [fillTo, setFillTo] = useState<Pos | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  // A column's own menu, from the chevron on its letter, as in Numbers.
+  const [colMenu, setColMenu] = useState<{ c: number; x: number; y: number } | null>(null);
   const [suggest, setSuggest] = useState(0);
   const [, setTick] = useState(0);
   const drag = useRef<'select' | 'ref' | 'fill' | null>(null);
@@ -235,7 +237,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     input?.setSelectionRange(caretTo.current, caretTo.current);
     caretTo.current = null;
   });
-  // The cell that moves stays in view.
+  // The cell that moves stays in view. Picking a whole row or column keeps the focus on its first cell, so the view stays put.
   useEffect(() => { grid.current?.querySelector<HTMLElement>(`[data-cell="${focus.r}:${focus.c}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [focus]);
   useEffect(() => {
     const up = () => {
@@ -302,6 +304,8 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const width = Math.min(52, Math.max(10, used.cols + 3, focus.c + 2, fillTo ? fillTo.c + 2 : 0));
   const height = Math.max(40, used.rows + 20, focus.r + 10, fillTo ? fillTo.r + 5 : 0);
   const headerOn = header ?? looksLikeHeader(data.values);
+  // A last row that adds up the rows above reads as the table's total, set apart as in Numbers.
+  const footerAt = hasFooter(data.cells) ? used.rows - 1 : -1;
   // A column the person has not sized fits its words, so names and labels are not cut short.
   const fitted = fittedWidths(data.values, headerOn);
   const colWidth = (c: number) => widths[c] ?? fitted[c] ?? COL_W;
@@ -481,7 +485,9 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     const r0 = headerOn ? 1 : 0;
     const r1 = Math.max(r0, used.rows - (hasFooter(data.cells) ? 2 : 1));
     // A block of rows picked sorts just those; otherwise every row under the header.
-    const rows = rangeSize(sel) > 1 && sel.r1 > sel.r0 ? { r0: Math.max(sel.r0, r0), r1: sel.r1 } : { r0, r1 };
+    // A whole column picked (from its letter) sorts every row, keeping the header and the total row where they are.
+    const block = rangeSize(sel) > 1 && sel.r1 > sel.r0 && !(sel.r0 <= r0 && sel.r1 >= r1);
+    const rows = block ? { r0: Math.max(sel.r0, r0), r1: Math.min(sel.r1, r1) } : { r0, r1 };
     void apply(sortedRows(data.cells, data.values, rows.r0, rows.r1, col, ascending));
   };
   const quick = (fn: string) => {
@@ -641,9 +647,27 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
                   scope="col"
                   style={{ width: colWidth(c) }}
                   data-on={(c >= sel.c0 && c <= sel.c1) || undefined}
-                  onMouseDown={(e) => { if (e.button !== 0) return; e.preventDefault(); grid.current?.focus(); const end = Math.max(used.rows - 1, height - 1); if (e.shiftKey) { setAnchor({ r: 0, c: anchor.c }); setFocus({ r: end, c }); } else select({ r: 0, c }, { r: end, c }); }}
+                  data-menu={colMenu?.c === c || undefined}
+                  onMouseDown={(e) => { if (e.button !== 0) return; e.preventDefault(); grid.current?.focus(); const end = Math.max(used.rows - 1, height - 1); if (e.shiftKey) { setAnchor({ r: end, c: anchor.c }); setFocus({ r: 0, c }); } else select({ r: end, c }, { r: 0, c }); }}
                 >
                   {columnName(c)}
+                  <button
+                    type="button"
+                    className="sheet-col-more"
+                    aria-label={`Column ${columnName(c)} options`}
+                    aria-haspopup="menu"
+                    aria-expanded={colMenu?.c === c}
+                    tabIndex={-1}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onClick={(e) => {
+                      grid.current?.focus();
+                      select({ r: Math.max(used.rows - 1, height - 1), c }, { r: 0, c });
+                      const r = e.currentTarget.getBoundingClientRect();
+                      setColMenu({ c, x: r.left, y: r.bottom + 4 });
+                    }}
+                  >
+                    <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" /></svg>
+                  </button>
                   <span className="sheet-col-resize" role="separator" aria-orientation="vertical" aria-label={`Width of column ${columnName(c)}`} onPointerDown={(e) => resizeFrom(c, e)} onDoubleClick={() => fitColumn(c)} onMouseDown={(e) => e.stopPropagation()} />
                 </th>
               ))}
@@ -651,11 +675,11 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
           </thead>
           <tbody>
             {Array.from({ length: height }, (_, r) => (
-              <tr key={r} className={headerOn && r === 0 ? 'sheet-header-row' : undefined}>
+              <tr key={r} className={headerOn && r === 0 ? 'sheet-header-row' : r === footerAt && r > 0 ? 'sheet-footer-row' : undefined}>
                 <th
                   scope="row"
                   data-on={(r >= sel.r0 && r <= sel.r1) || undefined}
-                  onMouseDown={(e) => { if (e.button !== 0) return; e.preventDefault(); grid.current?.focus(); const end = Math.max(width - 1, used.cols - 1); if (e.shiftKey) { setAnchor({ r: anchor.r, c: 0 }); setFocus({ r, c: end }); } else select({ r, c: 0 }, { r, c: end }); }}
+                  onMouseDown={(e) => { if (e.button !== 0) return; e.preventDefault(); grid.current?.focus(); const end = Math.max(width - 1, used.cols - 1); if (e.shiftKey) { setAnchor({ r: anchor.r, c: end }); setFocus({ r, c: 0 }); } else select({ r, c: end }, { r, c: 0 }); }}
                 >{r + 1}</th>
                 {Array.from({ length: width }, (_, c) => {
                   const here = edit && edit.at.r === r && edit.at.c === c && edit.where === 'cell';
@@ -746,6 +770,22 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
             {tableMenu(() => setMenu(null))}
             <Sep />
             {sortMenu(() => setMenu(null))}
+          </div>
+        </>,
+        document.body,
+      )}
+      {colMenu && createPortal(
+        <>
+          <div className="sheet-scrim" onMouseDown={() => setColMenu(null)} onContextMenu={(e) => { e.preventDefault(); setColMenu(null); }} />
+          <div className="sheet-menu" role="menu" aria-label={`Column ${columnName(colMenu.c)}`} style={{ top: Math.min(colMenu.y, window.innerHeight - 260), left: Math.max(8, Math.min(colMenu.x, window.innerWidth - 230)), minWidth: 220 }} onKeyDown={(e) => { if (e.key === 'Escape') { setColMenu(null); grid.current?.focus(); } }}>
+            <Item onPick={() => { const c = colMenu.c; setColMenu(null); sortBy(c, true); }}>Sort A to Z</Item>
+            <Item onPick={() => { const c = colMenu.c; setColMenu(null); sortBy(c, false); }}>Sort Z to A</Item>
+            <Sep />
+            <Item onPick={() => { const c = colMenu.c; setColMenu(null); void shiftAt('column', c, true); }}>Add column before</Item>
+            <Item onPick={() => { const c = colMenu.c; setColMenu(null); void shiftAt('column', c + 1, true); }}>Add column after</Item>
+            <Item onPick={() => { const c = colMenu.c; setColMenu(null); fitColumn(c); }}>Fit to contents</Item>
+            <Sep />
+            <Item danger onPick={() => { const c = colMenu.c; setColMenu(null); void shiftAt('column', c, false); }}>Delete column</Item>
           </div>
         </>,
         document.body,
