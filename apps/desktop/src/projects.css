@@ -68,3 +68,13 @@ button.proj-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--acce
 /* The sidebar: each project with the Projects glyph, as Reminders shows its lists. */
 .proj-side-row { gap: var(--sp-2); }
 .proj-side-icon { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
+
+/* A project thread's side threads: bots asked to do something, and what they reported back. */
+.side-threads { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }
+.side-thread { display: grid; gap: 4px; padding: 6px 10px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
+.side-thread[data-working] .side-thread-head { color: var(--muted); }
+.side-thread-head { font-weight: 500; }
+.side-thread-report { margin: 0; white-space: pre-wrap; }
+.side-thread > .review-btn { justify-self: start; }
+.side-thread-ask { display: flex; gap: 6px; }
+.side-thread-ask input { flex: 1; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }

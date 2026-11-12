@@ -59,7 +59,7 @@ import { SkillEditor } from './Skills';
 import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
-import { ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
+import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
 import { HowIWork, SharedQueue, WikiSidebar, WikiVersions, useWikiIncoming, type WikiPlace } from './Wiki';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
@@ -1289,7 +1289,7 @@ export function App() {
             incoming={wikiIncoming}
             onOpenThread={(id) => { conversation.select(id); openApp('agent'); }}
             onNewThread={(pid) => { const id = conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()); void projects.addThread(pid, id).then((ok) => { if (ok) { conversation.select(id); openApp('agent'); } }); }}
-            onOpenMemory={(p) => { setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(`Projects/${p.name}.md`, p.name); }}
+            onOpenMemory={(p) => { setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(memoryPage(p), p.name); }}
             onOpenFiles={(p) => { files.setPlace({ kind: 'folder', path: `projects/${p.name}` }); openApp('files'); }}
             onOpenMade={(path) => { const target = changeTarget(path); if (target) openTarget(target); }}
           />
