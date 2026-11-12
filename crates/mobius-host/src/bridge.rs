@@ -214,6 +214,7 @@ pub struct Bridge {
     providers: Arc<crate::providers::Providers>,
     /// Signing in to a gateway that hands out a key (OpenRouter); tests point it at a pretend site.
     key_sign_in: Mutex<Arc<crate::key_sign_in::KeySignIn>>,
+    hf_sign_in: Mutex<Arc<crate::device_sign_in::DeviceSignIn>>,
     /// The Claude Code CLI to use; tests set a fake one.
     claude_command: Mutex<Option<PathBuf>>,
     /// Other apps using Mobius's tools over MCP.
@@ -337,6 +338,7 @@ impl Bridge {
             mcp: Arc::default(),
             providers: Arc::new(crate::providers::Providers::new(secrets.clone())),
             key_sign_in: Mutex::new(Arc::new(crate::key_sign_in::KeySignIn::new(crate::key_sign_in::OPENROUTER))),
+            hf_sign_in: Mutex::new(Arc::new(crate::device_sign_in::DeviceSignIn::hugging_face())),
             claude_command: Mutex::new(None),
             signed_in_with: Mutex::new(Vec::new()),
             notes: mobius_workspace::notes::Notes::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
@@ -1562,6 +1564,13 @@ impl Bridge {
         }
     }
 
+    /// Sign in to Hugging Face at this pretend site, with this client id. Does nothing unless the test hooks are on.
+    pub fn use_hugging_face_for_tests(&self, site: &str, client_id: &str) {
+        if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
+            *lock(&self.hf_sign_in) = Arc::new(crate::device_sign_in::DeviceSignIn::new("Hugging Face", site, client_id, crate::device_sign_in::HUGGING_FACE_SCOPES).polling_every(std::time::Duration::from_millis(200)));
+        }
+    }
+
     /// Sign in to ChatGPT at this pretend OpenAI. Does nothing unless the test hooks are on.
     pub fn use_chatgpt_for_tests(&self, issuer: &str) {
         if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
@@ -1891,27 +1900,45 @@ impl Bridge {
         match method {
             "catalog" => self.model_catalog(),
             "accounts" => Value::Array(crate::providers::SUBSCRIPTIONS.iter().map(|s| json!({ "id": s.id, "name": s.name, "note": s.note, "active": self.agent.base_url().eq_ignore_ascii_case(s.address), "kind": s.kind, "models": crate::providers::subscription_models(s).iter().map(|(id, label)| json!({ "id": id, "label": label })).collect::<Vec<_>>() })).collect()),
-            "list" => p.list(&self.agent.base_url()),
+            "list" => {
+                let mut listed = p.list(&self.agent.base_url());
+                let hf = lock(&self.hf_sign_in).available();
+                for row in listed.as_array_mut().into_iter().flatten() {
+                    if row["id"] == "huggingface" {
+                        row["canSignIn"] = json!(hf);
+                    }
+                }
+                listed
+            }
             // Sign in on the service's own page instead of pasting a key: the key it gives is kept like a pasted one.
             "keySignIn" => {
-                if text(0) != Some(crate::providers::KEY_SIGN_IN) {
+                let Some(id) = text(0).filter(|id| *id == crate::providers::KEY_SIGN_IN || *id == "huggingface") else {
                     return failed("That gateway has no sign-in. Add its key instead.");
-                }
+                };
+                let id = id.to_owned();
                 let (providers, emit) = (self.providers.clone(), self.emit.clone());
                 let done: crate::key_sign_in::Done = Arc::new(move |result| {
                     if let Ok(key) = result
-                        && let Err(e) = providers.set_key(crate::providers::KEY_SIGN_IN, &key)
+                        && let Err(e) = providers.set_key(&id, &key)
                     {
                         eprintln!("[providers] the signed-in key could not be kept: {e}");
                     }
                     emit("mobius:providers-changed", Value::Null);
                 });
+                if text(0) == Some("huggingface") {
+                    return match lock(&self.hf_sign_in).clone().start(done) {
+                        Ok((url, code)) => json!({ "ok": true, "url": url, "code": code }),
+                        Err(e) => failed(e),
+                    };
+                }
                 match lock(&self.key_sign_in).clone().start(done) {
                     Ok(url) => json!({ "ok": true, "url": url }),
                     Err(e) => failed(e),
                 }
             }
-            "keySignInStatus" => lock(&self.key_sign_in).status(),
+            "keySignInStatus" => {
+                if text(0) == Some("huggingface") { lock(&self.hf_sign_in).status() } else { lock(&self.key_sign_in).status() }
+            }
             // The model for quick jobs (the Act mode's reviewer): a gateway's model, or 'none' for the chat model.
             "useQuick" => {
                 let choice = match (text(0), text(1).map(str::trim)) {
@@ -1963,7 +1990,11 @@ impl Bridge {
                 json!({ "ok": true })
             }
             "cancelKeySignIn" => {
-                lock(&self.key_sign_in).cancel();
+                if text(0) == Some("huggingface") {
+                    lock(&self.hf_sign_in).cancel();
+                } else {
+                    lock(&self.key_sign_in).cancel();
+                }
                 json!({ "ok": true })
             }
             "setKey" => match (text(0), text(1)) {

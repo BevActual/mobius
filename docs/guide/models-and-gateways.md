@@ -29,6 +29,10 @@ the ones it knows for that service, and you can still type any other model name.
 **Azure OpenAI** and **Amazon Bedrock** live at an address of your own: when you add the key, also give your Azure
 resource name or your AWS region (such as `us-west-2`). Bedrock takes a Bedrock API key, made in the Bedrock console.
 
+**Sign in instead of pasting a key.** OpenRouter and Hugging Face have a **Sign in…** button. OpenRouter opens its
+page and hands Mobius a key. Hugging Face shows a short code: check it matches on Hugging Face's page and approve
+Mobius. If Hugging Face later stops accepting the sign-in, remove the key and sign in again.
+
 ### A server on your computer, or any other server
 
 - **Ollama**, **LM Studio** and **llama.cpp** each have an entry with their usual local address. No key is needed.

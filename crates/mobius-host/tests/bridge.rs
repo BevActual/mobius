@@ -1366,6 +1366,59 @@ fn an_openrouter_sign_in_keeps_the_key_it_is_given() {
     assert!(!every_file_text(dir.path()).contains("sk-or-v1-signed-in-1234"));
 }
 
+/// Signing in to Hugging Face with a code: the token it hands back is kept like a pasted key, and never listed.
+#[test]
+fn a_hugging_face_sign_in_shows_a_code_and_keeps_the_token() {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let site_url = format!("http://{}", site.local_addr().unwrap());
+    let page = site_url.clone();
+    std::thread::spawn(move || {
+        for stream in site.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut first = String::new();
+            reader.read_line(&mut first).unwrap();
+            let mut length = 0usize;
+            loop {
+                let mut header = String::new();
+                reader.read_line(&mut header).unwrap();
+                if header.trim().is_empty() {
+                    break;
+                }
+                if let Some(v) = header.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            let reply = if first.starts_with("POST /oauth/device ") {
+                format!(r#"{{"device_code":"d1","user_code":"WXYZ-0001","verification_uri":"{page}/device","interval":0}}"#)
+            } else {
+                r#"{"access_token":"hf_oauth_signed_in_1234"}"#.to_owned()
+            };
+            let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
+        }
+    });
+    let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let hf = |listed: &serde_json::Value| listed.as_array().unwrap().iter().find(|p| p["id"] == "huggingface").unwrap().clone();
+    // Without Mobius's client id there is no sign-in, only a key.
+    assert_eq!(hf(&call(&b, "providers", "list", json!([])))["canSignIn"], false);
+    b.enable_test_hooks();
+    b.use_hugging_face_for_tests(&site_url, "mobius-test-client");
+    assert_eq!(hf(&call(&b, "providers", "list", json!([])))["canSignIn"], true);
+    let started = call(&b, "providers", "keySignIn", json!(["huggingface"]));
+    assert_eq!((started["url"].as_str(), started["code"].as_str()), (Some(format!("{site_url}/device").as_str()), Some("WXYZ-0001")), "{started}");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while hf(&call(&b, "providers", "list", json!([])))["hasKey"] != true {
+        assert!(std::time::Instant::now() < deadline, "the token was not kept");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert_eq!(call(&b, "providers", "keySignInStatus", json!(["huggingface"]))["pending"], serde_json::Value::Null);
+    assert!(!call(&b, "providers", "list", json!([])).to_string().contains("hf_oauth"));
+    assert!(!every_file_text(dir.path()).contains("hf_oauth_signed_in_1234"));
+}
+
 /// The quick model (the Act mode's reviewer) comes from a gateway with its key, is kept in the preferences, and goes
 /// when its key does.
 #[test]

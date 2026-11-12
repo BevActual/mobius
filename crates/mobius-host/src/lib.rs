@@ -5,6 +5,7 @@ pub mod updates;
 pub mod voice;
 pub mod access;
 pub mod comments;
+pub mod device_sign_in;
 pub mod images;
 pub mod agent;
 pub mod memory;

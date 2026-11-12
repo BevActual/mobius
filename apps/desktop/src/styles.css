@@ -544,6 +544,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .prow-name { display: flex; align-items: center; gap: var(--sp-2); font-weight: var(--fw-medium); }
 .prow-badge { padding: 1px var(--sp-2); border-radius: var(--radius-small); background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
 .prow-note { font-size: var(--fs-sm); color: var(--muted); }
+.prow-code { font-family: var(--code-font, ui-monospace, monospace); letter-spacing: 0.08em; color: var(--ink); }
 .prow-status { font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; }
 .prow-status[data-has-key="true"] { color: var(--success); }
 .prow-actions { display: inline-flex; gap: var(--sp-2); }

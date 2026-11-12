@@ -463,7 +463,7 @@ export interface MobiusBridge {
     setKey(id: string, key: string, place?: string): Promise<{ ok: true; storage: 'keychain' | 'session' } | { ok: false; error: string }>;
     removeKey(id: string): Promise<void>;
     /** Sign in on the service's own page instead of pasting a key: gives the page to open; the key arrives by itself. */
-    keySignIn?(id: string): Promise<{ ok: true; url: string } | { ok: false; error: string }>;
+    keySignIn?(id: string): Promise<{ ok: true; url: string; /** The code to enter on that page (Hugging Face's device sign-in). */ code?: string } | { ok: false; error: string }>;
     /** The page still waiting to be finished, and why the last try failed. */
     keySignInStatus?(id: string): Promise<{ pending: string | null; error: string | null }>;
     cancelKeySignIn?(id: string): Promise<void>;

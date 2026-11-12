@@ -85,6 +85,7 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
   const canSignIn = p.canSignIn === true && !!api.keySignIn;
   // The page to finish signing in on, while Mobius waits for the key it hands back.
   const [signingIn, setSigningIn] = useState<string | null>(null);
+  const [signInCode, setSignInCode] = useState<string | null>(null);
   useEffect(() => {
     if (!signingIn || !api.keySignInStatus) return;
     const timer = setInterval(() => void api.keySignInStatus!(p.id).then((s) => {
@@ -101,6 +102,7 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
     if (!r.ok) { setProblem(r.error); return; }
     setOpen('none');
     setSigningIn(r.url);
+    setSignInCode(r.code ?? null);
     void window.mobius.browser.open(r.url);
   };
   const cancelSignIn = () => { setSigningIn(null); void api.cancelKeySignIn?.(p.id); };
@@ -150,7 +152,9 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
       </span>
       {signingIn && (
         <div className="prow-form" role="status" aria-label={`Signing in to ${p.name}`}>
-          <span className="prow-note">Finish signing in on {p.name}'s page. Mobius picks up the key by itself.</span>
+          {signInCode
+            ? <span className="prow-note">On {p.name}'s page, check the code is <strong className="prow-code">{signInCode}</strong> and approve Mobius. Mobius picks up the rest by itself.</span>
+            : <span className="prow-note">Finish signing in on {p.name}'s page. Mobius picks up the key by itself.</span>}
           <button type="button" className="btn link" onClick={() => void window.mobius.browser.open(signingIn)}>Open the page again</button>
         </div>
       )}
