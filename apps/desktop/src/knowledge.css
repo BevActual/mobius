@@ -79,10 +79,23 @@
 .kn-version > .note-empty { margin-top: var(--sp-6); text-align: center; }
 .kn-version-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); max-width: 760px; margin: 0 auto var(--sp-3); }
 .kn-version-sum { color: var(--muted); font-size: var(--fs-sm); }
-.kn-diff { max-width: 760px; margin: 0 auto; padding: var(--sp-2) 0; border-radius: 10px; background: var(--field); font-size: var(--fs-sm); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
-.kn-diff-line { display: flex; padding: 1px var(--sp-3) 1px 0; }
-.kn-diff-mark { flex: none; width: 24px; text-align: center; color: var(--muted); }
+.kn-diff { --kn-add: #248a3d; --kn-remove: #d70015; max-width: 760px; margin: 0 auto; padding: var(--sp-2) 0; border-radius: 10px; background: var(--field); font-size: var(--fs-lg); line-height: 1.5; overflow-wrap: anywhere; }
+@media (prefers-color-scheme: dark) { .kn-diff { --kn-add: #30d158; --kn-remove: #ff6961; } }
+.kn-diff-line { display: flex; align-items: baseline; padding: 2px var(--sp-4) 2px 0; }
+.kn-diff-mark { flex: none; width: 28px; text-align: center; font-weight: var(--fw-semibold); }
+.kn-diff-text { flex: 1; min-width: 0; white-space: pre-wrap; }
 .kn-diff-line[data-kind="added"] { background: color-mix(in srgb, #34c759 16%, transparent); }
-.kn-diff-line[data-kind="added"] .kn-diff-mark { color: #248a3d; }
-.kn-diff-line[data-kind="removed"] { background: color-mix(in srgb, #ff3b30 13%, transparent); text-decoration: line-through; text-decoration-color: color-mix(in srgb, #ff3b30 60%, transparent); }
-.kn-diff-line[data-kind="removed"] .kn-diff-mark { color: #d70015; }
+.kn-diff-line[data-kind="added"] .kn-diff-mark { color: var(--kn-add); }
+.kn-diff-line[data-kind="removed"] { background: color-mix(in srgb, #ff3b30 13%, transparent); }
+.kn-diff-line[data-kind="removed"] .kn-diff-mark { color: var(--kn-remove); }
+.kn-diff-line[data-kind="removed"] .kn-diff-text { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--kn-remove) 60%, transparent); }
+/* Lines as people read them: headings in heading weight, list items with a bullet, checklist items with a box. */
+.kn-diff-line[data-block="h1"] { font-size: 22px; font-weight: 700; padding-top: 8px; }
+.kn-diff-line[data-block="h2"] { font-size: 18px; font-weight: 650; padding-top: 6px; }
+.kn-diff-line[data-block="h3"] { font-weight: 600; }
+.kn-diff-line[data-block="li"] .kn-diff-text::before { content: '•'; display: inline-block; width: 1.1em; margin-left: 0.4em; color: var(--muted); }
+.kn-diff-line[data-block="todo"] .kn-diff-text::before, .kn-diff-line[data-block="done"] .kn-diff-text::before { content: '○'; display: inline-block; width: 1.3em; margin-left: 0.4em; color: var(--muted); }
+.kn-diff-line[data-block="done"] .kn-diff-text::before { content: '●'; color: var(--accent); }
+.kn-diff-line[data-block="quote"] .kn-diff-text { padding-left: 10px; box-shadow: inset 2px 0 0 var(--line-strong); color: var(--muted); }
+/* After a version is put back: one line with Undo, over the foot of the page. */
+.kn-put-back { position: absolute; z-index: 2; left: 50%; bottom: 40px; transform: translateX(-50%); margin: 0; padding: 6px 8px 6px 14px; border-radius: 999px; background: var(--capsule, var(--bg)); box-shadow: 0 0 0 0.5px var(--line-strong), 0 6px 20px rgba(0, 0, 0, 0.12); }

@@ -10,6 +10,7 @@ import { relativeTime } from './relative-time';
 import { DocEditor } from './Docs';
 import { dayLabel, nearDayLabel, timeLabel } from './dates';
 import { diffCounts, diffLines } from './line-diff';
+import { readable } from './knowledge-lines';
 import './knowledge.css';
 
 /** The kinds of things Mobius remembers. */
@@ -321,7 +322,9 @@ const pageName = (path: string) => path.split('/').pop()?.replace(/\.md$/, '') ?
 export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocus: boolean; busy: boolean }) {
   const path = wiki.page?.path ?? null;
   const [open, setOpen] = useState(false);
-  useEffect(() => { setOpen(false); }, [path]);
+  // The last version put back, so it can be undone: the page as it was, and when the version was from.
+  const [putBack, setPutBack] = useState<{ was: string; label: string } | null>(null);
+  useEffect(() => { setOpen(false); setPutBack(null); }, [path]);
   const canLook = Boolean(path && window.mobius.wiki?.versions);
   const button = canLook ? (
     <button type="button" className="doc-tool" aria-label="Versions" aria-pressed={open} title="Earlier versions of this page" onClick={() => setOpen((o) => !o)}>
@@ -331,7 +334,13 @@ export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocu
   return (
     <div className="wiki-doc">
       <DocEditor docs={wiki} autoFocus={autoFocus} busy={busy} toolbarEnd={button} />
-      {open && path && <WikiVersions path={path} text={wiki.text} onPutBack={(content) => { wiki.edit(content); setOpen(false); }} onClose={() => setOpen(false)} />}
+      {putBack && !open && (
+        <p className="cal-undo kn-put-back" role="status">
+          <span>Put back the version from {putBack.label}.</span>
+          <button type="button" className="review-btn" onClick={() => { wiki.edit(putBack.was); setPutBack(null); }}>Undo</button>
+        </p>
+      )}
+      {open && path && <WikiVersions path={path} text={wiki.text} onPutBack={(v) => { setPutBack({ was: wiki.text, label: whenLabel(v.whenMs) }); wiki.edit(v.content); setOpen(false); }} onClose={() => setOpen(false)} />}
     </div>
   );
 }
@@ -340,7 +349,7 @@ export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocu
  * A page's earlier versions, from the workspace checkpoints, newest first under their day. The chosen one is shown as
  * what putting it back would change: lines that come back, and lines that go.
  */
-function WikiVersions({ path, text, onPutBack, onClose }: { path: string; text: string; onPutBack: (content: string) => void; onClose: () => void }) {
+function WikiVersions({ path, text, onPutBack, onClose }: { path: string; text: string; onPutBack: (version: WikiVersion) => void; onClose: () => void }) {
   const [versions, setVersions] = useState<WikiVersion[] | null>(null);
   const [shown, setShown] = useState<WikiVersion | null>(null);
   useEffect(() => {
@@ -392,11 +401,11 @@ function WikiVersions({ path, text, onPutBack, onClose }: { path: string; text: 
           {shown && (
             <>
               <div className="kn-version-bar">
-                <span className="kn-version-sum">{counts.added || counts.removed ? [counts.added ? `${counts.added} ${counts.added === 1 ? 'line comes' : 'lines come'} back` : '', counts.removed ? `${counts.removed} ${counts.removed === 1 ? 'line goes' : 'lines go'}` : ''].filter(Boolean).join(', ') : 'The same as the page now'}</span>
-                <button type="button" className="btn primary" onClick={() => onPutBack(shown.content)}>Put this version back</button>
+                <span className="kn-version-sum">{summary(counts)} You can undo it afterwards.</span>
+                <button type="button" className="btn primary" onClick={() => onPutBack(shown)}>Put this version back</button>
               </div>
               <div className="kn-diff" aria-label="That version" role="document">
-                {lines.map((l, i) => <div key={i} className="kn-diff-line" data-kind={l.kind}><span className="kn-diff-mark" aria-hidden="true">{l.kind === 'added' ? '+' : l.kind === 'removed' ? '−' : ''}</span>{l.text || ' '}</div>)}
+                {lines.map((l, i) => { const r = readable(l.text); return <div key={i} className="kn-diff-line" data-kind={l.kind} data-block={r.block}><span className="kn-diff-mark" aria-hidden="true">{l.kind === 'added' ? '+' : l.kind === 'removed' ? '−' : ''}</span><span className="kn-diff-text">{r.text || ' '}</span></div>; })}
               </div>
             </>
           )}
@@ -404,6 +413,20 @@ function WikiVersions({ path, text, onPutBack, onClose }: { path: string; text: 
       </div>
     </section>
   );
+}
+
+/** "Today, 10:06 PM" or "12 Nov, 10:06 PM": when a version is from. */
+function whenLabel(ms: number): string {
+  return `${nearDayLabel(ms) ?? dayLabel(ms)}, ${timeLabel(ms)}`;
+}
+
+/** What putting a version back changes, in words: "1 line comes back, 1 line goes". */
+function summary({ added, removed }: { added: number; removed: number }): string {
+  const parts = [
+    added ? `${added} ${added === 1 ? 'line comes' : 'lines come'} back` : '',
+    removed ? `${removed} ${removed === 1 ? 'line goes' : 'lines go'}` : '',
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(', ')}.` : 'The same as the page now.';
 }
 
 /** Who offered a change, in today's words: lines shared before Knowledge was renamed say they came from "your wiki". */

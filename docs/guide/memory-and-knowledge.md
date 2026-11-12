@@ -31,7 +31,8 @@ waits under **Suggested changes** with **Decline**, **Edit first** and **Keep**,
 Pages are Markdown files in `workspace/wiki/`, listed in the sidebar under their folder: **Pages**, **Projects** and
 **Shared**. Their earlier versions come from the workspace checkpoints. The **Versions** button (the clock at the end
 of the page's toolbar) lists them by day and shows what putting one back would change, line by line: what comes back
-in green, what goes in red. **Put this version back** restores it.
+in green, what goes in red. **Put this version back** restores it, and **Undo** in the line that appears brings the
+page back as it was.
 
 ## Project memory
 
