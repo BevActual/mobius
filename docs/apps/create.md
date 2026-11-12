@@ -45,7 +45,11 @@ Your pictures, with edits you can always take back.
 ![The Photo app in Mobius](../readme/apps/photo.png)
 
 - **Albums** are folders in `workspace/photos/`, shown as a grid. Your original files are never changed. The slider in
-  the toolbar (or **−** and **+**) makes the pictures bigger or smaller; right-click a picture to open or export it.
+  the toolbar (or **−** and **+**) makes the pictures bigger or smaller. Right-click a picture to open, rename (**F2**),
+  export, move it to another album or delete it; you can also drag it onto an album in the sidebar. Right-click an
+  album to rename or delete it.
+- **Recently Deleted** keeps deleted photos, with their edits, until you empty it; right-click one to put it back in
+  its album. Deleting an album moves its photos there.
 - **Adjust** (exposure, highlights, shadows, contrast, saturation, warmth and more), **Filters** and **Crop** (turn,
   flip, straighten). An adjustment can apply to all of the picture or to part of it. Light, Color, Effects and Where
   each fold away, and each has its own reset once you change it.

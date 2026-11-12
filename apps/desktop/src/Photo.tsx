@@ -10,7 +10,7 @@ import {
   type Adjustment, type AreaKind, type FilterId, type Geometry, type PhotoEdits,
 } from './photo-edit';
 import { ASPECTS, GRID_SIZES, HANDLES, aspectRatio, dragCrop, fitAspect, flippedCrop, groupChanged, resetGroup, stepTo, turnedCrop, zoomStep, type AspectId, type Handle } from './photo-view';
-import type { PhotosState } from './usePhotos';
+import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
 import './photo.css';
@@ -25,12 +25,40 @@ const Icon = ({ d, fill }: { d: string; fill?: boolean }) => (
   <svg viewBox="0 0 20 20" aria-hidden="true" data-fill={fill || undefined}><path d={d} /></svg>
 );
 const PLUS = 'M10 4v12M4 10h12';
+const TRASH = 'M4.5 6h11M8 6V4.5h4V6M6 6l.8 10h6.4L14 6M8.5 9v4.5M11.5 9v4.5';
+/** What a photo dragged from the grid carries: its path, so an album in the sidebar can take it. */
+const DRAG_TYPE = 'application/x-mobius-photo';
+
+/** A name typed in place (a photo or an album): Enter keeps it, Escape or leaving puts the old one back. */
+function RenameField({ label, value, onDone }: { label: string; value: string; onDone: (name: string | null) => void }) {
+  const [text, setText] = useState(value);
+  const done = useRef(false);
+  const finish = (name: string | null) => { if (done.current) return; done.current = true; onDone(name); };
+  return (
+    <input
+      className="photo-rename" aria-label={label} value={text} maxLength={120} autoFocus
+      onFocus={(e) => { const dot = e.currentTarget.value.lastIndexOf('.'); e.currentTarget.setSelectionRange(0, dot > 0 ? dot : e.currentTarget.value.length); }}
+      onChange={(e) => setText(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); finish(text.trim() && text.trim() !== value ? text.trim() : null); } else if (e.key === 'Escape') { e.preventDefault(); finish(null); } }}
+      onBlur={() => finish(text.trim() && text.trim() !== value ? text.trim() : null)}
+    />
+  );
+}
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable);
 
 /** Albums down the side, as Photos lists them; the album's photos show as a grid. */
 export function PhotoSidebar({ photos, pin, changed }: { photos: PhotosState; pin?: ReactNode; changed?: ReadonlySet<string> }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
+  const [menu, setMenu] = useState<{ album: string; x: number; y: number } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const dropOn = (album: string) => ({
+    onDragOver: (e: DragEvent) => { if (e.dataTransfer.types.includes(DRAG_TYPE)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(album); } },
+    onDragLeave: () => setOver((o) => (o === album ? null : o)),
+    onDrop: (e: DragEvent) => { const path = e.dataTransfer.getData(DRAG_TYPE); setOver(null); if (path) { e.preventDefault(); void photos.movePhoto(path, album); } },
+  });
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const made = await photos.createAlbum(name.trim() || 'Album');
@@ -60,18 +88,47 @@ export function PhotoSidebar({ photos, pin, changed }: { photos: PhotosState; pi
       <nav className="photo-albums" aria-label="Albums">
         <ul role="list">
           {photos.albums.map((a) => (
-            <li key={a.name}>
-              <button type="button" className="list-row photo-album-row" aria-current={a.name === photos.album ? 'page' : undefined} onClick={() => photos.showAlbum(a.name)}>
+            <li key={a.name} {...dropOn(a.name)} data-drop={over === a.name || undefined}>
+              {renaming === a.name ? (
+                <div className="list-row photo-album-row" data-renaming>
+                  <svg className="photo-album-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2.5" /><path d="M2.5 13l4-4 3.5 3.5 2.5-2.5 5 5" /></svg>
+                  <RenameField label="Album name" value={a.name} onDone={(n) => { setRenaming(null); if (n) void photos.renameAlbum(a.name, n); }} />
+                </div>
+              ) : <button
+                type="button" className="list-row photo-album-row" aria-current={a.name === photos.album ? 'page' : undefined} onClick={() => photos.showAlbum(a.name)}
+                onContextMenu={(e) => { e.preventDefault(); setMenu({ album: a.name, x: e.clientX, y: e.clientY }); }}
+                onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); setRenaming(a.name); } }}
+              >
                 <svg className="photo-album-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2.5" /><path d="M2.5 13l4-4 3.5 3.5 2.5-2.5 5 5" /></svg>
                 <span className="list-name">{a.name}</span>
                 {a.photos.some((p) => changed?.has(p.path))
                   ? <RowMark changed changedTitle="Edited by Mobius in its last turn" />
                   : <span className="photo-album-count">{a.photos.length}</span>}
-              </button>
+              </button>}
             </li>
           ))}
         </ul>
       </nav>
+      {(photos.albums.length > 0 || photos.deleted.length > 0) && (
+        <nav className="photo-albums photo-utilities" aria-label="Utilities">
+          <ul role="list">
+            <li>
+              <button type="button" className="list-row photo-album-row" aria-current={photos.album === RECENTLY_DELETED ? 'page' : undefined} onClick={() => { void photos.refreshDeleted(); photos.showAlbum(RECENTLY_DELETED); }}>
+                <svg className="photo-album-icon" viewBox="0 0 20 20" aria-hidden="true"><path d={TRASH} /></svg>
+                <span className="list-name">Recently Deleted</span>
+                {photos.deleted.length > 0 && <span className="photo-album-count">{photos.deleted.length}</span>}
+              </button>
+            </li>
+          </ul>
+        </nav>
+      )}
+      {menu && createPortal(
+        <ContextMenu x={menu.x} y={menu.y} label={menu.album} onClose={() => setMenu(null)} items={[
+          { action: 'rename', label: 'Rename Album', keys: 'F2', run: () => setRenaming(menu.album) },
+          { action: 'delete', label: 'Delete Album', danger: true, separated: true, run: () => void photos.deleteAlbum(menu.album) },
+        ]} />,
+        document.body,
+      )}
       <FromMobius items={photos.albums.flatMap((a) => a.photos.filter((p) => changed?.has(p.path)).map((p) => ({ key: p.path, name: p.name, where: a.name, current: photos.open?.path === p.path, onOpen: () => void photos.openPhoto(p.path) })))} />
     </aside>
   );
@@ -121,15 +178,15 @@ const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, rejec
 
 /** Small pictures of an album's photos with their edits, made one at a time and kept while the app is open. */
 const THUMBS = new Map<string, string>();
-function useThumbs(photos: PhotosState, paths: readonly { path: string; modified: number }[]) {
+function useThumbs(read: PhotosState['read'], paths: readonly { path: string; modified: number }[], kind = '') {
   const [, setStamp] = useState(0);
   useEffect(() => {
     let live = true;
     void (async () => {
       for (const p of paths) {
-        const key = `${p.path}@${p.modified}`;
+        const key = `${kind}${p.path}@${p.modified}`;
         if (THUMBS.has(key)) continue;
-        const got = await photos.read(p.path)?.catch(() => null);
+        const got = await read(p.path)?.catch(() => null);
         if (!live) return;
         if (!got || !('dataUrl' in got)) continue;
         const img = await loadImage(got.dataUrl).catch(() => null);
@@ -139,16 +196,20 @@ function useThumbs(photos: PhotosState, paths: readonly { path: string; modified
       }
     })();
     return () => { live = false; };
-  }, [paths.map((p) => `${p.path}@${p.modified}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
-  return (p: { path: string; modified: number }) => THUMBS.get(`${p.path}@${p.modified}`);
+  }, [kind, paths.map((p) => `${p.path}@${p.modified}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (p: { path: string; modified: number }) => THUMBS.get(`${kind}${p.path}@${p.modified}`);
 }
 const forgetThumb = (path: string) => { for (const k of THUMBS.keys()) if (k.startsWith(`${path}@`)) THUMBS.delete(k); };
 
 /** The album's photos as a grid of square pictures, as Photos shows a library. */
 function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEvent) => void }) {
+  const bin = photos.album === RECENTLY_DELETED;
   const album = photos.albums.find((a) => a.name === photos.album) ?? null;
-  const list = album?.photos ?? [];
-  const thumb = useThumbs(photos, list);
+  const list = bin ? photos.deleted : album?.photos ?? [];
+  const thumb = useThumbs(bin ? (path) => photos.readDeleted(path) : photos.read, list, bin ? 'bin:' : '');
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [emptying, setEmptying] = useState(false);
+  useEffect(() => { if (!emptying) return undefined; const t = window.setTimeout(() => setEmptying(false), 4000); return () => window.clearTimeout(t); }, [emptying]);
   const grid = useRef<HTMLUListElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const [zoom, setZoomState] = useState(() => { try { return zoomStep(Number(window.localStorage.getItem(ZOOM_KEY) ?? 2), 0); } catch { return 2; } });
@@ -174,12 +235,16 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
     if (at < 0) return;
     const cols = Math.max(1, getComputedStyle(grid.current!).gridTemplateColumns.split(' ').length);
     if (e.key === '+' || e.key === '=' || e.key === '-') { e.preventDefault(); setZoom(zoomStep(zoom, e.key === '-' ? -1 : 1)); return; }
+    const here = list[at];
+    if (here && bin && e.key === 'Enter') { e.preventDefault(); void photos.recoverPhoto(here.path); return; }
+    if (here && !bin && (e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey)))) { e.preventDefault(); void photos.deletePhoto(here.path).then(() => tiles[Math.min(at, tiles.length - 2)]?.focus()); return; }
+    if (here && !bin && e.key === 'F2') { e.preventDefault(); setRenaming(here.path); return; }
     const to = e.key === 'ArrowRight' ? at + 1 : e.key === 'ArrowLeft' ? at - 1 : e.key === 'ArrowDown' ? at + cols : e.key === 'ArrowUp' ? at - cols : e.key === 'Home' ? 0 : e.key === 'End' ? tiles.length - 1 : null;
     if (to === null) return;
     e.preventDefault();
     tiles[Math.max(0, Math.min(tiles.length - 1, to))]?.focus();
   };
-  if (!album) {
+  if (!album && !bin) {
     return (
       <section className="photo-page empty" aria-label="Photo" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
         <EmptyState app="photo" title="No albums yet" line="Make an album, then drop pictures on the window to add them." action={{ label: 'New album', run: () => void photos.createAlbum('Album').then((made) => { if (made) photos.showAlbum(made); }) }} />
@@ -191,7 +256,7 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
       <header className="photo-bar" role="toolbar" aria-label="Album">
         {/* The album's name is the window toolbar's title already: here only how many photos it holds. */}
         <div className="photo-bar-title">
-          <span className="photo-meta">{list.length === 1 ? '1 photo' : `${list.length} photos`}</span>
+          <span className="photo-meta">{list.length === 1 ? '1 photo' : `${list.length} photos`}{bin && list.length > 0 ? ' · kept until you empty Recently Deleted' : ''}</span>
         </div>
         <span className="spacer" />
         {list.length > 0 && (
@@ -201,32 +266,56 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" /></svg>
           </label>
         )}
-        <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden aria-hidden="true" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length) void photos.addFiles(album.name, files); }} />
-        <button type="button" className="photo-tool" onClick={() => picker.current?.click()}><Icon d={PLUS} /><span>Add photos</span></button>
+        {album && <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden aria-hidden="true" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length) void photos.addFiles(album.name, files); }} />}
+        {album && <button type="button" className="photo-tool" onClick={() => picker.current?.click()}><Icon d={PLUS} /><span>Add photos</span></button>}
+        {bin && list.length > 0 && (
+          <button type="button" className="photo-tool" data-danger={emptying || undefined} onClick={() => { if (emptying) { setEmptying(false); void photos.emptyDeleted(); } else setEmptying(true); }}>
+            <Icon d={TRASH} /><span>{emptying ? `Delete ${list.length === 1 ? '1 photo' : `${list.length} photos`} for good` : 'Empty'}</span>
+          </button>
+        )}
       </header>
       {photos.message && <p className="tasks-message" role="alert">{photos.message}</p>}
       {list.length === 0 ? (
-        <EmptyState app="photo" title={`No photos in ${album.name}`} line="Drop pictures on the window to add them." action={{ label: 'Add photos', run: () => picker.current?.click() }} />
+        bin
+          ? <EmptyState app="photo" title="Nothing in Recently Deleted" line="Photos you delete wait here, with their edits, until you empty it." />
+          : <EmptyState app="photo" title={`No photos in ${album!.name}`} line="Drop pictures on the window to add them." action={{ label: 'Add photos', run: () => picker.current?.click() }} />
       ) : (
-        <ul ref={grid} className="photo-grid" role="list" aria-label={`Photos in ${album.name}`} style={{ ['--tile' as string]: `${GRID_SIZES[zoom]}px` }} onKeyDown={onKey}>
+        <ul ref={grid} className="photo-grid" role="list" aria-label={bin ? 'Photos in Recently Deleted' : `Photos in ${album!.name}`} style={{ ['--tile' as string]: `${GRID_SIZES[zoom]}px` }} onKeyDown={onKey}>
           {list.map((p) => {
             const src = thumb(p);
+            const from = bin ? ` from ${p.path.split('/')[0]}` : '';
             return (
-              <li key={p.path}>
-                <button type="button" className="photo-tile" aria-label={p.name} aria-current={photos.open?.path === p.path ? 'true' : undefined} title={p.name} onClick={() => void photos.openPhoto(p.path)} onContextMenu={(e) => { e.preventDefault(); setMenu({ ...p, x: e.clientX, y: e.clientY }); }}>
+              <li key={p.path} data-renaming={renaming === p.path || undefined}>
+                <button
+                  type="button" className="photo-tile" aria-label={`${p.name}${from}`} aria-current={!bin && photos.open?.path === p.path ? 'true' : undefined} title={bin ? `${p.name}${from}. Right-click to put it back.` : p.name}
+                  draggable={!bin}
+                  onDragStart={(e) => { e.dataTransfer.setData(DRAG_TYPE, p.path); e.dataTransfer.effectAllowed = 'move'; }}
+                  onClick={() => { if (!bin) void photos.openPhoto(p.path); }}
+                  onContextMenu={(e) => { e.preventDefault(); setMenu({ ...p, x: e.clientX, y: e.clientY }); }}
+                >
                   {src ? <img src={src} alt="" draggable={false} /> : <span className="photo-tile-wait" />}
                   {p.edited && <span className="photo-tile-badge glass-clear" title="Edited"><Icon d="M4 10.5l3.5 3.5L16 5.5" /></span>}
                 </button>
+                {renaming === p.path && (
+                  <div className="photo-tile-rename glass">
+                    <RenameField label="Photo name" value={p.name} onDone={(n) => { setRenaming(null); if (n) void photos.renamePhoto(p.path, n); }} />
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
       )}
       {menu && createPortal(
-        <ContextMenu x={menu.x} y={menu.y} label={menu.name} onClose={() => setMenu(null)} items={[
+        <ContextMenu x={menu.x} y={menu.y} label={menu.name} onClose={() => setMenu(null)} items={bin ? [
+          { action: 'undo', label: 'Recover', keys: 'Enter', run: () => void photos.recoverPhoto(menu.path) },
+        ] : [
           { action: 'open', run: () => void photos.openPhoto(menu.path) },
+          { action: 'rename', label: 'Rename', keys: 'F2', run: () => setRenaming(menu.path) },
           { label: 'Export', action: 'share', run: () => void exportFrom(menu) },
           { action: 'copy', label: 'Copy name', run: () => void navigator.clipboard?.writeText(menu.name).catch(() => {}) },
+          ...photos.albums.filter((a) => a.name !== album?.name).slice(0, 8).map((a, i) => ({ action: 'move' as const, label: `Move to ${a.name}`, separated: i === 0, run: () => void photos.movePhoto(menu.path, a.name) })),
+          { action: 'delete', label: 'Delete', keys: 'Delete', danger: true, separated: true, run: () => void photos.deletePhoto(menu.path) },
         ]} />,
         document.body,
       )}

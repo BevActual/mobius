@@ -172,3 +172,13 @@
 .photo-page .photo-group-reset:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .photo-page .photo-group-body { display: flex; flex-direction: column; gap: 2px; padding: 0 0 10px; }
 @media (prefers-reduced-motion: reduce) { .photo-page .photo-group-chevron { transition: none; } }
+
+/* Managing the library: renaming in place, dropping a photo on an album, Recently Deleted */
+.photo-page .photo-grid > li { position: relative; }
+.photo-page .photo-tile-rename { position: absolute; left: 6px; right: 6px; bottom: 6px; padding: 3px; border-radius: 8px; }
+.photo-rename { width: 100%; min-width: 0; height: 24px; padding: 0 6px; border-radius: 6px; border: 0.5px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0; }
+.photo-side .photo-album-row[data-renaming] { cursor: default; }
+.photo-side .photo-albums li[data-drop] .photo-album-row { background: color-mix(in srgb, var(--accent) 18%, transparent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.photo-side .photo-utilities { margin-top: 10px; padding-top: 6px; border-top: 0.5px solid var(--line); }
+.photo-page .photo-tool[data-danger] { color: var(--danger, #ff3b30); background: color-mix(in srgb, var(--danger, #ff3b30) 10%, transparent); }
+.photo-side .photo-albums:not(.photo-utilities) { flex: none; }
