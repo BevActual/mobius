@@ -87,6 +87,8 @@ import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
 import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
+import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
+import { LESSONS } from './learn'; // Learn (shell/learn-view)
 import { clipToNotes } from './clip';
 import { loadPanes, savePanes, companionFor, followPane, loadShare, saveShare } from './split';
 import { TRY_ANOTHER_ASK, TryAnotherContext } from './ReviewBar';
@@ -543,6 +545,9 @@ export function App() {
   const setChatPlace = (place: 'beside' | 'sidebar') => { void appearance.set({ agentPlace: place }); };
   // In the sidebar, Mobius waits to be asked and the app's own list shows; pinned beside, it is there from the start.
   const [chatOpen, setChatOpen] = useState(false);
+  // Learn (shell/learn-view): lessons beside the page, in the slot Mobius uses when pinned beside. One at a time.
+  const [learnOpen, setLearnOpen] = useState(false);
+  const learnFrom = useRef<HTMLElement | null>(null);
   const [focusToken, setFocusToken] = useState(0);
   const [switcherToken, setSwitcherToken] = useState(0);
   const [launcherOpen, setLauncherOpen] = useState(false);
@@ -567,8 +572,10 @@ export function App() {
   const showWide = wide || (chatInSide && chatOpen && !settingsOpen);
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !showWide;
-  const rightOpen = hasRight && chatOpen && !chatInSide;
+  const rightOpen = hasRight && chatOpen && !chatInSide && !learnOpen;
   useEffect(() => { if (rightOpen && miniOpen) void window.mobius.mini.close(); }, [rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Learn (shell/learn-view): Mobius opening beside the page takes the slot back from Learn.
+  useEffect(() => { if (learnOpen && chatOpen && hasRight && !chatInSide) setLearnOpen(false); }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
   const [hovering, setHovering] = useState(false);
   const leftWidth = drag?.side === 'left' ? drag.width : appearance.value.leftWidth;
@@ -671,7 +678,7 @@ export function App() {
     return () => { live = false; };
   }, [needCover]);
   const leftAttached = hasLeft && !leftFloating && leftOpen;
-  const rightAttached = !rightFloating && rightOpen;
+  const rightAttached = (!rightFloating && rightOpen) || learnOpen;
   const layout = {
     '--col-left': leftAttached ? `${leftWidth}px` : '0px',
     '--col-right': rightAttached ? `${rightWidth}px` : '0px',
@@ -1007,6 +1014,13 @@ export function App() {
     if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign || inSlides || inPhoto) && !typing) { sendCommand(command); return; }
     document.execCommand(command);
   };
+  // Learn (shell/learn-view): opening it unpins Mobius from beside; closing puts focus back where it was.
+  const openLearn = () => {
+    learnFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (chatOpen && !chatInSide) setChatOpen(false);
+    setLearnOpen(true);
+  };
+  const closeLearn = () => { setLearnOpen(false); if (learnFrom.current?.isConnected) learnFrom.current.focus(); };
   const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
@@ -1027,6 +1041,7 @@ export function App() {
       closeTab: () => { if (active) window.mobius.browser.close(active.id); },
       settings: openSettings,
       shortcuts: () => openSettingsAt('keyboard'),
+      learn: openLearn,
       profiles: () => openSettingsAt('profiles'),
       about: () => openSettingsAt('about'),
       edit,
@@ -1502,7 +1517,7 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': rightOpen && !rightFloating ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
@@ -1526,7 +1541,7 @@ export function App() {
         mobius={hasRight && !settingsOpen ? {
           shown: chatInSide && chatOpen,
           onToggle: () => { if (chatInSide && chatOpen) { setChatOpen(false); } else { hides.current += 1; setChatPlace('sidebar'); setChatOpen(true); setFocusToken((n) => n + 1); } },
-          onBeside: () => { pinFrom.current = document.querySelector('.rail[data-expanded]')?.getBoundingClientRect() ?? null; setChatPlace('beside'); setChatOpen(true); },
+          onBeside: () => { setLearnOpen(false); pinFrom.current = document.querySelector('.rail[data-expanded]')?.getBoundingClientRect() ?? null; setChatPlace('beside'); setChatOpen(true); },
           panel: chatInSide && chatOpen ? chatPanel(null) : null,
         } : null}
         onLauncher={openHub}
@@ -1634,6 +1649,12 @@ export function App() {
               </button>
             </>)}
             {resizer('right', 'Resize the agent panel')}
+          </div>
+        )}
+        {learnOpen && (
+          <div className="dock right" data-learn>
+            <LearnPanel lessons={LESSONS} app={app} onClose={closeLearn} onOpenApp={(id) => { closeSettings(); openApp(id); }} />
+            {resizer('right', 'Resize Learn')}
           </div>
         )}
         {hasRight && rightFloating && !chatOpen && <div className="hotzone right" data-testid="hotzone-right" onPointerEnter={() => { rightFromEdge.current = true; setPeeked(true); setChatOpen(true); }} />}

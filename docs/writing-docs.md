@@ -9,6 +9,17 @@ screenshots stay current, and how the docs keep up with the app. Read it before 
 `docs/apps/` or `docs/guide/`, and any screenshot that no longer matches. Reviewers check this before merging, and the
 pull request template has a box for it.
 
+**These pages are also the app's Learn view** (Help › Learn Mobius). Each page in `docs/getting-started/` and
+`docs/guide/` is a lesson, and each `## App` section of a `docs/apps/` page is that app's lesson: its first sentence is
+the lesson's card, and the bold lead-ins of its list (`- **Smart lists**: …`) are the lesson's "What you can do". So:
+
+- Start every page and app section with one sentence that says what it is for.
+- Name each thing an app can do as a bold lead-in on a list item, so it shows as a capability.
+- Name an app's section exactly as the app is named in the app (Knowledge, Music, Abilities), or Learn cannot match it.
+- Pictures are left out in Learn (the app is beside it), tables become lists, and links between pages read as words.
+
+`apps/desktop/src/learn.test.ts` reads the real pages and lists any app that has no section yet.
+
 ## Where a page goes
 
 The docs have one home, [`docs/README.md`](README.md), and five sections. Every new page is linked from the home page or
@@ -102,6 +113,7 @@ Headings are sentence case. Keep to `##` and `###`; deeper headings mean the pag
 - Every relative link and `#anchor` resolves. GitHub's preview of the pull request shows broken images and links.
 - The page reads correctly against the app as it is on the branch.
 - New pages are linked from the docs home or their section index.
+- The lesson reads well in Learn: open Help › Learn Mobius on the branch and find it.
 
 ## Reviewing the docs as a whole
 
