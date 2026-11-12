@@ -156,8 +156,12 @@ test('a layer is hidden, locked and arranged from its row and its right-click me
   await expect.poll(() => saved().frames[0]!.children[1]).not.toHaveProperty('hidden');
   await expect(canvas().getByLabel('Rectangle Card')).toBeVisible();
   // A right-click on a layer opens its menu: Lock, then Send to back.
+  // Fit again at the bigger size, so the frame is in the middle of the canvas.
+  await canvas().focus();
+  await shell().keyboard.press('Shift+Digit1');
   await canvas().getByLabel('Text Title').click({ button: 'right' });
   const menu = shell().getByRole('menu', { name: 'Title' });
+  await expect(menu).toBeVisible();
   await menu.getByRole('menuitem', { name: /^Lock/ }).click();
   await expect.poll(() => saved().frames[0]!.children[0]).toMatchObject({ locked: true });
   await expect(tree.getByRole('button', { name: 'Unlock Title' })).toBeVisible();
