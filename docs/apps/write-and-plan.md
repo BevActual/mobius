@@ -94,6 +94,8 @@ Spreadsheets with formulas.
   the rows above reads as the total, in bold with a rule above it.
 - Each column letter has a menu (hover it for the chevron) to sort by that column, add or delete columns and fit the
   width. Sorting keeps the header and total rows where they are.
+- **Number formats**: show a column's numbers as Number (1,234.50), Currency or Percentage from the % button or the
+  column's menu. Currency and grouping follow the computer's region. The CSV keeps the plain number.
 - **Find** with Ctrl+F: matching cells are tinted, and Enter (or Shift+Enter) moves from one to the next.
 - Sheets are tabs below the grid. Insert and remove rows and columns; Ctrl+Z undoes any step.
 

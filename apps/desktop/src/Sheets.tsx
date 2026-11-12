@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, inRange, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
+import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
 import './sheets.css';
 import type { SheetsState } from './useSheets';
 import { ReviewActions, WhyThis } from './ReviewBar';
@@ -97,6 +97,8 @@ const keep = (e: { preventDefault: () => void }) => e.preventDefault();
 /** Per sheet, kept on this device: column widths, and whether the first row is a header. */
 const WIDTHS_KEY = 'mobius.sheets.widths';
 const HEADER_KEY = 'mobius.sheets.header';
+/** Per sheet, kept on this device: how each column shows its numbers (the CSV keeps them plain). */
+const FORMATS_KEY = 'mobius.sheets.formats';
 function readKept<T>(key: string): Record<string, T> {
   try { const v: unknown = JSON.parse(window.localStorage.getItem(key) ?? '{}'); return typeof v === 'object' && v !== null ? v as Record<string, T> : {}; } catch { return {}; }
 }
@@ -118,14 +120,15 @@ function looksLikeHeader(values: readonly (readonly string[])[]): boolean {
   return labels.length >= 2 && labels.every((v) => v.length <= 24) && rest.length >= 2;
 }
 /** Each column's width to fit what is in it, between the usual width and a wide one; worked out once per sheet as read. */
-const fits = new WeakMap<object, { header: boolean; widths: number[] }>();
-function fittedWidths(values: readonly (readonly string[])[], header: boolean): number[] {
+const fits = new WeakMap<object, { header: boolean; shape: string; widths: number[] }>();
+function fittedWidths(values: readonly (readonly string[])[], header: boolean, formats: Readonly<Record<number, NumberFormat>> = {}): number[] {
+  const shape = JSON.stringify(formats);
   const kept = fits.get(values);
-  if (kept && kept.header === header) return kept.widths;
+  if (kept && kept.header === header && kept.shape === shape) return kept.widths;
   const rows = values.slice(0, 400);
   const cols = Math.max(0, ...rows.map((r) => r.length));
-  const widths = Array.from({ length: cols }, (_, c) => Math.round(Math.min(FIT_MAX, Math.max(COL_W, ...rows.map((r, i) => textWidth(r[c] ?? '', header && i === 0) + 18)))));
-  fits.set(values, { header, widths });
+  const widths = Array.from({ length: cols }, (_, c) => Math.round(Math.min(FIT_MAX, Math.max(COL_W, ...rows.map((r, i) => textWidth(formatted(r[c] ?? '', formats[c]), header && i === 0) + 18)))));
+  fits.set(values, { header, shape, widths });
   return widths;
 }
 let measurer: CanvasRenderingContext2D | null = null;
@@ -161,6 +164,7 @@ const ICONS = {
   table: 'M3.5 4.5h13v11h-13zM3.5 8.5h13M3.5 12h13M8 4.5v11',
   sort: 'M6 4v12M3.5 13.5 6 16l2.5-2.5M11 6h6M11 10h4.5M11 14h3',
   header: 'M3.5 4.5h13v11h-13zM3.5 8h13',
+  format: 'M14.5 5.5l-9 9M6.5 5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM13.5 12a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
 };
 
 /** The open sheet: a grid of cells, the formula bar above it, and its sheets as tabs below. */
@@ -190,13 +194,17 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const place = data ? `${data.workbook}/${data.sheet}` : '';
   const [widths, setWidths] = useState<Record<string, number>>({});
   const [header, setHeader] = useState<boolean | undefined>(undefined);
+  const [formats, setFormats] = useState<Record<number, NumberFormat>>({});
   useEffect(() => {
     setWidths(readKept<Record<string, number>>(WIDTHS_KEY)[place] ?? {});
+    setFormats(readKept<Record<number, NumberFormat>>(FORMATS_KEY)[place] ?? {});
     setHeader(readKept<boolean>(HEADER_KEY)[place]);
   }, [place]);
 
   const raw = (r: number, c: number) => data?.cells[r]?.[c] ?? '';
   const shown = (r: number, c: number) => data?.values[r]?.[c] ?? '';
+  // What a cell shows in its column's number format; copying and sums still use the plain value.
+  const display = (r: number, c: number) => formatted(shown(r, c), formats[c]);
   const sel = rangeOf(anchor, focus);
   const select = (a: Pos, b: Pos = a) => { setAnchor(a); setFocus(b); };
   useEffect(() => { select({ r: 0, c: 0 }); setEdit(null); setPick(null); setFinding((f) => (f ? { ...f, at: 0 } : f)); }, [data?.workbook, data?.sheet]);
@@ -278,7 +286,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   // A last row that adds up the rows above reads as the table's total, set apart as in Numbers.
   const footerAt = hasFooter(data.cells) ? used.rows - 1 : -1;
   // A column the person has not sized fits its words, so names and labels are not cut short.
-  const fitted = fittedWidths(data.values, headerOn);
+  const fitted = fittedWidths(data.values, headerOn, formats);
   const colWidth = (c: number) => widths[c] ?? fitted[c] ?? COL_W;
   const steps = history.current.get(place) ?? { undo: [], redo: [] };
   history.current.set(place, steps);
@@ -301,6 +309,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
       else data.cells.forEach((row, r) => { const text = row[at] ?? ''; if (text) held.push({ row: r, col: at, text }); });
     }
     if (record) { steps.undo.push({ kind: 'shift', what, at, insert, held }); steps.redo = []; setTick((t) => t + 1); }
+    if (what === 'column') keepFormats(shiftFormats(formats, at, insert));
     await sheets.shift(what, at, insert);
   };
   const run = async (step: Step, back: boolean) => {
@@ -467,6 +476,12 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     void apply([{ row: t.at.r, col: t.at.c, text: `=${fn}(${rangeName(t.over)})` }]);
     select(t.at);
   };
+  const keepFormats = (next: Record<number, NumberFormat>) => { setFormats(next); writeKept(FORMATS_KEY, place, Object.keys(next).length ? next : undefined); };
+  const setFormat = (c0: number, c1: number, format: NumberFormat) => {
+    const next = { ...formats };
+    for (let c = c0; c <= c1; c++) { if (format === 'auto') delete next[c]; else next[c] = format; }
+    keepFormats(next);
+  };
   const setHeaderRow = (on: boolean) => { setHeader(on); writeKept(HEADER_KEY, place, on); };
   const setWidth = (c: number, w: number | undefined) => {
     setWidths((cur) => {
@@ -478,7 +493,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   };
   const fitColumn = (c: number) => {
     let w = textWidth(columnName(c)) + 24;
-    for (let r = 0; r < used.rows; r++) w = Math.max(w, textWidth(shown(r, c), headerOn && r === 0) + 18);
+    for (let r = 0; r < used.rows; r++) w = Math.max(w, textWidth(display(r, c), headerOn && r === 0) + 18);
     setWidth(c, w);
   };
   const resizeFrom = (c: number, e: ReactPointerEvent<HTMLSpanElement>) => {
@@ -569,12 +584,16 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     ...sortEntries.map((e, i) => (i === 0 ? { ...e, separated: true } : e)),
     ...tableEntries.map((e, i) => (i === 0 ? { ...e, separated: true } : e)),
   ];
+  const formatEntries = (c0: number, c1: number): MenuEntry[] => NUMBER_FORMATS.map((f) => ({
+    label: f.label, icon: check((formats[c0] ?? 'auto') === f.id), keys: f.example, run: back(() => setFormat(c0, c1, f.id)),
+  }));
   const columnEntries = (c: number): MenuEntry[] => [
     { label: 'Sort A to Z', run: back(() => sortBy(c, true)) },
     { label: 'Sort Z to A', run: back(() => sortBy(c, false)) },
     { label: 'Add column before', separated: true, run: back(() => void shiftAt('column', c, true)) },
     { label: 'Add column after', run: back(() => void shiftAt('column', c + 1, true)) },
     { label: 'Fit to contents', run: back(() => fitColumn(c)) },
+    ...formatEntries(c, c).map((e, i) => (i === 0 ? { ...e, separated: true } : e)),
     { label: 'Delete column', danger: true, separated: true, run: back(() => void shiftAt('column', c, false)) },
   ];
 
@@ -602,6 +621,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
         />
         <span className="sheet-tool-group">
           <Menu label="Quick formula" entries={sumEntries} trigger={<button type="button" className="sheet-tool" aria-label="Quick formula" title="Sum, average and more of the cells picked" onMouseDown={keep}><Icon d={ICONS.sum} /></button>} />
+          <Menu label="Number format" entries={formatEntries(sel.c0, sel.c1)} trigger={<button type="button" className="sheet-tool" aria-label="Number format" title="Show the picked columns' numbers as currency, percentages and more" onMouseDown={keep}><Icon d={ICONS.format} /></button>} />
           <Menu label="Table" entries={tableEntries} trigger={<button type="button" className="sheet-tool" aria-label="Table" title="Add or delete rows and columns" onMouseDown={keep}><Icon d={ICONS.table} /><span>Table</span></button>} />
           <Menu label="Sort" entries={sortEntries} trigger={<button type="button" className="sheet-tool" aria-label="Sort" title="Sort the rows" onMouseDown={keep}><Icon d={ICONS.sort} /><span>Sort</span></button>} />
         </span>
@@ -757,7 +777,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
                     >
                       {here
                         ? <input ref={cellInput} className="sheet-cell-input" style={{ width: Math.max(colWidth(c), textWidth(edit.text) + 24) }} aria-label={`Edit ${cellName(r, c)}`} value={edit.text} spellCheck={false} onChange={(e) => typed(e.target.value, caretOf(e.target))} onSelect={(e) => { const caret = caretOf(e.currentTarget); setEdit((v) => (v && v.caret !== caret ? { ...v, caret } : v)); }} onKeyDown={onEditorKey} onBlur={(e) => { if (e.relatedTarget !== barInput.current) commit(null); }} />
-                        : value}
+                        : display(r, c)}
                       {!edit && r === sel.r1 && c === sel.c1 && (
                         <span className="sheet-fill" aria-hidden="true" title="Drag to fill" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); drag.current = 'fill'; setFillTo(null); }} />
                       )}
