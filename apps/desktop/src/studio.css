@@ -148,7 +148,7 @@
 /* A round head on each bar, like Logic's velocity stems; a wider invisible grab area around the thin line. */
 .studio-page .studio-vel-bar::before { content: ""; position: absolute; left: -5px; right: -5px; top: -6px; bottom: 0; }
 .studio-page .studio-vel-bar::after { content: ""; position: absolute; top: -3px; left: -2.5px; width: 8px; height: 8px; border-radius: 50%; background: var(--tc); }
-.studio-page .studio-vel-bar[data-picked] { background: var(--tc); }
+.studio-page .studio-vel-bar[data-picked] { z-index: 1; background: var(--tc); }
 .studio-page .studio-vel-bar[data-picked]::after { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--tc); }
 
 /* ---------- Empty ---------- */

@@ -135,7 +135,9 @@ test('velocity is drawn under the roll and dragged per note; the track list fits
   await start();
   await resizeWindow(mobius!.app, 1440, 900);
   await expect(tracks().getByRole('listitem', { name: 'Bass' })).toBeInViewport();
-  // Each note has a bar in the velocity lane; dragging one up makes that note louder and leaves the others alone.
+  // Each note has a bar in the velocity lane; dragging one up makes that note louder and leaves the others alone. The
+  // chord's notes share a beat, so A3 is picked first: a picked note's bar is drawn on top.
+  await shell().getByRole('grid', { name: 'Notes of Keys' }).getByLabel('A3 at beat 1, 4 beats').click({ position: { x: 20, y: 4 } });
   const lane = shell().getByRole('group', { name: 'Velocity of Keys' });
   const bar = lane.getByRole('slider', { name: 'Velocity of A3 at beat 1', exact: true });
   await expect(bar).toHaveAttribute('aria-valuenow', String(Math.round(0.7 * 127)));
