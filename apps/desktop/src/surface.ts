@@ -257,14 +257,17 @@ export interface Here {
 
 const NOTE_WORDS: Record<string, string> = { docs: 'document', slides: 'deck', designs: 'design', studio: 'song', boards: 'board', research: 'report', reading: 'article', databases: 'database', terminal: 'terminal' };
 
+/** A chip already says what kind of thing it is (Email, Photo, Cut), so its name drops that word. */
+const bare = (title: string) => title.replace(/^(Email|Photo|Video): /, '');
+
 export function hereOf(s: SurfaceState | undefined): Here | null {
   if (!s) return null;
   if (s.note) return { key: `note:${s.note.folder ?? 'notes'}/${s.note.path}`, label: s.note.title || s.note.path, what: `this ${NOTE_WORDS[s.note.folder ?? ''] ?? 'note'}`, item: noteContext(s.note) };
   if (s.tasks) return { key: `tasks:${s.tasks.title}`, label: s.tasks.title, what: 'this list', item: tasksItem(s.tasks) };
   if (s.sheet) return { key: `sheet:${s.sheet.source}`, label: s.sheet.title, what: 'this sheet', item: sheetItem(s.sheet) };
-  if (s.mail) return { key: `mail:${s.mail.id}`, label: s.mail.title, what: 'this email', item: mailItem(s.mail) };
-  if (s.photo) return { key: `photo:${s.photo.source}`, label: s.photo.title, what: 'this photo', item: sheetItem(s.photo) };
-  if (s.cut) return { key: `cut:${s.cut.source}`, label: s.cut.title, what: 'this cut', item: sheetItem(s.cut) };
+  if (s.mail) return { key: `mail:${s.mail.id}`, label: bare(s.mail.title), what: 'this email', item: mailItem(s.mail) };
+  if (s.photo) return { key: `photo:${s.photo.source}`, label: bare(s.photo.title), what: 'this photo', item: sheetItem(s.photo) };
+  if (s.cut) return { key: `cut:${s.cut.source}`, label: bare(s.cut.title), what: 'this cut', item: sheetItem(s.cut) };
   if (s.code) return { key: `code:${s.code.source}`, label: s.code.title, what: 'this file', item: sheetItem(s.code) };
   // Not the browser's page: a page can be long and is not yours, so it goes only when asked for (Add context › This page).
   return null;
