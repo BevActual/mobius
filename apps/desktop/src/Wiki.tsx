@@ -335,10 +335,11 @@ export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocu
     <div className="wiki-doc">
       <DocEditor docs={wiki} autoFocus={autoFocus} busy={busy} toolbarEnd={button} />
       {putBack && !open && (
-        <p className="cal-undo kn-put-back" role="status">
+        <div className="kn-put-back" role="status">
           <span>Put back the version from {putBack.label}.</span>
-          <button type="button" className="review-btn" onClick={() => { wiki.edit(putBack.was); setPutBack(null); }}>Undo</button>
-        </p>
+          <button type="button" className="btn" onClick={() => { wiki.edit(putBack.was); setPutBack(null); }}>Undo</button>
+          <button type="button" className="kn-put-back-x" aria-label="Dismiss" onClick={() => setPutBack(null)}>×</button>
+        </div>
       )}
       {open && path && <WikiVersions path={path} text={wiki.text} onPutBack={(v) => { setPutBack({ was: wiki.text, label: whenLabel(v.whenMs) }); wiki.edit(v.content); setOpen(false); }} onClose={() => setOpen(false)} />}
     </div>
