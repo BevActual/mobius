@@ -27,8 +27,8 @@
 .db-confirm-actions { display: flex; justify-content: flex-end; gap: 6px; }
 @keyframes db-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
-/* The head: the table's name and where it is, then the view switch. */
-.db-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2) var(--sp-4); padding: 12px var(--sp-4) 10px; }
+/* The head: the table's name and where it is at the start, the view switch centred above what it switches. */
+.db-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--sp-2) var(--sp-4); padding: 12px var(--sp-4) 10px; }
 .db-title { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .db-title h2 { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-semibold); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-sub { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
@@ -39,6 +39,7 @@
 /* The Data view's bar: filter at the start, which rows and the pager at the end. */
 .db-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-4) 10px; }
 .db-filter { width: min(280px, 50%); margin: 0; }
+.db-side > .side-search { margin: 0 var(--sp-2) var(--sp-2); }
 .db-bar .db-status { margin: 0; font-variant-numeric: tabular-nums; }
 .db-pager { display: inline-flex; padding: 2px; border-radius: var(--radius-pill); background: var(--soft); }
 .db-pager .strip-btn { width: 26px; min-width: 26px; height: 26px; padding: 0; }
@@ -71,8 +72,7 @@
 .db-made-head h3 { margin: 0; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
 .db-made pre { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--field); white-space: pre-wrap; overflow-wrap: anywhere; }
 
-/* SQL: the shortcut as a key, and a line before anything has run. */
-.db-key { padding: 1px 6px; border-radius: 4px; background: var(--field); font: inherit; font-size: var(--fs-xs); }
+/* SQL: a line before anything has run. */
 .db-hint { margin-top: var(--sp-3); }
 
 @media (prefers-reduced-motion: reduce) {

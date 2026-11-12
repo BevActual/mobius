@@ -90,7 +90,8 @@ Sheets, and each table opens with three views:
 - **SQL** runs any statement and shows what it gave. **History** brings back an earlier one, and **Copy as CSV** copies
   the result.
 
-Right-click a table, or use its **⋯** button, to open it, copy all of it as CSV, rename it or delete it. Right-click a
+**Search** at the top of the sidebar finds a database or table by name. Right-click a table, press Shift+F10 on it, or
+use its **⋯** button, to open it, copy all of it as CSV, rename it or delete it. Right-click a
 database to import a CSV file into it or delete it. Deleting asks first, as it can't be undone.
 
 ![The Database app in Mobius](../readme/apps/database.png)

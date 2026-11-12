@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { isNotesFailure, type DbCell, type DbResult, type WorkbookInfo } from '@mobius/shared';
-import { createdQuery, nextSort, PAGE_ROWS, pageLine, sheetToCsv, showCell, structureQuery, toCsv, type Browse } from './db-view';
+import { columnDecimals, createdQuery, nextSort, PAGE_ROWS, pageLine, sheetToCsv, showCellIn, structureQuery, toCsv, type Browse } from './db-view';
 import type { DatabasesState, DbView } from './useDatabases';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { EmptyState } from './EmptyState';
@@ -86,9 +86,21 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
     const r = e.currentTarget.getBoundingClientRect();
     setMenu(fromButton ? { ...at, x: r.left, y: r.bottom + 4 } : { ...at, x: e.clientX, y: e.clientY });
   };
+  /** Shift+F10 or the menu key opens a row's menu, as right-click does. */
+  const menuKey = (e: React.KeyboardEvent, at: Omit<Menu, 'x' | 'y'>) => {
+    if (!((e.shiftKey && e.key === 'F10') || e.key === 'ContextMenu')) return;
+    e.preventDefault();
+    const r = e.currentTarget.getBoundingClientRect();
+    setMenu({ ...at, x: r.left + 12, y: r.bottom + 4 });
+  };
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const hit = (text: string) => !q || text.toLowerCase().includes(q);
+  const shownDbs = db.list.filter((d) => hit(d.name) || d.tables.some((t) => hit(t.name)));
   const rowsIn = (d: string) => db.list.find((x) => x.name === d)?.tables.reduce((n, t) => n + Math.max(0, t.rows), 0) ?? 0;
   return (
     <aside className="side db-side" aria-label="Database sidebar">
+      {db.list.length > 0 && <input className="side-search" type="search" aria-label="Search databases and tables" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} />}
       <div className="side-head">
         <span className="side-title">Databases</span>
         <span className="side-actions">
@@ -122,11 +134,12 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
         <p className="side-empty">No databases yet.</p>
       )}
       <ul className="db-list" aria-label="Databases">
-        {db.list.map((d) => (
+        {q && shownDbs.length === 0 && <li className="db-none">No matches</li>}
+        {shownDbs.map((d) => (
           <li key={d.name} className="db-item">
             <div className="db-line">
               <button type="button" className="note-row db-row" aria-current={db.open === d.name && !db.table ? 'page' : undefined} data-open={db.open === d.name || undefined} data-changed={changed?.has(d.name) || undefined}
-                onClick={() => void db.choose(d.name)} onContextMenu={(e) => openMenu(e, { db: d.name })}>
+                onClick={() => void db.choose(d.name)} onContextMenu={(e) => openMenu(e, { db: d.name })} onKeyDown={(e) => menuKey(e, { db: d.name })}>
                 <DbIcon />
                 <span className="db-name">{d.name}</span>
               </button>
@@ -136,10 +149,10 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
               <Confirm label={`Delete “${d.name}”?`} line={`Its ${d.tables.length === 1 ? 'table' : `${d.tables.length} tables`} and ${rowsIn(d.name).toLocaleString()} ${rowsIn(d.name) === 1 ? 'row' : 'rows'} go too. This can’t be undone.`}
                 onCancel={() => setDeleting(null)} onConfirm={() => { setDeleting(null); void db.remove(d.name); }} />
             )}
-            {db.open === d.name && (
+            {(db.open === d.name || (q && d.tables.some((t) => hit(t.name)))) && (
               <ul className="db-tables" aria-label={`Tables in ${d.name}`}>
                 {d.tables.length === 0 && <li className="db-none">No tables yet</li>}
-                {d.tables.map((t) => (
+                {d.tables.filter((t) => hit(t.name) || hit(d.name)).map((t) => (
                   <li key={t.name}>
                     {renaming?.db === d.name && renaming.table === t.name ? (
                       <form className="notes-name db-rename" onSubmit={(e) => { e.preventDefault(); const to = String(new FormData(e.currentTarget).get('name') ?? ''); void db.renameTable(d.name, t.name, to).then((ok) => { if (ok) setRenaming(null); }); }}>
@@ -149,7 +162,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
                     ) : (
                       <div className="db-line">
                         <button type="button" className="db-table" aria-current={db.table === t.name ? 'page' : undefined} title={t.columns.map((c) => `${c.name} ${c.type}`.trim()).join(', ')}
-                          onClick={() => void db.choose(d.name, t.name)} onContextMenu={(e) => openMenu(e, { db: d.name, table: t.name })}>
+                          onClick={() => void db.choose(d.name, t.name)} onContextMenu={(e) => openMenu(e, { db: d.name, table: t.name })} onKeyDown={(e) => menuKey(e, { db: d.name, table: t.name })}>
                           <TableIcon />
                           <span className="db-name">{t.name}</span><span className="db-count">{t.rows < 0 ? '' : t.rows.toLocaleString()}</span>
                         </button>
@@ -204,6 +217,7 @@ function useDbReview(review: { conversation: string } | null | undefined, name: 
 
 /** Rows as a table. With `onSort`, a column's heading sorts by it. */
 function Grid({ columns, rows, sort, onSort }: { columns: string[]; rows: DbCell[][]; sort?: Browse['sort']; onSort?: (column: string) => void }) {
+  const decimals = columns.map((_, j) => columnDecimals(rows, j));
   return (
     <div className="db-grid-wrap">
       <table className="db-grid" aria-label="Rows">
@@ -224,7 +238,7 @@ function Grid({ columns, rows, sort, onSort }: { columns: string[]; rows: DbCell
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i}>{row.map((v, j) => <td key={j} data-kind={v === null ? 'null' : typeof v} title={typeof v === 'string' && v.length > 40 ? v.slice(0, 2000) : undefined}>{showCell(v)}</td>)}</tr>
+            <tr key={i}>{row.map((v, j) => <td key={j} data-kind={v === null ? 'null' : typeof v} title={typeof v === 'string' && v.length > 40 ? v.slice(0, 2000) : undefined}>{showCellIn(v, decimals[j] ?? 0)}</td>)}</tr>
           ))}
         </tbody>
       </table>
@@ -335,8 +349,7 @@ function SqlView({ db, placeholder }: { db: DatabasesState; placeholder: string 
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void db.run(); } }}
         />
         <div className="db-actions">
-          <button type="submit" className="btn primary" disabled={!db.sql.trim() || db.running}>{db.running ? 'Running…' : 'Run'}</button>
-          <kbd className="db-key">Ctrl+Enter</kbd>
+          <button type="submit" className="btn primary" title="Run (Ctrl+Enter)" aria-keyshortcuts="Control+Enter" disabled={!db.sql.trim() || db.running}>{db.running ? 'Running…' : 'Run'}</button>
           {db.history.length > 0 && (
             <button type="button" className="btn" aria-haspopup="menu" aria-expanded={earlier !== null} onClick={(e) => { const b = e.currentTarget.getBoundingClientRect(); setEarlier(earlier ? null : { x: b.left, y: b.bottom + 4 }); }}>History</button>
           )}

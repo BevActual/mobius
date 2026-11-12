@@ -105,3 +105,21 @@ export const dropTableSql = (table: string): string => `DROP TABLE ${quoteIdent(
 export const structureQuery = (table: string): string => `SELECT name, type, "notnull", dflt_value, pk FROM pragma_table_info(${sqlString(table)})`;
 /** The statement that made the table. */
 export const createdQuery = (table: string): string => `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ${sqlString(table)}`;
+
+/** The decimals a column of numbers is shown with: as many as its most precise value needs, at most 6; 0 when all are whole. */
+export function columnDecimals(rows: readonly DbCell[][], col: number): number {
+  let most = 0;
+  for (const r of rows) {
+    const v = r[col];
+    if (typeof v !== 'number' || Number.isInteger(v)) continue;
+    const s = String(Math.round(v * 1e6) / 1e6);
+    most = Math.max(most, s.includes('.') ? s.length - s.indexOf('.') - 1 : 0);
+  }
+  return Math.min(most, 6);
+}
+
+/** A cell as shown in a column: numbers in a column with decimals all carry the same number of them, in the region's format. */
+export function showCellIn(v: DbCell, decimals: number): string {
+  if (typeof v === 'number' && decimals > 0) return v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return showCell(v);
+}

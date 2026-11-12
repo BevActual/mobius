@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { browseQuery, countQuery, FIRST_BROWSE, nextSort, pageLine, renameTableSql, sqlString, sheetToCsv, databaseNameFor, isReading, quoteIdent, showCell, tableNameFor, tableQuery, toCsv } from './db-view';
+import { browseQuery, columnDecimals, showCellIn, countQuery, FIRST_BROWSE, nextSort, pageLine, renameTableSql, sqlString, sheetToCsv, databaseNameFor, isReading, quoteIdent, showCell, tableNameFor, tableQuery, toCsv } from './db-view';
 
 describe('database view', () => {
   it('quotes names and opens a table with its first rows', () => {
@@ -47,5 +47,13 @@ describe('database view', () => {
     expect(pageLine(0, 1, 1, true)).toBe('1 row matches');
     expect(pageLine(1, 100, 1234, false)).toBe('101–200 of 1,234 rows');
     expect(pageLine(0, 0, 0, true)).toBe('No rows match');
+  });
+
+  it('gives a column of numbers one number of decimals', () => {
+    expect(columnDecimals([[8420], [145.5], [21.75], [null]], 0)).toBe(2);
+    expect(columnDecimals([[1], [2]], 0)).toBe(0);
+    expect(showCellIn(8420, 2)).toBe((8420).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    expect(showCellIn(12, 0)).toBe('12');
+    expect(showCellIn(null, 2)).toBe('NULL');
   });
 });
