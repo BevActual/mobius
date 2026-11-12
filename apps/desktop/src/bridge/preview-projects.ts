@@ -69,6 +69,13 @@ export const PREVIEW_PROJECTS: Record<string, (...args: never[]) => unknown> = {
     p.threads.push(conversation);
     return p;
   }) as never,
+  'projects.removeThread': ((id: string, conversation: string) => {
+    const p = find(id);
+    if (!p || !p.threads.includes(conversation)) return fail('that conversation is not in this project');
+    p.threads = p.threads.filter((t) => t !== conversation);
+    p.sides = (p.sides ?? []).filter((s) => s.parent !== conversation);
+    return p;
+  }) as never,
   'projects.made': ((id: string) => MADE[id] ?? []) as never,
   'wiki.read': ((page: string) => ({ page, content: MEMORY[page] ?? '' })) as never,
   'wiki.incoming': () => [...INCOMING],

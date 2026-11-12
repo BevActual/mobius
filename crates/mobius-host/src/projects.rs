@@ -164,6 +164,21 @@ impl Projects {
         })
     }
 
+    /// A thread leaves the project: the conversation is kept, and the project's rules no longer count in it. The side
+    /// threads asked from it leave with it.
+    pub fn remove_thread(&self, id: &str, conversation: &str) -> Result<Project, String> {
+        self.change(|all| {
+            let p = all.iter_mut().find(|p| p.id == id).ok_or("That project is not there.")?;
+            let before = p.threads.len();
+            p.threads.retain(|t| t != conversation);
+            if p.threads.len() == before {
+                return Err("That conversation is not in this project.".into());
+            }
+            p.sides.retain(|s| s.parent != conversation);
+            Ok(p.clone())
+        })
+    }
+
     /// The project a conversation belongs to, if any: one of its threads, or a bot's side thread in it.
     #[must_use]
     pub fn project_of(&self, conversation: &str) -> Option<String> {
@@ -274,6 +289,12 @@ mod tests {
         let reported = p.report("c-abc123-1", "Three venues: A, B and C.").unwrap();
         assert_eq!(reported.sides[0].report.as_deref(), Some("Three venues: A, B and C."));
         assert!(p.report("c-other", "x").is_err());
+        assert!(p.remove_thread(&kestrel.id, "main-9").is_err(), "only one of its threads");
+        let left = p.remove_thread(&kestrel.id, "main-1").unwrap();
+        assert!(left.threads.is_empty() && left.sides.is_empty(), "its side threads leave with it");
+        assert_eq!(p.project_of("main-1"), None, "the project's rules no longer count in it");
+        assert_eq!(p.project_of("c-abc123-1"), None);
+        p.add_thread(&other.id, "main-1").unwrap();
         p.remove(&other.id).unwrap();
         assert_eq!(p.list().len(), 1);
     }
