@@ -16,6 +16,7 @@
     "e2e": "npm run build && playwright test"
   },
   "dependencies": {
+    "@base-ui/react": "^1.9.0",
     "@mobius/shared": "*",
     "@tauri-apps/api": "^2.0.0",
     "@tiptap/extension-image": "^3.32.0",
