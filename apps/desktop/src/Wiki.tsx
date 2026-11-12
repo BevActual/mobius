@@ -7,6 +7,9 @@ import { ContextMenu } from './ContextMenu';
 import { EmptyState } from './EmptyState';
 import { SideNew } from './SideNew';
 import { relativeTime } from './relative-time';
+import { DocEditor } from './Docs';
+import { dayLabel, nearDayLabel, timeLabel } from './dates';
+import { diffCounts, diffLines } from './line-diff';
 import './knowledge.css';
 
 /** The kinds of things Mobius remembers. */
@@ -311,40 +314,95 @@ function sections(notebooks: NotesState['notebooks'], query = ''): NotesState['n
 
 const pageName = (path: string) => path.split('/').pop()?.replace(/\.md$/, '') ?? path;
 
-/** A page's earlier versions, from the workspace checkpoints: look at one, and put it back. */
-export function WikiVersions({ wiki }: { wiki: NotesState }) {
+/**
+ * A Knowledge page: the shared document editor, with Versions as one more button at the end of its toolbar. Versions
+ * opens in place of the page, as History does in Docs and Notes.
+ */
+export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocus: boolean; busy: boolean }) {
   const path = wiki.page?.path ?? null;
   const [open, setOpen] = useState(false);
-  const [versions, setVersions] = useState<WikiVersion[]>([]);
+  useEffect(() => { setOpen(false); }, [path]);
+  const canLook = Boolean(path && window.mobius.wiki?.versions);
+  const button = canLook ? (
+    <button type="button" className="doc-tool" aria-label="Versions" aria-pressed={open} title="Earlier versions of this page" onClick={() => setOpen((o) => !o)}>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 0 1.8-4.3M4 4v3.5h3.5M10 6.5V10l2.5 1.5" /></svg>
+    </button>
+  ) : null;
+  return (
+    <div className="wiki-doc">
+      <DocEditor docs={wiki} autoFocus={autoFocus} busy={busy} toolbarEnd={button} />
+      {open && path && <WikiVersions path={path} text={wiki.text} onPutBack={(content) => { wiki.edit(content); setOpen(false); }} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+/**
+ * A page's earlier versions, from the workspace checkpoints, newest first under their day. The chosen one is shown as
+ * what putting it back would change: lines that come back, and lines that go.
+ */
+function WikiVersions({ path, text, onPutBack, onClose }: { path: string; text: string; onPutBack: (content: string) => void; onClose: () => void }) {
+  const [versions, setVersions] = useState<WikiVersion[] | null>(null);
   const [shown, setShown] = useState<WikiVersion | null>(null);
   useEffect(() => {
-    if (!open || !path) return;
     let live = true;
-    void window.mobius.wiki?.versions?.(path).then((v) => { if (live) setVersions(Array.isArray(v) ? v : []); }).catch(() => undefined);
+    void window.mobius.wiki?.versions?.(path).then((v) => { if (live) setVersions(Array.isArray(v) ? v : []); }).catch(() => { if (live) setVersions([]); });
     return () => { live = false; };
-  }, [open, path, wiki.text]);
-  if (!path || !window.mobius.wiki?.versions) return null;
-  const when = (ms: number) => new Date(ms).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  }, [path]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const now = Date.now();
+  const days: { day: string; versions: WikiVersion[] }[] = [];
+  for (const v of versions ?? []) {
+    const day = nearDayLabel(v.whenMs, now) ?? dayLabel(v.whenMs, { weekday: 'long', now });
+    const last = days[days.length - 1];
+    if (last?.day === day) last.versions.push(v); else days.push({ day, versions: [v] });
+  }
+  const lines = shown ? diffLines(text, shown.content) : [];
+  const counts = diffCounts(lines);
   return (
-    <div className="wiki-versions">
-      <button type="button" className="btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>Versions</button>
-      {open && (
-        <section className="wiki-versions-list" aria-label="Versions">
-          {versions.length === 0 && <p className="note-empty">No earlier versions yet.</p>}
-          <ul role="list">
-            {versions.map((v) => (
-              <li key={v.checkpoint}><button type="button" className="list-row" aria-current={shown?.checkpoint === v.checkpoint ? 'true' : undefined} onClick={() => setShown(v)}>{when(v.whenMs)}</button></li>
-            ))}
-          </ul>
-          {shown && (
-            <div className="wiki-version">
-              <pre aria-label="That version">{shown.content}</pre>
-              <button type="button" className="btn" onClick={() => { wiki.edit(shown.content); setShown(null); setOpen(false); }}>Put this version back</button>
+    <section className="kn-versions" aria-label="Versions">
+      <header className="kn-versions-head">
+        <h2>Versions</h2>
+        <button type="button" className="btn" onClick={onClose}>Done</button>
+      </header>
+      <div className="kn-versions-body">
+        <nav className="kn-versions-list" aria-label="Earlier versions">
+          {versions === null && <p className="note-empty">Looking…</p>}
+          {versions?.length === 0 && <p className="note-empty">No earlier versions yet. A version is kept each time Mobius starts a turn.</p>}
+          {days.map((d) => (
+            <div key={d.day} className="kn-versions-day">
+              <h3 className="kn-side-heading">{d.day}</h3>
+              <ul role="list">
+                {d.versions.map((v) => (
+                  <li key={v.checkpoint}>
+                    <button type="button" className="list-row" aria-current={shown?.checkpoint === v.checkpoint ? 'true' : undefined} onClick={() => setShown(v)}>
+                      <span className="list-name">{timeLabel(v.whenMs)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
+          ))}
+        </nav>
+        <div className="kn-version">
+          {!shown && versions && versions.length > 0 && <p className="note-empty">Choose a version to see how it differs from the page now.</p>}
+          {shown && (
+            <>
+              <div className="kn-version-bar">
+                <span className="kn-version-sum">{counts.added || counts.removed ? [counts.added ? `${counts.added} ${counts.added === 1 ? 'line comes' : 'lines come'} back` : '', counts.removed ? `${counts.removed} ${counts.removed === 1 ? 'line goes' : 'lines go'}` : ''].filter(Boolean).join(', ') : 'The same as the page now'}</span>
+                <button type="button" className="btn primary" onClick={() => onPutBack(shown.content)}>Put this version back</button>
+              </div>
+              <div className="kn-diff" aria-label="That version" role="document">
+                {lines.map((l, i) => <div key={i} className="kn-diff-line" data-kind={l.kind}><span className="kn-diff-mark" aria-hidden="true">{l.kind === 'added' ? '+' : l.kind === 'removed' ? '−' : ''}</span>{l.text || ' '}</div>)}
+              </div>
+            </>
           )}
-        </section>
-      )}
-    </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

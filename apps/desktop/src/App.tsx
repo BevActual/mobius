@@ -61,7 +61,7 @@ import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extens
 import { FilesPage, FilesSidebar, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
 import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
-import { HowIWork, SharedQueue, WikiSidebar, WikiVersions, useWikiIncoming, type WikiPlace } from './Wiki';
+import { HowIWork, SharedQueue, WikiPage, WikiSidebar, useWikiIncoming, type WikiPlace } from './Wiki';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
 import { useVideo } from './useVideo';
@@ -1315,7 +1315,7 @@ export function App() {
       case 'wiki':
         if (wikiPlace.kind === 'mine') return <HowIWork asking={conversation.state.items} onAnswer={(id, approve) => void conversation.answer(id, approve, 'once')} />;
         if (wikiPlace.kind === 'shared') return <SharedQueue incoming={wikiIncoming} />;
-        return <div className="wiki-doc"><WikiVersions wiki={wiki} /><DocEditor docs={wiki} autoFocus={app === 'wiki'} busy={conversation.state.busy} /></div>;
+        return <WikiPage wiki={wiki} autoFocus={app === 'wiki'} busy={conversation.state.busy} />;
       case 'reader':
         return <ReaderPage reading={reading} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && turnMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'research':

@@ -29,8 +29,9 @@ written straight in: a line from How I work you chose to share, a line Mobius pr
 waits under **Suggested changes** with **Decline**, **Edit first** and **Keep**, and either answer can be undone.
 
 Pages are Markdown files in `workspace/wiki/`, listed in the sidebar under their folder: **Pages**, **Projects** and
-**Shared**. Their earlier versions come from the workspace checkpoints, so any page
-can be put back as it was.
+**Shared**. Their earlier versions come from the workspace checkpoints. The **Versions** button (the clock at the end
+of the page's toolbar) lists them by day and shows what putting one back would change, line by line: what comes back
+in green, what goes in red. **Put this version back** restores it.
 
 ## Project memory
 
