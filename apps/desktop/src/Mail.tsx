@@ -6,6 +6,7 @@ import type { MailBox, MailState } from './useMail';
 import { ReviewActions } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { EmptyState } from './EmptyState';
+import { dayLabel, formatWith, timeLabel, weekdayLabel } from './dates';
 
 const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
   { id: 'primary', label: 'Primary' },
@@ -26,9 +27,9 @@ const PRESETS = [
 export function when(ms: number, now = new Date()): string {
   if (!ms) return '';
   const d = new Date(ms);
-  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  if (now.getTime() - ms < 6 * 86_400_000 && ms <= now.getTime()) return d.toLocaleDateString(undefined, { weekday: 'short' });
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  if (d.toDateString() === now.toDateString()) return timeLabel(d);
+  if (now.getTime() - ms < 6 * 86_400_000 && ms <= now.getTime()) return weekdayLabel(d);
+  return dayLabel(d, { now });
 }
 /** Mail's own toolbar glyphs, drawn like the standard action icons (20 units, stroked). */
 const MAIL_ICONS = {
@@ -180,7 +181,7 @@ function HtmlBody({ html }: { html: string }) {
   return <iframe className="mail-html" title="Message" sandbox="allow-same-origin" srcDoc={doc} style={{ height }} onLoad={(e) => { const b = e.currentTarget.contentDocument?.body; if (b) setHeight(Math.min(6000, b.scrollHeight + 24)); }} />;
 }
 
-const sendTime = (ms: number) => new Date(ms).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+const sendTime = (ms: number) => formatWith(ms, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
 /** `hour`:00 on the next `weekday` (0 Sunday … 6 Saturday), or tomorrow when there is none. */
 export function nextAt(hour: number, weekday: number | null, now = new Date()): number {
@@ -331,7 +332,7 @@ function Reader({ mail, content, onDraftReply }: { mail: MailState; content: Mai
       <header className="mail-reader-head">
         <span className="mail-avatar" aria-hidden="true">{initials(content.from.name, content.from.email)}</span>
         <div className="mail-reader-who">
-          <div><b>{shownName(content.from)}</b> <span className="mail-when">{content.dateMs ? new Date(content.dateMs).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : ''}</span></div>
+          <div><b>{shownName(content.from)}</b> <span className="mail-when">{content.dateMs ? sendTime(content.dateMs) : ''}</span></div>
           <div className="mail-subject">{content.subject || '(no subject)'}</div>
           <div className="mail-to">To: {content.to.map(shownName).join(', ') || 'you'}{content.cc.length > 0 && <> · Cc: {content.cc.map(shownName).join(', ')}</>}</div>
         </div>

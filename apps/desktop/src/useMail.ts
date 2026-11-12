@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatWith } from './dates';
 import { isNotesFailure, type MailAccount, type MailCategory, type MailContent, type MailCounts, type MailDraft, type MailMessage } from '@mobius/shared';
 
 /** Inbox and Sent are mirrored mailboxes; Flagged and Archive are the person's flagged and archived mail from both. */
@@ -12,7 +13,7 @@ export function inBox(box: MailBox, all: readonly MailMessage[]): MailMessage[] 
   return [...all];
 }
 
-const quoteDate = (ms: number) => (ms ? new Date(ms).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
+const quoteDate = (ms: number) => (ms ? formatWith(ms, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 const who = (p: { name: string; email: string }) => (p.name ? `${p.name} <${p.email}>` : p.email);
 
 /** A reply's body: room to write, then the message quoted, as Apple Mail does. */
