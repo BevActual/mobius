@@ -1,0 +1,70 @@
+/*
+ * Projects, the Apple way: the project's name is the toolbar's title, so the page opens with one line about it and its
+ * actions; each part is a grouped inset list (a heading outside, rows with an icon, a grey second line and a chevron,
+ * separated by inset hairlines), as in System Settings.
+ */
+.project-page { gap: var(--sp-5); }
+/* The page scrolls; its parts keep their height rather than shrinking to fit. */
+.project-page > * { flex-shrink: 0; }
+.proj-head { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; min-height: 32px; }
+.proj-summary { flex: 1; min-width: 0; margin: 0; color: var(--muted); font-size: var(--fs-md); }
+.proj-head-actions { display: inline-flex; align-items: center; gap: var(--sp-2); margin-left: auto; }
+.proj-head-note { flex-basis: 100%; margin: 0; }
+.proj-more svg { fill: currentColor; stroke: none; }
+.proj-name-field { flex: 1; min-width: 180px; height: 32px; padding: 0 10px; border: 0.5px solid var(--hairline); border-radius: var(--radius-control); background: var(--field); color: var(--ink); font: inherit; font-size: var(--fs-xl); font-weight: 600; }
+.proj-name-field:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.proj-confirm { padding: var(--sp-3) var(--sp-4); border-radius: 12px; background: var(--field); }
+.proj-confirm-text { flex: 1 1 320px; margin: 0; font-size: var(--fs-md); line-height: 1.45; }
+
+.proj-group { display: grid; gap: 6px; }
+.proj-group-head { display: flex; align-items: baseline; gap: var(--sp-2); padding: 0 var(--sp-3); }
+.proj-group-title { flex: 1; margin: 0; font-size: var(--fs-md); font-weight: 600; }
+.proj-group-head .btn.link { font-size: var(--fs-sm); }
+.proj-card { border-radius: 12px; border: 0.5px solid var(--hairline); background: var(--card, var(--bg)); overflow: hidden; }
+@media (prefers-color-scheme: dark) { .proj-card { background: color-mix(in srgb, var(--ink) 4%, var(--bg)); } }
+.proj-group[data-tone="attention"] .proj-card { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
+.proj-group[data-tone="attention"] .proj-group-title { color: var(--accent); }
+
+.proj-rows { list-style: none; margin: 0; padding: 0; }
+.proj-row { position: relative; display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: 44px; margin: 0; padding: 7px 14px; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-md); text-align: left; box-sizing: border-box; }
+button.proj-row { cursor: pointer; transition: background var(--dur-fast) var(--ease); }
+button.proj-row:hover { background: var(--wash); }
+button.proj-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: -2px; }
+/* Inset hairlines between rows, starting where the text starts. */
+.proj-rows > li + li > .proj-row:first-child::before, .proj-rows > li.proj-row + li.proj-row::before, .proj-row + .proj-row::before { content: ""; position: absolute; top: 0; left: 48px; right: 0; height: 0.5px; background: var(--hairline); }
+.proj-row-text { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 1px; }
+.proj-row-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.proj-row-text .proj-row-title { white-space: nowrap; }
+.proj-row-sub { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj-row-actions { display: inline-flex; gap: 6px; flex: none; }
+.proj-row-note { margin: 0; padding: 10px 14px 4px; color: var(--muted); font-size: var(--fs-sm); }
+.proj-empty { margin: 0; padding: 12px 14px; color: var(--muted); font-size: var(--fs-md); }
+.proj-chevron { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; }
+.proj-glyph { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; }
+.proj-tile { width: 22px; height: 22px; flex: none; padding: 3px; box-sizing: border-box; border-radius: 6px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.proj-dot { width: 8px; height: 8px; margin: 0 7px; flex: none; border-radius: 50%; background: var(--accent); }
+
+/* A bot's side thread sits under the thread it was asked from. */
+.proj-row.project-side { padding-left: 38px; }
+.proj-row.project-side::before { left: 72px !important; }
+.proj-row.project-side[data-working] .proj-row-sub { color: var(--accent); }
+
+/* Facts the project knows: plain lines; one Mobius proposed is dashed until it is kept. */
+.proj-fact { padding-left: 14px; min-height: 40px; }
+.proj-rows > li.proj-fact + li.proj-fact::before { left: 14px; }
+.proj-fact .proj-row-title { font-weight: 400; white-space: normal; }
+.proj-fact[data-proposed] { margin: 4px; width: auto; border-radius: 9px; outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -1px; }
+.proj-fact[data-proposed]::before { display: none; }
+.proj-fact .btn { height: 26px; }
+
+/* The move-a-conversation pop-up closes the Threads card. */
+.proj-move { display: block; margin: 8px 14px 12px; }
+.project-page select.popup { padding-right: 26px; background: var(--bg) var(--chevron) no-repeat right 8px center / 11px; appearance: none; cursor: pointer; }
+
+.proj-rules-summary .proj-row-title { font-weight: 400; color: var(--muted); }
+.proj-rules .popup { margin-left: auto; }
+.proj-rules .proj-row::before { left: 48px; }
+
+/* The sidebar: each project with the Projects glyph, as Reminders shows its lists. */
+.proj-side-row { gap: var(--sp-2); }
+.proj-side-icon { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
