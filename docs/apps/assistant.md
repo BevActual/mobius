@@ -4,6 +4,8 @@
 
 The Agent app is Mobius's home. It opens on the **desk** and holds your conversations.
 
+![The Agent app in Mobius](../readme/apps/agent.png)
+
 - **The desk** shows what waits for you first (questions and approvals, each answerable in place), then what Mobius is
   doing, what is open in your apps (an app Mobius changed carries a dashed edge until you look), and what is scheduled
   next.
@@ -32,3 +34,6 @@ Agents are named helpers for jobs you repeat. Open them from the **Agents** tab 
 ## Abilities
 
 Where you add apps, skills, connectors and plugins. See the [Abilities guide](../guide/abilities.md).
+
+
+![The Abilities app in Mobius](../readme/apps/abilities.png)

@@ -27,6 +27,7 @@ you want to build or change Mobius, go to **Developers**.
 | [Memory and Knowledge](guide/memory-and-knowledge.md) | What Mobius remembers, and how to correct it |
 | [Privacy, safety and profiles](guide/privacy-and-profiles.md) | Where your data lives, the privacy report, approvals and profiles |
 | [Keyboard shortcuts](guide/keyboard-shortcuts.md) | The default keys, and changing them |
+| [Settings](guide/settings.md) | Every section of Settings, and where it is explained |
 
 ## Apps
 
@@ -52,15 +53,21 @@ you want to build or change Mobius, go to **Developers**.
 | [Design](design/workspace-layout.md) | One adaptive surface: the layout rules every app follows |
 | [Reference notes](reference/README.md) | Comparisons with Hermes Agent, and calendar sign-in requirements |
 
+## Help
+
+- [Troubleshooting](troubleshooting.md): problems people run into, and what to do
+- [Glossary](glossary.md): Mobius's own words, defined once
+- [Report a bug or suggest an idea](https://github.com/BevActual/mobius/issues/new/choose)
+
 ## Project
 
 - [Roadmap](roadmap.md): what is built, what comes next
+- [Security policy](../SECURITY.md) and [code of conduct](../CODE_OF_CONDUCT.md)
 - [Code signing policy](CODE_SIGNING_POLICY.md)
 - [License (MIT)](../LICENSE) and [third-party notices](../THIRD_PARTY_NOTICES.md)
 
 ## Writing these docs
 
-- One subject per page. Link instead of repeating.
-- Use the names people see in the app (Music, not Studio; Knowledge, not Wiki; Abilities, not Extensions).
-- Say what the app does now. Put plans in the [roadmap](roadmap.md).
-- When a change to the app makes a page wrong, fix the page in the same pull request.
+[Writing the docs](writing-docs.md) is the skeleton every page follows: where a page goes, its shape, naming, style and
+screenshots. Start a new page from a [template](templates/README.md). A pull request that changes what a person sees
+also updates its page.
