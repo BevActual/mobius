@@ -67,12 +67,14 @@ export interface ComposerProps {
   onRemoveHere?: () => void;
   /** What the agent is doing while it works: the box turns into a live status line with Stop. */
   activity?: Activity | null;
+  /** What the empty box suggests asking where the person is ("Ask about your mail"); "Message Mobius" without one. */
+  hint?: string;
 }
 
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, started = false, onOpenVoice, onQueue }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, started = false, onOpenVoice, onQueue, hint }: ComposerProps) {
   // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
   const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
   const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
@@ -384,7 +386,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
         value={draft}
         disabled={!canType}
         autoFocus={takeFocus}
-        placeholder={canType ? (busy && onQueue ? 'Queue a message for when Mobius finishes' : 'Message Mobius') : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
+        placeholder={canType ? (busy && onQueue ? 'Queue a message for when Mobius finishes' : hint ?? 'Message Mobius') : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={onKeyDown}
         onPaste={(event) => {
