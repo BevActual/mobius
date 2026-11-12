@@ -1439,7 +1439,9 @@ impl Bridge {
     /// Tells the core about the tools this application runs. Called each time the core becomes ready.
     /// Starts one scheduled request: a new conversation, reviewable like any turn. Says which conversation it is.
     fn run_schedule(&self, schedule: &crate::schedules::Schedule) -> Value {
-        let conversation = crate::schedules::conversation_for_run();
+        // An agent that was removed since: the run is Mobius's own.
+        let bot = schedule.bot.as_deref().filter(|b| lock(&self.bots).get(b).is_some());
+        let conversation = crate::schedules::conversation_for_run(bot);
         let Some(request) = agent::parse_send(&json!({ "conversation": conversation, "text": schedule.prompt })) else {
             return failed("That request cannot be sent.");
         };
@@ -1453,7 +1455,8 @@ impl Bridge {
             Ok(None) => {}
             Err(error) => eprintln!("[changes] no mark before the scheduled request: {error}"),
         }
-        let result = self.agent.send_remembering(&request, None, &self.instructions());
+        let agent = self.bot_for(&conversation);
+        let result = self.agent.send_remembering(&request, agent.as_ref().map(|b| (b.instructions.as_str(), b.model.as_str())), &self.instructions());
         if result["ok"] == json!(true) {
             (self.emit)("mobius:schedule-ran", json!({ "id": schedule.id, "title": schedule.title, "conversation": conversation }));
             json!({ "ok": true, "conversation": conversation })
