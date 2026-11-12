@@ -570,6 +570,13 @@ impl Bridge {
                 }
                 Ok(self.usage.query(&from, &to, &self.prices.prices()))
             }
+            ("usage", "exportCsv") => {
+                let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+                Ok(match crate::usage::export_csv(&self.data_dir.join("workspace"), arg(0).as_str().unwrap_or(""), &today) {
+                    Ok(path) => json!({ "ok": true, "path": path }),
+                    Err(error) => json!({ "ok": false, "error": error }),
+                })
+            }
             ("usage", "clear") => {
                 self.usage.clear();
                 (self.emit)("mobius:usage-changed", json!({}));

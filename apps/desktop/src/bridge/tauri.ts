@@ -273,6 +273,7 @@ export function createTauriBridge(): MobiusBridge {
     usage: {
       query: (range) => call('usage', 'query', [range], () => []),
       clear: async () => { await call('usage', 'clear', [], () => null); },
+      exportCsv: (csv) => call('usage', 'exportCsv', [csv], () => ({ ok: false as const, error: 'Export is not available here.' })),
       onChange: (listener) => on<unknown>('mobius:usage-changed', () => listener()),
     },
     files: {

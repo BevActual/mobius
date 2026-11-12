@@ -142,6 +142,35 @@ fn save(path: &Path, rows: &BTreeMap<Key, Tally>) {
     }
 }
 
+const MAX_CSV_BYTES: usize = 5 * 1024 * 1024;
+
+/// Save the Usage table the window made as `Exports/Usage <day>.csv` in the workspace (so Files shows it), never
+/// replacing a file there. Returns where, relative to the workspace.
+pub fn export_csv(workspace: &Path, csv: &str, day: &str) -> Result<String, String> {
+    if csv.is_empty() || csv.len() > MAX_CSV_BYTES {
+        return Err("There is nothing to export.".into());
+    }
+    let day = if is_day(day) { day } else { "export" };
+    let folder = workspace.join("Exports");
+    std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    for n in 1..1000 {
+        let name = if n < 2 { format!("Usage {day}.csv") } else { format!("Usage {day} {n}.csv") };
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(folder.join(&name)) {
+            Ok(mut f) => {
+                if let Err(e) = std::io::Write::write_all(&mut f, csv.as_bytes()) {
+                    drop(f);
+                    std::fs::remove_file(folder.join(&name)).ok();
+                    return Err(e.to_string());
+                }
+                return Ok(format!("Exports/{name}"));
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    Err("Exports has too many usage files.".into())
+}
+
 /// The gateway an address belongs to, as Settings names it: a gateway's id, a plan's id, `local` for a server on this
 /// computer, or the address's host for one of your own.
 pub fn gateway_of(endpoint: &str, gateways: &Providers) -> String {
@@ -358,6 +387,16 @@ mod tests {
         assert_eq!(gateway_of("claude-code://subscription", &gateways), "claude-code");
         assert_eq!(gateway_of("http://127.0.0.1:9999/v1", &gateways), "local");
         assert_eq!(gateway_of("https://models.example.com:8443/v1", &gateways), "models.example.com");
+    }
+
+    #[test]
+    fn an_export_goes_to_exports_and_never_replaces_a_file() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(export_csv(dir.path(), "day,model\n", "2026-11-12").unwrap(), "Exports/Usage 2026-11-12.csv");
+        assert_eq!(export_csv(dir.path(), "day,model\n", "2026-11-12").unwrap(), "Exports/Usage 2026-11-12 2.csv");
+        assert_eq!(std::fs::read_to_string(dir.path().join("Exports/Usage 2026-11-12.csv")).unwrap(), "day,model\n");
+        assert!(export_csv(dir.path(), "", "2026-11-12").is_err());
+        assert_eq!(export_csv(dir.path(), "x", "../../etc").unwrap(), "Exports/Usage export.csv");
     }
 
     #[test]

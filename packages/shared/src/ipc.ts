@@ -527,6 +527,8 @@ export interface MobiusBridge {
     query(range: UsageQuery): Promise<UsageRow[]>;
     /** Forget the whole tally. */
     clear(): Promise<void>;
+    /** Save a table the window made as `Exports/Usage <today>.csv` in the workspace; says where, relative to it. */
+    exportCsv?(csv: string): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
     /** Called when a model call is counted or the price list changes. */
     onChange(listener: () => void): () => void;
   };
