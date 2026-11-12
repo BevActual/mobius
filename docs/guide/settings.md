@@ -4,6 +4,10 @@ Ctrl+, opens Settings. Its sections are grouped in the sidebar the way System Se
 at the top finds any setting by what it does ("dark", "fallback", "dictation"). This page says what each section holds
 and where it is explained.
 
+Each section opens with its icon, name and one line on what it is for, then its settings in grouped cards: the name
+and a line of help on the left, the control on the right. Settings take effect as soon as you change them; there is no
+Save button.
+
 ![Settings in Mobius, on the Models section](../readme/apps/settings.png)
 
 ## Mobius
@@ -29,7 +33,7 @@ and where it is explained.
 | --- | --- | --- |
 | **Approvals and safety** | The mode, what Mobius may do in each app, always-allowed actions, the activity log | [Working with Mobius](working-with-mobius.md#the-three-modes) |
 | **Memory** | What Mobius remembers, with Forget | [Memory and Knowledge](memory-and-knowledge.md) |
-| **Privacy** | The privacy report, key storage, how web content is treated | [Privacy, safety and profiles](privacy-and-profiles.md) |
+| **Privacy** | The privacy report, key storage, how web content is treated, Remove my data | [Privacy, safety and profiles](privacy-and-profiles.md) |
 
 ## Apps
 
@@ -45,7 +49,7 @@ and where it is explained.
 | Section | What it holds | Explained in |
 | --- | --- | --- |
 | **Advanced** | Steps per request, letting other apps use Mobius over MCP, profiles | [Abilities](abilities.md#mobius-for-other-apps), [Privacy, safety and profiles](privacy-and-profiles.md#profiles) |
-| **About** | Software Update, versions, the data folder, core status | [Install Mobius](../getting-started/install.md#updates) |
+| **About** | Software Update, versions (including whether the core is running), the data folder | [Install Mobius](../getting-started/install.md#updates) |
 
 ## Appearance
 

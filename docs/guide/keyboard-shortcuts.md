@@ -1,6 +1,7 @@
 # Keyboard shortcuts
 
-Change any of these in **Settings › Keyboard**.
+Change any of these in **Settings › Keyboard**: click a shortcut's key field and press the new keys (Esc cancels).
+The small x clears a shortcut, and **Reset** puts back the usual keys.
 
 | Keys | What it does |
 | --- | --- |
