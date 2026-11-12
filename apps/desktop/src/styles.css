@@ -825,6 +825,8 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .rail-label { position: relative; z-index: 1; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-size: var(--fs-md); }
 .rail-count { position: relative; z-index: 1; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
 .rail[data-expanded] .rail-badge { position: relative; right: auto; bottom: auto; }
+/* On the sidebar head the badge sits on the app tile's corner, so it never takes room from the app's name. */
+.rail[data-expanded] .rail-switch .rail-badge { position: absolute; left: 21px; top: 0; }
 .rail[data-expanded] .rail-top { grid-template-columns: 1fr; }
 .rail[data-expanded] .rail-toggle { width: 30px; justify-content: center; padding: 0; color: var(--muted); }
 .rail[data-expanded] .rail-toggle svg { color: var(--muted); }
