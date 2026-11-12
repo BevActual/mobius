@@ -117,8 +117,17 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   useLayoutEffect(() => {
     const element = fieldRef.current;
     if (!element) return;
-    element.style.height = 'auto';
-    element.style.height = `${Math.min(element.scrollHeight, 168)}px`;
+    const fit = () => {
+      element.style.height = 'auto';
+      element.style.height = `${Math.min(element.scrollHeight, 168)}px`;
+    };
+    fit();
+    // Measured while the sidebar was still growing, the box would stay tall: fit it again when its width changes.
+    if (typeof ResizeObserver !== 'function') return;
+    let width = element.clientWidth;
+    const watch = new ResizeObserver(() => { if (element.clientWidth !== width) { width = element.clientWidth; fit(); } });
+    watch.observe(element);
+    return () => watch.disconnect();
   }, [draft, fieldRef]);
 
   // Hold to talk: while the shortcut (Ctrl+Space unless changed in Settings, Keyboard) is held with the keyboard in this

@@ -2185,7 +2185,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .rail[data-expanded] .rail-mobius svg { width: 17px; height: 17px; color: var(--muted); }
 .rail[data-expanded] .rail-mobius[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .rail[data-expanded] .rail-mobius[aria-pressed="true"] svg { color: var(--accent); }
-.rail-ask { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 2px calc(-1 * var(--sp-2)) calc(-1 * var(--sp-3)); border-top: 1px solid var(--hairline); }
+.rail-ask { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 2px calc(-1 * var(--sp-2)) calc(-1 * var(--sp-3)); }
 .rail-ask-bar { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 var(--sp-3) 0 calc(var(--sp-2) + var(--sp-2)); }
 .rail-ask-title { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); letter-spacing: 0.02em; }
 .rail-ask-beside { height: 22px; padding: 0 8px; border-radius: var(--radius-pill); font-size: var(--fs-xs); color: var(--muted); }
