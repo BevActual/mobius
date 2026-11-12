@@ -1,6 +1,7 @@
 import { RowMark } from './RowMark';
 import { FromMobius } from './FromMobius';
 import { EmptyState } from './EmptyState';
+import { SideNew } from './SideNew';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
@@ -126,12 +127,10 @@ export function VideoSidebar({ video, pin, changed }: { video: VideoState; pin?:
   };
   return (
     <aside className="side video-side" aria-label="Video sidebar">
+      <SideNew item="project" onNew={() => setNaming(true)} />
       <div className="side-head">
         <span className="side-title">Projects</span>
-        <span className="side-actions">
-          {pin}
-          <button type="button" className="strip-btn" aria-label="New project" title="New project" onClick={() => setNaming(true)}><Icon d={PLUS} /></button>
-        </span>
+        <span className="side-actions">{pin}</span>
       </div>
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
@@ -321,8 +320,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
     const inside = t > start && t < start + shotLength(s);
     setMenu({ x: e.clientX, y: e.clientY, label: `Shot ${i + 1}`, items: [
       { label: 'Split at the playhead', keys: 'S', disabled: !inside || splitAt(cut, t) === null, run: split },
-      { action: 'duplicate', keys: `${MOD()}D`, run: () => duplicate(s.id) },
       { action: 'rename', label: s.title ? 'Edit title' : 'Add title', run: () => nameIt(s.id) },
+      { action: 'duplicate', keys: `${MOD()}D`, run: () => duplicate(s.id) },
       { label: 'Move earlier', disabled: i === 0, run: () => edit(moveShot(cut, s.id, i - 1)), separated: true },
       { label: 'Move later', disabled: i === cut.shots.length - 1, run: () => edit(moveShot(cut, s.id, i + 1)) },
       { action: 'delete', label: 'Remove shot', keys: 'Delete', danger: true, separated: true, run: () => remove(s.id) },
@@ -481,11 +480,10 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
               </section>
               <section className="video-group" aria-label="Order">
                 <h3>Order</h3>
-                <div className="video-pair">
-                  <button type="button" className="btn" disabled={selIndex <= 0} onClick={() => edit(moveShot(cut, sel.id, selIndex - 1))}>Earlier</button>
-                  <button type="button" className="btn" disabled={selIndex >= cut.shots.length - 1} onClick={() => edit(moveShot(cut, sel.id, selIndex + 1))}>Later</button>
+                <div className="cap-group video-order">
+                  <button type="button" className="strip-btn" disabled={selIndex <= 0} title="Move the shot earlier" onClick={() => edit(moveShot(cut, sel.id, selIndex - 1))}>Earlier</button>
+                  <button type="button" className="strip-btn" disabled={selIndex >= cut.shots.length - 1} title="Move the shot later" onClick={() => edit(moveShot(cut, sel.id, selIndex + 1))}>Later</button>
                 </div>
-                <button type="button" className="btn video-wide" title={`Put a copy of the shot after it (${MOD()}D)`} onClick={() => duplicate(sel.id)}>Duplicate</button>
               </section>
               <button type="button" className="video-remove" onClick={() => remove(sel.id)}>Remove shot</button>
             </>
@@ -520,6 +518,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
         </div>
         <div className="cap-group">
           <button type="button" className="strip-btn" aria-label="Split at the playhead" title="Split at the playhead (S)" disabled={!canSplit} onClick={split}><Icon d="M10 3v14M6 6l-3 4 3 4M14 6l3 4-3 4" /></button>
+          <button type="button" className="strip-btn" aria-label="Duplicate shot" title={`Duplicate the chosen shot (${MOD()}D)`} disabled={!sel} onClick={() => sel && duplicate(sel.id)}><Icon d="M4 4h9v9H4zM7 7h9v9H7z" /></button>
           <button type="button" className="strip-btn" aria-label="Remove shot" title="Remove the chosen shot (Delete)" disabled={!sel} onClick={() => sel && remove(sel.id)}><Icon d="M5 6h10M8 6V4.5h4V6M6.5 6l.7 9.5h5.6l.7-9.5" /></button>
         </div>
         <span className="video-meta">{`${cut.shots.length} ${cut.shots.length === 1 ? 'shot' : 'shots'}${video.saved ? '' : ' · Saving…'}`}</span>
