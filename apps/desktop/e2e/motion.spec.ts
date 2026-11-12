@@ -44,10 +44,9 @@ test('with Reduce Motion a menu fades, rather than moving or not animating at al
   expect(await shell.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dur-loop').trim())).toMatch(/^0m?s$/);
 });
 
-test('the Ask capsule says what it would ask about in the app that is showing, Settings included', async () => {
+test('the message box says what it would ask about in the app that is showing, Settings included', async () => {
   const shell = mobius!.shell;
-  await shell.getByRole('complementary', { name: 'Agent' }).getByRole('button', { name: 'Hide' }).click();
-  const ask = shell.getByRole('textbox', { name: 'Ask Mobius' });
+  const ask = shell.getByRole('complementary', { name: 'Agent' }).getByRole('textbox', { name: 'Message Mobius' });
   const open = async (name: string) => {
     await shell.keyboard.press('Control+k');
     await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
@@ -66,7 +65,7 @@ test('a field shows one soft focus ring: never a ring inside a ring', async () =
   const shell = mobius!.shell;
   const rings = (selector: string) => shell.evaluate((s) => {
     const field = document.querySelector<HTMLElement>(s)!;
-    const box = field.closest('.ask-pill, .search-box, .hub-search') as HTMLElement | null;
+    const box = field.closest('.search-box, .hub-search') as HTMLElement | null;
     const ring = (el: HTMLElement) => { const st = getComputedStyle(el); return (st.outlineStyle !== 'none' && parseFloat(st.outlineWidth) > 0 ? 1 : 0) + (st.boxShadow !== 'none' && /0px 0px 0px [1-9]/.test(st.boxShadow) ? 1 : 0); };
     return ring(field) + (box ? ring(box) : 0);
   }, selector);
@@ -76,9 +75,4 @@ test('a field shows one soft focus ring: never a ring inside a ring', async () =
   await shell.locator('.settings-search').focus();
   expect(await rings('.settings-search')).toBe(1);
   await openSettings(shell);
-  // The Ask capsule: the capsule rings, the field inside it does not.
-  await shell.getByRole('complementary', { name: 'Agent' }).getByRole('button', { name: 'Hide' }).click();
-  await shell.keyboard.press('Shift');
-  await shell.getByRole('textbox', { name: 'Ask Mobius' }).focus();
-  expect(await rings('.ask-pill input')).toBe(1);
 });
