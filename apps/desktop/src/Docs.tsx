@@ -28,7 +28,7 @@ import { CommentComposer, CommentList, commentLine, useNoteComments } from './No
 import { NoteHistory, dayOf } from './NoteHistory';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
-import { docStats, activeHeading } from './docs-view';
+import { COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import './docs.css';
 
@@ -74,6 +74,11 @@ const STYLES = [
 /** Whether the outline shows beside the page. Per device; shown unless hidden. */
 const OUTLINE_KEY = 'mobius.docs.outline';
 const readOutline = () => { try { return window.localStorage.getItem(OUTLINE_KEY) !== '0'; } catch { return true; } };
+
+/** What the foot counts, one at a time as in Pages: a click shows the next. Per device. */
+const COUNT_NEXT: Record<CountShown, string> = { words: 'characters', characters: 'reading time', minutes: 'words' };
+const COUNT_KEY = 'mobius.docs.count';
+const readCount = (): CountShown => { try { const v = window.localStorage.getItem(COUNT_KEY); return COUNT_ORDER.includes(v as CountShown) ? v as CountShown : 'words'; } catch { return 'words'; } };
 
 /** The words open comments are about, marked in the page. `quotes` is read when the plugin is told to look again. */
 const commentKey = new PluginKey<DecorationSet>('doc-comments');
@@ -389,32 +394,65 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     onBlur: () => setSelection(null),
   });
   // The document's text, from the store: put into the editor when it did not come from the editor itself.
+  // The document the cursor was last placed in: a document just opened starts at its top, as Pages opens one; the same
+  // document changed from elsewhere (by Mobius) keeps the cursor about where it was, so the page does not jump.
+  const placed = useRef<string | null>(null);
   useEffect(() => {
     if (!editor || editor.isDestroyed || docs.text === known.current) return;
     known.current = docs.text;
+    const opened = placed.current !== path;
+    const was = editor.state.selection.from;
+    const hadFocus = editor.view.hasFocus();
     editor.chain().setMeta('mobius-load', true).setContent(docs.text, { contentType: 'markdown', emitUpdate: false }).run();
-    // Not while a dialog is open (the launcher): a page that loads late must not take the keys from it.
-    if (autoFocus && !document.querySelector('dialog[open]')) {
-      // A new document: its title is chosen, so what is typed first names it.
-      const at = untitledHeading(editor);
-      if (at) editor.chain().focus().setTextSelection(at).run(); else editor.commands.focus('end');
+    placed.current = path;
+    if (opened) {
+      // At the top, focused or not, so the outline and the toolbar speak of the start of the document.
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.atStart(editor.state.doc)).setMeta('mobius-load', true).setMeta('addToHistory', false));
+      section.current?.querySelector('.doc-scroll')?.scrollTo({ top: 0 });
     }
+    // Not while a dialog is open (the launcher): a page that loads late must not take the keys from it.
+    if (!autoFocus || document.querySelector('dialog[open]')) return;
+    // A new document: its title is chosen, so what is typed first names it.
+    const at = untitledHeading(editor);
+    if (at) editor.chain().focus().setTextSelection(at).run();
+    else if (opened) editor.chain().focus('start', { scrollIntoView: false }).run();
+    else if (hadFocus) editor.chain().focus(undefined, { scrollIntoView: false }).setTextSelection(Math.max(1, Math.min(was, editor.state.doc.content.size - 1))).run();
   }, [editor, docs.text, path]); // eslint-disable-line react-hooks/exhaustive-deps
   const quoteKey = quotesNow.current.join('\u0000');
   useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(commentKey, true)); }, [editor, quoteKey]);
   const view = useEditorState({
     editor,
     selector: ({ editor: e }) => {
-      if (!e) return { outline: [] as ReturnType<typeof headingsOf>, at: 0, chosen: '' };
+      if (!e) return { outline: [] as ReturnType<typeof headingsOf>, chosen: '' };
       const { from, to, empty } = e.state.selection;
-      return { outline: headingsOf(e), at: from, chosen: empty ? '' : e.state.doc.textBetween(from, to, ' ') };
+      return { outline: headingsOf(e), chosen: empty ? '' : e.state.doc.textBetween(from, to, ' ') };
     },
-  }) ?? { outline: [], at: 0, chosen: '' };
+  }) ?? { outline: [], chosen: '' };
   const outline = view.outline;
-  const current = activeHeading(outline, view.at);
+  // The heading the outline marks: the one whose part of the document is in view, followed as the page scrolls.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const [current, setCurrent] = useState(-1);
+  useEffect(() => {
+    if (!scroller || !editor) return undefined;
+    const look = () => {
+      if (editor.isDestroyed) return;
+      const box = scroller.getBoundingClientRect();
+      const tops = outline.map((h) => {
+        const el = editor.view.nodeDOM(h.pos);
+        return el instanceof HTMLElement ? el.getBoundingClientRect().top - box.top : Number.POSITIVE_INFINITY;
+      });
+      const atEnd = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 2 && scroller.scrollTop > 0;
+      setCurrent(headingInView(tops, scroller.clientHeight, atEnd));
+    };
+    look();
+    scroller.addEventListener('scroll', look, { passive: true });
+    return () => scroller.removeEventListener('scroll', look);
+  }, [scroller, editor, outline]);
   const stats = useMemo(() => docStats(docs.text), [docs.text]);
   const chosenWords = view.chosen ? countWords(view.chosen) : 0;
 
+  const [count, setCount] = useState<CountShown>(readCount);
+  const nextCount = () => setCount((c) => { const next = COUNT_ORDER[(COUNT_ORDER.indexOf(c) + 1) % COUNT_ORDER.length]!; try { window.localStorage.setItem(COUNT_KEY, next); } catch { /* Not kept. */ } return next; });
   const [outlineOpen, setOutlineOpen] = useState(readOutline);
   const toggleOutline = () => setOutlineOpen((o) => { try { window.localStorage.setItem(OUTLINE_KEY, o ? '0' : '1'); } catch { /* Not kept. */ } return !o; });
   const openComments = commentState.comments.filter((c) => !c.resolved).length;
@@ -664,7 +702,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
               ))}
             </nav>
           )}
-          <div className="doc-scroll">
+          <div className="doc-scroll" ref={setScroller}>
             {restored && (
               <div className="note-restored doc-banner" role="status">
                 <span>Restored the version from {restored.label}.</span>
@@ -717,9 +755,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
         {...(onTool ? { onAsk: (quote: string, text: string) => onTool('comment', commentLine({ id: '', quote, text, by: 'you', whenMs: 0, resolved: false }, [])) } : {})} />}
       {note && <div className="doc-toast" role="status"><span>{note}</span><button type="button" className="review-btn" onClick={() => setNote(null)}>OK</button></div>}
       <footer className="doc-status">
-        <span>{chosenWords ? `${chosenWords} of ${stats.words} words` : stats.words === 1 ? '1 word' : `${stats.words} words`}</span>
-        <span>{stats.characters === 1 ? '1 character' : `${stats.characters} characters`}</span>
-        <span>{stats.minutes} min read</span>
+        <button type="button" className="doc-count-btn" title={`Show ${COUNT_NEXT[count]} instead`} onClick={nextCount}>{countLabel(count, stats, chosenWords)}</button>
         {adding > 0 && <span>Adding {adding === 1 ? 'a file' : `${adding} files`}…</span>}
         <span className="spacer" />
         <span className="doc-saved" data-state={docs.status}>{saving}</span>

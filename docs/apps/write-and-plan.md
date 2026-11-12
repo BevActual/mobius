@@ -25,7 +25,9 @@ Longer documents, with an outline and comments.
 ![The Docs app in Mobius](../readme/apps/docs.png)
 
 - **A page to write on**: headings, lists, checklists, tables, pictures and links to other documents, kept as Markdown.
-- **The outline** of headings sits beside the page; hide it if you prefer.
+- **The outline** of headings sits beside the page and marks the part you are looking at as you scroll. It folds away
+  when the window is narrow; hide it if you prefer. A document opens at its top.
+- **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
 - **Mobius's writing tools** work on the selection or the whole document. What Mobius changes comes back as
