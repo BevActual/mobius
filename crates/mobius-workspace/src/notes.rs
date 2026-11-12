@@ -287,6 +287,11 @@ pub fn board_starter(_title: &str) -> String {
     "{\n  \"version\": 1,\n  \"items\": []\n}\n".to_owned()
 }
 
+/// What a new view holds: the tiles most people want first. See `apps/desktop/src/views-format.ts` for the format.
+pub fn view_starter(_title: &str) -> String {
+    "{\n  \"version\": 1,\n  \"tiles\": [\n    {\"id\":\"t1\",\"kind\":\"mobius\",\"size\":\"wide\"},\n    {\"id\":\"t2\",\"kind\":\"tasks\",\"size\":\"small\",\"show\":\"today\"},\n    {\"id\":\"t3\",\"kind\":\"calendar\",\"size\":\"small\",\"show\":\"today\"},\n    {\"id\":\"t4\",\"kind\":\"mail\",\"size\":\"small\"},\n    {\"id\":\"t5\",\"kind\":\"notes\",\"size\":\"small\"}\n  ]\n}\n".to_owned()
+}
+
 /// What a new song holds: tempo, key and length, and no tracks yet. See `apps/desktop/src/song-format.ts`.
 pub fn song_starter(_title: &str) -> String {
     "{\n  \"version\": 1,\n  \"tempo\": 112,\n  \"key\": \"A minor\",\n  \"bars\": 8,\n  \"tracks\": []\n}\n".to_owned()

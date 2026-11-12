@@ -38,6 +38,8 @@ Frames on a canvas, as in Sketch and Figma.
   hide, lock and delete, each with its shortcut. **Shift+1** fits everything, **Shift+2** zooms to what is picked.
 - Give a frame or shape a **Border** from the inspector (colour or style, and width). Drag layers up or down the layer
   list to change what is in front, or onto another frame to move them there.
+- **Export** a frame as a PNG at 1×, 2× or 3× from the inspector (or right-click › Export as PNG). It is saved in
+  Photo, in a **Design exports** album.
 - Mobius's changes are dashed to keep or discard. It can also make pictures with your
   [Images model](../guide/models-and-gateways.md#a-model-for-each-job).
 
@@ -49,9 +51,13 @@ Your pictures, with edits you can always take back.
 
 ![The Photo app in Mobius](../readme/apps/photo.png)
 
-- **Albums** are folders in `workspace/photos/`, shown as a grid. Your original files are never changed.
+- **Albums** are folders in `workspace/photos/`, shown as a grid. Your original files are never changed. The slider in
+  the toolbar (or **−** and **+**) makes the pictures bigger or smaller; right-click a picture to open or export it.
 - **Adjust** (exposure, highlights, shadows, contrast, saturation, warmth and more), **Filters** and **Crop** (turn,
-  flip, straighten). An adjustment can apply to all of the picture or to part of it.
+  flip, straighten). An adjustment can apply to all of the picture or to part of it. Light, Color, Effects and Where
+  each fold away, and each has its own reset once you change it.
+- Keys: **←** and **→** step through the album, hold **M** to see the original, **Z** zooms, **Esc** goes back. In
+  Crop, **R** rotates and **Enter** is Done.
 - Edits are kept beside each photo in a small file, so every change can be put back. **Export** writes a new file next
   to the photo.
 - Pictures made with your Images model are saved here.
@@ -66,7 +72,11 @@ A small studio for writing songs as notes.
 
 - **Tracks** laid out by bar, each with an instrument (Piano, Bass, Pad, Lead or Drums), volume, mute and solo.
 - **The piano roll** for the chosen track: draw, move and stretch notes, select with a box, snap to the grid. Drums
-  get a lane per drum.
+  get a tall row per drum, named in full.
+- **Velocity lane** under the roll: one bar per note. Drag a bar up to make the note louder, down to make it softer;
+  picked notes move together.
+- **The divider** between the tracks and the roll: the track list fits its tracks, and dragging the divider (or
+  Up and Down on it) gives more room to either side. Home fits it to the tracks again.
 - **Transport** to play, with the song's tempo and key.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
 
@@ -79,8 +89,12 @@ Cut footage into a short film.
 ![The Video app in Mobius](../readme/apps/video.png)
 
 - **Projects** in the sidebar, each with its footage. Add a clip to the cut or drag it into the timeline.
-- **The timeline** shows each shot as a filmstrip. Trim from either end, split, move and remove shots.
-- **The viewer** plays the shots in order, and the chosen shot's details sit beside it.
+- **The timeline** shows each shot as a filmstrip. Trim from either end, split, duplicate, move and remove shots.
+  Right-click a shot for its menu, or a clip in Footage to add it or show its folder.
+- **The viewer** plays the shots in order, and full screen with F. The chosen shot's details sit beside it, with In
+  and Out as timecode (type `0:02.5`, or plain seconds).
+- **Keys** as in other editors: Space plays, S splits, I and O set the shot's start and end at the playhead,
+  Ctrl+D (⌘D on a Mac) duplicates, the arrows step a frame and Up and Down jump between edits.
 
 **Kept in:** `workspace/video/<project>/`, the cut as `cut.json`. Your clips are never changed.
 
