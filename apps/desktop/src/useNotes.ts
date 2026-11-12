@@ -129,6 +129,9 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   const remove = useCallback(async (path: string) => {
     // The open page is closed first, so nothing of it is still in use while it goes: no save of it lands after the
     // delete, and its pictures are no longer shown (on Windows a picture being shown can keep its folder from going).
+    // A caller that has just opened another page (Reader's Done reading opens the archived copy, then removes the
+    // original) has its new page rendered first, so only the page really still open is closed.
+    await new Promise((settle) => setTimeout(settle, 0));
     if (live.current.page?.path === path) {
       setPage(null); setText(''); setStatus('saved');
       await new Promise((settle) => setTimeout(settle, 0));
