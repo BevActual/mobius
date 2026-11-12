@@ -35,7 +35,8 @@ and in a narrow window.
 
 - Order, top to bottom: the app switcher head, then **New** (New note, New message…), then **Search**, then the
   sections. Profile sits at the bottom.
-- Section headers are sentence case, small and grey ("Notebooks", "In your apps"). No all-caps headers.
+- Section headers, in sidebars and inspectors alike, are sentence case, small, semibold and grey ("Notebooks", "In
+  your apps", "Trim"). No all-caps headers.
 - Rows of a fixed kind (mailboxes, lists, settings panes) have a glyph or a tinted icon. Rows of user content (notes,
   documents) have a title and one grey line under it.
 - A count is a plain grey number at the trailing edge. A filled badge means "needs you", and only that.
@@ -61,8 +62,8 @@ and in a narrow window.
   to it.
 - **Settings rows:** a grouped card with inset hairlines. Title and grey description on the left, the control on the
   right, on the same row. Row controls share one width, so their right edges line up.
-- **Saving:** changes apply as you make them. There is no Save button in Settings, a popover or an inspector. Esc puts
-  back what was there. A sheet that creates something (New event) can have Cancel and an action button.
+- **Saving:** changes are kept without a Save button in Settings, a popover or an inspector, either as you make them or
+  when the popover closes. Esc puts back what was there. A sheet that creates something (New event) can have Cancel and an action button.
 - **Text fields and search:** one soft focus ring on the field's own shape. Never an inner rectangle as well.
 - **Destructive actions** (Delete, Remove, Clear) are never a one-click inline icon. They go in a context menu, on the
   Delete key with Undo, or as plain red text at the end of a sheet. Anything that can't be undone asks first.
@@ -72,7 +73,8 @@ and in a narrow window.
 - A menu or popover grows out of the button or item that opened it, and its arrow points at that item.
 - Context menus open on right-click and Shift+F10. Their top items match the row's hover actions.
 - Standard actions use the same words and the same icon in every app: Open, Copy, Duplicate, Rename, Pin, Share,
-  Move to…, Delete. Show the key next to an item that has one.
+  Move to…, Delete. Show the key next to an item that has one. The same action has the same key in every app:
+  Duplicate is Ctrl+D (Cmd+D on a Mac), Delete is the Delete key with Undo.
 - Selection in a menu or list is a soft accent fill, not a border.
 - Sheets and dialogs have a larger corner radius than the controls inside them (`--radius-sheet`, 18px).
 - Keyboard hints live in menus and tooltips, not in a footer under a list.
