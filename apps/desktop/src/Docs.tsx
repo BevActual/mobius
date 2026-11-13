@@ -293,7 +293,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
 /** What Mobius's last turn changed, as the page shows it: each change one dashed block where it is (the blocks it
  *  added, with the words it took out struck through at the top), and under it Discard, Try another and Keep for that
  *  change alone. Read from `look` when told to look again. */
-interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void }
+interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number> }
 const changeKey = new PluginKey<DecorationSet>('doc-changes');
 /** The words a change took out, struck through: the top of its dashed block, or all of it when nothing was added. */
 function changeWas(group: number, removed: string[], view: ChangeView, whole: boolean): HTMLElement {
@@ -309,9 +309,9 @@ function changeWas(group: number, removed: string[], view: ChangeView, whole: bo
   return old;
 }
 /** The line under a change's block: who did it, then Discard, Try another and Keep. */
-function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null): HTMLElement {
+function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null, head = false): HTMLElement {
   const note = document.createElement('div');
-  note.className = 'doc-change';
+  note.className = head ? 'doc-change-head' : 'doc-change';
   note.contentEditable = 'false';
   note.dataset.group = String(group);
   note.setAttribute('role', 'group');
@@ -380,6 +380,8 @@ function changeDecorations(doc: PmNode, look: () => ChangeView | null): Decorati
     const key = `${g}-${removed.join('\u0000').length}`;
     const opts = (side: number, k: string) => ({ side, key: `change-${k}-${key}`, stopEvent: () => true, ignoreSelection: true });
     if (own.length) {
+      // A change taller than the view also has its answers at its top, so they are never only out of sight.
+      if (view.tall?.has(g)) marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeNote(g, removed.length > 0, true, view, look, true), opts(-2, 'head')));
       if (removed.length) marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeWas(g, removed, view, false), opts(-1, 'was')));
       marks.push(Decoration.widget(tops[Math.max(...own)]!.to, () => changeNote(g, removed.length > 0, true, view, look), opts(1, 'note')));
       continue;
@@ -757,8 +759,34 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   };
   // The page is told to mark the changes again whenever what it should show changes.
   changesNow.current = null;
+  // Which changes are taller than the view, measured once they are drawn; told to the page when that changes.
+  const tallGroups = useRef<ReadonlySet<number>>(new Set());
   const changesKey = review && !kept && diff && before !== null ? `${path}:${before.length}:${diff.length}:${diff.map((l) => l.kind[0]).join('')}` : '';
   useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(changeKey, true)); }, [editor, changesKey]);
+  useEffect(() => {
+    if (!changesKey || !editor || !scroller) { tallGroups.current = new Set(); return undefined; }
+    const measure = () => {
+      if (editor.isDestroyed) return;
+      const span = new Map<number, { top: number; bottom: number }>();
+      for (const el of editor.view.dom.querySelectorAll<HTMLElement>('.doc-change-new[data-group], .doc-change-old[data-group], .doc-change[data-group]')) {
+        const g = Number(el.dataset.group);
+        const r = el.getBoundingClientRect();
+        const was = span.get(g);
+        span.set(g, { top: Math.min(was?.top ?? r.top, r.top), bottom: Math.max(was?.bottom ?? r.bottom, r.bottom) });
+      }
+      const room = scroller.clientHeight - 48;
+      const tall = new Set([...span].filter(([, s]) => s.bottom - s.top > room).map(([g]) => g));
+      const was = tallGroups.current;
+      if (tall.size === was.size && [...tall].every((g) => was.has(g))) return;
+      tallGroups.current = tall;
+      if (changesNow.current) changesNow.current = { ...changesNow.current, tall };
+      editor.view.dispatch(editor.state.tr.setMeta(changeKey, true));
+    };
+    const frame = requestAnimationFrame(measure);
+    const resized = new ResizeObserver(() => measure());
+    resized.observe(scroller);
+    return () => { cancelAnimationFrame(frame); resized.disconnect(); };
+  }, [editor, scroller, changesKey]);
 
   if (!docs.page) {
     // The editor stays mounted (hidden), so it is ready the moment a document opens.
@@ -778,7 +806,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
     try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
   };
-  if (showing) changesNow.current = { diff, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined };
+  if (showing) changesNow.current = { diff, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, tall: tallGroups.current };
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (

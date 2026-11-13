@@ -177,12 +177,13 @@
 .doc-editor .doc-page :is(ul, ol).doc-change-new { padding-left: 36px; }
 .doc-editor .doc-page .doc-change-new[data-top] { margin-top: 0.6em; border-top-width: 1px; border-top-left-radius: 6px; border-top-right-radius: 6px; padding-top: 10px; }
 .doc-editor .doc-page .doc-change-new[data-bottom] { border-bottom-width: 1px; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding-bottom: 10px; }
-.doc-editor .doc-page .doc-change-old { margin: 0.6em 0 0; padding: 10px 12px 4px; border: 1px dashed var(--mobius); border-bottom: 0; border-radius: 6px 6px 0 0; color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 70%, transparent); font-family: var(--font, system-ui), sans-serif; user-select: none; }
+.doc-editor .doc-page .doc-change-old { margin: 0.6em 0 0; padding: 10px 12px 4px; border: 1px dashed var(--mobius); border-bottom: 0; border-radius: 6px 6px 0 0; color: var(--muted); text-decoration: line-through; text-decoration-color: currentColor; font-family: var(--font, system-ui), sans-serif; user-select: none; }
 .doc-editor .doc-page .doc-change-old[data-whole] { border-bottom: 1px dashed var(--mobius); border-radius: 6px; padding-bottom: 10px; }
 .doc-editor .doc-page .doc-change-old :is(h1, h2, h3, p, ul, ol, blockquote) { margin: 0 0 2px; font-size: inherit; font-weight: inherit; letter-spacing: 0; line-height: inherit; }
 .doc-editor .doc-page .doc-change-old :is(ul, ol) { padding-left: 18px; }
+.doc-editor .doc-page .doc-change-head { margin: 0.6em 0 8px; font-family: var(--font, system-ui), sans-serif; font-size: var(--fs-sm); line-height: 1.45; user-select: none; }
 .doc-editor .doc-page .doc-change { margin: 8px 0 0.9em; font-family: var(--font, system-ui), sans-serif; font-size: var(--fs-sm); line-height: 1.45; user-select: none; }
 .doc-change-bar { display: flex; align-items: center; gap: 6px; }
 .doc-change-bar span { margin-right: auto; font-size: var(--fs-xs); color: var(--mobius); }
 .doc-change-bar .review-btn { height: 24px; padding: 0 10px; font-size: var(--fs-xs); }
-@media print { .doc-change, .doc-change-old { display: none !important; } .doc-paper .doc-change-new { border: 0 !important; padding: 0 !important; } }
+@media print { .doc-change, .doc-change-head, .doc-change-old { display: none !important; } .doc-paper .doc-change-new { border: 0 !important; padding: 0 !important; } }
