@@ -3,7 +3,7 @@ import { isVoiceUrl, type ListenWith, type PreferencesSettings, type SpeakWith }
 import { localStatusText } from './voice-status';
 import { settingPath } from './manifest';
 import { Row } from './primitives';
-import { AdvancedSection, AppearanceSection, SafetySection, Toggle, type SectionProps } from './sections';
+import { AdvancedSection, AppearanceSection, RemoveDataRow, SafetySection, Toggle, type SectionProps } from './sections';
 
 const LISTEN: ReadonlyArray<{ id: ListenWith; label: string }> = [
   { id: 'chat', label: 'Chat server' },
@@ -185,7 +185,7 @@ export function GeneralSection(props: SectionProps) {
 }
 
 export const MemorySection = (props: SectionProps) => <SafetySection {...props} subpage="memory" />;
-export const PrivacySection = (props: SectionProps) => <SafetySection {...props} subpage="privacy" />;
+export const PrivacySection = (props: SectionProps) => <><SafetySection {...props} subpage="privacy" /><RemoveDataRow subpage="privacy" highlight={props.highlight} /></>;
 
 /** Extensions has an app of its own: Settings opens it rather than repeating its pages. */
 export function ExtensionsSettings({ highlight, onOpenApp }: SectionProps) {

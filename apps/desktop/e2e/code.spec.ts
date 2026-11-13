@@ -90,6 +90,14 @@ test('a project is real files: typed and saved, and its tests run with the comma
   await shell().getByRole('textbox', { name: 'File name' }).press('Enter');
   await expect(files().getByRole('treeitem', { name: 'src/types.js' })).toHaveAttribute('aria-selected', 'true');
   expect(fs.existsSync(path.join(project, 'src', 'types.js'))).toBe(true);
+
+  // With every tab closed, the start page offers the files opened lately, newest first (closing types.js showed budget.js).
+  await shell().getByRole('button', { name: 'Close src/types.js' }).click();
+  await shell().getByRole('button', { name: 'Close src/budget.js' }).click();
+  const recent = shell().getByRole('region', { name: 'Recent files' });
+  await expect(recent.getByRole('button')).toHaveText([/budget\.js/, /types\.js/]);
+  await recent.getByRole('button', { name: /budget\.js/ }).click();
+  await expect(shell().getByRole('textbox', { name: 'Contents of src/budget.js' })).toBeVisible();
 });
 
 test('the agent fixes a failing test as a suggested change, runs the tests, and the person keeps or discards it', async () => {
@@ -137,8 +145,12 @@ test('a project that is a git repository is committed from Code, and Mobius comm
   git('config', 'user.name', 'Test');
   await start([callsTool('code-commit', { project: 'offsite-planner', message: 'Split cents exactly' }), says(['Committed.'])]);
   const bar = shell().getByRole('region', { name: 'Git' });
-  await expect(bar).toContainText('⎇ main');
+  await expect(bar).toContainText('main');
   await expect(bar.getByRole('status')).toHaveText('3 changes');
+  // Each changed file is listed with git's mark: here all three are new to git.
+  const changes = bar.getByRole('list', { name: 'Changed files' });
+  await expect(changes.getByRole('listitem')).toHaveCount(3);
+  await expect(changes.getByRole('button', { name: 'src/budget.js, not tracked by git yet' })).toBeVisible();
   await bar.getByRole('button', { name: 'Commit…' }).click();
   await bar.getByRole('textbox', { name: 'Commit message' }).fill('Start the offsite planner');
   await bar.getByRole('button', { name: 'Commit' }).click();

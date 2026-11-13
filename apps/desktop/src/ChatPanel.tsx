@@ -352,8 +352,8 @@ export interface ChatPanelProps {
   onDetails: (callId: string) => Promise<Details>;
   /** The button that floats or attaches the panel. */
   pin?: ReactNode;
-  /** The desk: what is in flight, shown under the greeting of an empty conversation in the Agent app. */
-  desk?: ReactNode;
+  /** The desk: the Agent app's home, shown in place of the greeting of an empty conversation. It is given the slot where the suggestions go. */
+  desk?: (starters: ReactNode) => ReactNode;
   /** The open app's own card above the conversation (Get to zero in Mail). */
   appCard?: ReactNode;
   /** Open one email in Mail, from the rows under an answer about the mail. */
@@ -364,6 +364,8 @@ export interface ChatPanelProps {
   onHide?: () => void;
   /** Settings, Voice: where listening and speaking are chosen. */
   onOpenVoice?: () => void;
+  /** What the message box suggests asking in the app beside it ("Ask about your mail"). */
+  hint?: string;
   /** Before the title: the app switcher, when the panel takes the sidebar. */
   lead?: ReactNode;
   /** In the sidebar: "In Notes" opens the app switcher. */
@@ -469,7 +471,7 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice, hint }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -665,13 +667,16 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             }}
           >
             {state.items.length === 0 && (
-              <div className="empty">
-                <MobiusMark size={44} turning={!configured} className="empty-mark" />
-                <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
-                {configured && <p className="greeting-note">{modeOf(preferences.value.approvalMode).greeting} You can change that below.</p>}
-                {configured && <div ref={setStarterSlot} className="empty-starters" />}
-                {desk}
-              </div>
+              configured && desk ? (
+                <div className="empty" data-desk>{desk(<div ref={setStarterSlot} className="empty-starters" />)}</div>
+              ) : (
+                <div className="empty">
+                  <MobiusMark size={44} turning={!configured} className="empty-mark" />
+                  <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
+                  {configured && <p className="greeting-note">{modeOf(preferences.value.approvalMode).greeting} You can change that below.</p>}
+                  {configured && <div ref={setStarterSlot} className="empty-starters" />}
+                </div>
+              )
             )}
             {state.items.map((item, index) =>
               item.kind === 'user' ? (
@@ -765,6 +770,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             takeFocus={takeFocus}
             contextUse={state.context}
             {...(onOpenVoice ? { onOpenVoice } : {})}
+            {...(hint ? { hint } : {})}
             startersIn={state.items.length === 0 ? starterSlot : null}
             started={state.items.length > 0}
             draft={draft}

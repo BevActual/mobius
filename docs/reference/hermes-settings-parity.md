@@ -82,7 +82,7 @@ blocks it), **needs X**, **n/a** (Hermes-specific, no Mobius meaning).
 | Hermes row | Mobius | Status |
 |---|---|---|
 | shortcut list | Shortcuts | done |
-| rebind shortcuts | Change / Clear / Reset / Reset all; clashes and editing keys refused; works inside web pages too | done (not copied: per-category folding, search box, plugin-contributed actions) |
+| rebind shortcuts | click a key field and press the keys; clear (x) / Reset / Reset all; clashes and editing keys refused; works inside web pages too | done (not copied: per-category folding, search box, plugin-contributed actions) |
 | quick entry (global shortcut) | Quick entry from anywhere (off until chosen; says when another program has the keys) | done |
 | screen capture attach | - | needs attachments |
 
@@ -120,7 +120,7 @@ tools (one registry, both ways). Not started.
 |---|---|---|
 | version, runtime info, open data folder | About | done (opens the folder in both shells) |
 | updates | - | needs a release channel |
-| uninstall | Settings → About → Remove my data (asks twice; empties the data folder, including Notes and the workspace, and every saved key, then closes; Tauri shell) | done |
+| uninstall | Settings → Privacy → Remove my data (asks twice; empties the data folder, including Notes and the workspace, and every saved key, then closes; Tauri shell) | done |
 
 ## Order of work
 1. Appearance (done in this pass).

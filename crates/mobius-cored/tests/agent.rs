@@ -913,3 +913,37 @@ fn the_model_can_ask_the_person_through_the_pipe_and_the_answer_continues_the_tu
     let tool = second["messages"].as_array().unwrap().iter().find(|m| m["role"] == "tool").unwrap();
     assert_eq!(tool["content"], "The person answered: B");
 }
+
+#[test]
+fn each_model_call_reports_its_tokens_and_who_answered_for_settings_usage() {
+    let mut reply = says(&["ok"], 0);
+    reply.push((json!({ "choices": [], "usage": { "prompt_tokens": 120, "completion_tokens": 7, "prompt_tokens_details": { "cached_tokens": 100 } } }), 0));
+    let server = fake(vec![reply]);
+    let mut d = Daemon::start(&[]);
+    d.call(1, "agent.configure", json!({ "base_url": server.url(), "model": "m" }));
+    d.call(2, "agent.send", json!({ "conversation": "c1", "text": "hello" }));
+    let (skipped, _) = d.until_event("done");
+    let usage = skipped.iter().find(|n| n["method"] == "agent.usage").expect("the call's usage");
+    assert_eq!(usage["params"]["conversation"], "c1");
+    assert_eq!(usage["params"]["kind"], "chat");
+    assert_eq!(usage["params"]["model"], "m");
+    assert_eq!(usage["params"]["endpoint"], server.url());
+    assert_eq!((usage["params"]["input"].clone(), usage["params"]["output"].clone(), usage["params"]["cached"].clone()), (json!(120), json!(7), json!(100)));
+    // The request asked for the count.
+    assert_eq!(server.bodies.lock().unwrap()[0]["stream_options"], json!({ "include_usage": true }));
+}
+
+#[test]
+fn a_server_that_reports_no_tokens_still_counts_as_a_request_by_the_model_that_answered() {
+    let broken = fake(vec![]);
+    let backup = fake(vec![says(&["from the backup"], 0)]);
+    let mut d = Daemon::start(&[]);
+    d.call(1, "agent.configure", json!({ "base_url": broken.url(), "model": "first", "fallback": { "base_url": backup.url(), "model": "second" } }));
+    d.call(2, "agent.send", json!({ "conversation": "c1", "text": "hello" }));
+    let (skipped, _) = d.until_event("done");
+    let used: Vec<&Value> = skipped.iter().filter(|n| n["method"] == "agent.usage").collect();
+    assert_eq!(used.len(), 1, "{used:?}");
+    assert_eq!(used[0]["params"]["model"], "second");
+    assert_eq!(used[0]["params"]["endpoint"], backup.url());
+    assert_eq!(used[0]["params"]["input"], 0);
+}

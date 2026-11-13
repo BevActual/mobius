@@ -21,12 +21,14 @@ app you have open (the note, the page, the selected text) and can work across al
 
 - **Pin beside** keeps the conversation open next to the page instead of in the sidebar.
 - **Little Mobius** (Ctrl+Shift+M) is the conversation in a small window that stays above your other apps.
-- The ask box in an app's title row ("Ask about this note") starts a message about what is open.
+- The message box says what Mobius would ask about where you are ("Ask about this note"), and what is open goes
+  with your message.
 
 ## The desk
 
-The Agent app opens on the **desk**. It shows what waits for you first (questions and approvals you can answer in
-place), then what Mobius is doing, what is open in your apps, and what is scheduled next. The sidebar here lists your
+The Agent app opens on the **desk**. It greets you with the date and what is in flight, with a few suggestions to
+start from. Below that comes what waits for you (questions and approvals you can answer in place) and what Mobius is
+doing, then your recent conversations, what is open in your apps, and what is scheduled next. The sidebar here lists your
 conversations, with tabs for **Sessions**, **Activity** and **Agents**.
 
 ## Finding things
@@ -49,6 +51,13 @@ Whatever Mobius changes is drawn **dashed** until you decide. Each app has the s
 
 Press C, or the speech-bubble button, to comment on anything in an app. Send a comment to Mobius and its answer comes
 back in the thread, or keep it as a note for people. See [Review](../apps/review.md#comments).
+
+## Learn
+
+**Help › Learn Mobius** opens lessons beside the page: Start here, one lesson for each app (what it is for and what you
+can do in it) and how to work with Mobius. In an app, that app's lesson comes first. Search finds a lesson by anything
+it mentions, Previous and Next step through a topic, and Escape steps back, then closes. Learn takes the place of
+Mobius pinned beside the page, one at a time.
 
 ## Settings
 

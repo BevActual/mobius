@@ -67,7 +67,7 @@
 .doc-link-folder { margin-left: auto; font-size: var(--fs-xs); opacity: 0.7; }
 
 /* The outline: the heading you are in is marked. */
-.doc-editor .doc-outline { flex-basis: 220px; padding: 20px 10px; border-right: 0.5px solid var(--hairline, var(--line)); background: var(--bg); }
+.doc-editor .doc-outline { flex-basis: 184px; padding: 20px 8px; border-right: 0.5px solid var(--hairline, var(--line)); background: var(--bg); }
 .doc-editor .doc-outline-title { padding: 0 8px 8px; text-transform: none; }
 .doc-editor .doc-outline-item { position: relative; padding-top: 5px; padding-bottom: 5px; border-radius: 6px; color: color-mix(in srgb, var(--ink) 80%, var(--muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .doc-editor .doc-outline-item[data-level="1"] { color: var(--ink); }
@@ -90,8 +90,10 @@
 }
 @container (max-width: 900px) {
   .doc-editor .doc-page { padding: 48px 48px 72px; }
-  .doc-editor .doc-outline { flex-basis: 170px; }
+  .doc-editor .doc-outline { flex-basis: 156px; }
 }
+/* Not enough room for the page and its outline: the outline folds away, and comes back when there is room. */
+@container (max-width: 760px) { .doc-editor .doc-outline { display: none; } }
 
 /* The bar on chosen words, and what was just done. */
 .doc-selection { border: 0.5px solid var(--hairline, var(--line)); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08); }
@@ -121,3 +123,45 @@
   .doc-paper .doc-page { padding: 0; min-height: 0; color: #000; }
   .doc-paper .note-commented { background: none; border: 0; }
 }
+
+/* The count in the foot: one at a time, a click shows the next (words, characters, reading time). */
+.doc-editor .doc-count-btn { margin: -2px -6px; padding: 2px 6px; border: 0; border-radius: 5px; background: none; color: inherit; font: inherit; cursor: default; }
+.doc-editor .doc-count-btn:hover { background: var(--soft); }
+
+/* Checklists in Mobius's proposals, drawn as the page draws them: the box beside its words. */
+.doc-proposal ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
+.doc-proposal ul[data-type="taskList"] li { display: flex; gap: 8px; align-items: flex-start; }
+.doc-proposal ul[data-type="taskList"] li > label { flex: none; margin-top: 3px; }
+.doc-proposal ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
+.doc-proposal ul[data-type="taskList"] input { appearance: none; width: 14px; height: 14px; margin: 0; border-radius: 50%; border: 1.5px solid var(--muted); display: grid; place-items: center; pointer-events: none; }
+.doc-proposal ul[data-type="taskList"] input:checked { background: var(--accent); border-color: var(--accent); }
+.doc-proposal ul[data-type="taskList"] input:checked::after { content: ""; width: 6px; height: 3px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 0 1.6px 1.6px; transform: rotate(-45deg); }
+
+/* The typeface: the app's sans-serif by default, as Notes and Pages' blank document; serif when chosen in More, headings
+   and body both, so the two are paired on purpose. Tables and code keep their own. */
+.doc-editor .doc-page, .doc-editor .doc-page :is(h1, h2, h3) { font-family: var(--font, system-ui), sans-serif; }
+.doc-editor .doc-page { font-size: 16px; line-height: 1.6; }
+.doc-editor[data-font="serif"] .doc-page, .doc-editor[data-font="serif"] .doc-page :is(h1, h2, h3) { font-family: 'New York', 'Iowan Old Style', Charter, Georgia, serif; }
+.doc-editor[data-font="serif"] .doc-page { font-size: 16.5px; line-height: 1.65; }
+
+/* Aa: the styles, marks and lists in one panel under the bar, as in Notes. */
+.doc-editor .doc-aa-btn { padding: 0 8px; }
+.doc-aa { font-weight: 600; font-size: var(--fs-md); letter-spacing: -0.01em; }
+.doc-editor .doc-aa-btn[aria-expanded="true"], .doc-editor .doc-aa-btn[data-marked] { color: var(--accent); }
+.doc-editor .doc-aa-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.doc-aa-panel { position: fixed; z-index: 60; width: 272px; display: grid; gap: 10px; padding: 10px; border-radius: 14px; border: 0.5px solid var(--hairline); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.08); animation: app-in var(--dur-fast) var(--ease); }
+.doc-aa-styles { display: grid; gap: 1px; }
+.doc-aa-style { text-align: left; padding: 5px 10px; border-radius: 8px; color: var(--ink); line-height: 1.25; transition: background-color var(--dur-fast) var(--ease); }
+.doc-aa-style:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.doc-aa-style[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.doc-aa-style[data-style="h1"] { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.doc-aa-style[data-style="h2"] { font-size: 16px; font-weight: 700; }
+.doc-aa-style[data-style="h3"] { font-size: var(--fs-md); font-weight: 600; }
+.doc-aa-style[data-style="p"] { font-size: var(--fs-md); }
+.doc-aa-style[data-style="code"] { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: var(--fs-sm); }
+.doc-aa-row { display: flex; gap: 8px; }
+.doc-aa-group { flex: 1; display: flex; justify-content: space-between; padding: 2px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.doc-aa-group .doc-tool { flex: 1; color: var(--ink); border-radius: 8px; }
+.doc-aa-group .doc-tool:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.doc-aa-group .doc-tool[aria-pressed="true"] { color: var(--accent); background: var(--bg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+@media (prefers-reduced-motion: reduce) { .doc-aa-panel { animation: none; } }

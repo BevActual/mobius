@@ -37,7 +37,7 @@ you want to build or change Mobius, go to **Developers**.
 - [Browse and find](apps/browse-and-find.md): Browser, Mail, Search, Research, Reader, Files
 - [Write and plan](apps/write-and-plan.md): Notes, Docs, Tasks, Calendar, Sheets, Database, Projects, Knowledge
 - [Create](apps/create.md): Slides, Design, Photo, Music, Video, Code, Terminal, Canvas
-- [Review](apps/review.md): Review, and comments on anything
+- [Review](apps/review.md): Review, Views (dashboards), and comments on anything
 
 ## Developers
 
@@ -47,12 +47,13 @@ you want to build or change Mobius, go to **Developers**.
 | [Development setup](developers/dev-setup.md) | Tools to install, building and running from source |
 | [Architecture](developers/architecture.md) | The processes, the crates, and how a request flows through them |
 | [Testing and CI](developers/testing.md) | Unit tests, end-to-end tests and the GitHub workflows |
+| [Shared controls](developers/shared-controls.md) | The menus and other controls every app uses, from `src/ui` |
 | [Driving the app from an agent](developers/driving-the-app.md) | The `mobius-drive` MCP server for Claude Code |
 | [Releases and updates](developers/releasing.md) | Packaging the installer, signing, and the in-app updater |
 | [Architecture decisions](adr/README.md) | Why Mobius is built the way it is (ADRs) |
 | [Workspace layout](design/workspace-layout.md) | One frame for every app: the five zones, views and panels, and the theme |
 | [Design rules](design/rules.md) | The eight principles, and how the zones, controls, menus, theme and motion look and behave in every app |
-| [Reference notes](reference/README.md) | Comparisons with Hermes Agent, and calendar sign-in requirements |
+| [Reference notes](reference/README.md) | Comparisons with Hermes Agent, the bar for each app, market research, and calendar sign-in requirements |
 
 ## Help
 

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { DownloadsButton } from './DownloadsList';
 import { FindBar } from './FindBar';
+import { MobiusMark } from './MobiusMark';
 import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { StartPage } from './StartPage';
@@ -50,7 +51,15 @@ function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: Bro
       <button type="button" className="tab-main" title={tab.url ? `${tab.title}\n${tab.url}` : tab.title} onClick={() => window.mobius.browser.activate(tab.id)}>
         {tab.icon ? <img className="tab-icon" src={tab.icon} alt="" width={16} height={16} draggable={false} /> : <span className="tab-icon placeholder" aria-hidden="true" style={tab.url ? { ['--hue' as string]: tileHue(site) } : undefined}>{tab.url ? tileLetter(site) : ''}</span>}
         <span className="tab-title">{tab.title}</span>
-        {tab.driver && <span className="tab-driver" data-driver={tab.driver} title={TAB_DRIVER_TITLE[tab.driver]}>{TAB_DRIVER[tab.driver]}</span>}
+        {tab.driver && (
+          // A small mark, not a word, so the title keeps its room: Mobius's mark while it reads or uses the tab, a hand once you took it over.
+          <span className="tab-driver" data-driver={tab.driver} title={TAB_DRIVER_TITLE[tab.driver]}>
+            {tab.driver === 'yours'
+              ? <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 10V4.8a1.2 1.2 0 0 1 2.4 0V9m0-.5V3.8a1.2 1.2 0 0 1 2.4 0V9m0-.2V5a1.2 1.2 0 0 1 2.4 0v6.5c0 3-2 5-4.8 5-2 0-3.2-.9-4.4-2.6L4.2 11a1.2 1.2 0 0 1 2-1.3L7 11" /></svg>
+              : <MobiusMark size={14} turning={tab.driver === 'mobius'} />}
+            <span className="sr-only">{TAB_DRIVER[tab.driver]}</span>
+          </span>
+        )}
         {tab.loading && <span className="tab-loading" aria-label="Loading" />}
       </button>
       <span className="tab-actions">
@@ -235,7 +244,7 @@ export function BrowserChrome({ active, saved, pagePinned, onTogglePagePin, sele
         </div>
         <div className="selection-menu-wrap">
           <button type="button" className="strip-btn" data-selection-ask aria-haspopup="menu" aria-expanded={selectionMenu} aria-label="Selected text" title="Do something with the text selected on this page" disabled={!active || !/^https?:/.test(active.url)} onClick={() => setSelectionMenu((open) => !open)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h8M4 9h5M4 13h4" /><path d="M14.5 9.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5h7M3.5 9h5M3.5 13h4" /><path d="M13 4.5h3M13 15.5h3M14.5 4.5v11" /></svg>
           </button>
           {selectionMenu && selectionReady && (
             <SelectionMenu onClose={() => setSelectionMenu(false)} onChoose={onSelection} clipTo={clipTo} pages={clipPages} onClipTo={onClipTo} />

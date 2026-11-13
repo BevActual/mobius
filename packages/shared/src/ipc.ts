@@ -260,6 +260,31 @@ export interface ProviderInfo {
   place?: { label: string; example: string; value: string | null } | null;
 }
 
+/** Which days Settings, Usage asks about: local days as `YYYY-MM-DD`, both ends included. */
+export interface UsageQuery {
+  from: string;
+  to: string;
+}
+
+/** One day's use of one model through one gateway from one app, summed. */
+export interface UsageRow {
+  day: string;
+  /** The gateway's id (`openai`, `openrouter`), a plan's (`claude-code`, `chatgpt`, `copilot`), `local`, or the host of your own server. */
+  gateway: string;
+  model: string;
+  /** The app the conversation was written to from (`mail`), or `agent`. */
+  app: string;
+  /** `chat` for the agent's own calls, `quick` for reviews by the quick model. */
+  kind: 'chat' | 'quick' | 'image' | 'listen' | 'speak';
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** The part of the input read from the server's cache, when it said. */
+  cachedTokens?: number;
+  /** Estimated from a public price list. 0 for a model on this computer; null on a plan or when the price is unknown. */
+  costUsd: number | null;
+}
+
 export interface MobiusBridge {
   platform: string;
   window: {
@@ -368,8 +393,8 @@ export interface MobiusBridge {
   /** The conversation with Mobius. The main process holds the connection to the core and to the model; the renderer only asks. */
   agent: {
     /** `plan` asks the agent for a plan only: it proposes the steps and does nothing until the person starts it. */
-    /** `options.images` attaches pictures, as `data:` URLs, for models that read them. */
-    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; images?: string[] }): Promise<AgentResult<{ turn: number }>>;
+    /** `options.images` attaches pictures, as `data:` URLs, for models that read them. `options.app` is the app it was sent from (Settings, Usage). */
+    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; images?: string[]; app?: string }): Promise<AgentResult<{ turn: number }>>;
     /** The models the server offers, for the switcher. */
     models(): Promise<AgentResult<{ models: string[] }>>;
     /** Use another model on the same server, with everything else as it was. */
@@ -496,6 +521,17 @@ export interface MobiusBridge {
     /** Words read aloud with the service chosen for speaking, as a data: URL of the sound. `setup` when nothing is chosen. */
     speak?(text: string): Promise<{ ok: true; audio: string } | { ok: false; error: string; setup?: boolean }>;
   };
+  /** Settings, Usage: the tokens model calls used, kept on this computer, summed per day, gateway, model, app and kind. */
+  usage?: {
+    /** The rows from `from` to `to` (local days, both included). */
+    query(range: UsageQuery): Promise<UsageRow[]>;
+    /** Forget the whole tally. */
+    clear(): Promise<void>;
+    /** Save a table the window made as `Exports/Usage <today>.csv` in the workspace; says where, relative to it. */
+    exportCsv?(csv: string): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
+    /** Called when a model call is counted or the price list changes. */
+    onChange(listener: () => void): () => void;
+  };
   /** Comments on anything in the workspace, kept per document in `.comments/<app>/`. */
   comments?: {
     list(app: string, doc: string): Promise<CommentThread[] | NotesFailure>;
@@ -512,6 +548,8 @@ export interface MobiusBridge {
     rename(id: string, name: string): Promise<ProjectInfo | NotesFailure>;
     setRule(id: string, app: string, level: ProjectLevel | 'follow'): Promise<ProjectInfo | NotesFailure>;
     addThread(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
+    /** A thread leaves the project, with the side threads asked from it; the conversation is kept. */
+    removeThread?(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
     /** Ask a bot, from one of the project's threads, to do something in a side thread of its own. */
     addSide(id: string, parent: string, conversation: string, bot: string, botName: string, ask: string): Promise<ProjectInfo | NotesFailure>;
     /** A side thread finished: what it found, for the thread it was asked from. */
@@ -708,6 +746,8 @@ export interface MobiusBridge {
   designs?: NonNullable<MobiusBridge['notes']>;
   /** The Canvas app: boards kept like notes, as JSON in `boards/<folder>/<board>.json`. Only the Tauri shell has it. */
   boards?: NonNullable<MobiusBridge['notes']>;
+  /** The Views app: dashboards kept like notes, as JSON in `views/<folder>/<view>.json`. Only the Tauri shell has it. */
+  views?: NonNullable<MobiusBridge['notes']>;
   /** The Research app: reports kept like documents, as Markdown in `research/<folder>/<report>.md`. Only the Tauri shell has it. */
   research?: NonNullable<MobiusBridge['notes']>;
   /** The Reader app: articles kept to read later, as Markdown in `reading/<folder>/<article>.md`, and fetching one. */
@@ -1337,7 +1377,8 @@ export interface PreferencesSettings {
 }
 export interface ProfilesState { current: string; list: { id: string; name: string }[] }
 /** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
-export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean }
+/** `bot` runs it as that agent (its id), with the agent's instructions and model; none is Mobius itself. */
+export interface ScheduleDraft { title: string; prompt: string; time: string; days: number[]; enabled: boolean; bot?: string }
 export interface ScheduleInfo extends ScheduleDraft { id: string; lastRunMs: number | null }
 /** Per app: follow the approval mode, always ask the person, or off. */
 export type AccessLevel = 'follow' | 'always' | 'off';

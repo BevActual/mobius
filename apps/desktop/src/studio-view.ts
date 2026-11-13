@@ -87,6 +87,14 @@ export function setVelocity(notes: readonly SongNote[], picked: Picked, velocity
   return notes.map((n, i) => (picked.has(i) ? { ...n, velocity: v } : n));
 }
 
+/** The picked notes made louder or softer by `by` (−1 to 1), each kept between 0 and 1, so a group keeps its accents. */
+export function nudgeVelocity(notes: readonly SongNote[], picked: Picked, by: number): SongNote[] {
+  return notes.map((n, i) => (picked.has(i) ? { ...n, velocity: round(Math.max(0, Math.min(1, n.velocity + by))) } : n));
+}
+
+/** How tall the track list is when it fits its tracks: the ruler plus one lane each, at least room for one. */
+export const fitTracks = (tracks: number, ruler = 24, lane = 49) => ruler + Math.max(1, tracks) * lane;
+
 /** The notes inside a box drawn on the roll, from beat `b0` to `b1` and pitch `p0` to `p1` (either way round). */
 export function notesIn(notes: readonly SongNote[], b0: number, b1: number, p0: number, p1: number): Set<number> {
   const [s, e] = b0 < b1 ? [b0, b1] : [b1, b0];
