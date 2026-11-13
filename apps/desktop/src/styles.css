@@ -2771,3 +2771,5 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .task-items > .task-change { list-style: none; margin: 6px 0 10px; }
 .task[data-proposed] { outline: 1px dashed var(--mobius); outline-offset: -1px; border-radius: 6px; }
 .task[data-proposed] > .task-line { outline: 0; }
+/* The work area takes focus after an app opens from All apps; it is a landing place, not a control, so no ring. */
+main.stage:focus { outline: none; }
