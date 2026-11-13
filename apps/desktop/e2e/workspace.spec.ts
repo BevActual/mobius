@@ -283,6 +283,29 @@ test('Mobius’s own apps open from All apps and show in the rail while open; Mo
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
 });
 
+test('every app and Mobius page is found in All apps by its name and opens with Enter', async () => {
+  await start();
+  const hub = shell().getByRole('dialog', { name: 'Applications' });
+  const byKeys = async (name: string) => {
+    await rail().locator('[data-app-library]').click();
+    await expect(hub).toBeVisible();
+    await hub.getByRole('searchbox', { name: 'Find apps' }).fill(name);
+    await expect(hub.getByRole('button', { name: new RegExp(`^${name}`) }).first()).toBeVisible();
+    await shell().keyboard.press('Enter');
+    await expect(hub).toBeHidden();
+  };
+  for (const [name, id] of [['Projects', 'projects'], ['Reader', 'reader'], ['Views', 'views'], ['Mail', 'mail'], ['Abilities', 'skills']] as const) {
+    await byKeys(name);
+    await expect(shell().locator('.app'), `${name} opens`).toHaveAttribute('data-app', id);
+  }
+  await byKeys('Agents');
+  await expect(railButton('Agents')).toHaveAttribute('aria-current', 'page');
+  await byKeys('Activity');
+  await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
+  await byKeys('Settings');
+  await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
+});
+
 test('a narrow window still opens Mobius on the right, at no less than its narrowest width', async () => {
   await start();
   await resizeWindow(mobius!.app, 900, 700);

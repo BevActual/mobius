@@ -73,3 +73,6 @@ export function talkMinutes(slides: readonly Slide[]): number {
   const seconds = slides.reduce((sum, s) => sum + Math.max(30, (words(s.notes) / 130) * 60), 0);
   return Math.max(1, Math.round(seconds / 60));
 }
+
+/** The slides Play shows, by their number in the deck: every one not marked to skip. */
+export const playOrder = (slides: readonly Slide[]): number[] => slides.flatMap((s, i) => (s.skip ? [] : [i]));
