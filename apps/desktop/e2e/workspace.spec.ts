@@ -269,7 +269,9 @@ test('Mobius’s own apps sit at the foot of the rail: Agents and Activity open 
   // Only Agents is where you are: not Agent too.
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
   await own.getByRole('button', { name: 'Activity', exact: true }).click();
-  await expect(side.getByRole('tab', { name: 'Activity' })).toHaveAttribute('aria-selected', 'true');
+  // Activity has its own sidebar and page in the Agent app's place.
+  await expect(shell().getByRole('complementary', { name: 'Activity sidebar' })).toBeVisible();
+  await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
   // Agent itself opens on the conversations.
   await railButton('Agent').click();
   await expect(side.getByRole('tab', { name: 'Sessions' })).toHaveAttribute('aria-selected', 'true');
