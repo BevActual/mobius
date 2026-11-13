@@ -96,6 +96,8 @@
 .slides-page .slides-body > .ui-panels { flex: 1; min-width: 260px; }
 @container (max-width: 640px) {
   .slides-page .slides-nav { flex-basis: 132px; }
+  /* Until Format is a tab beside Mobius, it steps aside in a narrow window so the slide keeps its room. */
+  .slides-page .slides-format { display: none; }
 }
 
 /* Second pass. The layout menu sits on the shared glass menu surface, three up, each face drawn to scale above its name. */
