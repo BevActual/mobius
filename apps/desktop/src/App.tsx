@@ -1075,6 +1075,10 @@ export function App() {
         newNotebook: () => sendCommand('new-notebook'),
         pin: () => { if (notes.page) togglePin({ kind: 'note', id: notes.page.path, title: notes.page.title || notes.page.path }); },
         changes: () => sendCommand('show-changes'),
+        // Notes: the page's less-used controls live here, not in a second ⋯ in the toolbar.
+        history: () => sendCommand('show-history'),
+        clip: () => sendCommand('clip-page'),
+        markdown: () => sendCommand('show-markdown'),
       },
       tasks: {
         newList: () => sendCommand('new-list'),

@@ -1,7 +1,7 @@
 //! Tasks: each list is a Markdown file under `<workspace>/tasks`, and each task is a checkbox line in it
 //! (`- [ ] Call the plumber (due 2026-11-12)`), so the lists are ordinary files the person can open anywhere.
-//! A task can carry a flag (`(flagged)` after it), notes (lines indented under it), and subtasks (checkbox lines
-//! indented under it). Lines that are not tasks are kept as they are. Every change is checked against what the window or the agent last
+//! A task can carry a time on its due date (`(due 2026-11-12 09:30)`), a repeat (`(every week)`), a flag
+//! (`(flagged)` after it), notes (lines indented under it), and subtasks (checkbox lines indented under it). Lines that are not tasks are kept as they are. Every change is checked against what the window or the agent last
 //! saw, so a change made elsewhere is never overwritten, and a checkpoint is taken before the agent changes a list.
 use std::fs;
 use std::path::PathBuf;
@@ -28,9 +28,74 @@ pub struct Task {
     pub text: String,
     pub done: bool,
     pub due: Option<String>,
+    /// A time of day on the due date, `HH:MM` on a 24-hour clock. Only with a due date.
+    pub time: Option<String>,
+    /// How it comes back once ticked off: one of [`REPEATS`].
+    pub repeat: Option<String>,
     pub flagged: bool,
 }
 
+/// How a task can repeat: ticking it off moves its due date to the next one and leaves it open.
+pub const REPEATS: [&str; 5] = ["day", "weekday", "week", "month", "year"];
+
+/// `HH:MM`, 00:00 to 23:59.
+pub fn is_time(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 5 && b[2] == b':' && s[..2].parse::<u32>().is_ok_and(|h| h < 24) && s[3..].parse::<u32>().is_ok_and(|m| m < 60) && b.iter().enumerate().all(|(i, c)| i == 2 || c.is_ascii_digit())
+}
+
+fn days_in(year: i32, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        _ if (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 => 29,
+        _ => 28,
+    }
+}
+
+/// Days since 1970-01-01 for a calendar date, and back (proleptic Gregorian).
+fn day_number(y: i32, m: u32, d: u32) -> i64 {
+    let (y, m) = if m <= 2 { (i64::from(y) - 1, i64::from(m) + 9) } else { (i64::from(y), i64::from(m) - 3) };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * m + 2) / 5 + i64::from(d) - 1;
+    era * 146_097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719_468
+}
+fn from_day_number(n: i64) -> (i32, u32, u32) {
+    let z = n + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = u32::try_from(doy - (153 * mp + 2) / 5 + 1).unwrap_or(1);
+    let m = u32::try_from(if mp < 10 { mp + 3 } else { mp - 9 }).unwrap_or(1);
+    let y = i32::try_from(yoe + era * 400 + i64::from(m <= 2)).unwrap_or(1970);
+    (y, m, d)
+}
+
+/// The day after `due` that a task repeating `every` falls on. A monthly or yearly one keeps its day of the month,
+/// or the month's last day when that month is shorter (31 January, then 28 February, then 31 March).
+pub fn next_due(due: &str, every: &str) -> Option<String> {
+    if !is_date(due) {
+        return None;
+    }
+    let (y, m, d): (i32, u32, u32) = (due[..4].parse().ok()?, due[5..7].parse().ok()?, due[8..10].parse().ok()?);
+    let n = day_number(y, m, d);
+    let (y2, m2, d2) = match every {
+        "day" => from_day_number(n + 1),
+        "week" => from_day_number(n + 7),
+        // 1970-01-01 was a Thursday: (n + 3) mod 7 is 0 on Monday.
+        "weekday" => from_day_number(n + match (n + 3).rem_euclid(7) { 4 => 3, 5 => 2, _ => 1 }),
+        "month" => {
+            let (ny, nm) = if m == 12 { (y + 1, 1) } else { (y, m + 1) };
+            (ny, nm, d.min(days_in(ny, nm)))
+        }
+        "year" => (y + 1, m, d.min(days_in(y + 1, m))),
+        _ => return None,
+    };
+    Some(format!("{y2:04}-{m2:02}-{d2:02}"))
+}
 /// `YYYY-MM-DD` with a month 1-12 and a day that month can have (29 February in any year: the person decides).
 pub fn is_date(s: &str) -> bool {
     let b = s.as_bytes();
@@ -68,28 +133,47 @@ pub fn parse_line(line: &str) -> Option<Task> {
         _ => return None,
     };
     let mut body = rest.strip_prefix("] ")?.trim();
-    // What follows the words, in either order: a due date and a flag.
-    let (mut due, mut flagged) = (None, false);
+    // What follows the words, in any order: a due date (with a time or not), a repeat and a flag.
+    let (mut due, mut time, mut repeat, mut flagged) = (None, None, None, false);
     loop {
+        if repeat.is_none()
+            && let Some((b, r)) = body.strip_suffix(')').and_then(|b| b.rsplit_once(" (every ")).filter(|(_, r)| REPEATS.contains(r))
+        {
+            body = b.trim_end();
+            repeat = Some(r.to_owned());
+            continue;
+        }
+        if due.is_none()
+            && let Some((b, d, t)) = body.strip_suffix(')').and_then(|b| b.rsplit_once(" (due ")).and_then(|(b, w)| match w.split_once(' ') {
+                Some((d, t)) if is_date(d) && is_time(t) => Some((b, d, Some(t))),
+                None if is_date(w) => Some((b, w, None)),
+                _ => None,
+            })
+        {
+            body = b.trim_end();
+            due = Some(d.to_owned());
+            time = t.map(str::to_owned);
+            continue;
+        }
         if !flagged && let Some(b) = body.strip_suffix("(flagged)").filter(|b| b.ends_with(' ')) {
             body = b.trim_end();
             flagged = true;
             continue;
         }
-        if due.is_none() && let Some((b, d)) = body.strip_suffix(')').and_then(|b| b.rsplit_once(" (due ")).filter(|(_, d)| is_date(d)) {
-            body = b.trim_end();
-            due = Some(d.to_owned());
-            continue;
-        }
         break;
     }
-    (!body.is_empty()).then(|| Task { text: body.to_owned(), done, due, flagged })
+    (!body.is_empty()).then(|| Task { text: body.to_owned(), done, due, time, repeat, flagged })
 }
 
 pub fn format_line(task: &Task) -> String {
-    let due = task.due.as_ref().map(|d| format!(" (due {d})")).unwrap_or_default();
+    let due = match (&task.due, &task.time) {
+        (Some(d), Some(t)) => format!(" (due {d} {t})"),
+        (Some(d), None) => format!(" (due {d})"),
+        _ => String::new(),
+    };
+    let repeat = task.repeat.as_ref().map(|r| format!(" (every {r})")).unwrap_or_default();
     let flag = if task.flagged { " (flagged)" } else { "" };
-    format!("- [{}] {}{due}{flag}", if task.done { "x" } else { " " }, task.text)
+    format!("- [{}] {}{due}{repeat}{flag}", if task.done { "x" } else { " " }, task.text)
 }
 
 /// How far a line is indented (a tab counts as four spaces).
@@ -143,12 +227,14 @@ fn list_ok(name: &str) -> bool {
     !name.is_empty() && name == file_name_for(name) && !name.starts_with('.')
 }
 
-/// What may change about a task. `due: Some(None)` clears the date.
+/// What may change about a task. `due: Some(None)` clears the date (and its time); the same for `time` and `repeat`.
 #[derive(Debug, Default)]
 pub struct Change {
     pub text: Option<String>,
     pub done: Option<bool>,
     pub due: Option<Option<String>>,
+    pub time: Option<Option<String>>,
+    pub repeat: Option<Option<String>>,
     pub flagged: Option<bool>,
     pub notes: Option<String>,
 }
@@ -165,9 +251,9 @@ pub fn tool_descriptions() -> Vec<Value> {
         json!({ "name": "tasks.list", "description": "Read the person's task lists in the Tasks app: every list with its tasks (done or not, and due dates), or one list.", "capability": "tasks.read",
             "input_schema": { "type": "object", "properties": { "list": { "type": "string", "description": "One list to read. Leave out to read them all." } } } }),
         json!({ "name": "tasks.add", "description": "Add a task to one of the person's lists in the Tasks app. Creates the list if it is not there yet.", "capability": "tasks.write", "resource_arg": "list",
-            "input_schema": { "type": "object", "properties": { "list": list, "text": { "type": "string", "description": "What to do, in a few words." }, "due": { "type": "string", "description": "A due date as YYYY-MM-DD, if there is one." }, "flagged": { "type": "boolean", "description": "Flag it as important." } }, "required": ["list", "text"] } }),
-        json!({ "name": "tasks.update", "description": "Change a task in the Tasks app: tick it off, untick it, reword it, set or clear its due date, flag or unflag it, or replace its notes. The task is found by its exact words and must be in the list only once.", "capability": "tasks.write", "resource_arg": "list",
-            "input_schema": { "type": "object", "properties": { "list": list, "task": { "type": "string", "description": "The task's exact words now." }, "done": { "type": "boolean" }, "text": { "type": "string", "description": "New words for it." }, "due": { "type": "string", "description": "A new due date as YYYY-MM-DD, or an empty text to clear it." }, "flagged": { "type": "boolean" }, "notes": { "type": "string", "description": "The task's notes, replacing what is there; an empty text clears them." } }, "required": ["list", "task"] } }),
+            "input_schema": { "type": "object", "properties": { "list": list, "text": { "type": "string", "description": "What to do, in a few words." }, "due": { "type": "string", "description": "A due date as YYYY-MM-DD, if there is one." }, "time": { "type": "string", "description": "A time on the due date as HH:MM (24-hour), if it has one. Needs a due date." }, "repeat": { "type": "string", "enum": REPEATS, "description": "How it repeats, if it does: ticking it off moves it to its next day." }, "flagged": { "type": "boolean", "description": "Flag it as important." } }, "required": ["list", "text"] } }),
+        json!({ "name": "tasks.update", "description": "Change a task in the Tasks app: tick it off (a repeating task moves to its next day instead), untick it, reword it, set or clear its due date, time or repeat, flag or unflag it, or replace its notes. The task is found by its exact words and must be in the list only once.", "capability": "tasks.write", "resource_arg": "list",
+            "input_schema": { "type": "object", "properties": { "list": list, "task": { "type": "string", "description": "The task's exact words now." }, "done": { "type": "boolean" }, "text": { "type": "string", "description": "New words for it." }, "due": { "type": "string", "description": "A new due date as YYYY-MM-DD, or an empty text to clear it (and its time)." }, "time": { "type": "string", "description": "A time on the due date as HH:MM (24-hour), or an empty text to clear it." }, "repeat": { "type": "string", "description": "day, weekday, week, month or year; an empty text stops it repeating." }, "flagged": { "type": "boolean" }, "notes": { "type": "string", "description": "The task's notes, replacing what is there; an empty text clears them." } }, "required": ["list", "task"] } }),
     ]
 }
 
@@ -323,12 +409,19 @@ impl Tasks {
 
     /// `under`: the line of the task it goes under and that task's words.
     pub fn add_with(&self, list: &str, text: &str, due: Option<&str>, flagged: bool, under: Option<(usize, &str)>) -> Res<Value> {
+        self.add_task(list, text, When { due, ..When::default() }, flagged, under)
+    }
+
+    /// Like [`Tasks::add_with`], with a time on the due date and a repeat.
+    pub fn add_task(&self, list: &str, text: &str, when: When<'_>, flagged: bool, under: Option<(usize, &str)>) -> Res<Value> {
         let text = clean_text(text)?;
+        let When { due, time, repeat } = when;
         if let Some(d) = due
             && !is_date(d)
         {
             return Err("a due date is written YYYY-MM-DD".into());
         }
+        check_time_and_repeat(due, time, repeat)?;
         let file = self.file(list)?;
         fs::create_dir_all(&self.root).map_err(|e| e.to_string())?;
         let content = fs::read_to_string(&file).unwrap_or_else(|_| format!("# {list}\n\n"));
@@ -336,7 +429,7 @@ impl Tasks {
             return Err("that list is full".into());
         }
         let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
-        let task = format_line(&Task { text, done: false, due: due.map(str::to_owned), flagged });
+        let task = format_line(&Task { text, done: false, due: due.map(str::to_owned), time: time.map(str::to_owned), repeat: repeat.map(str::to_owned), flagged });
         match under {
             Some((at, expect)) => {
                 found(&lines, at, expect)?;
@@ -357,9 +450,6 @@ impl Tasks {
         if let Some(text) = change.text {
             task.text = clean_text(&text)?;
         }
-        if let Some(done) = change.done {
-            task.done = done;
-        }
         if let Some(flagged) = change.flagged {
             task.flagged = flagged;
         }
@@ -369,7 +459,27 @@ impl Tasks {
             {
                 return Err("a due date is written YYYY-MM-DD".into());
             }
+            if due.is_none() {
+                task.time = None;
+            }
             task.due = due;
+        }
+        if let Some(time) = change.time {
+            task.time = time;
+        }
+        if let Some(repeat) = change.repeat {
+            task.repeat = repeat;
+        }
+        check_time_and_repeat(task.due.as_deref(), task.time.as_deref(), task.repeat.as_deref())?;
+        // Ticking off a task that repeats moves it to its next day and leaves it open; one with no date starts from today.
+        if let Some(done) = change.done {
+            match (&task.repeat, done && !task.done) {
+                (Some(every), true) => {
+                    let from = task.due.clone().unwrap_or_else(today);
+                    task.due = next_due(&from, every);
+                }
+                _ => task.done = done,
+            }
         }
         let own: String = lines[line].chars().take_while(|c| c.is_whitespace()).collect();
         lines[line] = format!("{own}{}", format_line(&task));
@@ -509,7 +619,8 @@ impl Tasks {
             "tasks.add" => {
                 let words = text("text").ok_or("text must be text")?;
                 self.checkpoint(&format!("before the agent added a task to {list}"));
-                self.add_with(list, words, text("due").filter(|d| !d.is_empty()), args.get("flagged").and_then(Value::as_bool).unwrap_or(false), None)?
+                let when = When { due: text("due").filter(|d| !d.is_empty()), time: text("time").filter(|t| !t.is_empty()), repeat: text("repeat").filter(|r| !r.is_empty()) };
+                self.add_task(list, words, when, args.get("flagged").and_then(Value::as_bool).unwrap_or(false), None)?
             }
             "tasks.update" => {
                 let wanted = text("task").ok_or("task must be text")?;
@@ -524,6 +635,8 @@ impl Tasks {
                     text: text("text").map(str::to_owned),
                     done: args.get("done").and_then(Value::as_bool),
                     due: text("due").map(|d| (!d.is_empty()).then(|| d.to_owned())),
+                    time: text("time").map(|t| (!t.is_empty()).then(|| t.to_owned())),
+                    repeat: text("repeat").map(|r| (!r.is_empty()).then(|| r.to_owned())),
                     flagged: args.get("flagged").and_then(Value::as_bool),
                     notes: text("notes").map(str::to_owned),
                 };
@@ -564,6 +677,36 @@ fn dedent(line: &str, by: usize) -> String {
     rest.to_owned()
 }
 
+/// When a new task is due: a day, a time on it, and how it repeats.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct When<'a> {
+    pub due: Option<&'a str>,
+    pub time: Option<&'a str>,
+    pub repeat: Option<&'a str>,
+}
+
+fn check_time_and_repeat(due: Option<&str>, time: Option<&str>, repeat: Option<&str>) -> Res<()> {
+    if let Some(t) = time {
+        if !is_time(t) {
+            return Err("a time is written HH:MM, on a 24-hour clock".into());
+        }
+        if due.is_none() {
+            return Err("a time needs a due date".into());
+        }
+    }
+    if let Some(r) = repeat
+        && !REPEATS.contains(&r)
+    {
+        return Err("a task repeats every day, weekday, week, month or year".into());
+    }
+    Ok(())
+}
+
+/// Today on this computer's clock, as `YYYY-MM-DD`.
+fn today() -> String {
+    chrono::Local::now().date_naive().format("%Y-%m-%d").to_string()
+}
+
 /// Every task in a list's text, in order: its line, words, state, notes, and the task it is under.
 fn tasks_of(content: &str) -> Vec<Value> {
     let mut out: Vec<Value> = Vec::new();
@@ -588,7 +731,7 @@ fn tasks_of(content: &str) -> Vec<Value> {
                 }
             };
             current = Some((own, out.len()));
-            out.push(json!({ "line": i, "text": t.text, "done": t.done, "due": t.due, "flagged": t.flagged, "notes": "", "parent": parent }));
+            out.push(json!({ "line": i, "text": t.text, "done": t.done, "due": t.due, "time": t.time, "repeat": t.repeat, "flagged": t.flagged, "notes": "", "parent": parent }));
             continue;
         }
         let owner = match (current, top) {
@@ -635,7 +778,7 @@ mod tests {
     #[test]
     fn task_lines_read_and_write_the_same_way() {
         let t = parse_line("- [ ] Call the plumber (due 2026-11-12)").unwrap();
-        assert_eq!(t, Task { text: "Call the plumber".into(), done: false, due: Some("2026-11-12".into()), flagged: false });
+        assert_eq!(t, Task { text: "Call the plumber".into(), done: false, due: Some("2026-11-12".into()), time: None, repeat: None, flagged: false });
         assert_eq!(format_line(&t), "- [ ] Call the plumber (due 2026-11-12)");
         assert!(parse_line("  - [X] Done thing").unwrap().done);
         // Not dates, so they stay part of the words.
@@ -784,7 +927,7 @@ mod tests {
         assert_eq!(tasks.read("Build").unwrap()["tasks"][0]["notes"], "Code is 4411.\n- [ ] not a task");
 
         let after = tasks.add_with("Build", "Load the packs", None, true, Some((2, "Book the sled"))).unwrap();
-        assert_eq!(after["tasks"][3], json!({ "line": 8, "text": "Load the packs", "done": false, "due": null, "flagged": true, "notes": "", "parent": 2 }));
+        assert_eq!(after["tasks"][3], json!({ "line": 8, "text": "Load the packs", "done": false, "due": null, "time": null, "repeat": null, "flagged": true, "notes": "", "parent": 2 }));
         assert_eq!(tasks.add_with("Build", "x", None, false, Some((2, "Wrong words"))).unwrap_err(), "changed elsewhere");
     }
 
@@ -870,5 +1013,66 @@ mod tests {
         tasks.run("tasks.add", &json!({ "list": "Inbox", "text": "Call Sam", "flagged": true })).unwrap();
         tasks.run("tasks.update", &json!({ "list": "Inbox", "task": "Call Sam", "notes": "About the sled." })).unwrap();
         assert_eq!(fs::read_to_string(dir.path().join("work/tasks/Inbox.md")).unwrap(), "# Inbox\n\n- [ ] Call Sam (flagged)\n  About the sled.\n");
+    }
+
+    #[test]
+    fn a_time_and_a_repeat_are_written_after_the_words() {
+        let t = parse_line("- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)").unwrap();
+        assert_eq!((t.text.as_str(), t.due.as_deref(), t.time.as_deref(), t.repeat.as_deref(), t.flagged), ("Stand-up", Some("2026-11-16"), Some("09:30"), Some("weekday"), true));
+        assert_eq!(format_line(&t), "- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)");
+        // In any order, and anything else stays words.
+        assert_eq!(format_line(&parse_line("- [ ] A (flagged) (every month) (due 2026-11-12)").unwrap()), "- [ ] A (due 2026-11-12) (every month) (flagged)");
+        assert_eq!(parse_line("- [ ] Read (every fortnight)").unwrap().text, "Read (every fortnight)");
+        assert_eq!(parse_line("- [ ] Call (due 2026-11-12 25:00)").unwrap().text, "Call (due 2026-11-12 25:00)");
+        assert!(is_time("00:00") && is_time("23:59") && !is_time("24:00") && !is_time("9:30") && !is_time("12:60"));
+    }
+
+    #[test]
+    fn the_next_day_of_a_repeat() {
+        assert_eq!(next_due("2026-11-12", "day").as_deref(), Some("2026-11-13"));
+        assert_eq!(next_due("2026-12-31", "day").as_deref(), Some("2027-01-01"));
+        assert_eq!(next_due("2026-11-12", "week").as_deref(), Some("2026-11-19"));
+        // 13 November 2026 is a Friday, 14 a Saturday.
+        assert_eq!(next_due("2026-11-13", "weekday").as_deref(), Some("2026-11-16"));
+        assert_eq!(next_due("2026-11-14", "weekday").as_deref(), Some("2026-11-16"));
+        assert_eq!(next_due("2026-11-12", "weekday").as_deref(), Some("2026-11-13"));
+        assert_eq!(next_due("2027-01-31", "month").as_deref(), Some("2027-02-28"));
+        assert_eq!(next_due("2028-01-31", "month").as_deref(), Some("2028-02-29"));
+        assert_eq!(next_due("2026-12-15", "month").as_deref(), Some("2027-01-15"));
+        assert_eq!(next_due("2028-02-29", "year").as_deref(), Some("2029-02-28"));
+        assert_eq!(next_due("2026-11-12", "fortnight"), None);
+    }
+
+    #[test]
+    fn ticking_off_a_repeating_task_moves_it_to_its_next_day() {
+        let (dir, tasks) = setup();
+        let file = dir.path().join("work/tasks/Home.md");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "# Home\n\n- [ ] Water the plants (due 2026-11-12 08:00) (every week)\n  The fern too.\n").unwrap();
+        tasks.update("Home", 2, "Water the plants", Change { done: Some(true), ..Change::default() }).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "# Home\n\n- [ ] Water the plants (due 2026-11-19 08:00) (every week)\n  The fern too.\n");
+        // Clearing the date takes its time; a time without a date, or a made-up repeat, is refused.
+        tasks.update("Home", 2, "Water the plants", Change { due: Some(None), ..Change::default() }).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "# Home\n\n- [ ] Water the plants (every week)\n  The fern too.\n");
+        assert!(tasks.update("Home", 2, "Water the plants", Change { time: Some(Some("09:00".into())), ..Change::default() }).is_err());
+        assert!(tasks.update("Home", 2, "Water the plants", Change { repeat: Some(Some("fortnight".into())), ..Change::default() }).is_err());
+        // With no date, ticking it off makes it due a week from today.
+        tasks.update("Home", 2, "Water the plants", Change { done: Some(true), ..Change::default() }).unwrap();
+        let read = tasks.read("Home").unwrap();
+        assert_eq!(read["tasks"][0]["done"], json!(false));
+        assert_eq!(read["tasks"][0]["due"], json!(next_due(&today(), "week")));
+        // Stopping the repeat lets it be ticked off for good.
+        tasks.update("Home", 2, "Water the plants", Change { repeat: Some(None), done: Some(true), ..Change::default() }).unwrap();
+        assert_eq!(tasks.read("Home").unwrap()["tasks"][0]["done"], json!(true));
+    }
+
+    #[test]
+    fn the_agent_can_set_a_time_and_a_repeat() {
+        let (dir, tasks) = setup();
+        tasks.run("tasks.add", &json!({ "list": "Inbox", "text": "Stand-up", "due": "2026-11-16", "time": "09:30", "repeat": "weekday" })).unwrap();
+        assert_eq!(fs::read_to_string(dir.path().join("work/tasks/Inbox.md")).unwrap(), "# Inbox\n\n- [ ] Stand-up (due 2026-11-16 09:30) (every weekday)\n");
+        tasks.run("tasks.update", &json!({ "list": "Inbox", "task": "Stand-up", "time": "", "repeat": "" })).unwrap();
+        assert_eq!(fs::read_to_string(dir.path().join("work/tasks/Inbox.md")).unwrap(), "# Inbox\n\n- [ ] Stand-up (due 2026-11-16)\n");
+        assert!(tasks.run("tasks.add", &json!({ "text": "Call", "time": "09:00" })).is_err());
     }
 }
