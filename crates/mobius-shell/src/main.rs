@@ -439,9 +439,10 @@ fn keep_tabs(notify: mobius_browser::tabs::Notify, file: Option<PathBuf>) -> mob
 fn choose_engine(window: &tauri::Window, data_dir: &std::path::Path) -> Arc<dyn engine::PageEngine> {
     #[cfg(all(feature = "cef", windows))]
     if !std::env::var("MOBIUS_ENGINE").is_ok_and(|v| v == "webview") {
-        let scale_window = window.clone();
         let handle = window.hwnd().map(|h| h.0 as isize);
-        match handle.map(|h| cef_engine::CefEngine::new(h, &data_dir.join("chromium"), move || scale_window.scale_factor().unwrap_or(1.0))) {
+        // The scale is read on Chromium's own thread. It must not ask the window through Tauri: that waits for the main
+        // thread, and when the main thread is waiting on Chromium's (a message to a page's window) neither moves again.
+        match handle.map(|h| cef_engine::CefEngine::new(h, &data_dir.join("chromium"), move || cef_engine::window_scale(h))) {
             Ok(Some(engine)) => return engine,
             _ => eprintln!("[browser] Chromium could not start; using the system web view"),
         }
