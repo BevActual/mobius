@@ -2679,6 +2679,8 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .rail-mobius svg { color: var(--mobius); }
 .rail-mobius[aria-pressed="true"] { background: color-mix(in srgb, var(--mobius) 12%, transparent); }
 .rail-apps.rail-lead + .rail-apps:empty { display: none; }
+/* The Mobius button is the one place indigo belongs in the toolbar: a pale indigo fill when its panel is open. */
+.context-strip .strip-mobius[aria-pressed="true"], .context-strip .strip-mobius[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--mobius) 14%, transparent); color: var(--mobius); }
 
 /* Timeless: the frame draws line icons, never coloured tiles. Colour is for what people make (a list's colour shows
    as its icon's line, not a filled disc); an app is known by its shape. These win over each app's own sheet. */
