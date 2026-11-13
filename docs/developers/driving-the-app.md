@@ -58,3 +58,15 @@ One Mobius runs at a time; `close` it before launching another.
 
 The driver only starts builds from your own clone, always in test mode with its own data folder, unless `realData` is
 asked for. Your real notes, mail and settings are untouched otherwise. It is never shipped in the installer.
+
+## Recording the launch demo
+
+`npm run demo -w @mobius/desktop` opens your build on Priya's email about the Kestrel P2 brake kit, ready to record the
+one workflow (email, task, meeting, reply). It runs in test mode with its own data folder (`mobius-demo` in your temp
+folder), a Kestrel P2 task list and calendar, and a pretend mail server on this computer, so nothing touches your real
+mail, files or settings and a sent reply goes nowhere. The folder is kept between runs so the model you pick stays;
+`npm run demo -w @mobius/desktop -- --fresh` starts again from nothing (and removes the model key saved there). In test
+mode keys are kept in a plain file in that folder, so use a key you are happy to keep there.
+
+First time only: choose a model in Settings › Models. Then press "Take care of this" in the Mobius panel. The same
+workflow runs with a scripted model in `e2e/demo-workflow.spec.ts`.
