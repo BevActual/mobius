@@ -162,23 +162,23 @@ test('a sidebar can be dragged wider and narrower, within limits, and the width 
 test('the agent panel grows when its edge is dragged left, the keys work, and a double-click puts the usual width back', async () => {
   await resizeWindow(mobius!.app, 1600, 900);
   const handle = shell().getByRole('separator', { name: 'Resize the agent panel' });
-  await expect(handle).toHaveAttribute('aria-valuenow', '380');
+  await expect(handle).toHaveAttribute('aria-valuenow', '320');
   const box = (await handle.boundingBox())!;
   await shell().mouse.move(box.x + 3, box.y + 200);
   await shell().mouse.down();
   await shell().mouse.move(box.x + 3 - 80, box.y + 200, { steps: 6 });
   await shell().mouse.up();
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(460);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(400);
 
   await handle.focus();
   await shell().keyboard.press('ArrowRight');
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(444);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(384);
   await shell().keyboard.press('Shift+ArrowLeft');
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(508);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(448);
   await shell().keyboard.press('Home');
   await expect.poll(async () => (await appearance()).rightWidth).toBe(300);
   await handle.dblclick();
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(380);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(320);
 });
 
 test('widths and modes survive a restart, and the settings page shows and resets them', async () => {
@@ -200,7 +200,7 @@ test('widths and modes survive a restart, and the settings page shows and resets
   await expect(page.getByText('list 300 px, agent panel 500 px')).toBeVisible();
   await page.getByRole('button', { name: 'Reset sizes' }).click();
   await expect.poll(async () => (await appearance()).leftWidth).toBe(248);
-  expect((await appearance()).rightWidth).toBe(380);
+  expect((await appearance()).rightWidth).toBe(320);
 });
 
 test('a width the window sends that is out of range is refused', async () => {
