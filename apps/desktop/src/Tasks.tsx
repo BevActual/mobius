@@ -6,7 +6,7 @@ import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
 import { byDay, byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, timeWords, type Located, type SmartView } from './tasks-view';
 import type { TasksState } from './useTasks';
-import { ReviewActions, WhyThis } from './ReviewBar';
+import { ChangeBar, ReviewActions, WhyThis } from './ReviewBar';
 import { keepTurn, turnId } from './ReviewStrip';
 import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
@@ -594,6 +594,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
     .map((at) => ({ at, subtasks: rows.filter((r) => r.list === at.list && r.task.parent === at.task.line).map((r) => r.task) }));
 
   let body: ReactNode;
+  let changeShown = false;
   let empty = '';
   if (query) {
     const found = searchTasks(query, tasks.all);
@@ -608,10 +609,21 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
     const list = tasks.all[view.name] ?? [];
     const { open, done } = splitDone(nest(list).map((n) => n.task));
     const subsOf = (t: TaskItem) => list.filter((s) => s.parent === t.line && s !== t);
+    // The changed tasks are boxed where they are; the answers sit under the last of them, as under a change in Docs.
+    const lastNew = review ? [...open].reverse().find((task) => proposal.isNew(task.text)) : undefined;
+    changeShown = lastNew !== undefined;
     body = (
       <>
         <ul className="task-items" role="list" aria-label="To do">
-          {open.map((task) => row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }))}
+          {open.map((task) => [
+            row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }),
+            task === lastNew && review && (
+              <li key="mobius-change" className="task-change">
+                <ChangeBar who="Mobius changed this list" onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
+                  discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
+              </li>
+            ),
+          ])}
         </ul>
         <div className="task-drop-end" data-drop={dropEnd || undefined}
           onDragOver={(e) => { if (isTaskDrag(e)) { e.preventDefault(); setDropEnd(true); } }} onDragLeave={() => setDropEnd(false)}
@@ -663,7 +675,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
   return (
     <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
       <div className="tasks-main">
-        {review && view.kind === 'list' && (
+        {review && view.kind === 'list' && !changeShown && (
           <div className="note-review" role="status">
             <span className="review-dot" aria-hidden="true" />
             <span className="note-review-text">Mobius changed this list in its last turn.<WhyThis conversation={review.conversation} /></span>

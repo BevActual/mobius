@@ -975,7 +975,7 @@ export function App() {
             ) : inTasks ? (
               <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
-          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} />
+          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} />
             )}
             <CommentsGroup threads={openComments} onOpen={(t) => { if (t.doc === commentDoc) setCommentFocus(t.id); }} />
           </>
@@ -993,6 +993,8 @@ export function App() {
   const favourites = appearance.value.favourites ?? [];
   const pinnedNotes = useMemo(() => new Set(favourites.filter((f) => f.kind === 'note').map((f) => f.id)), [favourites]);
   const pagePinned = active !== undefined && favourites.some((f) => f.kind === 'page' && f.id === active.url);
+  // Browser: the pages pinned to the sidebar, for the tab menu's Pin to the sidebar.
+  const pinnedPages = useMemo(() => new Set(favourites.filter((f) => f.kind === 'page').map((f) => f.id)), [favourites]);
   const pinnedLists = useMemo(() => new Set(favourites.filter((f) => f.kind === 'list').map((f) => f.id)), [favourites]);
   const togglePin = (fav: Favourite) => {
     const has = favourites.some((f) => f.kind === fav.kind && f.id === fav.id);
@@ -1497,8 +1499,6 @@ export function App() {
     <BrowserChrome
       active={active}
       saved={saved}
-      pagePinned={pagePinned}
-      onTogglePagePin={() => active && togglePin({ kind: 'page', id: active.url, title: active.title || active.url })}
       selectionMenu={selectionMenu}
       setSelectionMenu={setSelectionMenu}
       selectionReady={cover !== null}
