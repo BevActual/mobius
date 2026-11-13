@@ -44,11 +44,15 @@ interface FrameProps {
   style?: CSSProperties;
   /** data-* attributes the shell's styles and tests read. */
   data?: Record<`data-${string}`, string | boolean | undefined>;
+  /** Opens the right panel (zone 5), for an app that brings one of its tabs forward while the panel is shut. */
+  openRight?: () => void;
+  /** Changes whenever the person asks Mobius something, so Mobius comes in front of an app's panel tab. */
+  mobiusAsked?: string | number;
 }
 
 const ToolbarSlot = createContext<HTMLElement | null>(null);
 
-export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
+export function AppFrame({ rail, toolbar, children, style, data, openRight, mobiusAsked }: FrameProps) {
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [panels, setPanels] = useState<PanelsOfApp | null>(null);
   const [appMenu, setAppMenu] = useAppMenuHost();
@@ -56,7 +60,7 @@ export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
     <AppMenuProvider value={setAppMenu}>
     <PanelRegistryContext.Provider value={setPanels}>
     <ToolbarSlot.Provider value={slot}>
-    <PanelTabsProvider>
+    <PanelTabsProvider open={openRight} mobiusAsked={mobiusAsked}>
       <div className="app" style={style} {...data}>
         {rail}
         <header className="context-strip">
