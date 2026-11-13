@@ -42,12 +42,12 @@ Every app has the same five zones. An app fills a zone; it never moves or redraw
 | --- | --- | --- | --- |
 | 1. App rail (far left, about 52px) | Get to any app, see what needs you | Home, Search, pinned apps, then Mobius, Activity with its badge, Settings and profile at the foot. Never folds away. | Nothing. Badges and dots only. |
 | 2. Sidebar | Move around inside the app | One order: New, Search, the app's places in sections, From Mobius, then More (trash, archive). Same width, row styles and fold key. | The places: mailboxes, notebooks, folders, lists |
-| 3. Toolbar (one row, top of the content) | Act on what is open | Leading: sidebar toggle, the title of what is open, one grey line. Trailing: Share where it applies, the ⋯ menu, the Mobius button. | The middle: the app's own controls |
+| 3. Toolbar (one row, top of the content) | Act on what is open | Leading: sidebar toggle, the title of what is open, one grey line. Trailing: Comments, Share where it applies, the ⋯ menu, the Mobius button. | The middle: the app's own controls |
 | 4. Content | The work | A solid surface, the shared empty state, the shared review bar | Everything inside, as one or more views |
 | 5. Right panel | Details and Mobius | One column, same width and card. Mobius docks here by default; other panels dock here as tabs. | Whether the app has an inspector |
 
-- One window. Little Mobius is the Mobius panel popped out. Split view, Little Mobius and comments live in the View menu,
-  the ⋯ menu and their keys, not in the top right.
+- One window. Little Mobius is the Mobius panel popped out. Split view and Little Mobius live in the Window menu and
+  their keys, not in the top right. Comments are the one exception: see the toolbar.
 - **Narrow windows:** side by side when wide, one after another when narrow. Below 980px the sidebar folds and the right
   panel closes, and each comes back over the content from its toggle. The rail and the toolbar stay.
 
@@ -80,7 +80,10 @@ Every app has the same five zones. An app fills a zone; it never moves or redraw
   one grey line about it. Never the app's name again. With nothing open, the toolbar shows the app's controls only.
 - Middle: the app's own controls for what is open (Aa and insert in an editor; Day, Week, Month and Today in Calendar;
   back, forward, reload and the address bar in the Browser; Reply, Reply All and Forward in Mail; transport in Music).
-- Trailing, always in this order: Share (where it applies), the ⋯ menu, the Mobius button.
+- Trailing, always in this order: Comments, Share (where it applies), the ⋯ menu, the Mobius button.
+- The Comments button earns its toolbar place because it shows live state: the count of open threads, and pressed
+  while comment mode is on. With no open threads it shows the icon alone. It is also in View › Comments with the same
+  key, so the menu and the launcher find it.
 - Group actions that belong together, and leave a gap between groups. Every icon button has a tooltip and an accessible
   name. Don't mix text and icons inside one group.
 - At most one primary (filled) action per view. Everything else is plain.

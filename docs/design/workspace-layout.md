@@ -23,12 +23,13 @@ spacing and restraint, not this year's materials. [Design rules](rules.md) says 
 | --- | --- | --- | --- |
 | 1. App rail (far left, about 52px) | Get to any app, see what needs you | Home, Search, pinned apps, then Mobius, Activity with its badge, Settings and profile at the foot. Never folds away. | Nothing. Badges and dots only. |
 | 2. Sidebar | Move around inside the app | New, Search, the app's places in sections, From Mobius, More (trash, archive). Same width, row styles and fold key. | The places: mailboxes, notebooks, folders, lists |
-| 3. Toolbar (one row) | Act on what is open | Leading: sidebar toggle, the title of what is open, one grey line. Trailing: Share, the ⋯ menu, the Mobius button. | The middle: the app's own controls |
+| 3. Toolbar (one row) | Act on what is open | Leading: sidebar toggle, the title of what is open, one grey line. Trailing: Comments, Share, the ⋯ menu, the Mobius button. | The middle: the app's own controls |
 | 4. Content | The work | A solid surface, the shared empty state, the shared review bar | One or more views, and a bottom dock |
 | 5. Right panel | Details and Mobius | One column, same width and card. Mobius docks here by default; other panels dock here as tabs. | Whether the app has an inspector |
 
-Little Mobius, split view and comments are in the View menu, the ⋯ menu and their keys, where the launcher also finds
-them. Below 980px the sidebar folds and the right panel closes; each comes back over the content from its toggle.
+Little Mobius and split view are in the Window menu and their keys, where the launcher also finds them. Comments keep a
+toolbar button before Share, because it shows the count of open threads and whether comment mode is on; it is also in
+View › Comments. Below 980px the sidebar folds and the right panel closes; each comes back over the content from its toggle.
 
 ## What changes per app
 
@@ -88,7 +89,7 @@ dark). Single-weight line icons in the frame; colour tiles only in the launcher.
 
 ## Shell features
 
-- **Split view**: View › Split view (or Ctrl+\\) puts a second app beside the first. Each pane has a small header
+- **Split view**: Window › Split view (or Ctrl+\\) puts a second app beside the first. Each pane has a small header
   (choose its app, swap, close); the toolbar and sidebar follow the focused pane. Drag the divider, or focus it and use
   the arrow keys. Below 980 px the second pane folds away until the window is wide again.
 - **Beside the conversation**: when the agent writes a note, changes a task list or opens a web page while you are in the
