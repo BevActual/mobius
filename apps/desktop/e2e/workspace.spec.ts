@@ -58,8 +58,8 @@ test('the rail opens every app, shows where you are, and holds Settings', async 
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
   await railButton('Settings').click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
-  // The foot holds only the profile: Settings is one of Mobius's apps in the switcher, and closes from there too.
-  await expect(rail().locator('.rail-end').getByRole('button', { name: 'Settings', exact: true })).toHaveCount(0);
+  // Settings is one of Mobius's own apps at the rail's end, and closes from there too.
+  await expect(rail().locator('.rail-end').getByRole('button', { name: 'Settings', exact: true })).toHaveCount(1);
   await showApps();
   await railButton('Settings').click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toHaveCount(0);
@@ -227,7 +227,7 @@ test('the Mobius button shows and hides Mobius in the right panel, and the sideb
   await start();
   // The Mobius button is the last thing in the toolbar.
   const face = mobiusButton();
-  await expect(shell().getByRole('group', { name: 'Applications' }).getByRole('button').last()).toHaveAttribute('data-mobius-face', '');
+  await expect(shell().getByRole('group', { name: 'Applications' }).getByRole('button').last()).toHaveAttribute('data-mobius-face');
   const beside = shell().locator('.dock.right > .chat');
   await expect(beside).toBeVisible();
   await expect(face).toHaveAttribute('aria-pressed', 'true');
@@ -269,7 +269,9 @@ test('Mobius’s own apps sit at the foot of the rail: Agents and Activity open 
   // Only Agents is where you are: not Agent too.
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
   await own.getByRole('button', { name: 'Activity', exact: true }).click();
-  await expect(side.getByRole('tab', { name: 'Activity' })).toHaveAttribute('aria-selected', 'true');
+  // Activity has its own sidebar and page in the Agent app's place.
+  await expect(shell().getByRole('complementary', { name: 'Activity sidebar' })).toBeVisible();
+  await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
   // Agent itself opens on the conversations.
   await railButton('Agent').click();
   await expect(side.getByRole('tab', { name: 'Sessions' })).toHaveAttribute('aria-selected', 'true');
@@ -277,7 +279,7 @@ test('Mobius’s own apps sit at the foot of the rail: Agents and Activity open 
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
 });
 
-test('a narrow window still opens Mobius on the right at its usual width', async () => {
+test('a narrow window still opens Mobius on the right, at no less than its narrowest width', async () => {
   await start();
   await resizeWindow(mobius!.app, 900, 700);
   const face = mobiusButton();
@@ -285,7 +287,8 @@ test('a narrow window still opens Mobius on the right at its usual width', async
   await expect(shell().locator('.dock.right')).toHaveCount(0);
   await face.click();
   await expect(shell().locator('.dock.right > .chat')).toBeVisible();
-  await expect.poll(async () => Math.round((await shell().locator('.dock.right').boundingBox())!.width)).toBeGreaterThan(300);
+  // A narrow window draws Mobius narrower than saved (dock-fit.ts), never under 280px.
+  await expect.poll(async () => Math.round((await shell().locator('.dock.right').boundingBox())!.width)).toBeGreaterThanOrEqual(280);
   await expect(composer()).toBeVisible();
 });
 

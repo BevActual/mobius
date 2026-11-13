@@ -25,7 +25,7 @@ const rel = (file: string) => path.relative(src, file).split(path.sep).join('/')
  * Nothing new joins it; a new menu uses ui/Menu (Menu from a button, PointMenu at a point).
  */
 const OWN_MENUS = [
-  'ChatPanel.tsx', 'Docs.tsx', 'MenuBar.tsx', 'NoteEditor.tsx', 'SelectionMenu.tsx', 'Slides.tsx',
+  'ChatPanel.tsx', 'Docs.tsx', 'MenuBar.tsx', 'SelectionMenu.tsx', 'Slides.tsx',
   'composer/PopMenu.tsx',
 ];
 

@@ -13,8 +13,8 @@ The Agent app is Mobius's home. It opens on the **desk** and holds your conversa
   mail, the note or doc you edited last; one press opens it, and an app Mobius changed carries a dashed edge until you
   look) and **Next**
   (what is scheduled).
-- **The sidebar** lists conversations. Its tabs are **Sessions** (your conversations), **Activity** (the turns of the
-  open conversation, with [Rewind to here](../guide/working-with-mobius.md#rewind-to-here)) and **Agents**.
+- **The sidebar** lists conversations. Its tabs are **Sessions** (your conversations), **Activity** (opens the
+  [Activity app](#activity)) and **Agents**.
 - **The message box** takes text, pictures and files, dictation (hold Ctrl+Space), `/skill` names, the mode
   (Shift+Tab), the model and the effort.
 - **In a turn**, Mobius shows its plan as a checklist, each tool it uses as a plain sentence ("Added 6 tasks to P2
@@ -36,6 +36,22 @@ Agents are named helpers for jobs you repeat. Open them from the **Agents** tab 
   Always asks: Browser. Everything else follows your mode, Propose.").
 - In a [project](write-and-plan.md#projects), **Ask a bot** sends an agent off to do something on the side, and what
   it reports comes back into the thread.
+
+## Activity
+
+Activity is the history of what Mobius did, and what is waiting for you. Open it from **Mobius** in the app switcher,
+or type "Activity" in the launcher (Ctrl+K).
+
+![The Activity app in Mobius](../readme/apps/activity.png)
+
+- **The page** leads with what **needs you**, what is **running**, the **changes to review** (Keep or Discard), what
+  finished today and what is scheduled. Below that, everything that happened, grouped Today, Yesterday and earlier: each
+  line is the app's icon, one sentence ("Sent an email to Sam Okafor") and the time. Something that failed is shown in
+  red.
+- **The open conversation's turns** are listed with [Rewind to here](../guide/working-with-mobius.md#rewind-to-here).
+- **The sidebar** narrows the list: **Everything**, **Needs you**, **By Mobius**, **By you**, **Can't be undone**
+  (sending, paying, deleting and running commands), then **By app**.
+- It reads the same log as **Settings › Approvals and safety › Activity**, which stays on this computer.
 
 ## Abilities
 
