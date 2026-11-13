@@ -9,9 +9,10 @@ A full web browser, with Mobius able to read and work on pages for you.
 - **Tabs** live in the sidebar, as in Safari and Arc. Pinned tabs sit in their own group above the rest; drag a tab to
   reorder it or across the line to pin it. A small Mobius mark on a tab means Mobius is reading or using it; a hand means
   you took it back.
-- **A new tab** opens Mobius's start page: your favourites, the sites you visit most, and your reading list. It is drawn
+- **A new tab** opens Mobius's start page: your favourites, other sites you visit most, and your reading list. It is drawn
   by Mobius, so none of it is shown to a web page.
-- **Bookmarks** with the star beside the address, **Find** (Ctrl+F), downloads and history.
+- **Bookmarks** with the star beside the address, **Find** (Ctrl+F), downloads and history. To pin a page to the
+  sidebar, right-click its tab and choose **Pin to the sidebar**.
 - **Mobius on the page.** Ask about the page, or select text and act on it. Opening a site the agent hasn't been allowed
   asks first, and clicking or typing on a page asks every time. When a page needs a sign-in, you sign in yourself.
 - Pages are shown by the system web view (WebView2) in the installer, or by Chromium (CEF) in a build from source that includes it.
@@ -65,17 +66,17 @@ Browser, or give Reader an address.
 
 ![The Reader app in Mobius](../readme/apps/reader.png)
 
-- **The article has the page.** The bar above it says where it came from, when you saved it and how many minutes are
-  left; a thin line fills as you read, and each article opens where you stopped. Opening Reader shows your newest
-  article.
-- **Aa** sets the text size, the font (sans serif or serif) and the page colour (Match Mobius, Sepia, Grey or Night),
-  as in Safari Reader. Your choice is kept on this computer.
-- **Save a link** (the link button, or New › Save a link) shows the link field; with nothing open it is always there.
-  **Save this tab** keeps the page open in the Browser.
-- **Highlights:** select a passage and press Highlight (or H); they are listed under the article and can be copied to
-  Notes. **Ask Mobius** on a selected passage or a highlight starts a message with it quoted, the article attached.
-- **J** and **K** move to the next and previous article in the list. **Done reading** (E) moves the article to Archive
-  and opens the next one.
+- **The sidebar** lists the Reading list, any lists of your own and the Archive as plain rows, then From Mobius
+  (articles Mobius changed, to review). **New article** saves a link.
+- **The article** is set in a serif at reading width. Above its title, a quiet line says when you saved it and how many
+  minutes are left; it opens where you stopped. The toolbar shows its title and the site it came from (click the site
+  to open the original in the Browser).
+- **In the toolbar:** Save a link, **Aa** (text size, sans serif or serif, and the page colour: Match Mobius, Sepia,
+  Grey or Night) and **Done reading** (E), which moves it to Archive, opens the next article and offers Undo.
+- **Highlights:** select a passage and press Highlight (or H). They collect in the Highlights panel beside the article
+  (Ctrl+Shift+H, or the Panels menu), where each can be asked about and all copied to Notes. **Ask Mobius** on a
+  selected passage starts a message with it quoted, the article attached.
+- **J** and **K** move to the next and previous article in the list.
 
 **Kept in:** `workspace/reading/`, each article a Markdown file.
 
@@ -86,8 +87,8 @@ Your whole workspace as a drive.
 ![The Files app in Mobius](../readme/apps/files.png)
 
 - **The drive** is a list like Finder's: Name, Kind and Size columns (click one to sort; folders stay first), and each
-  file wears the icon of the app that opens it. A file Mobius made is dashed until kept; a folder says how many such
-  files it holds.
+  file wears the icon of the app that opens it. A file Mobius made is dashed until kept; a folder holding such files
+  has an indigo dot (hover it for how many).
 - **Select, then open.** A click selects, a double-click or Enter opens: folders in place, files in their own app. The
   arrow keys move, Backspace goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
 - **The toolbar** names the open folder with how many items it holds, and has Back, Forward and New folder. The
@@ -103,5 +104,5 @@ Your whole workspace as a drive.
   trashed from here.
 - **Date Modified** shows when each file and folder last changed. The agent's own `files.list` leaves dates out.
 - **The sidebar** has Workspace and Trash under Places, the workspace's folders (Notes, Docs, Sheets...) under Folders, a dot on
-  any folder holding something from Mobius, and Made by Mobius under From Mobius.
+  a folder holding something new from Mobius until you look in it, and Made by Mobius under From Mobius.
 - **Made by Mobius** collects what Mobius created, dashed until you keep it, with a count of what is waiting.

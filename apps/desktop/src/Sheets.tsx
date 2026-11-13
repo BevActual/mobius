@@ -12,7 +12,7 @@ import type { SheetsState } from './useSheets';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
-import { Menu, PointMenu, type MenuEntry } from './ui';
+import { Menu, PointMenu, ToolbarControls, type MenuEntry } from './ui';
 
 const NEW_WORKBOOK = 'mobius-sheets-new-workbook';
 /** Whether a sidebar is shown to ask for the name; with the sidebar hidden, the workbook is made as "Workbook". */
@@ -599,11 +599,23 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
 
   return (
     <section className="sheet-page" aria-label={`Sheet: ${data.sheet}`}>
-      <div className="sheet-toolbar" role="toolbar" aria-label="Sheet">
-        <span className="sheet-tool-group">
-          <button type="button" className="sheet-tool" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={steps.undo.length === 0} onMouseDown={keep} onClick={() => void undo()}><Icon d={ICONS.undo} /></button>
-          <button type="button" className="sheet-tool" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={steps.redo.length === 0} onMouseDown={keep} onClick={() => void redo()}><Icon d={ICONS.redo} /></button>
+      <ToolbarControls label="Sheet">
+        <span className="sheet-tools">
+          <span className="sheet-tools-group">
+            <button type="button" className="strip-btn" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={steps.undo.length === 0} onMouseDown={keep} onClick={() => void undo()}><Icon d={ICONS.undo} /></button>
+            <button type="button" className="strip-btn" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={steps.redo.length === 0} onMouseDown={keep} onClick={() => void redo()}><Icon d={ICONS.redo} /></button>
+          </span>
+          <span className="sheet-tools-group">
+            <Menu label="Quick formula" entries={sumEntries} trigger={<button type="button" className="strip-btn" aria-label="Quick formula" title="Sum, average and more of the cells picked" onMouseDown={keep}><Icon d={ICONS.sum} /></button>} />
+            <Menu label="Number format" entries={formatEntries(sel.c0, sel.c1)} trigger={<button type="button" className="strip-btn" aria-label="Number format" title="Show the picked columns' numbers as currency, percentages and more" onMouseDown={keep}><Icon d={ICONS.format} /></button>} />
+          </span>
+          <span className="sheet-tools-group">
+            <Menu label="Table" entries={tableEntries} trigger={<button type="button" className="strip-btn" aria-label="Table" title="Add or delete rows and columns" onMouseDown={keep}><Icon d={ICONS.table} /></button>} />
+            <Menu label="Sort" entries={sortEntries} trigger={<button type="button" className="strip-btn" aria-label="Sort" title="Sort the rows" onMouseDown={keep}><Icon d={ICONS.sort} /></button>} />
+          </span>
         </span>
+      </ToolbarControls>
+      <div className="sheet-formula-row">
         <span className="sheet-address" aria-label="Selected cell">{rangeName(sel)}</span>
         <span className="sheet-fx" aria-hidden="true">ƒx</span>
         <input
@@ -619,12 +631,6 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
           onKeyDown={onEditorKey}
           onBlur={(e) => { if (edit?.where === 'bar' && e.relatedTarget !== cellInput.current) commit(null); }}
         />
-        <span className="sheet-tool-group">
-          <Menu label="Quick formula" entries={sumEntries} trigger={<button type="button" className="sheet-tool" aria-label="Quick formula" title="Sum, average and more of the cells picked" onMouseDown={keep}><Icon d={ICONS.sum} /></button>} />
-          <Menu label="Number format" entries={formatEntries(sel.c0, sel.c1)} trigger={<button type="button" className="sheet-tool" aria-label="Number format" title="Show the picked columns' numbers as currency, percentages and more" onMouseDown={keep}><Icon d={ICONS.format} /></button>} />
-          <Menu label="Table" entries={tableEntries} trigger={<button type="button" className="sheet-tool" aria-label="Table" title="Add or delete rows and columns" onMouseDown={keep}><Icon d={ICONS.table} /><span>Table</span></button>} />
-          <Menu label="Sort" entries={sortEntries} trigger={<button type="button" className="sheet-tool" aria-label="Sort" title="Sort the rows" onMouseDown={keep}><Icon d={ICONS.sort} /><span>Sort</span></button>} />
-        </span>
       </div>
       {finding && (
         <div className="sheet-find" role="search" aria-label="Find in sheet">
@@ -734,11 +740,10 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
                   const value = shown(r, c);
                   const key = `${r}:${c}`;
                   const shadows: string[] = [];
-                  if (!edit) shadows.push(...edges(sel, r, c, 'var(--accent)'));
-                  else if (edit.at.r === r && edit.at.c === c) shadows.push(...edges({ r0: r, c0: c, r1: r, c1: c }, r, c, 'var(--accent)'));
+                  if (!edit) shadows.push(...edges(sel, r, c, 'var(--ink)'));
+                  else if (edit.at.r === r && edit.at.c === c) shadows.push(...edges({ r0: r, c0: c, r1: r, c1: c }, r, c, 'var(--ink)'));
                   refs.forEach((g, i) => { if (inRange(g, r, c)) shadows.push(...edges(g, r, c, REF_COLORS[i % REF_COLORS.length]!, 2)); });
-                  if (fillRange && inRange(fillRange, r, c)) shadows.push(...edges(fillRange, r, c, 'color-mix(in srgb, var(--accent) 70%, transparent)', 1.5));
-                  if (showReview && changed.has(key)) shadows.push('inset 0 0 0 1.5px color-mix(in srgb, var(--mobius) 55%, transparent)');
+                  if (fillRange && inRange(fillRange, r, c)) shadows.push(...edges(fillRange, r, c, 'color-mix(in srgb, var(--ink) 55%, transparent)', 1.5));
                   const refAt = refs.findIndex((g) => inRange(g, r, c));
                   return (
                     <td
