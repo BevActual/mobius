@@ -52,6 +52,8 @@ you want to build or change Mobius, go to **Developers**.
 | [Releases and updates](developers/releasing.md) | Packaging the installer, signing, and the in-app updater |
 | [Architecture decisions](adr/README.md) | Why Mobius is built the way it is (ADRs) |
 | [Design](design/workspace-layout.md) | One adaptive surface: the layout rules every app follows |
+| [Theme tokens](design/theme-tokens.md) | The timeless theme: exact colours for four themes, type, density, shape and motion |
+| [Panel layouts](design/panel-layouts.md) | The five-zone frame, views and panels, and each app's default layout |
 | [Reference notes](reference/README.md) | Comparisons with Hermes Agent, the bar for each app, market research, and calendar sign-in requirements |
 
 ## Help

@@ -1,5 +1,8 @@
 # Workspace layout: one adaptive surface
 
+> The frame, the sidebar order, where Mobius opens and the theme were redecided on 2026-11-13. Where this page
+> differs, [Panel layouts](panel-layouts.md) and [Theme tokens](theme-tokens.md) win until this page is rewritten.
+
 Owner direction (2026-11-07): an app in Mobius should not feel like a window into another application. The UI
 morphs: the controls that exist change with what you are doing, inside one unified design, and the agent can be used
 while you work in any app.
