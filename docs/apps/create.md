@@ -54,6 +54,9 @@ Your pictures, with edits you can always take back.
   the toolbar (or **−** and **+**) makes the pictures bigger or smaller. Right-click a picture to open, rename (**F2**),
   export, move it to another album or delete it; you can also drag it onto an album in the sidebar. Right-click an
   album to rename or delete it.
+- The sidebar has a search for albums, **Library** (with Recently Deleted) and **Albums**. An open photo's controls sit
+  in the window's toolbar: back to the album, **Adjust**, **Filters** and **Crop**, **Show original**, **Revert** and
+  **Export**. The picture's name, size and edits show along the foot of the page.
 - **Recently Deleted** keeps deleted photos, with their edits, until you empty it; right-click one to put it back in
   its album. Deleting an album moves its photos there.
 - **Adjust** (exposure, highlights, shadows, contrast, saturation, warmth and more), **Filters** and **Crop** (turn,

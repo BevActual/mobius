@@ -1,21 +1,30 @@
 /* The Photo app, as Photos looks on the Mac: albums down the side, an album as a grid of square pictures, and a photo
-   on a dark stage with Adjust, Filters and Crop beside it. Rules sit under .photo-page so they win over the older ones
-   in styles.css. */
+   on the content surface with Adjust, Filters and Crop beside it. Its controls sit in the window's toolbar (the
+   timeless frame), so the toolbar rules are under .context-strip. Rules sit under .photo-page so they win over the
+   older ones in styles.css. */
 
 .photo-page svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .photo-page .spacer { flex: 1; }
 
-/* Toolbar */
-.photo-page .photo-bar { flex: none; display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 12px; border-bottom: 0.5px solid var(--line); background: var(--bg); }
-.photo-page .photo-bar-title { display: flex; flex-direction: column; justify-content: center; min-width: 0; margin-left: 4px; }
-.photo-page .photo-bar-title h2 { margin: 0; font-size: var(--fs-md, 15px); font-weight: 600; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Toolbar: the photo's place, Adjust · Filters · Crop, then Show original, Revert and Export */
+.context-strip .photo-tb { height: 30px; padding: 0 8px; border-radius: var(--radius-control); font-size: var(--fs-sm); white-space: nowrap; }
+.context-strip .photo-tb svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.context-strip .photo-tb:hover:not(:disabled) { background: var(--sel); }
+.context-strip .photo-tb[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
+.context-strip .photo-tb:disabled { opacity: 0.4; }
+.context-strip .photo-tb[data-danger] { color: var(--red); background: var(--red-wash); }
+.context-strip .photo-back { padding-left: 2px; gap: 2px; font-weight: var(--fw-medium); }
+.context-strip .photo-back span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.context-strip .photo-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.context-strip .photo-export { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; margin-left: 4px; border-radius: var(--radius-control); border: var(--hairline-w) solid var(--line); background: var(--paper); color: var(--ink); font-size: var(--fs-sm); }
+.context-strip .photo-export:hover:not(:disabled) { background: var(--sel); }
+.context-strip .photo-export:disabled { opacity: 0.4; }
+.context-strip .photo-tabs { display: inline-flex; gap: 2px; }
+.context-strip .photo-tab { height: 28px; padding: 0 10px; border-radius: var(--radius-control); font-size: var(--fs-sm); color: var(--muted); }
+.context-strip .photo-tab:hover { color: var(--ink); }
+.context-strip .photo-tab[aria-selected="true"] { background: var(--sel); color: var(--ink); font-weight: var(--fw-medium); }
+.context-strip .photo-tab:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 .photo-page .photo-meta { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.photo-page .photo-tool { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 7px; font-size: var(--fs-sm); color: var(--ink); white-space: nowrap; }
-.photo-page .photo-tool:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.photo-page .photo-tool[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--accent); }
-.photo-page .photo-tool:disabled { opacity: 0.35; }
-.photo-page .photo-back { padding: 0 10px 0 4px; color: var(--accent); font-weight: 500; }
-.photo-page .photo-back span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 .photo-page .photo-export { height: 30px; padding: 0 16px; border-radius: 999px; background: var(--accent); color: var(--on-accent, #fff); font-size: var(--fs-sm); font-weight: 600; }
 .photo-page .photo-export:hover:not(:disabled) { filter: brightness(1.06); }
 .photo-page .photo-export:disabled { opacity: 0.4; }
@@ -46,23 +55,22 @@
 .photo-page .photo-empty p { margin: 0; font-size: var(--fs-sm); }
 .photo-page.empty { display: flex; }
 
-/* The photo on its dark stage */
+/* The photo on the content surface, in Light and Dark alike; the frame around it stays neutral. */
 /* With the app sidebar beside it, the stage keeps room for the photo; the panel gives some up first. */
 .photo-page .photo-body { grid-template-columns: minmax(120px, 1fr) minmax(220px, 272px); }
-.photo-page .photo-stage { overflow: hidden; padding: 28px clamp(8px, 5%, 56px); background: #1d1d1f; }
+.photo-page .photo-stage { overflow: hidden; padding: 40px clamp(8px, 6%, 96px); background: var(--paper); }
 .photo-page .photo-stage[data-zoomed] { overflow: auto; align-items: flex-start; justify-content: flex-start; }
 .photo-page .photo-stage[data-zoomed] .photo-frame { max-width: none; max-height: none; margin: auto; }
 .photo-page .photo-stage[data-zoomed] .photo-canvas { max-width: none; max-height: none; cursor: zoom-out; }
-.photo-page .photo-canvas { max-height: calc(100vh - 150px); border-radius: 2px; cursor: zoom-in; }
+.photo-page .photo-canvas { max-height: calc(100vh - 140px); border-radius: 0; box-shadow: 0 0 0 var(--hairline-w) var(--line); cursor: zoom-in; }
 .photo-page .photo-stage[data-cropping] { padding: 36px 64px; }
 .photo-page .photo-stage[data-cropping] .photo-canvas { cursor: default; }
 .photo-page .photo-frame { overflow: visible; }
-.photo-page .photo-step { position: absolute; top: 50%; z-index: 2; width: 34px; height: 34px; margin-top: -17px; display: grid; place-items: center; border-radius: 50%; background: rgba(255, 255, 255, 0.12); color: #fff; opacity: 0; transition: opacity var(--dur-med) var(--ease), background var(--dur-med) var(--ease); }
+.photo-page .photo-step { position: absolute; top: 50%; z-index: 2; width: 32px; height: 32px; margin-top: -16px; display: grid; place-items: center; border-radius: 50%; background: var(--raised); box-shadow: 0 0 0 var(--hairline-w) var(--line); color: var(--ink); opacity: 0; transition: opacity var(--dur-med) var(--ease), background var(--dur-med) var(--ease); }
 .photo-page .photo-step.prev { left: 12px; }
 .photo-page .photo-step.next { right: 12px; }
 .photo-page .photo-stage:hover .photo-step, .photo-page .photo-step:focus-visible { opacity: 1; }
-.photo-page .photo-step:hover { background: rgba(255, 255, 255, 0.22); }
-.photo-page .photo-review { z-index: 3; }
+.photo-page .photo-step:hover { background: var(--sel); }
 
 /* The crop box: the rest dimmed, thirds while it is there, and handles at its corners and sides. */
 .photo-page .photo-crop { position: absolute; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55); outline: 1px solid rgba(255, 255, 255, 0.9); cursor: move; touch-action: none; }
@@ -125,11 +133,9 @@
 .photo-page .photo-slider input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
 .photo-page .photo-delete { align-self: flex-start; height: 28px; padding: 0 12px; border-radius: 7px; color: var(--danger, #ff3b30); font-size: var(--fs-sm); }
 .photo-page .photo-delete:hover { background: color-mix(in srgb, var(--danger, #ff3b30) 10%, transparent); }
-.photo-page .photo-hint { margin: 0; font-size: var(--fs-xs); line-height: 1.45; color: var(--muted); }
 
 /* Filters: the photo through each, two across */
 .photo-page .photo-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 8px; }
-.photo-page .photo-filters .photo-hint { grid-column: 1 / -1; }
 .photo-page .photo-filter { background: none; display: flex; flex-direction: column; gap: 4px; padding: 0; font-size: var(--fs-xs); color: var(--ink); text-align: center; }
 .photo-page .photo-filter img, .photo-page .photo-filter .photo-tile-wait { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 7px; display: block; }
 .photo-page .photo-filter[aria-checked="true"] img { box-shadow: 0 0 0 2.5px var(--accent); }
@@ -143,20 +149,9 @@
 .photo-page .photo-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 /* Sidebar: albums with their counts */
-.photo-side .photo-albums ul { padding: 4px 6px; }
 .photo-side .photo-album-row { gap: 8px; }
-.photo-side .photo-album-icon { width: 16px; height: 16px; fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .photo-side .photo-album-count { margin-left: auto; color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 
-/* The grid's zoom, as Photos puts it in the toolbar */
-.photo-page .photo-zoom { display: inline-flex; align-items: center; gap: 6px; margin-right: 6px; color: var(--muted); }
-.photo-page .photo-zoom svg { width: 12px; height: 12px; stroke-width: 1.4; }
-.photo-page .photo-zoom svg:last-of-type { width: 16px; height: 16px; }
-.photo-page .photo-zoom input { -webkit-appearance: none; appearance: none; width: 96px; height: 18px; background: transparent; margin: 0; }
-.photo-page .photo-zoom input::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 14%, transparent); }
-.photo-page .photo-zoom input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: #fff; box-shadow: 0 0.5px 3px rgba(0, 0, 0, 0.35), 0 0 0 0.5px rgba(0, 0, 0, 0.08); }
-.photo-page .photo-zoom input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent), 0 0.5px 3px rgba(0, 0, 0, 0.35); }
-.photo-page .photo-zoom input::-moz-range-track { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 14%, transparent); }
 .photo-page .photo-grid { grid-template-columns: repeat(auto-fill, minmax(var(--tile, 160px), 1fr)); }
 
 /* Adjust sections: a heading that folds the sliders away, and a reset once something in it has moved */
@@ -179,7 +174,93 @@
 .photo-page .photo-tile-rename { position: absolute; left: 6px; right: 6px; bottom: 6px; padding: 3px; border-radius: 8px; }
 .photo-rename { width: 100%; min-width: 0; height: 24px; padding: 0 6px; border-radius: 6px; border: 0.5px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0; }
 .photo-side .photo-album-row[data-renaming] { cursor: default; }
-.photo-side .photo-albums li[data-drop] .photo-album-row { background: color-mix(in srgb, var(--accent) 18%, transparent); box-shadow: inset 0 0 0 1.5px var(--accent); }
-.photo-side .photo-utilities { margin-top: 10px; padding-top: 6px; border-top: 0.5px solid var(--line); }
-.photo-page .photo-tool[data-danger] { color: var(--danger, #ff3b30); background: color-mix(in srgb, var(--danger, #ff3b30) 10%, transparent); }
-.photo-side .photo-albums:not(.photo-utilities) { flex: none; }
+.photo-side li[data-drop] .photo-album-row { background: var(--sel); box-shadow: inset 0 0 0 1.5px var(--ink); }
+
+
+/* The Adjust panel, as the timeless mock draws it: on the frame, like the panel it will sit in beside Mobius; quiet
+   headings with Reset as a word; one row per slider (name, a slim track with a tick, the value); layers as bordered
+   rows; and Mobius's change once, dashed indigo, at the top. */
+.photo-page .photo-panel { padding: 12px 16px 16px; gap: 12px; border-left: var(--hairline-w) solid var(--line); background: var(--frame); }
+.photo-page .photo-histogram { height: 64px; padding: 6px; border-radius: var(--radius-control); background: var(--paper); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
+.photo-page .photo-histogram span { background: color-mix(in srgb, var(--ink) 28%, transparent); }
+.photo-page .photo-proposal { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--radius-group); border: 1.5px dashed color-mix(in srgb, var(--mobius) 60%, var(--frame)); background: color-mix(in srgb, var(--mobius) 4%, var(--paper)); font-size: var(--fs-sm); }
+.photo-page .photo-proposal p { margin: 0; }
+.photo-page .photo-proposal-title { color: var(--mobius); font-weight: var(--fw-semibold); }
+.photo-page .photo-proposal-line { color: var(--body); }
+.photo-page .photo-proposal-actions { display: flex; gap: 6px; margin-top: 6px; }
+.photo-page .photo-proposal-actions [data-kind="keep"] { margin-left: auto; }
+.photo-page .photo-panel-title { color: var(--muted); font-weight: var(--fw-semibold); }
+.photo-page .photo-layers { display: flex; flex-direction: column; gap: 6px; padding: 0; }
+.photo-page .photo-layer { height: 34px; padding: 0 10px 0 6px; border-radius: var(--radius-control); background: var(--paper); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
+.photo-page .photo-layer[aria-selected="true"] { background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--ink); color: var(--ink); }
+.photo-page .photo-layer[data-proposed] { box-shadow: none; outline: 1.5px dashed var(--mobius); outline-offset: -1.5px; }
+.photo-page .photo-layer[data-proposed] .photo-layer-area { color: var(--mobius); }
+.photo-page .photo-layer[data-base] { background: transparent; box-shadow: none; }
+.photo-page .photo-adjust { gap: 4px; border-top: 0; padding-top: 0; }
+.photo-page .photo-field input, .photo-page .photo-field select { background: var(--paper); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); }
+.photo-page .photo-adjust > .photo-group { border-top: 0; padding-top: 6px; }
+.photo-page .photo-group-head { min-height: 26px; }
+.photo-page .photo-group-toggle { height: 26px; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.photo-page .photo-group-toggle:hover { color: var(--ink); }
+.photo-page .photo-group-chevron { opacity: 0; order: 2; }
+.photo-page .photo-group-head:hover .photo-group-chevron, .photo-page .photo-group-toggle:focus-visible .photo-group-chevron, .photo-page .photo-group:not([data-open]) .photo-group-chevron { opacity: 1; }
+.photo-page .photo-group-dot { order: 3; background: var(--ink); }
+.photo-page .photo-group-reset { width: auto; height: 24px; padding: 0 4px; font-size: var(--fs-sm); color: var(--faint); }
+.photo-page .photo-group-reset:hover { color: var(--ink); background: none; }
+.photo-page .photo-group-body { gap: 0; padding: 2px 0 8px; }
+.photo-page .photo-slider { display: grid; grid-template-columns: 96px minmax(0, 1fr) 44px; align-items: center; gap: 8px; height: 30px; font-size: var(--fs-sm); color: var(--ink); }
+.photo-page .photo-slider-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-page .photo-slider output { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.photo-page .photo-slider[data-changed] output { color: var(--ink); }
+.photo-page .photo-slider input { width: 100%; height: 22px; cursor: default; }
+.photo-page .photo-slider input::-webkit-slider-runnable-track { height: 2px; border-radius: 1px; background: linear-gradient(to right, var(--line) var(--from), color-mix(in srgb, var(--ink) 45%, transparent) var(--from), color-mix(in srgb, var(--ink) 45%, transparent) var(--to), var(--line) var(--to)); }
+.photo-page .photo-slider input::-webkit-slider-thumb { width: 3px; height: 16px; margin-top: -7px; border-radius: 1.5px; background: var(--ink); box-shadow: none; }
+.photo-page .photo-slider input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 25%, transparent); }
+.photo-page .photo-slider input::-moz-range-track { height: 2px; background: var(--line); }
+.photo-page .photo-slider input::-moz-range-progress { height: 2px; background: color-mix(in srgb, var(--ink) 45%, transparent); }
+.photo-page .photo-slider input::-moz-range-thumb { width: 3px; height: 16px; border: 0; border-radius: 1.5px; background: var(--ink); }
+.photo-page .photo-chip[aria-pressed="true"], .photo-page .photo-chip[aria-checked="true"] { background: var(--sel); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.photo-page .photo-chip { background: var(--paper); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); border-radius: var(--radius-control); }
+.photo-page .photo-cropper .photo-export { height: 28px; padding: 0 14px; border-radius: var(--radius-control); background: var(--ink); color: var(--on-ink); }
+.photo-page .photo-filter[aria-checked="true"] img { box-shadow: 0 0 0 2px var(--ink); }
+.photo-page .photo-filter[aria-checked="true"] span { color: var(--ink); }
+.photo-page .photo-delete { color: var(--red); }
+
+/* The album grid on the content surface too. */
+.photo-library { background: var(--paper); }
+.photo-page .photo-tile[aria-current="true"] { box-shadow: inset 0 0 0 3px var(--ink); }
+.context-strip .photo-zoom { display: inline-flex; align-items: center; gap: 6px; margin: 0 4px 0 8px; color: var(--muted); }
+.context-strip .photo-zoom svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.context-strip .photo-zoom svg:last-of-type { width: 16px; height: 16px; }
+.context-strip .photo-zoom input { width: 96px; accent-color: var(--ink); }
+
+/* The foot of the content: the photo's name and size, and whether it is edited (the original is always kept). */
+.photo-page .photo-info { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: flex; justify-content: space-between; gap: 12px; margin: 0; height: 30px; align-items: center; padding: 0 16px; border-top: var(--hairline-w) solid var(--line); background: var(--paper); color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.photo-page .photo-info span { overflow: hidden; text-overflow: ellipsis; }
+.photo-page .photo-stage { padding-bottom: 70px; }
+.photo-page .photo-stage[data-cropping] { padding-bottom: 70px; }
+.photo-page .photo-stage[data-zoomed] .photo-info { display: none; }
+
+/* The toolbar row is shared: Photo's tools take the room left after the title and give up words before buttons as it
+   narrows: the back button keeps only its arrow, then Revert and Export only their icons, then the arrow goes. */
+.app .context-strip .ui-toolbar-slot:has(.photo-tools) { flex: 1 1 440px; min-width: 0; justify-content: flex-end; }
+.app .context-strip .ui-toolbar-slot:has(.photo-tools) > .ui-toolbar-group { flex: 1; min-width: 0; }
+.context-strip .photo-tools { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); container-type: inline-size; }
+.context-strip .photo-tools-group { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.context-strip .photo-tools-group + .photo-tools-group { position: relative; padding-left: var(--sp-2); }
+.context-strip .photo-tools-group + .photo-tools-group::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: var(--hairline-w); background: var(--line); }
+.context-strip .photo-tools-group:first-child { margin-right: auto; }
+.context-strip .photo-export svg, .context-strip .photo-tb svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.context-strip .photo-export svg, .context-strip .photo-tools [aria-label="Revert"] svg { display: none; }
+@container (max-width: 440px) { .context-strip .photo-back span, .context-strip .photo-tools .photo-meta { display: none; } .context-strip .photo-zoom { display: none; } }
+@container (max-width: 360px) {
+  .context-strip .photo-tools [aria-label="Revert"] span, .context-strip .photo-export span { display: none; }
+  .context-strip .photo-export svg, .context-strip .photo-tools [aria-label="Revert"] svg { display: block; }
+  .context-strip .photo-export { padding: 0 7px; }
+  .context-strip .photo-tab { padding: 0 8px; }
+}
+@container (max-width: 290px) {
+  /* Narrowest: Esc and the album in the sidebar still go back, so the back arrow gives way to the edit tools. */
+  .context-strip .photo-tools-group:first-child { display: none; }
+  .context-strip .photo-tab { padding: 0 6px; }
+}

@@ -90,7 +90,7 @@ test('photos are renamed, moved and deleted with their edits, and come back from
   const porto = path.join(userData, 'workspace', 'photos', 'Porto');
   await expect.poll(() => fs.existsSync(path.join(porto, 'shore.png.edits.json'))).toBe(true);
 
-  await shell().getByRole('navigation', { name: 'Albums' }).getByRole('button', { name: /Porto/ }).click();
+  await shell().getByRole('region', { name: 'Albums' }).getByRole('button', { name: /Porto/ }).click();
   const inPorto = shell().getByRole('list', { name: 'Photos in Porto' });
   await inPorto.getByRole('button', { name: 'shore.png' }).focus();
   await shell().keyboard.press('Delete');
