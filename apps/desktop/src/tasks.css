@@ -87,7 +87,7 @@
 /* Picked, the keyboard's row and the row whose menu is open read as selected: a grey fill. */
 .task[data-picked] > .task-line, .task-line:focus, .task-line[data-menu] { outline: none; background: var(--sel); --tools-bg: var(--sel); }
 .task-line:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
-.task[data-picked] > .task-line::after, .task-line:hover::after, .task-line:focus::after, .task-line[data-menu]::after { opacity: 0; }
+.task[data-picked] > .task-line::after, .task[data-proposed] > .task-line::after, .task-line:hover::after, .task-line:focus::after, .task-line[data-menu]::after { opacity: 0; }
 .task[data-fresh] > .task-line { background: var(--mobius-wash); --tools-bg: var(--mobius-wash); }
 .task[data-proposed] > .task-line { outline: 1.5px dashed var(--mobius); outline-offset: -2px; }
 .task[data-drop] > .task-line { box-shadow: inset 0 2px 0 var(--ink); }
