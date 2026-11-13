@@ -1290,7 +1290,7 @@ export function App() {
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && turnMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} />;
       case 'docs':
-        return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
+        return <DocEditor docs={docs} inFrame autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
       case 'slides':
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':
@@ -1546,6 +1546,8 @@ export function App() {
         title: place || (!settingsOpen && appName(app)) || undefined,
         sub: inAgent && !inActivity ? (settings?.configured ? `Talking to ${settings.model}` : 'No model connected')
           : inNotes && notes.page ? <>{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></>
+          // Docs (marked, Docs' own line): the document's folder and whether it is saved, as Notes has it.
+          : inDocs && docs.page ? <>{docs.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={docs.status}>{statusText(docs.status)}</span></>
           : inMail ? (mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`)
           : inSheets && sheets.data ? sheets.data.sheet
           : inCalendar ? (eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
