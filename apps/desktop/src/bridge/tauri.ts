@@ -283,6 +283,8 @@ export function createTauriBridge(): MobiusBridge {
       rename: (path, name) => call('files', 'rename', [path, name], () => ({ ok: false as const, error: 'Not here.' })),
       trash: (path) => call('files', 'trash', [path], () => ({ ok: false as const, error: 'Not here.' })),
       putBack: (held, path) => call('files', 'putBack', [held, path], () => ({ ok: false as const, error: 'Not here.' })),
+      trashList: () => call('files', 'trashList', [], () => ({ error: 'Not here.' })),
+      emptyTrash: (held) => call('files', 'emptyTrash', [held], () => ({ ok: false as const, error: 'Not here.' })),
       show: (path) => call('files', 'show', [path], () => undefined),
     },
     extensions: {

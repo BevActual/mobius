@@ -33,7 +33,7 @@ const SECTIONS: readonly SettingsSection[] = [
     label: 'Appearance',
     description: 'How Mobius looks.',
     subpages: [
-      { id: 'theme', label: 'Theme', rows: [row('theme', 'Theme', 'Follow the system, or always use light or dark.', 'color', 'colour', 'mode', 'dark', 'light', 'night')] },
+      { id: 'theme', label: 'Theme', rows: [row('theme', 'Theme', 'Follow the system (light by day, dark by night), or always use Light, Mid grey, Dark or Cool dark.', 'color', 'colour', 'mode', 'dark', 'light', 'night', 'grey', 'gray', 'mid', 'cool')] },
       { id: 'typography', label: 'Typography', rows: [
         row('ui-zoom', 'Interface zoom', 'Make everything in the window larger or smaller.', 'scale', 'zoom', 'bigger', 'smaller', 'size'),
         row('chat-text', 'Conversation text size', 'The size of text in the agent panel.', 'font', 'chat', 'text', 'size', 'bigger', 'smaller'),

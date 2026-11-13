@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { FileEntry, FilesActionResult } from '@mobius/shared';
+import type { FileEntry, FilesActionResult, TrashEntry } from '@mobius/shared';
 import { describeChange, KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { AppSidebar, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry } from './ui';
@@ -10,10 +10,10 @@ import { fileKind, sortEntries, type FilesSort } from './files-view';
 import { relativeTime } from './relative-time';
 import './files.css';
 
-/** Where Files is looking: a folder of the workspace, or what Mobius made. */
-export type FilesPlace = { kind: 'folder'; path: string } | { kind: 'made' };
+/** Where Files is looking: a folder of the workspace, what Mobius made, or the Trash. */
+export type FilesPlace = { kind: 'folder'; path: string } | { kind: 'made' } | { kind: 'trash' };
 
-const samePlace = (a: FilesPlace, b: FilesPlace) => a.kind === b.kind && (a.kind === 'made' || a.path === (b as { path: string }).path);
+const samePlace = (a: FilesPlace, b: FilesPlace) => a.kind === b.kind && (a.kind !== 'folder' || a.path === (b as { path: string }).path);
 
 /** The Files app: the whole workspace as a drive, and what Mobius made, dashed until it is kept. */
 export function useFiles(conversation: string, busy: boolean) {
@@ -89,12 +89,32 @@ export function useFiles(conversation: string, busy: boolean) {
     const back = await after(window.mobius.files?.putBack?.(trashed.held, trashed.path));
     if (back) setTrashed(null);
   };
+  // The Trash: what it holds, putting one thing back where it was, and deleting for good once the person confirms.
+  const [trashItems, setTrashItems] = useState<TrashEntry[]>([]);
+  const loadTrash = useCallback(async () => {
+    const result = await window.mobius.files?.trashList?.().catch(() => null);
+    setTrashItems(result && 'entries' in result ? result.entries : []);
+  }, []);
+  useEffect(() => { void loadTrash(); }, [loadTrash, trashed, place]);
+  const putBackItem = async (held: string) => {
+    const back = await after(window.mobius.files?.putBack?.(held, ''));
+    void loadTrash();
+    return back;
+  };
+  const emptyTrash = async (held = '') => {
+    const result = await window.mobius.files?.emptyTrash?.(held).catch(() => null);
+    if (!result) setNotice('That could not be done here.');
+    else if (!result.ok) setNotice(`${result.error.charAt(0).toUpperCase()}${result.error.slice(1)}.`);
+    else setNotice(null);
+    if (trashed && (!held || trashed.held === held)) setTrashed(null);
+    void loadTrash();
+  };
   const show = (path: string) => void window.mobius.files?.show?.(path);
-  const can = { change: typeof window.mobius.files?.rename === 'function', show: typeof window.mobius.files?.show === 'function' };
+  const can = { change: typeof window.mobius.files?.rename === 'function', show: typeof window.mobius.files?.show === 'function', trash: typeof window.mobius.files?.trashList === 'function' };
   return {
     place, setPlace, back, forward, canBack: trail.at > 0, canForward: trail.at < trail.places.length - 1,
     entries, roots, problem, made, conversation, keep, discard, sort, setSort, query, setQuery,
-    newFolder, rename, trash, putBack, show, trashed, dismissTrashed: () => setTrashed(null), notice, dismissNotice: () => setNotice(null), can,
+    newFolder, rename, trash, putBack, show, trashed, trashItems, putBackItem, emptyTrash, dismissTrashed: () => setTrashed(null), notice, dismissNotice: () => setNotice(null), can,
     available: window.mobius.files !== undefined,
   };
 }
@@ -109,6 +129,8 @@ const GLYPH = {
   back: <path d="M12 4.5 6.5 10l5.5 5.5" />,
   newFolder: <><path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" /><path d="M10 8.5v5M7.5 11h5" /></>,
   forward: <path d="m8 4.5 5.5 5.5L8 15.5" />,
+  putBack: <><path d="M7.5 5 4.5 8l3 3" /><path d="M4.5 8h7a4 4 0 0 1 0 8H9" /></>,
+  trash: <><path d="M4.5 6h11M8 6V4.5h4V6M6 6l.7 9.5h6.6L14 6" /><path d="M8.7 8.5v4.5M11.3 8.5v4.5" /></>,
 };
 
 /** A row's icon: the app that opens it, in its colour; a folder in Finder blue; anything else plain. */
@@ -121,20 +143,21 @@ function FileIcon({ path, type, size = 'row' }: { path: string; type: FileEntry[
   return <svg className="files-icon" data-size={size} data-glyph="file" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.file}</svg>;
 }
 
-const placeIcon = (glyph: 'workspace' | 'made') => <svg className="files-icon" data-size="side" data-glyph={glyph === 'workspace' ? 'place' : 'made'} viewBox="0 0 20 20" aria-hidden="true">{GLYPH[glyph]}</svg>;
+const placeIcon = (glyph: 'workspace' | 'made' | 'trash') => <svg className="files-icon" data-size="side" data-glyph={glyph === 'workspace' ? 'place' : glyph} viewBox="0 0 20 20" aria-hidden="true">{GLYPH[glyph]}</svg>;
 /** A top-level folder by the app it holds ("Notes" for notes/), otherwise by its own name. */
 const folderName = (name: string) => { const app = appOf(name); return app && !name.includes('/') ? appName(app) : name; };
 
 /** What the toolbar's title says in Files: the open folder's name, Workspace at the top, or Made by Mobius. */
 export function filesTitle(files: FilesState): string {
   if (files.place.kind === 'made') return 'Made by Mobius';
+  if (files.place.kind === 'trash') return 'Trash';
   const parts = files.place.path ? files.place.path.split('/') : [];
   return parts.length === 0 ? 'Workspace' : parts.length === 1 ? folderName(parts[0]!) : parts[parts.length - 1]!;
 }
 /** The grey line under the title: how many things are here, as Finder's status bar says. */
 export function filesSub(files: FilesState): string | undefined {
   if (!files.available || (files.place.kind === 'folder' && files.problem)) return undefined;
-  const n = files.place.kind === 'made' ? files.made.files.length : files.entries.length;
+  const n = files.place.kind === 'made' ? files.made.files.length : files.place.kind === 'trash' ? files.trashItems.length : files.entries.length;
   return n === 0 ? 'Empty' : n === 1 ? '1 item' : `${n} items`;
 }
 
@@ -144,9 +167,10 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
   const held = new Set(files.made.files.map((f) => f.split('/')[0]));
   return (
     <AppSidebar label="Files sidebar">
-      <SidebarSearch label={files.place.kind === 'made' ? 'Search Made by Mobius' : 'Search this folder'} value={files.query} onChange={files.setQuery} />
+      <SidebarSearch label={files.place.kind === 'made' ? 'Search Made by Mobius' : files.place.kind === 'trash' ? 'Search the Trash' : 'Search this folder'} value={files.query} onChange={files.setQuery} />
       <SidebarSection title="Places" {...(pin ? { action: pin } : {})}>
         <SidebarRow icon={placeIcon('workspace')} label="Workspace" current={here === ''} onSelect={() => files.setPlace({ kind: 'folder', path: '' })} />
+        {files.can.trash && <SidebarRow icon={placeIcon('trash')} label="Trash" current={files.place.kind === 'trash'} onSelect={() => files.setPlace({ kind: 'trash' })} />}
       </SidebarSection>
       {files.roots.length > 0 && (
         <SidebarSection title="Folders">
@@ -245,6 +269,8 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     </>
   );
   const fileMenu = menu && <PointMenu x={menu.x} y={menu.y} label={menu.path.split('/').pop() ?? menu.path} entries={menuItems(menu.path, menu.type)} onClose={() => setMenu(null)} />;
+
+  if (files.place.kind === 'trash') return <TrashPage files={files} bars={bars} />;
 
   if (files.place.kind === 'made') {
     return (
@@ -347,6 +373,75 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
         ))}
       </nav>}
       {fileMenu}
+    </section>
+  );
+}
+
+/** The Trash: what was moved there, where each came from and when. Put Back returns it; Empty Trash deletes for good, after asking. */
+function TrashPage({ files, bars }: { files: FilesState; bars: ReactNode }) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<{ held: string; what: string } | null>(null);
+  const [menu, setMenu] = useState<{ item: TrashEntry; x: number; y: number } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const q = files.query.trim().toLowerCase();
+  const rows = files.trashItems.filter((t) => !q || t.name.toLowerCase().includes(q));
+  const pick = rows.find((r) => r.held === selected) ?? null;
+  const putBack = (held: string) => { setSelected(null); void files.putBackItem(held); };
+  const ask = (held: string, what: string) => setConfirm({ held, what });
+  const move = (step: number) => {
+    if (rows.length === 0) return;
+    const at = rows.findIndex((r) => r.held === selected);
+    const next = rows[Math.max(0, Math.min(rows.length - 1, at < 0 ? 0 : at + step))]!;
+    setSelected(next.held);
+    listRef.current?.querySelector<HTMLElement>(`[data-held="${CSS.escape(next.held)}"]`)?.focus();
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Delete' && pick) { e.preventDefault(); ask(pick.held, `“${pick.name}”`); }
+  };
+  const where = (from: string) => { if (!from.includes('/')) return from ? 'Workspace' : '—'; const parent = from.slice(0, from.lastIndexOf('/')); return parent.split('/').map((p, i) => (i === 0 ? folderName(p) : p)).join(' › '); };
+  const entries = (t: TrashEntry): MenuEntry[] => [
+    ...(t.from ? [{ label: 'Put Back', run: () => putBack(t.held) }] : []),
+    { label: 'Delete Immediately…', danger: true, separated: true, run: () => ask(t.held, `“${t.name}”`) },
+  ];
+  return (
+    <section className="skills-page files-page" aria-label="Trash">
+      <ToolbarControls label="Files">
+        <button type="button" className="strip-btn files-tool" aria-label="Back" title="Back (Alt+Left)" disabled={!files.canBack} onClick={files.back}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.back}</svg></button>
+        <button type="button" className="strip-btn files-tool" aria-label="Forward" title="Forward (Alt+Right)" disabled={!files.canForward} onClick={files.forward}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.forward}</svg></button>
+        <button type="button" className="strip-btn files-tool" aria-label="Put Back" title="Put Back: return it to where it was" disabled={!pick?.from} onClick={() => { if (pick) putBack(pick.held); }}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.putBack}</svg></button>
+        <button type="button" className="strip-btn files-tool" aria-label="Empty Trash…" title="Empty Trash: delete everything in it for good" disabled={files.trashItems.length === 0} onClick={() => ask('', files.trashItems.length === 1 ? 'the one item in the Trash' : `all ${files.trashItems.length} items in the Trash`)}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.trash}</svg></button>
+      </ToolbarControls>
+      {bars}
+      {confirm && (
+        <div className="files-confirm" role="alertdialog" aria-label="Delete for good?">
+          <p>Delete {confirm.what} for good? This cannot be undone.</p>
+          <button type="button" className="btn" autoFocus onClick={() => setConfirm(null)}>Cancel</button>
+          <button type="button" className="btn danger" onClick={() => { const held = confirm.held; setConfirm(null); setSelected(null); void files.emptyTrash(held); }}>Delete</button>
+        </div>
+      )}
+      {files.trashItems.length === 0 ? (
+        <div className="files-empty"><svg className="files-icon" data-size="hero" data-glyph="trash" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.trash}</svg><p className="note-empty">The Trash is empty.</p></div>
+      ) : (
+        <div className="files-table files-trash" role="grid" aria-label="In the Trash" aria-rowcount={rows.length + 1}>
+          <div className="files-head" role="row"><span role="columnheader" className="files-col">Name</span><span role="columnheader" className="files-col" data-col="modified">Date Trashed</span><span role="columnheader" className="files-col" data-col="kind">Where it was</span><span role="columnheader" className="files-col">Size</span></div>
+          <div ref={listRef} role="rowgroup" onKeyDown={onKey}>
+            {rows.length === 0 && <p className="note-empty files-none">Nothing in the Trash matches “{files.query}”.</p>}
+            {rows.map((t) => (
+              <div key={t.held} role="row" data-held={t.held} tabIndex={selected === t.held || (!selected && t === rows[0]) ? 0 : -1} aria-selected={selected === t.held} aria-label={t.name} className="files-row"
+                onClick={() => setSelected(t.held)} onDoubleClick={() => { if (t.from) putBack(t.held); }}
+                onContextMenu={(ev) => { ev.preventDefault(); setSelected(t.held); setMenu({ item: t, x: ev.clientX, y: ev.clientY }); }}>
+                <span role="gridcell" className="files-cell files-name"><FileIcon path={t.from || t.name} type={t.type} /><span className="files-label">{t.name}</span></span>
+                <span role="gridcell" className="files-cell files-date">{t.trashed ? relativeTime(t.trashed, Date.now()) : '—'}</span>
+                <span role="gridcell" className="files-cell files-kind">{where(t.from)}</span>
+                <span role="gridcell" className="files-cell files-size">{t.type === 'folder' ? '—' : size(t.bytes)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {menu && <PointMenu x={menu.x} y={menu.y} label={menu.item.name} entries={entries(menu.item)} onClose={() => setMenu(null)} />}
     </section>
   );
 }

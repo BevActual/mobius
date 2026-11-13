@@ -139,3 +139,42 @@ test('a new folder is named in place, a file renamed with F2, and Delete moves i
   await expect(menu.getByRole('menuitem', { name: 'Open' })).toBeVisible();
   await expect(menu.getByRole('menuitem', { name: /Rename|Move to Trash/ })).toHaveCount(0);
 });
+
+test('the Trash lists what was trashed and where it was, puts it back there, and empties only after asking', async () => {
+  await start();
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files' });
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
+  await plan.click();
+  await plan.press('Delete');
+  await expect(plan).toHaveCount(0);
+
+  const side = shell().getByRole('complementary', { name: 'Files sidebar' });
+  await side.getByRole('button', { name: 'Trash', exact: true }).click();
+  await expect(title()).toHaveText('Trash');
+  const trash = shell().getByRole('region', { name: 'Trash' });
+  const held = trash.getByRole('row', { name: 'Plan.md', exact: true });
+  await expect(held).toContainText('Notes › Work');
+  await held.click();
+  await tools().getByRole('button', { name: 'Put Back' }).click();
+  await expect(trash).toContainText('The Trash is empty');
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
+
+  // Gone for good only after saying so: Cancel keeps it, Delete empties the Trash.
+  await side.getByRole('button', { name: 'Workspace' }).click();
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Plan.md', exact: true }).click();
+  await page.getByRole('row', { name: 'Plan.md', exact: true }).press('Delete');
+  await side.getByRole('button', { name: 'Trash', exact: true }).click();
+  await tools().getByRole('button', { name: 'Empty Trash…' }).click();
+  const ask = trash.getByRole('alertdialog', { name: 'Delete for good?' });
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await expect(trash.getByRole('row', { name: 'Plan.md', exact: true })).toBeVisible();
+  await tools().getByRole('button', { name: 'Empty Trash…' }).click();
+  await ask.getByRole('button', { name: 'Delete' }).click();
+  await expect(trash).toContainText('The Trash is empty');
+  expect(fs.readdirSync(path.join(userData, 'workspace', '.trash')).filter((n) => !n.startsWith('.'))).toEqual([]);
+});

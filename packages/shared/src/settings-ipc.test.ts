@@ -5,6 +5,8 @@ import { CONTEXT_SIZES, DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, parseContextSiz
 describe('appearance changes', () => {
   it('accepts any of the three settings alone or together, and drops anything else', () => {
     expect(parseAppearancePatch({ theme: 'dark' })).toEqual({ theme: 'dark' });
+    expect(parseAppearancePatch({ theme: 'mid' })).toEqual({ theme: 'mid' });
+    expect(parseAppearancePatch({ theme: 'cool' })).toEqual({ theme: 'cool' });
     expect(parseAppearancePatch({ zoom: 1.25, chatTextScale: 1.1 })).toEqual({ zoom: 1.25, chatTextScale: 1.1 });
     expect(parseAppearancePatch({ theme: 'light', evil: 1 })).toEqual({ theme: 'light' });
   });
