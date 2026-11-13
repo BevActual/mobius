@@ -24,7 +24,11 @@ Frames on a canvas, as in Sketch and Figma.
 
 ![The Design app in Mobius](../readme/apps/design.png)
 
-- Draw with a tool (**V** move, **F** frame, **R** rectangle, **O** oval, **T** text) or add from the toolbar.
+- Design opens on the design you had open last (or the newest one). **New design** is at the top of the sidebar
+  (Ctrl+N).
+- The tools and zoom sit in the window's toolbar. Draw with a tool (**V** move, **F** frame, **R** rectangle,
+  **O** oval, **T** text) or click one to add it.
+- The **Inspector** is a panel on the right, beside Mobius. Hide or show it from the Panels menu or with Ctrl+Alt+I.
 - Pick with a click, Shift-click or a box. Move with smart guides, size from any edge, line layers up from the
   inspector, copy and duplicate. Double-click a text layer to type on the canvas.
 - Rename layers and frames in the layer list. Each layer row has **Lock** and **Hide** buttons (or Ctrl+Shift+L and
