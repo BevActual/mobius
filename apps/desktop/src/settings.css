@@ -137,3 +137,12 @@
 .usage-table thead th { font-size: 11px; font-weight: 500; color: var(--muted); border-bottom: 0.5px solid var(--hairline); }
 .usage-table tbody tr + tr > * { border-top: 0.5px solid var(--hairline); }
 .usage-actions { display: inline-flex; gap: 8px; }
+
+/* The sidebar (the shared AppSidebar): the sections scroll under the search, each with its tinted icon at 20px, as in
+   System Settings. The dock's 16px rule for row icons is for line glyphs, not these tiles. */
+.settings-side { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.settings-side > .ui-side { flex: 1; min-height: 0; }
+.settings-side .settings-nav { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: auto; }
+.settings-nav-icon, .dock.left .settings-side .list-row svg.settings-nav-icon { width: 20px; height: 20px; padding: 4px; flex: none; border-radius: 5px; fill: none; stroke: #fff; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+/* Room for the shared search field's magnifier: the dock's older `.dock.left .side-search` padding outranks the shared rule. */
+.dock.left .settings-side input.side-search { padding: 0 10px 0 28px; }
