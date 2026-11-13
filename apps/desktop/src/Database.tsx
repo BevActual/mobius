@@ -9,6 +9,7 @@ import type { DatabasesState, DbView } from './useDatabases';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { EmptyState } from './EmptyState';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { ToolbarControls, UndoToast, ViewSwitch } from './ui';
 import './database.css';
 
 /** The empty page's Import asks the sidebar, which holds the file picker. */
@@ -362,37 +363,37 @@ function DataView({ db }: { db: DatabasesState }) {
   const undo = db.undo && db.undo.db === db.open && db.undo.table === db.table ? db.undo : null;
   return (
     <>
-      <div className="db-bar">
+      <DbTools db={db}>
         <input className="side-search db-filter" type="search" aria-label="Filter rows" placeholder="Filter rows" value={filter} onChange={(e) => setFilter(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setFilter(''); }} />
         {hasId && (
-          <button type="button" className="btn db-add" title="Add a row at the end" onClick={() => void db.addRow().then((id) => setFresh(id))}>
+          <button type="button" className="strip-btn db-add" aria-label="Add row" title="Add a row at the end" onClick={() => void db.addRow().then((id) => setFresh(id))}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-            Add row
           </button>
         )}
-        <span className="db-gap" />
-        {r?.ok && <span className="db-status" role="status">{pageLine(db.browse.page, shown, db.total, db.browse.filter.trim() !== '')}</span>}
-        <div className="db-pager">
-          <button type="button" className="strip-btn" aria-label="Previous rows" title="Previous rows" disabled={db.browse.page === 0} onClick={() => db.setBrowse({ page: db.browse.page - 1 })}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg>
-          </button>
-          <button type="button" className="strip-btn" aria-label="Next rows" title="Next rows" disabled={last} onClick={() => db.setBrowse({ page: db.browse.page + 1 })}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
-          </button>
-        </div>
-      </div>
+      </DbTools>
       <div className="db-result" aria-label="Result">
         {r && !r.ok && <p className="db-error" role="alert">{r.message}</p>}
         {r?.ok && <Grid columns={columns} rows={rows} sort={db.browse.sort} onSort={(c) => db.setBrowse({ sort: nextSort(db.browse.sort, c) })} edit={edit} />}
-        {r?.ok && !hasId && db.editable === false && shown > 0 && <p className="db-status db-hint">This table has no rowids, so change it in SQL.</p>}
+        {r?.ok && (
+          <footer className="db-foot">
+            <span className="db-foot-line" role="status">
+              {pageLine(db.browse.page, shown, db.total, db.browse.filter.trim() !== '')}
+              {!hasId && db.editable === false && shown > 0 && ' · This table has no rowids, so change it in SQL.'}
+            </span>
+            {(db.browse.page > 0 || !last) && (
+              <span className="db-pager" role="group" aria-label="Pages">
+                <button type="button" className="strip-btn" aria-label="Previous rows" title="Previous rows" disabled={db.browse.page === 0} onClick={() => db.setBrowse({ page: db.browse.page - 1 })}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg>
+                </button>
+                <button type="button" className="strip-btn" aria-label="Next rows" title="Next rows" disabled={last} onClick={() => db.setBrowse({ page: db.browse.page + 1 })}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
+                </button>
+              </span>
+            )}
+          </footer>
+        )}
       </div>
-      {undo && (
-        <div className="db-undo" role="status">
-          <span>{undo.label}</span>
-          <button type="button" className="btn" onClick={() => void db.undoLast()}>Undo</button>
-          <button type="button" className="db-undo-x" aria-label="Dismiss" onClick={() => db.setUndo(null)}>×</button>
-        </div>
-      )}
+      {undo && <UndoToast text={undo.label} onUndo={() => void db.undoLast()} onDismiss={() => db.setUndo(null)} />}
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={`Row ${menu.row + 1}`} items={items(menu)} onClose={() => { setMenu(null); document.querySelector<HTMLElement>('.db-grid td[tabindex="0"]')?.focus(); }} />, document.body)}
     </>
   );
@@ -495,6 +496,27 @@ function SqlView({ db, placeholder }: { db: DatabasesState; placeholder: string 
 
 const VIEWS: { id: DbView; name: string }[] = [{ id: 'data', name: 'Data' }, { id: 'structure', name: 'Structure' }, { id: 'sql', name: 'SQL' }];
 
+/** The open table's controls in the toolbar's middle: the view's own tools, then Data, Structure and SQL, last so they stay put. */
+function DbTools({ db, children }: { db: DatabasesState; children?: ReactNode }) {
+  return (
+    <ToolbarControls label="Database">
+      {children}
+      {children && <span className="db-tools-sep" aria-hidden="true" />}
+      <ViewSwitch label="View" views={VIEWS} value={db.view} onChange={db.show} />
+    </ToolbarControls>
+  );
+}
+
+/** The toolbar's title for Database: the open table, or the database when no table is open. */
+export const databasePlace = (db: DatabasesState): string | null => (db.open ? db.table ?? db.open : null);
+
+/** The toolbar's grey line: which database the table is in, and how many columns it has. */
+export function databaseSub(db: DatabasesState): string | undefined {
+  const table = db.list.find((d) => d.name === db.open)?.tables.find((t) => t.name === db.table);
+  if (!db.open || !table) return undefined;
+  return `${db.open} · ${table.columns.length === 1 ? '1 column' : `${table.columns.length} columns`}`;
+}
+
 /** The open database: a table's rows or columns, or a statement to run, and what it gave. */
 export function DatabasePage({ db, review }: { db: DatabasesState; review?: { conversation: string } | null }) {
   const { show, keep, discard } = useDbReview(review, db.open);
@@ -519,17 +541,8 @@ export function DatabasePage({ db, review }: { db: DatabasesState; review?: { co
           <ReviewActions onKeep={keep} onDiscard={discard} />
         </div>
       )}
-      <header className="db-head">
-        <div className="db-title">
-          <h2>{table ? table.name : db.open}</h2>
-          {table && <span className="db-sub">{db.open} · {table.columns.length === 1 ? '1 column' : `${table.columns.length} columns`}</span>}
-        </div>
-        {table && (
-          <div className="segmented" role="radiogroup" aria-label="View">
-            {VIEWS.map((v) => <button key={v.id} type="button" role="radio" aria-checked={view === v.id} onClick={() => db.show(v.id)}>{v.name}</button>)}
-          </div>
-        )}
-      </header>
+      {/* The table's name and its line are the toolbar's title (databasePlace); its views and tools sit in the toolbar's middle. */}
+      {table && view !== 'data' && <DbTools db={db} />}
       {db.message && <p className="db-message" role="alert">{db.message}</p>}
       {view === 'data' && <DataView db={db} />}
       {view === 'structure' && <StructureView db={db} />}

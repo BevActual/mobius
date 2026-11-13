@@ -128,7 +128,7 @@ function useTabDrag(tabs: readonly BrowserTabState[]): TabDrag {
  * A tab's right-click menu, the shared one. It is kept inside the sidebar, since the page is drawn over everything beside
  * it, so it opens from a point that leaves room for it there.
  */
-function TabMenu({ tab, x, y, tabs, onClose }: { tab: BrowserTabState; x: number; y: number; tabs: readonly BrowserTabState[]; onClose: () => void }) {
+function TabMenu({ tab, x, y, tabs, pinnedPages, onPinPage, onClose }: { tab: BrowserTabState; x: number; y: number; tabs: readonly BrowserTabState[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onClose: () => void }) {
   const side = document.querySelector('.side')?.getBoundingClientRect();
   const left = side ? Math.max(side.left + 4, Math.min(x, side.right - TAB_MENU_W - 4)) : x;
   const others = tabs.filter((t) => t.id !== tab.id && !t.pinned);
@@ -141,6 +141,8 @@ function TabMenu({ tab, x, y, tabs, onClose }: { tab: BrowserTabState; x: number
     { label: 'Reload', run: () => api.reload(tab.id), disabled: !tab.url },
     { action: 'copy', label: 'Copy link', run: () => void navigator.clipboard?.writeText(tab.url).catch(() => {}), disabled: !web, separated: true },
     { label: 'Bookmark…', run: () => { api.activate(tab.id); void window.mobius.bookmarks.toggle(); }, disabled: !web || !tab.active },
+    // Kept with the page's other ways to keep it, rather than as a second pin beside the address.
+    { label: pinnedPages.has(tab.url) ? 'Unpin from the sidebar' : 'Pin to the sidebar', run: () => onPinPage(tab), disabled: !web },
     { label: 'Close tab', run: () => api.close(tab.id), separated: true },
     { label: 'Close tabs below', run: () => below.forEach((t) => api.close(t.id)), disabled: below.length === 0 },
     { label: 'Close other tabs', run: () => others.forEach((t) => api.close(t.id)), disabled: others.length === 0, danger: true },
@@ -154,7 +156,7 @@ const TAB_MENU_W = 210;
  * The tabs, as Safari's and Arc's sidebars keep them: pinned tabs in their own group above the rest, actions only on the
  * row under the pointer, drag to reorder (or across the line to pin), and a right-click menu. Downloads open from a button in its head.
  */
-export function BrowserSidebar({ tabs, pin, onNewTab, downloads }: { tabs: readonly BrowserTabState[]; pin: ReactNode; onNewTab: () => void; downloads: DownloadEntry[] }) {
+export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, onPinPage }: { tabs: readonly BrowserTabState[]; pin: ReactNode; onNewTab: () => void; downloads: DownloadEntry[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void }) {
   const [menu, setMenu] = useState<{ tab: BrowserTabState; x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const drag = useTabDrag(tabs);
@@ -190,7 +192,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads }: { tabs: reado
             </ul>
             {open.length === 0 && pinned.length > 0 && <p className="tabs-empty">No other tabs. Press Ctrl+T for a new one.</p>}
           </div>
-          {menu && menuTab && <TabMenu tab={menuTab} x={menu.x} y={menu.y} tabs={tabs} onClose={closeMenu} />}
+          {menu && menuTab && <TabMenu tab={menuTab} x={menu.x} y={menu.y} tabs={tabs} pinnedPages={pinnedPages} onPinPage={onPinPage} onClose={closeMenu} />}
         </aside>
   );
 }
@@ -198,8 +200,6 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads }: { tabs: reado
 export interface BrowserChromeProps {
   active: BrowserTabState | undefined;
   saved: boolean;
-  pagePinned: boolean;
-  onTogglePagePin: () => void;
   selectionMenu: boolean;
   setSelectionMenu: (update: boolean | ((open: boolean) => boolean)) => void;
   /** A picture of the page covers it, so the selection menu can sit over it. */
@@ -219,8 +219,8 @@ export interface BrowserChromeProps {
   onCloseFind: () => void;
 }
 
-/** Back, forward, reload, bookmark, pin, the selection menu and the address bar, with Find under them. */
-export function BrowserChrome({ active, saved, pagePinned, onTogglePagePin, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, findOpen, finding, onCloseFind }: BrowserChromeProps) {
+/** Back, forward, reload, bookmark, the selection menu and the address bar, with Find under them. */
+export function BrowserChrome({ active, saved, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, findOpen, finding, onCloseFind }: BrowserChromeProps) {
   return (
   <div className="strip-middle" role="group" aria-label="Browser">
         <div className="cap-group">
@@ -237,9 +237,6 @@ export function BrowserChrome({ active, saved, pagePinned, onTogglePagePin, sele
         <div className="cap-group" role="group" aria-label="This page">
         <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
-        </button>
-        <button type="button" className="strip-btn" data-page-pin aria-pressed={pagePinned} aria-label={pagePinned ? 'Unpin this page from the sidebar' : 'Pin this page to the sidebar'} title={pagePinned ? 'Unpin from the sidebar' : 'Pin to the sidebar'} disabled={!active || !/^https?:/.test(active.url)} onClick={onTogglePagePin}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 3.5h5l-.8 4.2 2.8 2.8H5.5l2.8-2.8zM10 10.5v6" /></svg>
         </button>
         </div>
         <div className="selection-menu-wrap">

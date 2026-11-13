@@ -158,14 +158,6 @@
 .doc-editor .doc-count-btn { margin: -2px -6px; padding: 2px 6px; border: 0; border-radius: 5px; background: none; color: inherit; font: inherit; cursor: default; }
 .doc-editor .doc-count-btn:hover { background: var(--soft); }
 
-/* Checklists in the words Mobius took out, drawn as the page draws them: the box beside its words. */
-.doc-change-old ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
-.doc-change-old ul[data-type="taskList"] li { display: flex; gap: 8px; align-items: flex-start; }
-.doc-change-old ul[data-type="taskList"] li > label { flex: none; margin-top: 3px; }
-.doc-change-old ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
-.doc-change-old ul[data-type="taskList"] input { appearance: none; width: 14px; height: 14px; margin: 0; border-radius: 50%; border: 1.5px solid var(--muted); display: grid; place-items: center; pointer-events: none; }
-.doc-change-old ul[data-type="taskList"] input:checked { background: var(--accent); border-color: var(--accent); }
-.doc-change-old ul[data-type="taskList"] input:checked::after { content: ""; width: 6px; height: 3px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 0 1.6px 1.6px; transform: rotate(-45deg); }
 
 /* The typeface: the app's sans-serif by default, as Notes and Pages' blank document; serif when chosen in Document options, headings
    and body both, so the two are paired on purpose. Tables and code keep their own. */
@@ -196,23 +188,7 @@
 .doc-aa-group .doc-tool[aria-pressed="true"] { color: var(--accent); background: var(--bg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
 @media (prefers-reduced-motion: reduce) { .doc-aa-panel { animation: none; } }
 
-/* Mobius's changes, in the page where they are: what it added is tinted with a bar at its side; a note before it shows
-   what it took out, struck through, with Keep and Discard for that change alone. */
-/* A change Mobius made: one dashed indigo block where it is (no tint), its line and answers under it. */
-.doc-editor .doc-page .doc-change-new { position: relative; margin: 0; padding: 6px 12px; border: 1px dashed var(--mobius); border-top-width: 0; border-bottom-width: 0; }
-.doc-editor .doc-page :is(ul, ol).doc-change-new { padding-left: 36px; }
-.doc-editor .doc-page .doc-change-new[data-top] { margin-top: 0.6em; border-top-width: 1px; border-top-left-radius: 6px; border-top-right-radius: 6px; padding-top: 10px; }
-.doc-editor .doc-page .doc-change-new[data-bottom] { border-bottom-width: 1px; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding-bottom: 10px; }
-.doc-editor .doc-page .doc-change-old { margin: 0.6em 0 0; padding: 10px 12px 4px; border: 1px dashed var(--mobius); border-bottom: 0; border-radius: 6px 6px 0 0; color: var(--muted); text-decoration: line-through; text-decoration-color: currentColor; font-family: var(--font, system-ui), sans-serif; user-select: none; }
-.doc-editor .doc-page .doc-change-old[data-whole] { border-bottom: 1px dashed var(--mobius); border-radius: 6px; padding-bottom: 10px; }
-.doc-editor .doc-page .doc-change-old :is(h1, h2, h3, p, ul, ol, blockquote) { margin: 0 0 2px; font-size: inherit; font-weight: inherit; letter-spacing: 0; line-height: inherit; }
-.doc-editor .doc-page .doc-change-old :is(ul, ol) { padding-left: 18px; }
-.doc-editor .doc-page .doc-change-head { margin: 0.6em 0 8px; font-family: var(--font, system-ui), sans-serif; font-size: var(--fs-sm); line-height: 1.45; user-select: none; }
-.doc-editor .doc-page .doc-change { margin: 8px 0 0.9em; font-family: var(--font, system-ui), sans-serif; font-size: var(--fs-sm); line-height: 1.45; user-select: none; }
-.doc-change-bar { display: flex; align-items: center; gap: 6px; }
-.doc-change-bar span { margin-right: auto; font-size: var(--fs-xs); color: var(--mobius); }
-.doc-change-bar .review-btn { height: 24px; padding: 0 10px; font-size: var(--fs-xs); }
-@media print { .doc-change, .doc-change-head, .doc-change-old { display: none !important; } .doc-paper .doc-change-new { border: 0 !important; padding: 0 !important; } }
+/* Mobius's changes are drawn by change-blocks.css. */
 
 /* Docs' sidebar: each document's edited day on the right, and the open document's headings indented under it. */
 .doc-side-when { flex: none; padding-right: var(--sp-2); font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
