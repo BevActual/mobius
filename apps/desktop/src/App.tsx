@@ -1587,7 +1587,8 @@ export function App() {
           : inReader && reading.page ? readerSub(reading.text) // Reader: the site the article came from
           : inMail ? (mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`)
           : inSheets && sheets.data ? sheets.data.sheet
-          : inCalendar ? `${calendar.mode === 'week' ? `Week ${isoWeek(calendar.anchor)} · ` : ''}${eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`}`
+          // Calendar: the week number in Week view (short, so it fits beside the controls), otherwise what today holds.
+          : inCalendar ? (calendar.mode === 'week' ? `Week ${isoWeek(calendar.anchor)}` : eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
           : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
           : inFiles ? filesSub(files) // Files: how many items
           : inStudio && songs.page ? <StudioSub songs={songs} /> // Music (marked, Music's own): the song's key and whether it is saved
