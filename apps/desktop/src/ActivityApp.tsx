@@ -94,7 +94,7 @@ export function ActivitySidebar({ feed, conversations, pin }: { feed: ActivityFe
   );
   return (
     <AppSidebar label="Activity sidebar" className="act-side">
-      <SidebarSection title="Activity" action={pin}>
+      <SidebarSection title="Show" action={pin}>
         {row('needs', 'Needs you', board.needsYou.length)}
         {row('today', 'Today', count('today'))}
         {row('week', 'This week', count('week'))}
