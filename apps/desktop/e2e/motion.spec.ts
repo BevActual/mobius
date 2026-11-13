@@ -46,7 +46,7 @@ test('with Reduce Motion a menu fades, rather than moving or not animating at al
 
 test('the message box says what it would ask about in the app that is showing, Settings included', async () => {
   const shell = mobius!.shell;
-  const ask = shell.getByRole('complementary', { name: 'Agent' }).getByRole('textbox', { name: 'Message Mobius' });
+  const ask = shell.getByRole('complementary', { name: 'Agent', exact: true }).getByRole('textbox', { name: 'Message Mobius' });
   const open = async (name: string) => {
     await shell.keyboard.press('Control+k');
     await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);

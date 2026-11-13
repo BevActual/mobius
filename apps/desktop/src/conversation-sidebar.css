@@ -1,0 +1,5 @@
+/* The Agent app's sidebar on the shared frame: the search and the float button share the top line. */
+.agent-side-top { display: flex; align-items: center; gap: var(--sp-1); }
+.agent-side-top > input.side-search.side-search { flex: 1 1 auto; min-width: 0; }
+.agent-side-top > :not(.side-search) { margin-left: auto; }
+.ui-side .side-glyph { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; color: var(--muted); }
