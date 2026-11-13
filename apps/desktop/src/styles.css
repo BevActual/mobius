@@ -2772,7 +2772,8 @@ html .dock.left:not([data-floating]) > .app-side, html .dock.right:not([data-flo
 .dock.right:not([data-floating]) { border-left: var(--hairline-w) solid var(--line); }
 .dock[data-floating] { border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-3); }
 html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-menu, .sheet-menu) { background: var(--raised); box-shadow: var(--shadow-2); }
-.strip-right { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: var(--radius-control); }
+/* The window's own controls stay on top and opaque when a narrow window squeezes the app's toolbar (Browser's address field) under them. */
+.strip-right { position: relative; z-index: 1; background-color: inherit; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: var(--radius-control); }
 :is(.strip-right .strip-btn, .btn, .tool-btn, .cap-group, .starter, .desk .starter, .desk-act, .suggest-chip, .review-btn, .doc-tool.mobius) { border-radius: var(--radius-control); }
 :is(.btn, .tool-btn) { box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
 :is(.btn, .tool-btn):hover:not(:disabled) { background: var(--sel); }
