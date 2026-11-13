@@ -9,9 +9,10 @@ A full web browser, with Mobius able to read and work on pages for you.
 - **Tabs** live in the sidebar, as in Safari and Arc. Pinned tabs sit in their own group above the rest; drag a tab to
   reorder it or across the line to pin it. A small Mobius mark on a tab means Mobius is reading or using it; a hand means
   you took it back.
-- **A new tab** opens Mobius's start page: your favourites, the sites you visit most, and your reading list. It is drawn
+- **A new tab** opens Mobius's start page: your favourites, other sites you visit most, and your reading list. It is drawn
   by Mobius, so none of it is shown to a web page.
-- **Bookmarks** with the star beside the address, **Find** (Ctrl+F), downloads and history.
+- **Bookmarks** with the star beside the address, **Find** (Ctrl+F), downloads and history. To pin a page to the
+  sidebar, right-click its tab and choose **Pin to the sidebar**.
 - **Mobius on the page.** Ask about the page, or select text and act on it. Opening a site the agent hasn't been allowed
   asks first, and clicking or typing on a page asks every time. When a page needs a sign-in, you sign in yourself.
 - Pages are shown by the system web view (WebView2) in the installer, or by Chromium (CEF) in a build from source that includes it.

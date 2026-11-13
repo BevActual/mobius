@@ -171,3 +171,53 @@
 /* The layout the slide reads as carries the same ring as its style. */
 .slides-page .slides-layout-pick[aria-pressed="true"] .slide-face { box-shadow: 0 0 0 2px var(--accent); }
 .slides-page .slides-layout-pick[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
+
+/* Round 2. In Play: a transition pop-up and a Skip switch, each a row with its label on the left. */
+.slides-page .slides-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; font-size: var(--fs-sm); color: var(--ink); }
+.slides-page .slides-popup { height: 26px; padding: 0 24px 0 10px; border: 0; border-radius: 7px; background: var(--field) var(--chevrons-updown) no-repeat right 7px center / 8px 12px; appearance: none; font: inherit; font-size: var(--fs-sm); color: var(--ink); }
+/* A pop-up that picks a value shows up-and-down chevrons, as on the Mac. */
+.slides-page { --chevrons-updown: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1.5 4.5 4 2l2.5 2.5M1.5 7.5 4 10l2.5-2.5' fill='none' stroke='%238e8e93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.slides-page .slides-popup:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* A skipped slide stays in the navigator, dimmed and short, as Keynote collapses it. */
+.slides-page .slides-thumb[data-skipped] .slide-face { aspect-ratio: 16 / 3.2; justify-content: center; padding-right: 28px; background: var(--field); color: var(--muted); }
+.slides-page .slides-thumb[data-skipped] .slide-face > :not(.slide-title) { display: none; }
+.slides-page .slides-thumb[data-skipped] .slide-face .slide-title { color: var(--muted); font-weight: 600; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slides-page .slides-thumb[data-skipped] .slide-face[data-picture] { display: flex; }
+.slides-page .slides-skipped { position: absolute; right: 10px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 18px; height: 18px; color: var(--muted); }
+.slides-page .slides-skipped svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Play's transitions. Dissolve fades the slide in; Push slides the old one out as the new one comes in beside it;
+   Move in brings the new one over the old. Going back runs them the other way. None cuts. */
+.slide-play-frame { position: relative; display: grid; width: min(100vw, calc(100vh * 16 / 9)); overflow: hidden; }
+.slide-play-frame > .slide-play-stage { grid-area: 1 / 1; width: 100%; }
+.slide-play-stage[data-move="none"] { animation: none; }
+.slide-play-stage[data-move="push"]:not(.leaving) { animation: push-in var(--dur-slow) var(--ease); }
+.slide-play-stage[data-move="push"][data-back]:not(.leaving) { animation-name: push-in-back; }
+.slide-play-stage.leaving[data-move="push"] { animation: push-out var(--dur-slow) var(--ease) forwards; }
+.slide-play-stage.leaving[data-move="push"][data-back] { animation-name: push-out-back; }
+.slide-play-stage[data-move="move-in"]:not(.leaving) { position: relative; z-index: 1; animation: push-in var(--dur-slow) var(--ease); }
+.slide-play-stage[data-move="move-in"][data-back]:not(.leaving) { animation-name: push-in-back; }
+.slide-play-stage.leaving[data-move="move-in"] { animation: hold var(--dur-slow) linear forwards; }
+@keyframes push-in { from { transform: translateX(100%); } }
+@keyframes push-in-back { from { transform: translateX(-100%); } }
+@keyframes push-out { to { transform: translateX(-100%); } }
+@keyframes push-out-back { to { transform: translateX(100%); } }
+@keyframes hold { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .slide-play-stage[data-move] { animation: none; } }
+
+/* A picture on a slide: beside the words (they keep the left, it takes the right), or filling a slide with no words. */
+.slide-face[data-picture="side"] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr); grid-auto-rows: min-content; align-content: safe center; column-gap: 6%; row-gap: 0.6em; }
+.slide-face[data-picture="side"] > :not(.slide-picture) { grid-column: 1; }
+.slide-face[data-picture="side"] > .slide-picture { grid-column: 2; grid-row: 1 / span 6; align-self: center; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 0.5em; }
+.slide-face[data-picture="full"] { position: relative; }
+.slide-face[data-picture="full"] > .slide-picture { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.slide-face[data-picture="full"] > :not(.slide-picture) { position: relative; }
+.slide-picture.missing { background: color-mix(in srgb, currentColor 10%, transparent); }
+.slides-page .slides-canvas[data-dropping] .slide-face { outline: 3px solid var(--accent); outline-offset: 3px; }
+.slides-page .slides-pair { display: flex; gap: 6px; }
+.slides-page .slides-pair .btn { flex: 1; height: 28px; }
+.slides-page .slides-problem { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 12px; border-bottom: 0.5px solid var(--line); background: color-mix(in srgb, var(--danger) 8%, var(--bg)); font-size: var(--fs-sm); color: var(--ink); }
+.slides-page .slides-problem .slides-tool { margin-left: auto; height: 24px; }
+.slides-page .slide-face textarea.slide-title { field-sizing: content; min-height: 1.1em; }
+.slides-page .slides-group .slides-tool.icon:only-child { border-radius: 7px; }
