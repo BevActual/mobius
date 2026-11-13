@@ -73,8 +73,8 @@ Browser, or give Reader an address.
   to open the original in the Browser).
 - **In the toolbar:** Save a link, **Aa** (text size, sans serif or serif, and the page colour: Match Mobius, Sepia,
   Grey or Night) and **Done reading** (E), which moves it to Archive, opens the next article and offers Undo.
-- **Highlights:** select a passage and press Highlight (or H). They collect in the Highlights panel beside the article
-  (Ctrl+Shift+H, or the Panels menu), where each can be asked about and all copied to Notes. **Ask Mobius** on a
+- **Highlights:** select a passage and press Highlight (or H). They collect in the Highlights tab of the right panel,
+  before Mobius, where each can be asked about and all copied to Notes. **Ask Mobius** on a
   selected passage starts a message with it quoted, the article attached.
 - **J** and **K** move to the next and previous article in the list.
 
