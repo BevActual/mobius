@@ -24,7 +24,7 @@ sidebar, the toolbar and where Mobius opens.
 |---|---|---|
 | 1 Rail | Home, Search, the pinned apps, the launcher grid; Mobius, Activity and Settings at the foot. Icons only, name on hover. | Never |
 | 2 App sidebar | Always in this order: New, Search, the app's places in named sections, From Mobius, More. | A panel: hide, resize |
-| 3 Toolbar | One row. Leading: the title of what is open with a grey subline. Middle: the app's controls and the view switch. Trailing: Panels, ⋯, the Mobius button. | Never |
+| 3 Toolbar | One row. Leading: the title of what is open with a grey subline. Middle: the app's controls, the view switch and Panels. Trailing, always in this order: Comments, Share (where it applies), ⋯, the Mobius button. | Never |
 | 4 Content | The current view. May have a bottom dock under it (4b). | The view changes; the zone does not |
 | 5 Right dock | Mobius by default. Other panels can dock here as tabs beside it. | A dock: hide, resize |
 
@@ -35,8 +35,10 @@ Rules that hold in every app:
 - The Mobius button is always the last thing in the toolbar and always opens the Mobius panel in the right dock.
   Mobius no longer takes over the sidebar.
 - Browser controls (back, forward, address) are in the toolbar's middle slot, not the sidebar.
-- Split view, Little Mobius and comments leave the fixed icons at the top right. Split and comments are in View;
-  Little Mobius is "Pop out" on the Mobius panel.
+- Comments stays a toolbar button, because it shows live state: how many threads are open and whether comment mode
+  is on. It is also in View › Comments.
+- Split view and Little Mobius leave the fixed icons at the top right and are in the Window menu. Little Mobius is
+  also "Pop out" on the Mobius panel once stage 3 lands.
 
 ## Views
 
@@ -69,7 +71,7 @@ Docks:
 - Vertical or horizontal follows the dock: a panel on the bottom lays out in a row, the same panel on the right
   lays out in a column. A panel that cannot do both says which docks it allows.
 
-The Panels menu (toolbar, trailing; also View › Panels) lists every panel of the app: a tick if shown, where it is,
+The Panels menu (toolbar, at the end of the middle slot; also View › Panels) lists every panel of the app: a tick if shown, where it is,
 and its key. Below them: **Layouts** (the app's own, then ones the person saved), **Save this layout…** and **Reset
 layout**. Layouts are kept per app, per profile.
 
