@@ -75,10 +75,12 @@ test('a writing tool asks Mobius, and its changes are marked in the page, each k
   ]);
   await shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
   await expect(page()).toContainText('We have been talking');
-  // Mobius's writing tools are in the toolbar's ⋯, on the whole document when nothing is chosen.
-  await shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'More' }).click();
-  const menu = shell().getByRole('menu', { name: 'More' });
-  await menu.getByRole('menuitem', { name: 'Make it shorter' }).click();
+  // Mobius's writing tools are at the top of the window's one ⋯, on the whole document when nothing is chosen.
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: 'Make it shorter' }).click();
+  // The right panel has the document's Outline as a tab before Mobius; Mobius's tab has the conversation.
+  await expect(shell().getByRole('tablist', { name: 'Panel' }).getByRole('tab', { name: 'Outline' })).toBeVisible();
+  await shell().getByRole('tablist', { name: 'Panel' }).getByRole('tab', { name: 'Mobius' }).click();
 
   const log = shell().getByRole('log', { name: 'Conversation' });
   for (let i = 0; i < 2; i++) await log.getByRole('button', { name: 'Allow once' }).first().click();
@@ -127,9 +129,9 @@ test('a comment on chosen words, a link to another document, and Share all work 
   await page().getByText('Plan on the 13th').click();
   await shell().keyboard.press('End');
   await shell().keyboard.type(', see ');
-  // Link is in the toolbar when there is room, and in its ⋯ always (the test window is narrow beside Mobius).
-  await shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'More' }).click();
-  await shell().getByRole('menu', { name: 'More' }).getByRole('menuitem', { name: 'Add a link…' }).click();
+  // Link is in the toolbar when there is room, and in the window's ⋯ always (the test window is narrow beside Mobius).
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: 'Add a link…' }).click();
   await shell().getByRole('combobox', { name: 'Link to' }).fill('venu');
   await expect(shell().getByRole('option', { name: /Venues/ })).toBeVisible();
   await shell().keyboard.press('Enter');
