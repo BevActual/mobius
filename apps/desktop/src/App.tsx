@@ -37,7 +37,7 @@ import { TasksPage, TasksSidebar } from './Tasks';
 import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { SheetGrid, SheetsSidebar } from './Sheets';
-import { BOX_NAMES, MailPage, MailSidebar, MailToolbar } from './Mail';
+import { BOX_NAMES, MailPage, MailSidebar } from './Mail';
 import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
 import { useSheets } from './useSheets';
@@ -1552,7 +1552,6 @@ export function App() {
           : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
           : undefined,
         middle: <>
-        {inMail && <MailToolbar mail={mail} />}
         {inBrowser && !settingsOpen && browserChrome}
         </>,
         // Words and icons never share a capsule: the update notice stands on its own, before the icons.
