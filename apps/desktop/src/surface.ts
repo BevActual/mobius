@@ -36,9 +36,12 @@ export interface SurfaceState {
   code?: { title: string; source: string; text: string; failing: boolean } | null;
   /** The email open in Mail, if any. */
   mail?: { id: string; title: string; text: string } | null;
+  /** Settings is open over the app: nothing the app offers applies, so nothing is suggested. */
+  settings?: boolean;
 }
 
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
+  if (state.settings) return [];
   switch (state.app) {
     case 'browser':
       return state.hasPage

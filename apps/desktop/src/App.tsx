@@ -438,7 +438,7 @@ export function App() {
     setDocComments((was) => (was.page === docsPath && was.outline === outline ? was : { page: docsPath, outline }));
   }, [docsPath]);
   // Settings covers the app: what the app has open is not on screen, so Mobius neither sees nor attaches it.
-  const surface: SurfaceState = settingsOpen ? { app, hasPage: false, note: null } : {
+  const surface: SurfaceState = settingsOpen ? { app, hasPage: false, note: null, settings: true } : {
     app,
     hasPage: active !== undefined && /^https?:/.test(active.url),
     note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs', ...(docComments.page === docs.page.path && docComments.outline ? { extra: docComments.outline } : {}) } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : inCanvas && boards.page ? { path: boards.page.path, title: boards.page.title, text: boards.text, folder: 'boards' } : inViews && views.page ? { path: views.page.path, title: views.page.title, text: views.text, folder: 'views' } : inResearch && research.page && !askingResearch ? { path: research.page.path, title: liveTitle(research.text, research.page.title), text: research.text, folder: 'research' } : inReader && reading.page ? { path: reading.page.path, title: reading.page.title, text: reading.text, folder: 'reading' } : inTerminal && lastTerminal ? { path: lastTerminal.cwd || '~', title: `Terminal: ${lastTerminal.command}`.slice(0, 120), text: `$ ${lastTerminal.command}   (in ~/${lastTerminal.cwd})\n${lastTerminal.result!.output.slice(-20_000)}\n${lastTerminal.result!.passed ? 'Exit code 0' : `Exit code ${lastTerminal.result!.code ?? 'none'}${lastTerminal.result!.timedOut ? ' (stopped: too long)' : ''}`}`, folder: 'terminal' } : inDatabase && databases.open ? { path: `${databases.open}.sqlite`, title: `Database ${databases.open}`, text: databaseOutline(databases.open, databases.list.find((d) => d.name === databases.open)?.tables ?? []), folder: 'databases' } : null,
@@ -988,7 +988,7 @@ export function App() {
   /** A start from an app's New row: its words go in the message box, for the person to finish and send. */
   const startWithMobius = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), text: prompt }); };
   /** Mobius's starts for the open app: the suggestions that need nothing attached. */
-  const startsFor = (id: AppId) => suggestionsFor({ ...surface, app: id }).filter((s) => !s.attach).slice(0, 2);
+  const startsFor = (id: AppId) => suggestionsFor({ ...surface, settings: false, app: id }).filter((s) => !s.attach).slice(0, 2);
   // Pinned favourites: notes and task lists one click away in the sidebar.
   const favourites = appearance.value.favourites ?? [];
   const pinnedNotes = useMemo(() => new Set(favourites.filter((f) => f.kind === 'note').map((f) => f.id)), [favourites]);
@@ -1614,7 +1614,7 @@ export function App() {
           </div>
         )}
         {hasLeft && leftFloating && !leftOpen && <div className="hotzone left" data-testid="hotzone-left" onPointerEnter={() => { leftFromEdge.current = true; setLeftOpen(true); }} />}
-        <main className="stage" data-split={split || undefined} data-edge-left={(hasLeft && leftFloating && !leftOpen) || undefined} data-edge-right={(hasRight && rightFloating && !chatOpen) || undefined} style={split ? ({ '--split': `${(splitDrag ?? share) * 100}%` } as React.CSSProperties) : undefined}>
+        <main className="stage" tabIndex={-1} data-split={split || undefined} data-edge-left={(hasLeft && leftFloating && !leftOpen) || undefined} data-edge-right={(hasRight && rightFloating && !chatOpen) || undefined} style={split ? ({ '--split': `${(splitDrag ?? share) * 100}%` } as React.CSSProperties) : undefined}>
           {settingsOpen && (
             <SettingsPage
               {...(settingsSection === 'layout' ? { initial: 'appearance' as const, initialSubpage: 'layout' } : settingsSection === 'profiles' ? { initial: 'advanced' as const, initialSubpage: 'profiles' } : settingsSection ? { initial: settingsSection } : {})}

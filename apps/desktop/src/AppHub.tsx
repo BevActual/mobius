@@ -77,7 +77,15 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
   useEffect(() => { if (!open) setAllStarts(false); }, [open]);
   const shownStarts = q || allStarts ? starts : starts.filter((a) => FEATURED.includes(a.id));
   // Close the dialog first, so the focus it gives back lands before the opened thing takes it.
-  const go = (run: () => void) => { dialog.current?.close(); onClose(false); run(); };
+  // When the opened thing takes no focus itself, it goes to the work area, not back to All apps: the button would keep
+  // its focus ring and read as lit beside the app that is really open.
+  const go = (run: () => void) => {
+    dialog.current?.close(); onClose(false); run();
+    requestAnimationFrame(() => {
+      const at = document.activeElement;
+      if (at === document.body || at?.closest('.rail')) document.querySelector<HTMLElement>('main.stage')?.focus({ preventScroll: true });
+    });
+  };
   // Read when the hub opens: the apps used most recently, to start from.
   const recent = open ? recentApps().map((id) => APPS.find((a) => a.id === id)).filter((a): a is AppInfo => a !== undefined) : [];
   const appButton = (a: AppInfo) =>
