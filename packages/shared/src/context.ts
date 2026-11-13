@@ -72,3 +72,19 @@ export function splitContext(message: string): { text: string; items: ContextIte
   }
   return items.length === 0 ? { text: message, items } : { text: message.slice(0, first), items };
 }
+
+const STEPS_OPEN = '\n\n<steps>\n';
+const STEPS_CLOSE = '\n</steps>';
+
+/** A suggestion sent as a message: its words as the person would say them, then the steps it asks for, which the
+ *  model reads in full and the conversation keeps behind Details. */
+export function withSteps(label: string, steps: string): string {
+  return `${label}${STEPS_OPEN}${steps.split(STEPS_CLOSE).join('\n< /steps>')}${STEPS_CLOSE}`;
+}
+
+/** The reverse, for showing a message: the words to show, and the steps when there are any. */
+export function splitSteps(text: string): { shown: string; steps: string | null } {
+  const at = text.indexOf(STEPS_OPEN);
+  if (at < 0 || !text.endsWith(STEPS_CLOSE)) return { shown: text, steps: null };
+  return { shown: text.slice(0, at), steps: text.slice(at + STEPS_OPEN.length, text.length - STEPS_CLOSE.length) };
+}
