@@ -138,7 +138,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     says(['Added the parts list to Kestrel P2, due ', weekday(DUE_IN), '.\nSuggested the brake kit review for ', weekday(MEET_IN), ' at 10:00, after your stand-up.\nDrafted a reply for you to check. Nothing is sent.']),
   ]);
   report = { test: 'main', started: new Date().toISOString(), steps: [], approvalsAsked: [] };
-  mobius = await launch(fixture.origin + '/', { newPerson: true, mobiusInSidebar: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  mobius = await launch(fixture.origin + '/', { newPerson: true, openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await resizeWindow(mobius.app, 1440, 900).catch(() => undefined);
   await shell().waitForSelector('html[data-keys-ready]', { state: 'attached', timeout: 20_000 }).catch(() => undefined);
 
@@ -172,8 +172,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
   });
 
   await step('mobius-opened', async (note) => {
-    await shell().locator('[data-mobius-face]').click();
-    await shell().locator('.rail[data-face="mobius"]').waitFor({ timeout: 10_000 });
+    // Mobius sits in the right panel beside the email from the start.
     await expect(composer()).toBeEnabled({ timeout: 20_000 });
     note(`suggestions offered: ${(await shell().getByRole('group', { name: 'Suggestions' }).getByRole('button').allInnerTexts().catch(() => [])).join(' | ') || 'none'}`);
   });
