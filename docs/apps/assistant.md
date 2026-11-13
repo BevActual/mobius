@@ -18,7 +18,7 @@ The Agent app is Mobius's home. It opens on the **desk** and holds your conversa
 - **In a turn**, Mobius shows its plan as a checklist, each tool it uses as a plain sentence ("Added 6 tasks to P2
   build"), and, at the end, a card naming each app it changed.
 
-The same conversation is available in every app through the Mobius button, pinned beside the page, or in
+The same conversation is available in every app in the right panel beside your work (the Mobius button shows and hides it), or in
 **Little Mobius** (Ctrl+Shift+M).
 
 ## Agents

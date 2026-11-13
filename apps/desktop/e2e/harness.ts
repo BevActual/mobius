@@ -91,7 +91,7 @@ export type AppHandle = object;
 
 export interface Launched { app: AppHandle; shell: Page; userData: string; close(options?: { keepUserData?: boolean }): Promise<void> }
 
-export async function launch(startUrl: string, options: { env?: Record<string, string>; userData?: string; /** Leave the agent's keep-out-of-local-addresses rule on, as a real person has it. */ realNetworkRules?: boolean; /** Start with the approval mode a new person gets (Propose), instead of Ask first, which most tests are written for. */ newPerson?: boolean; /** Start with Mobius in the sidebar (the default for a new person) rather than pinned beside the page. */ mobiusInSidebar?: boolean; /** Start as a new person does, then open Mobius in the sidebar: for tests about what Mobius does. */ openMobius?: boolean } = {}): Promise<Launched> {
+export async function launch(startUrl: string, options: { env?: Record<string, string>; userData?: string; /** Leave the agent's keep-out-of-local-addresses rule on, as a real person has it. */ realNetworkRules?: boolean; /** Start with the approval mode a new person gets (Propose), instead of Ask first, which most tests are written for. */ newPerson?: boolean; /** Start as a new person does, with Mobius open in the right panel: for tests about what Mobius does. */ openMobius?: boolean } = {}): Promise<Launched> {
   const userData = options.userData ?? fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-e2e-'));
   // Every fixture page lives on this computer, so the tests start with the agent allowed to use local addresses. They
   // also start in Ask first, so each tool the agent uses shows its approval, unless the test is about a new person.
@@ -100,18 +100,10 @@ export async function launch(startUrl: string, options: { env?: Record<string, s
     fs.mkdirSync(userData, { recursive: true });
     fs.writeFileSync(prefsFile, JSON.stringify(options.newPerson ? { agentPrivateUrls: true } : { agentPrivateUrls: true, approvalMode: 'manual' }));
   }
-  // Most tests are about what Mobius does, not where it sits: they start with it pinned beside the page, open, as it
-  // was before the sidebar became its home. Tests about the sidebar start as a new person does.
-  const appearanceFile = path.join(userData, 'appearance.json');
-  if (!options.mobiusInSidebar && !options.openMobius && !fs.existsSync(appearanceFile)) {
-    fs.mkdirSync(userData, { recursive: true });
-    fs.writeFileSync(appearanceFile, JSON.stringify({ agentPlace: 'beside' }));
-  }
   const launched = await launchTauri(startUrl, userData, options.env ?? {});
   if (options.openMobius) {
-    // The sidebar turns into Mobius, as when a person presses its button.
-    await launched.shell.locator('[data-mobius-face]').click({ timeout: 20_000 });
-    await launched.shell.locator('.rail[data-face="mobius"]').waitFor({ timeout: 10_000 });
+    // Mobius opens in the right panel, beside the work, from the start.
+    await launched.shell.locator('.dock.right > .chat').waitFor({ timeout: 20_000 });
   }
   return launched;
 }

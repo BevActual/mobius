@@ -14,7 +14,7 @@ describe('appearance changes', () => {
     }
   });
   it('has sensible defaults', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'sidebar', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
   });
 });
 
