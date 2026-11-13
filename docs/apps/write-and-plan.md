@@ -78,7 +78,7 @@ Your calendars by day, week or month.
 - **Search** at the top of the sidebar finds events from a month back to a year ahead, by title, place or notes. Pick
   one to go to its day.
 - **The toolbar** holds Back, Today and Forward, and Day, Week and Month. When Mobius is open beside a small window,
-  Today's word and then the views give way; T, D, W, M and the arrow keys still work.
+  Today's word, then the +, then the views give way; T, N, D, W, M and the arrow keys still work.
 - **Open an event** with a click: it edits in a popover beside it. Changes are kept when you click elsewhere or press
   Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
 - **The event you clicked stays picked out.** Press Delete to remove it, Enter to open it or Ctrl+D to duplicate it;
