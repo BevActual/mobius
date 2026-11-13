@@ -35,6 +35,11 @@
 .studio-side-when, .studio-to-review { align-self: center; padding-right: var(--sp-3); font-size: var(--fs-sm); white-space: nowrap; }
 .studio-side-when { color: var(--muted); }
 .studio-to-review { color: var(--mobius); }
+/* A song's row with its date after it: the selection and hover run under the date too, across the sidebar. */
+.studio-side .ui-side-row-trail { border-radius: var(--radius-control); }
+.studio-side .ui-side-row-trail:has(> .list-row[aria-current="page"]) { background: var(--side-select); }
+.studio-side .ui-side-row-trail:has(> .list-row:hover):not(:has(> .list-row[aria-current="page"])) { background: var(--side-hover); }
+.dock.left .studio-side .ui-side-row-trail > .list-row:is([aria-current="page"], :hover) { background: transparent; }
 
 /* ---------- Arrangement ---------- */
 .studio-page .studio-arrange { flex: 1 1 auto; min-height: 96px; overflow: auto; position: relative; }
