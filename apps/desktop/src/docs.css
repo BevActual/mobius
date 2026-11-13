@@ -3,7 +3,34 @@
  * the outline to one side and comments in the margin. Everything comes from the theme's tokens, so dark follows.
  */
 
-/* The canvas and the paper. */
+/* The timeless page (Docs on the frame): no sheet on a grey ground, the words straight on the content's own white, in
+   one column, the title over a quiet grey line of when it was edited and how long it is. */
+.doc-editor[data-frame], .doc-editor[data-frame] .doc-body { background: var(--paper, var(--bg)); }
+.doc-editor[data-frame] .doc-scroll { padding: 32px var(--sp-6) 120px; }
+.doc-editor[data-frame] .doc-paper { max-width: 700px; border-radius: 0; box-shadow: none; background: none; }
+.doc-editor[data-frame] .doc-page { min-height: 0; padding: 40px 32px 0; }
+.doc-editor[data-frame] .doc-page h1:first-child { margin: 0; font-size: 34px; letter-spacing: -0.025em; }
+.doc-editor[data-frame] .doc-page h2 { font-size: 20px; }
+.doc-meta { margin: 6px 0 28px; font-size: 13px; line-height: 1.4; color: var(--muted); user-select: none; }
+.doc-editor[data-frame] .doc-page h1:first-child + .doc-meta + * { margin-top: 0; }
+.doc-meta-count { margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: default; }
+.doc-meta-count:hover { color: var(--ink); }
+
+/* The toolbar on the frame: the style as a small menu button, then flat groups split by a hairline, as Mail's. */
+.doc-bar { gap: var(--sp-2); }
+.doc-bar-group { display: inline-flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; }
+.doc-bar > :not(.doc-bar-group) { flex-shrink: 0; }
+.doc-bar-group + .doc-bar-group { padding-left: var(--sp-2); border-left: 1px solid var(--line); }
+.doc-bar .strip-btn { border-radius: var(--radius-control); color: var(--body, var(--ink)); }
+.doc-bar .strip-btn:hover { background: var(--soft); color: var(--ink); }
+.doc-bar .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.doc-bar .strip-btn :is(b, i, u) { font-size: 14px; font-family: inherit; }
+.doc-bar-style { display: inline-flex; align-items: center; gap: 6px; height: 28px; margin-right: 4px; padding: 0 8px 0 10px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font-size: var(--fs-sm); }
+.doc-bar-style:hover, .doc-bar-style[aria-expanded="true"] { border-color: var(--line-strong); }
+.doc-bar-style svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; opacity: 0.7; }
+@container doc-bar (max-width: 300px) { .doc-bar .doc-bar-group + .doc-bar-group { display: none; } }
+
+/* The canvas and the paper (the wiki's page, off the frame). */
 .doc-editor .doc-body { background: color-mix(in srgb, var(--panel) 80%, var(--bg)); }
 .doc-editor .doc-scroll { padding: 28px var(--sp-6) 96px; scroll-padding-top: 24px; }
 .doc-editor .doc-paper { max-width: 816px; width: 100%; border-radius: 6px; box-shadow: 0 0 0 0.5px var(--hairline, var(--line)), 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 28px rgba(0, 0, 0, 0.06); }
@@ -58,8 +85,7 @@
 .ui-toolbar-group:has(> .doc-toolbar[data-frame]) { flex: 1; }
 .app[data-app="docs"] .toolbar-place { flex: 0 1 auto; max-width: 30%; }
 .doc-toolbar[data-frame] { flex: 1; min-width: 0; flex-wrap: nowrap; padding: 0; border: 0; background: none; overflow: hidden; container: doc-bar / inline-size; }
-@container doc-bar (max-width: 400px) { .doc-toolbar [data-gives-way] { display: none; } }
-@container doc-bar (max-width: 340px) { .doc-toolbar .doc-tool-writing .doc-tool-mobius { display: none; } }
+@container doc-bar (max-width: 360px) { .doc-toolbar [data-gives-way] { display: none; } }
 .doc-toolbar .doc-tool-writing { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); }
 
 /* Linking: a field under the toolbar, with the documents whose names match. */
@@ -162,6 +188,18 @@
 .doc-aa-group .doc-tool[aria-pressed="true"] { color: var(--accent); background: var(--bg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
 @media (prefers-reduced-motion: reduce) { .doc-aa-panel { animation: none; } }
 
-/* Mobius's changes, in the page where they are: what it added is tinted with a bar at its side; a note before it shows
-   what it took out, struck through, with Keep and Discard for that change alone. */
-/* A change Mobius made: one dashed indigo block where it is (no tint), its line and answers under it. */
+/* Mobius's changes are drawn by change-blocks.css. */
+
+/* Docs' sidebar: each document's edited day on the right, and the open document's headings indented under it. */
+.doc-side-when { flex: none; padding-right: var(--sp-2); font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
+.doc-side-review { flex: none; padding-right: var(--sp-2); font-size: var(--fs-sm); color: var(--mobius, var(--accent)); white-space: nowrap; }
+.doc-side-outline > ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--hairline-w, 1px); }
+.side .doc-side-outline .doc-side-heading.list-row { padding-left: 24px; color: var(--muted); }
+.side .doc-side-outline .doc-side-heading.list-row[data-level="3"] { padding-left: 36px; }
+.side .doc-side-outline .doc-side-heading.list-row:is(:hover, [aria-current]) { color: var(--ink); }
+
+/* The outline as a panel (the right panel's Outline tab, beside Mobius). */
+.doc-outline-panel { display: flex; flex-direction: column; gap: 1px; padding: var(--sp-2); }
+.doc-outline-panel .doc-outline-item { text-align: left; padding: 5px 8px; border-radius: var(--radius-control); color: var(--muted); font-size: var(--fs-sm); }
+.doc-outline-panel .doc-outline-item[data-level="3"] { padding-left: 20px; }
+.doc-outline-panel .doc-outline-item:hover, .doc-outline-panel .doc-outline-item[aria-current] { color: var(--ink); background: var(--soft); }
