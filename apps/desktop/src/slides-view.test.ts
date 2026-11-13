@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LAYOUTS, clock, dropIndex, jumpTarget, layoutOf, moveSlide, movedTo, talkMinutes } from './slides-view';
+import { LAYOUTS, clock, dropIndex, jumpTarget, layoutOf, moveSlide, movedTo, playOrder, talkMinutes } from './slides-view';
 import { blankSlide, parseDeck, writeDeck } from './slides-format';
 
 describe('moveSlide', () => {
@@ -68,5 +68,12 @@ describe('layoutOf', () => {
   });
   it('matches none when a slide has body text and no bullets', () => {
     expect(layoutOf({ ...LAYOUTS[0]!.make(), text: 'A paragraph' })).toBeNull();
+  });
+});
+
+describe('playOrder', () => {
+  it('leaves skipped slides out of Play', () => {
+    const s = blankSlide();
+    expect(playOrder([s, { ...s, skip: true }, s])).toEqual([0, 2]);
   });
 });

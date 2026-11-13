@@ -1,0 +1,20 @@
+/* Mobius's change block in the editor's pages (Docs, Notes): see change-blocks.ts. */
+/* Checklists in the words Mobius took out, drawn as the page draws them: the box beside its words. */
+.doc-change-old ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
+.doc-change-old ul[data-type="taskList"] li { display: flex; gap: 8px; align-items: flex-start; }
+.doc-change-old ul[data-type="taskList"] li > label { flex: none; margin-top: 3px; }
+.doc-change-old ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
+.doc-change-old ul[data-type="taskList"] input { appearance: none; width: 14px; height: 14px; margin: 0; border-radius: 50%; border: 1.5px solid var(--muted); display: grid; place-items: center; pointer-events: none; }
+.doc-change-old ul[data-type="taskList"] input:checked { background: var(--accent); border-color: var(--accent); }
+.doc-change-old ul[data-type="taskList"] input:checked::after { content: ""; width: 6px; height: 3px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 0 1.6px 1.6px; transform: rotate(-45deg); }
+.ProseMirror:is(.doc-page, .note-page) .doc-change-new { position: relative; margin: 0; padding: 6px 12px; border: 1px dashed var(--mobius); border-top-width: 0; border-bottom-width: 0; }
+.ProseMirror:is(.doc-page, .note-page) :is(ul, ol).doc-change-new { padding-left: 36px; }
+.ProseMirror:is(.doc-page, .note-page) .doc-change-new[data-top] { margin-top: 0.6em; border-top-width: 1px; border-top-left-radius: 6px; border-top-right-radius: 6px; padding-top: 10px; }
+.ProseMirror:is(.doc-page, .note-page) .doc-change-new[data-bottom] { border-bottom-width: 1px; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding-bottom: 10px; }
+.ProseMirror:is(.doc-page, .note-page) .doc-change-old { margin: 0.6em 0 0; padding: 10px 12px 4px; border: 1px dashed var(--mobius); border-bottom: 0; border-radius: 6px 6px 0 0; color: var(--muted); text-decoration: line-through; text-decoration-color: currentColor; font-family: var(--font, system-ui), sans-serif; user-select: none; }
+.ProseMirror:is(.doc-page, .note-page) .doc-change-old[data-whole] { border-bottom: 1px dashed var(--mobius); border-radius: 6px; padding-bottom: 10px; }
+.ProseMirror:is(.doc-page, .note-page) .doc-change-old :is(h1, h2, h3, p, ul, ol, blockquote) { margin: 0 0 2px; font-size: inherit; font-weight: inherit; letter-spacing: 0; line-height: inherit; }
+.ProseMirror:is(.doc-page, .note-page) .doc-change-old :is(ul, ol) { padding-left: 18px; }
+.ProseMirror:is(.doc-page, .note-page) .doc-change-head { margin: 0.6em 0 8px; font-family: var(--font, system-ui), sans-serif; font-size: var(--fs-sm); line-height: 1.45; user-select: none; }
+.ProseMirror:is(.doc-page, .note-page) .doc-change { margin: 8px 0 0.9em; font-family: var(--font, system-ui), sans-serif; font-size: var(--fs-sm); line-height: 1.45; user-select: none; }
+@media print { .doc-change, .doc-change-head, .doc-change-old { display: none !important; } .ProseMirror:is(.doc-page, .note-page) .doc-change-new { border: 0 !important; padding: 0 !important; } }

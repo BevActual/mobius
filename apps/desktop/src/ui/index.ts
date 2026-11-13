@@ -12,3 +12,4 @@ export { ViewSwitch, type ViewChoice } from './ViewSwitch';
 export { AppSidebar, SidebarSearch, SidebarSection, SidebarRow } from './AppSidebar';
 export { PanelLayout, PanelsMenu, DOCK_SIZE, type PanelSpec, type PanelDock, type PanelsOfApp } from './PanelLayout';
 export { PanelTab, PanelTabsProvider, RightPanelTabs } from './PanelTabs';
+export { AppMenu, AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';

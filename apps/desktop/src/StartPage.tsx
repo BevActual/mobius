@@ -41,14 +41,17 @@ export function StartPage({ onOpen, onRead }: { onOpen: (url: string) => void; o
   useEffect(() => {
     let live = true;
     void window.mobius.bookmarks.get('').then((b) => { if (live) setFavourites(b.slice(0, 8)); }).catch(() => {});
-    void window.mobius.history.get('').then((h) => { if (live) setFrequent(h.enabled ? frequentSites(h.entries.slice(0, 300)) : []); }).catch(() => {});
+    void window.mobius.history.get('').then((h) => { if (live) setFrequent(h.enabled ? frequentSites(h.entries.slice(0, 300), 12) : []); }).catch(() => {});
     void window.mobius.reading?.list().then((lists) => {
       if (!live || isNotesFailure(lists)) return;
       setReading(lists.filter((nb) => nb.name !== 'Archive').flatMap((nb) => nb.pages).sort((a, b) => b.modified - a.modified).slice(0, 4).map((p) => ({ path: p.path, title: p.title })));
     }).catch(() => {});
     return () => { live = false; };
   }, []);
-  const empty = favourites.length === 0 && frequent.length === 0 && reading.length === 0;
+  // A site already in Favourites is not shown again under Frequently visited.
+  const favouriteSites = new Set(favourites.map((b) => host(b.url)));
+  const others = frequent.filter((f) => !favouriteSites.has(f.site)).slice(0, 8);
+  const empty = favourites.length === 0 && others.length === 0 && reading.length === 0;
   return (
     <section className="start-page" aria-label="New tab">
       <div className="start-inner">
@@ -62,10 +65,10 @@ export function StartPage({ onOpen, onRead }: { onOpen: (url: string) => void; o
             <div className="start-grid">{favourites.map((b) => <Tile key={b.url} url={b.url} title={b.title} onOpen={onOpen} />)}</div>
           </section>
         )}
-        {frequent.length > 0 && (
+        {others.length > 0 && (
           <section aria-label="Frequently visited">
             <h2 className="start-heading">Frequently visited</h2>
-            <div className="start-grid">{frequent.map((f) => <Tile key={f.site} url={f.url} title={f.site} onOpen={onOpen} />)}</div>
+            <div className="start-grid">{others.map((f) => <Tile key={f.site} url={f.url} title={f.site} onOpen={onOpen} />)}</div>
           </section>
         )}
         {reading.length > 0 && (
