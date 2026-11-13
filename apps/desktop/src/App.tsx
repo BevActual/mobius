@@ -76,7 +76,7 @@ import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { Desk } from './Desk';
 import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
-import { APP_ICONS, Rail } from './Rail';
+import { APP_ICONS, Rail, type OwnApp } from './Rail';
 import { SidebarHead } from './SidebarHead';
 import { AppFrame, PanelsMenu } from './ui';
 import { AppHub, type HubAction } from './AppHub';
@@ -482,11 +482,6 @@ export function App() {
   const workingNow = useRef<string[]>([]);
   workingNow.current = conversation.list.filter((c) => c.activity === 'working').map((c) => c.id);
   useEffect(() => window.mobius.tray?.onStopAll(() => { for (const id of workingNow.current) void window.mobius.agent.cancel(id); }), []);
-  // The open profile, shown in the sidebar when it is not Personal.
-  const [profileName, setProfileName] = useState<string | null>(null);
-  useEffect(() => {
-    void window.mobius.profiles?.list().then((p) => setProfileName(p.current === 'default' ? null : (p.list.find((x) => x.id === p.current)?.name ?? null))).catch(() => undefined);
-  }, []);
   const activity = activityOf(conversation.state);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
   /** The views Mobius changed in its last turn and that wait for Keep. */
@@ -604,6 +599,15 @@ export function App() {
   // still finishing would otherwise close it, since chatOpen never went false and the effect below does not run.
   const hides = useRef(0);
   const hideRight = useCallback(() => { const mine = ++hides.current; void morphOut(document.querySelector<HTMLElement>('.dock.right > .chat'), 'right').then(() => { if (hides.current === mine) setChatOpen(false); }); }, []);
+  // Mobius's own apps: Agents and Activity (views of the Agent app), Abilities, and Settings.
+  const ownApps: OwnApp[] = [
+            { id: 'bots', name: 'Agents', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
+            { id: 'activity', name: 'Activity', current: !settingsOpen && app === 'agent' && sideMode === 'activity', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } },
+            { id: 'extensions', name: 'Abilities', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
+            { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
+  ];
+  // The Mobius button (toolbar and rail foot): show or hide Mobius beside the work.
+  const toggleMobius = () => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } };
   useEffect(() => { if (chatOpen) hides.current += 1; }, [chatOpen]);
   const leftFromEdge = useRef(false);
   const rightFromEdge = useRef(false);
@@ -1521,15 +1525,10 @@ export function App() {
       data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
       rail={
         <Rail
-          {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
+          mobius={{ open: (rightOpen || !hasRight) && !settingsOpen, toggle: () => { if (settingsOpen) { closeSettings(); if (hasRight && !rightOpen) toggleMobius(); return; } if (hasRight) toggleMobius(); else openApp('agent'); } }}
           app={app}
           onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); if (id === 'agent') setSideMode('sessions'); openApp(id); }}
-          ownApps={[
-            { id: 'bots', name: 'Agents', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
-            { id: 'activity', name: 'Activity', current: !settingsOpen && app === 'agent' && sideMode === 'activity', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } },
-            { id: 'extensions', name: 'Abilities', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
-            { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
-          ]}
+          ownApps={ownApps}
           activity={activity}
           changed={changed}
           needsYou={needsYou}
@@ -1584,7 +1583,7 @@ export function App() {
           {menuBar}
           {hasRight && !settingsOpen && (
             <button type="button" className="strip-btn strip-mobius" data-mobius-face aria-pressed={rightOpen} aria-label={rightOpen ? 'Hide Mobius' : 'Show Mobius'} title={rightOpen ? 'Hide Mobius' : 'Ask Mobius, beside the work'}
-              onClick={() => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } }}>
+              onClick={toggleMobius}>
               <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
             </button>
           )}
@@ -1666,6 +1665,7 @@ export function App() {
         current={app}
         onOpenApp={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); openApp(id); }}
         onConnect={() => { closeSettings(); setExtPlace('connectors'); openApp('skills'); }}
+        own={ownApps}
         status={hubStatus}
         actions={createActions}
       />

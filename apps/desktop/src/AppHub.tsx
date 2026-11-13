@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { APP_GROUPS, APPS, isInstalled, recentApps, type AppId, type AppInfo } from './apps';
-import { APP_ICONS } from './Rail';
+import { APP_ICONS, OWN_ICONS, type OwnApp } from './Rail';
 import { morphOut, useMorphIn } from './motion';
 
 export interface HubAction { id: string; label: string; app: AppId; run: () => void }
@@ -16,6 +16,8 @@ interface Props {
   /** A few live words per app: what is waiting there. */
   status: Partial<Record<AppId, string>>;
   onConnect: () => void;
+  /** Mobius's own apps (Agents, Activity, Abilities): opened from here, not kept in the rail. */
+  own?: readonly OwnApp[];
 }
 
 const Tile = ({ id, children }: { id: string; children?: ReactNode }) => (
@@ -46,7 +48,7 @@ export function hubGroups(): Array<{ group: string; members: AppInfo[] }> {
   return out;
 }
 
-export function AppHub({ open, onClose, current, onOpenApp, actions, status, onConnect }: Props) {
+export function AppHub({ open, onClose, current, onOpenApp, actions, status, onConnect, own = [] }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   // Opened again while it was on its way out: it stays.
@@ -69,6 +71,7 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
   const built = APPS.filter((a) => a.available && !a.own && isInstalled(a.id) && has(a.name, status[a.id] ?? ''));
   const later = APPS.filter((a) => !a.available && has(a.name));
   const starts = actions.filter((a) => has(a.label));
+  const ownShown = own.filter((o) => o.id !== 'settings' && has(o.name));
   // Eight to start from; the rest when asked for, or found by typing.
   const [allStarts, setAllStarts] = useState(false);
   useEffect(() => { if (!open) setAllStarts(false); }, [open]);
@@ -139,13 +142,26 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
           )}
         </section>
       )}
+      {ownShown.length > 0 && (
+        <section className="hub-section" aria-label="Mobius">
+          <h2 className="hub-heading">Mobius</h2>
+          <ul className="hub-grid" role="list">{ownShown.map((o) => (
+            <li key={o.id}>
+              <button type="button" className="hub-app" aria-current={o.current ? 'page' : undefined} aria-label={o.name} onClick={() => go(o.run)}>
+                <span className="hub-icon" data-app={o.id} aria-hidden="true"><svg viewBox="0 0 20 20">{OWN_ICONS[o.id]}</svg></span>
+                <span className="hub-name">{o.name}</span>
+              </button>
+            </li>
+          ))}</ul>
+        </section>
+      )}
       {!q && (
         <button type="button" className="hub-connect" onClick={() => go(onConnect)}>
           <span className="hub-icon" data-app="connect" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M8 4v4M12 4v4M6 8h8v2a4 4 0 0 1-8 0zM10 14v3" /></svg></span>
           <span><span className="hub-name">Connect other apps</span><span className="hub-status">Give the agent tools from other apps over MCP, or let them use Mobius</span></span>
         </button>
       )}
-      {built.length === 0 && later.length === 0 && starts.length === 0 && <p className="hub-empty" role="status">No apps match “{query.trim()}”.</p>}
+      {built.length === 0 && later.length === 0 && starts.length === 0 && ownShown.length === 0 && <p className="hub-empty" role="status">No apps match “{query.trim()}”.</p>}
     </dialog>
   );
 }
