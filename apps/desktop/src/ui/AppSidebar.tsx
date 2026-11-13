@@ -1,4 +1,4 @@
-import { useState, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react';
+import { useId, useState, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react';
 
 /**
  * An app's sidebar (zone 2), in the same order in every app: Search, the app's places in named sections, From Mobius,
@@ -48,7 +48,7 @@ export function SidebarSection({ title, action, children, foldable = false, open
 }
 
 /** One place or item in a section: an icon, its name, a count, and whether it is the one showing. */
-export function SidebarRow({ icon, label, sub, count, current = false, proposed = false, onSelect, onContextMenu, title }: {
+export function SidebarRow({ icon, label, sub, count, current = false, proposed = false, onSelect, onContextMenu, title, trail }: {
   icon?: ReactNode;
   label: string;
   /** A second, quieter line under the name (a note's first words, a date). */
@@ -61,16 +61,31 @@ export function SidebarRow({ icon, label, sub, count, current = false, proposed 
   onSelect: () => void;
   onContextMenu?: (event: MouseEvent<HTMLButtonElement>) => void;
   title?: string;
+  /** Extra controls drawn after the row button, inside the row (a hover Pin, an inline Confirm). */
+  trail?: ReactNode;
 }) {
+  const subId = useId();
   return (
-    <li>
-      <button type="button" className="list-row" aria-current={current ? 'page' : undefined} data-proposed={proposed || undefined} title={title} onClick={onSelect} onContextMenu={onContextMenu}>
+    <li className={trail === undefined ? undefined : 'ui-side-row-trail'}>
+      <button
+        type="button"
+        className="list-row"
+        aria-current={current ? 'page' : undefined}
+        data-proposed={proposed || undefined}
+        title={title}
+        // With a sub line, the row is still named by its label alone; the sub line describes it.
+        aria-label={sub === undefined ? undefined : label}
+        aria-describedby={sub === undefined ? undefined : subId}
+        onClick={onSelect}
+        onContextMenu={onContextMenu}
+      >
         {icon}
         {sub === undefined
           ? <span className="ui-side-name">{label}</span>
-          : <span className="ui-side-text"><span className="ui-side-name">{label}</span><span className="ui-side-sub">{sub}</span></span>}
+          : <span className="ui-side-text"><span className="ui-side-name">{label}</span><span className="ui-side-sub" id={subId}>{sub}</span></span>}
         {count ? <span className="list-count">{count}</span> : null}
       </button>
+      {trail}
     </li>
   );
 }
