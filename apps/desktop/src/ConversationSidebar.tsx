@@ -11,6 +11,8 @@ import { Turns } from './Rewind';
 import { botFromConversation, mayTouch } from './bot-view';
 import { modeOf } from './approval-modes';
 import { usePreferences } from './usePreferences';
+import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection } from './ui';
+import './conversation-sidebar.css';
 
 interface Props {
   /** Open Settings › Schedules. */
@@ -209,19 +211,12 @@ export function ScheduledList({ onOpen }: { onOpen: () => void }) {
   }, []);
   if (list.length === 0) return null;
   return (
-    <section aria-label="Scheduled">
-      <h3 className="clist-group"><span className="group-toggle"><span>Scheduled</span><span className="group-count">{list.filter((s) => s.enabled).length}</span></span></h3>
-      <ul className="clist" role="list" aria-label="Scheduled requests">
-        {list.map((s) => (
-          <li key={s.id}>
-            <button type="button" className="clist-item scheduled-item" data-off={!s.enabled || undefined} onClick={onOpen} title="Change in Settings › Schedules">
-              <span className="clist-title">{s.title}</span>
-              <span className="scheduled-when">{describeWhen(s.days, s.time)}{s.enabled ? '' : ' · Off'}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <SidebarSection title="Scheduled">
+      {list.map((s) => (
+        <SidebarRow key={s.id} label={s.title} title={`${describeWhen(s.days, s.time)}${s.enabled ? '' : ' · Off'}. Change in Settings › Schedules.`} onSelect={onOpen}
+          icon={<svg viewBox="0 0 20 20" aria-hidden="true" className="side-glyph"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.6" /></svg>} />
+      ))}
+    </SidebarSection>
   );
 }
 
@@ -326,26 +321,14 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
   const [showArchived, setShowArchived] = useState(false);
   const sessionsOf = (id: string) => conversations.filter((c) => botOfConversation(c.id, known) === id);
   return (
-    <aside className="side" aria-label="Conversation list">
-      <div className="side-head">
-        <div className="seg" role="tablist" aria-label="Show">
-          {(['sessions', 'activity', 'bots'] as const).map((m) => (
-            <button key={m} type="button" role="tab" aria-selected={mode === m} className="seg-btn" onClick={() => onMode(m)}>{m === 'sessions' ? 'Sessions' : m === 'activity' ? 'Activity' : 'Agents'}</button>
-          ))}
-        </div>
-        <span className="side-actions">
+    <AppSidebar label="Agent sidebar">
+      {/* Agents and Activity open from the rail; the sidebar shows the list of the one you are in. */}
+      {(pin || (mode !== 'bots' && everything.length > 0)) && (
+        <div className="agent-side-top">
+          {mode !== 'bots' && everything.length > 0 && <SidebarSearch label="Search sessions" placeholder="Search sessions" value={query} onChange={setQuery} />}
           {pin}
-          {mode !== 'bots' ? (
-            <button type="button" className="strip-btn" aria-label="New conversation" title={grouped ? `New session with ${bots.find((b) => b.id === activeBot)?.name ?? 'Mobius'}` : 'New conversation'} disabled={!canStartNew} onClick={onNew}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-            </button>
-          ) : (
-            <button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => setAdding(true)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-            </button>
-          )}
-        </span>
-      </div>
+        </div>
+      )}
       {mode === 'activity' ? (
         <ActivityBoard conversations={conversations} active={active} onSelect={onSelect} onDelete={onDelete} onOpenSchedules={onOpenSchedules} />
       ) : mode === 'bots' ? (
@@ -353,18 +336,17 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
           {(adding || fromConversation) && (
             <BotForm key={fromConversation ? `from:${fromConversation.name}` : 'new'} initial={fromConversation ?? { name: '', instructions: '', model: '' }} submitLabel="Create" onCancel={() => { setAdding(false); setFromConversation(null); }} onSubmit={async (draft) => { const r = await onCreateBot(draft); if (!r.ok) return r.error; setAdding(false); setFromConversation(null); onNewWithBot(r.bot.id); onMode('sessions'); return null; }} />
           )}
-          <ul className="clist" role="list" aria-label="Agents">
+          <SidebarSection title="Agents" action={<button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => setAdding(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>}>
             {bots.map((bot, index) => (
               <BotRow key={bot.id} bot={bot} first={index <= 1} last={index === bots.length - 1} onMove={onMoveBot} sessions={sessionsOf(bot.id).length} current={bot.id === activeBot} onOpen={() => { onOpenBot(bot.id); onMode('sessions'); }} onNew={() => { onNewWithBot(bot.id); onMode('sessions'); }} onUpdate={onUpdateBot} onRemove={onRemoveBot} />
             ))}
-          </ul>
+          </SidebarSection>
           <p className="srow-empty side-empty">An agent is Mobius with its own instructions, and optionally its own model. Each keeps its own sessions.</p>
         </>
       ) : everything.length === 0 ? (
         <p className="srow-empty side-empty">Nothing saved yet. Conversations appear here once you send a message.</p>
       ) : (
         <>
-          <input type="search" className="side-search" aria-label="Search sessions" placeholder="Search sessions" value={query} onChange={(e) => setQuery(e.target.value)} />
           {bots.map((bot) => {
             const all = sessionsOf(bot.id);
             const rows = needle ? all.filter((c) => c.title.toLowerCase().includes(needle)) : all;
@@ -417,6 +399,6 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
           {needle && bots.every((bot) => !sessionsOf(bot.id).some((c) => c.title.toLowerCase().includes(needle))) && <p className="srow-empty side-empty">No session matches “{query.trim()}”.</p>}
         </>
       )}
-    </aside>
+    </AppSidebar>
   );
 }

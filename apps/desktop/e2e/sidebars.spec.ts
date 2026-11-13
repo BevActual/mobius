@@ -122,13 +122,13 @@ test('the conversation list in the Agent app floats and resizes the same way', a
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
   await shell().keyboard.press('Enter');
-  await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toBeVisible();
-  await shell().getByRole('complementary', { name: 'Conversation list' }).getByRole('button', { name: 'Float the list' }).click();
+  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toBeVisible();
+  await shell().getByRole('complementary', { name: 'Agent sidebar' }).getByRole('button', { name: 'Float the list' }).click();
   await shell().keyboard.press('Escape');
   await shell().locator('.context-strip').click({ position: { x: 4, y: 4 } });
-  await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toHaveCount(0);
+  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toHaveCount(0);
   await shell().getByRole('button', { name: 'Show conversations' }).click();
-  await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toBeVisible();
 });
 
 test('a sidebar can be dragged wider and narrower, within limits, and the width is kept', async () => {

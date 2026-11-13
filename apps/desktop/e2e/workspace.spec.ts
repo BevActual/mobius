@@ -263,8 +263,8 @@ test('Mobius’s own apps sit at the foot of the rail: Agents and Activity open 
   await start();
   const own = rail().locator('.rail-end');
   await own.getByRole('button', { name: 'Agents', exact: true }).click();
-  const side = shell().getByRole('complementary', { name: 'Conversation list' });
-  await expect(side.getByRole('tab', { name: 'Agents' })).toHaveAttribute('aria-selected', 'true');
+  const side = shell().getByRole('complementary', { name: 'Agent sidebar' });
+  await expect(side.getByRole('region', { name: 'Agents' })).toBeVisible();
   await expect(own.getByRole('button', { name: 'Agents', exact: true })).toHaveAttribute('aria-current', 'page');
   // Only Agents is where you are: not Agent too.
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
@@ -274,7 +274,8 @@ test('Mobius’s own apps sit at the foot of the rail: Agents and Activity open 
   await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
   // Agent itself opens on the conversations.
   await railButton('Agent').click();
-  await expect(side.getByRole('tab', { name: 'Sessions' })).toHaveAttribute('aria-selected', 'true');
+  await expect(railButton('Agent')).toHaveAttribute('aria-current', 'page');
+  await expect(side.getByRole('region', { name: 'Agents' })).toHaveCount(0);
   await own.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
 });
