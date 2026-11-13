@@ -12,6 +12,7 @@ import { RowMark } from './RowMark';
 import { AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import { isConnectorName, splitArgs, suggestName } from './connector-form';
 import { dateTimeLabel } from './dates';
+import { EmptyState } from './EmptyState';
 import './abilities.css';
 
 /**
@@ -173,7 +174,7 @@ export function SkillList({ skills }: { skills: SkillsState }) {
   return (
     <section className="skills-page abl-page" aria-label="Skills">
       {!skills.available && <p className="abl-empty">Skills are not available here.</p>}
-      {skills.available && skills.list.length === 0 && <div className="abl-empty-row"><p className="abl-empty">No skills yet.</p><button type="button" className="btn" onClick={requestNewSkill}>New skill</button></div>}
+      {skills.available && skills.list.length === 0 && <EmptyState title="No skills yet" line="A skill is steps Mobius follows when you ask for it." action={{ label: 'New skill', run: requestNewSkill }} />}
       {skills.list.length > 0 && shown.length === 0 && <p className="abl-empty">No skills match “{q.trim()}”.</p>}
       {shown.length > 0 && (
         <ul role="list" className="abl-rows" aria-label="Skills">
@@ -325,14 +326,14 @@ function Connectors() {
       {status?.problem && <p className="field-error abl-problem" role="alert">{status.problem}</p>}
       {problem && <p className="field-error abl-problem" role="alert">{problem}</p>}
       {api && !status && <ConnectorsLoading />}
-      {api && status && rows.length === 0 && <div className="abl-empty-row"><p className="abl-empty">No connectors yet.</p>{api.addConnector && <button type="button" className="btn" onClick={() => addingConnector.set(true)}>Add a connector…</button>}</div>}
+      {api && status && rows.length === 0 && <EmptyState title="No connectors yet" line="A connector gives Mobius another app’s tools." {...(api.addConnector ? { action: { label: 'Add a connector…', run: () => addingConnector.set(true) } } : {})} />}
       {rows.length > 0 && shown.length === 0 && <p className="abl-empty">No connectors match “{q.trim()}”.</p>}
       {shown.length > 0 && (
         <ul className="abl-rows" role="list" aria-label="Connectors">
           {shown.map((r) => (
             <li key={r.name} className="abl-item" aria-label={r.name} tabIndex={api?.removeConnector ? 0 : undefined} onKeyDown={(e) => { if (e.key === 'Delete' && e.target === e.currentTarget && api?.removeConnector) { e.preventDefault(); void remove(r.name); } }} onContextMenu={(e) => { if (!api?.removeConnector) return; e.preventDefault(); setMenu({ name: r.name, x: e.clientX, y: e.clientY }); }}>
               <span className="abl-main">
-                <span className="abl-icon-wrap"><svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon"><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></svg><span className="abl-dot" data-state={r.state} aria-hidden="true" /></span>
+                <span className="abl-icon-wrap"><svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon"><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></svg>{r.state !== 'on' && <span className="abl-dot" data-state={r.state} aria-hidden="true" />}</span>
                 <span className="abl-text"><span className="abl-name">{r.name}</span><span className={r.state === 'failed' ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
               </span>
               {api?.removeConnector && <Menu label={`${r.name} actions`} align="end" entries={entries(r.name)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${r.name}`} title="More actions"><MoreGlyph /></button>} />}
