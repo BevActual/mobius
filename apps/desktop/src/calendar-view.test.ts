@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
 import { setLocaleForTests } from './dates';
-import { dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, searchEvents, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -162,5 +162,26 @@ describe('what Mobius changed in a calendar file', () => {
     const before = file('BEGIN:VEVENT\r\nUID:t\r\nDTSTART;VALUE=DATE:20261112\r\nSUMMARY:A long\r\n  trip\r\nEND:VEVENT\r\n');
     expect(eventsInFile(before).get('t')).toEqual({ title: 'A long trip', start: '20261112' });
     expect(changedSince(before, [{ ...at('t', 'A long trip', '2026-11-12'), allDay: true }])).toEqual([]);
+  });
+});
+
+describe('searching events', () => {
+  const at = (id: string, title: string, start: string, extra: Partial<CalendarEvent> = {}): CalendarEvent => ({ ...ev(title, start, start), id, ...extra });
+  const today = day('2026-11-12');
+  it('matches every word in the title, place or notes, each event once at its next time', () => {
+    const events = [
+      at('a', 'Crash test', '2026-11-15T09:00', { location: 'Northfield sled' }),
+      at('r', 'Standup', '2026-11-10T09:30', { repeats: true }), at('r', 'Standup', '2026-11-13T09:30', { repeats: true }), at('r', 'Standup', '2026-11-14T09:30', { repeats: true }),
+      at('b', 'Motor call', '2026-11-11T10:00', { notes: 'Ask Sam about the sled' }),
+      at('c', 'Lunch', '2026-11-12T12:30'),
+    ];
+    expect(searchEvents(events, 'sled', today).map((e) => e.id)).toEqual(['b', 'a']);
+    expect(searchEvents(events, 'SLED north', today).map((e) => e.id)).toEqual(['a']);
+    expect(searchEvents(events, 'standup', today).map((e) => e.start)).toEqual(['2026-11-13T09:30']);
+    expect(searchEvents(events, '  ', today)).toEqual([]);
+  });
+  it('shows a past repeating event by its latest time', () => {
+    const past = [at('r', 'Retro', '2026-10-01T16:00', { repeats: true }), at('r', 'Retro', '2026-10-15T16:00', { repeats: true })];
+    expect(searchEvents(past, 'retro', today).map((e) => e.start)).toEqual(['2026-10-15T16:00']);
   });
 });

@@ -101,7 +101,7 @@ function useLoaded<T>(load: () => Promise<T>, empty: T): { value: T; reload: () 
 
 // ---- Appearance ----------------------------------------------------------------------------------------------
 
-const THEMES: Array<{ id: ThemeChoice; label: string }> = [{ id: 'system', label: 'System' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }];
+const THEMES: Array<{ id: ThemeChoice; label: string }> = [{ id: 'system', label: 'System' }, { id: 'light', label: 'Light' }, { id: 'mid', label: 'Mid grey' }, { id: 'dark', label: 'Dark' }, { id: 'cool', label: 'Cool dark' }];
 
 function Slider({ label, value, range, step, onCommit, format }: { label: string; value: number; range: { min: number; max: number }; step: number; onCommit: (value: number) => void; format: (value: number) => string }) {
   const [local, setLocal] = useState(value);
@@ -221,7 +221,7 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
     );
   }
   return (
-    <Row path={path('theme')} title="Theme" description="Follow the system, or always use light or dark." highlight={highlight === 'theme'}>
+    <Row path={path('theme')} title="Theme" description="Follow the system (light by day, dark by night), or always use Light, Mid grey, Dark or Cool dark." highlight={highlight === 'theme'}>
       <Choice label="Theme" name="theme" value={appearance.theme} options={THEMES} onChange={(theme) => set({ theme })} />
     </Row>
   );

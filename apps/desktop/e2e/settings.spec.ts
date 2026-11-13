@@ -121,11 +121,11 @@ test('theme: choosing dark changes the whole app, and it is remembered', async (
   await start([]);
   await openSettings();
   await go('Appearance', 'Theme');
-  await page().getByRole('radio', { name: 'Dark' }).check();
+  await page().getByRole('radio', { name: 'Dark', exact: true }).check();
   // A hidden window never repaints, so its media query does not update; the main process is the source of truth.
   await expect.poll(() => windowIsDark(mobius!.app)).toBe(true);
   expect(JSON.parse(fs.readFileSync(path.join(mobius!.userData, 'appearance.json'), 'utf8')).theme).toBe('dark');
-  await page().getByRole('radio', { name: 'Light' }).check();
+  await page().getByRole('radio', { name: 'Light', exact: true }).check();
   // A hidden window never repaints, so its media query does not update; the main process is the source of truth.
   await expect.poll(() => windowIsDark(mobius!.app)).toBe(false);
 });

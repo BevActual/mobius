@@ -6,7 +6,7 @@ import { onCommand } from './commands';
 import { useMorphIn } from './motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
-import { addDays, dayLabel, parseDayText, parseTimeText, timeLabel, weekStart, allDayOn, atMinutes, calendarColor, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { addDays, dayLabel, parseDayText, parseTimeText, timeLabel, weekStart, allDayOn, atMinutes, calendarColor, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
@@ -14,6 +14,8 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { useCalendarReview, type CalendarReview } from './useCalendarReview';
 import type { Start } from './SideNew';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, ViewSwitch } from './ui';
+import { FromMobius } from './FromMobius';
 
 const HOUR_PX = 48;
 /** The hours' margin: wide enough for "10:20 AM" on the 12-hour clock. */
@@ -86,10 +88,10 @@ function AccountDialog({ calendar, onClose }: { calendar: CalendarState; onClose
   );
 }
 
-function CalendarRow({ calendar, name }: { calendar: CalendarState; name: string }) {
+function CalendarRow({ calendar, name, proposed = false }: { calendar: CalendarState; name: string; proposed?: boolean }) {
   return (
     <li>
-      <label className="calendar-row">
+      <label className="calendar-row" data-proposed={proposed || undefined}>
         <input type="checkbox" checked={!calendar.hidden.has(name)} onChange={() => calendar.toggle(name)} style={{ ['--swatch' as string]: calendarColor(calendar.calendars, name) }} />
         <span className="list-name">{name}</span>
         {calendar.readOnly(name) && <svg className="cal-lock" viewBox="0 0 20 20" role="img" aria-label="Read only"><rect x="5" y="9" width="10" height="8" rx="1.5" /><path d="M7.5 9V7a2.5 2.5 0 0 1 5 0v2" /></svg>}
@@ -149,72 +151,87 @@ function MiniMonth({ calendar }: { calendar: CalendarState }) {
 }
 
 /** The calendars, each with its colour (unticked ones are hidden), grouped by where they are kept. */
-export function CalendarSidebar({ calendar, pin }: { calendar: CalendarState; pin?: ReactNode; onNew?: () => void; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
+export function CalendarSidebar({ calendar, pin, changed }: { calendar: CalendarState; pin?: ReactNode; /** Calendars Mobius's last turn changed, waiting to be kept. */ changed?: ReadonlySet<string>; onNew?: () => void; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [adding, setAdding] = useState(false);
+  const [query, setQuery] = useState('');
   useEffect(() => onCommand('new-calendar', () => setNaming(true)), []);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (await calendar.createCalendar(name.trim() || 'Calendar')) { setNaming(false); setName(''); }
   };
   const local = calendar.sources.length > 0 ? calendar.sources.filter((s) => s.account === null).map((s) => s.name) : calendar.calendars;
+  const row = (c: string) => <CalendarRow key={c} calendar={calendar} name={c} proposed={changed?.has(c) ?? false} />;
   return (
-    <aside className="side calendar-side" aria-label="Calendar sidebar">
-      <div className="side-head">
-        <span className="side-title" title="Your own calendars are kept as .ics files in your workspace, so any calendar app can open them.">Calendars</span>
-        <span className="side-actions">
-          {pin}
-          <button type="button" className="strip-btn" aria-label="New calendar" title="New calendar" onClick={() => setNaming(true)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-          </button>
-        </span>
-      </div>
-      <div className="calendar-groups">
-        <MiniMonth calendar={calendar} />
-        <ul className="calendar-list" role="list" aria-label="Calendars">
-          {local.map((c) => <CalendarRow key={c} calendar={calendar} name={c} />)}
-        </ul>
-        {naming && (
-          <form className="notes-name" onSubmit={(e) => void submit(e)}>
-            <input autoFocus aria-label="Calendar name" placeholder="Calendar name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
-            <button type="submit" className="btn primary">Create</button>
-          </form>
-        )}
-        {calendar.accounts.map((a) => {
-          const names = calendar.sources.filter((s) => s.account === a.name).map((s) => s.name);
-          return (
-            <section key={a.id} className="calendar-account" aria-label={a.name}>
-              <div className="calendar-account-head">
-                <span className="calendar-account-name">{a.name}</span>
-                <button type="button" className="strip-btn" aria-label={`Refresh ${a.name}`} title="Refresh now" disabled={calendar.syncing} onClick={() => void calendar.sync(a.id)}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
-                </button>
-                <button type="button" className="strip-btn" aria-label={`Remove ${a.name}`} title="Remove this account from Mobius" onClick={() => void calendar.removeAccount(a.id)}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
-                </button>
-              </div>
-              {a.problem && <p className="calendar-account-problem" role="alert">{a.problem}</p>}
-              <ul className="calendar-list" role="list" aria-label={`${a.name} calendars`}>
-                {names.map((c) => <CalendarRow key={c} calendar={calendar} name={c} />)}
-              </ul>
-            </section>
-          );
-        })}
-        {window.mobius.tasks && (
-          <ul className="calendar-list" role="list" aria-label="Also show">
-            <li>
-              <label className="calendar-row">
-                <input type="checkbox" checked={calendar.showTasks} onChange={calendar.toggleTasks} style={{ ['--swatch' as string]: 'var(--muted)' }} />
-                <span className="list-name">Tasks with due dates</span>
-              </label>
-            </li>
-          </ul>
-        )}
-        <button type="button" className="calendar-add-account" onClick={() => setAdding(true)}>Add a calendar account…</button>
-      </div>
+    <AppSidebar label="Calendar sidebar">
+      <SidebarSearch label="Search events" value={query} onChange={setQuery} />
+      {query.trim() ? <EventSearch calendar={calendar} query={query} /> : (
+        <div className="calendar-groups">
+          <MiniMonth calendar={calendar} />
+          <SidebarSection title="Calendars" action={<>{pin}<button type="button" className="strip-btn" aria-label="New calendar" title="New calendar" onClick={() => setNaming(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button></>}>
+            {local.map(row)}
+          </SidebarSection>
+          {naming && (
+            <form className="notes-name" onSubmit={(e) => void submit(e)}>
+              <input autoFocus aria-label="Calendar name" placeholder="Calendar name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
+              <button type="submit" className="btn primary">Create</button>
+            </form>
+          )}
+          {calendar.accounts.map((a) => (
+            <SidebarSection key={a.id} title={a.name} action={<>
+              <button type="button" className="strip-btn" aria-label={`Refresh ${a.name}`} title="Refresh now" disabled={calendar.syncing} onClick={() => void calendar.sync(a.id)}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
+              </button>
+              <button type="button" className="strip-btn" aria-label={`Remove ${a.name}`} title="Remove this account from Mobius" onClick={() => void calendar.removeAccount(a.id)}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
+              </button>
+            </>}>
+              {a.problem && <li className="calendar-account-problem" role="alert">{a.problem}</li>}
+              {calendar.sources.filter((s) => s.account === a.name).map((s) => row(s.name))}
+            </SidebarSection>
+          ))}
+          {window.mobius.tasks && (
+            <SidebarSection title="Also show">
+              <li>
+                <label className="calendar-row">
+                  <input type="checkbox" checked={calendar.showTasks} onChange={calendar.toggleTasks} style={{ ['--swatch' as string]: 'var(--muted)' }} />
+                  <span className="list-name">Tasks with due dates</span>
+                </label>
+              </li>
+            </SidebarSection>
+          )}
+          <button type="button" className="calendar-add-account" onClick={() => setAdding(true)}>Add a calendar account…</button>
+        </div>
+      )}
+      <FromMobius items={calendar.calendars.filter((c) => changed?.has(c)).map((c) => ({ key: c, name: c, onOpen: () => {} }))} />
       {adding && createPortal(<div className="cal-modal-layer"><AccountDialog calendar={calendar} onClose={() => setAdding(false)} /></div>, document.body)}
-    </aside>
+    </AppSidebar>
+  );
+}
+
+/** What the sidebar's search found: each event once, with its day, soonest first. Picking one goes to its day. */
+function EventSearch({ calendar, query }: { calendar: CalendarState; query: string }) {
+  const [all, setAll] = useState<CalendarEvent[] | null>(null);
+  // Read once per search, as far as the core answers (30 days back, a year ahead), so it finds what is not on screen.
+  useEffect(() => {
+    let live = true;
+    const today = new Date();
+    void window.mobius.calendar?.events(isoDay(addDays(today, -30)), isoDay(addDays(today, 365))).then((got) => { if (live) setAll(isNotesFailure(got) ? [] : got.filter((e) => !calendar.hidden.has(e.calendar))); });
+    return () => { live = false; };
+  }, [calendar.hidden]); // eslint-disable-line react-hooks/exhaustive-deps
+  const found = all ? searchEvents(all, query, new Date()) : [];
+  return (
+    <div className="calendar-groups">
+      <SidebarSection title="Events">
+        {found.map((e) => (
+          <SidebarRow key={e.id} label={e.title} title={`${formatWith(localDate(e.start), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}${e.allDay ? '' : `, ${clock(e.start)}`}${e.location ? `\n${e.location}` : ''}`}
+            icon={<span className="cal-hit-day" style={{ ['--event' as string]: calendarColor(calendar.calendars, e.calendar) }}>{formatWith(localDate(e.start), { day: 'numeric', month: 'short' })}</span>}
+            onSelect={() => calendar.setAnchor(localDate(e.start))} />
+        ))}
+      </SidebarSection>
+      {all && found.length === 0 && <p className="calendar-side-note" role="status">No events match “{query.trim()}”.</p>}
+    </div>
   );
 }
 
@@ -915,7 +932,27 @@ function whenSaid(p: { start: string; end: string; allDay: boolean }): string {
 }
 
 /** A new event typed in words, such as "Lunch with Sam fri 1pm"; what it will add shows before Enter. */
-function QuickAdd({ calendar, into, onAdded }: { calendar: CalendarState; into: string; onAdded: (start: string) => void }) {
+/** The toolbar's +: an event said in words ("Lunch fri 1pm"), typed in a field that opens beneath it, as in Calendar. */
+function QuickEvent({ calendar, into, onAdded }: { calendar: CalendarState; into: string; onAdded: (start: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const self = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (e: PointerEvent) => { if (!self.current?.contains(e.target as Node)) setOpen(false); };
+    window.addEventListener('pointerdown', away, true);
+    return () => window.removeEventListener('pointerdown', away, true);
+  }, [open]);
+  return (
+    <div ref={self} className="cal-quick-at">
+      <button type="button" className="cal-quick-btn" aria-label="Quick event" aria-expanded={open} title="Add an event in words, such as “Lunch fri 1pm”" onClick={() => setOpen((o) => !o)}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
+      </button>
+      {open && <QuickAdd calendar={calendar} into={into} onAdded={(start) => { setOpen(false); onAdded(start); }} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+function QuickAdd({ calendar, into, onAdded, onClose }: { calendar: CalendarState; into: string; onAdded: (start: string) => void; onClose: () => void }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLInputElement>(null);
@@ -930,7 +967,7 @@ function QuickAdd({ calendar, into, onAdded }: { calendar: CalendarState; into: 
   };
   return (
     <form className="cal-quick" role="search" aria-label="Quick add" onSubmit={(e) => void submit(e)}>
-      <input ref={field} aria-label="Quick add an event" aria-describedby="cal-quick-hint" placeholder="Lunch fri 1pm" value={text} maxLength={200} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { setText(''); field.current?.blur(); } }} />
+      <input ref={field} autoFocus aria-label="Quick add an event" aria-describedby="cal-quick-hint" placeholder="Lunch fri 1pm" value={text} maxLength={200} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { setText(''); onClose(); } }} />
       {text.trim() && (
         <p id="cal-quick-hint" className="cal-quick-hint" role="status" data-ok={parsed ? true : undefined}>
           {parsed ? <><b>{parsed.title}</b> <span>{whenSaid(parsed)} · {into}</span> <kbd>↵</kbd></> : 'Add a day or a time, such as “tomorrow 9am” or “fri 2-3pm”.'}
@@ -1116,28 +1153,23 @@ export function CalendarPage({ calendar, newToken = 0, review = null }: { calend
 
   return (
     <section className="calendar-page" aria-label="Calendar" ref={page}>
-      <header className="cal-head">
-        <div className="cal-head-start">
+      <ToolbarControls label="Calendar">
+        <div className="cal-tools">
+          <div className="cal-tools-row">
           <div className="cal-step cap-group" role="group" aria-label="Go to">
-          <button type="button" className="strip-btn" aria-label="Back" title="Back (←)" onClick={() => calendar.setAnchor(step(calendar.mode, calendar.anchor, -1))}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg>
-          </button>
-          <button type="button" className="btn" title="Today (T)" onClick={() => calendar.setAnchor(new Date())}>Today</button>
-          <button type="button" className="strip-btn" aria-label="Forward" title="Forward (→)" onClick={() => calendar.setAnchor(step(calendar.mode, calendar.anchor, 1))}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
-          </button>
+            <button type="button" className="strip-btn" aria-label={`Previous ${calendar.mode}`} title="Back (←)" onClick={() => calendar.setAnchor(step(calendar.mode, calendar.anchor, -1))}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg>
+            </button>
+            <button type="button" className="btn" title="Today (T)" onClick={() => calendar.setAnchor(new Date())}>Today</button>
+            <button type="button" className="strip-btn" aria-label={`Next ${calendar.mode}`} title="Forward (→)" onClick={() => calendar.setAnchor(step(calendar.mode, calendar.anchor, 1))}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
+            </button>
+          </div>
+          <ViewSwitch label="View" views={MODES} value={calendar.mode} onChange={calendar.setMode} />
+          <QuickEvent calendar={calendar} into={into} onAdded={(start) => calendar.setAnchor(localDate(start))} />
           </div>
         </div>
-        <div className="segmented" role="radiogroup" aria-label="View">
-          {MODES.map((m) => <button key={m.id} type="button" role="radio" aria-checked={calendar.mode === m.id} title={`${m.name} (${m.name[0]})`} onClick={() => calendar.setMode(m.id)}>{m.name}</button>)}
-        </div>
-        <div className="cal-head-end">
-          <QuickAdd calendar={calendar} into={into} onAdded={(start) => calendar.setAnchor(localDate(start))} />
-          <button type="button" className="cal-new" aria-label="New event" title="New event (N)" onClick={create}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-          </button>
-        </div>
-      </header>
+      </ToolbarControls>
       {review && firstChange && (
         <div className="note-review cal-review" role="status">
           <span className="review-dot" aria-hidden="true" />
@@ -1152,15 +1184,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null }: { calend
         ? <MonthGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} picking={picking} onSlotMenu={slotMenu} onEmpty={() => setSelected(null)} />
         : <TimeGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} picking={picking} pending={pending} onSlotMenu={slotMenu} onEmpty={() => setSelected(null)} />}
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={() => setMenu(null)} />, document.body)}
-      {undoable && (
-        <p className="cal-undo" role="status">
-          <span>{undoable.text}</span>
-          <button type="button" className="review-btn" onClick={() => void takeBack()}>Undo</button>
-          <button type="button" className="strip-btn" aria-label="Dismiss" onClick={() => setUndoable(null)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
-          </button>
-        </p>
-      )}
+      {undoable && <UndoToast text={undoable.text} onUndo={() => void takeBack()} onDismiss={() => setUndoable(null)} />}
       {/* Closing one suggestion never closes the next: its answer can finish after another was opened. */}
       {asking && <SuggestionPopover key={asking.id} calendar={calendar} id={asking.id} at={asking.at} onClose={() => { const id = asking.id; setAsking((a) => (a?.id === id ? null : a)); }} />}
       {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} />}
