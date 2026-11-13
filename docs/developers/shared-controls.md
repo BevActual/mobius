@@ -32,7 +32,7 @@ There is no Tailwind. Colours, sizes, spaces and timings come only from `tokens.
 | `AppFrame` | used by `App.tsx` only | The five zones every app sits in. Apps do not render it; they fill its parts with the pieces above |
 
 Each row (`MenuEntry`) has a `label`, a `run`, and optionally an `icon`, `keys` (its shortcut), `danger`, `disabled`
-and `separated` (a line before it), and `checked` for a row that is on or off (it then shows a tick). The chosen row runs after the menu has closed, so focus can go where the row sends it.
+and `separated` (a line before it), and `checked` for a row that is on or off (it then shows a tick). The chosen row runs at once as the menu goes (a copy of it fades out in place), so focus goes where the row sends it and keys typed straight after land there, not in the menu.
 
 More controls (Popover, Dialog, Switch, Segmented, Select, Tabs) are added one at a time.
 
