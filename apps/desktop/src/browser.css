@@ -22,6 +22,12 @@
 @container (max-width: 260px) {
   .browser-chrome > [aria-label="This page"], .browser-chrome > .selection-menu-wrap { display: none; }
 }
+/* Find needs room for its field, count and three buttons; in a narrow toolbar it takes the row while it is open. */
+.browser-chrome > .findbar { flex: 0 0 auto; }
+@container (max-width: 520px) {
+  .browser-chrome:has(> .findbar) > :not(.findbar) { display: none; }
+  .browser-chrome > .findbar { flex: 1 1 auto; margin-left: 0; }
+}
 .browser-side .tab { position: relative; height: 32px; }
 .browser-side .tab-main { height: 32px; padding: 0 8px; gap: 9px; color: var(--ink); }
 /* Plain rows, as the other sidebars: the hover and the selection are the sidebar's own greys. */
