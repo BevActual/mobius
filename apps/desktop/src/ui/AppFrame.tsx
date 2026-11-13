@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
+import { PanelRegistryContext, type PanelsOfApp } from './PanelLayout';
 import { createPortal } from 'react-dom';
 
 /**
@@ -24,6 +25,8 @@ export interface ToolbarParts {
   trail?: ReactNode;
   /** Changes how the title row lays out (the browser's address takes the room). */
   wideMiddle?: boolean;
+  /** The Panels menu, at the end of the middle: given the open app's own panels (none when it has none). */
+  panels?: (app: PanelsOfApp | null) => ReactNode;
 }
 
 interface FrameProps {
@@ -42,7 +45,9 @@ const ToolbarSlot = createContext<HTMLElement | null>(null);
 
 export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  const [panels, setPanels] = useState<PanelsOfApp | null>(null);
   return (
+    <PanelRegistryContext.Provider value={setPanels}>
     <ToolbarSlot.Provider value={slot}>
       <div className="app" style={style} {...data}>
         {rail}
@@ -54,12 +59,14 @@ export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
           </div>
           {toolbar.middle}
           <div ref={setSlot} className="ui-toolbar-slot" />
+          {toolbar.panels?.(panels)}
           {toolbar.status}
           <div className="strip-right" role="group" aria-label="Applications">{toolbar.trail}</div>
         </header>
         {children}
       </div>
     </ToolbarSlot.Provider>
+    </PanelRegistryContext.Provider>
   );
 }
 

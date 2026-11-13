@@ -67,3 +67,28 @@
 .ui-side-fold { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 0; border: 0; background: none; color: inherit; font: inherit; }
 .ui-side-fold svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform var(--dur-fast) var(--ease); }
 .ui-side-fold[aria-expanded="true"] svg { transform: rotate(90deg); }
+
+/* Panels (PanelLayout): docks beside an app's content. The bottom dock runs under the content only; the right dock
+   sits beside it, before Mobius. Docked surfaces are frame, set off by one hairline; no shadows. */
+.ui-panels { display: flex; height: 100%; min-width: 0; min-height: 0; }
+.ui-panels-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.ui-panels-content { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.ui-panels-content > * { flex: 1; min-height: 0; }
+.ui-dock { position: relative; flex: none; display: flex; min-width: 0; min-height: 0; background: var(--frame, var(--sidebar)); }
+.ui-dock[data-dock="right"] { flex-direction: column; border-left: var(--hairline-w) solid var(--line); }
+.ui-dock[data-dock="bottom"] { flex-direction: row; border-top: var(--hairline-w) solid var(--line); }
+.ui-dock > .ui-panel { flex: 1; min-width: 0; min-height: 0; }
+.ui-dock[data-dock="right"] > .ui-panel + .ui-panel { border-top: var(--hairline-w) solid var(--line); }
+.ui-dock[data-dock="bottom"] > .ui-panel + .ui-panel { border-left: var(--hairline-w) solid var(--line); }
+.ui-panel { display: flex; flex-direction: column; }
+.ui-panel-head { flex: none; display: flex; align-items: center; gap: var(--sp-2); height: var(--panel-head-h, var(--control-h)); padding: 0 var(--sp-1) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); }
+.ui-panel-name { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.ui-panel-close { display: inline-grid; place-items: center; width: var(--sp-6); height: var(--sp-6); padding: 0; border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); }
+.ui-panel-close:hover { background: var(--soft); color: var(--ink); }
+.ui-panel-close svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.ui-panel-body { flex: 1; min-height: 0; overflow: auto; background: var(--bg); }
+.ui-dock-edge { position: absolute; z-index: 2; touch-action: none; }
+.ui-dock[data-dock="right"] > .ui-dock-edge { top: 0; bottom: 0; left: calc(-1 * var(--sp-1)); width: var(--sp-2); cursor: col-resize; }
+.ui-dock[data-dock="bottom"] > .ui-dock-edge { left: 0; right: 0; top: calc(-1 * var(--sp-1)); height: var(--sp-2); cursor: row-resize; }
+.ui-dock-edge:focus-visible { outline: var(--hairline-w) solid var(--ink); outline-offset: calc(-1 * var(--sp-1)); }
+.ui-menu-tick { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
