@@ -93,7 +93,7 @@
 .calendar-page .cal-month-cell .cal-event[data-compact]:not([data-all-day]) { background: transparent; border-left: 0; padding-left: 4px; color: var(--ink); }
 .calendar-page .cal-month-cell .cal-event[data-compact]:not([data-all-day])::before { content: ""; flex: none; align-self: center; width: 7px; height: 7px; border-radius: 50%; background: var(--event); }
 .calendar-page .cal-month-cell .cal-event[data-compact]:not([data-all-day]):hover { background: var(--soft); }
-.calendar-page .cal-month-cell .cal-event[data-suggested][data-compact] { color: var(--accent); }
+.calendar-page .cal-month-cell .cal-event[data-suggested][data-compact] { color: var(--mobius); }
 .calendar-page .cal-more { font-weight: 600; }
 
 /* Undo, floating at the foot of the page like a toast. */
@@ -142,7 +142,7 @@
 
 /* A suggestion opens beside its dashed event, as an event's popover does in Calendar. */
 .cal-suggest-pop { position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: var(--bg); color: var(--ink); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.2), 0 0 0 0.5px var(--line); font-size: var(--fs-sm); }
-.cal-suggest-pop-head { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--accent); }
+.cal-suggest-pop-head { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--mobius); }
 .cal-suggest-pop-title { font-size: 15px; font-weight: 600; }
 .cal-suggest-pop-when { color: var(--muted); font-size: var(--fs-xs); }
 .cal-suggest-pop .review-why { margin: 4px 0 0; }

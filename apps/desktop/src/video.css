@@ -68,7 +68,7 @@
 .video-shot[data-playing]::after { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
 .video-shot[aria-selected="true"] { z-index: 2; }
 .video-shot[aria-selected="true"]::after { box-shadow: 0 0 0 2.5px #ffcc00; }
-.video-shot[data-proposed]::after { box-shadow: none; outline: 2px dashed var(--accent); outline-offset: -2px; }
+.video-shot[data-proposed]::after { box-shadow: none; outline: 2px dashed var(--mobius); outline-offset: -2px; }
 .video-shot:focus-visible { outline: none; }
 .video-shot:focus-visible::after { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent); }
 .video-shot[draggable="true"]:active { cursor: grabbing; }

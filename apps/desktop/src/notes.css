@@ -122,7 +122,7 @@
 .note-comments ul { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 6px; }
 .note-comment { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 3.5%, transparent); }
 .note-comment[data-resolved] { opacity: 0.65; }
-.note-comment[data-by="mobius"] { border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
+.note-comment[data-by="mobius"] { border: 1px dashed color-mix(in srgb, var(--mobius) 55%, transparent); }
 .note-comment-body { flex: 1; min-width: 0; display: grid; gap: 3px; text-align: left; }
 .note-comment-body:disabled { cursor: default; color: inherit; }
 .note-comment-text { white-space: pre-wrap; overflow-wrap: anywhere; }

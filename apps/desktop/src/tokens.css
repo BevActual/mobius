@@ -1,8 +1,8 @@
 /*
  * Mobius design tokens. Every size, space, colour and motion value the interface uses comes from here, so the
  * applications look like one product. Grounded in Apple's Human Interface Guidelines (macOS): a 4-pt grid, a small
- * type scale, semantic colours with a dark counterpart, and quick, interruptible motion. Mobius 2 (macOS 27 era):
- * capsule controls, an edge-to-edge sidebar, one unified toolbar, and indigo as the single accent.
+ * type scale, semantic colours with a dark counterpart, and quick, interruptible motion. The timeless theme
+ * (docs/design/theme-tokens.md): a flat neutral frame, ink for controls and state, indigo only for Mobius.
  */
 :root {
   color-scheme: light dark;
@@ -29,12 +29,12 @@
   --sp-6: 24px;
   --sp-8: 32px;
 
-  /* Shape. Mobius 2: rounded, like macOS 27. Controls are capsules; lists and cards use soft corners. */
-  --radius-small: 4px;
-  --radius-control: 8px;
-  --radius-group: 10px;
-  --radius-panel: 14px;
-  --radius-sheet: 18px;
+  /* Shape: small, plain corners. A button is a 6px rectangle; pills only for things round by nature. */
+  --radius-small: 3px;
+  --radius-control: 6px;
+  --radius-group: 6px;
+  --radius-panel: 8px;
+  --radius-sheet: 8px;
   --radius-pill: 999px;
   --control-h: 28px;
   --control-h-lg: 36px;
@@ -42,7 +42,7 @@
   --menu-row-h: 30px;
   --menu-min-w: 200px;
   --menu-pad: 5px;
-  --hairline-w: 0.5px;
+  --hairline-w: 1px;
 
   /*
    * Colour roles: the timeless theme (docs/design/theme-tokens.md). The frame is neutral, controls and state are ink,
@@ -84,8 +84,8 @@
 
   /*
    * Today's names, kept as aliases while apps move over to the names above. New code uses the new names.
-   * --accent still means "the primary action, the current place, the agent"; it is being split into --ink and
-   * --mobius one use at a time.
+   * --accent is now ink: the primary action and the current place. Anything Mobius made, proposes or is doing uses
+   * --mobius by name.
    */
   --bg: var(--paper);
   --panel: var(--paper);
@@ -96,13 +96,14 @@
   --soft: var(--sel);
   --hairline: var(--line);
   --line-strong: var(--faint);
-  --accent: var(--mobius);
-  --on-accent: var(--on-mobius);
-  --wash: var(--mobius-wash);
+  --accent: var(--ink);
+  --on-accent: var(--on-ink);
+  --wash: var(--sel);
   --danger: var(--red);
   --danger-wash: var(--red-wash);
-  --field: rgba(0, 0, 0, 0.045);
-  --capsule: rgba(255, 255, 255, 0.78);
+  /* A quiet neutral fill (fields, tags, code); buttons sit on the frame with no fill until hovered. */
+  --field: color-mix(in srgb, var(--ink) 5%, transparent);
+  --capsule: transparent;
 
   /* Density: comfortable here, compact under data-density. The rail stays the same in both. */
   --row-h: 30px;
@@ -115,11 +116,11 @@
   --dock-h: 260px;
 
   /* Elevation. */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08);
-  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
-  --shadow-3: 0 14px 44px rgba(0, 0, 0, 0.3);
-  /* A menu over the page: its glass edge, and a soft drop shadow. */
-  --shadow-menu: 0 18px 50px rgba(0, 0, 0, 0.22);
+  /* Shadows only on things that float (menus, popovers, dialogs, popped-out panels). Docked surfaces use hairlines. */
+  --shadow-1: none;
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.10), 0 0 0 1px var(--line);
+  --shadow-3: 0 12px 40px rgba(0, 0, 0, 0.18), 0 0 0 1px var(--line);
+  --shadow-menu: var(--shadow-2);
   --z-menu: 950;
   --z-toast: 40;
 
@@ -189,10 +190,8 @@
     --success-wash: #1c3324;
     --warning: #f2b45a;
     --warning-wash: #3a2c12;
-    --field: rgba(255, 255, 255, 0.07);
-    --capsule: rgba(255, 255, 255, 0.07);
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--line);
+    --shadow-3: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--line);
     --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23a09f99' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
 }
@@ -218,8 +217,6 @@
   --on-mobius: #ffffff;
   --red: #a3221b;
   --red-wash: #e3c4c1;
-  --field: rgba(0, 0, 0, 0.06);
-  --capsule: rgba(255, 255, 255, 0.4);
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%234f4f49' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 :root[data-theme="cool"] {
@@ -239,8 +236,6 @@
   --on-mobius: #12112e;
   --red: #f08a80;
   --red-wash: #3d2324;
-  --field: rgba(255, 255, 255, 0.07);
-  --capsule: rgba(255, 255, 255, 0.07);
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2397a1ae' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
@@ -263,14 +258,14 @@ html[data-density='compact'] {
 
 /* More contrast: secondary text reads as body text, and hairlines are as strong as secondary text was. */
 @media (prefers-contrast: more) {
-  :root { --muted: #2a2a28; --line: #6f6e69; --line-soft: #6f6e69; --field: #ffffff; --capsule: #ffffff; }
-  :root[data-theme="mid"] { --muted: #1f1f1d; --line: #4f4f49; --line-soft: #4f4f49; --field: #e2e2df; --capsule: #e2e2df; }
+  :root { --muted: #2a2a28; --line: #6f6e69; --line-soft: #6f6e69; }
+  :root[data-theme="mid"] { --muted: #1f1f1d; --line: #4f4f49; --line-soft: #4f4f49; }
 }
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
-  :root { --muted: #d8d7d1; --line: #a09f99; --line-soft: #a09f99; --field: #2b2b29; --capsule: #2b2b29; }
+  :root { --muted: #d8d7d1; --line: #a09f99; --line-soft: #a09f99; }
 }
 @media (prefers-contrast: more) {
-  :root[data-theme="cool"] { --muted: #cfd5dd; --line: #97a1ae; --line-soft: #97a1ae; --field: #262d36; --capsule: #262d36; }
+  :root[data-theme="cool"] { --muted: #cfd5dd; --line: #97a1ae; --line-soft: #97a1ae; }
 }
 @media (prefers-reduced-motion: reduce) {
   /* No movement: what moved now fades (--dur-fade), and nothing repeats. */

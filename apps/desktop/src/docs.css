@@ -48,9 +48,9 @@
 .doc-toolbar .doc-tool-sep { flex: none; height: 16px; margin: 0 5px; background: var(--hairline, var(--line)); }
 .doc-tool-count { position: relative; }
 .doc-count { position: absolute; top: 1px; right: 0; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: #ffb300; color: #1d1d1f; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; }
-.doc-tool-mobius { padding: 0 4px 0 0; font-size: var(--fs-sm); font-weight: 600; color: var(--accent); white-space: nowrap; }
-.doc-toolbar .doc-tool:has(.doc-tool-mobius) { padding: 0 6px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: var(--radius-pill); margin-left: 4px; }
-.doc-toolbar .doc-tool:has(.doc-tool-mobius):hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.doc-tool-mobius { padding: 0 4px 0 0; font-size: var(--fs-sm); font-weight: 600; color: var(--mobius); white-space: nowrap; }
+.doc-toolbar .doc-tool:has(.doc-tool-mobius) { padding: 0 6px; border: 1px solid color-mix(in srgb, var(--mobius) 35%, transparent); border-radius: var(--radius-pill); margin-left: 4px; }
+.doc-toolbar .doc-tool:has(.doc-tool-mobius):hover { background: color-mix(in srgb, var(--mobius) 10%, transparent); }
 
 /* On the frame, the bar is the window's toolbar (zone 3): no strip of its own, and it takes the room the title leaves.
    When that room is short, Checklist (also in Aa's lists) gives way, and Writing tools keeps only its pen. */
@@ -81,7 +81,7 @@
 /* Comments in the margin beside the page; under it when the window is narrow. */
 .doc-sheet { display: flex; align-items: flex-start; justify-content: center; gap: 16px; }
 .doc-sheet > .doc-paper { flex: 1 1 auto; min-width: 0; margin: 0; }
-.doc-sheet[data-new] > .doc-paper { outline: 1.5px dashed color-mix(in srgb, var(--accent) 60%, var(--bg)); outline-offset: 6px; }
+.doc-sheet[data-new] > .doc-paper { outline: 1.5px dashed color-mix(in srgb, var(--mobius) 60%, var(--bg)); outline-offset: 6px; }
 .doc-margin { position: sticky; top: 0; flex: 0 0 260px; max-height: calc(100vh - 160px); overflow: auto; }
 .doc-margin .note-comments { width: auto; margin: 0; padding: 0; border: 0; }
 .doc-margin .note-comments h2 { padding: 0 6px 4px; }
@@ -172,14 +172,14 @@
 
 /* Mobius's changes, in the page where they are: what it added is tinted with a bar at its side; a note before it shows
    what it took out, struck through, with Keep and Discard for that change alone. */
-.doc-editor .doc-page .doc-change-new { position: relative; border-radius: 3px; background: color-mix(in srgb, var(--accent) 6%, transparent); }
-.doc-editor .doc-page .doc-change-new::before { content: ""; position: absolute; left: -16px; top: 2px; bottom: 2px; width: 2px; border-radius: 1px; background: var(--accent); }
-.doc-editor .doc-page .doc-change { margin: 0.6em 0 0.35em; padding: 8px 10px 6px 12px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--bg)); background: color-mix(in srgb, var(--accent) 4%, var(--bg)); font-family: var(--font, system-ui), sans-serif; font-size: var(--fs-sm); line-height: 1.45; user-select: none; }
+.doc-editor .doc-page .doc-change-new { position: relative; border-radius: 3px; background: color-mix(in srgb, var(--mobius) 6%, transparent); }
+.doc-editor .doc-page .doc-change-new::before { content: ""; position: absolute; left: -16px; top: 2px; bottom: 2px; width: 2px; border-radius: 1px; background: var(--mobius); }
+.doc-editor .doc-page .doc-change { margin: 0.6em 0 0.35em; padding: 8px 10px 6px 12px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--mobius) 55%, var(--bg)); background: color-mix(in srgb, var(--mobius) 4%, var(--bg)); font-family: var(--font, system-ui), sans-serif; font-size: var(--fs-sm); line-height: 1.45; user-select: none; }
 .doc-change-old { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 70%, transparent); margin-bottom: 4px; }
 .doc-editor .doc-page .doc-change-old :is(h1, h2, h3, p, ul, ol, blockquote) { margin: 0 0 2px; font-size: inherit; font-weight: inherit; letter-spacing: 0; line-height: inherit; }
 .doc-editor .doc-page .doc-change-old :is(ul, ol) { padding-left: 18px; }
 .doc-editor .doc-page li > .doc-change-new::before { left: -40px; }
 .doc-change-bar { display: flex; align-items: center; gap: 6px; }
-.doc-change-bar span { margin-right: auto; font-size: var(--fs-xs); font-weight: 600; color: var(--accent); }
+.doc-change-bar span { margin-right: auto; font-size: var(--fs-xs); font-weight: 600; color: var(--mobius); }
 .doc-change-bar .review-btn { height: 24px; padding: 0 10px; font-size: var(--fs-xs); }
 @media print { .doc-change { display: none !important; } .doc-paper .doc-change-new { background: none; box-shadow: none; } .doc-paper .doc-change-new::before { display: none; } }

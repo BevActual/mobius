@@ -738,7 +738,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
                   else if (edit.at.r === r && edit.at.c === c) shadows.push(...edges({ r0: r, c0: c, r1: r, c1: c }, r, c, 'var(--accent)'));
                   refs.forEach((g, i) => { if (inRange(g, r, c)) shadows.push(...edges(g, r, c, REF_COLORS[i % REF_COLORS.length]!, 2)); });
                   if (fillRange && inRange(fillRange, r, c)) shadows.push(...edges(fillRange, r, c, 'color-mix(in srgb, var(--accent) 70%, transparent)', 1.5));
-                  if (showReview && changed.has(key)) shadows.push('inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent)');
+                  if (showReview && changed.has(key)) shadows.push('inset 0 0 0 1.5px color-mix(in srgb, var(--mobius) 55%, transparent)');
                   const refAt = refs.findIndex((g) => inRange(g, r, c));
                   return (
                     <td
