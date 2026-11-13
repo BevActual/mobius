@@ -263,19 +263,27 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     await shell().keyboard.press('Enter');
     const page = shell().locator('.mail-page');
     const suggested = page.getByLabel('Suggested reply');
+    const kept = page.getByRole('region', { name: 'Your draft reply' });
     const form = page.getByRole('form', { name: 'Reply' });
-    if (await suggested.count()) {
-      note('the reply was still a suggestion after Keep all: one more Keep in Mail');
-      await suggested.getByRole('button', { name: 'Keep' }).click();
-    } else if (!(await form.count())) {
-      // Kept as the person's draft: it waits in Drafts.
-      note('after Keep all the reply waited in Drafts');
-      await shell().getByRole('button', { name: /^Drafts/ }).first().click();
-      await page.getByRole('listbox', { name: 'Drafts' }).getByRole('option').first().click();
-    } else note('after Keep all the reply was open, ready to send');
-    await expect(form.getByRole('textbox', { name: 'Message' })).toHaveValue(/parts list/);
-    await picture(`workflow-${report.test}-${pad(report.steps.length + 1)}-reply-before-send`);
-    await form.getByRole('button', { name: 'Send', exact: true }).click();
+    await page.getByRole('article').first().waitFor({ timeout: 5000 }).catch(() => undefined);
+    if (await kept.count()) {
+      note('after Keep all the reply waits under the email, ready to send');
+      await expect(kept).toContainText('parts list');
+      await picture(`workflow-${report.test}-${pad(report.steps.length + 1)}-reply-before-send`);
+      await kept.getByRole('button', { name: 'Send', exact: true }).click();
+    } else {
+      if (await suggested.count()) {
+        note('the reply was still a suggestion after Keep all: one more Keep in Mail');
+        await suggested.getByRole('button', { name: 'Keep' }).click();
+      } else if (!(await form.count())) {
+        note('after Keep all the reply waited in Drafts');
+        await shell().getByRole('button', { name: /^Drafts/ }).first().click();
+        await page.getByRole('listbox', { name: 'Drafts' }).getByRole('option').first().click();
+      }
+      await expect(form.getByRole('textbox', { name: 'Message' })).toHaveValue(/parts list/);
+      await picture(`workflow-${report.test}-${pad(report.steps.length + 1)}-reply-before-send`);
+      await form.getByRole('button', { name: 'Send', exact: true }).click();
+    }
     await expect.poll(() => servers.sent.length, { timeout: 10_000 }).toBe(1);
     note(`sent: ${servers.sent[0]!.includes('In-Reply-To: <p2-brakes@northway.example>') ? 'as a reply to Priya' : 'NOT threaded as a reply'}`);
   });
