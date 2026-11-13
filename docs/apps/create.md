@@ -76,7 +76,9 @@ A small studio for writing songs as notes.
   picked notes move together.
 - **The divider** between the tracks and the roll: the track list fits its tracks, and dragging the divider (or
   Up and Down on it) gives more room to either side. Home fits it to the tracks again.
-- **Transport** to play, with the song's tempo and key.
+- **Transport** to play, with the song's tempo and key. Loop goes round the whole song, or drag along the top of the
+  ruler to loop some bars. Right-click the ruler (or press its top twice quickly) to loop the whole song again.
+- **Add Track** opens a menu of instruments. Right-click a track's header to duplicate, mute, solo or delete it.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
 
 **Kept in:** `workspace/studio/`, each song a JSON file of notes.
