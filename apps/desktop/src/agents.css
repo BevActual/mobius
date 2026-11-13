@@ -9,9 +9,9 @@
 .botform-label { color: var(--muted); }
 .botform-hint { font-size: var(--fs-xs); color: var(--muted); }
 /* How it starts: a segmented control, both halves the same width, as in Apple's pickers. */
-.botform .botform-seg { display: flex; min-width: 0; max-width: 320px; background: color-mix(in srgb, var(--ink) 9%, transparent); }
+.botform .botform-seg { display: flex; min-width: 0; max-width: 320px; }
 .botform-seg .seg-btn { flex: 1; min-width: 0; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.botform-seg .seg-btn[aria-checked="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+.botform-seg .seg-btn[aria-checked="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
 .botform-when { display: flex; gap: 6px; max-width: 320px; }
 .botform-when select, .botform-when input { flex: 1; min-width: 0; height: 28px; padding: 0 7px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; }
 .botform-touch { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
@@ -43,4 +43,14 @@
 .agent-lede { margin: 0 0 var(--sp-3); color: var(--muted); }
 .agent-part .act-list { margin: 0 calc(-1 * var(--sp-2)); }
 /* From Mobius in the sidebar: how many agents' runs wait for you, in Mobius's colour, as Mail's Suggested replies. */
-.agent-to-review { padding-right: var(--sp-2); font-size: var(--fs-sm); color: var(--mobius, var(--accent)); white-space: nowrap; align-self: center; }
+.agent-to-review { padding-right: var(--sp-2); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--mobius, var(--accent)); white-space: nowrap; align-self: center; }
+/* Times and counts are tabular figures (Instrument). */
+.agent-page .act-state, .agent-when { font-variant-numeric: tabular-nums; }
+/* An empty Recent runs: one plain line and the New action. */
+.agent-empty { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+/* Loading: placeholder bars in the page's column, no spinner. */
+.agent-loading { display: grid; gap: var(--sp-3); padding-top: var(--sp-4); }
+.agent-loading span { display: block; height: 12px; border-radius: var(--radius-small); background: var(--soft); }
+.agent-loading span:nth-child(3n + 1) { width: 30%; }
+.agent-loading span:nth-child(3n + 2) { width: 90%; }
+.agent-loading span:nth-child(3n) { width: 60%; }

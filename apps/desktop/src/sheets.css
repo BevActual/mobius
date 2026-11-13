@@ -16,7 +16,7 @@
 .sheet-formula-row { flex-shrink: 0; display: flex; align-items: stretch; height: 30px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .sheet-page .sheet-address { flex: none; min-width: 72px; height: auto; display: inline-grid; place-items: center start; padding: 0 10px; border-radius: 0; border-right: 1px solid var(--line); background: transparent; box-shadow: none; color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium, 500); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sheet-fx { flex: none; align-self: center; padding: 0 4px 0 10px; color: var(--muted); font-style: italic; font-family: Georgia, "Times New Roman", serif; font-size: 14px; }
-.sheet-page .sheet-formula { flex: 1; min-width: 120px; height: auto; padding: 0 10px 0 4px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink); font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
+.sheet-page .sheet-formula { flex: 1; min-width: 120px; height: auto; padding: 0 10px 0 4px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink); font-family: var(--font-mono); font-size: 12.5px; }
 .sheet-page .sheet-formula:focus { outline: none; border: 0; background: transparent; box-shadow: inset 0 -2px 0 var(--ink); }
 /* The find bar's small buttons. */
 .sheet-tool-group { display: inline-flex; align-items: center; gap: 2px; flex: none; }
@@ -92,11 +92,11 @@
 .sheet-suggest { position: fixed; z-index: 902; width: 300px; max-height: 260px; overflow: auto; padding: 4px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 28px rgba(0, 0, 0, 0.16); }
 .sheet-suggest ul { margin: 0; padding: 0; list-style: none; }
 .sheet-suggest li { display: grid; gap: 1px; padding: 5px 8px; border-radius: 6px; cursor: default; }
-.sheet-suggest li b { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; font-weight: 600; }
+.sheet-suggest li b { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
 .sheet-suggest li span { font-size: 11.5px; color: var(--muted); }
 .sheet-suggest li[aria-selected="true"] { background: var(--accent); color: var(--on-accent, #fff); }
 .sheet-suggest li[aria-selected="true"] span { color: inherit; opacity: 0.85; }
-.sheet-hint { margin: 0; padding: 4px 6px; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; }
+.sheet-hint { margin: 0; padding: 4px 6px; font-family: var(--font-mono); font-size: 12px; }
 .sheet-hint span { display: block; margin-top: 2px; font-family: -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; font-size: 11.5px; color: var(--muted); }
 
 /* ---------- Sheet tabs and the status line ---------- */

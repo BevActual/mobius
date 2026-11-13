@@ -25,7 +25,7 @@
 /* Small print under a control (which model, what to add first) reads as help: grey, right aligned, wrapping. */
 .settings-page .settings-card .srow-body > .srow-text { max-width: 280px; font-size: 12px; color: var(--muted); text-align: right; }
 .settings-page .settings-card .srow-body:has(> ul, > .slist, > table, > .memory-list) > .srow-text { max-width: none; text-align: left; }
-.settings-page .settings-card .srow-body > .srow-text.mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; overflow-wrap: anywhere; }
+.settings-page .settings-card .srow-body > .srow-text.mono { font-family: var(--font-mono); font-size: 11px; overflow-wrap: anywhere; }
 
 /* A paragraph set straight in the card (a note above the rows) gets the rows' padding and grey help text. */
 .settings-page .settings-card > .srow-text, .settings-page .settings-card > p.srow-note { margin: 0; padding: 4px 0 0; font-size: 12px; color: var(--muted); }

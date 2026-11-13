@@ -67,10 +67,10 @@ export function readLook(): ReadingLook {
     const v = JSON.parse(window.localStorage.getItem(LOOK_KEY) ?? 'null') as Partial<ReadingLook> | null;
     return {
       size: READING_SIZES.includes(v?.size as ReadingSize) ? v!.size! : 'm',
-      face: v?.face === 'serif' ? 'serif' : 'sans',
+      face: v?.face === 'sans' ? 'sans' : 'serif',
       theme: READING_THEMES.includes(v?.theme as ReadingTheme) ? v!.theme! : 'auto',
     };
-  } catch { return { size: 'm', face: 'sans', theme: 'auto' }; }
+  } catch { return { size: 'm', face: 'serif', theme: 'auto' }; }
 }
 export const keepLook = (look: ReadingLook) => { try { window.localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch { /* Not kept. */ } };
 

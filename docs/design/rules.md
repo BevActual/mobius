@@ -8,8 +8,17 @@ app. Each review that settles a question adds or changes a rule here.
 [Workspace layout](workspace-layout.md) describes the five zones of the window, the views and panels, and what each one
 does. This page says how they must look and behave. Where the two disagree, this page wins.
 
+[Instrument](instrument.md) is the full specification of the look: every size, every element, pop-out, and the Mobius
+panel with its composer. Andrew agreed it on 13 November 2026. This page is the short checklist for a review. Where this
+page is silent, Instrument decides.
+
 Before you open a pull request for an app, check its screenshots against this page in light and dark, at full width
 and in a narrow window.
+
+> **While Instrument lands.** The sizes, the mono face, the empty-state drawings, the working indicator and the new
+> Mobius panel arrive from the shell, once, for every app. Until the Builder has landed a piece, don't build your own
+> version of it in an app, and don't hand-set a size to match this page. Use the tokens and shared controls; they will
+> change under you.
 
 > **While the new frame lands.** The Builder is building the shared frame (`AppFrame`, the app rail, the right panel,
 > `AppSidebar`) and the new theme tokens. Until an app has moved into that frame, review its new work against these
@@ -65,7 +74,8 @@ Every app has the same five zones. An app fills a zone; it never moves or redraw
 - The head holds only the app's name and the fold button. Switching apps is the rail's job.
 - Order, top to bottom: **New** (New note, New message…), then **Search**, then the places in sections, then **From
   Mobius**, then **More** (Trash, Archive). Profile is on the rail, not here.
-- Section headers are sentence case, small, semibold and grey ("Notebooks", "Mailboxes"). No all-caps headers.
+- Section headers are sentence case, small, semibold and grey ("Notebooks", "Mailboxes"). No all-caps headers in a
+  sidebar. Small all-caps labels are allowed only on parameters in a pro app's panels ("TUNE", "DECAY").
 - Rows of a fixed kind (mailboxes, lists, settings panes) have a single-weight glyph. Rows of user content (notes,
   documents) have a title and one grey line under it. Colour on a row is the person's own (a calendar, a tag, a folder).
 - A count is a plain grey number at the trailing edge. One mark per row: a row with a dot doesn't also carry a count.
@@ -140,15 +150,22 @@ Complex apps are made of views and panels that people can show, hide, resize, re
   Duplicate is Ctrl+D (Cmd+D on a Mac), Delete is the Delete key with Undo. In a menu, every item has an icon or none
   does.
 - Sheets and dialogs look the same on every platform: Mobius's own typeface and controls, not the system's.
-- Keyboard hints live in menus and tooltips, not in a footer under a list or a chip beside a button.
+- Keyboard hints live in menus and tooltips: every item with a key shows it, and a tooltip shows the key after the
+  name. The one other place is the shared key-hint bar at the foot of a list view in a daily app. It is on at first,
+  hides itself once you use the keys, and has a switch in Settings. Don't draw your own hints or chips.
 
 ## Lists, grids and empty states
 
 - Overlapping items in a grid (calendar events) sit side by side. One never covers the other.
 - A grid of data is an ARIA grid: one Tab stop, arrow keys move the active cell, Enter or F2 edits, Escape cancels.
-- Numbers are right-aligned, and a numeric column uses one number of decimals in the regional format.
-- An empty view uses the shared empty state: an icon, a short bold title, one grey line, and the New action as a
-  button. It stays quiet: no sample data, no wall of suggestions, no instructions such as "New deck in the sidebar".
+- Numbers are right-aligned, and a numeric column uses one number of decimals in the regional format. Times, dates,
+  counts, sizes and money use tabular figures everywhere. The mono face is only for readouts in pro apps (tempo,
+  timecode, coordinates) and for code.
+- One row height per density in a view. Rows never change height to fit decoration.
+- An empty view uses the shared empty state: a small grey line drawing for the app, one short line, and the New action
+  as a button. It stays quiet: no sample data, no wall of suggestions, no instructions such as "New deck in the sidebar".
+  A short list ends with the same designed state or sits in a centred reading column. It never leaves a blank grey field.
+- Loading shows placeholder bars in the content. No spinners in content.
 
 ## Editors
 
@@ -169,11 +186,21 @@ Complex apps are made of views and panels that people can show, hide, resize, re
 - It opens in the right panel from the Mobius button at the trailing end of the toolbar, or from the rail. The sidebar
   never changes face. In the Agent app the right panel stays closed, and the Mobius button opens the conversation list.
 - The message box says what Mobius would look at ("Ask about your mail"). With nothing in particular, it says "Message
-  Mobius". The panel is the same Mobius in every app; only what it sees changes.
-- What Mobius is doing is always visible while it works (the status line, Stop), and a turn shows what it read and
-  changed. Never hide that to make the screen look simpler.
-- Suggestions are pill buttons, the same on Home and in the panel. Don't use text links. The empty panel shows the mark,
-  one short line and the suggestions.
+  Mobius". The panel is the same Mobius in every app; only what it sees and what the app puts in its slots changes.
+- The panel has four states, the same in every app: Resting, Working, Done and Asking. It is never empty: resting, it
+  shows what is waiting for you first, then what it can do with your selection.
+- What Mobius is doing is always visible while it works: numbered steps that name each app, the dot-matrix working
+  indicator, and Stop. A turn shows what it read and changed. Never hide that to make the screen look simpler.
+- Results show as the real objects (the task, the event, the draft), with one summary per turn to Keep all or Discard.
+  Questions and approvals are buttons, not text to answer.
+- An app extends the panel only through the shared slots and cards (Glance, Actions, Result, Picker, Adjust, and the
+  cards in [Instrument](instrument.md#six-more-cards-for-the-panel)), built from shared controls. It never draws its
+  own panel.
+- The composer has four controls in one row: the plus button, **Mode** (Agent, Ask, Plan, and the app's own),
+  **Permission** (Ask each time, Review changes, Apply changes, Auto) and the model ("Best fit" by default). These
+  replace the single Ask first, Propose, Act switch. Paying, sending, deleting for good and running commands ask every
+  time at every level, and a "never" rule always wins.
+- Suggestions are pill buttons, the same on Home and in the panel. Don't use text links.
 - A proposal (a suggested reply, a changed page, a suggested event) has the dashed edge and Keep, Try another and
   Discard, with Keep as the primary button. It appears once, where the change is. Don't add a second banner that
   repeats it.
@@ -199,14 +226,18 @@ guidance on clarity, layout and motion still is.
 
 - **Surfaces:** three flat surfaces: a neutral frame, paper for content, and raised. Hairlines separate them, not
   shadows or blur. Only floating things (menus, popovers, popped-out panels) cast a shadow. No blur or glass.
-- **Colour:** the frame is neutral. Controls and state use ink. Indigo marks Mobius. Red is only for record, errors and
-  deleting. Colour belongs to the person's content, and they choose it: calendars, labels, tags, folders, tracks and
-  clips.
+- **Colour:** the frame is neutral. Controls and state use ink. Indigo marks Mobius. Red is only for record, errors, deleting, something overdue,
+  and the current-time line in Calendar. Colour belongs to the person's content, and they choose it: calendars, labels, tags, folders, tracks and
+  clips. Content colours come from one shared palette of eight and show as a dot, a 3px edge or a soft tint.
 - **Themes:** a theme is a small set of neutral tokens. Light, Mid grey, Dark and Cool dark, with tone and contrast the
   person can adjust. Use the tokens in `tokens.css`; never a raw colour or pixel value.
-- **Density:** comfortable (30px rows, 13px text) for Mail, Notes and other daily apps; compact (26px rows, 12.5px text)
-  for Music, Video, Code and Sheets. Both come from the same tokens.
-- **Shape:** 6 to 8px corners on controls and rows. Panels and sheets are a little rounder. Corners are concentric:
+- **Density:** comfortable (14px text, 36px rows in sidebars and 40px in content lists, a 52px toolbar) for Mail, Notes
+  and other daily apps; compact (13px text, 30px and 32px rows, a 44px toolbar) for Music, Video, Code, Database and
+  Sheets. Reading pages (Home, a note, a doc) use 15 to 16px text in a column at most 680px wide, under a large page
+  heading. Both densities come from the same tokens. No text is smaller than 11px, and nothing you must read to use
+  the app is smaller than 12px.
+- **Shape:** 6 to 8px corners on controls and rows. Floating things (menus, popovers, sheets, popped-out panels) use 10
+  to 14px. Corners are concentric:
   inner radius = outer radius − inset.
 - **Icons:** single-weight line icons in the frame. Colour tiles only in the launcher.
 - Where content scrolls under a bar, fade it out with the scroll-edge mask. Don't draw a hard line.
@@ -223,8 +254,8 @@ decoration. If an animation does neither, remove it.
   edge.
 - Mobius's changes settle with motion. Keep makes the proposal solid in place, and Discard fades it out.
 - Moving through time or pages slides in the direction you moved (Calendar ‹ ›, Day, Week, Month).
-- Only one thing loops at a time: the progress cue while Mobius works, or the playhead while something plays. Loading
-  uses `--dur-loop` and `--dur-spin`.
+- Only one thing loops at a time: the working indicator while Mobius works, or the playhead while something plays.
+  Loading in content is placeholder bars, not a spinner.
 - With Reduce Motion, slides and scales become a short fade (`--dur-fade`), and loops stop. Every keyframe and every
   `animate()` call follows this.
 
@@ -232,8 +263,8 @@ decoration. If an animation does neither, remove it.
 
 - Every control can be reached and used from the keyboard, and shows the focus ring (`:focus-visible`).
 - Text keeps a contrast of at least 4.5:1 on its background, and glyphs and icons at least 3:1, in every theme.
-- Click targets are at least 28px. Row height is at least 26px in compact density and 30px in comfortable, and 44px for
-  Home rows.
+- Click targets are at least 28px. Row height is at least 30px in compact density and 36px in comfortable, and 44px for
+  rows on reading pages such as Home.
 - With Increase Contrast or forced colours, hairlines get stronger and fills turn to outlines.
 - Test with Reduce Motion, Increase Contrast and a narrow window.
 

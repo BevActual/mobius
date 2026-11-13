@@ -79,7 +79,6 @@
 .mail-later-menu { position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 5; display: grid; gap: 4px; padding: 6px; border-radius: var(--radius-panel); background: var(--bg); box-shadow: var(--shadow-1); white-space: nowrap; }
 .mail-later-suggested[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; color: var(--accent); }
 .mail-needs-reply { color: var(--accent); }
-.mail-tools .strip-btn svg circle { fill: currentColor; stroke: none; }
 .mail-tools .strip-btn svg [data-dot] { fill: var(--accent); }
 /* A reply the person kept, under the message it answers: theirs now, so a plain edge, with Send right there. */
 .mail-kept { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border-radius: var(--radius-panel); border: 1px solid var(--line); background: var(--paper, var(--bg)); }

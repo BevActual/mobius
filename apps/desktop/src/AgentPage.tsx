@@ -105,6 +105,8 @@ export function BotForm({ initial, submitLabel, onSubmit, onSaved, onCancel, onO
 interface Props {
   view: AgentView;
   bots: Bot[];
+  /** The agents are still being read: placeholder bars rather than an empty page. */
+  loading?: boolean;
   conversations: ConversationInfo[];
   onShow: (view: AgentView) => void;
   onCreate: (draft: BotDraft) => Promise<BotResult<{ bot: Bot }>>;
@@ -137,7 +139,7 @@ function Part({ title, action, children, label }: { title: string; action?: Reac
  * The Agents page: in the main area while the sidebar shows Agents. Its name and Run now are in the toolbar; the page is
  * plain parts between hairlines, as in Mail: what it does, when it runs, what it can use, and its recent runs.
  */
-export function AgentPage({ view, bots, conversations, onShow, onCreate, onUpdate, onNewSession, onOpenSession, onOpenSafety, onOpenSchedules }: Props) {
+export function AgentPage({ view, bots, loading = false, conversations, onShow, onCreate, onUpdate, onNewSession, onOpenSession, onOpenSafety, onOpenSchedules }: Props) {
   const preferences = usePreferences();
   const schedules = useSchedules();
   if (view.kind === 'new') {
@@ -151,7 +153,13 @@ export function AgentPage({ view, bots, conversations, onShow, onCreate, onUpdat
     );
   }
   const bot = bots.find((b) => b.id === view.id) ?? bots.find((b) => b.id === MAIN_BOT_ID) ?? bots[0];
-  if (!bot) return null;
+  if (!bot || loading) {
+    return (
+      <section className="agent-page" aria-label="Agents" aria-busy="true">
+        <div className="agent-loading" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
+      </section>
+    );
+  }
   const main = bot.id === MAIN_BOT_ID;
   const known = bots.map((b) => b.id);
   const sessions = conversations.filter((c) => botOfConversation(c.id, known) === bot.id).sort((a, b) => b.updated_ms - a.updated_ms);
@@ -172,14 +180,14 @@ export function AgentPage({ view, bots, conversations, onShow, onCreate, onUpdat
         <p className="agent-meta">{bot.model ? `Uses ${bot.model}` : 'Uses the model in settings'}{main ? '. Built in.' : ''}</p>
       </Part>
       <Part title="When it runs" action={runs.length > 0 && onOpenSchedules && <button type="button" className="link-btn" onClick={onOpenSchedules}>Schedules</button>}>
-        <p className="agent-text">{agentWhen(bot, schedules)}</p>
+        <p className="agent-text agent-when">{agentWhen(bot, schedules)}</p>
       </Part>
       <Part title="What it can use" action={onOpenSafety && <button type="button" className="link-btn" onClick={onOpenSafety}>Safety settings</button>}>
         <p className="agent-text">{mayTouch(preferences.value.appAccess, modeOf(preferences.value.approvalMode).name)}</p>
       </Part>
-      <Part title="Recent runs" label="Recent runs" action={<button type="button" className="link-btn" onClick={() => onNewSession(bot.id)}>New session</button>}>
+      <Part title="Recent runs" label="Recent runs" action={sessions.length > 0 && <button type="button" className="link-btn" onClick={() => onNewSession(bot.id)}>New session</button>}>
         {sessions.length === 0 ? (
-          <p className="agent-text agent-muted">No runs yet.</p>
+          <p className="agent-text agent-muted agent-empty">No runs yet.<button type="button" className="btn" onClick={() => onNewSession(bot.id)}>New session</button></p>
         ) : (
           <ul className="act-list" role="list" aria-label={`Sessions with ${bot.name}`}>
             {sessions.slice(0, 20).map((c) => <ConversationRow key={c.id} c={c} onOpen={onOpenSession} />)}

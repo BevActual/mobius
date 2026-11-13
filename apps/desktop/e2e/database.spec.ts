@@ -55,7 +55,7 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await price.click();
   await expect(grid.getByRole('columnheader', { name: 'Price' })).toHaveAttribute('aria-sort', 'descending');
   await expect(grid.getByRole('row').nth(1)).toContainText('Memmo');
-  const filter = page.getByRole('searchbox', { name: 'Filter rows' });
+  const filter = shell.getByRole('searchbox', { name: 'Filter rows' });
   await filter.fill('alfama');
   await expect(grid.getByRole('row')).toHaveCount(2);
   await expect(page.getByRole('status')).toHaveText('1 row matches');
@@ -71,7 +71,7 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await expect(casaRooms()).toHaveText('12');
   await page.getByRole('status').filter({ hasText: 'Changed Rooms' }).getByRole('button', { name: 'Undo' }).click();
   await expect(casaRooms()).toHaveText('9');
-  await page.getByRole('button', { name: 'Add row' }).click();
+  await shell.getByRole('button', { name: 'Add row' }).click();
   await expect(grid.getByRole('row')).toHaveCount(5);
   await cell.fill('Pestana');
   await cell.press('Enter');
@@ -96,11 +96,11 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await cell.fill('180.5');
   await cell.press('Enter');
   await expect(casaPrice()).toContainText('180.5');
-  await page.getByRole('radio', { name: 'Structure' }).click();
+  await shell.getByRole('radio', { name: 'Structure' }).click();
   await expect(page.getByRole('table', { name: 'Columns' }).getByRole('row', { name: /Rooms/ })).toContainText('INTEGER');
 
   // A statement of your own; a mistake says what is wrong.
-  await page.getByRole('radio', { name: 'SQL' }).click();
+  await shell.getByRole('radio', { name: 'SQL' }).click();
   const sql = page.getByRole('textbox', { name: 'SQL' });
   await sql.fill('SELECT Area FROM hotels WHERE Rooms > 30 ORDER BY Area');
   await sql.press('Control+Enter');
@@ -158,7 +158,8 @@ test('a sheet from Sheets becomes a table, with its worked-out values', async ()
   await rename.fill('Trip costs');
   await rename.press('Enter');
   await expect(shell.getByRole('list', { name: 'Tables in Data' })).toContainText('Trip costs');
-  await expect(shell.getByRole('region', { name: 'Database' }).getByRole('heading', { name: 'Trip costs' })).toBeVisible();
+  // The open table's name is the window's title.
+  await expect(shell.locator('.strip-title')).toHaveText('Trip costs');
   await side.getByRole('button', { name: 'More for Trip costs' }).click();
   await shell.getByRole('menuitem', { name: 'Delete table…' }).click();
   await side.getByRole('alertdialog', { name: 'Delete the table “Trip costs”?' }).getByRole('button', { name: 'Delete' }).click();

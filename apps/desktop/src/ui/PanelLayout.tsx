@@ -20,6 +20,9 @@ export interface PanelSpec {
   shown?: boolean;
   /** Its shortcut, as the keys are written elsewhere ("mod+shift+o"). */
   keys?: string;
+  /** The dock's size in pixels while this panel is in it, until the person resizes the dock (Slides' notes: shorter
+   *  than the default, so the stage keeps its room). Kept within the dock's range. */
+  size?: number;
   /** The panel's body. Its own controls go here, never in the header. */
   render: () => ReactNode;
 }
@@ -137,8 +140,8 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   const main = useRef<HTMLDivElement>(null);
   const right = panels.filter((p) => p.dock === 'right' && isShown(p));
   const bottom = panels.filter((p) => p.dock === 'bottom' && isShown(p));
-  const rightSize = clampDock('right', saved.size.right ?? DOCK_SIZE.right.initial);
-  const bottomSize = clampDock('bottom', saved.size.bottom ?? DOCK_SIZE.bottom.initial, main.current?.clientHeight ?? Infinity);
+  const rightSize = clampDock('right', saved.size.right ?? right.find((p) => p.size)?.size ?? DOCK_SIZE.right.initial);
+  const bottomSize = clampDock('bottom', saved.size.bottom ?? bottom.find((p) => p.size)?.size ?? DOCK_SIZE.bottom.initial, main.current?.clientHeight ?? Infinity);
   const resize = (dock: PanelDock, size: number | undefined) => update((was) => {
     const next = { ...was.size };
     if (size === undefined) delete next[dock]; else next[dock] = clampDock(dock, size, main.current?.clientHeight ?? Infinity);

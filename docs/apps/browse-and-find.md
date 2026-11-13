@@ -27,8 +27,8 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 
 - **Accounts** are in **Settings › Mail**, and sign in with an app password. Ready-made settings for iCloud, Fastmail, Gmail and Yahoo, or any provider by its IMAP and SMTP servers.
 - **The sidebar** holds New message, Search, your mailboxes (Inbox, Drafts, Flagged, Sent and Archive), Labels, and From Mobius. Flagged and Archive gather your flagged and archived mail.
-- **Labels:** Mobius sorts the Inbox into Primary, Transactions and Updates; the Inbox shows them all. Move a message to another from **More** (…) in its toolbar or from its right-click menu.
-- **The message toolbar** in the window's top row, as in Apple Mail: Reply, Reply All and Forward; Archive and Flag; and **More** for Mark as Unread, Remind Me Tomorrow and moving it to another category. Archive and Remind Me Tomorrow can be undone from the note that appears at the bottom. Right-click a message in the list for the same actions without opening it.
+- **Labels:** Mobius sorts the Inbox into Primary, Transactions and Updates; the Inbox shows them all. Move a message to another from the toolbar’s ⋯ or from its right-click menu.
+- **The message toolbar** in the window's top row, as in Apple Mail: Reply, Reply All and Forward; Archive and Flag; and, at the top of the toolbar’s ⋯, Mark as Unread, Remind Me Tomorrow and moving it to another category. Archive and Remind Me Tomorrow can be undone from the note that appears at the bottom. Right-click a message in the list for the same actions without opening it.
 - **Replies quote the message** under where you write, and forwards carry who it was from and to. Attachments are not forwarded yet.
 - **Keys:** the up and down arrows move through the list; E archives, R replies and H brings the message back tomorrow at 8:00.
 - **Email is shown safely:** no scripts, and nothing loaded from the web, so tracking pixels don't fire.
@@ -66,17 +66,17 @@ Browser, or give Reader an address.
 
 ![The Reader app in Mobius](../readme/apps/reader.png)
 
-- **The article has the page.** The bar above it says where it came from, when you saved it and how many minutes are
-  left; a thin line fills as you read, and each article opens where you stopped. Opening Reader shows your newest
-  article.
-- **Aa** sets the text size, the font (sans serif or serif) and the page colour (Match Mobius, Sepia, Grey or Night),
-  as in Safari Reader. Your choice is kept on this computer.
-- **Save a link** (the link button, or New › Save a link) shows the link field; with nothing open it is always there.
-  **Save this tab** keeps the page open in the Browser.
-- **Highlights:** select a passage and press Highlight (or H); they are listed under the article and can be copied to
-  Notes. **Ask Mobius** on a selected passage or a highlight starts a message with it quoted, the article attached.
-- **J** and **K** move to the next and previous article in the list. **Done reading** (E) moves the article to Archive
-  and opens the next one.
+- **The sidebar** lists the Reading list, any lists of your own and the Archive as plain rows, then From Mobius
+  (articles Mobius changed, to review). **New article** saves a link.
+- **The article** is set in a serif at reading width. Above its title, a quiet line says when you saved it and how many
+  minutes are left; it opens where you stopped. The toolbar shows its title and the site it came from (click the site
+  to open the original in the Browser).
+- **In the toolbar:** Save a link, **Aa** (text size, sans serif or serif, and the page colour: Match Mobius, Sepia,
+  Grey or Night) and **Done reading** (E), which moves it to Archive, opens the next article and offers Undo.
+- **Highlights:** select a passage and press Highlight (or H). They collect in the Highlights tab of the right panel,
+  before Mobius, where each can be asked about and all copied to Notes. **Ask Mobius** on a
+  selected passage starts a message with it quoted, the article attached.
+- **J** and **K** move to the next and previous article in the list.
 
 **Kept in:** `workspace/reading/`, each article a Markdown file.
 
