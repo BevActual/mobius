@@ -21,6 +21,7 @@ import { appsSeen, isReadTool, proposedPlan, readsSummary, replySources, type Co
 import { relativeTime } from './relative-time';
 import { attachmentLabel, hereOf, type SurfaceState } from './surface';
 import { activityOf } from './activity';
+import { WorkingIndicator } from './Working';
 import { SettingsForm } from './settings/ModelForm';
 import { SignInForTask } from './SignIn';
 
@@ -765,7 +766,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} since={(() => { const last = state.items.findLast((item) => item.kind === 'user'); return last?.kind === 'user' ? last.at : undefined; })()} />}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
-              <div className="thinking" role="status" aria-label="Mobius is working"><MobiusMark size={22} turning /></div>
+              <WorkingIndicator state={state} onStop={onStop} />
             )}
           </div>
           <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
