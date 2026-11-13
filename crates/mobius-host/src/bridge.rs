@@ -661,6 +661,12 @@ impl Bridge {
                     Err(error) => json!({ "ok": false, "error": error }),
                 })
             }
+            ("files", "trashList") => Ok(self.workspace.trash_list().unwrap_or_else(|error| json!({ "error": error }))),
+            // Deleting for good: only ever from the person's own Empty Trash or Delete Immediately, after they confirm.
+            ("files", "emptyTrash") => Ok(match self.workspace.empty_trash(arg(0).as_str().unwrap_or("")) {
+                Ok(gone) => json!({ "ok": true, "gone": gone }),
+                Err(error) => json!({ "ok": false, "error": error }),
+            }),
             ("files", "show") => {
                 if let (Ok(path), Some(d)) = (self.workspace.locate(arg(0).as_str().unwrap_or("")), self.dialogs.get()) {
                     d.show_path(&path);
