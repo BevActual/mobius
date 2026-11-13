@@ -36,6 +36,12 @@ export const APPS: readonly AppInfo[] = [
   { id: 'views', name: 'Views', available: true, group: 'Browse and find', also: 'Dashboard Dashboards Live view Overview Widgets' },
 ];
 
+/**
+ * Pro apps start in compact density (Instrument, docs/design/instrument.md: "Pro apps (Music, Video, Code, Database,
+ * Sheets) default to compact"). Daily apps follow the Density setting, which is comfortable unless changed.
+ */
+export const COMPACT_APPS: ReadonlySet<AppId> = new Set<AppId>(['studio', 'video', 'code', 'database', 'sheets']);
+
 export const findApp = (id: string): AppInfo | undefined => APPS.find((app) => app.id === id);
 
 /** Always there: Home (the agent) and Mobius's own apps. Every other app is added from Abilities. */

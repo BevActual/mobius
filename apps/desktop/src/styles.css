@@ -822,7 +822,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
    macOS 27 era: the sidebar runs edge to edge and full height, one toolbar spans the work area, the work area is flush
    with both, controls are capsules, and indigo is the one accent. Glass stays on the top layer only (hub, launcher,
    menus), so the window reads the same on every platform and with Reduce Transparency. */
-.app { background: var(--bg); --context: var(--toolbar-h); }
+.app { background: var(--bg); --context: var(--toolbar-h); font-size: var(--fs-md); }
 
 /* Sidebar */
 .rail { background: var(--sidebar); border-right: 0.5px solid var(--hairline); }
