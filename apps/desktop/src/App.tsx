@@ -73,6 +73,7 @@ import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { Desk } from './Desk';
+import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail } from './Rail';
 import { SidebarHead } from './SidebarHead';
 import { AppFrame, ToolbarControls } from './ui';
@@ -1360,12 +1361,8 @@ export function App() {
             desk={(starters) => (
               <Desk
                 starters={starters}
-                rows={[
-                  ...(browser.tabs.length > 0 ? [{ app: 'browser' as const, text: plural(browser.tabs.length, 'tab') + ' open' }] : []),
-                  ...(mail.counts.all > 0 ? [{ app: 'mail' as const, text: `${mail.counts.all} unread` }] : []),
-                  ...(dueToday > 0 ? [{ app: 'tasks' as const, text: `${dueToday} due today` }] : []),
-                  ...(eventsToday > 0 ? [{ app: 'calendar' as const, text: `${plural(eventsToday, 'event')} today` }] : []),
-                ]}
+                rows={deskAppRows({ tabs: browser.tabs, mail: mail.messages, unread: mail.counts.all, dueToday: smartView('today', tasks.all, new Date()), events: calendar.events, notes: notes.notebooks, docs: docs.notebooks }, new Date())}
+                onOpenTarget={openTarget}
                 changed={changed}
                 activity={activity}
                 conversations={conversation.list}

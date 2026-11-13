@@ -18,6 +18,9 @@ pub const FOLDER: &str = "video";
 pub const CUT: &str = "cut.json";
 const MAX_CUT: usize = 512 * 1024;
 const MAX_ADD: usize = 150 * 1024 * 1024;
+/// Where films made from the cut go, inside the project.
+pub const EXPORTS: &str = "Exports";
+const MAX_EXPORT: usize = 400 * 1024 * 1024;
 /// The most served in one answer, when the player asks for "the rest of the file".
 const MAX_CHUNK: u64 = 4 * 1024 * 1024;
 
@@ -156,6 +159,62 @@ impl Video {
         }
         fs::write(dir.join(&chosen), bytes).map_err(|e| e.to_string())?;
         Ok(json!({ "project": project, "clip": chosen }))
+    }
+
+    /// The project's `Exports` folder, made if needed: films made from the cut. A folder inside the project, so
+    /// exports are never listed as footage.
+    pub fn exports(&self, project: &str) -> Res<PathBuf> {
+        let dir = self.project(project)?.join(EXPORTS);
+        if fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
+            return Err("that project's Exports folder is a link".into());
+        }
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        Ok(dir)
+    }
+
+    /// A film made from the cut, saved in `Exports` under a name not yet taken (MP4 or WebM only).
+    pub fn save_export(&self, project: &str, name: &str, base64: &str) -> Res<Value> {
+        if base64.len() > MAX_EXPORT / 3 * 4 + 8 {
+            return Err("that film is too big to save".into());
+        }
+        let name = file_name_for(name);
+        if !matches!(media_type(&name), Some("video/mp4" | "video/webm")) {
+            return Err("a film is saved as MP4 or WebM".into());
+        }
+        let dir = self.exports(project)?;
+        let bytes = base64_decode(base64)?;
+        let (stem, ext) = name.rsplit_once('.').unwrap_or((&name, "webm"));
+        let mut chosen = name.clone();
+        let mut n = 2;
+        while dir.join(&chosen).exists() {
+            chosen = format!("{stem} {n}.{ext}");
+            n += 1;
+        }
+        let file = dir.join(&chosen);
+        fs::write(&file, bytes).map_err(|e| e.to_string())?;
+        Ok(json!({ "project": project, "file": format!("{EXPORTS}/{chosen}"), "path": file.display().to_string() }))
+    }
+}
+
+#[cfg(test)]
+mod export_tests {
+    use super::*;
+
+    #[test]
+    fn exports_go_in_their_own_folder_under_fresh_names_and_are_not_footage() {
+        let tmp = std::env::temp_dir().join(format!("mobius-video-export-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        let v = Video::new(&tmp);
+        let p = v.create_project("Trip").unwrap()["name"].as_str().unwrap().to_owned();
+        let a = v.save_export(&p, "Trip.webm", "AAEC").unwrap();
+        let b = v.save_export(&p, "Trip.webm", "AAEC").unwrap();
+        assert_eq!(a["file"], "Exports/Trip.webm");
+        assert_eq!(b["file"], "Exports/Trip 2.webm");
+        assert_eq!(fs::read(tmp.join("video/Trip/Exports/Trip.webm")).unwrap(), vec![0, 1, 2]);
+        assert!(v.save_export(&p, "Trip.mov", "AAEC").is_err());
+        assert!(v.save_export("Nope", "Trip.webm", "AAEC").is_err());
+        assert_eq!(v.projects().unwrap()[0]["clips"].as_array().unwrap().len(), 0);
+        let _ = fs::remove_dir_all(&tmp);
     }
 }
 
