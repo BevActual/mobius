@@ -334,7 +334,7 @@ function changeNote(group: number, removed: boolean, added: boolean, view: Chang
   };
   // Asked through `look` when pressed: the note can outlive the render it was drawn in, and its change's number holds.
   bar.append(button('Discard', 'Discard this change', 'discard', () => look()?.discard(group)));
-  if (view.again) bar.append(button('Try another', 'Discard this change and ask Mobius for another', 'again', () => look()?.again?.(group)));
+  if (view.again) bar.append(button('Try another', 'Try another way for this change', 'again', () => look()?.again?.(group)));
   bar.append(button('Keep', 'Keep this change', 'keep', () => look()?.keep(group)));
   note.append(bar);
   return note;
