@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, openSettings, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -24,7 +24,7 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 const page = (): Locator => shell().locator('.calendar-page');
-/** Calendar's controls in the toolbar: where to go, the view, quick add and New. */
+/** Calendar's controls in the toolbar: where to go, the view, and quick add when it is open. */
 const tools = (): Locator => shell().getByRole('group', { name: 'Calendar' });
 const file = (name: string) => path.join(userData, 'workspace', 'calendar', `${name}.ics`);
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -91,10 +91,13 @@ test('a calendar file from another app shows in the week, and events are added, 
   await expect(plants).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).not.toContain('Water the plants');
 
-  // Unticking a calendar hides its events; the month shows them too.
-  await shell().getByRole('region', { name: 'Calendars' }).getByRole('checkbox', { name: 'Work' }).uncheck();
+  // Pressing a calendar's row hides its events, and pressing it again shows them; the month shows them too.
+  const workRow = shell().getByRole('region', { name: 'Calendars' }).getByRole('button', { name: 'Work', exact: true });
+  await workRow.click();
+  await expect(workRow).toHaveAttribute('aria-pressed', 'false');
   await expect(page().getByRole('button', { name: /^Team standup/ })).toHaveCount(0);
-  await shell().getByRole('region', { name: 'Calendars' }).getByRole('checkbox', { name: 'Work' }).check();
+  await workRow.click();
+  await expect(workRow).toHaveAttribute('aria-pressed', 'true');
   await tools().getByRole('radio', { name: 'Month' }).click();
   await expect(page().locator('.cal-month-cell[data-today]').getByRole('button', { name: /^Team standup/ })).toBeVisible();
 });
@@ -103,8 +106,8 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
   await start();
   await tools().getByRole('radio', { name: 'Day' }).click();
   const tomorrow = day(new Date(Date.now() + 86_400_000));
-  // The toolbar's + opens a field to say the event in words.
-  await tools().getByRole('button', { name: 'Quick event' }).click();
+  // Q opens a field under the toolbar to say the event in words.
+  await shell().keyboard.press('q');
   const quick = tools().getByRole('textbox', { name: 'Quick add an event' });
   await quick.fill('Site walk tomorrow 10am for 30m');
   await expect(tools().getByRole('status').filter({ hasText: 'Site walk' })).toContainText(new RegExp(span('10:00', '10:30')));
@@ -199,6 +202,9 @@ test('an event the agent adds next week opens Calendar on that week, dashed, wit
 test('a subscribed calendar link shows beside the person\'s own, and its events can be read but not changed', async () => {
   await start();
   await tools().getByRole('radio', { name: 'Week' }).click();
+  // Accounts are added in Settings › Calendar, so the sidebar holds only calendars.
+  await openSettings(shell());
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Calendar', exact: true }).click();
   await shell().getByRole('button', { name: 'Add a calendar account…' }).click();
   const dialog = shell().getByRole('dialog', { name: 'Add a calendar account' });
   await dialog.getByRole('textbox', { name: 'Calendar link' }).fill(`${fixture.origin}/page-that-is-not-a-calendar`);
@@ -208,9 +214,12 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await dialog.getByRole('textbox', { name: 'Calendar link' }).fill(`${fixture.origin}/holidays.ics`);
   await dialog.getByRole('button', { name: 'Subscribe' }).click();
   await expect(dialog).toHaveCount(0);
+  await expect(shell().getByRole('list', { name: 'Calendar accounts' })).toContainText('Holidays');
+  await shell().keyboard.press('Escape');
+  await expect(page()).toBeVisible();
 
   const group = shell().getByRole('region', { name: 'Holidays' });
-  await expect(group.getByRole('checkbox', { name: 'Holidays' })).toBeChecked();
+  await expect(group.getByRole('button', { name: 'Holidays', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(group.getByRole('img', { name: 'Read only' })).toBeVisible();
   const event = page().getByRole('button', { name: /^Founders Day, All day, Holidays/ });
   await expect(event).toBeVisible();
@@ -227,7 +236,14 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await expect(shell().getByRole('dialog', { name: 'New event' }).getByRole('combobox', { name: 'Calendar' })).toHaveCount(0);
   await shell().getByRole('dialog', { name: 'New event' }).getByRole('button', { name: 'Cancel' }).click();
 
-  await group.getByRole('button', { name: 'Remove Holidays' }).click();
+  // Removed in Settings, after asking once more.
+  await openSettings(shell());
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Calendar', exact: true }).click();
+  await shell().getByRole('button', { name: 'Remove Holidays' }).click();
+  await shell().getByRole('list', { name: 'Calendar accounts' }).getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(shell().getByRole('list', { name: 'Calendar accounts' })).toHaveCount(0);
+  await shell().keyboard.press('Escape');
+  await expect(page()).toBeVisible();
   await expect(event).toHaveCount(0);
 });
 

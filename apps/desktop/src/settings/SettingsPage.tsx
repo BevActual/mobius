@@ -10,6 +10,7 @@ import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, Voic
 import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection } from '../ui';
 import '../settings.css';
 import { MailAccountsSettings } from '../MailAccounts';
+import { CalendarAccountsSettings } from '../CalendarAccounts';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
 
@@ -28,6 +29,8 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   browser: BrowserSection,
   // Mail's accounts (from the Mail app).
   mail: ({ highlight }) => <MailAccountsSettings highlight={highlight === 'mail-accounts'} />,
+  // Calendar's accounts (from the Calendar app).
+  calendar: ({ highlight }) => <CalendarAccountsSettings highlight={highlight === 'calendar-accounts'} />,
   notifications: NotificationsSection,
   sessions: SessionsSection,
   keyboard: KeyboardSection,
@@ -49,6 +52,7 @@ const SECTION_GLYPHS: Record<string, string> = {
   safety: 'M6 1.5 10 3v3c0 2.5-1.8 4-4 4.5C3.8 10 2 8.5 2 6V3z',
   browser: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M1.5 6h9M6 1.5c-2 2.5-2 6.5 0 9M6 1.5c2 2.5 2 6.5 0 9',
   mail: 'M1.5 3h9v6h-9zM1.5 3.5 6 6.5l4.5-3',
+  calendar: 'M2 3h8v7.5H2zM2 5.5h8M4 1.5v2.5M8 1.5v2.5',
   schedules: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M6 3.5V6l1.8 1.2',
   notifications: 'M3 8.5V5.5a3 3 0 0 1 6 0v3l1 1H2zM5 10.5h2',
   sessions: 'M2 3h8v5H5l-2 2V8H2z',
@@ -63,7 +67,7 @@ const SECTION_TINTS: Record<string, string> = {
   general: '#8e8e93', appearance: '#007aff', notifications: '#ff3b30', keyboard: '#8e8e93',
   providers: '#00c7be', model: '#5856d6', voice: '#ff2d55',
   safety: '#ff9f0a', memory: '#a2845e', privacy: '#1f6feb',
-  browser: '#30b0c7', mail: '#1e88e5', sessions: '#af52de', schedules: '#34c759', extensions: '#7d7aff',
+  browser: '#30b0c7', mail: '#1e88e5', calendar: '#e5534b', sessions: '#af52de', schedules: '#34c759', extensions: '#7d7aff',
   usage: '#ff9500', advanced: '#3a3a3c', about: '#636366',
 };
 

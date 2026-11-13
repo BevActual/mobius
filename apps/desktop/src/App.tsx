@@ -72,7 +72,7 @@ import { editsPathFor } from './photo-edit';
 import { sheetContext } from './sheets-view';
 import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
-import { heading as calendarHeading, eventsOn } from './calendar-view';
+import { heading as calendarHeading, eventsOn, isoWeek } from './calendar-view';
 import { Desk } from './Desk';
 import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
@@ -969,7 +969,7 @@ export function App() {
             ) : inDocs ? (
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
-              <CalendarSidebar calendar={calendar} pin={pinNode} changed={turnMarks.calendars} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
+              <CalendarSidebar calendar={calendar} pin={pinNode} changed={turnMarks.calendars} review={turnMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...turnMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inSearch ? (
               <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
             ) : inTasks ? (
@@ -1147,6 +1147,7 @@ export function App() {
       },
       calendar: {
         newEvent: () => createActions.find((a) => a.id === 'event')!.run(),
+        quickEvent: () => sendCommand('quick-event'),
         newCalendar: () => sendCommand('new-calendar'),
         today: () => calendar.setAnchor(new Date()),
         mode: (mode) => calendar.setMode(mode),
@@ -1563,7 +1564,7 @@ export function App() {
           : inDocs && docs.page ? <>{docs.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={docs.status}>{statusText(docs.status)}</span></>
           : inMail ? (mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`)
           : inSheets && sheets.data ? sheets.data.sheet
-          : inCalendar ? (eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
+          : inCalendar ? `${calendar.mode === 'week' ? `Week ${isoWeek(calendar.anchor)} · ` : ''}${eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`}`
           : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
           : inFiles ? filesSub(files) // Files: how many items
           : undefined,

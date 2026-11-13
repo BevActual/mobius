@@ -1249,11 +1249,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .calendar-list { list-style: none; margin: 0; padding: 0 var(--sp-2); }
 .calendar-row { display: flex; align-items: center; gap: var(--sp-2); height: 30px; padding: 0 var(--sp-1); border-radius: var(--radius-control); cursor: pointer; }
 .calendar-row:hover { background: var(--soft); }
-.calendar-row input { appearance: none; width: 14px; height: 14px; margin: 0; border-radius: 4px; border: 2px solid var(--swatch); background: var(--swatch); cursor: pointer; }
-.calendar-row input:not(:checked) { background: transparent; }
-/* A white tick on the colour, so a shown calendar never reads as an empty box. */
-.calendar-row input:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.5 7.2 6 9.6l4.6-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-size: 100% 100%; }
-.calendar-row input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .calendar-side-note { margin: auto var(--sp-3) var(--sp-3); font-size: var(--fs-xs); color: var(--muted); }
 .cal-editor-backdrop { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(0, 0, 0, 0.18); }
 .cal-editor { width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4); border-radius: var(--radius-panel); background: var(--bg); box-shadow: var(--shadow-3); }
@@ -1276,9 +1271,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .calendar-account-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
 .calendar-account-problem { margin: 2px var(--sp-3); font-size: var(--fs-xs); color: var(--danger); }
 .cal-lock { width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.5; flex-shrink: 0; }
-.calendar-add-account { align-self: flex-start; margin: var(--sp-1) var(--sp-3); padding: 4px 6px; font-size: var(--fs-sm); color: var(--accent); border-radius: var(--radius-control); }
-.calendar-add-account:hover { background: var(--wash); }
-.calendar-row .list-name { flex: 1; }
 .cal-modal-layer { position: fixed; inset: 0; z-index: 50; }
 .cal-event[data-suggested] { background: color-mix(in srgb, var(--mobius) 7%, var(--bg)); border: 1.5px dashed color-mix(in srgb, var(--mobius) 70%, var(--bg)); color: var(--mobius); }
 .cal-event[data-suggested] span { color: color-mix(in srgb, var(--mobius) 70%, var(--muted)); }

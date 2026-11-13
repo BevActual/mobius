@@ -69,7 +69,7 @@ export interface MenuContext {
     sheets: { newWorkbook: () => void; newSheet: () => void; insertRow: () => void };
     mail: { newMessage: () => void; getMail: () => void };
     slides: { newDeck: () => void };
-    calendar: { newEvent: () => void; newCalendar: () => void; today: () => void; mode: (mode: 'day' | 'week' | 'month') => void };
+    calendar: { newEvent: () => void; quickEvent: () => void; newCalendar: () => void; today: () => void; mode: (mode: 'day' | 'week' | 'month') => void };
     agent: { stop: () => void };
   };
 }
@@ -250,6 +250,7 @@ function appMenu(c: MenuContext): Menu | null {
     case 'calendar':
       return { id: 'app', label: 'Calendar', items: [
         item('new-event', 'New event', d.calendar.newEvent),
+        item('quick-event', 'Quick event…', d.calendar.quickEvent),
         item('new-calendar', 'New calendar', d.calendar.newCalendar),
         separator,
         item('show-today', 'Go to today', d.calendar.today),
