@@ -56,6 +56,26 @@ export function appOfCapability(capability: string | null): AppId | null {
   return APP_OF[capability.split('.')[0] ?? ''] ?? null;
 }
 
+/** The workspace folder a file lives in, and the app it belongs to: a write to notes/… happened in Notes. */
+const APP_OF_FOLDER: Record<string, AppId> = {
+  notes: 'notes', docs: 'docs', slides: 'slides', sheets: 'sheets', tasks: 'tasks', calendar: 'calendar', code: 'code',
+  designs: 'design', boards: 'canvas', research: 'research', reading: 'reader', databases: 'database', photos: 'photo',
+  studio: 'studio', video: 'video', skills: 'skills',
+};
+
+/**
+ * A file capability's resource, when it is a workspace path: the app it belongs to and its name as that app shows it
+ * ("notes/P2 build/Supplier notes.md" is Notes' "P2 build / Supplier notes"). Null for anything else.
+ */
+export function appOfFile(resource: string | null): { app: AppId; name: string } | null {
+  if (!resource) return null;
+  const parts = resource.replace(/\\/g, '/').split('/');
+  const app = parts.length > 1 ? APP_OF_FOLDER[parts[0]!] : undefined;
+  if (!app) return null;
+  const name = parts.slice(1).join(' / ').replace(/\.(md|csv|json|ics|sqlite)$/i, '');
+  return { app, name };
+}
+
 /** Paying, sending, deleting and running commands always ask first, because none of them can be undone. */
 export function isFinal(capability: string | null): boolean {
   if (!capability) return false;
@@ -134,8 +154,10 @@ const WHO: Record<string, FeedItem['by']> = { agent: 'mobius', person: 'you' };
 export function feedOf(entries: readonly ActivityEntry[]): FeedItem[] {
   const out: FeedItem[] = [];
   for (const e of entries) {
-    const on = e.resource ?? '';
-    const app = appOfCapability(e.capability);
+    // A file Mobius changed belongs to the app that shows it: a sheet to Sheets, a note to Notes.
+    const file = /^(files|fs)\./.test(e.capability ?? '') ? appOfFile(e.resource) : null;
+    const on = file?.name ?? e.resource ?? '';
+    const app = file?.app ?? appOfCapability(e.capability);
     // Only what actually happened (or was allowed to) is marked: a refused send changed nothing.
     const final = isFinal(e.capability) && (e.kind === 'tool.completed' || e.kind === 'permission.approved');
     const by = e.who ? (WHO[e.who] ?? 'other') : 'mobius';

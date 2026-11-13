@@ -27,7 +27,14 @@ const when = (ms: number) => timeLabel(ms);
  * The open conversation's turns, newest first, in Activity. "Rewind to here" puts every app back as it was right after
  * that turn and takes out the turns after it; it asks once, naming what will change, and can be undone for a moment.
  */
-export function Turns({ conversation, busy, version = 0 }: { conversation: string; busy: boolean; /** Changes when the conversation does, so the list is read again. */ version?: number }) {
+export function Turns({ conversation, busy, version = 0, rewindTo }: {
+  conversation: string;
+  busy: boolean;
+  /** Changes when the conversation does, so the list is read again. */
+  version?: number;
+  /** A turn to ask about at once, as if its Rewind to here was pressed (Activity's Rewind to here on a line). */
+  rewindTo?: string;
+}) {
   const [turns, setTurns] = useState<TurnRecord[]>([]);
   const [asking, setAsking] = useState<{ start: string; question: string } | null>(null);
   const [rewound, setRewound] = useState<{ undo: string; ask: string } | null>(null);
@@ -48,6 +55,16 @@ export function Turns({ conversation, busy, version = 0 }: { conversation: strin
   // The end of the turn just finished is saved a moment after it: read the list again then.
   useEffect(() => { const t = window.setTimeout(() => void load(), 1500); return () => window.clearTimeout(t); }, [load, version]);
   useEffect(() => { if (!rewound) return undefined; const t = window.setTimeout(() => setRewound(null), 10_000); return () => window.clearTimeout(t); }, [rewound]);
+  const asked = useRef<string | null>(null);
+  const hasTurn = !!rewindTo && turns.some((t) => t.start === rewindTo);
+  useEffect(() => {
+    if (!rewindTo || !hasTurn || asked.current === rewindTo) return;
+    asked.current = rewindTo;
+    void (async () => {
+      const preview = await api?.rewindPreview?.(conversation, rewindTo).catch(() => null);
+      if (preview && preview.ok) setAsking({ start: rewindTo, question: rewindQuestion(preview.later, appsOf(preview.files)) });
+    })();
+  }, [api, conversation, rewindTo, hasTurn]);
   if (!api?.rewind || (turns.length === 0 && !rewound)) return null;
 
   const ask = async (start: string) => {

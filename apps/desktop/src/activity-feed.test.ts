@@ -34,6 +34,17 @@ describe('the Activity feed', () => {
     expect(feedOf([{ ...entry('tool.completed', 'demo.echo'), tool: 'echo' }])[0]!.text).toBe('Used echo');
   });
 
+  it('puts a changed file in the app it belongs to, by its name there', () => {
+    const [sheet, note, plain] = feedOf([
+      entry('tool.completed', 'files.write', 'sheets/P2 budget/Sheet 1.csv', 'agent', at),
+      entry('tool.completed', 'files.write', 'notes/P2 build/Supplier notes.md', 'agent', at - 1),
+      entry('tool.completed', 'files.write', 'Downloads/quote.pdf', 'agent', at - 2),
+    ]);
+    expect(sheet).toMatchObject({ app: 'sheets', text: 'Changed P2 budget / Sheet 1' });
+    expect(note).toMatchObject({ app: 'notes', text: 'Changed P2 build / Supplier notes' });
+    expect(plain).toMatchObject({ app: 'files', text: 'Changed Downloads/quote.pdf' });
+  });
+
   it('lists newest first', () => {
     const items = feedOf([entry('tool.completed', 'mail.read', null, 'agent', at - 1000), entry('tool.completed', 'calendar.read', null, 'agent', at)]);
     expect(items.map((i) => i.app)).toEqual(['calendar', 'mail']);

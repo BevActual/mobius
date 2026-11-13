@@ -48,8 +48,10 @@ or type "Activity" in the launcher (Ctrl+K).
 - **The list** is laid out like Mail's inbox. In **Today** it leads with what **needs you**, what is **running**, the
   **changes to review** (Keep or Discard), what finished today and what is scheduled, then what happened. Each line is
   the app's icon, one sentence ("Sent an email to Sam Okafor") and the time. An indigo dot marks a change Mobius made;
-  something that failed is shown in red. **Open** on a line takes you to its app.
-- **The right side** shows what you chose: a line's app, who did it and when, or a conversation with its turns and
+  something that failed is shown in red. A changed file is listed under the app it belongs to (a sheet under
+  Sheets). **Open** on a line takes you to its app.
+- **The right side** shows what you chose: a line's app, who did it and when, with **Rewind to here** to undo a
+  change Mobius made, or a conversation with its turns and
   [Rewind to here](../guide/working-with-mobius.md#rewind-to-here).
 - **The sidebar** chooses where to look: **Needs you**, **Today**, **This week**, **Everything**, then each app.
 - **The toolbar** chooses who did it: **All**, **Mobius**, **You**, or **Can't undo** (sending, paying, deleting and

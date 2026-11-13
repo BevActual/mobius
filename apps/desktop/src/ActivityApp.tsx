@@ -14,8 +14,41 @@ import './activity.css';
 /** How many log entries the page reads: about a week of ordinary use. */
 const LIMIT = 400;
 
-/** What is open on the right: a conversation (with its turns), or one line of the history. */
-type Picked = { kind: 'conversation'; id: string } | { kind: 'item'; seq: number } | null;
+/** What is open on the right: a conversation (with its turns, maybe asking to rewind to one), or one line of the history. */
+type Picked = { kind: 'conversation'; id: string; rewindTo?: string } | { kind: 'item'; seq: number } | null;
+
+/**
+ * Where to rewind to so that a line of the history is undone: the turn before the one it happened in, in the
+ * conversation that was working then. Only conversations that moved after it are read. Null when there is none (it
+ * happened in a conversation's first turn, or no turn is saved).
+ */
+async function rewindFor(when: number, conversations: readonly ConversationInfo[]): Promise<{ id: string; start: string } | null> {
+  const api = window.mobius.changes;
+  if (!api?.turns) return null;
+  let best: { id: string; start: string; at: number } | null = null;
+  for (const c of conversations.filter((x) => x.updated_ms >= when).slice(0, 12)) {
+    const r = await api.turns(c.id).catch(() => null);
+    const turns = r && r.ok ? r.turns.filter((t) => t.ended) : [];
+    const i = turns.findLastIndex((t) => t.when <= when);
+    const before = i > 0 ? turns[i - 1] : undefined;
+    if (before && (!best || turns[i]!.when > best.at)) best = { id: c.id, start: before.start, at: turns[i]!.when };
+  }
+  return best && { id: best.id, start: best.start };
+}
+
+/** Rewind to here, on a line Mobius changed: shown once the conversation and turn it came from are found. */
+function RewindButton({ when, conversations, onRewind }: { when: number; conversations: readonly ConversationInfo[]; onRewind: (id: string, start: string) => void }) {
+  const [to, setTo] = useState<{ id: string; start: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    setTo(null);
+    void rewindFor(when, conversations).then((r) => { if (live) setTo(r); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [when]);
+  if (!to) return null;
+  return <button type="button" className="btn" onClick={() => onRewind(to.id, to.start)}>Rewind to here</button>;
+}
 
 /**
  * The Activity app's state: the log on this computer, read again whenever a conversation moves, where the sidebar
@@ -138,7 +171,7 @@ function Detail({ feed, picked: p, conversations, onOpenConversation, onOpenApp 
           <h2 className="act-detail-title">{c.title || 'A conversation'}</h2>
           <p className="act-detail-sub">Last active {relativeTime(c.updated_ms, Date.now()).toLowerCase()}</p>
           <div className="act-detail-actions"><button type="button" className="btn" onClick={() => onOpenConversation(c.id)}>Open conversation</button></div>
-          <Turns conversation={c.id} busy={c.activity === 'working'} version={c.updated_ms} />
+          <Turns conversation={c.id} busy={c.activity === 'working'} version={c.updated_ms} {...(p.rewindTo ? { rewindTo: p.rewindTo } : {})} />
         </section>
       );
     }
@@ -155,8 +188,10 @@ function Detail({ feed, picked: p, conversations, onOpenConversation, onOpenApp 
             <dt>When</dt><dd>{new Date(item.when).toLocaleString([], { weekday: 'long', hour: 'numeric', minute: '2-digit', month: 'long', day: 'numeric' })}</dd>
           </dl>
           {item.final && <p className="act-detail-note">This can’t be undone, so Mobius asked before doing it.</p>}
-          {item.changed && !item.final && <p className="act-detail-note">If you don’t want this change, open the conversation it came from and use Rewind to here.</p>}
-          {item.app && <div className="act-detail-actions"><button type="button" className="btn" onClick={() => onOpenApp(item.app!)}>Open {appName(item.app)}</button></div>}
+          <div className="act-detail-actions">
+            {item.app && <button type="button" className="btn" onClick={() => onOpenApp(item.app!)}>Open {appName(item.app)}</button>}
+            {item.changed && !item.final && <RewindButton when={item.when} conversations={conversations} onRewind={(id, start) => feed.setPicked({ kind: 'conversation', id, rewindTo: start })} />}
+          </div>
         </section>
       );
     }
@@ -186,8 +221,9 @@ export function ActivityPage({ feed, conversations, active, onOpenConversation, 
   const lead = place === 'today' || needs;
   const shown = needs ? [] : feed.items.filter((i) => inPlace(i, place, now) && byWho(i, who));
   const days = byDay(shown, now);
+  const [reviewing, setReviewing] = useState<string[]>([]);
   const pick = (p: Picked) => feed.setPicked(p);
-  const isPicked = (p: Picked) => JSON.stringify(p) === JSON.stringify(picked);
+  const isPicked = (p: Picked) => !!p && !!picked && (p.kind === 'item' ? picked.kind === 'item' && picked.seq === p.seq : picked.kind === 'conversation' && picked.id === p.id);
   const convo = (title: string, list: ConversationInfo[]) => list.length > 0 && (
     <section className="act-group" aria-label={title}>
       <h2 className="act-label">{title}</h2>
@@ -204,8 +240,9 @@ export function ActivityPage({ feed, conversations, active, onOpenConversation, 
       <div className="act-scroll">
         {lead && convo('Needs you', board.needsYou)}
         {lead && convo('Running', board.running)}
-        {lead && <div className="act-embed"><ChangesWaiting conversations={board.doneToday.slice(0, 10)} onSelect={(id) => pick({ kind: 'conversation', id })} /></div>}
-        {place === 'today' && convo('Done today', board.doneToday)}
+        {lead && <div className="act-embed"><ChangesWaiting conversations={board.doneToday.slice(0, 10)} onSelect={(id) => pick({ kind: 'conversation', id })} onRows={setReviewing} /></div>}
+        {/* A conversation with changes to review is listed there until they are kept or discarded, not twice. */}
+        {place === 'today' && convo('Done today', board.doneToday.filter((c) => !reviewing.includes(c.id)))}
         {place === 'today' && onOpenSchedules && <div className="act-embed"><ScheduledList onOpen={onOpenSchedules} /></div>}
         {days.map((d) => (
           <section key={d.label} className="act-group" aria-label={d.label}>
