@@ -29,6 +29,13 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const day = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const ics = (d: string) => d.replace(/-/g, '');
 const today = () => day(new Date());
+/** A time as the app writes it, following the computer's clock: "13:00", or "1:00 PM" on the 12-hour clock. */
+const at = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number) as [number, number];
+  return `(?:0?${h}:${pad(m)}|${((h + 11) % 12) + 1}:${pad(m)}\\s?${h < 12 ? 'AM' : 'PM'})`;
+};
+/** From one time to another, as an event's name says it. */
+const span = (from: string, to: string) => `${at(from)}–${at(to)}`;
 
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
@@ -45,7 +52,7 @@ test('a calendar file from another app shows in the week, and events are added, 
   fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:standup\r\nDTSTART:${ics(today())}T090000\r\nDURATION:PT30M\r\nRRULE:FREQ=DAILY;COUNT=3\r\nSUMMARY:Standup\r\nBEGIN:VALARM\r\nTRIGGER:-PT5M\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
   await start();
   await page().getByRole('radio', { name: 'Week' }).click();
-  await expect(page().getByRole('button', { name: /^Standup, 9:00–9:30, Work/ }).first()).toBeVisible();
+  await expect(page().getByRole('button', { name: new RegExp(`^Standup, ${span('9:00', '9:30')}, Work`) }).first()).toBeVisible();
   await expect(shell().getByRole('list', { name: 'Calendars' }).getByText('Work')).toBeVisible();
 
   // New event: the editor opens at the next hour today.
@@ -69,7 +76,7 @@ test('a calendar file from another app shows in the week, and events are added, 
   await change.getByRole('textbox', { name: 'Title' }).fill('Team standup');
   // The popover has no Save: Enter keeps the change.
   await change.getByRole('textbox', { name: 'Title' }).press('Enter');
-  await expect(page().getByRole('button', { name: /^Team standup, 9:00–9:30/ }).first()).toBeVisible();
+  await expect(page().getByRole('button', { name: new RegExp(`^Team standup, ${span('9:00', '9:30')}`) }).first()).toBeVisible();
   const work = fs.readFileSync(file('Work'), 'utf8');
   expect(work).toContain('RRULE:FREQ=DAILY;COUNT=3');
   expect(work).toContain('TRIGGER:-PT5M');
@@ -94,14 +101,14 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
   const tomorrow = day(new Date(Date.now() + 86_400_000));
   const quick = page().getByRole('textbox', { name: 'Quick add an event' });
   await quick.fill('Site walk tomorrow 10am for 30m');
-  await expect(page().getByRole('status').filter({ hasText: 'Site walk' })).toContainText('10:00–10:30');
+  await expect(page().getByRole('status').filter({ hasText: 'Site walk' })).toContainText(new RegExp(span('10:00', '10:30')));
   await quick.press('Enter');
   // The day it is on opens.
   const walk = (time: string) => page().getByRole('button', { name: new RegExp(`^Site walk, ${time}`) });
-  await expect(walk('10:00–10:30')).toBeVisible();
+  await expect(walk(span('10:00', '10:30'))).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain(`DTSTART:${ics(tomorrow)}T100000`);
 
-  await walk('10:00–10:30').click();
+  await walk(span('10:00', '10:30')).click();
   const editor = shell().getByRole('dialog', { name: 'Edit event' });
   await editor.getByRole('combobox', { name: 'Repeat' }).selectOption('Every day');
   await editor.getByRole('textbox', { name: 'Title' }).press('Enter');
@@ -109,20 +116,20 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
 
   // Dragged down an hour (48 pixels), the whole series moves, and Undo is offered.
-  const box = (await walk('10:00–10:30').boundingBox())!;
+  const box = (await walk(span('10:00', '10:30')).boundingBox())!;
   await shell().mouse.move(box.x + box.width / 2, box.y + 8);
   await shell().mouse.down();
   await shell().mouse.move(box.x + box.width / 2, box.y + 30, { steps: 4 });
   await shell().mouse.move(box.x + box.width / 2, box.y + 56, { steps: 4 });
   await shell().mouse.up();
-  await expect(walk('11:00–11:30')).toBeVisible();
+  await expect(walk(span('11:00', '11:30'))).toBeVisible();
   await expect(page().getByRole('status').filter({ hasText: 'Moved “Site walk”' })).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain(`DTSTART:${ics(tomorrow)}T110000`);
   expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
 
   // The next day has it at the new time too; the arrow key goes there.
   await shell().locator('body').press('ArrowRight');
-  await expect(walk('11:00–11:30')).toBeVisible();
+  await expect(walk(span('11:00', '11:30'))).toBeVisible();
   await shell().locator('body').press('m');
   await expect(page().getByRole('radio', { name: 'Month' })).toHaveAttribute('aria-checked', 'true');
 });
@@ -137,10 +144,34 @@ test('the agent adds an event from the panel beside the calendar, after asking, 
   await expect(card).toContainText('add “Dentist” to your calendar');
   await card.getByRole('button', { name: 'Allow once' }).click();
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('It is in your calendar.');
-  await expect(page().getByRole('button', { name: /^Dentist, 15:00–16:00, Main St, Calendar/ })).toBeVisible();
+  await expect(page().getByRole('button', { name: new RegExp(`^Dentist, ${span('15:00', '16:00')}, Main St, Calendar`) })).toBeVisible();
   const written = fs.readFileSync(file('Calendar'), 'utf8');
   expect(written).toContain(`DTSTART:${ics(today())}T150000`);
   expect(written).toContain('LOCATION:Main St');
+});
+
+test('an event the agent adds next week opens Calendar on that week, dashed, with Keep and Discard', async () => {
+  const ahead = new Date();
+  ahead.setDate(ahead.getDate() + 8);
+  await start([callsTool('calendar-add', { calendar: 'Calendar', title: 'Kickoff', start: `${day(ahead)}T10:00` }), says(['Kickoff is in for next week.'])]);
+  await page().getByRole('radio', { name: 'Week' }).click();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Put the kickoff in for next week');
+  await composer.press('Enter');
+  const card = shell().getByRole('log', { name: 'Conversation' }).getByRole('group', { name: 'Approval needed: calendar.add' });
+  await card.getByRole('button', { name: 'Allow once' }).click();
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Kickoff is in for next week.');
+
+  // The week moves to the new event, drawn dashed, and the bar says what changed.
+  const kickoff = page().getByRole('button', { name: /^Added by Mobius: Kickoff/ });
+  await expect(kickoff).toBeVisible();
+  await expect(kickoff).toHaveAttribute('data-proposed', 'true');
+  const bar = page().locator('.cal-review');
+  await expect(bar).toContainText('“Kickoff”');
+  await bar.getByRole('button', { name: 'Keep' }).click();
+  await expect(bar).toHaveCount(0);
+  await expect(page().getByRole('button', { name: /^Kickoff/ })).toBeVisible();
+  expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('SUMMARY:Kickoff');
 });
 
 test('a subscribed calendar link shows beside the person\'s own, and its events can be read but not changed', async () => {
@@ -192,7 +223,7 @@ test('the agent suggests an event without asking, and it is added only when the 
   await expect(shell().getByRole('log', { name: 'Conversation' }).getByRole('group', { name: /Approval needed/ })).toHaveCount(0);
 
   // Each suggestion is a dashed event; it opens beside itself with why, and Keep, Try another and Discard.
-  const ghost = page().getByRole('button', { name: /^Suggested: Prep slides, 10:00–11:00/ });
+  const ghost = page().getByRole('button', { name: new RegExp(`^Suggested: Prep slides, ${span('10:00', '11:00')}`) });
   await expect(ghost).toBeVisible();
   expect(fs.existsSync(file('Calendar')) ? fs.readFileSync(file('Calendar'), 'utf8') : '').not.toContain('Prep slides');
   await ghost.click();
@@ -207,7 +238,7 @@ test('the agent suggests an event without asking, and it is added only when the 
   await ghost.click();
   await prep.getByRole('button', { name: 'Keep' }).click();
   await expect(page().getByRole('button', { name: /^Suggested:/ })).toHaveCount(0);
-  await expect(page().getByRole('button', { name: /^Prep slides, 10:00–11:00, Calendar/ })).toBeVisible();
+  await expect(page().getByRole('button', { name: new RegExp(`^Prep slides, ${span('10:00', '11:00')}, Calendar`) })).toBeVisible();
   await expect(page().getByRole('button', { name: /Gym/ })).toHaveCount(0);
   expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('SUMMARY:Prep slides');
 });
@@ -218,7 +249,7 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   fs.writeFileSync(file('Home'), 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nEND:VCALENDAR\r\n');
   await start();
   await page().getByRole('radio', { name: 'Week' }).click();
-  const review = (title = 'Budget review') => page().getByRole('button', { name: new RegExp(`^${title}, 11:00–12:00`) });
+  const review = (title = 'Budget review') => page().getByRole('button', { name: new RegExp(`^${title}, ${span('11:00', '12:00')}`) });
 
   // A popover, not a sheet over a dimmed window; a press elsewhere keeps what was typed.
   await review().click();
@@ -248,13 +279,13 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   // Its menu moves it to another calendar.
   await review('Budget review Q4').click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Budget review Q4' }).getByRole('menuitem', { name: 'Move to Home' }).click();
-  await expect(page().getByRole('button', { name: /^Budget review Q4, 11:00–12:00, Home/ })).toBeVisible();
+  await expect(page().getByRole('button', { name: new RegExp(`^Budget review Q4, ${span('11:00', '12:00')}, Home`) })).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('SUMMARY:Budget review Q4');
   expect(fs.readFileSync(file('Work'), 'utf8')).not.toContain('Budget review Q4');
 
   // Empty time has a menu too: a new event there, edited beside it.
   await page().locator('.cal-column').first().click({ button: 'right', position: { x: 20, y: 14 * 48 + 10 } });
-  await shell().getByRole('menu').getByRole('menuitem', { name: 'New event at 14:00' }).click();
+  await shell().getByRole('menu').getByRole('menuitem', { name: new RegExp(`^New event at ${at('14:00')}$`) }).click();
   const made = shell().getByRole('dialog', { name: 'New event' });
   await expect(made).toHaveAttribute('data-pop', 'true');
   await expect(made.getByRole('textbox', { name: 'Start time' })).toHaveValue(/2(:00)?\s?PM|14:00/);
