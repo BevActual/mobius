@@ -265,7 +265,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .field textarea { resize: vertical; }
 .field input:focus, .field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 
-.field-ok { margin: 8px 0 0; font-size: var(--fs-sm); color: var(--success); }
+.field-ok { margin: 8px 0 0; font-size: var(--fs-sm); color: var(--muted); }
 .mono { font-family: var(--font-mono); font-size: var(--fs-sm); }
 .btn.danger { background: var(--danger); border-color: var(--danger); color: var(--on-accent); }
 .btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 88%, #000); }
@@ -533,7 +533,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .prow-note { font-size: var(--fs-sm); color: var(--muted); }
 .prow-code { font-family: var(--code-font, var(--font-mono)); letter-spacing: 0.08em; color: var(--ink); }
 .prow-status { font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; }
-.prow-status[data-has-key="true"] { color: var(--success); }
+.prow-status[data-has-key="true"] { color: var(--muted); }
 .prow-actions { display: inline-flex; gap: var(--sp-2); }
 .prow-form { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .prow-form .input, .prow-form select { flex: 1; min-width: 200px; }
