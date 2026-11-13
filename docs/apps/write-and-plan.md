@@ -31,8 +31,8 @@ Longer documents, with an outline and comments.
 - **A page to write on**: headings, lists, checklists, tables, pictures and links to other documents, kept as Markdown.
   The format bar is the window's toolbar, beside the document's name and whether it is saved. **Aa** holds the styles,
   bold, italic and lists, as in Notes; checklist, link and **Insert** (table, picture, divider, code) sit beside it,
-  and **Table** appears while you are in one, for its rows and columns. **Document options** shows the outline, opens
-  earlier versions and switches the page between the sans-serif font and a serif one.
+  and **Table** appears while you are in one, for its rows and columns. **Document options** shows the outline and the
+  margin's comments, opens earlier versions and switches the page between the sans-serif font and a serif one.
 - **The outline** of headings sits beside the page and marks the part you are looking at as you scroll. It folds away
   when the window is narrow; hide it in Document options if you prefer. A document opens at its top.
 - **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
