@@ -78,6 +78,7 @@ import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail } from './Rail';
 import { SidebarHead } from './SidebarHead';
+import { AppFrame, ToolbarControls } from './ui';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
@@ -1509,56 +1510,54 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px', '--side-col': leftAttached ? `${leftWidth}px` : '0px' } as React.CSSProperties} data-side={leftAttached || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
-      <Rail
-        {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
-        app={app}
-        onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); if (id === 'agent') setSideMode('sessions'); openApp(id); }}
-        ownApps={[
-          { id: 'bots', name: 'Agents', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
-          { id: 'activity', name: 'Activity', current: !settingsOpen && app === 'agent' && sideMode === 'activity', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } },
-          { id: 'extensions', name: 'Abilities', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
-          { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
-        ]}
-        activity={activity}
-        changed={changed}
-        needsYou={needsYou}
-        onLauncher={openHub}
-        {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
-        settingsOpen={settingsOpen}
-        apps={appearance.value.sidebarApps}
-        onApps={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
-        onEditApps={() => { setSettingsSection('layout'); openSettings(); }}
-      />
-      <header className="context-strip">
-        <div className="strip-left" role="group" aria-label="Window">
+    <AppFrame
+      style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px', '--side-col': leftAttached ? `${leftWidth}px` : '0px' } as React.CSSProperties}
+      data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
+      rail={
+        <Rail
+          {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
+          app={app}
+          onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); if (id === 'agent') setSideMode('sessions'); openApp(id); }}
+          ownApps={[
+            { id: 'bots', name: 'Agents', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
+            { id: 'activity', name: 'Activity', current: !settingsOpen && app === 'agent' && sideMode === 'activity', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } },
+            { id: 'extensions', name: 'Abilities', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
+            { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
+          ]}
+          activity={activity}
+          changed={changed}
+          needsYou={needsYou}
+          onLauncher={openHub}
+          {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
+          settingsOpen={settingsOpen}
+          apps={appearance.value.sidebarApps}
+          onApps={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
+          onEditApps={() => { setSettingsSection('layout'); openSettings(); }}
+        />
+      }
+      toolbar={{
+        wideMiddle: inBrowser,
+        lead: <>
           {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={settingsOpen ? 'Show sections' : inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : inSearch ? 'Show scopes' : 'Show tabs'} title={settingsOpen ? 'Show or hide the sections' : inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
-        </div>
-        <div className="toolbar-place" data-browser={inBrowser || undefined}>
-          {/* The open document's name, or the app's when nothing is open, so the title bar is never blank. */}
-          {(place || (!settingsOpen && appName(app))) && <h1 className="strip-title">{place || appName(app)}</h1>}
-          {inAgent && !inActivity && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
-          {inNotes && notes.page && <span className="toolbar-sub">{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></span>}
-          {inMail && <span className="toolbar-sub">{mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`}</span>}
-          {inSheets && sheets.data && <span className="toolbar-sub">{sheets.data.sheet}</span>}
-          {inCalendar && <span className="toolbar-sub">{eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`}</span>}
-          {inTasks && <span className="toolbar-sub">{tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`}</span>}
-        </div>
-        {inTasks && tasks.view.kind === 'list' && tasksDone > 0 && (
-          <div className="strip-middle toolbar-tools" role="group" aria-label="Tasks">
-            <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
-          </div>
-        )}
+        </>,
+        // The open document's name, or the app's when nothing is open, so the title bar is never blank.
+        title: place || (!settingsOpen && appName(app)) || undefined,
+        sub: inAgent && !inActivity ? (settings?.configured ? `Talking to ${settings.model}` : 'No model connected')
+          : inNotes && notes.page ? <>{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></>
+          : inMail ? (mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`)
+          : inSheets && sheets.data ? sheets.data.sheet
+          : inCalendar ? (eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
+          : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
+          : undefined,
+        middle: <>
         {inMail && <MailToolbar mail={mail} />}
         {inBrowser && !settingsOpen && browserChrome}
-        <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
-        {/* Words and icons never share a capsule: the update notice stands on its own, before the icons. */}
-        <div className="strip-texts"><UpdateNotice /></div>
-        {/* Trailing, the same in every app: comments, the menus as one ⋯ button, and Mobius always last. Split view
-            and Little Mobius live in the Window menu. */}
-        <div className="strip-right" role="group" aria-label="Applications">
+        </>,
+        // Words and icons never share a capsule: the update notice stands on its own, before the icons.
+        status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
+        trail: <>
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
           {menuBar}
           {hasRight && !settingsOpen && (
@@ -1567,9 +1566,16 @@ export function App() {
               <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
             </button>
           )}
-        </div>
-      </header>
+        </>,
+      }}
+    >
       <div className="body" style={layout}>
+        {/* An app's own controls go in the toolbar's middle from wherever the app is drawn (ui/AppFrame). */}
+        {inTasks && tasks.view.kind === 'list' && tasksDone > 0 && (
+          <ToolbarControls label="Tasks">
+            <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
+          </ToolbarControls>
+        )}
         {hasLeft && leftOpen && (
           <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
             <SidebarHead
@@ -1666,7 +1672,7 @@ export function App() {
       <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp}
         onAsk={settings?.configured ? (question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined}
         commands={launcherCommands} />
-    </div>
+    </AppFrame>
     </TryAnotherContext.Provider>
   );
 }

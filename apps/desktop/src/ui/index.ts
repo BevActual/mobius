@@ -7,3 +7,6 @@ import './ui.css';
 
 export { Menu, PointMenu, type MenuEntry } from './Menu';
 export { UndoToast } from './UndoToast';
+export { AppFrame, ToolbarControls, type ToolbarParts } from './AppFrame';
+export { ViewSwitch, type ViewChoice } from './ViewSwitch';
+export { AppSidebar, SidebarSearch, SidebarSection, SidebarRow } from './AppSidebar';
