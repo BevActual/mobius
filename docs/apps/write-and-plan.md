@@ -110,6 +110,9 @@ Spreadsheets with formulas.
 
 ![The Sheets app in Mobius](../readme/apps/sheets.png)
 
+- The window's toolbar holds Undo and Redo, **Σ** (sum, average and more of the picked cells), **%** (number formats),
+  **Table** (add or delete rows and columns) and **Sort**. The cell's name and the formula bar are one slim row on
+  top of the grid.
 - Type in the cell or the formula bar. Formulas such as `=SUM(B2:B4)`, `=D2/People!B1` and `=IF(A1>0,"yes","no")` work
   across sheets, with a hint for the function you are in.
 - Columns size themselves to fit, and a first row of words over numbers reads as a header. A last row that adds up
