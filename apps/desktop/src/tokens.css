@@ -84,8 +84,8 @@
 
   /*
    * Today's names, kept as aliases while apps move over to the names above. New code uses the new names.
-   * --accent still means "the primary action, the current place, the agent"; it is being split into --ink and
-   * --mobius one use at a time.
+   * --accent is now ink: the primary action and the current place. Anything Mobius made, proposes or is doing uses
+   * --mobius by name.
    */
   --bg: var(--paper);
   --panel: var(--paper);
@@ -96,9 +96,9 @@
   --soft: var(--sel);
   --hairline: var(--line);
   --line-strong: var(--faint);
-  --accent: var(--mobius);
-  --on-accent: var(--on-mobius);
-  --wash: var(--mobius-wash);
+  --accent: var(--ink);
+  --on-accent: var(--on-ink);
+  --wash: var(--sel);
   --danger: var(--red);
   --danger-wash: var(--red-wash);
   --field: rgba(0, 0, 0, 0.045);
