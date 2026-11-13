@@ -311,3 +311,28 @@ export function withSelection(item: ContextItem, selection: string | null): Cont
   const line = /^[A-Z]{1,3}\d+(:[A-Z]{1,3}\d+)?$/.test(said) ? `Selected: ${said}` : `Selected text: "${said}"`;
   return { ...item, text: `${line}\n\n${item.text}`.slice(0, MAX_CONTEXT_ITEM_CHARS) };
 }
+
+const WORD_APP: Record<string, string> = { notes: 'Notes', docs: 'Docs', slides: 'Slides', designs: 'Design', studio: 'Music', boards: 'Canvas', views: 'Views', research: 'Research', reading: 'Reader', databases: 'Database', terminal: 'Terminal', sheets: 'Sheets', photos: 'Photo', video: 'Video', code: 'Code' };
+const WORD_KIND: Record<string, string> = { notes: 'Note', docs: 'Doc', slides: 'Deck', designs: 'Design', studio: 'Song', boards: 'Board', views: 'View', research: 'Report', reading: 'Article', databases: 'Database', terminal: 'Terminal', sheets: 'Sheet', photos: 'Photo', video: 'Cut', code: 'File' };
+
+/**
+ * What an attached item is, in the words its chip uses everywhere (the message box and the sent message say the
+ * same): Email for a message from Mail, Note for a note, Page for a web page. Its name drops that word.
+ */
+export function attachmentLabel(item: Pick<ContextItem, 'kind' | 'source' | 'title'>): { kind: string; title: string } {
+  if (item.kind === 'page') return { kind: 'Page', title: item.title };
+  if (item.kind === 'note') return { kind: 'Note', title: item.title };
+  if (item.source.startsWith('mail:')) return { kind: 'Email', title: bare(item.title) };
+  if (item.source === 'tasks') return { kind: 'List', title: item.title.replace(/^Tasks: /, '') };
+  const kind = WORD_KIND[item.source.split('/')[0] ?? ''];
+  return { kind: kind ?? 'File', title: bare(item.title) };
+}
+
+/** The app an attached item comes from, for "Based on Mail · Calendar". */
+export function attachmentApp(item: Pick<ContextItem, 'kind' | 'source'>): string {
+  if (item.kind === 'page') return 'Browser';
+  if (item.kind === 'note') return 'Notes';
+  if (item.source.startsWith('mail:')) return 'Mail';
+  if (item.source === 'tasks') return 'Tasks';
+  return WORD_APP[item.source.split('/')[0] ?? ''] ?? 'Files';
+}
