@@ -1,11 +1,11 @@
 :root {
   --strip: 28px; --context: 48px; --rail: 52px; --side: 248px; --chat-width: clamp(300px, 27vw, 400px);
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
-body { background: var(--shell); color: var(--ink); font: 13px/1.5 var(--font); -webkit-font-smoothing: antialiased; overflow: hidden; }
+body { background: var(--shell); color: var(--ink); font: 13px/1.5 var(--font); font-optical-sizing: auto; -webkit-font-smoothing: antialiased; overflow: hidden; }
 button, input, select, textarea { font: inherit; color: inherit; }
 select { appearance: none; height: var(--control-h-lg); padding: 0 var(--sp-6) 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg) var(--chevron) no-repeat right var(--sp-2) center / 12px; cursor: pointer; }
 select:hover:not(:disabled) { border-color: var(--line-strong); }
@@ -456,30 +456,21 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 @media (prefers-reduced-motion: reduce) { .group-toggle .chev { transition: none; } }
 
 /* Notes */
-.notes-side .notes-list { flex: 1; min-height: 0; overflow: auto; padding-bottom: var(--sp-3); }
 .notes-name { display: flex; gap: var(--sp-2); margin: 0 var(--sp-2) var(--sp-2); }
 .notes-name input { flex: 1; min-width: 0; height: var(--control-h); padding: 0 var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); }
 .notes-empty { display: grid; gap: var(--sp-3); color: var(--muted); line-height: var(--lh-body); }
 .notes-empty p { margin: 0; }
 .notes-empty .btn { justify-self: start; }
-.notebook-head { display: flex; align-items: center; }
 .notebook-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-1); height: 30px; padding: 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); text-align: left; }
 .notebook-toggle .chev { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; transition: transform var(--dur-fast) var(--ease); }
-.notebook[aria-expanded="true"] > .notebook-head .chev { transform: rotate(90deg); }
-.notebook-add { opacity: 0; }
-.notebook-head:hover .notebook-add, .notebook-add:focus-visible { opacity: 1; }
-.notebook ul { list-style: none; margin: 0 0 var(--sp-2); padding: 0; }
-.note-item { display: flex; align-items: center; border-radius: var(--radius-control); }
-.note-item:hover { background: color-mix(in srgb, var(--soft) 60%, transparent); }
 .note-row { flex: 1; min-width: 0; display: grid; gap: 2px; padding: 7px var(--sp-2) 7px 22px; text-align: left; border-radius: var(--radius-control); }
-.notes-list[aria-label="Search results"] .note-row { padding-left: var(--sp-2); }
 .note-row[aria-current="page"] { background: var(--soft); }
 .note-row[aria-current="page"] .note-title { font-weight: var(--fw-medium); }
 .note-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
 .note-delete { flex: none; height: 26px; min-width: 26px; margin-right: var(--sp-1); display: grid; place-items: center; color: var(--muted); opacity: 0; border-radius: var(--radius-control); }
 .note-delete svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
-.note-item:hover .note-delete, .note-delete:focus-visible, .note-delete.confirm { opacity: 1; }
+.note-delete:focus-visible, .note-delete.confirm { opacity: 1; }
 .note-delete.confirm { padding: 0 var(--sp-2); background: var(--danger); color: var(--on-accent); font-size: var(--fs-sm); }
 .stage .note-editor { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
 .note-editor.empty { display: grid; place-items: center; }
@@ -840,7 +831,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .rail-btn[aria-current="page"] { color: var(--accent); }
 /* Mobius's own apps: the same tiles, in Mobius's indigo. */
 
-.tab, .tab-main, .note-row, .note-item, .list-row, .clist-item, .clist-main { border-radius: var(--radius-control); }
+.tab, .tab-main, .note-row, .list-row, .clist-item, .clist-main { border-radius: var(--radius-control); }
 .tab[aria-current="page"], .note-row[aria-current="page"], .list-row[aria-current="page"] { background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .clist-item[data-current] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
@@ -1217,12 +1208,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 
 /* Calendar: a day, a week or a month. Each calendar has its colour; the agent's new events glow for a moment. */
 .stage .calendar-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
-.cal-head { flex-shrink: 0; display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); }
-.cal-head .spacer, .cal-editor-actions .spacer { flex: 1; }
+.cal-editor-actions .spacer { flex: 1; }
 .cal-title { margin: 0; font-size: var(--fs-xl); font-weight: 700; white-space: nowrap; }
-.cal-head .segmented { border-radius: var(--radius-pill); }
-.cal-head .segmented button { padding: 3px 13px; border-radius: var(--radius-pill); }
-.cal-head .segmented button[aria-checked="true"] { background: var(--bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16); font-weight: 600; }
 .cal-time { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .cal-days, .cal-all-day { display: grid; border-bottom: 1px solid var(--line); }
 .cal-day-head { padding: 6px 10px; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; }
@@ -1407,68 +1394,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .sheet-tab-name { height: 26px; width: 120px; padding: 0 8px; border-radius: var(--radius-control); border: 1px solid var(--accent); font: inherit; font-size: var(--fs-sm); }
 
 /* Mail: the list beside the message, categories above the list; Mobius's suggestions dashed until taken. */
-.stage .mail-page { position: absolute; z-index: 1; inset: 0; display: flex; background: var(--bg); }
-.mail-page.empty { align-items: center; justify-content: center; padding: var(--sp-6); text-align: center; }
-.mail-list-pane { flex: 0 0 340px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
-.mail-cats { display: flex; gap: 2px; padding: var(--sp-2) var(--sp-2) 0; flex-wrap: wrap; }
-.mail-cats button { height: 26px; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--fs-sm); display: inline-flex; align-items: center; gap: 6px; }
-.mail-cats button[aria-selected="true"] { background: var(--wash); color: var(--accent); font-weight: 600; }
-.mail-cat-count { color: var(--muted); font-size: var(--fs-sm); font-weight: 400; font-variant-numeric: tabular-nums; }
-.mail-box-icon { flex: none; width: 17px; height: 17px; margin-right: 8px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.mail-box-icon[data-box="flagged"] { stroke: var(--flag, #f59e0b); }
-.mail-search { margin: var(--sp-2); }
-.mail-list { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--sp-2) var(--sp-2); display: flex; flex-direction: column; gap: 1px; }
-.mail-row { display: flex; flex-direction: column; gap: 1px; text-align: left; padding: 8px 10px 8px 16px; border-radius: var(--radius-group); position: relative; min-width: 0; }
-.mail-row:hover { background: var(--soft); }
-.mail-row[aria-selected="true"] { background: var(--wash); }
-.mail-row[data-unread]::before { content: ""; position: absolute; left: 5px; top: 14px; width: 7px; height: 7px; border-radius: 4px; background: var(--accent); }
-.mail-row[data-suggested] { border: 1.5px dashed color-mix(in srgb, var(--accent) 60%, var(--bg)); }
-.mail-row-top { display: flex; gap: var(--sp-2); align-items: baseline; }
-.mail-row-top b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.mail-row[data-unread] .mail-row-subject { font-weight: 600; }
-.mail-when { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
-.mail-row-subject, .mail-row-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
-.mail-row-preview { color: var(--muted); }
-.mail-reading-pane { flex: 1; min-width: 0; overflow: auto; padding: var(--sp-4) var(--sp-6); }
-.mail-reading-pane > .note-empty { margin-top: 30vh; text-align: center; }
-.mail-reader { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-3); }
-.mail-reader-head { display: flex; gap: var(--sp-3); align-items: flex-start; }
-.mail-avatar { flex: 0 0 40px; height: 40px; border-radius: 20px; display: grid; place-items: center; background: var(--wash); color: var(--accent); font-weight: 700; }
-.mail-reader-who { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.mail-subject { font-size: var(--fs-lg); font-weight: 600; }
-.mail-to { font-size: var(--fs-sm); color: var(--muted); }
-.mail-reader-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
-.mail-tools { gap: var(--sp-2); }
-.mail-tools-group { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: var(--glass-tint); box-shadow: var(--glass-edge); }
-.mail-tools .strip-btn { border-radius: 999px; color: var(--ink); }
-.mail-tools .strip-btn:hover { background: var(--soft); color: var(--ink); }
-.mail-tools .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.mail-tools .strip-btn[aria-pressed="true"] { background: none; color: var(--flag, #f59e0b); }
-.mail-tools .strip-btn svg [data-dot] { fill: var(--accent); stroke: none; }
-.mail-tools .strip-btn svg[data-filled="true"] path { fill: currentColor; }
-.mail-row-flag { display: inline-flex; color: var(--flag, #f59e0b); }
-.mail-row-flag svg { width: 12px; height: 12px; fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
-.mail-row[data-flagged]:not([data-unread])::before { content: none; }
-.btn.mail-draft-it { color: var(--accent); }
-.mail-reader-actions select { height: 30px; padding: 0 24px 0 10px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--bg) var(--chevron) no-repeat right 8px center / 12px; appearance: none; font: inherit; font-size: var(--fs-sm); color: inherit; }
 .btn.mobius { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.mail-html { width: 100%; border: 0; border-radius: var(--radius-group); background: #fff; }
-.mail-text { margin: 0; white-space: pre-wrap; word-wrap: break-word; font: inherit; line-height: 1.55; }
-.mail-attachments { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
-.mail-suggested { display: flex; flex-direction: column; gap: 6px; padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-group); border: 1.5px dashed color-mix(in srgb, var(--accent) 60%, var(--bg)); background: color-mix(in srgb, var(--accent) 5%, var(--bg)); }
-.mail-suggested-head { font-size: var(--fs-xs); font-weight: 600; color: var(--accent); }
-.mail-suggested-body { margin: 0; white-space: pre-wrap; }
-.mail-suggested-actions { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
-.mail-suggested-actions span { font-size: var(--fs-xs); color: var(--muted); }
-.mail-compose { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); }
-.mail-field { display: flex; align-items: center; gap: var(--sp-2); border-bottom: 1px solid var(--line); }
-.mail-field span { width: 60px; color: var(--muted); font-size: var(--fs-sm); }
-.mail-field input { flex: 1; height: 34px; border: 0; background: transparent; font: inherit; color: inherit; outline: none; }
-.mail-compose textarea { min-height: 260px; padding: var(--sp-2) 0; border: 0; resize: vertical; font: inherit; line-height: 1.55; background: transparent; color: inherit; outline: none; }
-.mail-account { display: flex; align-items: center; gap: 4px; padding: 2px var(--sp-2); flex-wrap: wrap; font-size: var(--fs-sm); }
-.mail-account .list-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@container (max-width: 700px) { .mail-list-pane { flex-basis: 260px; } }
-.stage .mail-page { container-type: inline-size; }
 
 /* Slides: the navigator, the slide being edited at 16:9, its notes, and Play. */
 .stage .slides-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--panel); }
@@ -2131,38 +2057,13 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .tab-driver[data-driver="yours"] { color: var(--text); background: var(--wash); }
 
 /* Mail: Get to zero in the Mobius panel, Send later, and the keys. */
-.mail-plan { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }
-.mail-plan-start { justify-self: start; }
-.mail-plan-card { display: grid; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-panel); outline: 1px dashed var(--accent); outline-offset: -1px; background: color-mix(in srgb, var(--accent) 5%, transparent); }
-.mail-plan-head { margin: 0; font-weight: 600; font-size: var(--fs-sm); }
-.mail-plan-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.mail-plan-row { display: flex; width: 100%; justify-content: space-between; padding: 4px 6px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
-.mail-plan-row:hover { background: var(--wash); }
-.mail-plan-count { color: var(--muted); font-variant-numeric: tabular-nums; }
-.mail-plan-items { margin: 0 0 4px; padding: 0 6px 0 16px; font-size: var(--fs-sm); color: var(--muted); }
-.mail-plan-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
-.mail-plan-done, .mail-scheduled { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--fs-sm); }
-.mail-sources { list-style: none; margin: 0 0 var(--sp-2); padding: 0; display: grid; gap: 2px; }
-.mail-source { display: flex; gap: var(--sp-2); width: 100%; padding: 4px 8px; border: 1px solid var(--hairline); border-radius: 8px; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
-.mail-source span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mail-later { position: relative; display: inline-flex; }
-.mail-later-menu { position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 5; display: grid; gap: 4px; padding: 6px; border-radius: var(--radius-panel); background: var(--bg); box-shadow: var(--shadow-1); white-space: nowrap; }
-.mail-later-suggested[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; color: var(--accent); }
-.mail-needs-reply { color: var(--accent); }
 
 /* Knowledge: the app icon's colour. The app's own styles are in knowledge.css. */
 .hub-icon[data-app="wiki"], .launcher-icon svg[data-app="wiki"], .review-filter svg[data-app="wiki"] { background: var(--app-wiki); }
 
 /* Notes' list: each page with how it starts; Pinned and Tags fold like notebooks; a tag lists its pages. */
-.note-lines { flex: 1; min-width: 0; display: grid; gap: 1px; }
-.notes-section .note-row, .notes-tag-row { padding-left: 22px; }
-.notes-tag-row .note-title { color: var(--accent); }
 .note-count { margin-left: auto; font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
-.notes-tag-head { display: flex; align-items: center; gap: 8px; padding: 4px var(--sp-2) 6px; }
-.notes-tag-head .note-meta-tag { display: inline-flex; align-items: center; }
 .notes-tag-clear { margin-left: auto; }
-.notes-list[role="region"] ul { list-style: none; margin: 0; padding: 0; }
-.notes-list[role="region"] .note-row { padding-left: var(--sp-2); }
 
 /* Projects: a place, with its cards. */
 .hub-icon[data-app="projects"], .launcher-icon svg[data-app="projects"], .review-filter svg[data-app="projects"] { background: var(--app-projects); }
@@ -2363,8 +2264,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .chat .msg.error[data-failed] .msg-error-icon { stroke: currentColor; }
 
 /* A row's own menu (right-click): out of the way, for what is easy to regret. */
-.mail-account { position: relative; border-radius: 8px; }
-.mail-account:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
 
 /* Selection is a soft fill, never a dashed edge; what Mobius changed and is waiting has a small indigo dot. */
 .dock.left .side :is(.note-row, .list-row, .clist-item, .files-row)[data-proposed] { outline: none; }
@@ -2380,8 +2279,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .dock.left .side > .side-search { order: -1; }
 .dock.left .side > .side-new { order: -2; }
 /* Tag rows: the label's own colour, with a grey #; the accent is only for selection. */
-.notes-tag-row .note-title { color: var(--ink); }
-.notes-tag-row .note-title::first-letter { color: var(--muted); }
 
 /* Comments: a speech-bubble button with the count of open threads, a dashed ring in comment mode, pins shaped as
    speech bubbles (indigo open or sent, yellow a note, grey with a check resolved), and a small card beside each. */
@@ -2693,8 +2590,6 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
    from the app's name. */
 
 /* A search result is two lines (the page, then where and the line that matched), each cut short rather than widening the sidebar. */
-.notes-list[aria-label="Search results"] .note-row { display: grid; justify-items: start; }
-.notes-list[aria-label="Search results"] :is(.note-title, .note-sub) { max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Abilities, Apps: every app by what it is for, each with Add or Remove. */
 .ability-apps { display: grid; gap: 20px; max-width: 640px; }

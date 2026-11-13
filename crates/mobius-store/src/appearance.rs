@@ -43,7 +43,7 @@ fn is_clippings_page(v: &Value) -> bool {
 }
 
 static FIELDS: [Field; 18] = [
-    Field { name: "theme", default: || json!("system"), check: |v| one_of(v, &["system", "light", "dark"]) },
+    Field { name: "theme", default: || json!("system"), check: |v| one_of(v, &["system", "light", "mid", "dark", "cool"]) },
     Field { name: "zoom", default: || json!(1), check: |v| in_range(v, 0.75, 1.5) },
     Field { name: "chatTextScale", default: || json!(1), check: |v| in_range(v, 0.85, 1.4) },
     Field { name: "chatFont", default: || json!("system"), check: |v| one_of(v, &["system", "serif", "mono"]) },
