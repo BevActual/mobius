@@ -349,15 +349,11 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
   const searchable = mode !== 'bots' && everything.length > 0;
   const sessionsOf = (id: string) => conversations.filter((c) => botOfConversation(c.id, known) === id);
   return (
-    <AppSidebar label="Agent sidebar">
+    <AppSidebar label="Agent sidebar" className="agent-side">
       {/* Agents and Activity open from the rail; the sidebar shows the list of the one you are in. */}
-      {/* The pin sits beside the search; with no search it goes on the first section's heading, as in the other apps. */}
-      {(searchable || (mode === 'activity' && pin)) && (
-        <div className="agent-side-top">
-          {searchable && <SidebarSearch label="Search sessions" placeholder="Search sessions" value={query} onChange={setQuery} />}
-          {pin}
-        </div>
-      )}
+      {/* Search on its own row, as in Mail; the pin goes on the first section's quiet heading. */}
+      {searchable && <SidebarSearch label="Search sessions" placeholder="Search sessions" value={query} onChange={setQuery} />}
+      {mode === 'activity' && pin && <div className="side-head"><span className="side-title">Activity</span><span className="side-actions">{pin}</span></div>}
       {mode === 'activity' ? (
         <ActivityBoard conversations={conversations} active={active} onSelect={onSelect} onDelete={onDelete} onOpenSchedules={onOpenSchedules} />
       ) : mode === 'bots' ? (
@@ -378,6 +374,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
         </SidebarSection>
       ) : (
         <>
+          <div className="side-head"><h3 className="side-title">Conversations</h3>{pin && <span className="side-actions">{pin}</span>}</div>
           {bots.map((bot) => {
             const all = sessionsOf(bot.id);
             const rows = needle ? all.filter((c) => c.title.toLowerCase().includes(needle)) : all;

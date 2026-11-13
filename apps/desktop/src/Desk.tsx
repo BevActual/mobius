@@ -57,7 +57,8 @@ function useSchedules(): ScheduleInfo[] {
   return list;
 }
 
-const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="true" style={{ background: `var(--app-${app})` }}>{APP_ICONS[app]}</svg>;
+/** An app is known by its line icon, never a coloured tile. */
+const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="true" className="desk-glyph" data-app={app}>{APP_ICONS[app]}</svg>;
 
 /**
  * The desk: the Agent app's home, where an empty conversation used to show nothing. One greeting with the date and what
@@ -120,7 +121,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
       {earlier.length > 0 && (
         <div className="desk-group" role="group" aria-label="Recent">
           <h3 className="desk-head">Recent</h3>
-          <ul className="desk-rows" data-columns>
+          <ul className="desk-rows">
             {earlier.map((c) => (
               <li key={c.id}>
                 <button type="button" className="desk-row" aria-label={`${name(c)}, ${agoLabel(c.updated_ms, now)}`} onClick={() => onOpenConversation(c.id)}>
@@ -153,7 +154,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
       {next.length > 0 && (
         <div className="desk-group" role="group" aria-label="Next">
           <h3 className="desk-head">Next</h3>
-          <ul className="desk-rows" data-columns>
+          <ul className="desk-rows">
             {next.map(({ schedule, at }) => (
               <li key={schedule.id}>
                 <button type="button" className="desk-row" onClick={onOpenSchedules} disabled={!onOpenSchedules}>
