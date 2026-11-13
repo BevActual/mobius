@@ -674,7 +674,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .rail-here { position: absolute; inset: 0; border-radius: var(--radius-group); background: var(--soft); box-shadow: inset 0 0 0 1px var(--line); }
 .rail-btn[data-working] { color: var(--accent); }
 .rail-btn[data-working]::after { content: ""; position: absolute; inset: 2px; border-radius: var(--radius-group); box-shadow: 0 0 0 1.5px var(--accent); animation: rail-pulse var(--dur-loop) var(--ease) infinite; pointer-events: none; }
-.rail-btn[data-changed]::before { content: ""; position: absolute; z-index: 2; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--shell); }
+.rail-btn[data-changed]::before { content: ""; position: absolute; z-index: 2; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--mobius); box-shadow: 0 0 0 2px var(--shell); }
 .rail-badge { position: absolute; z-index: 2; right: 1px; bottom: 1px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-small); background: var(--danger); color: var(--on-accent); font-size: 10px; font-weight: var(--fw-semibold); line-height: 16px; }
 @keyframes rail-pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
 
@@ -1154,7 +1154,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 
 /* First run: hello, how much Mobius should do, then the model. */
 .welcome { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-6) 0 var(--sp-2); text-align: center; }
-.welcome-mark { color: var(--accent); margin-bottom: var(--sp-2); }
+.welcome-mark { color: var(--mobius); margin-bottom: var(--sp-2); }
 .welcome-mark .mark-band { opacity: 0; animation: welcome-band var(--dur-slow) var(--ease) forwards; }
 .welcome-mark .mark-band[data-band="2"] { animation-delay: var(--dur-slow); }
 .welcome-mark .mark-band[data-band="3"] { animation-delay: var(--dur-slow); }
@@ -1396,7 +1396,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .sheet-table td[data-num] { text-align: right; }
 .sheet-table td[data-error] { color: var(--danger); }
 .sheet-table td[aria-selected="true"] { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
-.sheet-table td[data-changed] { background: color-mix(in srgb, var(--accent) 7%, var(--bg)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
+.sheet-table td[data-changed] { background: color-mix(in srgb, var(--mobius) 7%, var(--bg)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--mobius) 55%, transparent); }
 .sheet-table td[data-fresh] { animation: cal-fresh var(--dur-slow) var(--ease) 2; }
 .sheet-cell-input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0 6px; border: 0; outline: 2px solid var(--accent); outline-offset: -2px; font: inherit; color: inherit; background: var(--bg); }
 .sheet-tabs { flex-shrink: 0; display: flex; align-items: center; gap: 2px; padding: 4px var(--sp-3); border-top: 1px solid var(--line); background: var(--panel); }
@@ -2419,7 +2419,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 @media (prefers-color-scheme: dark) { .review-btn[data-kind="keep"] { background: #F5F5F7; color: #1D1D1F; } .review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: #E5E5EA; } }
 /* One dot per meaning: a row that already has its "changed by Mobius" mark does not get a second dot. */
 .dock.left .side :is(.note-row, .list-row)[data-proposed]:has(.changed-mark, .code-mark)::after { display: none; }
-.changed-mark { background: var(--accent); }
+.changed-mark { background: var(--mobius); }
 /* Comment mode's hover is a solid outline: dashed means made by Mobius and waiting. */
 .comment-ring { border: 0; outline: 1.5px solid var(--mobius); outline-offset: 0; background: color-mix(in srgb, var(--mobius) 6%, transparent); }
 /* The composer's menus open over the composer, as wide as it, so they never run past the panel's edge (where a
@@ -2750,3 +2750,31 @@ input.side-search.side-search {
 .msg.user .msg-steps { margin-top: var(--sp-1); font-size: var(--fs-xs); color: var(--muted); }
 .msg.user .msg-steps summary { cursor: default; }
 .msg.user .msg-steps p { margin: var(--sp-1) 0 0; white-space: pre-wrap; }
+
+/* ---- Timeless frame (docs/design/theme-tokens.md) ---------------------------------------------------------------------
+   Overrides the Liquid Glass block above until it is removed: three flat surfaces and hairlines, no blur, no glass, and
+   shadows only on what floats. Docked panels (the sidebar, Mobius beside the page) are frame, edge to edge. */
+:root {
+  --glass-tint: var(--raised);
+  --glass-filter: none;
+  --glass-clear-tint: var(--raised);
+  --glass-clear-filter: none;
+  --glass-edge: inset 0 0 0 var(--hairline-w) var(--line);
+  --glass-solid: var(--raised);
+  --panel-inset: 0px;
+  --panel-radius: 0px;
+  --panel-bg: var(--frame);
+  --panel-shadow: none;
+  --sheet-radius: var(--radius-sheet);
+  --row-radius: var(--radius-control);
+}
+html .dock.left:not([data-floating]) > .app-side, html .dock.right:not([data-floating]) > .chat { background: var(--frame); box-shadow: none; border-radius: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.dock.right:not([data-floating]) { border-left: var(--hairline-w) solid var(--line); }
+.dock[data-floating] { border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-3); }
+html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-menu, .sheet-menu) { background: var(--raised); box-shadow: var(--shadow-2); }
+.strip-right { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: var(--radius-control); }
+:is(.strip-right .strip-btn, .btn, .tool-btn, .cap-group, .starter, .desk .starter, .desk-act, .suggest-chip, .review-btn, .doc-tool.mobius) { border-radius: var(--radius-control); }
+:is(.btn, .tool-btn) { box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
+:is(.btn, .tool-btn):hover:not(:disabled) { background: var(--sel); }
+.btn.primary, .btn.mobius { box-shadow: none; }
+.dock.right:not([data-floating]) .chat .composer { border-radius: var(--radius-panel); margin: 0 var(--sp-3) var(--sp-3); background: var(--paper); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
