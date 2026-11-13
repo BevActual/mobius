@@ -27,8 +27,12 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const day = (offset: number) => { const d = new Date(); d.setDate(d.getDate() + offset); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const weekday = (offset: number) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('en-GB', { weekday: 'long' }); };
 // The deliverable is due in two days; the meeting is the day after, at 10.
-const DUE = day(2);
-const MEET = day(3);
+// Weekdays only, so the story never asks for a Sunday deadline: the next working day, and the one after it.
+const workday = (after: number): number => { let o = after + 1; for (;;) { const d = new Date(); d.setDate(d.getDate() + o); if (d.getDay() % 6 !== 0) return o; o += 1; } };
+const DUE_IN = workday(0);
+const MEET_IN = workday(DUE_IN);
+const DUE = day(DUE_IN);
+const MEET = day(MEET_IN);
 
 const PRIYA = [
   'From: Priya Shah <priya@northway.example>',
@@ -39,8 +43,8 @@ const PRIYA = [
   '',
   'Hi Andrew,',
   '',
-  `Can we go through the P2 brake kit together on ${weekday(3)} at 10? Half an hour should do.`,
-  `Before then, could you send me the updated parts list for the P2 build, by ${weekday(2)} if possible?`,
+  `Can we go through the P2 brake kit together on ${weekday(MEET_IN)} at 10? Half an hour should do.`,
+  `Before then, could you send me the updated parts list for the P2 build, by ${weekday(DUE_IN)} if possible?`,
   '',
   'Thanks,',
   'Priya',
@@ -131,8 +135,8 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     callsTool('calendar-list', { from: MEET, to: MEET }),
     callsTool('tasks-add', { list: 'Kestrel P2', text: 'Send Priya the updated P2 parts list', due: DUE, flagged: true }),
     callsTool('calendar-add', { calendar: 'Calendar', title: 'P2 brake kit review with Priya', start: `${MEET}T10:00`, end: `${MEET}T10:30` }),
-    callsTool('mail-draft', { replyTo: '{{request:([0-9a-f]{8}/inbox/7)}}', body: `Hi Priya,\n\n${weekday(3)} at 10 works. I've put it in for half an hour. You'll have the updated parts list by ${weekday(2)}.\n\nAndrew`, why: 'Confirms the time and when the parts list will reach her.' }),
-    says(['Done. I added “Send Priya the updated P2 parts list” to Kestrel P2, due ', weekday(2), '; put the brake kit review in your calendar for ', weekday(3), ' at 10:00, after your stand-up; and drafted a reply for you to check. Nothing is sent.']),
+    callsTool('mail-draft', { replyTo: '{{request:([0-9a-f]{8}/inbox/7)}}', body: `Hi Priya,\n\n${weekday(MEET_IN)} at 10 works. I've put it in for half an hour. You'll have the updated parts list by ${weekday(DUE_IN)}.\n\nAndrew`, why: 'Confirms the time and when the parts list will reach her.' }),
+    says(['Done. I added “Send Priya the updated P2 parts list” to Kestrel P2, due ', weekday(DUE_IN), '; put the brake kit review in your calendar for ', weekday(MEET_IN), ' at 10:00, after your stand-up; and drafted a reply for you to check. Nothing is sent.']),
   ]);
   report = { test: 'main', started: new Date().toISOString(), steps: [], approvalsAsked: [] };
   mobius = await launch(fixture.origin + '/', { newPerson: true, mobiusInSidebar: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
@@ -193,7 +197,8 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
     await expect(strip).toBeVisible({ timeout: 5000 });
     note(`review strip: ${(await strip.innerText()).replace(/\s+/g, ' ')}`);
-    await strip.getByRole('button', { name: /Review/ }).first().click().catch(() => undefined);
+    const toggle = strip.locator('.review-toggle');
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
     note(`expanded: ${(await strip.innerText()).replace(/\s+/g, ' ')}`);
     note(`tasks file now: ${read('tasks/Kestrel P2.md').split('\n').filter((l) => l.includes('Priya')).join(' / ') || '(no Priya task)'}`);
     note(`calendar file has the review: ${read('calendar/Calendar.ics').includes('P2 brake kit review')}`);
@@ -206,12 +211,10 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
   });
 
   await step('task-in-tasks', async (note) => {
-    await shell().keyboard.press('Control+k');
-    await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Tasks');
-    await shell().keyboard.press('Enter');
+    // As in the demo: the change in the conversation opens where it was made.
+    await log().getByRole('button', { name: /^Added “Send Priya the updated P2 parts list”/ }).click();
     const page = shell().locator('.app[data-app="tasks"]');
     await expect(page).toBeVisible();
-    await shell().getByRole('button', { name: /^Kestrel P2/ }).first().click();
     const row = page.locator('.task', { hasText: 'Send Priya the updated P2 parts list' });
     await expect(row).toBeVisible();
     note(`row: ${(await row.innerText()).replace(/\s+/g, ' ')}; proposed (dashed): ${(await row.getAttribute('data-proposed')) !== null}`);
@@ -219,15 +222,20 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
   });
 
   await step('event-in-calendar', async (note) => {
-    await shell().keyboard.press('Control+k');
-    await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Calendar');
-    await shell().keyboard.press('Enter');
+    const link = log().getByRole('button', { name: /^Added “P2 brake kit review with Priya”/ });
+    note(`the calendar change in the conversation is a link: ${await link.count() > 0}`);
+    if (await link.count()) await link.click();
+    else {
+      await shell().keyboard.press('Control+k');
+      await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Calendar');
+      await shell().keyboard.press('Enter');
+    }
     const page = shell().locator('.app[data-app="calendar"]');
     await expect(page).toBeVisible();
     let event = page.getByRole('button', { name: /^P2 brake kit review with Priya/ });
     if (!(await event.count())) {
       note('not in the first view; trying the next week');
-      await page.getByRole('button', { name: /Next/ }).first().click().catch(() => undefined);
+      await page.getByRole('button', { name: 'Forward' }).click().catch(() => undefined);
       event = page.getByRole('button', { name: /^P2 brake kit review with Priya/ });
     }
     await expect(event.first()).toBeVisible({ timeout: 5000 });
@@ -284,7 +292,8 @@ test('workflow: the same request, then Discard puts Tasks and Calendar back as t
   await step('discarded', async (note) => {
     const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
     await expect(strip).toBeVisible();
-    await strip.getByRole('button', { name: /Review/ }).first().click();
+    const toggle = strip.locator('.review-toggle');
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
     const discard = strip.getByRole('button', { name: /^Discard all changes/ });
     note(`discard buttons: ${await discard.count()}`);
     await discard.first().click();
