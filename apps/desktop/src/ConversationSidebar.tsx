@@ -199,8 +199,8 @@ function BotRow({ bot, sessions, current, first, last, onOpen, onNew, onUpdate, 
   );
 }
 
-/** What is scheduled, under the conversations, as in the design's Agent sidebar. Choosing one opens Settings › Schedules. */
-export function ScheduledList({ onOpen }: { onOpen: () => void }) {
+/** The schedules, read once and again whenever they change. */
+function useScheduleList(): ScheduleInfo[] {
   const [list, setList] = useState<ScheduleInfo[]>([]);
   useEffect(() => {
     let live = true;
@@ -209,6 +209,33 @@ export function ScheduledList({ onOpen }: { onOpen: () => void }) {
     const off = window.mobius.schedules?.onChange(load);
     return () => { live = false; off?.(); };
   }, []);
+  return list;
+}
+
+/** What is scheduled, as a list with when each runs: the Activity page's card. Choosing one opens Settings › Schedules. */
+export function ScheduledList({ onOpen }: { onOpen: () => void }) {
+  const list = useScheduleList();
+  if (list.length === 0) return null;
+  return (
+    <section aria-label="Scheduled">
+      <h3 className="clist-group"><span className="group-toggle"><span>Scheduled</span><span className="group-count">{list.filter((s) => s.enabled).length}</span></span></h3>
+      <ul className="clist" role="list" aria-label="Scheduled requests">
+        {list.map((s) => (
+          <li key={s.id}>
+            <button type="button" className="clist-item scheduled-item" data-off={!s.enabled || undefined} onClick={onOpen} title="Change in Settings › Schedules">
+              <span className="clist-title">{s.title}</span>
+              <span className="scheduled-when">{describeWhen(s.days, s.time)}{s.enabled ? '' : ' · Off'}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** What is scheduled, under the conversations in the Agent sidebar: a shared section, when each runs on hover. */
+function ScheduledSection({ onOpen }: { onOpen: () => void }) {
+  const list = useScheduleList();
   if (list.length === 0) return null;
   return (
     <SidebarSection title="Scheduled">
@@ -377,7 +404,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
               </section>
             );
           })}
-          {onOpenSchedules && !needle && <ScheduledList onOpen={onOpenSchedules} />}
+          {onOpenSchedules && !needle && <ScheduledSection onOpen={onOpenSchedules} />}
           {onArchive && putAway.length > 0 && (
             <section aria-label="Archived">
               <h3 className="clist-group">
