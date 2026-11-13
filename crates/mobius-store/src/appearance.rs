@@ -56,8 +56,8 @@ static FIELDS: [Field; 18] = [
     // The app list on the left: the full sidebar (the default, so it is easy to find) or a narrow rail of icons.
     Field { name: "navigation", default: || json!("sidebar"), check: |v| one_of(v, &["sidebar", "rail"]) },
     Field { name: "rightSidebar", default: || json!("attached"), check: |v| one_of(v, &["attached", "floating"]) },
-    // Where Mobius opens: in the sidebar, which turns into Mobius (the default), or pinned beside the page.
-    Field { name: "agentPlace", default: || json!("sidebar"), check: |v| one_of(v, &["sidebar", "beside"]) },
+    // Kept for older saved files; Mobius now always sits in the right panel, beside the work.
+    Field { name: "agentPlace", default: || json!("beside"), check: |v| one_of(v, &["sidebar", "beside"]) },
     Field { name: "leftWidth", default: || json!(LEFT_WIDTH.2), check: |v| in_range(v, LEFT_WIDTH.0, LEFT_WIDTH.1) },
     Field { name: "rightWidth", default: || json!(RIGHT_WIDTH.2), check: |v| in_range(v, RIGHT_WIDTH.0, RIGHT_WIDTH.1) },
     // Which apps the sidebar lists, in order. At least one; each once.

@@ -2,7 +2,7 @@
 //! are written, so a page, board or song it makes opens in the right app. Short: it goes with every turn.
 
 pub const GUIDE: &str = r#"Where Mobius's apps keep things (workspace paths; folders are made as needed):
-- Notes: notes/<notebook>/<page>.md · Docs: docs/<folder>/<doc>.md · Slides: slides/<folder>/<deck>.md, slides split by a line of ---; give each slide a look with a first line <!-- style: accent|dark|warm|light --> (accent to open, dark for section breaks, else light or warm).
+- Notes: notes/<notebook>/<page>.md · Docs: docs/<folder>/<doc>.md · Slides: slides/<folder>/<deck>.md, slides split by ---; a slide's first line <!-- style: accent|dark|warm|light --> sets its look (accent to open, dark for section breaks).
 - Research reports: research/<folder>/<report>.md · Reader articles: reading/<list>/<article>.md.
 - Sheets, Tasks, Calendar, Mail, databases: their own tools (sheets.*, tasks.*, calendar.*, mail.*, db.*).
 - Code projects: code/<project>/ · Skills: skills/<name>/SKILL.md.

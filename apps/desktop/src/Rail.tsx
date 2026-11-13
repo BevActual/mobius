@@ -1,5 +1,5 @@
 import { Reorder, motion } from 'motion/react';
-import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Activity } from './activity';
 import { useSideFolds } from './side-fold';
 import { appName, isInstalled, type AppId } from './apps';
@@ -93,7 +93,8 @@ interface Props {
   /** The open app's own controls (the browser's address and buttons), under its name in the full sidebar. */
   chrome?: ReactNode;
   /** Mobius as the sidebar's third face: the conversation takes the column, the app's name stays in the head. */
-  mobius?: { shown: boolean; onToggle: () => void; onBeside: () => void; panel: ReactNode } | null;
+  /** The Mobius button: shows and hides Mobius in the right panel, beside the work. */
+  mobius?: { shown: boolean; onToggle: () => void } | null;
   children?: ReactNode;
   /** Changes when something outside asks for the app switcher. */
   switcherToken?: number;
@@ -152,7 +153,6 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   menuOpen.current = menu !== null;
   const railRef = useRef<HTMLElement>(null);
   useSideFolds(railRef, expanded);
-  const askRef = useRef<HTMLDivElement>(null);
   // After the app changes under a pointer that has not moved, the row now under it is not "hovered": the browser
   // keeps the old hover until the pointer moves, which drew a grey bar on whatever landed there.
   const [still, setStill] = useState(false);
@@ -171,10 +171,9 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
   // of its own shows the apps under New, so the column is never empty.
   const [face, setFace] = useState<'app' | 'apps'>('app');
   const switching = expanded && face === 'apps';
-  const asking = expanded && !switching && Boolean(mobius?.shown);
   // Settings is an app too: its sections take the sidebar while it is open.
-  const showOwn = expanded && !switching && !asking;
-  const showApps = !asking && (!showOwn || !children);
+  const showOwn = expanded && !switching;
+  const showApps = !showOwn || !children;
   useEffect(() => { setFace('app'); }, [app, settingsOpen, expanded]);
   useEffect(() => {
     if (!switching) return undefined;
@@ -220,42 +219,21 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
         </button>
   );
   return (
-    <nav ref={railRef} className="rail" aria-label="Apps" data-pointer-still={still || undefined} onPointerMove={still ? () => setStill(false) : undefined} data-expanded={expanded || undefined} data-face={expanded ? (switching ? 'apps' : asking ? 'mobius' : 'app') : undefined}>
+    <nav ref={railRef} className="rail" aria-label="Apps" data-pointer-still={still || undefined} onPointerMove={still ? () => setStill(false) : undefined} data-expanded={expanded || undefined} data-face={expanded ? (switching ? 'apps' : 'app') : undefined}>
       {expanded ? (
         <>
-          {!asking && <div className="rail-head">
+          <div className="rail-head">
             {switcher}
             {mobius && !switching && (
-              <button type="button" className="rail-btn rail-mobius" data-mobius-face aria-pressed={mobius.shown} aria-label={mobius.shown ? 'Back to the sidebar' : 'Mobius in the sidebar'} title={mobius.shown ? `Back to ${title}` : 'Ask Mobius here, in the sidebar'} onClick={mobius.onToggle}>
+              <button type="button" className="rail-btn rail-mobius" data-mobius-face aria-pressed={mobius.shown} aria-label={mobius.shown ? 'Hide Mobius' : 'Show Mobius'} title={mobius.shown ? 'Hide Mobius' : 'Ask Mobius, beside the work'} onClick={mobius.onToggle}>
                 <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
               </button>
             )}
             {menus}
             {toggle}
-          </div>}
+          </div>
           {/* The page's controls stay where they were, above Mobius, so the address does not jump when Mobius opens. */}
           {showOwn && chrome && <div className="rail-chrome">{chrome}</div>}
-          {asking && mobius && (
-            <div ref={askRef} className="rail-ask">
-              {/* One head: the app's switcher, Mobius and where, then its icons; the page's controls under it. */}
-              {isValidElement(mobius.panel) ? cloneElement(mobius.panel as ReactElement<{ onPlace?: () => void; onHide?: () => void; pin?: ReactNode; below?: ReactNode }>, {
-                onPlace: () => setFace('apps'),
-                // Its Close is in the icons below, as Back to the sidebar.
-                onHide: undefined,
-                pin: (
-                  <>
-                    <button type="button" className="head-icon" aria-label="Pin beside" title="Pin Mobius beside the page" onClick={mobius.onBeside}>
-                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
-                    </button>
-                    <button type="button" className="head-icon" data-mobius-face aria-pressed="true" aria-label="Back to the sidebar" title={`Back to ${title}`} onClick={mobius.onToggle}>
-                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
-                    </button>
-                  </>
-                ),
-                below: chrome ? <div className="rail-chrome">{chrome}</div> : null,
-              }) : mobius.panel}
-            </div>
-          )}
           {showOwn && !createInList && !settingsOpen && <div className="rail-new">{createButton}</div>}
         </>
       ) : (
@@ -373,7 +351,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
           {allApps}
         </section>
       )}
-      {!asking && <div className="rail-end">
+      <div className="rail-end">
         {profile && onProfiles && (
           <button type="button" className="rail-btn rail-profile" aria-label={`Profile: ${profile}. Change profile`} title={`Profile: ${profile}`} onClick={onProfiles}>
             <span className="rail-profile-badge" aria-hidden="true">{profile.slice(0, 1).toUpperCase()}</span>
@@ -387,7 +365,7 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
           {settingsOpen && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
         </button>}
-      </div>}
+      </div>
     </nav>
   );
 }

@@ -17,7 +17,7 @@ promises or dates. Changes to it land in pull requests like any other doc.
 **Built and usable today**
 
 - The workspace: one sidebar per app with the app switcher in its head, the launcher, the app hub, split view, the desk,
-  Mobius in the sidebar or pinned beside the page, and Little Mobius.
+  Mobius in the right panel beside the work, and Little Mobius.
 - The agent: three modes (Ask first, Propose, Act), Keep / Discard / Try another in every app, Rewind to here, plans,
   questions, a message queue, memory, past-conversation search, skills, connectors (MCP client and server), schedules
   and Agents.
