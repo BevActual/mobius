@@ -119,3 +119,10 @@
 .design-page .design-layers li[data-drop="true"] > .design-layer { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .design-page .design-export { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
 .design-page .design-export .design-segment button { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+
+/* Components: their frames and copies are marked in purple in the layer list, as in Figma; a copy draws the component. */
+.design-page .design-layer-kind[data-component] { color: #af52de; }
+.design-page .design-layer-row[aria-current] .design-layer-kind[data-component], .design-page .design-layer[aria-current] .design-layer-kind[data-component] { color: inherit; }
+.design-page .design-node[data-type="instance"] { overflow: visible; }
+.design-page .design-copy { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; overflow: hidden; }
+.design-page .design-copy-missing { position: absolute; inset: 0; display: grid; place-items: center; border: 1px dashed var(--danger); color: var(--danger); font-size: 12px; }
