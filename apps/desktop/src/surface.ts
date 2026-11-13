@@ -36,9 +36,12 @@ export interface SurfaceState {
   code?: { title: string; source: string; text: string; failing: boolean } | null;
   /** The email open in Mail, if any. */
   mail?: { id: string; title: string; text: string } | null;
+  /** Settings is open over the app: nothing the app offers applies, so nothing is suggested. */
+  settings?: boolean;
 }
 
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
+  if (state.settings) return [];
   switch (state.app) {
     case 'browser':
       return state.hasPage
@@ -82,7 +85,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
       if (state.mail) {
         return [
           // The whole job in one ask: to-dos, a meeting, and a reply, each waiting for the person (the launch demo).
-          { label: 'Take care of this', prompt: `Take care of the attached email. Add any to-dos it asks of me to my Tasks with tasks.add, with their due dates. If it asks for a meeting, read my calendar with calendar.list, pick a time that clashes with nothing, and suggest it with calendar.suggest. Then suggest a short reply in my voice with mail.draft (replyTo: ${state.mail.id}) that says what I will do and when. Do not send anything. End with one line for each thing you did.`, attach: 'mail' },
+          { label: 'Take care of this', prompt: `Take care of the attached email. Add any to-dos it asks of me to my Tasks with tasks.add, with their due dates. If it asks for a meeting, read my calendar with calendar.list. When the email names a time and it clashes with nothing, add that meeting with calendar.add; otherwise pick a time that clashes with nothing and suggest it with calendar.suggest. Then suggest a short reply in my voice with mail.draft (replyTo: ${state.mail.id}) that says what I will do and when. Do not send anything. End with one line for each thing you did.`, attach: 'mail' },
           { label: 'Draft a reply', prompt: `Suggest a short reply to the attached email with mail.draft (replyTo: ${state.mail.id}), in my voice, answering what it asks. Check my calendar first if it is about a time.`, attach: 'mail' },
           { label: 'Add a reminder', prompt: 'If the attached email asks me to do something by a time, suggest a calendar event for it with calendar.suggest, a little before it is due. Say what you suggested.', attach: 'mail' },
         ];

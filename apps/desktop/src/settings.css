@@ -144,5 +144,22 @@
 .settings-side > .ui-side { flex: 1; min-height: 0; }
 .settings-side .settings-nav { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: auto; }
 .settings-nav-icon, .dock.left .settings-side .list-row svg.settings-nav-icon { width: 20px; height: 20px; padding: 4px; flex: none; border-radius: 5px; fill: none; stroke: #fff; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
-/* Room for the shared search field's magnifier: the dock's older `.dock.left .side-search` padding outranks the shared rule. */
-.dock.left .settings-side input.side-search { padding: 0 10px 0 28px; }
+
+/* A narrow column (the window is small, or Mobius is open beside Settings): rows stack their control under the name,
+   so help text set beside a control reads left aligned under it, and wide pieces fit rather than clip. */
+.settings-page .settings-column { container-type: inline-size; container-name: settings-column; }
+@container settings-column (max-width: 560px) {
+  .settings-page .settings-card .srow-body > .srow-text { max-width: none; text-align: left; }
+  .usage-tile { padding: 8px 10px; }
+  .usage-tile dd { font-size: 18px; }
+  .usage-tile > span { white-space: normal; }
+  .usage-table th:first-child { max-width: 140px; }
+}
+/* The breakdown scrolls sideways rather than clipping its last column. */
+.usage-table-wrap { width: 100%; overflow-x: auto; }
+
+/* Gateways: the name and its status on the left, its buttons trailing, so a long status never runs under the name. */
+.settings-page .prow { grid-template-columns: minmax(0, 1fr) auto; }
+.settings-page .prow-status { grid-column: 1; grid-row: 2; white-space: normal; }
+.settings-page .prow-actions { grid-column: 2; grid-row: 1 / span 2; flex-wrap: wrap; justify-content: flex-end; }
+.settings-page .prow-badge { white-space: nowrap; }

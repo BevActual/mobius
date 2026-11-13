@@ -4,7 +4,7 @@ import { isNotesFailure, type MailAccount, type MailCategory, type MailContent, 
 
 /** Inbox and Sent are mirrored mailboxes; Flagged and Archive are the person's flagged and archived mail from both. */
 export type MailBox = 'inbox' | 'sent' | 'flagged' | 'archive';
-export type MailView = { kind: 'box'; box: MailBox; category: MailCategory | 'all' } | { kind: 'drafts' };
+export type MailView = { kind: 'box'; box: MailBox; category: MailCategory | 'all' } | { kind: 'drafts'; only?: 'mobius' };
 
 /** What the list shows for a mailbox: Flagged and Archive are read from all mail and picked here. */
 export function inBox(box: MailBox, all: readonly MailMessage[]): MailMessage[] {
@@ -46,7 +46,7 @@ const NO_COUNTS: MailCounts = { primary: 0, transactions: 0, updates: 0, all: 0,
 export function useMail() {
   const api = window.mobius.mail;
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
-  const [view, setView] = useState<MailView>({ kind: 'box', box: 'inbox', category: 'primary' });
+  const [view, setView] = useState<MailView>({ kind: 'box', box: 'inbox', category: 'all' });
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<MailMessage[]>([]);
   const [counts, setCounts] = useState<MailCounts>(NO_COUNTS);
@@ -55,6 +55,15 @@ export function useMail() {
   const [editing, setEditing] = useState<MailDraft | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState('');
+  /** What the last archive or Remind me did, offered back for a while in the shared Undo toast. */
+  const [undo, setUndo] = useState<{ text: string; run: () => Promise<void> } | null>(null);
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(() => setUndo(null), 8000);
+    return () => clearTimeout(t);
+  }, [undo]);
+  const clearUndo = useCallback(() => setUndo(null), []);
+  const subjectOf = (id: string) => messages.find((m) => m.id === id)?.subject || live.current.open?.subject || 'the message';
   const live = useRef({ view, query, open });
   live.current = { view, query, open };
 
@@ -150,6 +159,7 @@ export function useMail() {
     const done = await api?.archive?.(id, on);
     if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
     setOpen((cur) => (cur?.id === id ? null : cur));
+    setUndo(on ? { text: `Archived “${subjectOf(id)}”`, run: async () => { setUndo(null); await archive(id, false); } } : null);
     await refresh();
     if (next) await read(next);
   }, [api, refresh, read, messages]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -161,6 +171,7 @@ export function useMail() {
     const done = await api?.remind?.(id, at.getTime());
     if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
     setOpen((cur) => (cur?.id === id ? null : cur));
+    setUndo({ text: `“${subjectOf(id)}” comes back tomorrow at 8:00`, run: async () => { setUndo(null); await api?.remind?.(id, null); await refresh(); } });
     await refresh();
     if (next) await read(next);
   }, [api, refresh, read, messages]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -184,7 +195,7 @@ export function useMail() {
     setEditing({ id: '', account: accounts[0]?.id ?? '', to: '', cc: '', subject: '', body: '', replyTo: null, by: 'you', why: '', updatedMs: 0 });
   }, [accounts]);
 
-  return { available: api !== undefined, accounts, view, setView, query, setQuery, messages, counts, drafts, open, setOpen, read, editing, setEditing, connect, sync, syncing, removeAccount, sort, flag, saveDraft, deleteDraft, send, reply, forward, compose, message, refresh, archive, remindTomorrow, schedule };
+  return { available: api !== undefined, accounts, view, setView, query, setQuery, messages, counts, drafts, open, setOpen, read, editing, setEditing, connect, sync, syncing, removeAccount, sort, flag, saveDraft, deleteDraft, send, reply, forward, compose, undo, clearUndo, message, refresh, archive, remindTomorrow, schedule };
 }
 
 export type MailState = ReturnType<typeof useMail>;

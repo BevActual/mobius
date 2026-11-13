@@ -138,6 +138,46 @@ const suggestionIds = (text: string | null): Set<string> => {
   } catch { return new Set(); }
 };
 /** The events this turn suggested in Calendar: waiting now, and not before the turn. */
+/** The events in a calendar file, by id: its title and start (YYYYMMDD…), from the file's iCalendar text. */
+export function icsEvents(text: string): Map<string, { title: string; start: string }> {
+  const out = new Map<string, { title: string; start: string }>();
+  const lines = text.replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
+  let at: { uid?: string; title?: string; start?: string } | null = null;
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') at = {};
+    else if (line === 'END:VEVENT') { if (at?.uid) out.set(at.uid, { title: at.title ?? '', start: at.start ?? '' }); at = null; }
+    else if (at) {
+      const colon = line.indexOf(':');
+      const name = line.slice(0, colon).split(';')[0]!.toUpperCase();
+      const value = line.slice(colon + 1);
+      if (name === 'UID') at.uid = value.trim();
+      else if (name === 'SUMMARY') at.title = value.replace(/\\([,;\\])/g, '$1').replace(/\\n/gi, ' ');
+      else if (name === 'DTSTART') at.start = value.trim();
+    }
+  }
+  return out;
+}
+
+/** What a turn did to one calendar file, by event: the titles it added or changed, and the day of the first one. */
+async function calendarChangesInTurn(conversation: string, path: string): Promise<{ names: string[]; date: string | null }> {
+  const calendar = path.replace(/\\/g, '/').replace(/^calendar\//, '').replace(/\.ics$/i, '');
+  const today = new Date();
+  const day = (offset: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset).toLocaleDateString('en-CA');
+  const [was, now] = await Promise.all([
+    window.mobius.changes.before(conversation, path).catch(() => null),
+    window.mobius.calendar?.events(day(-366), day(366)).catch(() => null),
+  ]);
+  if (!Array.isArray(now)) return { names: [], date: null };
+  const before = was && was.ok && was.text ? icsEvents(was.text) : new Map<string, { title: string; start: string }>();
+  const changed = now.filter((e) => e.calendar === calendar).filter((e) => {
+    const old = before.get(e.id);
+    return !old || old.title !== e.title || old.start.slice(0, 8) !== e.start.replace(/-/g, '').slice(0, 8);
+  });
+  const nowIds = new Set(now.filter((e) => e.calendar === calendar).map((e) => e.id));
+  const removed = [...before.entries()].filter(([id]) => !nowIds.has(id)).map(([, e]) => `Removed: ${e.title || 'an event'}`);
+  return { names: [...changed.map((e) => e.title), ...removed], date: changed[0]?.start.slice(0, 10) ?? null };
+}
+
 async function suggestedInTurn(conversation: string): Promise<CalendarSuggestion[]> {
   const [was, now] = await Promise.all([window.mobius.changes.before(conversation, SUGGESTIONS_FILE).catch(() => null), window.mobius.calendar?.suggestions().catch(() => null)]);
   if (!Array.isArray(now)) return [];
@@ -149,6 +189,8 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since }: { convers
   const [files, setFiles] = useState<string[]>([]);
   const [drafts, setDrafts] = useState<MailDraft[]>([]);
   const [suggested, setSuggested] = useState<CalendarSuggestion[]>([]);
+  // A calendar file is listed by the events the turn added or changed in it, not by the file's name.
+  const [events, setEvents] = useState<Record<string, { names: string[]; date: string | null }>>({});
   const [turn, setTurn] = useState<string | null>(null);
   // Open from the start: what the turn changed is listed, each one a link to it.
   const [open, setOpen] = useState(true);
@@ -169,8 +211,11 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since }: { convers
     const waiting = changes && !(id && keptTurns().includes(id)) ? changes.files.filter((f) => !(id && fileKept(id, f))) : [];
     // Suggested events are listed by their titles, not as the file Calendar keeps them in.
     const events = waiting.some((f) => f.replace(/\\/g, '/') === SUGGESTIONS_FILE) ? await suggestedInTurn(conversation) : [];
+    const calendars = waiting.filter((f) => /^calendar\/[^/]+\.ics$/i.test(f.replace(/\\/g, '/')));
+    const named = Object.fromEntries(await Promise.all(calendars.map(async (f) => [f, await calendarChangesInTurn(conversation, f)] as const)));
     if (n !== reads.current) return;
     setSuggested(events);
+    setEvents(named);
     setFiles(waiting);
   }, [conversation, since]);
   useEffect(() => { setOpen(true); setUndone(false); setProblem(null); }, [conversation]);
@@ -266,11 +311,14 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since }: { convers
       {open && (
         <ul className="review-list">
           {listed.map((path) => {
-            const { kind, name } = describeChange(path);
+            const described = describeChange(path);
+            const inCalendar = events[path];
+            const kind = inCalendar && inCalendar.names.length > 0 ? (inCalendar.names.length === 1 ? 'Event' : 'Events') : described.kind;
+            const name = inCalendar && inCalendar.names.length > 0 ? (inCalendar.names.length > 2 ? `${inCalendar.names.slice(0, 2).join(', ')} and ${inCalendar.names.length - 2} more` : inCalendar.names.join(', ')) : described.name;
             return (
               <li key={path} className="review-item">
                 <span className="review-kind">{kind}</span>
-                {(() => { const target = onOpenItem ? changeTarget(path) : null; return target ? <button type="button" className="review-name link-btn" title={`Open ${name} (${path})`} onClick={() => onOpenItem?.(target)}>{name}</button> : <span className="review-name" title={path}>{name}</span>; })()}
+                {(() => { const target = onOpenItem ? (inCalendar?.date ? { app: 'calendar' as const, date: inCalendar.date } : changeTarget(path)) : null; return target ? <button type="button" className="review-name link-btn" title={`Open ${name} (${path})`} onClick={() => onOpenItem?.(target)}>{name}</button> : <span className="review-name" title={path}>{name}</span>; })()}
                 <button type="button" className="review-btn" aria-label={`Undo the change to ${name}`} onClick={() => void run(() => window.mobius.changes.undoFile(conversation, path))}>Undo</button>
               </li>
             );

@@ -49,7 +49,7 @@ test('the launcher opens the Agent as a full app: the page is hidden and the sid
   await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toHaveCount(0);
   await expect(shell().getByRole('textbox', { name: 'Address or question' })).toHaveCount(0);
   await expect.poll(async () => (await visibleViews()).length).toBe(0);
-  await expect(shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Agent', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
 });
 
 test('going back to the Browser restores the page, the tabs and the side panel with the same conversation', async () => {

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
+import { PanelRegistryContext, type PanelsOfApp } from './PanelLayout';
 import { createPortal } from 'react-dom';
 
 /**
@@ -16,6 +17,8 @@ export interface ToolbarParts {
   title?: ReactNode;
   /** One grey line under the title: how many unread, the save state. */
   sub?: ReactNode;
+  /** False while something covers the app (Settings): the app's own controls stay mounted but are not shown. */
+  appControls?: boolean;
   /** Controls the shell places in the middle, before the app's own (`ToolbarControls`). */
   middle?: ReactNode;
   /** Status that stands on its own between the middle and the end (the core's state, an update). */
@@ -24,6 +27,8 @@ export interface ToolbarParts {
   trail?: ReactNode;
   /** Changes how the title row lays out (the browser's address takes the room). */
   wideMiddle?: boolean;
+  /** The Panels menu, at the end of the middle: given the open app's own panels (none when it has none). */
+  panels?: (app: PanelsOfApp | null) => ReactNode;
 }
 
 interface FrameProps {
@@ -42,7 +47,9 @@ const ToolbarSlot = createContext<HTMLElement | null>(null);
 
 export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  const [panels, setPanels] = useState<PanelsOfApp | null>(null);
   return (
+    <PanelRegistryContext.Provider value={setPanels}>
     <ToolbarSlot.Provider value={slot}>
       <div className="app" style={style} {...data}>
         {rail}
@@ -53,13 +60,15 @@ export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
             {toolbar.sub && <span className="toolbar-sub">{toolbar.sub}</span>}
           </div>
           {toolbar.middle}
-          <div ref={setSlot} className="ui-toolbar-slot" />
+          <div ref={setSlot} className="ui-toolbar-slot" hidden={toolbar.appControls === false} />
+          {toolbar.panels?.(panels)}
           {toolbar.status}
           <div className="strip-right" role="group" aria-label="Applications">{toolbar.trail}</div>
         </header>
         {children}
       </div>
     </ToolbarSlot.Provider>
+    </PanelRegistryContext.Provider>
   );
 }
 

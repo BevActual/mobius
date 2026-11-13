@@ -33,6 +33,8 @@ const shell = () => mobius!.shell;
 /** The message's id, as the app wrote it in its request to the model. */
 const ID = '{{request:with id ([0-9a-f]{8}/inbox/[0-9]+)}}';
 const page = (): Locator => shell().locator('.mail-page');
+/** Mobius's sorting of the Inbox, as labels in the sidebar. */
+const labels = (): Locator => shell().getByRole('region', { name: 'Labels' });
 
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
@@ -59,9 +61,12 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 test('an account signs in with an app password, mail is sorted here, and only the person sends a reply', async () => {
   await start();
   const list = page().getByRole('listbox', { name: 'Messages' });
+  // The Inbox shows everything; the labels show how Mobius sorted it.
+  await expect(list.getByRole('option')).toHaveCount(2);
+  await labels().getByRole('button', { name: /^Primary/ }).click();
   await expect(list.getByRole('option')).toHaveCount(1);
   await expect(list.getByRole('option').first()).toContainText('Terrace + lunch for the 13th');
-  await page().getByRole('tab', { name: /^Transactions/ }).click();
+  await labels().getByRole('button', { name: /^Transactions/ }).click();
   await expect(list.getByRole('option').first()).toContainText('Your booking LX7Q2M');
   await list.getByRole('option').first().click();
   // The HTML is shown without loading anything from the web.
@@ -70,7 +75,7 @@ test('an account signs in with an app password, mail is sorted here, and only th
   expect(await frame.getAttribute('sandbox')).toBe('allow-same-origin');
   expect(await frame.getAttribute('srcdoc')).toContain("default-src 'none'");
 
-  await page().getByRole('tab', { name: /^Primary/ }).click();
+  await labels().getByRole('button', { name: /^Primary/ }).click();
   await list.getByRole('option').first().click();
   await expect(page().getByRole('article')).toContainText('hold the terrace for eight');
   await shell().getByRole('toolbar', { name: 'Message' }).getByRole('button', { name: 'Reply', exact: true }).click();
@@ -100,11 +105,18 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   await expect(log.getByRole('group', { name: 'Approval needed: mail.draft' })).toHaveCount(0);
   const suggested = page().getByLabel('Suggested reply');
   await expect(suggested).toContainText('two vegetarians');
-  await expect(suggested).toContainText('Mobius never sends. You press Send.');
+  await expect(suggested).toContainText('Draft from Mobius');
+  await expect(suggested.getByText('Draft from Mobius')).toHaveAttribute('title', /Mobius never sends; you press Send/);
   expect(servers.sent.length).toBe(0);
   // Keep opens it as your draft.
   await suggested.getByRole('button', { name: 'Keep' }).click();
-  await page().getByRole('form', { name: 'Reply' }).getByRole('button', { name: 'Send', exact: true }).click();
+  await page().getByRole('form', { name: 'Reply' }).getByRole('button', { name: 'Close' }).click();
+  // Kept, it waits under the message it answers, ready to send from there.
+  await list.getByRole('option').first().click();
+  const kept = page().getByRole('region', { name: 'Your draft reply' });
+  await expect(kept).toContainText('two vegetarians');
+  await expect(page().getByRole('button', { name: 'Draft a reply with Mobius' })).toHaveCount(0);
+  await kept.getByRole('button', { name: 'Send', exact: true }).click();
   await expect.poll(() => servers.sent.length).toBe(1);
   expect(servers.sent[0]).toContain('two vegetarians');
 });
@@ -113,7 +125,7 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   await start();
   const list = page().getByRole('listbox', { name: 'Messages' });
   const tools = shell().getByRole('toolbar', { name: 'Message' });
-  const boxes = shell().getByRole('navigation', { name: 'Mailboxes' });
+  const boxes = shell().getByRole('region', { name: 'Mailboxes' });
   await list.getByRole('option').first().click();
   // Reply All starts above the quoted message, with the cursor there.
   await tools.getByRole('button', { name: 'Reply All' }).click();
@@ -140,7 +152,13 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   await boxes.getByRole('button', { name: 'Flagged' }).click();
   await expect(list.getByRole('option')).toHaveCount(1);
 
-  await boxes.getByRole('button', { name: 'Inbox' }).click();
+  await labels().getByRole('button', { name: /^Primary/ }).click();
+  await list.getByRole('option').first().click();
+  await tools.getByRole('button', { name: 'Archive' }).click();
+  await expect(list.getByRole('option')).toHaveCount(0);
+  // The shared Undo toast takes it back.
+  await page().getByRole('status').filter({ hasText: 'Archived “Terrace + lunch for the 13th”' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(list.getByRole('option')).toHaveCount(1);
   await list.getByRole('option').first().click();
   await tools.getByRole('button', { name: 'Archive' }).click();
   await expect(list.getByRole('option')).toHaveCount(0);
@@ -149,6 +167,6 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   await list.getByRole('option').first().click({ button: 'right' });
   await shell().getByRole('menuitem', { name: 'Move to Inbox' }).click();
   await expect(list.getByRole('option')).toHaveCount(0);
-  await boxes.getByRole('button', { name: 'Inbox' }).click();
+  await labels().getByRole('button', { name: /^Primary/ }).click();
   await expect(list.getByRole('option')).toHaveCount(1);
 });

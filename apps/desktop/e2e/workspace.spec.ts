@@ -47,7 +47,7 @@ test('the rail opens every app, shows where you are, and holds Settings', async 
   await start();
   await showApps();
   await expect(railButton('Browser')).toHaveAttribute('aria-current', 'page');
-  for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', '[aria-label="Notes sidebar"]'], ['Search', '.search-page'], ['Agent', '.chat.full']] as const) {
+  for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', '[aria-label="Notes sidebar"]'], ['Search', '.search-page'], ['Home', '.chat.full']] as const) {
     await showApps();
     await railButton(name).click();
     await expect(shell().locator(view)).toBeVisible();
@@ -102,7 +102,7 @@ test('asking from Search hands the question to the agent', async () => {
   await shell().getByRole('searchbox', { name: 'Search everything' }).fill('what did I plan for the garden');
   await shell().getByRole('button', { name: /Ask Mobius/ }).click();
   await showApps();
-  await expect(railButton('Agent')).toHaveAttribute('aria-current', 'page');
+  await expect(railButton('Home')).toHaveAttribute('aria-current', 'page');
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Here is what I found.');
 });
 
@@ -259,23 +259,26 @@ test('with the agent panel put away, the Mobius button brings it back on the rig
   await expect(shell().locator('.dock.right').getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('That page is the fixture home.');
 });
 
-test('Mobius’s own apps sit at the foot of the rail: Agents and Activity open their views of the Agent app, and Settings opens Settings', async () => {
+test('Mobius’s own apps open from All apps and show in the rail while open; Mobius and Settings sit at its foot', async () => {
   await start();
   const own = rail().locator('.rail-end');
-  await own.getByRole('button', { name: 'Agents', exact: true }).click();
+  await expect(own.getByRole('button')).toHaveCount(2);
+  const fromHub = async (name: string) => { await rail().locator('[data-app-library]').click(); await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name, exact: true }).click(); };
+  await fromHub('Agents');
   const side = shell().getByRole('complementary', { name: 'Agent sidebar' });
   await expect(side.getByRole('region', { name: 'Agents' })).toBeVisible();
-  await expect(own.getByRole('button', { name: 'Agents', exact: true })).toHaveAttribute('aria-current', 'page');
-  // Only Agents is where you are: not Agent too.
+  // Open, it shows in the rail, lit; only Agents is where you are, not Home too.
+  await expect(railButton('Agents')).toHaveAttribute('aria-current', 'page');
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
-  await own.getByRole('button', { name: 'Activity', exact: true }).click();
+  await fromHub('Activity');
   // Activity has its own sidebar and page in the Agent app's place.
   await expect(shell().getByRole('complementary', { name: 'Activity sidebar' })).toBeVisible();
   await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
   // Agent itself opens on the conversations.
-  await railButton('Agent').click();
-  await expect(railButton('Agent')).toHaveAttribute('aria-current', 'page');
+  await railButton('Home').click();
+  await expect(railButton('Home')).toHaveAttribute('aria-current', 'page');
   await expect(side.getByRole('region', { name: 'Agents' })).toHaveCount(0);
+  await expect(railButton('Agents')).toHaveCount(0);
   await own.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
 });
@@ -293,7 +296,7 @@ test('a narrow window still opens Mobius on the right, at no less than its narro
   await expect(composer()).toBeVisible();
 });
 
-test('Mobius pinned beside is a card with no line between it and the page, in every app, light and dark', async () => {
+test('Mobius beside the page is set off by one hairline and nothing else, in every app, light and dark', async () => {
   await start();
   for (const theme of ['light', 'dark'] as const) {
     await shell().emulateMedia({ colorScheme: theme });
@@ -303,21 +306,26 @@ test('Mobius pinned beside is a card with no line between it and the page, in ev
       await shell().keyboard.press('Enter');
       await expect(shell().locator('.app')).toHaveAttribute('data-app', id!);
       await expect(shell().locator('.dock.right:not([data-floating]) > .chat')).toBeVisible();
-      // Every element whose left or right edge is within a few pixels of where the page meets the card: none draws a line.
+      // Every element whose left or right edge is where the page meets the panel: none draws a second line.
       const lines = await shell().evaluate(() => {
         const card = document.querySelector('.dock.right:not([data-floating]) > .chat');
         if (!card) return ['no pinned card'];
-        const edge = card.getBoundingClientRect().left;
+        const edge = card.closest('.dock.right')!.getBoundingClientRect().left;
         const visible = (width: string, color: string) => parseFloat(width) > 0 && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(color);
         const found: string[] = [];
+        // The timeless frame: the right panel's own left edge is the one hairline between it and the page.
+        const dock = card.closest('.dock.right')!;
+        if (getComputedStyle(dock).borderLeftWidth !== '1px') found.push('no hairline on the right panel');
         for (const el of Array.from(document.querySelectorAll('*'))) {
+          // A table's own grid running up to the edge is content, not a line between zones.
+          if (el === dock || el.closest('td, th')) continue;
           const r = el.getBoundingClientRect();
           if (r.height < 20) continue;
           const st = getComputedStyle(el);
           const label = el.tagName.toLowerCase() + '.' + String(el.className);
-          if (Math.abs(r.left - edge) <= 12 && visible(st.borderLeftWidth, st.borderLeftColor)) found.push('left border on ' + label);
-          if (Math.abs(r.right - edge) <= 12 && visible(st.borderRightWidth, st.borderRightColor)) found.push('right border on ' + label);
-          if (Math.abs(r.left - edge) <= 12 && r.width <= 3 && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(st.backgroundColor)) found.push('hairline ' + label);
+          if (Math.abs(r.left - edge) <= 2 && visible(st.borderLeftWidth, st.borderLeftColor)) found.push('left border on ' + label);
+          if (Math.abs(r.right - edge) <= 2 && visible(st.borderRightWidth, st.borderRightColor)) found.push('right border on ' + label);
+          if (Math.abs(r.left - edge) <= 2 && r.width <= 3 && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(st.backgroundColor)) found.push('hairline ' + label);
         }
         return found;
       });
@@ -372,7 +380,7 @@ test('design review: the title bar names the app, nothing claims a page it canno
   await open('Tasks');
   const filter = shell().getByRole('button', { name: /From Mobius/ });
   await expect(filter).toContainText('1');
-  const lists = shell().locator('.dock.left, .rail');
+  const lists = shell().locator('.dock.left');
   await expect(lists.getByRole('button', { name: /^Home/ }).first()).toBeVisible();
   await filter.click();
   await expect(filter).toHaveAttribute('aria-pressed', 'true');
