@@ -109,12 +109,28 @@ export function useFiles(conversation: string, busy: boolean) {
     if (trashed && (!held || trashed.held === held)) setTrashed(null);
     void loadTrash();
   };
+  // Which top-level folders the person has opened since Mobius's last turn, kept per turn so a new turn's dots show again.
+  const seenKey = `mobius-files-seen:${made.turn ?? ''}`;
+  const [seen, setSeen] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    try { setSeen(new Set(JSON.parse(localStorage.getItem(seenKey) ?? '[]') as string[])); } catch { setSeen(new Set()); }
+  }, [seenKey]);
+  useEffect(() => {
+    if (place.kind !== 'folder' || !place.path) return;
+    const root = place.path.split('/')[0]!;
+    setSeen((before) => {
+      if (before.has(root)) return before;
+      const next = new Set(before).add(root);
+      try { localStorage.setItem(seenKey, JSON.stringify([...next])); } catch { /* the dot just shows again next time */ }
+      return next;
+    });
+  }, [place, seenKey]);
   const show = (path: string) => void window.mobius.files?.show?.(path);
   const can = { change: typeof window.mobius.files?.rename === 'function', show: typeof window.mobius.files?.show === 'function', trash: typeof window.mobius.files?.trashList === 'function' };
   return {
     place, setPlace, back, forward, canBack: trail.at > 0, canForward: trail.at < trail.places.length - 1,
     entries, roots, problem, made, conversation, keep, discard, sort, setSort, query, setQuery,
-    newFolder, rename, trash, putBack, show, trashed, trashItems, putBackItem, emptyTrash, dismissTrashed: () => setTrashed(null), notice, dismissNotice: () => setNotice(null), can,
+    newFolder, rename, trash, putBack, show, trashed, trashItems, putBackItem, emptyTrash, seen, dismissTrashed: () => setTrashed(null), notice, dismissNotice: () => setNotice(null), can,
     available: window.mobius.files !== undefined,
   };
 }
@@ -164,7 +180,8 @@ export function filesSub(files: FilesState): string | undefined {
 /** Files' sidebar: search, the drive, the workspace's folders, and Made by Mobius with how many things wait. */
 export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNode }) {
   const here = files.place.kind === 'folder' ? files.place.path : null;
-  const held = new Set(files.made.files.map((f) => f.split('/')[0]));
+  // A dot only on a folder holding something new from Mobius that the person has not looked in since.
+  const held = new Set(files.made.files.map((f) => f.split('/')[0]!).filter((r) => !files.seen.has(r)));
   return (
     <AppSidebar label="Files sidebar">
       <SidebarSearch label={files.place.kind === 'made' ? 'Search Made by Mobius' : files.place.kind === 'trash' ? 'Search the Trash' : 'Search this folder'} value={files.query} onChange={files.setQuery} />
@@ -353,9 +370,9 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
                   className="files-row" data-proposed={(mine && e.type === 'file') || undefined} aria-label={mine ? `${e.name}, from Mobius` : e.name}
                   onClick={() => setSelected(e.path)} onDoubleClick={() => open(e.path, e.type)}
                   onContextMenu={(ev) => { ev.preventDefault(); setSelected(e.path); setMenu({ path: e.path, type: e.type, x: ev.clientX, y: ev.clientY }); }}>
-                  <span role="gridcell" className="files-cell files-name"><FileIcon path={e.path} type={e.type} />{nameCell(e.path, e.name)}</span>
+                  <span role="gridcell" className="files-cell files-name"><FileIcon path={e.path} type={e.type} />{nameCell(e.path, e.name)}{held > 0 && <span className="files-dot" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Holds one thing from Mobius, not kept yet' : `Holds ${held} things from Mobius, not kept yet`} />}</span>
                   <span role="gridcell" className="files-cell files-date">{e.modified ? relativeTime(e.modified, Date.now()) : '—'}</span>
-                  <span role="gridcell" className="files-cell files-kind">{fileKind(e.path, e.type)}{held > 0 && <span className="files-held"> · {held} from Mobius</span>}</span>
+                  <span role="gridcell" className="files-cell files-kind">{fileKind(e.path, e.type)}</span>
                   <span role="gridcell" className="files-cell files-size">{e.type === 'folder' ? '—' : size(e.bytes)}</span>
                 </div>
               );
