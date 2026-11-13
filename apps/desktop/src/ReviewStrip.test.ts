@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeChange, rememberTitles, reviewShortcut } from './ReviewStrip';
+import { describeChange, icsEvents, rememberTitles, reviewShortcut } from './ReviewStrip';
 import { changeTarget } from './actions';
 
 describe('review strip names', () => {
@@ -30,5 +30,15 @@ describe('keep and discard keys', () => {
     expect(reviewShortcut(press('Backspace', { ctrlKey: true }), true)).toBeNull();
     expect(reviewShortcut(press('Enter'), false)).toBeNull();
     expect(reviewShortcut(press('Enter', { ctrlKey: true, shiftKey: true }), false)).toBeNull();
+  });
+});
+
+describe('a calendar file, by event', () => {
+  it('reads each event by its id: its title (unescaped, folded lines joined) and its start', () => {
+    const text = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:a1', 'SUMMARY:P2 brake kit review\\, with Priya', 'DTSTART;TZID=Europe/London:20261119T100000', 'END:VEVENT', 'BEGIN:VEVENT', 'UID:b2', 'SUMMARY:Long title that is fol', ' ded here', 'DTSTART;VALUE=DATE:20261120', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    const events = icsEvents(text);
+    expect(events.get('a1')).toEqual({ title: 'P2 brake kit review, with Priya', start: '20261119T100000' });
+    expect(events.get('b2')).toEqual({ title: 'Long title that is folded here', start: '20261120' });
+    expect(events.size).toBe(2);
   });
 });
