@@ -1050,7 +1050,7 @@ impl Bridge {
         lock(&self.history).visit(url, title);
     }
 
-    /// The theme chosen in settings: `system`, `light` or `dark`.
+    /// The theme chosen in settings: `system`, `light`, `mid`, `dark` or `cool`.
     pub fn theme(&self) -> String {
         lock(&self.appearance).get().get("theme").and_then(Value::as_str).unwrap_or("system").to_owned()
     }

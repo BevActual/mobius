@@ -54,7 +54,7 @@ Save button.
 
 ## Appearance
 
-- **Theme:** follow the system, or always light or dark.
+- **Theme:** follow the system (light by day, dark by night), or always use Light, Mid grey, Dark or Cool dark. Every theme keeps the frame neutral so your own colours stand out.
 - **Typography:** interface zoom, conversation text size and font (system, serif or mono), text direction.
 - **Layout and Conversation:** list density, and whether finished tool steps are shown or hidden.
 

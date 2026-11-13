@@ -695,8 +695,9 @@ fn main() {
             let theme_window = window.clone();
             let apply_theme = move || {
                 let _ = theme_window.set_theme(match theme_bridge.theme().as_str() {
-                    "dark" => Some(tauri::Theme::Dark),
-                    "light" => Some(tauri::Theme::Light),
+                    // Cool dark is a dark theme and Mid grey a light one; the stylesheet paints the difference.
+                    "dark" | "cool" => Some(tauri::Theme::Dark),
+                    "light" | "mid" => Some(tauri::Theme::Light),
                     _ => None,
                 });
             };
