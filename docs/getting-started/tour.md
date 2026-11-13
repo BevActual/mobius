@@ -37,7 +37,8 @@ Mobius sees the app you have open (the note, the page, the selected text) and ca
 
 The Agent app opens on the **desk**. It greets you with the date and what is in flight, with a few suggestions to
 start from. Below that comes what waits for you (questions and approvals you can answer in place) and what Mobius is
-doing, then your recent conversations, what is open in your apps, and what is scheduled next. The sidebar here lists your
+doing, then your recent conversations, the one thing in each app worth a look (your next event, the first task due, the
+page you edited last), and what is scheduled next. The sidebar here lists your
 conversations, with tabs for **Sessions**, **Activity** and **Agents**.
 
 ## Finding things

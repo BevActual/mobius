@@ -34,8 +34,9 @@ Longer documents, with an outline and comments.
 - **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
-- **Mobius's writing tools** work on the selection or the whole document. What Mobius changes comes back as
-  proposals, old text struck and new text marked, each with its own Discard.
+- **Mobius's writing tools** work on the selection or the whole document. What Mobius changes is marked in the page
+  where it is, as tracked changes are: new words tinted, and a note above them with the words taken out, struck
+  through. Each change has its own **Keep** and **Discard**; the bar above the page keeps or discards them all.
 - **History** puts an earlier version back. **Share** copies, exports as a web page or Markdown, or prints and saves as
   PDF.
 
@@ -54,8 +55,9 @@ Lists of things to do, as in Apple's Reminders.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
   the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it.
 - **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back.
-- **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date), its
-  flag, its list and its subtasks. Drag tasks to reorder them or move them between lists.
+- **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
+  picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
+  format. Drag tasks to reorder them or move them between lists.
 - Tasks Mobius added are dashed until kept. **Discard** puts the list back as it was before that turn.
 
 **Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines.
@@ -94,6 +96,8 @@ Spreadsheets with formulas.
   the rows above reads as the total, in bold with a rule above it.
 - Each column letter has a menu (hover it for the chevron) to sort by that column, add or delete columns and fit the
   width. Sorting keeps the header and total rows where they are.
+- **Number formats**: show a column's numbers as Number (1,234.50), Currency or Percentage from the % button or the
+  column's menu. Currency and grouping follow the computer's region. The CSV keeps the plain number.
 - **Find** with Ctrl+F: matching cells are tinted, and Enter (or Shift+Enter) moves from one to the next.
 - Sheets are tabs below the grid. Insert and remove rows and columns; Ctrl+Z undoes any step.
 
@@ -106,6 +110,12 @@ Sheets, and each table opens with three views:
 
 - **Data** shows the rows, 100 to a page. Click a column's heading to sort by it (again for high to low, a third time
   for no order), and type in **Filter rows** to keep the rows where any column holds those words.
+  In a table you can change, double-click a cell to type a new value (Enter keeps it, Escape puts it back), and
+  **Add row** adds an empty row and opens its first cell. Right-click a cell to edit it, copy its value, set it to
+  NULL or delete its row. The last change shows **Undo** at the bottom. From the keyboard the grid is one Tab stop:
+  the arrow keys move between cells (Home, End, Ctrl+Home and Ctrl+End jump), Enter or F2 types into a cell, Delete
+  sets it to NULL, Ctrl+Delete deletes the row, Ctrl+C copies the value, Ctrl+Z undoes and Shift+F10 opens the menu. A view, or a table made WITHOUT ROWID, is
+  shown read-only: change it in SQL.
 - **Structure** lists the columns with their types, which ones need a value, defaults and the key, and the statement
   that made the table.
 - **SQL** runs any statement and shows what it gave. **History** brings back an earlier one, and **Copy as CSV** copies
