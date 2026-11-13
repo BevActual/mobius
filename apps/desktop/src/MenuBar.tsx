@@ -81,7 +81,7 @@ export function MenuBar({ menus, compact, onOpenChange }: { menus: Menu[]; compa
       >
         <span className="menu-check" aria-hidden="true">{it.checked ? '✓' : ''}</span>
         <span className="menu-label">{it.label}</span>
-        {it.keys && <kbd className="menu-keys">{describeCombo(it.keys, window.mobius.platform)}</kbd>}
+        {it.keys && describeCombo(it.keys, window.mobius.platform) && <kbd className="menu-keys">{describeCombo(it.keys, window.mobius.platform)}</kbd>}
       </div>
     );
 

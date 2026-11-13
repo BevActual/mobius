@@ -4,8 +4,8 @@ Ctrl+, opens Settings. Its sections are grouped in the sidebar the way System Se
 at the top finds any setting by what it does ("dark", "fallback", "dictation"). This page says what each section holds
 and where it is explained.
 
-Each section opens with its icon, name and one line on what it is for, then its settings in grouped cards: the name
-and a line of help on the left, the control on the right. Settings take effect as soon as you change them; there is no
+The toolbar names the section, and the page opens on one grey line on what it is for. Then come its settings, one per
+row with a hairline between them: the name and a line of help on the left, the control on the right. Settings take effect as soon as you change them; there is no
 Save button.
 
 ![Settings in Mobius, on the Models section](../readme/apps/settings.png)
