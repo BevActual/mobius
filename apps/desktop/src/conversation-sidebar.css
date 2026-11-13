@@ -1,5 +1,8 @@
-/* The Agent app's sidebar on the shared frame: the search and the float button share the top line. */
-.agent-side-top { display: flex; align-items: center; gap: var(--sp-1); }
-.agent-side-top > input.side-search.side-search { flex: 1 1 auto; min-width: 0; }
-.agent-side-top > :not(.side-search) { margin-left: auto; }
+/* The Agent app's sidebar on the shared frame, in Mail's vocabulary: search on its own row, quiet headings. */
 .ui-side .side-glyph { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; color: var(--muted); }
+/* An agent's group reads like a section heading (sentence case, grey), not a shouted label. */
+.agent-side .group-toggle { padding: 2px 4px; font-size: 11px; letter-spacing: 0.01em; text-transform: none; }
+.agent-side .group-toggle:hover { background: none; color: var(--ink); }
+/* What a conversation is doing is a quiet word, not a coloured pill: Mobius is the only indigo, and nothing here shouts. */
+.ui-side.agent-side .badge, .ui-side.agent-side .badge[data-tone] { margin-left: 0; padding: 0; border-radius: 0; background: none; font-size: var(--fs-xs); color: var(--muted); }
+.ui-side.agent-side .badge[data-tone="warn"] { font-weight: var(--fw-medium); }

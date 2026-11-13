@@ -11,13 +11,17 @@
  *     ## Next slide
  *
  * Slides are split by a line `---`. In each: an optional style comment, a `###` kicker above the title, the `#` or `##`
- * title, `-` bullets, other lines as text, and after `Notes:` the presenter notes.
+ * title, `-` bullets, other lines as text, and after `Notes:` the presenter notes. A picture is a Markdown image
+ * `![](Deck files/photo.png)` on its own line; `<!-- skip -->` leaves the slide out of Play, and
+ * `<!-- transition: push -->` names how Play moves on from it (Dissolve when there is none).
  */
 export type SlideStyle = 'light' | 'dark' | 'warm' | 'accent';
 export const SLIDE_STYLES: SlideStyle[] = ['light', 'dark', 'warm', 'accent'];
-export interface Slide { style: SlideStyle; kicker: string; title: string; bullets: string[]; text: string; notes: string }
+export type Transition = 'dissolve' | 'none' | 'push' | 'move-in';
+export const TRANSITIONS: Transition[] = ['none', 'dissolve', 'push', 'move-in'];
+export interface Slide { style: SlideStyle; kicker: string; title: string; bullets: string[]; text: string; notes: string; picture: string; skip: boolean; transition: Transition }
 
-export const blankSlide = (): Slide => ({ style: 'light', kicker: '', title: '', bullets: [], text: '', notes: '' });
+export const blankSlide = (): Slide => ({ style: 'light', kicker: '', title: '', bullets: [], text: '', notes: '', picture: '', skip: false, transition: 'dissolve' });
 
 export function parseSlide(chunk: string): Slide {
   const slide = blankSlide();
@@ -31,6 +35,11 @@ export function parseSlide(chunk: string): Slide {
     if (/^<!--\s*slide\s*-->$/.test(line.trim())) continue;
     const style = /^<!--\s*style:\s*(\w+)\s*-->$/.exec(line.trim());
     if (style) { if ((SLIDE_STYLES as string[]).includes(style[1]!)) slide.style = style[1] as SlideStyle; continue; }
+    if (/^<!--\s*skip\s*-->$/.test(line.trim())) { slide.skip = true; continue; }
+    const move = /^<!--\s*transition:\s*([\w-]+)\s*-->$/.exec(line.trim());
+    if (move) { if ((TRANSITIONS as string[]).includes(move[1]!)) slide.transition = move[1] as Transition; continue; }
+    const picture = /^!\[[^\]]*\]\((.+)\)$/.exec(line.trim());
+    if (picture && !slide.picture) { slide.picture = picture[1]!.trim(); continue; }
     if (/^notes:\s*/i.test(line.trim())) { inNotes = true; const rest = line.trim().replace(/^notes:\s*/i, ''); if (rest) notes.push(rest); continue; }
     const heading = /^(#{1,6})\s+(.*)$/.exec(line.trim());
     if (heading) {
@@ -58,9 +67,12 @@ export function parseDeck(markdown: string): Slide[] {
 export function writeSlide(slide: Slide): string {
   const lines: string[] = [];
   if (slide.style !== 'light') lines.push(`<!-- style: ${slide.style} -->`);
+  if (slide.skip) lines.push('<!-- skip -->');
+  if (slide.transition !== 'dissolve') lines.push(`<!-- transition: ${slide.transition} -->`);
   if (slide.kicker.trim()) lines.push(`### ${slide.kicker.trim()}`);
   if (slide.title.trim()) lines.push(`## ${slide.title.trim()}`);
   for (const b of slide.bullets) if (b.trim()) lines.push(`- ${b.trim()}`);
+  if (slide.picture.trim()) lines.push('', `![](${slide.picture.trim()})`);
   if (slide.text.trim()) lines.push('', slide.text.trim());
   if (slide.notes.trim()) lines.push('', 'Notes:', slide.notes.trim());
   return lines.length > 0 ? lines.join('\n') : '<!-- slide -->';

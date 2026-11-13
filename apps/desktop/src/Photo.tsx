@@ -13,6 +13,8 @@ import { ASPECTS, GRID_SIZES, HANDLES, aspectRatio, dragCrop, fitAspect, flipped
 import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
+import { AppSidebar, PanelTab, SidebarSearch, SidebarSection, ToolbarControls, useShowPanelTab } from './ui';
+
 import './photo.css';
 
 const PREVIEW_MAX = 1600;
@@ -64,64 +66,56 @@ export function PhotoSidebar({ photos, pin, changed }: { photos: PhotosState; pi
     const made = await photos.createAlbum(name.trim() || 'Album');
     if (made) { setNaming(false); setName(''); photos.showAlbum(made); }
   };
+  // The search narrows the albums by name, as the sidebar's search does in every app.
+  const [query, setQuery] = useState('');
+  const shownAlbums = query.trim() ? photos.albums.filter((a) => a.name.toLowerCase().includes(query.trim().toLowerCase())) : photos.albums;
   return (
-    <aside className="side photo-side" aria-label="Photo sidebar">
-      <div className="side-head">
-        <span className="side-title">Albums</span>
-        <span className="side-actions">
-          {pin}
-          <button type="button" className="strip-btn" aria-label="New album" title="New album" onClick={() => setNaming(true)}><Icon d={PLUS} /></button>
-        </span>
-      </div>
-      {naming && (
-        <form className="notes-name" onSubmit={(e) => void submit(e)}>
-          <input autoFocus aria-label="Album name" placeholder="Album name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
-          <button type="submit" className="btn primary">Create</button>
-        </form>
-      )}
-      {photos.albums.length === 0 && !naming && (
-        <div className="side-empty notes-empty">
-          <p>Albums are folders of pictures in your workspace. Edits are kept beside each picture, never in it.</p>
-          <button type="button" className="btn primary" onClick={() => setNaming(true)}>New album</button>
-        </div>
-      )}
-      <nav className="photo-albums" aria-label="Albums">
-        <ul role="list">
-          {photos.albums.map((a) => (
-            <li key={a.name} {...dropOn(a.name)} data-drop={over === a.name || undefined}>
-              {renaming === a.name ? (
-                <div className="list-row photo-album-row" data-renaming>
-                  <svg className="photo-album-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2.5" /><path d="M2.5 13l4-4 3.5 3.5 2.5-2.5 5 5" /></svg>
-                  <RenameField label="Album name" value={a.name} onDone={(n) => { setRenaming(null); if (n) void photos.renameAlbum(a.name, n); }} />
-                </div>
-              ) : <button
-                type="button" className="list-row photo-album-row" aria-current={a.name === photos.album ? 'page' : undefined} onClick={() => photos.showAlbum(a.name)}
-                onContextMenu={(e) => { e.preventDefault(); setMenu({ album: a.name, x: e.clientX, y: e.clientY }); }}
-                onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); setRenaming(a.name); } }}
-              >
-                <svg className="photo-album-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2.5" /><path d="M2.5 13l4-4 3.5 3.5 2.5-2.5 5 5" /></svg>
-                <span className="list-name">{a.name}</span>
-                {a.photos.some((p) => changed?.has(p.path))
-                  ? <RowMark changed changedTitle="Edited by Mobius in its last turn" />
-                  : <span className="photo-album-count">{a.photos.length}</span>}
-              </button>}
-            </li>
-          ))}
-        </ul>
-      </nav>
+    <AppSidebar label="Photo sidebar" className="photo-side">
+      {photos.albums.length > 0 && <SidebarSearch label="Search albums" placeholder="Search albums" value={query} onChange={setQuery} />}
       {(photos.albums.length > 0 || photos.deleted.length > 0) && (
-        <nav className="photo-albums photo-utilities" aria-label="Utilities">
-          <ul role="list">
-            <li>
-              <button type="button" className="list-row photo-album-row" aria-current={photos.album === RECENTLY_DELETED ? 'page' : undefined} onClick={() => { void photos.refreshDeleted(); photos.showAlbum(RECENTLY_DELETED); }}>
-                <svg className="photo-album-icon" viewBox="0 0 20 20" aria-hidden="true"><path d={TRASH} /></svg>
-                <span className="list-name">Recently Deleted</span>
-                {photos.deleted.length > 0 && <span className="photo-album-count">{photos.deleted.length}</span>}
-              </button>
-            </li>
-          </ul>
-        </nav>
+        <SidebarSection title="Library">
+          <li>
+            <button type="button" className="list-row photo-album-row" aria-current={photos.album === RECENTLY_DELETED ? 'page' : undefined} onClick={() => { void photos.refreshDeleted(); photos.showAlbum(RECENTLY_DELETED); }}>
+              <span className="list-name">Recently Deleted</span>
+              {photos.deleted.length > 0 && <span className="photo-album-count">{photos.deleted.length}</span>}
+            </button>
+          </li>
+        </SidebarSection>
       )}
+      <SidebarSection title="Albums" action={<>{pin}<button type="button" className="strip-btn" aria-label="New album" title="New album" onClick={() => setNaming(true)}><Icon d={PLUS} /></button></>}>
+        {naming && (
+          <li>
+            <form className="notes-name" onSubmit={(e) => void submit(e)}>
+              <input autoFocus aria-label="Album name" placeholder="Album name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
+              <button type="submit" className="btn primary">Create</button>
+            </form>
+          </li>
+        )}
+        {photos.albums.length === 0 && !naming && (
+          <li className="side-empty notes-empty">
+            <p>Albums are folders of pictures in your workspace. Edits are kept beside each picture, never in it.</p>
+            <button type="button" className="btn primary" onClick={() => setNaming(true)}>New album</button>
+          </li>
+        )}
+        {shownAlbums.map((a) => (
+          <li key={a.name} {...dropOn(a.name)} data-drop={over === a.name || undefined}>
+            {renaming === a.name ? (
+              <div className="list-row photo-album-row" data-renaming>
+                <RenameField label="Album name" value={a.name} onDone={(n) => { setRenaming(null); if (n) void photos.renameAlbum(a.name, n); }} />
+              </div>
+            ) : <button
+              type="button" className="list-row photo-album-row" aria-current={a.name === photos.album ? 'page' : undefined} onClick={() => photos.showAlbum(a.name)}
+              onContextMenu={(e) => { e.preventDefault(); setMenu({ album: a.name, x: e.clientX, y: e.clientY }); }}
+              onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); setRenaming(a.name); } }}
+            >
+              <span className="list-name">{a.name}</span>
+              {a.photos.some((p) => changed?.has(p.path))
+                ? <RowMark changed changedTitle="Edited by Mobius in its last turn" />
+                : <span className="photo-album-count">{a.photos.length}</span>}
+            </button>}
+          </li>
+        ))}
+      </SidebarSection>
       {menu && createPortal(
         <ContextMenu x={menu.x} y={menu.y} label={menu.album} onClose={() => setMenu(null)} items={[
           { action: 'rename', label: 'Rename Album', keys: 'F2', run: () => setRenaming(menu.album) },
@@ -130,7 +124,7 @@ export function PhotoSidebar({ photos, pin, changed }: { photos: PhotosState; pi
         document.body,
       )}
       <FromMobius items={photos.albums.flatMap((a) => a.photos.filter((p) => changed?.has(p.path)).map((p) => ({ key: p.path, name: p.name, where: a.name, current: photos.open?.path === p.path, onOpen: () => void photos.openPhoto(p.path) })))} />
-    </aside>
+    </AppSidebar>
   );
 }
 
@@ -253,12 +247,10 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
   }
   return (
     <section className="photo-page photo-library" aria-label="Photo" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-      <header className="photo-bar" role="toolbar" aria-label="Album">
-        {/* The album's name is the window toolbar's title already: here only how many photos it holds. */}
-        <div className="photo-bar-title">
-          <span className="photo-meta">{list.length === 1 ? '1 photo' : `${list.length} photos`}{bin && list.length > 0 ? ' · kept until you empty Recently Deleted' : ''}</span>
-        </div>
-        <span className="spacer" />
+      {/* The album's own controls sit in the window's toolbar, after its name: how many photos, their size, and adding. */}
+      <ToolbarControls label="Album">
+        <div className="photo-tools">
+        <span className="photo-meta" title={bin && list.length > 0 ? 'Kept until you empty Recently Deleted' : undefined}>{list.length === 1 ? '1 photo' : `${list.length} photos`}</span>
         {list.length > 0 && (
           <label className="photo-zoom" title="Zoom (− and +)">
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1.5" /></svg>
@@ -267,13 +259,14 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
           </label>
         )}
         {album && <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden aria-hidden="true" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length) void photos.addFiles(album.name, files); }} />}
-        {album && <button type="button" className="photo-tool" onClick={() => picker.current?.click()}><Icon d={PLUS} /><span>Add photos</span></button>}
+        {album && <button type="button" className="strip-btn photo-tb" onClick={() => picker.current?.click()}><Icon d={PLUS} /><span>Add photos</span></button>}
         {bin && list.length > 0 && (
-          <button type="button" className="photo-tool" data-danger={emptying || undefined} onClick={() => { if (emptying) { setEmptying(false); void photos.emptyDeleted(); } else setEmptying(true); }}>
+          <button type="button" className="strip-btn photo-tb" data-danger={emptying || undefined} onClick={() => { if (emptying) { setEmptying(false); void photos.emptyDeleted(); } else setEmptying(true); }}>
             <Icon d={TRASH} /><span>{emptying ? `Delete ${list.length === 1 ? '1 photo' : `${list.length} photos`} for good` : 'Empty'}</span>
           </button>
         )}
-      </header>
+        </div>
+      </ToolbarControls>
       {photos.message && <p className="tasks-message" role="alert">{photos.message}</p>}
       {list.length === 0 ? (
         bin
@@ -328,13 +321,14 @@ function Slider({ label, value, min = -100, max = 100, step = 1, onChange }: { l
   const fill = ((value - min) / (max - min)) * 100, from = ((zero - min) / (max - min)) * 100;
   return (
     <label className="photo-slider" data-changed={value !== zero || undefined}>
-      <span className="photo-slider-head"><span>{label}</span><output>{value}</output></span>
+      <span className="photo-slider-name">{label}</span>
       <input
         type="range" aria-label={label} min={min} max={max} step={step} value={value}
         style={{ ['--from' as string]: `${Math.min(fill, from)}%`, ['--to' as string]: `${Math.max(fill, from)}%` }}
         onChange={(e) => onChange(Number(e.target.value))}
         onDoubleClick={() => onChange(zero)}
       />
+      <output>{value > 0 && min < 0 ? `+${value}` : value}</output>
     </label>
   );
 }
@@ -350,11 +344,7 @@ function Section({ name, open, changed, onToggle, onReset, children }: { name: s
           <span>{name}</span>
           {!open && changed && <span className="photo-group-dot" aria-label="changed" />}
         </button>
-        {changed && (
-          <button type="button" className="photo-group-reset" aria-label={`Reset ${name}`} title={`Reset ${name}`} onClick={onReset}>
-            <Icon d="M7.5 5 4 8.5 7.5 12M4 8.5h7.5a4.5 4.5 0 0 1 0 9H9" />
-          </button>
-        )}
+        {changed && <button type="button" className="photo-group-reset" aria-label={`Reset ${name}`} title={`Reset ${name}`} onClick={onReset}>Reset</button>}
       </div>
       {open && <div id={id} className="photo-group-body" role="group" aria-label={name}>{children}</div>}
     </div>
@@ -384,6 +374,8 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [before, setBefore] = useState(false);
   const [busy, setBusy] = useState('');
+  // The toolbar's Adjust, Filters and Crop bring the right panel's Adjust tab forward, opening the panel if it is shut.
+  const showPanel = useShowPanelTab();
   const [tab, setTab] = useState<Tab>('adjust');
   const [aspect, setAspect] = useState<AspectId>('free');
   const [zoomed, setZoomed] = useState(false);
@@ -620,33 +612,41 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
   const c = geometry.crop;
   return (
     <section className="photo-page photo-view" aria-label="Photo" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-      <header className="photo-bar" role="toolbar" aria-label="Photo">
-        <button type="button" className="photo-tool photo-back" aria-label={`Back to ${photos.album ?? 'the album'}`} title="Back to the album (Esc)" onClick={back}>
+      {/* The photo's controls, in the window's toolbar after its name: where it sits, how it is edited, and what to do. */}
+      <ToolbarControls label="Photo">
+        <div className="photo-tools">
+        <span className="photo-tools-group" role="group" aria-label="Where">
+        <button type="button" className="strip-btn photo-tb photo-back" aria-label={`Back to ${photos.album ?? 'the album'}`} title="Back to the album (Esc)" onClick={back}>
           <Icon d="M12.5 4.5L7 10l5.5 5.5" /><span>{photos.album}</span>
         </button>
-        <div className="photo-bar-title">
-          {/* The photo's name is the window toolbar's title already: here only where it sits in the album. */}
-          <span className="photo-meta">{at >= 0 ? `${at + 1} of ${order.length}` : ''}{img ? ` · ${shownSize(img, geometry)}` : ''}{photos.saved ? '' : ' · Saving…'}</span>
-        </div>
-        <span className="spacer" />
-        {busy && <span className="photo-meta" role="status">{busy}</span>}
+        <span className="photo-meta">{at >= 0 ? `${at + 1} of ${order.length}` : ''}</span>
+        </span>
+        <span className="photo-tools-group">
         <div className="photo-tabs" role="tablist" aria-label="Edit">
           {TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" id={`photo-tab-${t.id}`} aria-controls="photo-tabpanel" aria-selected={tab === t.id} className="photo-tab" onClick={() => setTab(t.id)}>{t.name}</button>
+            <button key={t.id} type="button" role="tab" id={`photo-tab-${t.id}`} aria-controls="photo-tabpanel" aria-selected={tab === t.id} className="photo-tab" onClick={() => { setTab(t.id); showPanel('adjust'); }}>{t.name}</button>
           ))}
         </div>
-        <span className="spacer" />
-        <button type="button" className="photo-tool" aria-pressed={before} title="Hold to see the original (M)" onPointerDown={() => setBefore(true)} onPointerUp={() => setBefore(false)} onPointerLeave={() => setBefore(false)} onKeyDown={(e) => { if (e.key === ' ') setBefore(true); }} onKeyUp={() => setBefore(false)}>
-          <Icon d="M3 10c1.8-3.3 4.2-5 7-5s5.2 1.7 7 5c-1.8 3.3-4.2 5-7 5s-5.2-1.7-7-5zM10 12.3a2.3 2.3 0 100-4.6 2.3 2.3 0 000 4.6z" /><span>Show original</span>
+        </span>
+        <span className="photo-tools-group" role="group" aria-label="Photo actions">
+        <button type="button" className="strip-btn photo-tb" aria-label="Show original" aria-pressed={before} title="Hold to see the original (M)" onPointerDown={() => setBefore(true)} onPointerUp={() => setBefore(false)} onPointerLeave={() => setBefore(false)} onKeyDown={(e) => { if (e.key === ' ') setBefore(true); }} onKeyUp={() => setBefore(false)}>
+          <Icon d="M3.5 4.5h13v11h-13zM10 4.5v11M10 8l6.5-3.5M10 12.5l6.5-3.5" />
         </button>
-        <button type="button" className="photo-tool" disabled={edits.adjustments.length === 0 && isPlain(edits.geometry)} onClick={revert}>Revert</button>
-        <button type="button" className="photo-export" disabled={!img} onClick={() => void exportIt()}>Export</button>
-      </header>
+        <button type="button" className="strip-btn photo-tb" disabled={edits.adjustments.length === 0 && isPlain(edits.geometry)} aria-label="Revert" title="Take every edit off this photo" onClick={revert}><Icon d="M7.5 5 4 8.5 7.5 12M4 8.5h7.5a4.5 4.5 0 0 1 0 9H9" /><span>Revert</span></button>
+        <button type="button" className="photo-export" disabled={!img} aria-label="Export" title="Save a new picture with the edits, beside this one" onClick={() => void exportIt()}><Icon d="M10 3v9M6.5 6.5 10 3l3.5 3.5M4.5 11v4.5h11V11" /><span>Export</span></button>
+        </span>
+        </div>
+      </ToolbarControls>
       {photos.message && <p className="tasks-message" role="alert">{photos.message}</p>}
       <div className="photo-body">
         <div className="photo-stage" data-zoomed={zoomed || undefined} data-cropping={cropping || undefined}>
           {!cropping && at > 0 && <button type="button" className="photo-step prev glass-clear" aria-label="Previous photo" title="Previous photo (←)" onClick={() => go(-1)}><Icon d="M12.5 4.5L7 10l5.5 5.5" /></button>}
           {!cropping && at >= 0 && at < order.length - 1 && <button type="button" className="photo-step next glass-clear" aria-label="Next photo" title="Next photo (→)" onClick={() => go(1)}><Icon d="M7.5 4.5L13 10l-5.5 5.5" /></button>}
+          {/* The photo's facts along the foot of the content, as the mock has them: its name and size as it will export. */}
+          <p className="photo-info" role="status">
+            <span>{open.path.split('/').pop()}{img ? ` · ${shownSize(img, geometry)}` : ''}</span>
+            <span>{busy || (photos.saved ? (edits.adjustments.length === 0 && isPlain(edits.geometry) ? 'Original' : `${edits.adjustments.length === 1 ? '1 edit' : `${edits.adjustments.length} edits`} · Original kept`) : 'Saving…')}</span>
+          </p>
           <div className="photo-frame" ref={frame} onDoubleClick={() => { if (!cropping) setZoomed((z) => !z); }}>
             <canvas ref={shown} className="photo-canvas" role="img" aria-label={before ? 'The photo before edits' : 'The photo with edits'} />
             {sel && area && area.kind !== 'all' && !before && !cropping && (
@@ -661,7 +661,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
             )}
             {cropping && !before && (
               <div
-                className="photo-crop" role="group" aria-label="Crop box" tabIndex={0}
+                className="photo-crop" role="group" aria-label="Crop box" tabIndex={0} title="Drag the box or its corners; arrow keys nudge it, R rotates"
                 style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%`, width: `${c.w * 100}%`, height: `${c.h * 100}%` }}
                 onPointerDown={cropDown('move')} onPointerMove={cropMove} onPointerUp={cropUp} onPointerCancel={cropUp} onKeyDown={nudgeCrop}
               >
@@ -670,15 +670,20 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
               </div>
             )}
           </div>
+        </div>
+        {/* Adjust, Filters and Crop live in the right panel as its Adjust tab, before Mobius. The wrapper carries
+            .photo-page so the panel's styles follow it out of the page. */}
+        <PanelTab id="adjust" name="Adjust">
+        <div className="photo-page photo-dock">
+        <aside className="photo-panel" id="photo-tabpanel" role="tabpanel" aria-label={tab === 'adjust' ? 'Adjustments' : tab === 'filters' ? 'Filters' : 'Crop'}>
+          {/* What Mobius changed, once, at the top of the panel: dashed indigo until it is kept or discarded. */}
           {showReview && (
-            <div className="photo-review" role="group" aria-label="Mobius's change">
-              <span className="review-dot" aria-hidden="true" />
-              <span>{`Mobius changed ${named.join(', ') || 'the edits'}; nothing else touched.`}{review && <WhyThis conversation={review.conversation} />}</span>
-              <ReviewActions onKeep={keep} onDiscard={discard} />
+            <div className="photo-proposal" role="group" aria-label="Mobius's change">
+              <p className="photo-proposal-title">Mobius changed {named.join(', ') || 'the edits'}</p>
+              <p className="photo-proposal-line">Nothing else in the photo was touched.{review && <WhyThis conversation={review.conversation} />}</p>
+              <div className="photo-proposal-actions"><ReviewActions onKeep={keep} onDiscard={discard} /></div>
             </div>
           )}
-        </div>
-        <aside className="photo-panel" id="photo-tabpanel" role="tabpanel" aria-label={tab === 'adjust' ? 'Adjustments' : tab === 'filters' ? 'Filters' : 'Crop'}>
           {tab === 'adjust' && (
             <>
               <div className="photo-histogram" role="img" aria-label="Histogram of the photo's brightness">
@@ -689,7 +694,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                 <button type="button" className="photo-chip" aria-pressed={auto !== undefined} title="Let Photo set the light and colour" onClick={toggleAuto}>
                   <Icon d="M10 3l1.6 3.9L15.5 8l-3.9 1.6L10 13.5 8.4 9.6 4.5 8l3.9-1.1zM15 13l.7 1.6 1.6.7-1.6.7L15 17.6l-.7-1.6-1.6-.7 1.6-.7z" />Auto
                 </button>
-                <button type="button" className="strip-btn" aria-label="Add adjustment" title="Add adjustment" onClick={add}><Icon d={PLUS} /></button>
+                <button type="button" className="strip-btn" aria-label="Add adjustment" title="Add an adjustment: light and colour for all of the photo or part of it" onClick={add}><Icon d={PLUS} /></button>
               </div>
               <ul
                 className="photo-layers" role="listbox" aria-label="Adjustment layers" tabIndex={0}
@@ -738,13 +743,11 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                   </Section>
                   <button type="button" className="photo-delete" onClick={() => remove(sel.id)}>Delete adjustment</button>
                 </div>
-              ) : (
-                <p className="photo-hint">Add an adjustment to change light and colour, to all of the photo or part of it, or press Auto. The picture itself is never changed: Export saves a new one.</p>
-              )}
+              ) : null}
             </>
           )}
           {tab === 'filters' && (
-            <div className="photo-filters" role="radiogroup" aria-label="Filters">
+            <div className="photo-filters" role="radiogroup" aria-label="Filters" title="A filter is a layer under your adjustments, so it can be changed in Adjust">
               {[{ id: 'original' as const, name: 'Original' }, ...FILTERS].map((f) => {
                 const on = f.id === 'original' ? filter === null : filter === f.id;
                 return (
@@ -754,7 +757,6 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                   </button>
                 );
               })}
-              <p className="photo-hint">A filter is a layer named for it, under your adjustments, so it can be changed in Adjust.</p>
             </div>
           )}
           {tab === 'crop' && (
@@ -782,10 +784,11 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                 <span className="spacer" />
                 <button type="button" className="photo-export" title="Done (Enter)" onClick={() => setTab('adjust')}>Done</button>
               </div>
-              <p className="photo-hint">Drag the box or its corners; arrow keys nudge it and R rotates. The crop is kept with the edits, so it can be changed later.</p>
             </div>
           )}
         </aside>
+        </div>
+        </PanelTab>
       </div>
     </section>
   );

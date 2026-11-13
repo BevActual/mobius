@@ -45,10 +45,12 @@ test('a new document is written on the page with formatting and kept as Markdown
   await expect.poll(() => fs.existsSync(file('Documents/Untitled.md'))).toBe(true);
   await page().click();
   await shell().keyboard.press('Control+End');
-  // Styles are in the Aa panel, as in Notes; it stays open while formatting and the keys still go to the page.
-  // The format bar is the window's toolbar, on the frame.
-  await shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Format text' }).click();
-  await shell().getByRole('dialog', { name: 'Text format' }).getByRole('button', { name: 'Heading', exact: true }).click();
+  // The paragraph's style is the first thing in the window's toolbar ("Body ⌄"); the keys still go to the page after.
+  await shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: /^Paragraph style/ }).click();
+  await shell().getByRole('menu', { name: 'Paragraph style' }).getByRole('menuitem', { name: 'Heading', exact: true }).click();
+  // The choice applies once the menu has closed, and the keys go back to the page then.
+  await expect(shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Paragraph style: Heading' })).toBeVisible();
+  await expect(shell().getByRole('menu', { name: 'Paragraph style' })).toHaveCount(0);
   await shell().keyboard.type('Plan');
   await shell().keyboard.press('Enter');
   await shell().keyboard.type('Book the ');
@@ -57,9 +59,10 @@ test('a new document is written on the page with formatting and kept as Markdown
   await shell().keyboard.press('Control+b');
   await shell().keyboard.type(' early.');
   await expect.poll(() => fs.readFileSync(file('Documents/Untitled.md'), 'utf8'), { timeout: 5000 }).toContain('## Plan\n\nBook the **terrace** early.');
-  // The outline lists the headings (it folds away when the page is narrow, as it is beside the agent panel here).
-  await expect(editor().locator('.doc-outline-item', { hasText: 'Plan' })).toHaveCount(1);
-  await expect(editor().getByText(/\d+ words/)).toBeVisible();
+  // The sidebar lists the open document's headings under it, and the line under the title counts its words.
+  await expect(shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('button', { name: 'Plan', exact: true })).toHaveCount(1);
+  await expect(page().locator('.doc-meta')).toContainText(/\d+ words/);
+  await expect(editor().locator('.doc-status')).toHaveCount(0);
 });
 
 test('a writing tool asks Mobius, and its changes are marked in the page, each kept or discarded on its own', async () => {
@@ -72,11 +75,12 @@ test('a writing tool asks Mobius, and its changes are marked in the page, each k
   ]);
   await shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
   await expect(page()).toContainText('We have been talking');
-  // What Mobius will see is said on the button: the whole document, since nothing is selected.
-  await expect(shell().getByRole('button', { name: 'Writing tools' })).toHaveAttribute('title', /It sees the whole document/);
-  await shell().getByRole('button', { name: 'Writing tools' }).click();
-  const menu = shell().getByRole('menu', { name: 'Writing tools' });
-  await menu.getByRole('menuitem', { name: 'Make it shorter' }).click();
+  // Mobius's writing tools are at the top of the window's one ⋯, on the whole document when nothing is chosen.
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: 'Make it shorter' }).click();
+  // The right panel has the document's Outline as a tab before Mobius; Mobius's tab has the conversation.
+  await expect(shell().getByRole('tablist', { name: 'Panel' }).getByRole('tab', { name: 'Outline' })).toBeVisible();
+  await shell().getByRole('tablist', { name: 'Panel' }).getByRole('tab', { name: 'Mobius' }).click();
 
   const log = shell().getByRole('log', { name: 'Conversation' });
   for (let i = 0; i < 2; i++) await log.getByRole('button', { name: 'Allow once' }).first().click();
@@ -125,7 +129,9 @@ test('a comment on chosen words, a link to another document, and Share all work 
   await page().getByText('Plan on the 13th').click();
   await shell().keyboard.press('End');
   await shell().keyboard.type(', see ');
-  await shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Link' }).click();
+  // Link is in the toolbar when there is room, and in the window's ⋯ always (the test window is narrow beside Mobius).
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: 'Add a link…' }).click();
   await shell().getByRole('combobox', { name: 'Link to' }).fill('venu');
   await expect(shell().getByRole('option', { name: /Venues/ })).toBeVisible();
   await shell().keyboard.press('Enter');

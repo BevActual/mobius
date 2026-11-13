@@ -1,6 +1,7 @@
 /** The preview's Slides: decks kept in memory while the preview is open, so Slides can be used without the core. */
 const now = Date.now();
 const hour = 3_600_000;
+const FILES: Record<string, string> = {};
 const TEXT: Record<string, string> = {
   'Presentations/P2 build kickoff.md': `<!-- style: accent -->
 ### Northway Motors
@@ -62,6 +63,13 @@ export const PREVIEW_SLIDES: Record<string, (...args: never[]) => unknown> = {
     MODIFIED[path] = Date.now();
     return { path, content: TEXT[path], modified: MODIFIED[path] };
   }) as never,
+  // Pictures added to a deck are kept for as long as the preview is open.
+  'slides.attach': ((path: string, name: string, base64: string) => {
+    const ref = `${title(path)} files/${name}`.replace(/ /g, '%20');
+    FILES[ref] = base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`;
+    return { path, ref, name, image: /\.(png|jpe?g|gif|webp)$/i.test(name) };
+  }) as never,
+  'slides.asset': ((_path: string, ref: string) => (FILES[ref] ? { dataUrl: FILES[ref], size: 1 } : { ok: false, message: 'that file is not there' })) as never,
   'slides.remove': ((path: string) => { delete TEXT[path]; return { path }; }) as never,
   'slides.search': ((query: string) => Object.entries(TEXT).filter(([, t]) => t.toLowerCase().includes(query.toLowerCase())).map(([path, t]) => ({ path, title: title(path), notebook: path.split('/')[0], line: t.split('\n').find((l) => l.toLowerCase().includes(query.toLowerCase())) ?? '' }))) as never,
 };
