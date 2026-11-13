@@ -53,11 +53,11 @@
 .ui-toolbar-slot[hidden] { display: none; }
 .ui-toolbar-group { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; }
 
-/* The view switch: segmented, the current view ink-inverted. */
+/* The view switch: segmented, the current view on a light fill (timeless: never ink-inverted). */
 .ui-views { display: inline-flex; align-items: center; gap: 0; padding: calc(var(--sp-1) / 2); border-radius: var(--radius-control); background: var(--soft); }
 .ui-view { height: calc(var(--control-h) - var(--sp-1)); padding: 0 var(--sp-3); border-radius: var(--radius-small); color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .ui-view:hover:not([aria-checked="true"]) { color: var(--ink); background: transparent; }
-.ui-view[aria-checked="true"] { background: var(--ink); color: var(--bg); }
+.ui-view[aria-checked="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 var(--hairline-w) var(--line); }
 
 /* The app sidebar's pieces (AppSidebar). Rows reuse the shell's list-row look. */
 .ui-side-section { display: block; }
