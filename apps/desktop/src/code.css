@@ -1,132 +1,217 @@
-/* The Code app, as Xcode's editor: a tab bar of open files, a jump bar of where the file is, the lit line under the
-   cursor, a status bar, and the tests and console in a panel that folds away. Rules sit under .code-page or .code-side so
-   they win over the older ones in styles.css. */
+/* The Code app (Instrument, a pro app): a tab bar of open files, a jump bar, the editor with its status line, Mobius's
+   change as removed and added lines, and the tests and console below. Every size, space, radius and colour comes from
+   tokens.css; code, readouts and the terminal use the mono face. All of Code's rules live here, none in styles.css. */
+
+/* Syntax colours: the shared palette mixed with ink, so the same rule reads on paper and on dark in every theme. */
+.code-page {
+  --code-bg: var(--paper);
+  --code-gutter: var(--faint);
+  --tok-kw: color-mix(in srgb, var(--c-violet) 55%, var(--ink));
+  --tok-type: color-mix(in srgb, var(--c-teal) 55%, var(--ink));
+  --tok-fn: color-mix(in srgb, var(--c-blue) 55%, var(--ink));
+  --tok-str: color-mix(in srgb, var(--c-coral) 60%, var(--ink));
+  --tok-num: color-mix(in srgb, var(--c-amber) 60%, var(--ink));
+  --tok-com: var(--muted);
+  --code-line: 20px;
+  --code-font: var(--fs-md)/var(--code-line) var(--font-mono);
+}
+.stage .code-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--code-bg); color: var(--ink); }
+.code-page.empty { align-items: center; justify-content: center; background: var(--paper); }
+.code-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.code-main > .note-empty { padding: var(--sp-6); }
+.code-page .tok-kw { color: var(--tok-kw); font-weight: var(--fw-semibold); }
+.code-page .tok-type { color: var(--tok-type); }
+.code-page .tok-fn { color: var(--tok-fn); }
+.code-page .tok-str { color: var(--tok-str); }
+.code-page .tok-num { color: var(--tok-num); }
+.code-page .tok-com { color: var(--tok-com); font-style: italic; }
+
+/* A quiet button: text on the frame, a fill only under the pointer (Save before a change, Change, Commit…, Push). */
+.code-page .code-quiet, .code-side .code-quiet { height: var(--control-h); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.code-page .code-quiet:hover:not(:disabled), .code-side .code-quiet:hover:not(:disabled) { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.code-page .code-quiet:disabled, .code-side .code-quiet:disabled { color: var(--muted); opacity: 0.4; }
+.code-page .btn { height: var(--control-h); padding: 0 var(--sp-3); font-size: var(--fs-sm); }
+
+/* One file icon everywhere: a grey line glyph, no coloured type tiles (colour is for git state and Mobius). */
+.code-glyph { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linejoin: round; }
 
 /* Tabs of open files */
-.code-page .code-tabs { flex: none; display: flex; align-items: stretch; gap: 0; height: 34px; overflow-x: auto; scrollbar-width: none; background: color-mix(in srgb, var(--ink) 3%, var(--code-bg)); border-bottom: 0.5px solid var(--line); }
+.code-page .code-tabs { flex: none; display: flex; align-items: stretch; height: var(--row-list); overflow-x: auto; scrollbar-width: none; background: var(--frame); border-bottom: var(--hairline-w) solid var(--line); }
 .code-page .code-tabs::-webkit-scrollbar { display: none; }
-.code-page .code-tab { position: relative; flex: 0 0 auto; display: flex; align-items: center; max-width: 220px; border-right: 0.5px solid var(--line); color: var(--muted); }
+.code-page .code-tab { position: relative; flex: 0 0 auto; display: flex; align-items: center; max-width: 220px; border-right: var(--hairline-w) solid var(--line); color: var(--muted); }
 .code-page .code-tab[data-current] { background: var(--code-bg); color: var(--ink); }
-.code-page .code-tab[data-current]::after { content: ''; position: absolute; left: 0; right: 0; bottom: -0.5px; height: 1px; background: var(--code-bg); }
-.code-page .code-tab:not([data-current]):hover { background: color-mix(in srgb, var(--ink) 5%, var(--code-bg)); }
-.code-page .code-tab-main { display: flex; align-items: center; gap: 6px; min-width: 0; height: 100%; padding: 0 4px 0 12px; font-size: var(--fs-sm); color: inherit; }
+.code-page .code-tab[data-current]::after { content: ''; position: absolute; left: 0; right: 0; bottom: calc(-1 * var(--hairline-w)); height: var(--hairline-w); background: var(--code-bg); }
+.code-page .code-tab:not([data-current]):hover { background: color-mix(in srgb, var(--sel) 50%, var(--frame)); }
+.code-page .code-tab-main { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; height: 100%; padding: 0 var(--sp-1) 0 var(--sp-3); font-size: var(--fs-md); color: inherit; }
+.code-page .code-tab[data-current] .code-tab-main { font-weight: var(--fw-medium); }
 .code-page .code-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.code-page .code-tab-close { position: relative; flex: none; width: 20px; height: 20px; margin-right: 6px; display: grid; place-items: center; border-radius: 5px; color: var(--muted); opacity: 0; }
-.code-page .code-tab-close svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.code-page .code-tab-close { position: relative; flex: none; width: var(--control-h); height: var(--control-h); margin-right: var(--sp-1); display: grid; place-items: center; border-radius: var(--radius-control); color: var(--muted); opacity: 0; }
+.code-page .code-tab-close svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .code-page .code-tab[data-current] .code-tab-close, .code-page .code-tab:hover .code-tab-close, .code-page .code-tab-close:focus-visible { opacity: 1; }
-.code-page .code-tab-close:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink); }
+.code-page .code-tab-close:hover { background: var(--sel); color: var(--ink); }
 /* Not saved: a dot, which turns into the close button under the pointer. */
 .code-page .code-tab-close[data-unsaved] { opacity: 1; }
-.code-page .code-tab-close[data-unsaved]::before { content: ''; position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--ink); opacity: 0.7; }
+.code-page .code-tab-close[data-unsaved]::before { content: ''; position: absolute; width: var(--sp-2); height: var(--sp-2); border-radius: 50%; background: var(--ink); }
 .code-page .code-tab-close[data-unsaved] svg { opacity: 0; }
 .code-page .code-tab-close[data-unsaved]:hover::before, .code-page .code-tab-close[data-unsaved]:focus-visible::before { opacity: 0; }
 .code-page .code-tab-close[data-unsaved]:hover svg, .code-page .code-tab-close[data-unsaved]:focus-visible svg { opacity: 1; }
 
 /* The jump bar: project › folder › file, then Revert and Save. */
-.code-page .code-file-head { min-height: 32px; padding: 3px 10px 3px 12px; border-bottom: 0.5px solid var(--line); background: var(--code-bg); }
-.code-page .code-crumbs { display: flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; }
-.code-page .code-crumbs > svg { flex: none; width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: 0.6; }
-.code-page .code-crumbs .code-path { display: inline-flex; align-items: center; gap: 5px; font: inherit; color: var(--ink); font-weight: 500; }
-.code-page .code-head-actions .btn { height: 24px; padding: 0 10px; font-size: var(--fs-sm); }
-.code-page .code-dirty { white-space: nowrap; }
+.code-page .code-file-head { display: flex; align-items: center; gap: var(--sp-2); height: var(--row-list); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--code-bg); }
+.code-page .code-crumbs { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; overflow: hidden; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; }
+.code-page .code-crumbs > svg { flex: none; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.code-page .code-crumbs .code-path { display: inline-flex; align-items: center; gap: var(--sp-1); min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-weight: var(--fw-medium); }
+.code-page .code-dirty { white-space: nowrap; color: var(--muted); font-size: var(--fs-sm); }
+.code-page .code-head-actions { margin-left: auto; display: flex; gap: var(--sp-1); }
 
-/* The editor: the lit line, find's marks, the bar above and the status line below. */
+/* The editor: a text area over its coloured lines, the lit line, find's marks, the bar above and the status line. */
 .code-page .code-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
-.code-page .code-under-line[data-current] { background: color-mix(in srgb, var(--accent) 7%, transparent); margin-left: -4px; padding-left: 4px; margin-right: -16px; }
+.code-page .code-edit { flex: 1; min-height: 0; display: flex; position: relative; }
+.code-page .code-gutter { flex-shrink: 0; overflow: hidden; padding: var(--sp-2) var(--sp-2) 40px var(--sp-3); text-align: right; color: var(--code-gutter); font: var(--code-font); user-select: none; }
+.code-page .code-gutter span { display: block; }
 .code-page .code-gutter span[data-current] { color: var(--ink); }
-.code-page .code-found { position: absolute; height: 20px; border-radius: 3px; background: color-mix(in srgb, #ffd60a 38%, transparent); pointer-events: none; }
-.code-page .code-found[data-current] { background: color-mix(in srgb, #ffd60a 80%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, #ff9f0a 70%, transparent); }
-.code-page .code-area::selection { background: color-mix(in srgb, var(--accent) 26%, transparent); }
-.code-page .code-bar { position: absolute; top: 8px; right: 18px; z-index: 3; display: flex; align-items: center; gap: 2px; padding: 3px 3px 3px 10px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 96%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 6px 20px rgba(0, 0, 0, 0.14); }
-.code-page .code-bar input { width: 200px; height: 26px; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); }
-.code-page .code-bar .btn { height: 24px; padding: 0 10px; font-size: var(--fs-sm); }
-.code-page .code-bar .strip-btn { min-width: 26px; height: 26px; }
-.code-page .code-bar-count { min-width: 64px; text-align: right; padding-right: 6px; font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
-.code-page .code-bar-case { height: 24px; padding: 0 6px; border-radius: 6px; font: 600 11px/1 var(--font); color: var(--muted); }
-.code-page .code-bar-case[aria-pressed="true"] { background: var(--accent); color: var(--on-accent, #fff); }
-.code-page .code-status { flex: none; display: flex; align-items: center; gap: 16px; height: 24px; padding: 0 12px; border-top: 0.5px solid var(--line); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.code-page .code-stack { position: relative; flex: 1; min-width: 0; }
+.code-page .code-under, .code-page .code-area { position: absolute; inset: 0; margin: 0; padding: var(--sp-2) var(--sp-4) 40px var(--sp-1); font: var(--code-font); tab-size: 2; white-space: pre; }
+.code-page .code-under { overflow: hidden; pointer-events: none; }
+.code-page .code-under-line { min-height: var(--code-line); }
+.code-page .code-under-line[data-current] { background: color-mix(in srgb, var(--sel) 60%, transparent); margin-left: calc(-1 * var(--sp-1)); padding-left: var(--sp-1); margin-right: calc(-1 * var(--sp-4)); }
+.code-page .code-area { width: 100%; height: 100%; resize: none; border: 0; outline: none; overflow: auto; background: transparent; color: transparent; caret-color: var(--ink); }
+.code-page .code-area::selection { background: color-mix(in srgb, var(--c-blue) 30%, transparent); color: transparent; }
+.code-page .code-found { position: absolute; height: var(--code-line); border-radius: var(--radius-small); background: color-mix(in srgb, var(--c-yellow) 40%, transparent); pointer-events: none; }
+.code-page .code-found[data-current] { background: color-mix(in srgb, var(--c-yellow) 80%, transparent); box-shadow: 0 0 0 var(--hairline-w) var(--c-amber); }
+.code-page .code-status { flex: none; display: flex; align-items: center; gap: var(--sp-4); height: var(--info-h); padding: 0 var(--sp-3); border-top: var(--hairline-w) solid var(--line); font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; overflow: hidden; }
 
-/* Nothing open yet: the project, recent files and what to do next, as a start page. */
-.code-page .code-none { flex: 1; min-height: 0; overflow-y: auto; display: flex; justify-content: flex-start; align-items: flex-start; padding: 40px 32px 24px; }
-.code-page .code-none-inner { width: min(560px, 100%); padding-left: 0; display: flex; flex-direction: column; gap: 20px; }
-.code-page .code-none-title { margin: 0 0 0 8px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
-.code-page .code-none-sub { margin: -16px 0 0 8px; font-size: var(--fs-sm); color: var(--muted); }
-.code-page .code-none-group h3 { margin: 0 0 4px 8px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+/* Find (Ctrl+F) and Go to line (Ctrl+G): a small raised bar over the editor's top right. */
+.code-page .code-bar { position: absolute; top: var(--sp-2); right: var(--sp-4); z-index: 3; display: flex; align-items: center; gap: var(--sp-1); padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3); border-radius: var(--radius-sheet); box-shadow: var(--shadow-2); }
+.code-page .code-bar input { width: 200px; height: var(--control-h); border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); }
+.code-page .code-bar .strip-btn { min-width: var(--control-h); height: var(--control-h); border-radius: var(--radius-control); }
+.code-page .code-bar-count { min-width: 64px; text-align: right; padding-right: var(--sp-1); font-size: var(--fs-xs); color: var(--muted); }
+.code-page .code-bar-case { height: var(--control-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.code-page .code-bar-case[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
+
+/* Mobius's change in the open file: removed and added lines with a 3px edge, kept or put back. */
+.code-page .code-lines { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-2) 0 var(--sp-6); font: var(--code-font); }
+.code-page .code-line { display: grid; grid-template-columns: 48px 16px 1fr; white-space: pre; }
+.code-page .code-line .code-n { color: var(--code-gutter); text-align: right; padding-right: var(--sp-2); user-select: none; }
+.code-page .code-line .code-sign { text-align: center; font-weight: var(--fw-semibold); user-select: none; }
+.code-page .code-line[data-kind="add"] { background: var(--success-wash); box-shadow: inset 3px 0 0 var(--success); }
+.code-page .code-line[data-kind="add"] .code-sign { color: var(--success); }
+.code-page .code-line[data-kind="del"] { background: var(--danger-wash); box-shadow: inset 3px 0 0 var(--danger); }
+.code-page .code-line[data-kind="del"] .code-sign { color: var(--danger); }
+.code-page .code-line[data-kind="del"] .code-text { opacity: 0.7; }
+.code-page .code-line s { text-decoration-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.code-page .code-diff-actions { display: flex; gap: var(--sp-2); padding: 2px 0 var(--sp-2) 64px; font-family: var(--font); }
+.code-page .code-diff-actions:empty { display: none; }
+.code-page .code-diff-bar { position: sticky; bottom: 0; display: flex; align-items: center; gap: var(--sp-2); margin: var(--sp-3) var(--sp-3) 0 64px; padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3); width: fit-content; border-radius: var(--radius-panel); background: var(--raised); font: var(--fs-sm)/var(--lh-tight) var(--font); box-shadow: var(--shadow-2); }
+.code-page .code-diff-bar > span { margin-right: var(--sp-2); }
+
+/* Nothing open yet: the project, recent files and what to do next, left-aligned at reading width. */
+.code-page .code-none { flex: 1; min-height: 0; overflow-y: auto; display: flex; justify-content: flex-start; align-items: flex-start; padding: var(--sp-8) var(--sp-8) var(--sp-6); }
+.code-page .code-none-inner { width: min(560px, 100%); display: flex; flex-direction: column; gap: var(--sp-6); }
+.code-page .code-none-head { display: flex; flex-direction: column; gap: var(--sp-1); padding-left: var(--sp-2); }
+.code-page .code-none-title { margin: 0; font-size: var(--fs-2xl); font-weight: var(--fw-semibold); color: var(--ink); }
+.code-page .code-none-sub { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+.code-page .code-none-group h3 { margin: 0 0 var(--sp-1) var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
 .code-page .code-none-group ul { list-style: none; margin: 0; padding: 0; }
-.code-page .code-none-row { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px; border-radius: 7px; font-size: var(--fs-md, 13px); color: var(--ink); text-align: left; }
-.code-page .code-none-row:hover:not(:disabled), .code-page .code-none-row:focus-visible { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.code-page .code-none-row { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: var(--row-list); padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-md); color: var(--ink); text-align: left; }
+.code-page .code-none-row:hover:not(:disabled), .code-page .code-none-row:focus-visible { background: color-mix(in srgb, var(--sel) 50%, transparent); }
 .code-page .code-none-row:disabled { color: var(--muted); }
 .code-page .code-none-name { flex: none; }
 .code-page .code-none-where { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
-.code-page .code-none-row kbd { margin-left: auto; }
-.code-page .code-none kbd, .code-page .code-head-actions kbd { all: unset; margin-left: 6px; opacity: 0.6; font-size: 11px; }
-.code-page .code-none-row kbd { margin-left: auto; }
+.code-page .code-none-row code.code-none-where { font-family: var(--font-mono); }
+.code-page .code-none-row .ui-keycaps { margin-left: auto; }
 
-/* Quick open, as Xcode's Open Quickly: a field and a list, over the editor. */
-.code-page .code-quick-wrap { position: absolute; inset: 0; z-index: 20; display: flex; justify-content: center; align-items: flex-start; padding-top: 72px; background: color-mix(in srgb, #000 8%, transparent); }
-.code-page .code-quick { width: min(560px, calc(100% - 48px)); max-height: 60%; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 18px 48px rgba(0, 0, 0, 0.24); animation: code-pop var(--dur-fast) var(--ease, var(--ease)); }
-@keyframes code-pop { from { opacity: 0; transform: translateY(-4px) scale(0.99); } }
-@media (prefers-reduced-motion: reduce) { .code-page .code-quick { animation: none; } }
-.code-page .code-quick input { height: 46px; padding: 0 16px; border: 0; border-bottom: 0.5px solid var(--line); outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 17px; }
-.code-page .code-quick ul { list-style: none; margin: 0; padding: 6px; overflow-y: auto; }
-.code-page .code-quick li { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 7px; cursor: default; }
-.code-page .code-quick li[aria-selected="true"] { background: var(--accent); color: var(--on-accent, #fff); }
-.code-page .code-quick-name { font-size: var(--fs-md, 13px); }
+/* Quick open (Ctrl+P): a field and a list, raised over the editor. */
+.code-page .code-quick-wrap { position: absolute; inset: 0; z-index: 20; display: flex; justify-content: center; align-items: flex-start; padding-top: 72px; }
+.code-page .code-quick { width: min(560px, calc(100% - var(--sp-8))); max-height: 60%; display: flex; flex-direction: column; border-radius: var(--radius-sheet); overflow: hidden; box-shadow: var(--shadow-3); }
+.code-page .code-quick input { height: var(--control-h-lg); padding: 0 var(--sp-4); border: 0; border-bottom: var(--hairline-w) solid var(--line); outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-lg); }
+.code-page .code-quick ul { list-style: none; margin: 0; padding: var(--sp-1); overflow-y: auto; }
+.code-page .code-quick li { display: flex; align-items: center; gap: var(--sp-2); height: var(--row-list); padding: 0 var(--sp-2); border-radius: var(--radius-control); cursor: default; }
+.code-page .code-quick li[aria-selected="true"] { background: var(--sel); }
+.code-page .code-quick-name { font-size: var(--fs-md); }
+.code-page .code-quick li[aria-selected="true"] .code-quick-name { font-weight: var(--fw-medium); }
 .code-page .code-quick-where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
-.code-page .code-quick li[aria-selected="true"] .code-quick-where { color: inherit; opacity: 0.8; }
 .code-page .code-quick-none { color: var(--muted); font-size: var(--fs-sm); }
 
-/* The panel under the file */
-.code-page .code-bottom[data-hidden] { max-height: none; }
-.code-page .code-bottom-tabs { align-items: center; justify-content: space-between; padding: 4px 6px 2px 8px; }
+/* The panel under the file: Tests and Console */
+.code-page .code-bottom { flex-shrink: 0; max-height: 42%; min-height: 0; display: flex; flex-direction: column; border-top: var(--hairline-w) solid var(--line); background: var(--paper); }
+.code-page .code-bottom-tabs { display: flex; align-items: center; justify-content: space-between; height: var(--panel-head-h); padding: 0 var(--sp-1) 0 var(--sp-2); }
 .code-page .code-bottom-tabs [role="tablist"] { display: flex; gap: 2px; }
-.code-page .code-bottom-tabs [role="tab"] { display: inline-flex; align-items: center; gap: 6px; }
-.code-page .code-panel-toggle { min-width: 26px; height: 24px; color: var(--muted); }
-.code-page .code-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.code-page .code-bottom-tabs [role="tab"] { display: inline-flex; align-items: center; gap: var(--sp-2); height: var(--control-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-sm); color: var(--muted); }
+.code-page .code-bottom-tabs [role="tab"][aria-selected="true"] { background: var(--sel); color: var(--ink); font-weight: var(--fw-medium); }
+.code-page .code-panel-toggle { min-width: var(--control-h); height: var(--control-h); border-radius: var(--radius-control); color: var(--muted); }
+.code-page .code-tab-dot { width: var(--sp-2); height: var(--sp-2); border-radius: 50%; background: var(--success); }
 .code-page .code-tab-dot[data-state="fail"] { background: var(--danger); }
 
-/* The file list */
-.code-side .code-tree { overflow: visible; padding-bottom: 0; }
-.code-side .code-tree ul { padding: 0; }
-.code-side .code-file { height: var(--row-h); gap: 5px; border-radius: var(--radius-control); font-size: var(--fs-md, 13px); }
-.code-side .code-file[aria-current="page"] { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.code-side .code-caret { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur-fast) var(--ease, var(--ease)); }
+.code-page .code-tests { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.code-page .code-tests-head { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-list); padding: 0 var(--sp-3); }
+.code-page .code-tests-summary { font-size: var(--fs-sm); color: var(--muted); }
+.code-page .code-tests-summary[data-state="pass"] { color: var(--success); }
+.code-page .code-tests-summary[data-state="fail"] { color: var(--danger); }
+.code-page .code-tests-actions { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.code-page .code-tests-command { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px var(--sp-2); border-radius: var(--radius-small); background: var(--field); font: var(--fs-xs)/var(--lh-body) var(--font-mono); }
+.code-page .code-tests-form { display: flex; flex-wrap: wrap; gap: var(--sp-2); padding: 0 var(--sp-3) var(--sp-2); }
+.code-page .code-tests-form input, .code-page .code-console-form input { flex: 1; min-width: 160px; height: var(--control-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); border: var(--hairline-w) solid var(--line); background: var(--paper); color: inherit; font: var(--fs-sm) var(--font-mono); }
+.code-page .code-tests-note { margin: 0; padding: 0 var(--sp-3) var(--sp-3); color: var(--muted); font-size: var(--fs-sm); flex-basis: 100%; }
+.code-page .code-tests-form .code-tests-note { padding: 0; }
+.code-page .code-tests-output { margin: 0; flex: 1; min-height: 60px; overflow: auto; padding: var(--sp-1) var(--sp-3) var(--sp-3); font: var(--fs-sm)/var(--lh-body) var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.code-page .code-tests-output [data-kind="pass"] { color: var(--success); }
+.code-page .code-tests-output [data-kind="fail"] { color: var(--danger); }
+
+.code-page .code-console { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.code-page .code-console-out { flex: 1; min-height: 60px; overflow: auto; padding: var(--sp-1) var(--sp-3); font: var(--fs-sm)/var(--lh-body) var(--font-mono); }
+.code-page .code-console-out .code-tests-note { padding: 0; font-family: var(--font); }
+.code-page .code-console-cmd { font-weight: var(--fw-semibold); margin-top: var(--sp-1); }
+.code-page .code-console-run[data-by="assistant"] .code-console-cmd { color: var(--mobius); }
+.code-page .code-console-run pre { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; color: var(--muted); }
+.code-page .code-console-form { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-3) var(--sp-2); font: var(--fs-sm) var(--font-mono); }
+.code-page .code-keep { display: flex; align-items: center; gap: var(--sp-1); font: var(--fs-sm) var(--font); color: var(--muted); white-space: nowrap; }
+.code-page .code-procs { list-style: none; margin: 0; padding: var(--sp-1) var(--sp-3) 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.code-page .code-proc { border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); padding: var(--sp-1) var(--sp-2); font: var(--fs-sm)/var(--lh-body) var(--font-mono); }
+.code-page .code-proc-head { display: flex; align-items: center; gap: var(--sp-2); }
+.code-page .code-proc-head .code-console-cmd { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-page .code-proc-dot { width: var(--sp-2); height: var(--sp-2); border-radius: 50%; background: var(--faint); flex-shrink: 0; }
+.code-page .code-proc[data-running] .code-proc-dot { background: var(--success); }
+.code-page .code-proc pre { margin: var(--sp-1) 0 0; max-height: 7.5em; overflow: auto; white-space: pre-wrap; color: var(--muted); font: inherit; }
+
+/* The sidebar: Projects, Changes and the file tree, all on the sidebar's one row height. */
+.code-side { display: flex; flex-direction: column; }
+.code-side .code-tree { flex: 1; min-height: 0; overflow: visible; }
+.code-side .code-tree ul { list-style: none; margin: 0; padding: 0; }
+.code-side .code-file { width: 100%; display: flex; align-items: center; gap: var(--sp-1); height: var(--row-side); padding-right: var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-md); text-align: left; color: var(--ink); }
+.code-side .code-file:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.code-side .code-file[aria-current="page"] { background: var(--sel); font-weight: var(--fw-medium); }
+.code-side .code-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-side .code-caret { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur-fast) var(--ease); }
 .code-side .code-caret[data-open] { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .code-side .code-caret { transition: none; } }
-.code-side .code-folder { flex: none; width: 15px; height: 15px; fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: var(--accent); stroke-width: 1.3; stroke-linejoin: round; }
-.code-side .code-file:not([data-folder]) .code-glyph { margin-left: 17px; }
-.code-side .code-confirm { margin: 8px 12px; padding: 10px; border-radius: 10px; background: var(--field); font-size: var(--fs-sm); }
-.code-side .code-confirm p { margin: 0 0 8px; }
-.code-side .code-confirm div { display: flex; justify-content: flex-end; gap: 6px; }
-.code-side .code-confirm .btn { height: 26px; }
+.code-side .code-folder { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linejoin: round; }
+.code-side .code-file:not([data-folder]) .code-glyph { margin-left: 16px; }
+.code-side .code-tree-empty { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); height: var(--row-side); padding: 0 var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
+.code-side .code-confirm { margin: var(--sp-2) var(--sp-3); padding: var(--sp-3); border-radius: var(--radius-panel); background: var(--field); font-size: var(--fs-sm); }
+.code-side .code-confirm p { margin: 0 0 var(--sp-2); }
+.code-side .code-confirm div { display: flex; justify-content: flex-end; gap: var(--sp-2); }
+.code-side .code-confirm .btn { height: var(--control-h); }
 
-
-/* A quiet button: text on the frame, a fill only under the pointer (Change, Commit…, Push). */
-.code-page .code-quiet, .code-side .code-quiet { height: 24px; padding: 0 8px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium, 500); }
-.code-page .code-quiet:hover:not(:disabled), .code-side .code-quiet:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.code-page .code-quiet:disabled, .code-side .code-quiet:disabled { color: var(--muted); opacity: 0.6; }
-
-/* Commit… and Push stay in view: they are the section's work, not a hover extra. */
+/* Changes: the branch on one quiet line, then each changed file with git's letter, as plain rows. Commit… and Push
+   stay in view: they are the section's work, not a hover extra. */
 .dock.left .code-side .code-git .side-head .side-actions { opacity: 1; }
-
-/* Changes: the branch on one quiet line, then each changed file with git's letter, as plain rows. */
-.code-side .code-git { margin: 0; padding: 0; border-radius: 0; background: none; gap: 0; font-size: inherit; }
+.code-side .code-git { display: flex; flex-direction: column; }
 .code-side .code-git .side-actions { display: flex; gap: 0; }
-.code-side .code-git-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; height: var(--row-h); padding: 0 var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
-.code-side .code-git-branch { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font: inherit; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.code-side .code-git-branch svg { flex: none; width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; opacity: 0.7; }
+.code-side .code-git-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); height: var(--row-side); padding: 0 var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
+.code-side .code-git-branch { display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 0; color: var(--ink); font: var(--fs-sm) var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-side .code-git-branch svg { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linecap: round; }
 .code-side .code-git-count { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
-.code-side .code-git-form { display: flex; gap: 6px; padding: 2px var(--sp-2) 6px; }
-.code-side .code-git-form input { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg); color: inherit; font: inherit; }
-.code-side .code-git-form .btn { height: 28px; }
-.code-side .code-git-change, .code-side .code-git-more { gap: 6px; }
+.code-side .code-git-form { display: flex; gap: var(--sp-2); padding: 0 var(--sp-2) var(--sp-2); }
+.code-side .code-git-form input { flex: 1; min-width: 0; height: var(--control-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); border: var(--hairline-w) solid var(--line); background: var(--paper); color: inherit; font: inherit; }
+.code-side .code-git-change, .code-side .code-git-more { gap: var(--sp-2); }
 .code-side .code-git-change:disabled .code-git-name { text-decoration: line-through; color: var(--muted); }
 .code-side .code-git-name { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .code-side .code-git-where { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
-.code-side .code-git-more { color: var(--muted); font-size: var(--fs-xs); }
-.code-side .code-git-letter { flex: none; margin-left: auto; width: 14px; text-align: center; font: 600 var(--fs-floor)/1 var(--font-mono); color: var(--muted); }
+.code-side .code-git-more { color: var(--muted); font-size: var(--fs-sm); }
+/* Git's letter: grey for modified and renamed, green for new, red only for deleted and in conflict. */
+.code-side .code-git-letter { flex: none; margin-left: auto; width: 16px; text-align: center; font: var(--fw-semibold) var(--fs-floor)/1 var(--font-mono); color: var(--muted); }
 .code-side .code-git-letter[data-letter="A"], .code-side .code-git-letter[data-letter="?"] { color: var(--success); }
 .code-side .code-git-letter[data-letter="D"], .code-side .code-git-letter[data-letter="C"] { color: var(--danger); }
-.code-side .code-git-letter[data-letter="M"], .code-side .code-git-letter[data-letter="R"] { color: #0a84ff; }
-/* File icon: one grey line glyph, no coloured type tiles (colour is for git state and Mobius). */
-.code-glyph { flex: none; width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linejoin: round; }
+/* Code shows the characters typed: no ligatures (=> stays two characters), so columns and find's marks line up. */
+.code-page :is(.code-under, .code-area, .code-lines, .code-gutter) { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }

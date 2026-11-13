@@ -11,7 +11,7 @@ import { RowMark } from './RowMark';
 import type { CodeState } from './useCode';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
-import { AppSidebar, SidebarRow, SidebarSection } from './ui';
+import { AppSidebar, KeyCaps, SidebarRow, SidebarSection } from './ui';
 import './code.css';
 
 /** Projects, and the open project's files as a tree, with the ones the agent changed in its last turn marked. */
@@ -55,7 +55,7 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
       )}
       {code.projects.length === 0 && !naming && (
         <div className="side-empty notes-empty">
-          <p>Each project is a folder in your workspace, real files you can open in any editor too. Mobius suggests changes; you keep them or not.</p>
+          <p>No projects yet.</p>
           <button type="button" className="btn primary" onClick={() => setNaming('project')}>New project</button>
         </div>
       )}
@@ -95,6 +95,12 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
             })}
           </ul>
           {matching && shown.length === 0 && <p className="side-empty">No file matches “{filter}”.</p>}
+          {!matching && code.entries.length === 0 && (
+            <div className="code-tree-empty">
+              <span>No files yet.</span>
+              <button type="button" className="code-quiet" title={`New file (${keyLabel('N')})`} onClick={() => { setNaming('file'); setName(''); }}>New file</button>
+            </div>
+          )}
           {removing && (
             <div className="code-confirm" role="alertdialog" aria-label={`Delete ${removing}?`}>
               <p>Delete <b>{removing.split('/').pop()}</b>? It is removed from the project folder.</p>
@@ -249,7 +255,7 @@ function put(el: HTMLTextAreaElement, edit: Edit, setDraft: (text: string) => vo
 }
 
 const LINE = 20;
-const PAD_TOP = 10;
+const PAD_TOP = 8;
 /** Scrolls the text area so a line sits a third of the way down, as Go to line and Find do. */
 function reveal(el: HTMLTextAreaElement, line: number) {
   const top = PAD_TOP + (line - 1) * LINE;
@@ -270,8 +276,8 @@ function EditorBar({ mode, text, onClose, onFind, onLine }: { mode: 'find' | 'li
     return (
       <form className="code-bar" role="search" aria-label="Go to line" onSubmit={(e) => { e.preventDefault(); const n = Number.parseInt(query, 10); if (n > 0) onLine(Math.min(n, lines)); }}>
         <input ref={field} aria-label="Line number" inputMode="numeric" placeholder={`Line, 1 to ${lines}`} value={query} onChange={(e) => setQuery(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }} />
-        <button type="submit" className="btn">Go</button>
-        <button type="button" className="strip-btn" aria-label="Close" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
+        <button type="submit" className="btn" title="Go (Enter)">Go</button>
+        <button type="button" className="strip-btn" aria-label="Close" title="Close (Esc)" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
       </form>
     );
   }
@@ -284,9 +290,9 @@ function EditorBar({ mode, text, onClose, onFind, onLine }: { mode: 'find' | 'li
       }} />
       <span className="code-bar-count" aria-live="polite">{query ? (count === 0 ? 'No matches' : `${Math.min(at, count - 1) + 1} of ${count}`) : ''}</span>
       <button type="button" className="code-bar-case" aria-pressed={matchCase} title="Match case" onClick={() => setMatchCase((m) => !m)}>Aa</button>
-      <button type="button" className="strip-btn" aria-label="Previous match" disabled={count === 0} onClick={() => step(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 12 5-5 5 5" /></svg></button>
-      <button type="button" className="strip-btn" aria-label="Next match" disabled={count === 0} onClick={() => step(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg></button>
-      <button type="button" className="strip-btn" aria-label="Close find" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
+      <button type="button" className="strip-btn" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={count === 0} onClick={() => step(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 12 5-5 5 5" /></svg></button>
+      <button type="button" className="strip-btn" aria-label="Next match" title="Next match (Enter)" disabled={count === 0} onClick={() => step(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg></button>
+      <button type="button" className="strip-btn" aria-label="Close find" title="Close (Esc)" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
     </div>
   );
 }
@@ -564,8 +570,10 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
   return (
     <div className="code-none" role="region" aria-label="No file open">
       <div className="code-none-inner">
-        <h2 className="code-none-title">{code.project}</h2>
-        <p className="code-none-sub">{files.length === 1 ? '1 file' : `${files.length} files`}{code.git.repo ? ` · ${code.git.branch || 'no branch'}${changed ? ` · ${changed === 1 ? '1 change' : `${changed} changes`}` : ''}` : ''}</p>
+        <div className="code-none-head">
+          <h2 className="code-none-title">{code.project}</h2>
+          <p className="code-none-sub">{files.length === 1 ? '1 file' : `${files.length} files`}{code.git.repo ? ` · ${code.git.branch || 'no branch'}${changed ? ` · ${changed === 1 ? '1 change' : `${changed} changes`}` : ''}` : ''}</p>
+        </div>
         {code.recent.length > 0 && (
           <section className="code-none-group" aria-label="Recent files">
             <h3>Recent</h3>
@@ -589,8 +597,8 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
         <section className="code-none-group" aria-label="Start">
           <h3>Start</h3>
           <ul>
-            <li><button type="button" className="code-none-row" onClick={onQuick}><span className="code-none-name">Open a file…</span><kbd>{keyLabel('P')}</kbd></button></li>
-            <li><button type="button" className="code-none-row" onClick={() => sendCommand('new-file')}><span className="code-none-name">New file…</span></button></li>
+            <li><button type="button" className="code-none-row" onClick={onQuick}><span className="code-none-name">Open a file…</span><KeyCaps keys={keyLabel('P')} /></button></li>
+            <li><button type="button" className="code-none-row" onClick={() => sendCommand('new-file')}><span className="code-none-name">New file…</span><KeyCaps keys={keyLabel('N')} /></button></li>
             {code.tests.command && <li><button type="button" className="code-none-row" disabled={code.tests.running} onClick={() => void code.runTests()}><span className="code-none-name">Run tests</span><code className="code-none-where">{code.tests.command}</code></button></li>}
           </ul>
         </section>
