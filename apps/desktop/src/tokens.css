@@ -7,13 +7,20 @@
 :root {
   color-scheme: light dark;
 
-  /* Type: five steps. 11 is for tertiary labels only; body is 13. */
-  --fs-xs: 11px;
-  --fs-sm: 12px;
-  --fs-md: 13px;
+  /* Type (Instrument, docs/design/instrument.md): body is 14 in comfortable density, 13 in compact; 11 is the floor
+     and only for tertiary labels. --fs-lg is the toolbar title, --fs-xl the sidebar's app name, --fs-display a reading
+     page's heading, --fs-reading a reading page's body. */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
   --fs-lg: 15px;
   --fs-xl: 17px;
   --fs-2xl: 22px;
+  --fs-display: 30px;
+  --fs-reading: 15px;
+  --fs-floor: 11px;
+  /* A reading page (Home, a note, a doc): one centred column. */
+  --reading-w: 680px;
   --lh-tight: 1.25;
   --lh-body: 1.5;
   --fw-regular: 400;
@@ -105,9 +112,13 @@
   --field: color-mix(in srgb, var(--ink) 5%, transparent);
   --capsule: transparent;
 
-  /* Density: comfortable here, compact under data-density. The rail stays the same in both. */
-  --row-h: 30px;
-  --toolbar-h: 44px;
+  /* Density: comfortable here, compact under data-density. The rail stays the same in both. --row-side is a sidebar
+     row, --row-list a row in a content list (Mail, Tasks, Files); one height per density in a view. */
+  --row-h: 36px;
+  --row-side: 36px;
+  --row-list: 40px;
+  --row-reading: 44px;
+  --toolbar-h: 52px;
   --panel-head-h: 30px;
   --info-h: 24px;
   --rail-w: 52px;
@@ -241,15 +252,18 @@
 }
 
 html[data-density='compact'] {
-  --fs-xs: 10.5px;
-  --fs-sm: 11.5px;
-  --fs-md: 12.5px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
   --fs-lg: 14px;
-  --row-h: 26px;
+  --fs-reading: 15px;
+  --row-h: 30px;
+  --row-side: 30px;
+  --row-list: 32px;
   --control-h: 24px;
   --control-h-lg: 30px;
   --menu-row-h: 26px;
-  --toolbar-h: 40px;
+  --toolbar-h: 44px;
   --panel-head-h: 26px;
   --info-h: 22px;
   --sidebar-w: 220px;
