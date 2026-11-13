@@ -209,9 +209,8 @@
 .code-side .code-git-name { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .code-side .code-git-where { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
 .code-side .code-git-more { color: var(--muted); font-size: var(--fs-sm); }
-/* Git's letter: grey for modified and renamed, green for new, red only for deleted and in conflict. */
+/* Git's letter: grey, and red only for deleted and in conflict, so red stays the one status colour. */
 .code-side .code-git-letter { flex: none; margin-left: auto; width: 16px; text-align: center; font: var(--fw-semibold) var(--fs-floor)/1 var(--font-mono); color: var(--muted); }
-.code-side .code-git-letter[data-letter="A"], .code-side .code-git-letter[data-letter="?"] { color: var(--success); }
 .code-side .code-git-letter[data-letter="D"], .code-side .code-git-letter[data-letter="C"] { color: var(--danger); }
 /* Code shows the characters typed: no ligatures (=> stays two characters), so columns and find's marks line up. */
 .code-page :is(.code-under, .code-area, .code-lines, .code-gutter) { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
