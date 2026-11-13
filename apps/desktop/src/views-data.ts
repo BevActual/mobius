@@ -2,6 +2,7 @@ import type { CalendarEvent, ConversationInfo, MailMessage, Notebook, ScheduleIn
 import type { AppId } from './apps';
 import { calendarColor, eventsOn, localDate } from './calendar-view';
 import { upcoming, whenLabel } from './desk-view';
+import { timeLabel, weekdayLabel } from './dates';
 import { relativeTime } from './relative-time';
 import { dueLabel, smartView } from './tasks-view';
 import { tileKind, type Tile } from './views-format';
@@ -41,7 +42,6 @@ export interface TileContent {
 
 const ROWS = { small: 4, wide: 6 } as const;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
 function take<T>(list: readonly T[], tile: Tile): { shown: T[]; more: number } {
   const n = ROWS[tile.size];
@@ -87,8 +87,8 @@ export function tileContent(tile: Tile, src: ViewSources, now: Date): TileConten
         app, more, target: { kind: 'app', app: 'calendar' },
         count: { value: found.length, label: week ? (found.length === 1 ? 'event this week' : 'events this week') : found.length === 1 ? 'event left today' : 'events left today' },
         rows: shown.map(({ e, day }) => {
-          const time = e.allDay ? 'All day' : hhmm(localDate(e.start));
-          const when = week && day.getDate() !== now.getDate() ? `${day.toLocaleDateString('en-GB', { weekday: 'short' })} ${time}` : time;
+          const time = e.allDay ? 'All day' : timeLabel(localDate(e.start));
+          const when = week && day.getDate() !== now.getDate() ? `${weekdayLabel(day)} ${time}` : time;
           return { key: `${e.id}@${e.start}`, text: e.title || 'Untitled event', detail: when, color: calendarColor(src.calendars, e.calendar), target: { kind: 'app' as const, app: 'calendar' as const } };
         }),
         empty: week ? 'Nothing in the next seven days.' : 'Nothing else today.',

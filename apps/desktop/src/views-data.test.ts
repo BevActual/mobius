@@ -41,6 +41,10 @@ describe('tiles', () => {
   });
 
   it('Calendar leaves out what has finished today, and the week shows the day', () => {
+    // Times follow the computer's clock setting through dates.ts, as Calendar's do.
+    setLocaleForTests('en-US');
+    expect(tileContent({ id: 'c', kind: 'calendar', size: 'small', show: 'today' }, src, now).rows[0]!.detail).toBe('12:30 PM');
+    setLocaleForTests('en-GB');
     const today = tileContent({ id: 'c', kind: 'calendar', size: 'small', show: 'today' }, src, now);
     expect(today.rows.map((r) => `${r.text} ${r.detail}`)).toEqual(['Lunch with Ana 12:30']);
     expect(today.count?.label).toBe('event left today');
@@ -48,6 +52,7 @@ describe('tiles', () => {
     expect(today.rows[0]!.color).toBe(calendarColor(['Work', 'Home'], 'Home'));
     const week = tileContent({ id: 'c', kind: 'calendar', size: 'wide', show: 'week' }, src, now);
     expect(week.rows.map((r) => `${r.text} ${r.detail}`)).toEqual(['Lunch with Ana 12:30', 'Offsite Sat All day']);
+    setLocaleForTests(null);
   });
 
   it('Mail lists unread inbox mail, newest first, and counts the whole inbox', () => {
