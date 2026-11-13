@@ -98,8 +98,10 @@ Your calendars by day, week or month.
 - **The toolbar** holds Back, Today and Forward, and Day, Week and Month; the title says the week's number. When Mobius
   is open beside a small window, Today's word, then the views give way; T, N, Q, D, W, M and the arrow keys still work. An hour is taller in the comfortable density, so a working day
   shows whole, and shorter in the compact one.
-- **Events** are one quiet fill with their calendar's colour on the left edge. The all-day row shows two items a day;
-  **+N more** shows the rest, and **Fewer** folds them away again.
+- **Events** are a soft tint of their calendar's colour with a 3px edge in it; today's date is an ink badge, and the red
+  current-time line is the only loud colour. The all-day row shows two items a day;
+  **+N more** shows the rest, and **Fewer** folds them away again. The **Calendar** menu shows each key: Ctrl+N, Q, T, D,
+  W and M.
 - **Open an event** with a click: it edits in a popover beside it. Changes are kept when you click elsewhere or press
   Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
 - **The event you clicked stays picked out.** Press Delete to remove it, Enter to open it or Ctrl+D to duplicate it;

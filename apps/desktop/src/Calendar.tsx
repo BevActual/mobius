@@ -29,7 +29,7 @@ function useHourPx(): number {
   return px;
 }
 /** The hours' margin: wide enough for "10:20 AM" on the 12-hour clock. */
-const GUTTER = 60;
+const GUTTER = 68;
 /** How many events and tasks a month cell lists before "more". */
 const CELL_ROWS = 4;
 /** How many all-day events and tasks a day shows above the hours before "+N more". */
@@ -92,7 +92,7 @@ export function CalendarSidebar({ calendar, pin, changed, review = null }: { cal
           )}
           {calendar.accounts.map((a) => (
             <SidebarSection key={a.id} title={a.name} action={
-              <button type="button" className="strip-btn" aria-label={`Refresh ${a.name}`} title="Refresh now" disabled={calendar.syncing} onClick={() => void calendar.sync(a.id)}>
+              <button type="button" className="strip-btn" aria-label={`Refresh ${a.name}`} title={`Refresh ${a.name}`} disabled={calendar.syncing} onClick={() => void calendar.sync(a.id)}>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
               </button>
             }>
@@ -131,6 +131,7 @@ function EventSearch({ calendar, query }: { calendar: CalendarState; query: stri
             onSelect={() => calendar.setAnchor(localDate(e.start))} />
         ))}
       </SidebarSection>
+      {!all && <div className="cal-loading" role="status" aria-label="Searching events">{[0, 1, 2].map((i) => <span key={i} className="cal-loading-bar" />)}</div>}
       {all && found.length === 0 && <p className="calendar-side-note" role="status">No events match “{query.trim()}”.</p>}
     </div>
   );

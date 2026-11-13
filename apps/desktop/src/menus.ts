@@ -249,15 +249,15 @@ function appMenu(c: MenuContext): Menu | null {
       ] };
     case 'calendar':
       return { id: 'app', label: 'Calendar', items: [
-        item('new-event', 'New event', d.calendar.newEvent),
-        item('quick-event', 'Quick event…', d.calendar.quickEvent),
+        item('new-event', 'New event', d.calendar.newEvent, { keys: 'mod+n' }),
+        item('quick-event', 'Quick event…', d.calendar.quickEvent, { keys: 'q' }),
         item('new-calendar', 'New calendar', d.calendar.newCalendar),
         separator,
-        item('show-today', 'Go to today', d.calendar.today),
+        item('show-today', 'Go to today', d.calendar.today, { keys: 't' }),
         separator,
-        item('day', 'Day', () => d.calendar.mode('day'), { checked: s.calendar.mode === 'day' }),
-        item('week', 'Week', () => d.calendar.mode('week'), { checked: s.calendar.mode === 'week' }),
-        item('month', 'Month', () => d.calendar.mode('month'), { checked: s.calendar.mode === 'month' }),
+        item('day', 'Day', () => d.calendar.mode('day'), { keys: 'd', checked: s.calendar.mode === 'day' }),
+        item('week', 'Week', () => d.calendar.mode('week'), { keys: 'w', checked: s.calendar.mode === 'week' }),
+        item('month', 'Month', () => d.calendar.mode('month'), { keys: 'm', checked: s.calendar.mode === 'month' }),
       ] };
     case 'agent':
       return { id: 'app', label: 'Conversation', items: [
