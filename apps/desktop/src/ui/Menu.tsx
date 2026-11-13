@@ -1,6 +1,7 @@
 import { Menu as Base } from '@base-ui/react/menu';
 import { useCallback, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { growFrom, morphOut } from '../motion';
+import { KeyCaps } from './Tooltip';
 
 /**
  * Menus for every app, built on Base UI so keyboard, focus, typeahead, screen readers and keeping inside the window
@@ -98,7 +99,7 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
     >
       {entry.checked ? TICK : <span className="ui-menu-icon" aria-hidden="true" />}
       <span className="ui-menu-label">{entry.label}</span>
-      {entry.keys && <kbd className="ui-menu-keys">{entry.keys}</kbd>}
+      {entry.keys && <KeyCaps className="ui-menu-keys" keys={entry.keys} />}
     </Base.CheckboxItem>
   ) : (
     <Base.Item
@@ -113,7 +114,7 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
     >
       {entry.icon ?? <span className="ui-menu-icon" aria-hidden="true" />}
       <span className="ui-menu-label">{entry.label}</span>
-      {entry.keys && <kbd className="ui-menu-keys">{entry.keys}</kbd>}
+      {entry.keys && <KeyCaps className="ui-menu-keys" keys={entry.keys} />}
     </Base.Item>
   ));
 }

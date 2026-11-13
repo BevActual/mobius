@@ -78,7 +78,7 @@ import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail, type OwnApp } from './Rail';
 import { SidebarHead } from './SidebarHead';
-import { AppFrame, PanelsMenu, RightPanelTabs, type AppMenuState } from './ui';
+import { AppFrame, PanelsMenu, RightPanelTabs, TooltipLayer, type AppMenuState } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
@@ -1721,6 +1721,7 @@ export function App() {
       <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp}
         onAsk={settings?.configured ? (question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined}
         commands={launcherCommands} />
+      <TooltipLayer />
     </AppFrame>
     </TryAnotherContext.Provider>
   );

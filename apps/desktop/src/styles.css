@@ -1137,10 +1137,11 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .menu-items { display: flex; flex-direction: column; min-width: 236px; }
 .menu-item { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border-radius: 7px; font-size: var(--fs-sm); color: var(--ink); cursor: default; outline: none; }
 .menu-item:hover:not([aria-disabled]), .menu-item:focus-visible, .menu-item:focus:not([aria-disabled]) { background: var(--accent); color: var(--on-accent, #fff); }
-.menu-item:hover:not([aria-disabled]) .menu-keys, .menu-item:focus:not([aria-disabled]) .menu-keys { color: inherit; opacity: 0.85; }
+.menu-item:hover:not([aria-disabled]) .ui-keycap, .menu-item:focus:not([aria-disabled]) .ui-keycap { border-color: color-mix(in srgb, currentColor 35%, transparent); background: transparent; color: inherit; }
+.menu-item[aria-disabled] .ui-keycap { opacity: 0.6; }
 .menu-item[aria-disabled] { color: var(--muted); opacity: 0.6; }
 .menu-check { font-size: 12px; text-align: center; }
-.menu-keys { font: inherit; font-size: var(--fs-xs, 11px); color: var(--muted); letter-spacing: 0.02em; }
+.menu-keys { margin-left: auto; }
 .menu-sep { height: 1px; margin: 4px 8px; background: var(--hairline); }
 
 /* First run: hello, how much Mobius should do, then the model. */
