@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 /**
@@ -15,7 +15,7 @@ interface TabsApi {
   hosts: Record<string, HTMLElement | null>;
   setHost: (id: string, el: HTMLElement | null) => void;
   /** A tab asked for by `useShowPanelTab`, until the panel has brought it forward. */
-  wanted: { id: string; at: number } | null;
+  wanted: { id: string; at: number; keep: boolean } | null;
   show: (id: string) => void;
   done: () => void;
 }
@@ -23,14 +23,26 @@ interface TabsApi {
 const PanelTabsContext = createContext<TabsApi | null>(null);
 
 /** Held by the frame: the tabs the open app has asked for, and where each one's content is drawn. */
-export function PanelTabsProvider({ children, open }: { children: ReactNode; open?: () => void }) {
+export function PanelTabsProvider({ children, open, mobiusAsked }: {
+  children: ReactNode;
+  open?: () => void;
+  /** Changes whenever the person asks Mobius something (a start, a quick entry, the Mobius button): Mobius comes in
+   * front of the app's tab, so what it says next is seen. Not kept as the app's last tab, since it was not chosen. */
+  mobiusAsked?: string | number;
+}) {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [hosts, setHosts] = useState<Record<string, HTMLElement | null>>({});
   const add = useCallback((tab: Tab) => setTabs((all) => (all.some((t) => t.id === tab.id && t.name === tab.name) ? all : [...all.filter((t) => t.id !== tab.id), tab])), []);
   const remove = useCallback((id: string) => setTabs((all) => all.filter((t) => t.id !== id)), []);
   const setHost = useCallback((id: string, el: HTMLElement | null) => setHosts((all) => (all[id] === el ? all : { ...all, [id]: el })), []);
-  const [wanted, setWanted] = useState<{ id: string; at: number } | null>(null);
-  const show = useCallback((id: string) => { setWanted({ id, at: Date.now() }); open?.(); }, [open]);
+  const [wanted, setWanted] = useState<{ id: string; at: number; keep: boolean } | null>(null);
+  const show = useCallback((id: string) => { setWanted({ id, at: Date.now(), keep: true }); open?.(); }, [open]);
+  const asked = useRef(mobiusAsked);
+  useEffect(() => {
+    if (asked.current === mobiusAsked) return;
+    asked.current = mobiusAsked;
+    setWanted({ id: 'mobius', at: Date.now(), keep: false });
+  }, [mobiusAsked]);
   const done = useCallback(() => setWanted(null), []);
   const api = useMemo(() => ({ tabs, add, remove, hosts, setHost, wanted, show, done }), [tabs, add, remove, hosts, setHost, wanted, show, done]);
   return <PanelTabsContext.Provider value={api}>{children}</PanelTabsContext.Provider>;
@@ -86,7 +98,7 @@ export function RightPanelTabs({ mobius, onClose }: { mobius: ReactNode; onClose
   useEffect(() => {
     if (!wanted || !done) return;
     if (wanted.id !== 'mobius' && !tabs.some((t) => t.id === wanted.id)) return;
-    if (tabs.length > 0) { setChosen((all) => ({ ...all, [key]: wanted.id })); keepTab(key, wanted.id); }
+    if (tabs.length > 0) { setChosen((all) => ({ ...all, [key]: wanted.id })); if (wanted.keep) keepTab(key, wanted.id); }
     done();
   }, [wanted, done, tabs, key]);
   // Siblings in the dock, not a wrapper: the shell and its tests find Mobius as the dock's own `.chat`. Behind an app's

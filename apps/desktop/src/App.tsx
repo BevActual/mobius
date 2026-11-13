@@ -1543,6 +1543,7 @@ export function App() {
     <TryAnotherContext.Provider value={tryAnother}>
     <AppFrame
       openRight={openRight}
+      mobiusAsked={`${focusToken}:${incoming?.token ?? 0}`}
       style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px', '--side-col': leftAttached ? `${leftWidth}px` : '0px' } as React.CSSProperties}
       data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
       rail={
