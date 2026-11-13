@@ -96,9 +96,12 @@ Your whole workspace as a drive.
   ask Mobius about it, or move it to the Trash.
 - **New folder** (Ctrl+Shift+N) is named in place; **F2** renames; **Delete** moves to the Trash, with Undo in a toast
   at the foot of the page. The Trash is
-  `workspace/.trash/`, hidden from Files and from Mobius. An app's own folder (notes/, docs/...) is never renamed or
+  `workspace/.trash/`, hidden from Files' folders and from Mobius.
+- **Trash**, under Places in the sidebar, lists what you moved there, when, and where it was. **Put Back** (or a
+  double-click) returns it to that folder; **Empty Trash** and **Delete Immediately** (right-click) delete for good, and
+  always ask first. Mobius cannot empty the Trash. An app's own folder (notes/, docs/...) is never renamed or
   trashed from here.
 - **Date Modified** shows when each file and folder last changed. The agent's own `files.list` leaves dates out.
-- **The sidebar** has Workspace under Places, the workspace's folders (Notes, Docs, Sheets...) under Folders, a dot on
+- **The sidebar** has Workspace and Trash under Places, the workspace's folders (Notes, Docs, Sheets...) under Folders, a dot on
   any folder holding something from Mobius, and Made by Mobius under From Mobius.
 - **Made by Mobius** collects what Mobius created, dashed until you keep it, with a count of what is waiting.

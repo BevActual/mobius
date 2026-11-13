@@ -1,4 +1,4 @@
-import type { FileEntry, FilesActionResult } from '@mobius/shared';
+import type { FileEntry, FilesActionResult, TrashEntry } from '@mobius/shared';
 
 /**
  * The preview's Files: a small workspace kept in memory for as long as the preview is open, so New folder, Rename and
@@ -23,6 +23,14 @@ const TREE = new Map<string, Item>([
   ['tasks', { type: 'folder', modified: now - 4 * hour }],
   ['tasks/P2 build.md', { type: 'file', bytes: 730, modified: now - 5 * 60_000 }],
   ['README.md', { type: 'file', bytes: 2048, modified: now - 9 * 24 * hour }],
+  ['.trash', { type: 'folder', modified: now - 26 * hour }],
+  [`.trash/${now - 26 * hour}-Old plan.md`, { type: 'file', bytes: 512, modified: now - 40 * hour }],
+  [`.trash/${now - 50 * hour}-Draft budget`, { type: 'folder', modified: now - 60 * hour }],
+]);
+/** Where each thing in the Trash came from, as the core keeps beside it. Two old things start there. */
+const FROM = new Map<string, string>([
+  [`.trash/${now - 26 * hour}-Old plan.md`, 'notes/P2 build/Old plan.md'],
+  [`.trash/${now - 50 * hour}-Draft budget`, 'sheets/Draft budget'],
 ]);
 const parentOf = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
 const nameOf = (path: string) => path.slice(path.lastIndexOf('/') + 1);
@@ -62,12 +70,28 @@ export const PREVIEW_FILES: Record<string, (...args: never[]) => unknown> = {
   'files.trash': ((path: string): FilesActionResult => {
     const held = `.trash/${Date.now()}-${nameOf(path)}`;
     move(path, held);
+    FROM.set(held, path);
     return { ok: true, path: held };
   }) as never,
-  'files.putBack': ((held: string, path: string): FilesActionResult => {
+  'files.putBack': ((held: string, at: string): FilesActionResult => {
+    const path = at || FROM.get(held) || '';
+    if (!path) return fail('where it came from is not known');
     if (TREE.has(path)) return fail('something else is there now');
     move(held, path);
+    FROM.delete(held);
     return { ok: true, path };
+  }) as never,
+  'files.trashList': (() => ({
+    entries: [...TREE].filter(([p]) => parentOf(p) === '.trash').map(([p, item]): TrashEntry => {
+      const held = nameOf(p);
+      const cut = held.indexOf('-');
+      return { held: p, name: held.slice(cut + 1), from: FROM.get(p) ?? '', trashed: Number(held.slice(0, cut)), type: item.type, ...(item.type === 'file' ? { bytes: item.bytes } : {}) };
+    }).sort((a, b) => b.trashed - a.trashed),
+  })) as never,
+  'files.emptyTrash': ((held: string) => {
+    const gone = [...TREE.keys()].filter((p) => parentOf(p) === '.trash' && (!held || p === held));
+    for (const g of gone) { for (const p of [...TREE.keys()]) if (p === g || p.startsWith(`${g}/`)) TREE.delete(p); FROM.delete(g); }
+    return { ok: true, gone: gone.length };
   }) as never,
   'files.show': () => undefined,
 };
