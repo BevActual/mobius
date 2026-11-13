@@ -19,7 +19,6 @@
   --fs-display: 30px;
   --fs-reading: 15px;
   --fs-floor: 11px;
-  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   /* A reading page (Home, a note, a doc): one centred column. */
   --reading-w: 680px;
   --lh-tight: 1.25;
