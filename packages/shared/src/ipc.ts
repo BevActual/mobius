@@ -1002,8 +1002,6 @@ export interface AppearanceSettings {
   resumeLast: boolean;
   /** The list on the left (tabs, or conversations): part of the window, or floating over it and hiding itself. */
   leftSidebar: SidebarMode;
-  /** The app list on the left: the full sidebar with names and the app's own list, or a narrow rail of icons. */
-  navigation: NavigationStyle;
   /** The agent panel on the right: part of the window, or floating over it and hiding itself. */
   rightSidebar: SidebarMode;
   /** Where Mobius opens: the sidebar turns into Mobius (the default), or it is pinned beside the page. */
@@ -1032,9 +1030,8 @@ const isFavourite = (v: unknown): v is Favourite => {
 export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'] as const;
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
-export type NavigationStyle = 'sidebar' | 'rail';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 380 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -1326,7 +1323,6 @@ export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) 
   sidebarAtStart: (v): v is boolean => typeof v === 'boolean',
   resumeLast: (v): v is boolean => typeof v === 'boolean',
   leftSidebar: oneOf<SidebarMode>('attached', 'floating'),
-  navigation: oneOf<NavigationStyle>('sidebar', 'rail'),
   rightSidebar: oneOf<SidebarMode>('attached', 'floating'),
   agentPlace: oneOf<'sidebar' | 'beside'>('sidebar', 'beside'),
   leftWidth: (v): v is number => inRange(v, SIDEBAR_WIDTH.left),
