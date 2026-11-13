@@ -6,8 +6,8 @@ Quick pages, saved as you type.
 
 ![The Notes app in Mobius](../readme/apps/notes.png)
 
-- **Notebooks** in the sidebar, newest pages first, each row showing when it was edited and how it starts, with search, **Pinned** pages at the top and a **Tags** section
-  built from every `#tag` you write.
+- **Notebooks** in the sidebar, each one folding away, newest pages first, each row showing when it was edited and how it starts, with search, **Pinned** pages at the top,
+  **New notebook** under the notebooks and a **Tags** section built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
   recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
   bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Table, Link,
