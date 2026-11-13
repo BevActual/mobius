@@ -2725,3 +2725,16 @@ main.stage:focus { outline: none; }
    readouts and code only: tempo, timecode, positions, paths, code; never ordinary lists or prose. */
 :root { --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace; }
 body { font-variant-numeric: tabular-nums; }
+
+/* The resting Mobius panel (Resting.tsx): Waiting for you, ideas, earlier chats. Quiet rows, no cards of its own. */
+.resting { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-2) var(--sp-1); }
+.resting-part { display: flex; flex-direction: column; gap: var(--sp-1); }
+.resting-part .empty.empty-quiet { padding: 0; }
+.resting-title { margin: 0 0 var(--sp-1); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.resting-row { display: flex; align-items: baseline; gap: var(--sp-2); min-height: var(--row-side); padding: 0 var(--sp-2); margin: 0 calc(var(--sp-2) * -1); border-radius: var(--radius-control); background: none; color: inherit; font: inherit; text-align: left; }
+.resting-row:hover { background: var(--sel); }
+.resting-row-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
+.resting-row-meta { flex: none; align-self: center; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.resting-needs .resting-row-meta { color: var(--mobius); }
+.resting-changes:empty { display: none; }
+.resting-changes .review-strip { margin: 0; border: var(--hairline-w) dashed var(--mobius); }

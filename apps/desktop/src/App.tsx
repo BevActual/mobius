@@ -1497,6 +1497,7 @@ export function App() {
             onPlace={openHub}
             menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
+            {...(window.mobius.mini ? { onPopOut: toggleMini } : {})}
             onOpenVoice={() => openSettingsAt('voice')}
             {...(askHint ? { hint: askHint } : {})}
           />
