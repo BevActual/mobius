@@ -22,8 +22,6 @@
 .proj-group-head .btn.link { font-size: var(--fs-sm); }
 .proj-card { border-radius: 12px; border: 0.5px solid var(--hairline); background: var(--card, var(--bg)); overflow: hidden; }
 @media (prefers-color-scheme: dark) { .proj-card { background: color-mix(in srgb, var(--ink) 4%, var(--bg)); } }
-.proj-group[data-tone="attention"] .proj-card { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
-.proj-group[data-tone="attention"] .proj-group-title { color: var(--accent); }
 
 .proj-rows { list-style: none; margin: 0; padding: 0; }
 .proj-row { position: relative; display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: 44px; margin: 0; padding: 7px 14px; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-md); text-align: left; box-sizing: border-box; }
@@ -41,13 +39,12 @@ button.proj-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--acce
 .proj-empty { margin: 0; padding: 12px 14px; color: var(--muted); font-size: var(--fs-md); }
 .proj-chevron { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; }
 .proj-glyph { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; }
-.proj-tile { width: 22px; height: 22px; flex: none; padding: 3px; box-sizing: border-box; border-radius: 6px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
-.proj-dot { width: 8px; height: 8px; margin: 0 7px; flex: none; border-radius: 50%; background: var(--accent); }
+/* What waits on you is Mobius asking: its one dot is Mobius's indigo. */
+.proj-dot { width: 8px; height: 8px; margin: 0 7px; flex: none; border-radius: 50%; background: var(--mobius); }
 
 /* A bot's side thread sits under the thread it was asked from. */
 .proj-row.project-side { padding-left: 38px; }
 .proj-row.project-side::before { left: 72px !important; }
-.proj-row.project-side[data-working] .proj-row-sub { color: var(--accent); }
 
 /* Facts the project knows: plain lines; one Mobius proposed is dashed until it is kept. */
 .proj-fact { padding-left: 14px; min-height: 40px; }
@@ -65,9 +62,8 @@ button.proj-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--acce
 .proj-rules .popup { margin-left: auto; }
 .proj-rules .proj-row::before { left: 48px; }
 
-/* The sidebar: each project with the Projects glyph, as Reminders shows its lists. */
-.proj-side-row { gap: var(--sp-2); }
-.proj-side-icon { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
+/* The sidebar: each project with the Projects glyph, in the row's own ink. */
+.proj-side-icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
 
 /* A project thread's side threads: bots asked to do something, and what they reported back. */
 .side-threads { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }
@@ -78,3 +74,13 @@ button.proj-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--acce
 .side-thread > .review-btn { justify-self: start; }
 .side-thread-ask { display: flex; gap: 6px; }
 .side-thread-ask input { flex: 1; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }
+
+/* An empty list: one plain line and its New action. */
+.proj-empty-new { display: flex; align-items: center; gap: var(--sp-3); }
+.proj-empty-new > span { flex: 1; }
+
+/* Loading: quiet placeholder bars in the list's place. They never animate: only Mobius working loops. */
+.proj-loading { display: grid; gap: var(--sp-2); padding: 14px; }
+.proj-loading > span { display: block; height: 10px; border-radius: var(--radius-small); background: var(--sel); }
+.proj-loading > span:nth-child(2) { width: 72%; }
+.proj-loading > span:nth-child(3) { width: 48%; }

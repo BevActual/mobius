@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom';
 import { conversationIdFor, type Bot, type ConversationInfo, type Message, type ProjectInfo, type ProjectLevel, type WikiChange } from '@mobius/shared';
 import { appName, isInstalled, type AppId } from './apps';
 import { APP_ICONS } from './Rail';
-import { ContextMenu } from './ContextMenu';
+import { ActionIcon, ContextMenu } from './ContextMenu';
+import { AppMenu, AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
+import { SideNew } from './SideNew';
 import { projectSummary, projectThreads, ruleApps, threadLine } from './projects-view';
 import './projects.css';
 import type { WikiIncoming } from './Wiki';
@@ -100,54 +102,66 @@ export type ProjectsState = ReturnType<typeof useProjects>;
 
 const Chevron = () => <svg className="proj-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>;
 const ThreadGlyph = () => <svg className="proj-glyph" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3h0A1.5 1.5 0 0 1 4 11.5z" /></svg>;
-const AppTile = ({ app }: { app: string }) => <svg className="proj-tile" viewBox="0 0 20 20" aria-hidden="true" style={{ background: `var(--app-${app})` }}>{APP_ICONS[app]}</svg>;
+/** An app's line glyph in a row: colour tiles are only for the launcher. */
+const AppTile = ({ app }: { app: string }) => <svg className="proj-glyph" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS[app]}</svg>;
+
+/** Keys for a project, shown beside their menu rows and working on a focused sidebar row. */
+const RENAME_KEYS = 'F2';
+const DELETE_KEYS = 'Delete';
+
+/** The project a sidebar row is for, found from the row's name (names are unique). */
+const rowProject = (projects: ProjectsState, target: EventTarget | null) => {
+  const row = (target as HTMLElement | null)?.closest?.('button.list-row');
+  const name = row?.querySelector('.ui-side-name')?.textContent;
+  return name ? projects.list.find((p) => p.name === name) ?? null : null;
+};
 
 export function ProjectsSidebar({ projects, pin, conversations }: { projects: ProjectsState; pin?: ReactNode; conversations: readonly ConversationInfo[] }) {
   const [naming, setNaming] = useState(false);
   useEffect(() => { const go = () => setNaming(true); window.addEventListener(NEW_PROJECT, go); return () => window.removeEventListener(NEW_PROJECT, go); }, []);
   const [name, setName] = useState('');
+  const [query, setQuery] = useState('');
   const [menu, setMenu] = useState<{ x: number; y: number; project: ProjectInfo } | null>(null);
   const waiting = (p: ProjectInfo) => conversations.filter((c) => p.threads.includes(c.id)).reduce((n, c) => n + c.waiting, 0);
+  const shown = projects.list.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()));
   return (
-    <aside className="side projects-side" aria-label="Projects sidebar">
-      <div className="side-head">
-        <span className="side-title">Projects</span>
-        <span className="side-actions">
-          {pin}
-          <button type="button" className="strip-btn" aria-label="New project" title="New project" onClick={() => setNaming(true)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-          </button>
-        </span>
-      </div>
+    <AppSidebar label="Projects sidebar" className="projects-side"
+      // Double-click renames, as in Finder; F2 renames and Delete asks to delete the focused project.
+      onDoubleClick={(e) => { const p = rowProject(projects, e.target); if (p) projects.ask(p.id, 'rename'); }}
+      onKeyDown={(e) => {
+        if (e.key !== 'F2' && e.key !== 'Delete') return;
+        const p = rowProject(projects, e.target);
+        if (!p) return;
+        e.preventDefault();
+        projects.ask(p.id, e.key === 'F2' ? 'rename' : 'delete');
+      }}>
+      <SidebarSearch label="Search projects" value={query} onChange={setQuery} />
+      <SideNew item="project" onNew={() => setNaming(true)} />
       {naming && (
         <form className="notes-name" onSubmit={(e) => { e.preventDefault(); void projects.create(name).then((ok) => { if (ok) { setNaming(false); setName(''); } }); }}>
           <input autoFocus aria-label="Project name" placeholder="Project name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
         </form>
       )}
       {naming && projects.problem && <p className="field-error" role="alert">{projects.problem}</p>}
-      {projects.list.length === 0 && !naming && <p className="side-empty">No projects yet.</p>}
-      <nav className="task-lists" aria-label="Projects">
-        <ul role="list">
-          {projects.list.map((p) => (
-            <li key={p.id} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, project: p }); }}>
-              <button type="button" className="list-row proj-side-row" aria-current={projects.open?.id === p.id ? 'page' : undefined} onClick={() => projects.setOpenId(p.id)} onDoubleClick={() => projects.ask(p.id, 'rename')} title="Double-click to rename">
-                <svg className="proj-side-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.projects}</svg>
-                <span className="list-name">{p.name}</span>
-                {waiting(p) > 0 && <span className="list-count" aria-label={`${waiting(p)} waiting for you`}>{waiting(p)}</span>}
-              </button>
-            </li>
+      <nav aria-label="Projects">
+        <SidebarSection title="Projects" {...(pin ? { action: pin } : {})}>
+          {shown.map((p) => (
+            <SidebarRow key={p.id} icon={<svg className="proj-side-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.projects}</svg>}
+              label={p.name} count={waiting(p)} current={projects.open?.id === p.id} onSelect={() => projects.setOpenId(p.id)}
+              onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, project: p }); }} />
           ))}
-        </ul>
+        </SidebarSection>
       </nav>
+      {projects.list.length > 0 && shown.length === 0 && <p className="side-empty">No projects match.</p>}
       {menu && createPortal(
         <ContextMenu x={menu.x} y={menu.y} label={menu.project.name} onClose={() => setMenu(null)} items={[
           { action: 'open', run: () => projects.setOpenId(menu.project.id) },
-          { action: 'rename', label: 'Rename…', run: () => projects.ask(menu.project.id, 'rename') },
-          { action: 'delete', label: 'Delete project…', danger: true, separated: true, run: () => projects.ask(menu.project.id, 'delete') },
+          { action: 'rename', label: 'Rename…', keys: RENAME_KEYS, run: () => projects.ask(menu.project.id, 'rename') },
+          { action: 'delete', label: 'Delete project…', keys: DELETE_KEYS, danger: true, separated: true, run: () => projects.ask(menu.project.id, 'delete') },
         ]} />,
         document.body,
       )}
-    </aside>
+    </AppSidebar>
   );
 }
 
@@ -197,19 +211,33 @@ export function SideThreads({ projects, conversation, bots, onOpen }: { projects
 }
 
 /**
- * The top of a project's page. Its name is the toolbar's title, so the page starts with one line about it, New thread,
- * and More (Rename, the folder, the memory page, Delete). Renaming and the delete check take the line's place.
+ * The top of a project's page: one quiet line about it. Its name is the toolbar's title; New thread is in the toolbar,
+ * and Rename, the folder, the memory page and Delete are in the toolbar's ⋯. Renaming and the delete check take the
+ * line's place.
  */
 function ProjectHead({ projects, project, summary, onNewThread, onOpenFiles, onOpenMemory }: {
   projects: ProjectsState; project: ProjectInfo; summary: string; onNewThread: () => void; onOpenFiles: () => void; onOpenMemory: () => void;
 }) {
   const asking = projects.asking?.id === project.id ? projects.asking.kind : null;
   const [naming, setNaming] = useState(project.name);
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => { if (asking === 'rename') setNaming(project.name); }, [asking, project.name]);
+  const tools = (
+    <>
+      <ToolbarControls label="Project">
+        <button type="button" className="btn" title="New thread" onClick={onNewThread}>New thread</button>
+      </ToolbarControls>
+      <AppMenu label="Project" entries={[
+        { label: 'Rename…', icon: <ActionIcon action="rename" />, keys: RENAME_KEYS, run: () => projects.ask(project.id, 'rename') },
+        { label: 'Show the folder in Files', icon: <ActionIcon action="reveal" />, run: onOpenFiles },
+        { label: 'Open memory in Knowledge', icon: <ActionIcon action="open" />, run: onOpenMemory },
+        { label: 'Delete project…', icon: <ActionIcon action="delete" />, keys: DELETE_KEYS, danger: true, separated: true, run: () => projects.ask(project.id, 'delete') },
+      ]} />
+    </>
+  );
   if (asking === 'rename') {
     return (
       <form className="proj-head" aria-label="Rename the project" onSubmit={(e) => { e.preventDefault(); void projects.rename(project.id, naming).then((ok) => { if (ok) projects.stopAsking(); }); }}>
+        {tools}
         <input className="proj-name-field" autoFocus aria-label="Project name" value={naming} maxLength={60} onChange={(e) => setNaming(e.target.value)} onFocus={(e) => e.currentTarget.select()} onKeyDown={(e) => { if (e.key === 'Escape') projects.stopAsking(); }} />
         <span className="proj-head-actions">
           <button type="button" className="btn" onClick={() => projects.stopAsking()}>Cancel</button>
@@ -222,6 +250,7 @@ function ProjectHead({ projects, project, summary, onNewThread, onOpenFiles, onO
   if (asking === 'delete') {
     return (
       <div className="proj-head proj-confirm" role="alertdialog" aria-label={`Delete ${project.name}?`}>
+        {tools}
         <p className="proj-confirm-text"><b>Delete “{project.name}”?</b> Its threads, its folder in Files and its memory page in Knowledge are kept. Only the project and its rules go.</p>
         <span className="proj-head-actions">
           <button type="button" className="btn" autoFocus onClick={() => projects.stopAsking()}>Cancel</button>
@@ -231,30 +260,18 @@ function ProjectHead({ projects, project, summary, onNewThread, onOpenFiles, onO
       </div>
     );
   }
-  return (
-    <div className="proj-head">
-      <p className="proj-summary">{summary}</p>
-      <span className="proj-head-actions">
-        <button type="button" className="strip-btn proj-more" aria-label="More" title="More" aria-haspopup="menu" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom + 4 }); }}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
-        </button>
-        <button type="button" className="btn primary" onClick={onNewThread}>New thread</button>
-      </span>
-      {menu && createPortal(
-        <ContextMenu x={menu.x} y={menu.y} label={`${project.name} menu`} onClose={() => setMenu(null)} items={[
-          { action: 'rename', label: 'Rename…', run: () => projects.ask(project.id, 'rename') },
-          { action: 'reveal', label: 'Show the folder in Files', run: onOpenFiles },
-          { action: 'open', label: 'Open memory in Knowledge', run: onOpenMemory },
-          { action: 'delete', label: 'Delete project…', danger: true, separated: true, run: () => projects.ask(project.id, 'delete') },
-        ]} />,
-        document.body,
-      )}
-    </div>
-  );
+  return <div className="proj-head">{tools}<p className="proj-summary">{summary}</p></div>;
 }
 
 /** The project's memory page, as Markdown in the Wiki. */
 export const memoryPage = (project: ProjectInfo) => `Projects/${project.name.trim().replace(/\.+$/, '')}.md`;
+
+/** While a list loads: three quiet placeholder bars, never a spinner. */
+const Loading = ({ label }: { label: string }) => (
+  <div className="proj-loading" role="status" aria-label={label}>
+    <span /><span /><span />
+  </div>
+);
 
 /** A section of the page, as in Apple's grouped lists: a heading outside, with one link at its right, and a card. */
 function Group({ label, heading, link, children, tone }: { label: string; heading: string; link?: { label: string; run: () => void; expanded?: boolean }; children: ReactNode; tone?: 'attention' }) {
@@ -275,7 +292,7 @@ function Group({ label, heading, link, children, tone }: { label: string; headin
  */
 function ProjectMemory({ project, incoming, onOpen }: { project: ProjectInfo; incoming: WikiIncoming; onOpen: () => void }) {
   const page = memoryPage(project);
-  const [lines, setLines] = useState<string[]>([]);
+  const [lines, setLines] = useState<string[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const proposed = incoming.waiting.filter((c) => c.page === page);
   const load = useCallback(async () => {
@@ -296,7 +313,7 @@ function ProjectMemory({ project, incoming, onOpen }: { project: ProjectInfo; in
     <Group label="Project memory" heading="Memory" link={{ label: 'Open in Knowledge', run: onOpen }}>
       {problem && <p className="field-error proj-row-note" role="alert">{problem}</p>}
       <ul className="proj-rows" role="list" aria-label="What this project knows">
-        {lines.map((l, i) => <li key={`${i}-${l}`} className="proj-row proj-fact"><span className="proj-row-title">{l}</span></li>)}
+        {(lines ?? []).map((l, i) => <li key={`${i}-${l}`} className="proj-row proj-fact"><span className="proj-row-title">{l}</span></li>)}
         {proposed.map((c) => (
           <li key={c.id} className="proj-row proj-fact" data-proposed aria-label={`${c.text}, proposed by ${c.from}`}>
             <span className="proj-row-text"><span className="proj-row-title">{c.text}</span><span className="proj-row-sub">Proposed by {c.from}</span></span>
@@ -307,7 +324,8 @@ function ProjectMemory({ project, incoming, onOpen }: { project: ProjectInfo; in
           </li>
         ))}
       </ul>
-      {lines.length === 0 && proposed.length === 0 && <p className="proj-empty">Nothing yet. What Mobius learns in this project's threads waits here for you to keep.</p>}
+      {lines === null && proposed.length === 0 && <Loading label="Loading what this project knows" />}
+      {lines !== null && lines.length === 0 && proposed.length === 0 && <p className="proj-empty">Nothing yet. What Mobius learns in this project's threads waits here for you to keep.</p>}
     </Group>
   );
 }
@@ -316,6 +334,7 @@ function ProjectMemory({ project, incoming, onOpen }: { project: ProjectInfo; in
 function ProjectMade({ items, onOpenMade, onOpenFiles }: { items: readonly { path: string; app: AppId }[] | null; onOpenMade: (path: string) => void; onOpenFiles: () => void }) {
   return (
     <Group label="Made in this project" heading="Made in this project" link={{ label: "Open the project's folder", run: onOpenFiles }}>
+      {items === null && <Loading label="Loading what this project made" />}
       {items !== null && items.length === 0 && <p className="proj-empty">Nothing yet. What Mobius makes or changes in this project's threads shows here.</p>}
       {items !== null && items.length > 0 && (
         <ul className="proj-rows" role="list" aria-label="Made in this project">
@@ -440,7 +459,12 @@ function OpenProject({ projects, project: p, conversations, incoming, onOpenThre
         </Group>
       )}
       <Group label="Chat and threads" heading="Threads">
-        {threads.length === 0 && <p className="proj-empty">No threads yet. A thread here follows the project's rules and can add to its memory.</p>}
+        {threads.length === 0 && (
+          <div className="proj-empty proj-empty-new">
+            <span>No threads yet.</span>
+            <button type="button" className="btn" onClick={() => onNewThread(p.id)}>New thread</button>
+          </div>
+        )}
         <ul className="proj-rows" role="list" aria-label="Threads">
           {threads.map((t) => (
             <li key={t.id} onContextMenu={(e) => { e.preventDefault(); setThreadMenu({ x: e.clientX, y: e.clientY, id: t.id, title: t.info?.title || 'New thread' }); }}>
