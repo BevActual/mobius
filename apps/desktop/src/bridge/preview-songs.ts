@@ -13,9 +13,11 @@ const NIGHT: Song = {
     { id: 't2', name: 'Bass', instrument: 'bass', volume: 0.8, muted: false, solo: false, notes: [...bars(4, 12), ...bars(16, 24)].flatMap((bar) => { const root = [38, 34, 41, 36][bar % 4]!; return [{ pitch: root, start: bar * 4, length: 1.5, velocity: 0.9 }, { pitch: root, start: bar * 4 + 2.5, length: 1, velocity: 0.7 }, { pitch: root + 12, start: bar * 4 + 3.5, length: 0.5, velocity: 0.6 }]; }) },
     { id: 't3', name: 'Keys', instrument: 'piano', volume: 0.7, muted: false, solo: false, notes: [...bars(0, 8), ...bars(12, 20)].flatMap((bar) => chord([[62, 65, 69], [58, 62, 65], [65, 69, 72], [60, 64, 67]][bar % 4]!, bar * 4)) },
     { id: 't4', name: 'Lead', instrument: 'lead', volume: 0.6, muted: false, solo: false, notes: bars(8, 16).flatMap((bar) => [[74, 0, 1], [72, 1, 0.5], [70, 1.5, 0.5], [69, 2, 2]].map(([pitch, at, length]) => ({ pitch: pitch! + (bar % 2 === 0 ? 0 : -2), start: bar * 4 + at!, length: length!, velocity: 0.75 }))) },
-    { id: 't5', name: 'Pad', instrument: 'pad', volume: 0.6, muted: false, solo: false, sound: { shape: 0.35, detune: 12, cutoff: 1200, resonance: 0.22, attack: 0.84, release: 2.1 }, notes: bars(12, 24).flatMap((bar) => chord([[50, 57, 62], [46, 53, 58], [53, 60, 65], [48, 55, 60]][bar % 4]!, bar * 4, 4, 0.5)) },
+    { id: 't5', name: 'Pad idea', instrument: 'pad', volume: 0.6, muted: false, solo: false, sound: { shape: 0.35, detune: 12, cutoff: 1200, resonance: 0.22, attack: 0.84, release: 2.1 }, notes: bars(12, 24).flatMap((bar) => chord([[50, 57, 62], [46, 53, 58], [53, 60, 65], [48, 55, 60]][bar % 4]!, bar * 4, 4, 0.5)) },
   ],
 };
+/** Night Drive before Mobius's last turn added the pad, so the preview shows that pad dashed, to keep or discard. */
+export const PREVIEW_NIGHT_BEFORE = writeSong({ ...NIGHT, tracks: NIGHT.tracks.slice(0, 4) });
 const SKETCH: Song = { version: 1, tempo: 120, key: 'A minor', bars: 8, tracks: [NIGHT.tracks[0]!].map((t) => ({ ...t, notes: t.notes.filter((n) => n.start < 32) })) };
 const TEXT: Record<string, string> = {
   'Songs/Night Drive.json': writeSong(NIGHT),

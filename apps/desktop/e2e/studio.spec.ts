@@ -137,14 +137,19 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
     callsTool('files-write', { path: 'studio/Songs/Night Drive.json', content: JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }) }),
     says(['Added a bass line on the roots, on 1 and the and of 3.']),
   ]);
+  // Music's Device tab is first in the right panel; Mobius is beside it.
+  await shell().getByRole('tab', { name: 'Mobius' }).click();
   await shell().getByRole('button', { name: 'Add a bass line' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log.locator('.msg.assistant')).toContainText('bass line');
+  // What Mobius proposes is kept or discarded in the Device tab.
+  await shell().getByRole('tab', { name: 'Device' }).click();
   const change = shell().getByRole('group', { name: "Mobius's change" });
   await expect(change).toContainText('Mobius changed Bass');
-  await expect(tracks().getByRole('listitem', { name: 'Bass' }).locator('.studio-lane')).toHaveAttribute('data-proposed', 'true');
-  await expect(tracks().getByRole('listitem', { name: 'Keys' }).locator('.studio-lane')).not.toHaveAttribute('data-proposed', 'true');
+  // The new part's clip is dashed; the Keys clip is not.
+  await expect(tracks().getByRole('listitem', { name: 'Bass' }).getByRole('button', { name: 'Bass, bars 1 to 4, proposed by Mobius' })).toHaveAttribute('data-proposed', 'true');
+  await expect(tracks().getByRole('listitem', { name: 'Keys' }).getByRole('button', { name: 'Keys, bar 1' })).not.toHaveAttribute('data-proposed', 'true');
   await change.getByRole('button', { name: 'Discard' }).click();
   await expect.poll(() => saved().tracks.map((t) => t.id)).toEqual(['t1']);
   await expect(tracks().getByRole('listitem', { name: 'Bass' })).toHaveCount(0);

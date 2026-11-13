@@ -51,7 +51,6 @@
 .studio-track:hover .studio-track-buttons, .studio-track[aria-current] .studio-track-buttons, .studio-track-buttons[data-on], .studio-track-buttons:focus-within { opacity: 1; }
 .studio-page .studio-ms { width: 20px; height: 20px; padding: 0; border: var(--hairline-w, 1px) solid var(--line); border-radius: var(--radius-small, 4px); background: var(--bg); color: var(--muted); font-size: 10px; font-weight: var(--fw-semibold); }
 .studio-page .studio-ms[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
-.studio-page .studio-track-head[data-proposed] .studio-track-name { color: var(--mobius); }
 .studio-track[data-muted] .studio-lane { opacity: 0.4; }
 .studio-none { margin: 0; padding: 18px; color: var(--muted); font-size: var(--fs-sm); }
 
@@ -69,8 +68,7 @@
 .studio-tracks > .studio-playhead { z-index: 1; }
 
 /* ---------- Device ---------- */
-.studio-device-dock { flex: none; width: var(--panel-w, 320px); min-height: 0; overflow: auto; border-left: var(--hairline-w, 1px) solid var(--line); background: var(--panel, var(--bg)); }
-.studio-device { display: grid; gap: 2px; padding: var(--sp-3) var(--sp-4) var(--sp-5); font-size: var(--fs-md); }
+.studio-device { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: var(--sp-3) var(--sp-4) var(--sp-5); font-size: var(--fs-md); }
 .studio-dev-title { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
 .studio-dev-head { margin: var(--sp-4) 0 var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
 .studio-dev-group { display: grid; padding-bottom: var(--sp-2); border-bottom: var(--hairline-w, 1px) solid var(--line); }

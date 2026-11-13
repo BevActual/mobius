@@ -5,7 +5,7 @@ import { EmptyState } from './EmptyState';
 import { BEATS_PER_BAR, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type Sound, type Track } from './song-format';
 import { play, previewNote, type Player } from './studio-audio';
 import { GRIDS, addNote, clipsOf, cycleOf, duplicateNotes, fitTracks, fromSlider, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, stretchNotes, toSlider, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
+import { AppSidebar, PanelTab, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -66,7 +66,7 @@ export function StudioSidebar({ songs, pin, changed }: { songs: NotesState; pin:
       <SidebarSection title="From Mobius">
         {made.length === 0 && <li className="side-empty">Nothing to review.</li>}
         {made.map((pg) => (
-          <SidebarRow key={pg.path} label={pg.title} proposed current={false} onSelect={() => void songs.open(pg.path, pg.title)} trail={<span className="studio-to-review">to review</span>} />
+          <SidebarRow key={pg.path} label={pg.title} current={false} onSelect={() => void songs.open(pg.path, pg.title)} trail={<span className="studio-to-review">to review</span>} />
         ))}
       </SidebarSection>
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.title} items={[{ action: 'delete', label: 'Delete Song', danger: true, run: () => setConfirming(menu.path) }]} onClose={() => setMenu(null)} />, document.body)}
@@ -498,7 +498,15 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     { label: t.solo ? 'Unsolo' : 'Solo', run: () => setTrack(t.id, (v) => { v.solo = !v.solo; }) },
     { action: 'delete', label: 'Delete Track', danger: true, separated: true, run: () => deleteTrack(t.id) },
   ] });
-  const names = [...changed].map((id) => song.tracks.find((t) => t.id === id)?.name ?? id);
+  // What Mobius changed, by track and where: "Pad idea, bars 13 to 24".
+  const names = [...changed].map((id) => {
+    const t = song.tracks.find((x) => x.id === id);
+    if (!t) return id;
+    const clips = clipsOf(t.notes, song.bars);
+    if (clips.length === 0) return t.name;
+    const from = clips[0]!.from + 1, to = clips[clips.length - 1]!.to;
+    return `${t.name}, ${from === to ? `bar ${from}` : `bars ${from} to ${to}`}`;
+  });
   const pos = position(beat, song.tempo);
 
   // ---------- The piano roll's pointer ----------
@@ -646,7 +654,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const proposal = changed.size > 0 ? (
     <div className="studio-dev-proposal" role="group" aria-label="Mobius's change">
       <h4 className="studio-dev-head">Proposed by Mobius</h4>
-      <p>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join(', ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} /></>}</p>
+      <p>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} /></>}</p>
       <div className="studio-dev-actions"><ReviewActions onKeep={keep} onDiscard={discard} /></div>
     </div>
   ) : null;
@@ -707,7 +715,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             {song.tracks.length === 0 && <p className="studio-none">No tracks yet. Add one from Sounds in the sidebar, or ask Mobius for a part: “a bass line that follows the chords”.</p>}
             {song.tracks.map((t) => (
               <div key={t.id} role="listitem" aria-label={t.name} className="studio-track" aria-current={track?.id === t.id || undefined} data-instrument={t.instrument} data-muted={(t.muted || (song.tracks.some((x) => x.solo) && !t.solo)) || undefined} onClick={() => setSelected(t.id)}>
-                <div className="studio-track-head" data-proposed={changed.has(t.id) || undefined} onContextMenu={(e) => { e.preventDefault(); setSelected(t.id); trackMenu(t, e.clientX, e.clientY); }} onDoubleClick={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') openNotes(t.id); }}>
+                <div className="studio-track-head" onContextMenu={(e) => { e.preventDefault(); setSelected(t.id); trackMenu(t, e.clientX, e.clientY); }} onDoubleClick={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') openNotes(t.id); }}>
                   <input className="studio-track-name" aria-label="Track name" value={t.name} maxLength={60} onChange={(e) => setTrack(t.id, (x) => { x.name = e.target.value; }, `name:${t.id}`)} />
                   <span className="studio-track-sub">{INSTRUMENT_NAMES[t.instrument]}</span>
                   <div className="studio-track-buttons" data-on={t.muted || t.solo || undefined}>
@@ -715,7 +723,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                     <button type="button" className="studio-ms" aria-label={`Solo ${t.name}`} title="Solo" aria-pressed={t.solo} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.solo = !x.solo; }); }}>S</button>
                   </div>
                 </div>
-                <div className="studio-lane" style={{ width: total * bw }} data-proposed={changed.has(t.id) || undefined}>
+                <div className="studio-lane" style={{ width: total * bw }}>
                   <Clips track={t} bars={song.bars} proposed={changed.has(t.id)} bw={bw} onOpen={(from) => openNotes(t.id, from)} />
                 </div>
               </div>
@@ -842,10 +850,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   );
 }
 
-/**
- * Where the Device panel goes: a tab beside Mobius in the right panel once the frame has tabs; until then a column at
- * the right of Music's own page.
- */
+/** The Device panel, as a tab before Mobius in the right panel. */
 function DevicePlace({ children }: { children: ReactNode }) {
-  return <div className="studio-device-dock">{children}</div>;
+  return <PanelTab id="device" name="Device">{children}</PanelTab>;
 }
