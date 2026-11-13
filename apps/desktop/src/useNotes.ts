@@ -14,7 +14,8 @@ export interface OpenPage { path: string; title: string; base: number | null }
  * documents the same way, in folders, so it uses this too (`kind` 'docs').
  */
 /** The kinds that open their newest item when nothing was open before. */
-const OPENS_NEWEST: ReadonlySet<NotesKind> = new Set(['docs', 'slides']);
+// Music (marked, Music's own): a song opens on arrival too, never "No song open".
+const OPENS_NEWEST: ReadonlySet<NotesKind> = new Set(['docs', 'slides', 'songs']);
 /** The most recently changed page, if any. */
 export function newestPage<T extends { modified: number }>(pages: readonly T[]): T | undefined {
   return pages.reduce<T | undefined>((best, pg) => (!best || pg.modified > best.modified ? pg : best), undefined);

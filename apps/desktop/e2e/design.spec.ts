@@ -44,7 +44,7 @@ const saved = (): typeof HOME => {
   return lastSaved;
 };
 const canvas = (): Locator => shell().getByRole('application', { name: 'Canvas' });
-const inspector = (): Locator => shell().getByRole('complementary', { name: 'Inspector' });
+const inspector = (): Locator => shell().getByRole('region', { name: 'Inspector', exact: true });
 
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
