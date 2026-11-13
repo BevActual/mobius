@@ -68,10 +68,14 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
 
   const q = query.trim().toLowerCase();
   const has = (...texts: string[]) => !q || texts.some((t) => t.toLowerCase().includes(q));
-  const built = APPS.filter((a) => a.available && !a.own && isInstalled(a.id) && has(a.name, status[a.id] ?? ''));
+  // Searching, an app whose name starts with the words comes first, then one whose name has them, then the rest.
+  const rank = (name: string) => (name.toLowerCase().startsWith(q) ? 0 : name.toLowerCase().includes(q) ? 1 : 2);
+  const built = APPS.filter((a) => a.available && !a.own && isInstalled(a.id) && has(a.name, status[a.id] ?? '', a.also ?? ''))
+    .sort((a, b) => (q ? rank(a.name) - rank(b.name) : 0));
   const later = APPS.filter((a) => !a.available && has(a.name));
   const starts = actions.filter((a) => has(a.label));
-  const ownShown = own.filter((o) => o.id !== 'settings' && has(o.name));
+  // Settings lives at the foot of the rail, so it is listed here only when it is looked for.
+  const ownShown = own.filter((o) => (q ? true : o.id !== 'settings') && has(o.name));
   // Eight to start from; the rest when asked for, or found by typing.
   const [allStarts, setAllStarts] = useState(false);
   useEffect(() => { if (!open) setAllStarts(false); }, [open]);
@@ -105,7 +109,7 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
 
   return (
     <dialog ref={dialog} className="hub" aria-label="Applications" onCancel={(e) => { e.preventDefault(); onClose(); }} onClick={(e) => { if (e.target === dialog.current) onClose(); }}>
-      <form className="hub-search" role="search" onSubmit={(e) => { e.preventDefault(); const first = built[0]; if (first) go(() => onOpenApp(first.id)); else if (starts[0]) go(starts[0].run); }}>
+      <form className="hub-search" role="search" onSubmit={(e) => { e.preventDefault(); const first = built[0]; const mine = ownShown[0]; if (first && (!mine || rank(first.name) <= rank(mine.name))) go(() => onOpenApp(first.id)); else if (mine) go(mine.run); else if (starts[0]) go(starts[0].run); }}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5" /><path d="m13 13 3.5 3.5" /></svg>
         <input ref={input} type="search" aria-label="Find apps" placeholder="Find apps and actions" value={query} onChange={(e) => setQuery(e.target.value)} />
         {query && <button type="button" className="strip-btn" aria-label="Clear" onClick={() => { setQuery(''); input.current?.focus(); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg></button>}
