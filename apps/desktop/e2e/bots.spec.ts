@@ -36,7 +36,7 @@ const openApp = async (name: string) => {
 };
 const shell = () => mobius!.shell;
 const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mobius' });
-const list = (): Locator => shell().getByRole('complementary', { name: 'Conversation list' });
+const list = (): Locator => shell().getByRole('complementary', { name: 'Agent sidebar' });
 const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
 const say = async (text: string) => {
   await expect(shell().getByRole('button', { name: 'Stop' })).toHaveCount(0);
@@ -48,7 +48,9 @@ const say = async (text: string) => {
     await expect(log().locator('.msg.user').filter({ hasText: text })).toHaveCount(1, { timeout: 2000 });
   }).toPass({ timeout: 15_000 });
 };
-const tab = (name: string) => list().getByRole('tab', { name });
+/** Agents and the Agent app's sessions open from the rail (Agents at its foot), not from tabs in the sidebar. */
+const railApps = (): Locator => shell().getByRole('navigation', { name: 'Apps' });
+const tab = (name: 'Agents' | 'Sessions') => (name === 'Agents' ? railApps().locator('.rail-end').getByRole('button', { name: 'Agents', exact: true }) : railApps().getByRole('button', { name: 'Agent', exact: true }));
 /** An agent's action, from its row's More menu. */
 const fromMenu = async (agent: string, item: string) => {
   // A menu still closing would make the More button close it again rather than open it: wait until none is open.
@@ -58,7 +60,7 @@ const fromMenu = async (agent: string, item: string) => {
   // A menu item runs once the menu has closed: wait for that, and for a new session to open empty.
   await expect(shell().getByRole('menu')).toHaveCount(0);
   if (item === 'New session') {
-    await expect(tab('Sessions')).toHaveAttribute('aria-selected', 'true');
+    await expect(tab('Sessions')).toHaveAttribute('aria-current', 'page');
     await expect(log().locator('.msg')).toHaveCount(0);
   }
 };
@@ -72,16 +74,16 @@ async function newBot(name: string, instructions = '', modelName = ''): Promise<
   await form.getByRole('button', { name: 'Create' }).click();
   // The bot's first session opens a moment later, empty: wait for it, so what is said next goes to the bot.
   await expect(form).toHaveCount(0);
-  await expect(tab('Sessions')).toHaveAttribute('aria-selected', 'true');
+  await expect(tab('Sessions')).toHaveAttribute('aria-current', 'page');
   await expect(log().locator('.msg')).toHaveCount(0);
 }
 
 test('the side list switches between sessions and bots, and starts with Mobius alone', async () => {
   await start();
-  await expect(tab('Sessions')).toHaveAttribute('aria-selected', 'true');
+  await expect(tab('Sessions')).toHaveAttribute('aria-current', 'page');
   await tab('Agents').click();
-  await expect(tab('Agents')).toHaveAttribute('aria-selected', 'true');
-  const rows = list().getByRole('list', { name: 'Agents' }).getByRole('listitem');
+  await expect(tab('Agents')).toHaveAttribute('aria-current', 'page');
+  const rows = list().getByRole('region', { name: 'Agents' }).getByRole('listitem');
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText('Mobius');
   // Mobius is built in: its menu only starts a session.
@@ -95,7 +97,7 @@ test('a bot is made, its sessions use its instructions and model, and other sess
   await start([says(['bot answer']), says(['plain answer'])], 'Be brief.');
   await newBot('Researcher', 'Always cite sources.', 'research-model');
   // Creating the bot puts you in a new session with it.
-  await expect(tab('Sessions')).toHaveAttribute('aria-selected', 'true');
+  await expect(tab('Sessions')).toHaveAttribute('aria-current', 'page');
   await say('hello bot');
   await expect(log().locator('.msg.assistant')).toHaveText('bot answer');
   const first = model!.requests.at(-1)!;
@@ -103,7 +105,7 @@ test('a bot is made, its sessions use its instructions and model, and other sess
   expect(JSON.stringify(first.messages)).toContain('Be brief.');
   expect(JSON.stringify(first.messages)).toContain('Always cite sources.');
   // A plain session keeps the usual setup.
-  await list().getByRole('button', { name: 'New conversation' }).click();
+  await shell().getByRole('button', { name: 'Create' }).click();
   await tab('Agents').click();
   await fromMenu('Mobius', 'New session');
   await say('hello plain');
@@ -138,7 +140,7 @@ test('a bot can be renamed and its instructions changed, and the next message us
   await form.getByLabel('Name').fill('Coach');
   await form.getByLabel('Instructions').fill('New rules.');
   await form.getByRole('button', { name: 'Save' }).click();
-  await expect(list().getByRole('list', { name: 'Agents' })).toContainText('Coach');
+  await expect(list().getByRole('region', { name: 'Agents' })).toContainText('Coach');
   await fromMenu('Coach', 'New session');
   await say('go');
   await expect(log().locator('.msg.assistant')).toHaveText('ok');
@@ -166,7 +168,7 @@ test('removing a bot asks first, takes its sessions with it, and leaves the othe
   await newBot('Temp');
   await say('to the bot');
   await expect(log().locator('.msg.assistant')).toHaveText('bot said');
-  await list().getByRole('button', { name: 'New conversation' }).click().catch(() => undefined);
+  await shell().getByRole('button', { name: 'Create' }).click().catch(() => undefined);
   await tab('Agents').click();
   await fromMenu('Mobius', 'New session');
   await say('to mobius');
@@ -175,10 +177,10 @@ test('removing a bot asks first, takes its sessions with it, and leaves the othe
   await fromMenu('Temp', 'Remove…');
   await expect(list()).toContainText('Remove Temp and its session?');
   await list().getByRole('button', { name: 'Keep' }).click();
-  await expect(list().getByRole('list', { name: 'Agents' })).toContainText('Temp');
+  await expect(list().getByRole('region', { name: 'Agents' })).toContainText('Temp');
   await fromMenu('Temp', 'Remove…');
   await list().getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(list().getByRole('list', { name: 'Agents' })).not.toContainText('Temp');
+  await expect(list().getByRole('region', { name: 'Agents' })).not.toContainText('Temp');
   await tab('Sessions').click();
   await expect(list()).not.toContainText('to the bot');
   await expect(list()).toContainText('to mobius');
@@ -194,8 +196,8 @@ test('bots and their sessions are still there after a restart', async () => {
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openApp('Agent');
   await tab('Agents').click();
-  await expect(list().getByRole('list', { name: 'Agents' })).toContainText('Keeper');
-  await expect(list().getByRole('list', { name: 'Agents' })).toContainText('keeper-model');
+  await expect(list().getByRole('region', { name: 'Agents' })).toContainText('Keeper');
+  await expect(list().getByRole('region', { name: 'Agents' })).toContainText('keeper-model');
   await tab('Sessions').click();
   await expect(list().getByRole('region', { name: 'Keeper' })).toContainText('persist this');
 });
@@ -243,7 +245,7 @@ test('bots can be moved up and down, Mobius stays first, and the order is kept',
   await start();
   for (const name of ['Alpha', 'Beta', 'Gamma']) await newBot(name);
   await tab('Agents').click();
-  const names = async () => (await list().getByRole('list', { name: 'Agents' }).locator('.clist-title').allTextContents());
+  const names = async () => (await list().getByRole('region', { name: 'Agents' }).locator('.clist-title').allTextContents());
   await expect.poll(names).toEqual(['Mobius', 'Alpha', 'Beta', 'Gamma']);
   const menuItem = async (agent: string, item: string) => {
     await list().getByRole('button', { name: `More for ${agent}` }).click();
@@ -284,7 +286,7 @@ test('a conversation can be made a bot: its form is filled in from it, says what
   await row.hover();
   await row.getByRole('button', { name: /^Make .* an agent$/ }).click();
   const form = list().getByRole('form', { name: 'New agent' });
-  await expect(tab('Agents')).toHaveAttribute('aria-selected', 'true');
+  await expect(tab('Agents')).toHaveAttribute('aria-current', 'page');
   await expect(form.getByRole('textbox').nth(1)).toHaveValue(/Look at my tasks and calendar and plan the week/);
   await expect(form).toContainText('What it may touch');
   await form.getByRole('textbox').first().fill('Week planner');

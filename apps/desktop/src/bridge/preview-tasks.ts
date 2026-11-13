@@ -1,4 +1,4 @@
-import type { TaskAt, TaskChange, TaskItem } from '@mobius/shared';
+import type { TaskAt, TaskChange, TaskItem, TaskRepeat } from '@mobius/shared';
 
 /**
  * The preview's Tasks: lists kept in memory for as long as the preview is open, so the app can be used and looked
@@ -11,7 +11,22 @@ const day = (offset: number): string => {
   d.setDate(d.getDate() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
-const row = (text: string, due: string | null, extra: Partial<Row> = {}): Row => ({ text, done: false, due, flagged: false, notes: '', under: null, ...extra });
+const row = (text: string, due: string | null, extra: Partial<Row> = {}): Row => ({ text, done: false, due, time: null, repeat: null, flagged: false, notes: '', under: null, ...extra });
+
+/** The day after `due` a task repeating `every` falls on (as the Rust side does). */
+function nextDue(due: string, every: TaskRepeat): string {
+  const [y, m, d] = due.split('-').map(Number) as [number, number, number];
+  const at = new Date(y, m - 1, d);
+  if (every === 'day') at.setDate(d + 1);
+  else if (every === 'week') at.setDate(d + 7);
+  else if (every === 'weekday') at.setDate(d + (at.getDay() === 5 ? 3 : at.getDay() === 6 ? 2 : 1));
+  else {
+    const months = every === 'month' ? 1 : 12;
+    const last = new Date(y, m - 1 + months + 1, 0).getDate();
+    at.setFullYear(y, m - 1 + months, Math.min(d, last));
+  }
+  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+}
 
 function sample(): Record<string, Row[]> {
   const sled = row('Book the sled for Friday', day(2), { flagged: true, notes: 'Dana has the yard code. Ask for the long trailer.' });
@@ -24,7 +39,7 @@ function sample(): Record<string, Row[]> {
     row('Draft the build budget', day(0), { done: true }),
     row('Pay the Veltro deposit', day(-1), { flagged: true }),
   ];
-  const work = [row('Send the Q4 report draft', day(0)), row('Approve Priya’s expenses', day(4)), row('Review the suppliers plugin 2.1', null)];
+  const work = [row('Send the Q4 report draft', day(0), { time: '16:00' }), row('Team stand-up', day(1), { time: '09:30', repeat: 'weekday' }), row('Approve Priya’s expenses', day(4)), row('Review the suppliers plugin 2.1', null)];
   const home = [row('Fix the kitchen tap', day(6)), row('Book the dentist', null)];
   return { Inbox: [row('Call Sam about the trailer', null)], 'P2 build': p2, Work: work, Home: home };
 }
@@ -34,7 +49,7 @@ const ORDER = (): string[] => Object.keys(LISTS).sort((a, b) => (a === 'Inbox' ?
 const fail = (message: string, conflict = false) => ({ ok: false as const, message, ...(conflict ? { conflict } : {}) });
 
 function items(rows: Row[]): TaskItem[] {
-  return rows.map((r, line) => ({ line, text: r.text, done: r.done, due: r.due, flagged: r.flagged ?? false, notes: r.notes ?? '', parent: r.under ? rows.indexOf(r.under) : null }));
+  return rows.map((r, line) => ({ line, text: r.text, done: r.done, due: r.due, time: r.time ?? null, repeat: r.repeat ?? null, flagged: r.flagged ?? false, notes: r.notes ?? '', parent: r.under ? rows.indexOf(r.under) : null }));
 }
 const read = (list: string) => (LISTS[list] ? { list, tasks: items(LISTS[list]), version: 'preview' } : fail('that list is not there'));
 const at = (list: string, line: number, expect: string): Row | null => (LISTS[list]?.[line]?.text === expect ? LISTS[list]![line]! : null);
@@ -50,7 +65,7 @@ export const PREVIEW_TASKS: Record<string, (...args: never[]) => unknown> = {
     LISTS[chosen] = [];
     return { name: chosen };
   }) as never,
-  'tasks.add': ((list: string, text: string, due: string, options: { flagged?: boolean; under?: TaskAt } = {}) => {
+  'tasks.add': ((list: string, text: string, due: string, options: { flagged?: boolean; under?: TaskAt; time?: string; repeat?: TaskRepeat } = {}) => {
     const rows = (LISTS[list] ??= []);
     const words = text.split(/\s+/).filter(Boolean).join(' ');
     if (!words) return fail('a task needs some words');
@@ -59,15 +74,21 @@ export const PREVIEW_TASKS: Record<string, (...args: never[]) => unknown> = {
       if (!parent) return fail('changed elsewhere', true);
       const last = block(rows, parent).at(-1)!;
       rows.splice(rows.indexOf(last) + 1, 0, row(words, due || null, { under: parent, flagged: !!options.flagged }));
-    } else rows.push(row(words, due || null, { flagged: !!options.flagged }));
+    } else rows.push(row(words, due || null, { flagged: !!options.flagged, time: (due && options.time) || null, repeat: options.repeat ?? null }));
     return read(list);
   }) as never,
   'tasks.update': ((list: string, line: number, expect: string, change: TaskChange) => {
     const r = at(list, line, expect);
     if (!r) return fail('changed elsewhere', true);
     if (change.text !== undefined) r.text = change.text.trim() || r.text;
-    if (change.done !== undefined) r.done = change.done;
-    if (change.due !== undefined) r.due = change.due || null;
+    if (change.due !== undefined) { r.due = change.due || null; if (!r.due) r.time = null; }
+    if (change.time !== undefined) r.time = (r.due && change.time) || null;
+    if (change.repeat !== undefined) r.repeat = change.repeat || null;
+    // Ticking off a repeating task moves it to its next day and leaves it open.
+    if (change.done !== undefined) {
+      if (change.done && !r.done && r.repeat) r.due = nextDue(r.due ?? day(0), r.repeat);
+      else r.done = change.done;
+    }
     if (change.flagged !== undefined) r.flagged = change.flagged;
     if (change.notes !== undefined) r.notes = change.notes.split('\n').filter((l) => l.trim()).join('\n');
     return read(list);

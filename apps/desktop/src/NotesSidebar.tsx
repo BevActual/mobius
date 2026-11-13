@@ -9,6 +9,7 @@ import { FromMobius } from './FromMobius';
 import { RowMark } from './RowMark';
 import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { SidebarSearch } from './ui';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
@@ -132,7 +133,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
       {(openNotebook || words.defaultGroup) && (
         <SideNew item={words.item} onNew={newItem} title={openNotebook ? `New ${words.item} in ${openNotebook}` : `New ${words.item}`} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
       )}
-      <input className="side-search" type="search" aria-label={`Search ${words.app.toLowerCase()}`} placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <SidebarSearch label={`Search ${words.app.toLowerCase()}`} value={query} onChange={setQuery} />
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
           <input autoFocus aria-label={`${cap(words.group)} name`} placeholder={`${cap(words.group)} name`} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />

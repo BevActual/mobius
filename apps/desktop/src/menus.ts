@@ -51,7 +51,7 @@ export interface MenuContext {
     allApps: () => void;
     launcher: () => void;
     browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; selection: () => void; saveToReader: () => void };
-    notes: { newNotebook: () => void; pin: () => void; changes: () => void };
+    notes: { newNotebook: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void };
     video: { newProject: () => void; showFolder: () => void };
@@ -157,6 +157,10 @@ function appMenu(c: MenuContext): Menu | null {
         separator,
         item('changes', 'Show what the agent changed', d.notes.changes, { disabled: !s.notes.changed }),
         item('pin-note', s.notes.pinned ? 'Unpin from the sidebar' : 'Pin to the sidebar', d.notes.pin, { disabled: !s.notes.hasPage }),
+        separator,
+        item('history', 'Version history…', d.notes.history, { disabled: !s.notes.hasPage }),
+        item('clip-page', 'Clip a web page…', d.notes.clip, { disabled: !s.notes.hasPage }),
+        item('show-markdown', 'Show Markdown', d.notes.markdown, { disabled: !s.notes.hasPage }),
       ] };
     case 'tasks':
       return { id: 'app', label: 'Tasks', items: [

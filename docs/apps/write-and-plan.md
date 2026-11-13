@@ -10,9 +10,10 @@ Quick pages, saved as you type.
   built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
   recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
-  bold, italic, strikethrough, code, lists and quote; the bar keeps Checklist, Table and Link at hand. The **⋯** menu
-  clips a web page into the note and shows the Markdown file itself.
-- **History** lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
+  bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Table, Link,
+  Record, Picture and Share, so nothing sits between you and the page. The **Notes** menu (**⋯** in the toolbar)
+  opens Version history, clips a web page into the note and shows the Markdown file itself.
+- **History** (Notes menu › Version history…) lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).
 - **Share** copies the page, exports it as a web page or Markdown, or prints it.
 - Select text for Mobius's actions right where it is. A page Mobius changed shows its edits to keep or discard, line by
@@ -31,8 +32,8 @@ Longer documents, with an outline and comments.
 - **A page to write on**: headings, lists, checklists, tables, pictures and links to other documents, kept as Markdown.
   The format bar is the window's toolbar, beside the document's name and whether it is saved. **Aa** holds the styles,
   bold, italic and lists, as in Notes; checklist, link and **Insert** (table, picture, divider, code) sit beside it,
-  and **Table** appears while you are in one, for its rows and columns. **Document options** shows the outline, opens
-  earlier versions and switches the page between the sans-serif font and a serif one.
+  and **Table** appears while you are in one, for its rows and columns. **Document options** shows the outline and the
+  margin's comments, opens earlier versions and switches the page between the sans-serif font and a serif one.
 - **The outline** of headings sits beside the page and marks the part you are looking at as you scroll. It folds away
   when the window is narrow; hide it in Document options if you prefer. A document opens at its top.
 - **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
@@ -55,6 +56,9 @@ Lists of things to do, as in Apple's Reminders.
 - **The sidebar** has Search, New list, the **Smart lists** (Today, Scheduled, All, Flagged and Completed), then
   **My lists** with how many are open. Hover a list to pin it or open its menu (Rename, Delete).
   **Scheduled** sorts tasks under day headings: Overdue, Today, Tomorrow, each day of the coming week, then by month.
+- **Times and repeats**: type a time after the day ("Call Sam tomorrow at 3pm", "Stand-up mon 9:30"; a time on its
+  own means today), or set a time and a repeat (every day, weekday, week, month or year) in the inspector. Ticking off
+  a repeating task moves it to its next day and leaves it open.
 - **Right-click a task** to show its details, set it due today, tomorrow or next week, flag it, move it to another
   list or delete it.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
@@ -67,7 +71,8 @@ Lists of things to do, as in Apple's Reminders.
   format. Drag tasks to reorder them or move them between lists.
 - Tasks Mobius added are dashed until kept. **Discard** puts the list back as it was before that turn.
 
-**Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines.
+**Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines, such as
+`- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)`.
 
 ## Calendar
 
