@@ -2400,6 +2400,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .empty-state-title { margin: 0; font-size: var(--fs-lg, 15px); font-weight: 600; color: var(--ink); }
 .empty-state-line { margin: 0; font-size: var(--fs-sm); color: var(--muted); line-height: 1.45; }
 .empty-state-action { margin-top: var(--sp-2); }
+.empty-state-keys { margin-top: var(--sp-1); color: var(--muted); font-size: var(--fs-xs); }
 
 /* From Mobius is a filter (FromMobius.tsx): pressed, a sidebar shows only the rows Mobius made or changed. */
 .from-mobius-filter { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 30px; padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--mobius); font-size: var(--fs-sm); font-weight: var(--fw-medium); text-align: left; }

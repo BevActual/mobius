@@ -117,6 +117,8 @@
   --row-h: 36px;
   --row-side: 36px;
   --row-list: 40px;
+  /* A two-line row in a master list beside a reading pane (Mail, Notes): sender or title, then a line of preview. */
+  --row-list-2: 56px;
   --row-reading: 44px;
   --toolbar-h: 52px;
   --panel-head-h: 30px;
@@ -261,6 +263,7 @@ html[data-density='compact'], .app[data-density='compact'] {
   --row-h: 30px;
   --row-side: 30px;
   --row-list: 32px;
+  --row-list-2: 48px;
   --control-h: 24px;
   --control-h-lg: 30px;
   --menu-row-h: 26px;
