@@ -62,7 +62,7 @@ The [Review app](../apps/review.md) lists everything Mobius changed, from every 
 
 ## Rewind to here
 
-In a conversation's **Activity**, every turn has **Rewind to here**. It puts every app back as it was right after that
+In the **Activity** app, every turn of the open conversation has **Rewind to here**. It puts every app back as it was right after that
 turn and removes the turns that came after. It asks once and names what will change ("Rewind 3 later turns? Mail,
 Sheets will change."), and it can be undone for a moment afterwards.
 

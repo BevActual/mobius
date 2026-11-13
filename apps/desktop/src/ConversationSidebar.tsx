@@ -198,7 +198,7 @@ function BotRow({ bot, sessions, current, first, last, onOpen, onNew, onUpdate, 
 }
 
 /** What is scheduled, under the conversations, as in the design's Agent sidebar. Choosing one opens Settings › Schedules. */
-function ScheduledList({ onOpen }: { onOpen: () => void }) {
+export function ScheduledList({ onOpen }: { onOpen: () => void }) {
   const [list, setList] = useState<ScheduleInfo[]>([]);
   useEffect(() => {
     let live = true;
@@ -229,7 +229,7 @@ function ScheduledList({ onOpen }: { onOpen: () => void }) {
  * Changes not yet kept or discarded, from today's conversations, one row per conversation: the design's Activity
  * history with Undo, for each conversation's last turn. Keep and Discard do what they do in the strip.
  */
-function ChangesWaiting({ conversations, onSelect }: { conversations: ConversationInfo[]; onSelect: (id: string) => void }) {
+export function ChangesWaiting({ conversations, onSelect }: { conversations: ConversationInfo[]; onSelect: (id: string) => void }) {
   const [rows, setRows] = useState<{ conversation: ConversationInfo; turn: string | null; files: string[] }[]>([]);
   const [tick, setTick] = useState(0);
   const ids = conversations.map((c) => c.id).join(',');
