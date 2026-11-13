@@ -8,8 +8,10 @@ import { KEPT_EVENT, fileKept, keepTurn, turnId } from './ReviewStrip';
 export type CalendarReview = { conversation: string; calendars: readonly string[] };
 
 const fileOf = (calendar: string) => `calendar/${calendar}.ics`;
-/** How far either side of today a changed event is looked for: Mobius plans weeks ahead, rarely years. */
-const REACH_DAYS = 400;
+/** How far back and ahead of today a changed event is looked for. Mobius plans weeks ahead, rarely years, and the core
+ * answers at most 400 days at once (MAX_RANGE_DAYS in calendar.rs). */
+const BACK_DAYS = 30;
+const AHEAD_DAYS = 365;
 
 /**
  * What Mobius's last turn added or changed in the calendars, as Tasks shows for a list: the events (soonest first), and
@@ -27,7 +29,7 @@ export function useCalendarReview(review: CalendarReview | null, version: unknow
     const waiting = review.calendars.filter((c) => !(id && fileKept(id, fileOf(c))));
     if (waiting.length === 0) return [];
     const today = new Date();
-    const now = await api.events(isoDay(addDays(today, -REACH_DAYS)), isoDay(addDays(today, REACH_DAYS)));
+    const now = await api.events(isoDay(addDays(today, -BACK_DAYS)), isoDay(addDays(today, AHEAD_DAYS)));
     if (isNotesFailure(now)) return [];
     const found = await Promise.all(waiting.map(async (c) => {
       const was = await window.mobius.changes.before(review.conversation, fileOf(c)).catch(() => null);
