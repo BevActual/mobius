@@ -1,197 +1,231 @@
-/* Notes' own styles (History, pictures, links), kept apart from the shared stylesheet. */
-/* Notes' History: earlier versions down the side, the chosen one compared with the page now, and Restore. */
-.note-history { flex: 1; min-height: 0; display: flex; flex-direction: column; animation: note-sheet-in var(--dur-med) var(--ease); }
-@keyframes note-sheet-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .note-history { animation: none; } }
-.note-history-head { display: flex; align-items: center; gap: var(--sp-2); padding: 10px var(--sp-3); border-bottom: 1px solid var(--hairline); }
-.note-history-head h2 { margin: 0; font-size: var(--fs-md); font-weight: 600; }
-.note-history-sub { color: var(--muted); font-size: var(--fs-sm); }
-.note-history-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(180px, 220px) 1fr; }
-.note-history-list { overflow: auto; padding: 8px; border-right: 1px solid var(--hairline); display: grid; align-content: start; gap: 2px; }
-.note-history-list h3 { margin: 10px 8px 4px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
-.note-history-list [role="group"]:first-child h3 { margin-top: 2px; }
-.note-history-row { display: grid; gap: 1px; width: 100%; text-align: left; padding: 6px 10px; border-radius: 8px; }
-.note-history-row:hover { background: var(--wash); }
-.note-history-row[aria-current="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.note-history-time { font-weight: 500; font-variant-numeric: tabular-nums; }
-.note-history-why { font-size: var(--fs-xs); color: var(--muted); }
-.note-history-view { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.note-history-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 8px var(--sp-3); font-size: var(--fs-sm); }
-.note-history-counts { color: var(--muted); }
-.note-history-view .seg-btn[aria-pressed="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
-.note-history-diff { margin-top: 0; }
-.note-history-page { flex: 1; overflow: auto; margin: 0 auto; width: calc(100% - 48px); max-width: 760px; padding: 8px 10px 32px; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: var(--fs-md); line-height: 1.6; }
-.note-history-empty { flex: 1; display: grid; place-content: center; text-align: center; gap: 4px; color: var(--muted); }
-.note-history-empty p { margin: 0; }
-.note-history-hint { font-size: var(--fs-sm); max-width: 32ch; }
-.note-restored { display: flex; align-items: center; gap: var(--sp-2); padding: 6px var(--sp-3); font-size: var(--fs-sm); background: var(--wash); border-bottom: 1px solid var(--hairline); }
-.note-restored > span { flex: 1; }
-.note-history .spacer { flex: 1; }
-/* Pictures in a note: as wide as the text at most, softly rounded; one that is missing says so. */
-.note-page .note-figure { margin: 12px 0; }
-.note-page .note-figure img { display: block; max-width: 100%; max-height: 520px; border-radius: 10px; }
-.note-page .note-figure.ProseMirror-selectednode img { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
-.note-page .note-figure[data-missing="true"] { display: inline-flex; padding: 10px 14px; border-radius: 10px; background: var(--wash); color: var(--muted); font-size: var(--fs-sm); }
+/*
+ * Notes' own styles, on the Instrument tokens only (docs/design/instrument.md): no hand-set size, row height or colour.
+ * A note is a reading page: a --fs-display title over --fs-reading body text, in a column --reading-w wide.
+ */
+
+/* ── The page ─────────────────────────────────────────────────────────────────────────────────────── */
+/* The column holds the text at --reading-w; its padding sits outside that. */
+.note-editor { --note-col: calc(var(--reading-w) + 2 * var(--sp-8)); position: relative; }
+.stage .note-editor { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--paper); }
+.note-editor.empty { display: grid; place-items: center; }
+.note-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.note-scroll[hidden] { display: none; }
+.note-paper { flex: 0 0 auto; width: 100%; max-width: var(--note-col); margin: 0 auto; }
+
+/* The grey line under the toolbar: when it was edited, words, comments, then its tags. */
+.note-meta { box-sizing: border-box; width: 100%; max-width: var(--note-col); margin: 0 auto; padding: calc(var(--sp-8) + var(--sp-6)) var(--sp-8) 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-3); color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.note-meta > span + span::before { content: "·"; margin-right: var(--sp-3); }
+/* Tags are chips: an outline with grey text, never a solid fill. */
+.note-meta-tag { height: var(--control-h); padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--fs-xs); }
+.note-meta-tag:hover { background: var(--sel); color: var(--ink); }
+
+.note-page { min-height: 40vh; padding: var(--sp-3) var(--sp-8) var(--sp-8); outline: none; color: var(--ink); font-size: var(--fs-reading); line-height: var(--lh-body); -webkit-font-smoothing: antialiased; }
+.note-page:focus-visible { outline: none; }
+/* The title is the page heading: large, bold, tight. Headings under it step down the type scale. */
+.note-page h1 { margin: 0 0 var(--sp-3); font-size: var(--fs-display); font-weight: 700; line-height: var(--lh-tight); letter-spacing: -0.02em; }
+.note-page h2 { margin: var(--sp-6) 0 var(--sp-2); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); line-height: var(--lh-tight); letter-spacing: -0.01em; }
+.note-page h3 { margin: var(--sp-4) 0 var(--sp-1); font-size: var(--fs-xl); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
+.note-page p { margin: 0 0 var(--sp-3); }
+.note-page ul, .note-page ol { margin: 0 0 var(--sp-3); padding-left: var(--sp-6); }
+.note-page li p, .note-page td p, .note-page th p { margin: 0; }
+.note-page blockquote { margin: 0 0 var(--sp-3); padding-left: var(--sp-3); border-left: 3px solid var(--line); color: var(--muted); }
+.note-page a { color: var(--ink); }
+.note-page a[href$=".md"] { text-decoration: none; border-bottom: var(--hairline-w) solid var(--faint); cursor: pointer; }
+.note-page code { padding: 0 var(--sp-1); border-radius: var(--radius-small); background: var(--field); font-family: var(--font-mono); font-size: var(--fs-sm); }
+.note-page pre { padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-panel); background: var(--field); overflow: auto; }
+.note-page pre code { padding: 0; background: none; }
+.note-page hr { margin: var(--sp-6) 0; border: 0; border-top: var(--hairline-w) solid var(--line); }
+.note-page ::selection { background: var(--sel); }
+.note-page .is-empty::before { content: attr(data-placeholder); float: left; height: 0; color: var(--muted); pointer-events: none; }
+/* A #tag in the text: a soft tint, as content colour is shown. */
+.note-page .note-tag { padding: 0 var(--sp-1); border-radius: var(--radius-small); background: var(--field); color: var(--muted); }
+
+/* Tables: a hairline grid, a grey semibold header, figures that line up. */
+.note-page table { width: 100%; margin: 0 0 var(--sp-4); table-layout: fixed; border-collapse: separate; border-spacing: 0; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); overflow: hidden; font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
+.note-page th, .note-page td { position: relative; padding: var(--sp-1) var(--sp-2); vertical-align: top; border-right: var(--hairline-w) solid var(--line); border-bottom: var(--hairline-w) solid var(--line); }
+.note-page tr > :last-child { border-right: 0; }
+.note-page tr:last-child > td { border-bottom: 0; }
+.note-page th { background: var(--field); color: var(--muted); font-weight: var(--fw-semibold); text-align: left; }
+.note-page .selectedCell::after { content: ""; position: absolute; inset: 0; background: var(--sel); opacity: 0.6; pointer-events: none; }
+
+/* Checklists: round boxes that fill with ink and a paper tick. */
+.note-page ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.note-page ul[data-type="taskList"] ul[data-type="taskList"] { margin: 0; padding-left: var(--sp-6); }
+.note-page ul[data-type="taskList"] > li { display: flex; align-items: flex-start; gap: var(--sp-2); }
+.note-page ul[data-type="taskList"] > li > label { flex-shrink: 0; margin-top: 0.2em; }
+.note-page ul[data-type="taskList"] > li > div { flex: 1; min-width: 0; }
+.note-page ul[data-type="taskList"] > li > div > p { transition: color var(--dur-med) var(--ease); }
+.note-page ul[data-type="taskList"] > li[data-checked="true"] > div > p { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+.note-page ul[data-type="taskList"] > li > label input {
+  appearance: none; -webkit-appearance: none; display: grid; place-items: center; width: var(--sp-4); height: var(--sp-4); margin: 0;
+  border: 1.5px solid var(--faint); border-radius: 50%; background: transparent; cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.note-page ul[data-type="taskList"] > li > label input:hover { border-color: var(--ink); }
+.note-page ul[data-type="taskList"] > li > label input:checked { background: var(--ink); border-color: var(--ink); }
+.note-page ul[data-type="taskList"] > li > label input:checked::after { content: ""; width: var(--sp-1); height: var(--sp-2); margin-top: -2px; border: solid var(--on-ink); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+.note-page ul[data-type="taskList"] > li > label input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* Pictures: as wide as the text at most; one that is missing says so. */
+.note-page .note-figure { margin: var(--sp-3) 0; }
+.note-page .note-figure img { display: block; max-width: 100%; max-height: 520px; border-radius: var(--radius-panel); }
+.note-page .note-figure.ProseMirror-selectednode img { outline: 1.5px solid var(--ink); outline-offset: 2px; }
+.note-page .note-figure[data-missing="true"] { display: inline-flex; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-panel); background: var(--field); color: var(--muted); font-size: var(--fs-sm); }
 .note-page .note-figure[data-missing="true"]::before { content: attr(title); }
 .note-page .note-figure[data-missing="true"] img { display: none; }
-/* Linking a note: the Link field lists notes by name. Linked from: the notes that link here, under the page. */
-.note-link-form { position: relative; }
-.note-link-pages { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 280px; max-width: 420px; margin: 0; padding: 4px; list-style: none; background: var(--bg); border: 1px solid var(--hairline); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16); }
-.note-link-pages li { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 8px; cursor: default; }
-.note-link-pages li[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.note-link-title { font-weight: 500; }
-.note-link-book { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.note-page a[href$=".md"] { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); cursor: pointer; }
-.note-backlinks { width: calc(100% - 48px); max-width: 760px; margin: 8px auto 40px; padding-top: 14px; border-top: 1px solid var(--hairline); }
-.note-backlinks h2 { margin: 0 0 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
-.note-backlinks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.note-backlinks button { display: grid; gap: 1px; width: 100%; text-align: left; padding: 6px 10px; border-radius: 8px; }
-.note-backlinks button:hover { background: var(--wash); }
 
-/* ── Apple-style polish (HIG: clarity, deference to content, depth) ─────────────────────────────── */
-
-/* The page's controls, in the window's toolbar: quiet icons that wake on hover. */
-.note-format { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; flex: 1; min-width: 0; }
-.note-format .spacer { flex: 1; }
-/* The controls keep their size; the title beside them is what gives way (it ends in …). */
-/* Like Docs: the format tools start the row and Share ends it. */
-.ui-toolbar-slot:has(> .ui-toolbar-group > .note-format) { flex: 1 1 auto; min-width: 0; }
-.ui-toolbar-group:has(> .note-format) { flex: 1; }
-.note-format .doc-tool { color: color-mix(in srgb, var(--ink) 72%, transparent); border-radius: 7px; transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
-.note-format .doc-tool:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.note-format .doc-tool[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
-.note-format .doc-tool-sep { flex: none; width: 1px; height: 16px; margin: 0 5px; background: var(--hairline); opacity: 0.6; }
-/* Clip and Link ask for an address under the toolbar, at the top of the page, only while they are open. */
-.note-forms { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); }
-.note-forms .note-clip { margin-left: 0; }
-
-/* The page reads like a page: a comfortable measure, a confident title, calm headings. */
-.note-editor .note-paper, .note-editor .note-meta { max-width: 720px; }
-.note-editor .note-page { font-size: 16px; line-height: 1.6; letter-spacing: -0.003em; -webkit-font-smoothing: antialiased; }
-.note-editor .note-page h1 { font-size: 30px; font-weight: 700; line-height: 1.15; letter-spacing: -0.022em; margin: 0 0 0.45em; }
-.note-editor .note-page h2 { font-size: 21px; font-weight: 650; letter-spacing: -0.015em; margin: 1.25em 0 0.3em; }
-.note-editor .note-page h3 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; margin: 1.05em 0 0.25em; }
-.note-editor .note-page blockquote { border-left-width: 3px; border-left-color: color-mix(in srgb, var(--accent) 45%, transparent); }
-.note-editor .note-page ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
-.note-editor .note-meta { font-size: var(--fs-xs); padding-top: var(--sp-5, 20px); letter-spacing: 0.01em; }
-
-/* Checklists tick with round boxes that fill, as in Apple's Notes. */
-.note-editor .note-page ul[data-type="taskList"] > li > label { margin-top: 0.22em; }
-.note-editor .note-page ul[data-type="taskList"] > li > label input {
-  appearance: none; -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
-  border: 1.5px solid color-mix(in srgb, var(--ink) 35%, transparent); background: transparent; display: grid; place-items: center;
-  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
-}
-.note-editor .note-page ul[data-type="taskList"] > li > label input:hover { border-color: var(--accent); }
-.note-editor .note-page ul[data-type="taskList"] > li > label input:active { transform: scale(0.9); }
-.note-editor .note-page ul[data-type="taskList"] > li > label input:checked { background: var(--accent); border-color: var(--accent); }
-.note-editor .note-page ul[data-type="taskList"] > li > label input:checked::after {
-  content: ""; width: 5px; height: 9px; margin-top: -2px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
-}
-.note-editor .note-page ul[data-type="taskList"] > li > label input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; }
-.note-editor .note-page ul[data-type="taskList"] > li > div > p { transition: color var(--dur-med) var(--ease); }
-
-/* The selection bar floats above the page. */
-.note-editor .selection-bar { border: 0.5px solid var(--hairline); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08); }
-
-/* Tags are soft capsules; a link to a note reads as a link. */
-.note-editor .note-page .note-tag { border-radius: 6px; padding: 0 3px; }
+/* The Markdown view: the same column, as a text box. */
+.note-text { flex: 1; box-sizing: border-box; width: 100%; max-width: var(--note-col); min-height: 60vh; margin: 0 auto; padding: var(--sp-4) var(--sp-8) var(--sp-8); border: 0; outline: none; resize: none; background: transparent; color: var(--ink); font-size: var(--fs-reading); line-height: var(--lh-body); }
 
 /* Changing page settles in rather than snapping. */
 @keyframes note-page-in { from { opacity: 0.35; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-.note-editor .note-scroll[data-entering] { animation: note-page-in var(--dur-med) var(--ease); }
+@keyframes note-sheet-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.note-scroll[data-entering] { animation: note-page-in var(--dur-med) var(--ease); }
 @media (prefers-reduced-motion: reduce) {
-  .note-editor .note-scroll[data-entering] { animation: none; }
-  .note-editor .note-page ul[data-type="taskList"] > li > label input { transition: none; }
+  .note-scroll[data-entering], .note-history, .note-aa-panel, .note-comment-composer { animation: none; }
+  .note-page ul[data-type="taskList"] > li > label input { transition: none; }
 }
-/* Tables: hairlines and a quiet header, with rounded corners. */
-.note-editor .note-page table { border-collapse: separate; border-spacing: 0; border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden; }
-.note-editor .note-page th, .note-editor .note-page td { border: 0; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
-.note-editor .note-page tr > :last-child { border-right: 0; }
-.note-editor .note-page tr:last-child > td { border-bottom: 0; }
-.note-editor .note-page th { background: color-mix(in srgb, var(--ink) 4%, transparent); font-weight: 600; text-align: left; }
 
-/* Comments: the words they are about are underlined softly; the composer floats as a card; the list sits under the page. */
-.note-editor .note-page .note-commented { background: color-mix(in srgb, #ffcc00 26%, transparent); border-bottom: 2px solid color-mix(in srgb, #ffb300 70%, transparent); border-radius: 2px; }
-.note-comment-composer { position: absolute; z-index: 6; width: 340px; display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: var(--bg); border: 0.5px solid var(--hairline); box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18), 0 1px 3px rgba(0, 0, 0, 0.08); animation: note-sheet-in var(--dur-med) var(--ease); }
-.note-comment-composer textarea { resize: vertical; min-height: 60px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--hairline); background: var(--bg); color: var(--ink); font: inherit; }
-.note-comment-composer textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 0; }
-.note-comment-actions { display: flex; align-items: center; gap: 6px; }
+/* ── The toolbar ──────────────────────────────────────────────────────────────────────────────────── */
+/* Like Docs: Aa, Checklist, Link and + start the row, Share ends it. */
+.ui-toolbar-slot:has(> .ui-toolbar-group > .note-format) { flex: 1 1 auto; min-width: 0; }
+.ui-toolbar-group:has(> .note-format) { flex: 1; }
+.note-format { flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-1); }
+.note-format .spacer { flex: 1; }
+.note-format .doc-tool { color: var(--body); transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.note-format .doc-tool:hover { color: var(--ink); background: var(--sel); }
+.note-format .doc-tool[aria-pressed="true"], .note-format .note-aa-btn[aria-expanded="true"] { color: var(--ink); background: var(--sel); }
+.note-format .note-aa-btn { padding: 0 var(--sp-2); font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+.note-source[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
+/* While dictating: Stop and the time, in red (record). */
+.note-insert-btn { height: var(--control-h); padding: 0 var(--sp-3); border-radius: var(--radius-control); color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.note-insert-btn:hover { background: var(--sel); color: var(--ink); }
+.note-insert-btn[data-recording] { background: var(--red); color: var(--on-ink); }
+
+/* Clip and Link ask for an address at the top of the page, only while they are open. */
+.note-forms { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); }
+.note-clip { display: flex; gap: var(--sp-2); }
+.note-clip input { width: 240px; height: var(--control-h); padding: 0 var(--sp-3); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
+.note-clip input:focus { outline: none; border-color: var(--ink); }
+.note-link-form { position: relative; }
+.note-link-pages { position: absolute; top: calc(100% + var(--sp-1)); left: 0; z-index: var(--z-menu); min-width: var(--menu-min-w); max-width: 420px; margin: 0; padding: var(--menu-pad); list-style: none; background: var(--raised); border-radius: var(--radius-sheet); box-shadow: var(--shadow-menu); }
+.note-link-pages li { display: flex; align-items: center; gap: var(--sp-2); height: var(--menu-row-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); cursor: default; }
+.note-link-pages li[aria-selected="true"] { background: var(--sel); }
+.note-link-title { font-weight: var(--fw-medium); }
+.note-link-book { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--fs-xs); }
+
+/* Aa: the text styles and marks in one panel under its button. It floats, so it is raised with a shadow. */
+.note-aa { position: relative; display: inline-flex; }
+.note-aa-panel { position: fixed; z-index: var(--z-menu); width: 272px; display: grid; gap: var(--sp-2); padding: var(--sp-2); border-radius: var(--radius-sheet); background: var(--raised); box-shadow: var(--shadow-menu); animation: note-sheet-in var(--dur-fast) var(--ease); }
+.note-aa-styles { display: grid; }
+.note-aa-style { height: var(--menu-row-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--ink); text-align: left; line-height: var(--lh-tight); transition: background-color var(--dur-fast) var(--ease); }
+.note-aa-style:hover { background: var(--sel); }
+.note-aa-style[aria-pressed="true"] { background: var(--sel); font-weight: var(--fw-medium); }
+.note-aa-style[data-style="h1"] { font-size: var(--fs-xl); font-weight: 700; }
+.note-aa-style[data-style="h2"] { font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
+.note-aa-style[data-style="h3"], .note-aa-style[data-style="p"] { font-size: var(--fs-md); }
+.note-aa-style[data-style="h3"] { font-weight: var(--fw-semibold); }
+.note-aa-row { display: flex; gap: var(--sp-2); }
+.note-aa-group { flex: 1; display: flex; justify-content: space-between; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); }
+.note-aa-group .doc-tool { flex: 1; color: var(--ink); }
+.note-aa-group .doc-tool:hover { background: var(--sel); }
+.note-aa-group .doc-tool[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+
+/* The selection bar floats over the page. */
+.note-editor .selection-bar { background: var(--raised); box-shadow: var(--shadow-menu); }
+
+/* ── Under the page: Comments, then Linked from ──────────────────────────────────────────────────── */
+.note-comments, .note-backlinks { box-sizing: border-box; width: 100%; max-width: var(--note-col); margin: var(--sp-2) auto 0; padding: var(--sp-3) var(--sp-8) 0; background: linear-gradient(var(--line), var(--line)) no-repeat var(--sp-8) 0 / calc(100% - 2 * var(--sp-8)) var(--hairline-w); }
+.note-backlinks { margin-bottom: var(--sp-8); }
+.note-comments h2, .note-backlinks h2 { display: flex; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-2); color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.note-backlinks ul { display: grid; margin: 0; padding: 0; list-style: none; }
+/* Linked from: one row height, the title and one grey line. */
+.note-backlinks button { display: grid; align-content: center; width: calc(100% + 2 * var(--sp-2)); height: var(--row-reading); margin-left: calc(-1 * var(--sp-2)); padding: 0 var(--sp-2); border-radius: var(--radius-control); text-align: left; line-height: var(--lh-tight); }
+.note-backlinks button > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-backlinks button:hover { background: var(--sel); }
+
+/* A commented passage: a soft amber tint and an amber edge under it (content colour, not red). */
+.note-page .note-commented { background: color-mix(in srgb, var(--c-yellow) 30%, transparent); border-bottom: 2px solid var(--c-amber); border-radius: var(--radius-small); }
+.note-comment-composer { position: absolute; z-index: var(--z-menu); width: var(--panel-w); display: grid; gap: var(--sp-2); padding: var(--sp-3); border-radius: var(--radius-sheet); background: var(--raised); box-shadow: var(--shadow-3); animation: note-sheet-in var(--dur-med) var(--ease); }
+.note-comment-composer textarea { min-height: 60px; resize: vertical; padding: var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); font: inherit; }
+.note-comment-composer textarea:focus { outline: none; border-color: var(--ink); }
+.note-comment-actions { display: flex; align-items: center; gap: var(--sp-2); }
 .note-comment-actions .spacer { flex: 1; }
-.note-comment-quote { margin: 0; padding-left: 8px; border-left: 2px solid color-mix(in srgb, #ffb300 70%, transparent); color: var(--muted); font-size: var(--fs-sm); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.note-comment-quote { margin: 0; padding-left: var(--sp-2); border-left: 3px solid var(--c-amber); color: var(--muted); font-size: var(--fs-sm); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .note-comment-quote.gone { text-decoration: line-through; }
-.note-comments { width: calc(100% - 48px); max-width: 720px; margin: 8px auto 0; padding-top: 14px; border-top: 1px solid var(--hairline); }
-.note-comments h2 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
-.note-comments ul { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 6px; }
-.note-comment { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 3.5%, transparent); }
+.note-comments ul { display: grid; gap: var(--sp-2); margin: 0 0 var(--sp-2); padding: 0; list-style: none; }
+.note-comment { display: flex; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-panel); background: var(--field); }
 .note-comment[data-resolved] { opacity: 0.65; }
-.note-comment[data-by="mobius"] { border: 1px dashed color-mix(in srgb, var(--mobius) 55%, transparent); }
-.note-comment-body { flex: 1; min-width: 0; display: grid; gap: 3px; text-align: left; }
+.note-comment[data-by="mobius"] { border: var(--hairline-w) dashed var(--mobius); }
+.note-comment-body { flex: 1; min-width: 0; display: grid; gap: var(--sp-1); text-align: left; }
 .note-comment-body:disabled { cursor: default; color: inherit; }
 .note-comment-text { white-space: pre-wrap; overflow-wrap: anywhere; }
-.note-comment-who { font-size: var(--fs-xs); color: var(--muted); }
-.note-comment-tools { display: flex; gap: 2px; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.note-comment-who { color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.note-comment-tools { display: flex; gap: var(--sp-1); opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
 .note-comment:hover .note-comment-tools, .note-comment:focus-within .note-comment-tools { opacity: 1; }
-.note-comment-tool { height: 24px; padding: 0 8px; border-radius: 7px; font-size: var(--fs-xs); color: var(--muted); }
-.note-comment-tool:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
-.note-comments-fold { font-size: var(--fs-xs); color: var(--accent); padding: 2px 0; }
-.note-comments-none { margin: 0 0 4px; font-size: var(--fs-sm); color: var(--muted); }
 @media (hover: none) { .note-comment-tools { opacity: 1; } }
-
-/* Share: a small menu under its button. */
-
-/* Printing (and saving as a PDF) gives only the page. */
-@media print {
-  body * { visibility: hidden !important; }
-  .note-paper, .note-paper * { visibility: visible !important; }
-  .note-paper { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; }
-  .note-paper .note-page { padding: 0; color: #000; }
-  .note-paper .note-tag, .note-paper .note-commented { background: none; border: 0; color: inherit; }
-}
-/* What comes under the page (comments, Linked from) follows the writing rather than sitting at the window's foot. */
-.note-editor .note-paper { flex: 0 0 auto; }
-.note-editor .note-page { min-height: 40vh; }
-/* Comments and Linked from line up with the page's text. */
-.note-editor .note-comments, .note-editor .note-backlinks { box-sizing: border-box; width: 100%; max-width: 720px; padding: 14px var(--sp-8) 0; border-top: 0; background: linear-gradient(var(--hairline), var(--hairline)) no-repeat var(--sp-8) 0 / calc(100% - 2 * var(--sp-8)) 1px; }
-.note-editor .note-backlinks { margin-bottom: 40px; }
-.note-editor .note-backlinks button { margin-left: -10px; width: calc(100% + 20px); }
+.note-comment-tool { height: var(--control-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--muted); font-size: var(--fs-xs); }
+.note-comment-tool:hover { background: var(--sel); color: var(--ink); }
+.note-comments-fold { padding: var(--sp-1) 0; color: var(--ink); font-size: var(--fs-xs); }
+.note-comments-none { margin: 0 0 var(--sp-1); color: var(--muted); font-size: var(--fs-sm); }
 /* Replies sit under the comment they answer, indented behind a hairline. */
-.note-comment-replies { list-style: none; margin: 4px 0 0 10px; padding: 0 0 0 10px; border-left: 1px solid var(--hairline, var(--line)); display: grid; gap: 6px; }
-.note-comment-reply { display: grid; gap: 2px; font-size: var(--fs-sm); }
-.note-comment-reply .note-comment-who { color: var(--muted); font-size: var(--fs-xs); }
+.note-comment-replies { display: grid; gap: var(--sp-2); margin: var(--sp-1) 0 0 var(--sp-2); padding: 0 0 0 var(--sp-2); border-left: var(--hairline-w) solid var(--line); list-style: none; }
+.note-comment-reply { display: grid; gap: var(--sp-1); font-size: var(--fs-sm); }
 
-/* Aa: the text styles and marks in one panel under the bar, as in Apple Notes. The bar keeps what is used while writing. */
-.note-aa { position: relative; display: inline-flex; }
-.note-format .note-aa-btn { font-weight: 600; font-size: var(--fs-md); letter-spacing: -0.01em; padding: 0 8px; }
-.note-format .note-aa-btn[aria-expanded="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
-.note-aa-panel { position: fixed; z-index: 40; width: 272px; display: grid; gap: 10px; padding: 10px; border-radius: 14px; border: 0.5px solid var(--hairline); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.08); animation: note-sheet-in var(--dur-fast) var(--ease); }
-.note-aa-styles { display: grid; gap: 1px; }
-.note-aa-style { text-align: left; padding: 5px 10px; border-radius: 8px; color: var(--ink); line-height: 1.25; transition: background-color var(--dur-fast) var(--ease); }
-.note-aa-style:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.note-aa-style[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
-.note-aa-style[data-style="h1"] { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
-.note-aa-style[data-style="h2"] { font-size: 16px; font-weight: 700; }
-.note-aa-style[data-style="h3"] { font-size: var(--fs-md); font-weight: 600; }
-.note-aa-style[data-style="p"] { font-size: var(--fs-md); }
-.note-aa-row { display: flex; gap: 8px; }
-.note-aa-group { flex: 1; display: flex; justify-content: space-between; padding: 2px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
-.note-aa-group .doc-tool { flex: 1; color: var(--ink); border-radius: 8px; }
-.note-aa-group .doc-tool:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.note-aa-group .doc-tool[aria-pressed="true"] { color: var(--accent); background: var(--bg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+/* ── History: earlier versions down the side, the chosen one compared with the page now, and Restore ── */
+.note-history { flex: 1; min-height: 0; display: flex; flex-direction: column; animation: note-sheet-in var(--dur-med) var(--ease); }
+.note-history-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); }
+.note-history-head h2 { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+.note-history-sub { color: var(--muted); font-size: var(--fs-sm); }
+.note-history-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(180px, var(--sidebar-w)) 1fr; }
+.note-history-list { display: grid; align-content: start; overflow: auto; padding: var(--sp-2); border-right: var(--hairline-w) solid var(--line); }
+.note-history-list h3 { margin: var(--sp-3) var(--sp-2) var(--sp-1); color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
+.note-history-list [role="group"]:first-child h3 { margin-top: 0; }
+/* One row height: the time, and why in one grey line. */
+.note-history-row { display: grid; align-content: center; width: 100%; height: var(--row-reading); padding: 0 var(--sp-2); border-radius: var(--radius-control); text-align: left; line-height: var(--lh-tight); }
+.note-history-row:hover { background: var(--sel); }
+.note-history-row[aria-current="true"] { background: var(--sel); font-weight: var(--fw-medium); }
+.note-history-time { font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.note-history-why { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
+.note-history-view { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.note-history-bar { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); font-size: var(--fs-sm); }
+.note-history-counts { color: var(--muted); font-variant-numeric: tabular-nums; }
+.note-history-view .seg-btn[aria-pressed="true"] { background: var(--sel); color: var(--ink); box-shadow: none; }
+.note-history-diff { margin-top: 0; }
+.note-history-page { flex: 1; box-sizing: border-box; width: 100%; max-width: var(--note-col); margin: 0 auto; padding: var(--sp-2) var(--sp-8) var(--sp-8); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: var(--fs-reading); line-height: var(--lh-body); }
+.note-history-empty { flex: 1; display: grid; place-content: center; gap: var(--sp-1); color: var(--muted); text-align: center; }
+.note-history-empty p { margin: 0; }
+.note-history-hint { max-width: 32ch; font-size: var(--fs-sm); }
+.note-history .spacer { flex: 1; }
+/* "Restored" and "Copied": one plain line at the top of the page. */
+.note-restored { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--field); font-size: var(--fs-sm); }
+.note-restored > span { flex: 1; }
 
-/* The note list, as in Apple Notes: the title, then the time in ink and the first line in grey. */
-/* A row with its second line gets room to breathe; Pin and the inline Delete sit at its end, Pin only on hover. */
-.dock .side.notes-side .list-row:has(.ui-side-sub) { padding-block: var(--sp-1); line-height: 1.3; }
-.notes-side .ui-side-row-trail:hover > .note-delete, .notes-side .ui-side-row-trail > .note-delete:focus-visible { opacity: 1; }
-.notes-side .ui-side-section + .ui-side-section, .notes-side .notes-new-group { margin-top: var(--sp-2); }
-
-/* Notes rows: one line, the date at the end (as in Docs and Mail). Pin and the delete confirm take the date's place
-   on hover, so the row never grows a second line or shifts. */
+/* ── The note list (sidebar) ──────────────────────────────────────────────────────────────────────── */
+/* One row height (--row-list) for every page: the title with its date at the end, and one grey line under it. Pin and
+   the delete confirm take the date's place on hover, so the row never changes height or shifts. */
 .notes-side[data-app="notes"] .ui-side-row-trail { position: relative; }
-.notes-side[data-app="notes"] .ui-side-row-trail > .list-row { padding-right: 64px; }
-.notes-side[data-app="notes"] .note-side-when { position: absolute; right: var(--sp-2); pointer-events: none; font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.notes-side[data-app="notes"] .ui-side-row-trail > .note-delete { position: absolute; right: 2px; margin: 0; }
+.dock .side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row { height: var(--row-list); min-height: var(--row-list); padding-block: var(--sp-1); padding-right: calc(2 * var(--sp-8) + var(--sp-2)); line-height: var(--lh-tight); }
+.notes-side[data-app="notes"] .note-side-when { position: absolute; top: var(--sp-1); right: var(--sp-2); line-height: calc(var(--fs-md) * var(--lh-tight)); pointer-events: none; color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.notes-side .ui-side-row-trail:hover > .note-delete, .notes-side .ui-side-row-trail > .note-delete:focus-visible { opacity: 1; }
+.notes-side[data-app="notes"] .ui-side-row-trail > .note-delete { position: absolute; right: var(--sp-1); margin: 0; }
 .notes-side[data-app="notes"] .ui-side-row-trail > .note-pin[aria-pressed="true"] { opacity: 0; }
 .notes-side[data-app="notes"] .ui-side-row-trail:is(:hover, :has(:focus-visible)) > .note-pin { opacity: 1; }
 .notes-side[data-app="notes"] .ui-side-row-trail:is(:hover, :has(:focus-visible), :has(> .confirm)) > .note-side-when { visibility: hidden; }
 .notes-side[data-app="notes"] .ui-side-row-trail:has(> .confirm) > .note-pin { display: none; }
+.notes-side .ui-side-section + .ui-side-section, .notes-side .notes-new-group { margin-top: var(--sp-2); }
+/* While the list is read: grey placeholder bars the shape of the rows, not a spinner. */
+.notes-loading { display: grid; gap: var(--sp-2); margin: 0; padding: var(--sp-2) var(--sp-3); list-style: none; }
+.notes-loading li { display: grid; gap: var(--sp-1); height: var(--row-list); align-content: center; }
+.notes-loading li::before, .notes-loading li::after { content: ""; height: var(--sp-2); border-radius: var(--radius-small); background: var(--sel); }
+.notes-loading li::before { width: 70%; }
+.notes-loading li::after { width: 45%; opacity: 0.6; }
+
+/* ── Printing (and saving as a PDF) gives only the page ──────────────────────────────────────────── */
+@media print {
+  body * { visibility: hidden !important; }
+  .note-paper, .note-paper * { visibility: visible !important; }
+  .note-paper { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; }
+  .note-paper .note-page { padding: 0; color: var(--ink); }
+  .note-paper .note-tag, .note-paper .note-commented { border: 0; background: none; color: inherit; }
+}

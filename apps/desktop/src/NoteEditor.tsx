@@ -174,7 +174,7 @@ function FormatButtons({ editor, onLink, insert }: { editor: Editor; onLink: () 
   return (
     <>
       <div className="note-aa" ref={wrap}>
-        <button type="button" className="doc-tool note-aa-btn" aria-label="Format text" title="Styles, bold, italic and lists" aria-haspopup="dialog" aria-expanded={panel !== null} data-marked={marked || undefined} onPointerDown={keep} onClick={toggle}>
+        <button type="button" className="doc-tool note-aa-btn" aria-label="Format text" title="Format text" aria-haspopup="dialog" aria-expanded={panel !== null} data-marked={marked || undefined} onPointerDown={keep} onClick={toggle}>
           <span aria-hidden="true">Aa</span>
         </button>
         {panel && createPortal(
@@ -212,7 +212,7 @@ function FormatButtons({ editor, onLink, insert }: { editor: Editor; onLink: () 
       <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title="Checklist (Ctrl+Shift+9)" onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5.5" cy="6" r="2.2" /><path d="m4.4 6 .8.8 1.4-1.6" /><circle cx="5.5" cy="13.5" r="2.2" /><path d="M10 6h6.5M10 13.5h6.5" /></svg>
       </button>
-      <button type="button" className="doc-tool" aria-label="Link" aria-pressed={state.link} title={state.link ? 'Remove the link' : 'Link to a note or a web page (or type [[)'} onPointerDown={keep} onClick={() => (state.link ? editor.chain().focus().unsetLink().run() : onLink())}>
+      <button type="button" className="doc-tool" aria-label="Link" aria-pressed={state.link} title={state.link ? 'Remove link' : 'Link'} onPointerDown={keep} onClick={() => (state.link ? editor.chain().focus().unsetLink().run() : onLink())}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" /></svg>
       </button>
       {insert}
@@ -226,7 +226,7 @@ function FormatButtons({ editor, onLink, insert }: { editor: Editor; onLink: () 
           { label: 'Delete the row', run: run((c) => c.deleteRow()), separated: true },
           { label: 'Delete the column', run: run((c) => c.deleteColumn()) },
           { label: 'Delete the table', run: run((c) => c.deleteTable()), danger: true },
-        ]} trigger={<button type="button" className="doc-tool" aria-label="Table" aria-pressed title="Rows and columns">{TABLE_ICON}</button>} />
+        ]} trigger={<button type="button" className="doc-tool" aria-label="Table" aria-pressed title="Table">{TABLE_ICON}</button>} />
       )}
     </>
   );
@@ -651,7 +651,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       ...(window.mobius.notes?.attach ? [{ label: adding > 0 ? 'Adding…' : 'Picture or file…', disabled: adding > 0, run: () => picker.current?.click() }] : []),
       { label: 'Dictate', disabled: recording.state !== 'idle', run: recording.toggle },
       { label: 'Clip a web page…', run: () => setClipping(''), separated: true },
-    ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Insert a table, a picture or a file, dictation or a clipped web page"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>} />
+    ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Insert"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>} />
   );
   const edited = notes.page.base ? relativeTime(notes.page.base, Math.max(now, notes.page.base)) : '';
   return (
@@ -692,11 +692,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
             ] : []),
             { label: 'Print or save as PDF…', run: () => void share('print'), separated: true },
           ]} trigger={
-            <button type="button" className="doc-tool" aria-label="Share" title="Copy, export or print this page">
+            <button type="button" className="doc-tool" aria-label="Share" title="Share">
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 12.5V3.5M6.8 6.5 10 3.3l3.2 3.2M6.5 9H5.5A1.5 1.5 0 0 0 4 10.5v5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 14.5 9h-1" /></svg>
             </button>
           } />
-          {source && <button type="button" className="doc-tool text note-source" aria-pressed title="Show the page formatted" onClick={toggleSource}>Markdown</button>}
+          {source && <button type="button" className="doc-tool text note-source" aria-pressed title="Show formatted" onClick={toggleSource}>Markdown</button>}
         </div>
         </ToolbarControls>
       )}
