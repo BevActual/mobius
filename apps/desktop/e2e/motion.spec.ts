@@ -46,7 +46,7 @@ test('with Reduce Motion a menu fades, rather than moving or not animating at al
 
 test('the message box says what it would ask about in the app that is showing, Settings included', async () => {
   const shell = mobius!.shell;
-  const ask = shell.getByRole('complementary', { name: 'Agent' }).getByRole('textbox', { name: 'Message Mobius' });
+  const ask = shell.getByRole('complementary', { name: 'Agent', exact: true }).getByRole('textbox', { name: 'Message Mobius' });
   const open = async (name: string) => {
     await shell.keyboard.press('Control+k');
     await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
@@ -72,7 +72,7 @@ test('a field shows one soft focus ring: never a ring inside a ring', async () =
   // Settings' search field, reached from the keyboard.
   await openSettings(shell);
   await shell.keyboard.press('Shift');
-  await shell.locator('.settings-search').focus();
-  expect(await rings('.settings-search')).toBe(1);
+  await shell.getByRole('searchbox', { name: 'Search settings' }).focus();
+  expect(await rings('input[aria-label="Search settings"]')).toBe(1);
   await openSettings(shell);
 });

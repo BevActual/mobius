@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { MAIN_BOT_ID, botOfConversation, type Bot, type BotResult, type ConversationInfo, type ScheduleInfo } from '@mobius/shared';
@@ -10,6 +10,8 @@ import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { ReviewActions } from './ReviewBar';
 import { Turns } from './Rewind';
 import { botFromConversation } from './bot-view';
+import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection } from './ui';
+import './conversation-sidebar.css';
 
 interface Props {
   /** Open Settings › Schedules. */
@@ -92,10 +94,10 @@ function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived,
 /** How many sessions, in words: "No sessions", "1 session", "4 sessions". */
 const sessionCount = (n: number) => (n === 0 ? 'No sessions' : n === 1 ? '1 session' : `${n} sessions`);
 
+/** An agent in the sidebar: a plain row with its name. Its actions are in the More menu (or a right-click). */
 function BotRow({ bot, sessions, current, first, last, onOpen, onEdit, onNew, onRemove, onMove }: { bot: Bot; sessions: number; current: boolean; first: boolean; last: boolean; onOpen: () => void; onEdit: () => void; onNew: () => void; onRemove: Props['onRemoveBot']; onMove: Props['onMoveBot'] }) {
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  // The row's actions live in one menu, from the More button or a right-click, so the name keeps the whole row.
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const main = bot.id === MAIN_BOT_ID;
   const items: ContextMenuItem[] = [
@@ -107,35 +109,30 @@ function BotRow({ bot, sessions, current, first, last, onOpen, onEdit, onNew, on
       { action: 'delete' as const, label: 'Remove…', danger: true, separated: true, run: () => setConfirming(true) },
     ]),
   ];
-  const openMenu = (x: number, y: number) => setMenu({ x, y });
   return (
-    <li className="clist-item bot-row" data-current={current || undefined} data-bot={bot.id}
-      onContextMenu={(e) => { e.preventDefault(); openMenu(e.clientX, e.clientY); }}
-      onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); openMenu(r.left + 12, r.bottom); } }}>
-      <button type="button" className="clist-main" aria-current={current ? 'true' : undefined} onClick={onOpen}>
-        <span className="clist-title">{bot.name}</span>
-        <span className="clist-sub">{main ? 'Built in' : bot.model || 'Model from settings'} · {sessionCount(sessions)}</span>
-      </button>
-      <button type="button" className="bot-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
-      </button>
-      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={bot.name} items={items} onClose={() => setMenu(null)} />, document.body)}
-      {confirming && (
-        <div className="bot-confirm" role="alertdialog" aria-label={`Remove ${bot.name}?`}>
-          <p>{sessions > 0 ? `Remove ${bot.name} and its ${sessions === 1 ? 'session' : `${sessions} sessions`}?` : `Remove ${bot.name}?`}</p>
-          <span className="botform-actions">
-            <button type="button" className="btn" autoFocus onClick={() => setConfirming(false)}>Keep</button>
-            <button type="button" className="btn danger" onClick={() => void onRemove(bot.id).then((r) => { if (!r.ok) setProblem(r.error); setConfirming(false); })}>Remove</button>
-          </span>
-        </div>
-      )}
-      {problem && <span className="field-error" role="alert">{problem}</span>}
-    </li>
+    <SidebarRow label={bot.name} current={current} onSelect={onOpen} title={`${main ? 'Built in' : bot.model || 'Model from settings'} · ${sessionCount(sessions)}`}
+      onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }); }}
+      trail={<>
+        <button type="button" className="bot-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
+        </button>
+        {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={bot.name} items={items} onClose={() => setMenu(null)} />, document.body)}
+        {confirming && (
+          <div className="bot-confirm" role="alertdialog" aria-label={`Remove ${bot.name}?`}>
+            <p>{sessions > 0 ? `Remove ${bot.name} and its ${sessions === 1 ? 'session' : `${sessions} sessions`}?` : `Remove ${bot.name}?`}</p>
+            <span className="botform-actions">
+              <button type="button" className="btn" autoFocus onClick={() => setConfirming(false)}>Keep</button>
+              <button type="button" className="btn danger" onClick={() => void onRemove(bot.id).then((r) => { if (!r.ok) setProblem(r.error); setConfirming(false); })}>Remove</button>
+            </span>
+          </div>
+        )}
+        {problem && <span className="field-error" role="alert">{problem}</span>}
+      </>} />
   );
 }
 
-/** What is scheduled, under the conversations, as in the design's Agent sidebar. Choosing one opens Settings › Schedules. */
-function ScheduledList({ onOpen }: { onOpen: () => void }) {
+/** The schedules, read once and again whenever they change. */
+function useScheduleList(): ScheduleInfo[] {
   const [list, setList] = useState<ScheduleInfo[]>([]);
   useEffect(() => {
     let live = true;
@@ -144,6 +141,12 @@ function ScheduledList({ onOpen }: { onOpen: () => void }) {
     const off = window.mobius.schedules?.onChange(load);
     return () => { live = false; off?.(); };
   }, []);
+  return list;
+}
+
+/** What is scheduled, as a list with when each runs: the Activity page's card. Choosing one opens Settings › Schedules. */
+export function ScheduledList({ onOpen }: { onOpen: () => void }) {
+  const list = useScheduleList();
   if (list.length === 0) return null;
   return (
     <section aria-label="Scheduled">
@@ -162,11 +165,25 @@ function ScheduledList({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+/** What is scheduled, under the conversations in the Agent sidebar: a shared section, when each runs on hover. */
+function ScheduledSection({ onOpen }: { onOpen: () => void }) {
+  const list = useScheduleList();
+  if (list.length === 0) return null;
+  return (
+    <SidebarSection title="Scheduled">
+      {list.map((s) => (
+        <SidebarRow key={s.id} label={s.title} title={`${describeWhen(s.days, s.time)}${s.enabled ? '' : ' · Off'}. Change in Settings › Schedules.`} onSelect={onOpen}
+          icon={<svg viewBox="0 0 20 20" aria-hidden="true" className="side-glyph"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.6" /></svg>} />
+      ))}
+    </SidebarSection>
+  );
+}
+
 /**
  * Changes not yet kept or discarded, from today's conversations, one row per conversation: the design's Activity
  * history with Undo, for each conversation's last turn. Keep and Discard do what they do in the strip.
  */
-function ChangesWaiting({ conversations, onSelect }: { conversations: ConversationInfo[]; onSelect: (id: string) => void }) {
+export function ChangesWaiting({ conversations, onSelect }: { conversations: ConversationInfo[]; onSelect: (id: string) => void }) {
   const [rows, setRows] = useState<{ conversation: ConversationInfo; turn: string | null; files: string[] }[]>([]);
   const [tick, setTick] = useState(0);
   const ids = conversations.map((c) => c.id).join(',');
@@ -262,43 +279,36 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
   const putAway = everything.filter((c) => archived.includes(c.id));
   const [showArchived, setShowArchived] = useState(false);
   const sessionsOf = (id: string) => conversations.filter((c) => botOfConversation(c.id, known) === id);
+  // Agents' runs (not Mobius's own sessions) that are waiting for you.
+  const waiting = conversations.filter((c) => botOfConversation(c.id, known) !== MAIN_BOT_ID && c.activity === 'needs_you').length;
   return (
-    <aside className="side" aria-label="Conversation list">
-      <div className="side-head">
-        <div className="seg" role="tablist" aria-label="Show">
-          {(['sessions', 'activity', 'bots'] as const).map((m) => (
-            <button key={m} type="button" role="tab" aria-selected={mode === m} className="seg-btn" onClick={() => onMode(m)}>{m === 'sessions' ? 'Sessions' : m === 'activity' ? 'Activity' : 'Agents'}</button>
-          ))}
-        </div>
-        <span className="side-actions">
+    <AppSidebar label="Agent sidebar">
+      {/* Agents and Activity open from the rail; the sidebar shows the list of the one you are in. */}
+      {(pin || (mode !== 'bots' && everything.length > 0)) && (
+        <div className="agent-side-top">
+          {mode !== 'bots' && everything.length > 0 && <SidebarSearch label="Search sessions" placeholder="Search sessions" value={query} onChange={setQuery} />}
           {pin}
-          {mode !== 'bots' ? (
-            <button type="button" className="strip-btn" aria-label="New conversation" title={grouped ? `New session with ${bots.find((b) => b.id === activeBot)?.name ?? 'Mobius'}` : 'New conversation'} disabled={!canStartNew} onClick={onNew}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-            </button>
-          ) : (
-            <button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => onShowAgent({ kind: 'new', draft: EMPTY_DRAFT })}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-            </button>
-          )}
-        </span>
-      </div>
+        </div>
+      )}
       {mode === 'activity' ? (
         <ActivityBoard conversations={conversations} active={active} onSelect={onSelect} onDelete={onDelete} onOpenSchedules={onOpenSchedules} />
       ) : mode === 'bots' ? (
         <>
-          <ul className="clist" role="list" aria-label="Agents">
+          <SidebarSection title="Agents" action={<button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => onShowAgent({ kind: 'new', draft: EMPTY_DRAFT })}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>}>
             {bots.map((bot, index) => (
               <BotRow key={bot.id} bot={bot} first={index <= 1} last={index === bots.length - 1} onMove={onMoveBot} sessions={sessionsOf(bot.id).length} current={shownBot === bot.id} onOpen={() => onShowAgent({ kind: 'show', id: bot.id })} onEdit={() => onShowAgent({ kind: 'show', id: bot.id, editing: true })} onNew={() => { onNewWithBot(bot.id); onMode('sessions'); }} onRemove={onRemoveBot} />
             ))}
-          </ul>
-          <p className="srow-empty side-empty">An agent is Mobius with its own instructions, and optionally its own model. Each keeps its own sessions.</p>
+          </SidebarSection>
+          {/* What agents did that waits for you, as Mail's Suggested replies: it opens in Activity. */}
+          <SidebarSection title="From Mobius">
+            <SidebarRow label="Runs waiting for you" onSelect={() => onMode('activity')}
+              trail={waiting > 0 ? <span className="agent-to-review">{waiting} to review</span> : undefined} />
+          </SidebarSection>
         </>
       ) : everything.length === 0 ? (
         <p className="srow-empty side-empty">Nothing saved yet. Conversations appear here once you send a message.</p>
       ) : (
         <>
-          <input type="search" className="side-search" aria-label="Search sessions" placeholder="Search sessions" value={query} onChange={(e) => setQuery(e.target.value)} />
           {bots.map((bot) => {
             const all = sessionsOf(bot.id);
             const rows = needle ? all.filter((c) => c.title.toLowerCase().includes(needle)) : all;
@@ -329,7 +339,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
               </section>
             );
           })}
-          {onOpenSchedules && !needle && <ScheduledList onOpen={onOpenSchedules} />}
+          {onOpenSchedules && !needle && <ScheduledSection onOpen={onOpenSchedules} />}
           {onArchive && putAway.length > 0 && (
             <section aria-label="Archived">
               <h3 className="clist-group">
@@ -351,6 +361,6 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
           {needle && bots.every((bot) => !sessionsOf(bot.id).some((c) => c.title.toLowerCase().includes(needle))) && <p className="srow-empty side-empty">No session matches “{query.trim()}”.</p>}
         </>
       )}
-    </aside>
+    </AppSidebar>
   );
 }

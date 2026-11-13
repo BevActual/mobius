@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { KEPT_EVENT, fileKept, keptTurns, turnId } from './ReviewStrip';
 
 /** What the last agent turn changed, as note page paths and task list names, so Notes and Tasks can mark them. */
-export interface TurnMarks { /** The changed workspace files still waiting for Keep. */ files: readonly string[]; notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string>; sheets: ReadonlySet<string>; slides: ReadonlySet<string>; /** `project/path` of code files. */ code: ReadonlySet<string>; designs: ReadonlySet<string>; boards: ReadonlySet<string>; research: ReadonlySet<string>; reading: ReadonlySet<string>; /** Database names. */ databases: ReadonlySet<string>; /** `album/photo` whose edits changed. */ photos: ReadonlySet<string>; songs: ReadonlySet<string>; /** Video projects whose cut changed. */ video: ReadonlySet<string>; skills: ReadonlySet<string> }
-const NONE: TurnMarks = { files: [], notes: new Set(), lists: new Set(), docs: new Set(), sheets: new Set(), slides: new Set(), code: new Set(), designs: new Set(), boards: new Set(), research: new Set(), reading: new Set(), databases: new Set(), photos: new Set(), songs: new Set(), video: new Set(), skills: new Set() };
+export interface TurnMarks { /** The changed workspace files still waiting for Keep. */ files: readonly string[]; notes: ReadonlySet<string>; lists: ReadonlySet<string>; docs: ReadonlySet<string>; sheets: ReadonlySet<string>; slides: ReadonlySet<string>; /** `project/path` of code files. */ code: ReadonlySet<string>; designs: ReadonlySet<string>; boards: ReadonlySet<string>; research: ReadonlySet<string>; reading: ReadonlySet<string>; /** Database names. */ databases: ReadonlySet<string>; /** `album/photo` whose edits changed. */ photos: ReadonlySet<string>; songs: ReadonlySet<string>; /** Video projects whose cut changed. */ video: ReadonlySet<string>; skills: ReadonlySet<string>; /** Calendar app: calendar names whose .ics file changed. */ calendars: ReadonlySet<string> }
+const NONE: TurnMarks = { files: [], notes: new Set(), lists: new Set(), docs: new Set(), sheets: new Set(), slides: new Set(), code: new Set(), designs: new Set(), boards: new Set(), research: new Set(), reading: new Set(), databases: new Set(), photos: new Set(), songs: new Set(), video: new Set(), skills: new Set(), calendars: new Set() };
 
 export function marksOf(files: readonly string[]): TurnMarks {
   const notes = new Set<string>();
@@ -21,6 +21,7 @@ export function marksOf(files: readonly string[]): TurnMarks {
   const songs = new Set<string>();
   const video = new Set<string>();
   const skills = new Set<string>();
+  const calendars = new Set<string>(); // Calendar app
   for (const file of files) {
     if (file.startsWith('notes/')) notes.add(file.slice('notes/'.length));
     else if (file.startsWith('docs/')) docs.add(file.slice('docs/'.length));
@@ -36,9 +37,10 @@ export function marksOf(files: readonly string[]): TurnMarks {
     else if (file.startsWith('reading/')) reading.add(file.slice('reading/'.length));
     else if (file.startsWith('databases/') && file.endsWith('.sqlite')) databases.add(file.slice('databases/'.length, -'.sqlite'.length));
     else if (file.startsWith('code/')) code.add(file.slice('code/'.length));
+    else if (file.startsWith('calendar/') && file.endsWith('.ics')) calendars.add(file.slice('calendar/'.length, -'.ics'.length)); // Calendar app
     else if (file.startsWith('tasks/') && file.endsWith('.md')) lists.add(file.slice('tasks/'.length, -'.md'.length));
   }
-  return { files: [...files], notes, lists, docs, sheets, slides, code, designs, boards, research, reading, databases, photos, songs, video, skills };
+  return { files: [...files], notes, lists, docs, sheets, slides, code, designs, boards, research, reading, databases, photos, songs, video, skills, calendars };
 }
 
 /** Read when a turn ends, when another conversation is shown, and after anything is put back. */

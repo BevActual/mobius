@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { MobiusMark } from '../MobiusMark';
-import { MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
+import { withSteps, MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
 import { usePreferences } from '../usePreferences';
 import { asCatalog, filterCatalog } from './model-catalog';
 import { PopMenu } from './PopMenu';
@@ -277,7 +277,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     // A photo goes as the picture itself too, for models that read pictures.
     const photo = s.attach === 'photo' && surface?.photo?.picture ? await pictureFromUrl(surface.photo.picture) : null;
     const images = [...pictures, ...(photo ? [photo] : [])].slice(0, MAX_PICTURES);
-    go(s.prompt, items, images.length > 0 ? { images } : undefined, false);
+    // The chip's words are the message; the steps behind it go along for the model and stay behind Details.
+    go(withSteps(s.label, s.prompt), items, images.length > 0 ? { images } : undefined, false);
     setPictures([]);
   };
 

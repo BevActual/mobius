@@ -5,8 +5,11 @@ import { AboutSection, AdvancedSection, AppearanceSection, BrowserSection, Keybo
 import { ProvidersSection } from './ProviderKeys';
 import { SchedulesSection } from './Schedules';
 import { PageBoundary } from './PageBoundary';
+import { UsageSection } from './Usage';
 import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection, VoiceModelRows } from './Voice';
+import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection } from '../ui';
 import '../settings.css';
+import { MailAccountsSettings } from '../MailAccounts';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
 
@@ -23,9 +26,12 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   safety: SafetySection,
   schedules: SchedulesSection,
   browser: BrowserSection,
+  // Mail's accounts (from the Mail app).
+  mail: ({ highlight }) => <MailAccountsSettings highlight={highlight === 'mail-accounts'} />,
   notifications: NotificationsSection,
   sessions: SessionsSection,
   keyboard: KeyboardSection,
+  usage: UsageSection,
   advanced: AdvancedSection,
   about: AboutSection,
 };
@@ -42,10 +48,12 @@ const SECTION_GLYPHS: Record<string, string> = {
   providers: 'M4 6h4M3 4a2 2 0 1 0 0 4M9 4a2 2 0 1 1 0 4',
   safety: 'M6 1.5 10 3v3c0 2.5-1.8 4-4 4.5C3.8 10 2 8.5 2 6V3z',
   browser: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M1.5 6h9M6 1.5c-2 2.5-2 6.5 0 9M6 1.5c2 2.5 2 6.5 0 9',
+  mail: 'M1.5 3h9v6h-9zM1.5 3.5 6 6.5l4.5-3',
   schedules: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M6 3.5V6l1.8 1.2',
   notifications: 'M3 8.5V5.5a3 3 0 0 1 6 0v3l1 1H2zM5 10.5h2',
   sessions: 'M2 3h8v5H5l-2 2V8H2z',
   keyboard: 'M1.5 3.5h9v5h-9zM3.5 5.5h1M5.5 5.5h1M7.5 5.5h1M4 7h4',
+  usage: 'M2 10V7M4.7 10V4.5M7.3 10V6M10 10V2.5',
   advanced: 'M2 3l3 3-3 3M6 9h4',
   about: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M6 5.5v3M6 3.6v0.1',
 };
@@ -55,8 +63,8 @@ const SECTION_TINTS: Record<string, string> = {
   general: '#8e8e93', appearance: '#007aff', notifications: '#ff3b30', keyboard: '#8e8e93',
   providers: '#00c7be', model: '#5856d6', voice: '#ff2d55',
   safety: '#ff9f0a', memory: '#a2845e', privacy: '#1f6feb',
-  browser: '#30b0c7', sessions: '#af52de', schedules: '#34c759', extensions: '#7d7aff',
-  advanced: '#3a3a3c', about: '#636366',
+  browser: '#30b0c7', mail: '#1e88e5', sessions: '#af52de', schedules: '#34c759', extensions: '#7d7aff',
+  usage: '#ff9500', advanced: '#3a3a3c', about: '#636366',
 };
 
 function SectionIcon({ id, className }: { id: string; className: string }) {
@@ -77,27 +85,24 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   const hits = useMemo(() => searchSettings(query), [query]);
   const View = VIEWS[section];
   useEffect(() => { onTitle?.(query.trim() ? 'Search' : current?.label ?? 'Settings'); }, [onTitle, query, current?.label]);
+  // The app sidebar (zone 2), from the shared pieces: search, then the sections under their headings, as in System Settings.
   const nav = (
-    <nav className="settings-nav" aria-label="Settings sections">
-      {/* As in System Settings: search at the top of the sidebar, then the sections under their headings. */}
-      <input type="search" role="searchbox" className="settings-search" aria-label="Search settings" placeholder="Search" value={query} onChange={(event) => setQuery(event.target.value)} />
-      {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (
-        <div key={group} className="settings-nav-group" role="group" aria-label={group}>
-          {group && <h2 className="settings-nav-heading">{group}</h2>}
-          {SETTINGS.filter((item) => (item.group ?? '') === group).map((item) => (
-            <button key={item.id} type="button" className="settings-nav-item" data-section={item.id} aria-current={item.id === section && !query.trim() ? 'page' : undefined} onClick={() => openSection(item.id)}>
-              {/* A coloured glyph per section, as in System Settings and the Settings board. */}
-              <SectionIcon id={item.id} className="settings-nav-icon" />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      ))}
-    </nav>
+    <AppSidebar label="Settings sidebar">
+      <SidebarSearch label="Search settings" value={query} onChange={setQuery} />
+      <nav className="settings-nav" aria-label="Settings sections">
+        {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (
+          <SidebarSection key={group} title={group}>
+            {SETTINGS.filter((item) => (item.group ?? '') === group).map((item) => (
+              <SidebarRow key={item.id} icon={<SectionIcon id={item.id} className="settings-nav-icon" />} label={item.label} current={item.id === section && !query.trim()} onSelect={() => openSection(item.id)} />
+            ))}
+          </SidebarSection>
+        ))}
+      </nav>
+    </AppSidebar>
   );
 
   useEffect(() => {
-    (sidebar ?? root.current)?.querySelector<HTMLElement>('[role="searchbox"], input[type="search"]')?.focus();
+    (sidebar ?? root.current)?.querySelector<HTMLElement>('input[type="search"]')?.focus();
   }, [sidebar]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

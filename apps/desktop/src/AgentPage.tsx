@@ -1,7 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { MAIN_BOT_ID, MAX_BOT_INSTRUCTIONS, MAX_BOT_NAME, botOfConversation, type Bot, type BotDraft, type BotResult, type ConversationInfo, type ScheduleInfo } from '@mobius/shared';
 import { describeWhen } from './settings/Schedules';
-import { relativeTime } from './relative-time';
+import { ConversationRow } from './ActivityApp';
 import { agentSchedules, mayTouch, modelChoices } from './bot-view';
 import { modeOf } from './approval-modes';
 import { usePreferences } from './usePreferences';
@@ -28,7 +28,7 @@ function useModelNames(): string[] {
 }
 
 /** The schedules there are, kept current. */
-function useSchedules(): ScheduleInfo[] {
+export function useSchedules(): ScheduleInfo[] {
   const [list, setList] = useState<ScheduleInfo[]>([]);
   useEffect(() => {
     let live = true;
@@ -116,9 +116,26 @@ interface Props {
   onOpenSchedules?: () => void;
 }
 
+/** When an agent runs, in words, for the toolbar's grey line and the When it runs section. */
+export function agentWhen(bot: { id: string; name: string }, schedules: readonly ScheduleInfo[]): string {
+  if (bot.id === MAIN_BOT_ID) return 'When you ask';
+  const runs = agentSchedules(bot, schedules);
+  return runs.length === 0 ? 'When you ask' : `When you ask, and ${runs.map((s) => `${describeWhen(s.days, s.time).replace(/^(Every day|Weekdays|Weekends)/, (m) => m.toLowerCase())}${s.enabled ? '' : ' (off)'}`).join('; ')}`;
+}
+
+/** One titled part of the page: a plain heading over its content, parts divided by hairlines (no cards). */
+function Part({ title, action, children, label }: { title: string; action?: ReactNode; children: ReactNode; label?: string }) {
+  return (
+    <section className="agent-part" aria-label={label ?? title}>
+      <h2 className="agent-part-title"><span>{title}</span>{action}</h2>
+      {children}
+    </section>
+  );
+}
+
 /**
- * The Agents page: in the main area while the sidebar shows Agents. One agent's instructions, model, how it starts,
- * what it may touch and its sessions, as grouped rows in the manner of Apple's Settings; or the form for a new one.
+ * The Agents page: in the main area while the sidebar shows Agents. Its name and Run now are in the toolbar; the page is
+ * plain parts between hairlines, as in Mail: what it does, when it runs, what it can use, and its recent runs.
  */
 export function AgentPage({ view, bots, conversations, onShow, onCreate, onUpdate, onNewSession, onOpenSession, onOpenSafety, onOpenSchedules }: Props) {
   const preferences = usePreferences();
@@ -126,15 +143,10 @@ export function AgentPage({ view, bots, conversations, onShow, onCreate, onUpdat
   if (view.kind === 'new') {
     return (
       <section className="agent-page" aria-label="New agent">
-        <header className="agent-head">
-          <span className="agent-avatar" aria-hidden="true">{view.draft.name.trim().charAt(0).toUpperCase() || '+'}</span>
-          <span className="agent-titles"><h1 className="agent-name">New agent</h1><span className="agent-sub">Mobius with its own instructions, and its own model if you like.</span></span>
-        </header>
-        <div className="agent-card">
-          <BotForm key={`new:${view.draft.name}`} initial={view.draft} submitLabel="Create" {...(onOpenSafety ? { onOpenSafety } : {})}
-            onCancel={() => onShow({ kind: 'show', id: MAIN_BOT_ID })}
-            onSubmit={onCreate} onSaved={(made) => onNewSession(made.id)} />
-        </div>
+        <p className="agent-lede">Mobius with its own instructions, and its own model if you like.</p>
+        <BotForm key={`new:${view.draft.name}`} initial={view.draft} submitLabel="Create" {...(onOpenSafety ? { onOpenSafety } : {})}
+          onCancel={() => onShow({ kind: 'show', id: MAIN_BOT_ID })}
+          onSubmit={onCreate} onSaved={(made) => onNewSession(made.id)} />
       </section>
     );
   }
@@ -144,62 +156,36 @@ export function AgentPage({ view, bots, conversations, onShow, onCreate, onUpdat
   const known = bots.map((b) => b.id);
   const sessions = conversations.filter((c) => botOfConversation(c.id, known) === bot.id).sort((a, b) => b.updated_ms - a.updated_ms);
   const runs = main ? [] : agentSchedules(bot, schedules);
-  const now = Date.now();
+  if (view.editing && !main) {
+    return (
+      <section className="agent-page" aria-label={`Edit ${bot.name}`}>
+        <BotForm key={`edit:${bot.id}`} initial={{ name: bot.name, instructions: bot.instructions, model: bot.model }} submitLabel="Save" {...(onOpenSafety ? { onOpenSafety } : {})}
+          onCancel={() => onShow({ kind: 'show', id: bot.id })}
+          onSubmit={(draft) => onUpdate(bot.id, draft)} onSaved={() => onShow({ kind: 'show', id: bot.id })} />
+      </section>
+    );
+  }
   return (
     <section className="agent-page" aria-label={bot.name}>
-      <header className="agent-head">
-        <span className="agent-avatar" data-main={main || undefined} aria-hidden="true">{bot.name.charAt(0).toUpperCase()}</span>
-        <span className="agent-titles">
-          <h1 className="agent-name">{bot.name}</h1>
-          <span className="agent-sub">{main ? 'Built in. Uses your settings as they are.' : `Made ${relativeTime(bot.createdMs, now).toLowerCase() || 'earlier'}`}</span>
-        </span>
-        <span className="agent-actions">
-          {!main && !view.editing && <button type="button" className="btn" onClick={() => onShow({ kind: 'show', id: bot.id, editing: true })}>Edit</button>}
-          <button type="button" className="btn primary" onClick={() => onNewSession(bot.id)}>New session</button>
-        </span>
-      </header>
-      {view.editing && !main ? (
-        <div className="agent-card">
-          <BotForm key={`edit:${bot.id}`} initial={{ name: bot.name, instructions: bot.instructions, model: bot.model }} submitLabel="Save" {...(onOpenSafety ? { onOpenSafety } : {})}
-            onCancel={() => onShow({ kind: 'show', id: bot.id })}
-            onSubmit={(draft) => onUpdate(bot.id, draft)} onSaved={() => onShow({ kind: 'show', id: bot.id })} />
-        </div>
-      ) : (
-        <>
-          <h2 className="agent-group-title">Instructions</h2>
-          <div className="agent-card agent-instructions" aria-label="Instructions">
-            {bot.instructions ? <p>{bot.instructions}</p> : <p className="agent-muted">{main ? 'Mobius’s usual instructions, with nothing added.' : 'Nothing added to the usual instructions yet.'}</p>}
-          </div>
-          <h2 className="agent-group-title">Details</h2>
-          <dl className="agent-card agent-rows">
-            <div className="agent-row"><dt>Model</dt><dd>{bot.model || 'The one in settings'}</dd></div>
-            <div className="agent-row"><dt>How it starts</dt><dd>
-              {runs.length === 0 ? 'When you ask' : `When you ask, and ${runs.map((s) => `${describeWhen(s.days, s.time)}${s.enabled ? '' : ' (off)'}`).join('; ')}`}
-              {runs.length > 0 && onOpenSchedules && <button type="button" className="link-btn" onClick={onOpenSchedules}>Schedules</button>}
-            </dd></div>
-            <div className="agent-row"><dt>May touch</dt><dd>
-              {mayTouch(preferences.value.appAccess, modeOf(preferences.value.approvalMode).name)}
-              {onOpenSafety && <button type="button" className="link-btn" onClick={onOpenSafety}>Safety settings</button>}
-            </dd></div>
-          </dl>
-        </>
-      )}
-      <h2 className="agent-group-title">Sessions <span className="agent-count">{sessions.length}</span></h2>
-      {sessions.length === 0 ? (
-        <p className="agent-card agent-muted agent-empty">No sessions yet. Start one with New session.</p>
-      ) : (
-        <ul className="agent-card agent-sessions" role="list" aria-label={`Sessions with ${bot.name}`}>
-          {sessions.slice(0, 20).map((c) => (
-            <li key={c.id}>
-              <button type="button" className="agent-session" onClick={() => onOpenSession(c.id)}>
-                <span className="agent-session-title">{c.title}</span>
-                <span className="agent-session-when">{relativeTime(c.updated_ms, now)}</span>
-                <svg className="agent-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <Part title="What it does" action={!main && <button type="button" className="link-btn" onClick={() => onShow({ kind: 'show', id: bot.id, editing: true })}>Edit</button>}>
+        {bot.instructions ? <p className="agent-text">{bot.instructions}</p> : <p className="agent-text agent-muted">{main ? 'Mobius’s usual instructions, with nothing added.' : 'Nothing added to the usual instructions yet.'}</p>}
+        <p className="agent-meta">{bot.model ? `Uses ${bot.model}` : 'Uses the model in settings'}{main ? '. Built in.' : ''}</p>
+      </Part>
+      <Part title="When it runs" action={runs.length > 0 && onOpenSchedules && <button type="button" className="link-btn" onClick={onOpenSchedules}>Schedules</button>}>
+        <p className="agent-text">{agentWhen(bot, schedules)}</p>
+      </Part>
+      <Part title="What it can use" action={onOpenSafety && <button type="button" className="link-btn" onClick={onOpenSafety}>Safety settings</button>}>
+        <p className="agent-text">{mayTouch(preferences.value.appAccess, modeOf(preferences.value.approvalMode).name)}</p>
+      </Part>
+      <Part title="Recent runs" label="Recent runs" action={<button type="button" className="link-btn" onClick={() => onNewSession(bot.id)}>New session</button>}>
+        {sessions.length === 0 ? (
+          <p className="agent-text agent-muted">No runs yet.</p>
+        ) : (
+          <ul className="act-list" role="list" aria-label={`Sessions with ${bot.name}`}>
+            {sessions.slice(0, 20).map((c) => <ConversationRow key={c.id} c={c} onOpen={onOpenSession} />)}
+          </ul>
+        )}
+      </Part>
     </section>
   );
 }

@@ -19,6 +19,8 @@ describe('a finished tool row names what it acted on', () => {
   it('a row opens what it made', () => {
     expect(toolTarget('tasks.add', { list: 'P2 build', text: 'x' })).toEqual({ app: 'tasks', list: 'P2 build' });
     expect(toolTarget('files.write', { path: 'docs/Kestrel/P2.md' })).toEqual({ app: 'docs', path: 'Kestrel/P2.md', title: 'P2' });
+    expect(toolTarget('calendar.add', { calendar: 'Work', title: 'P2 brake kit review', start: '2026-11-19T10:00' })).toEqual({ app: 'calendar', date: '2026-11-19' });
+    expect(toolTarget('calendar.add', { title: 'x', start: 'Thursday' })).toEqual({ app: 'calendar' });
     expect(toolTarget('sheets.write', { workbook: 'Kestrel', sheet: 'Costs' })).toEqual({ app: 'sheets', workbook: 'Kestrel', sheet: 'Costs' });
     expect(toolTarget('clock.now', {})).toBeNull();
   });

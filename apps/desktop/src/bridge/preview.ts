@@ -1,6 +1,7 @@
 import { tagsIn } from '../note-tags';
 import { linksIn } from '../note-links';
 import { PREVIEW_TASKS } from './preview-tasks';
+import { PREVIEW_FILES } from './preview-files';
 import { PREVIEW_DATABASES } from './preview-databases';
 import { PREVIEW_PROJECTS } from './preview-projects';
 import { PREVIEW_CALENDAR } from './preview-calendar';
@@ -16,6 +17,7 @@ import { PREVIEW_SLIDES } from './preview-slides';
 import { PREVIEW_PHOTOS } from './preview-photos';
 import { PREVIEW_VIDEO } from './preview-video';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
+import { PREVIEW_ACTIVITY } from './preview-activity';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge, type UsageRow } from '@mobius/shared';
 
 /**
@@ -34,8 +36,10 @@ const now = Date.now();
 const hour = 3_600_000;
 
 const person = (name: string, email: string) => ({ name, email });
+/** Mail's drafts in the preview: Mobius's suggested reply to Priya. */
+const MAIL_DRAFTS = [{ id: 'd1', account: 'a1', to: 'priya@northway.example', cc: '', subject: 'Re: P2 build dates', body: 'Hi Priya,\n\nThe build week is the 23rd. I will send the plan to the team today.\n\nThanks', replyTo: 'm1' as string | null, by: 'mobius' as 'mobius' | 'you', why: 'you asked me to confirm the build week', updatedMs: Date.now() }];
 const MAIL = [
-  { id: 'm1', account: 'a1', box: 'inbox', uid: 1, from: person('Priya Nair', 'priya@northway.example'), to: [person('You', 'you@northway.example')], cc: [], subject: 'P2 build dates', dateMs: now - 2 * hour, seen: false, flagged: false, preview: 'Can you confirm the build week and send the plan to the team?', category: 'primary' },
+  { id: 'm1', account: 'a1', box: 'inbox', uid: 1, from: person('Priya Nair', 'priya@northway.example'), to: [person('You', 'you@northway.example')], cc: [person('Sam Okafor', 'sam@northway.example')], subject: 'P2 build dates', dateMs: now - 2 * hour, seen: false, flagged: false, preview: 'Can you confirm the build week and send the plan to the team?', category: 'primary' },
   { id: 'm2', account: 'a1', box: 'inbox', uid: 2, from: person('Veltro Cells', 'sales@veltro.example'), to: [person('You', 'you@northway.example')], cc: [], subject: 'Quote: 8 × 60 kWh packs', dateMs: now - 26 * hour, seen: true, flagged: true, preview: 'Six weeks from order to your dock. The hold lasts until Friday.', category: 'primary' },
   { id: 'm3', account: 'a1', box: 'inbox', uid: 3, from: person('Sam Okafor', 'sam@northway.example'), to: [person('You', 'you@northway.example')], cc: [], subject: 'Motor call', dateMs: now - 30 * hour, seen: true, flagged: false, preview: 'Axion can do Wednesday. Does 10:00 work?', category: 'primary' },
 ];
@@ -63,18 +67,29 @@ const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filte
 const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv'] };
 
 let previewLook = { ...DEFAULT_APPEARANCE };
+// Abilities › Connectors: two servers as Mobius started them, and what was added or removed since.
+const previewWaiting = new Set<string>();
+const previewLeaving = new Set<string>();
+const previewConnectors = () => ({ running: ['github'], failed: [{ server: 'linear', error: 'The command was not found' }], problem: null, waiting: [...previewWaiting], leaving: [...previewLeaving] });
 
 /** Answers for the calls that must return more than an empty list. Keyed by the call's path. */
 const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'core.getStatus': () => 'ready',
-  'files.list': (path: string) => ({ path, truncated: false, entries: path === '' ? [{ name: 'docs', type: 'folder' }, { name: 'notes', type: 'folder' }, { name: 'sheets', type: 'folder' }, { name: 'tasks', type: 'folder' }, { name: 'README.md', type: 'file', bytes: 2048 }] : path === 'notes' ? [{ name: 'P2 build', type: 'folder' }, { name: 'Home', type: 'folder' }] : path === 'notes/P2 build' ? [{ name: 'Build plan.md', type: 'file', bytes: 620 }, { name: 'Supplier notes.md', type: 'file', bytes: 410 }] : [] }),
-  'extensions.connectors': () => ({ running: ['github'], failed: [{ server: 'linear', error: 'The command was not found' }], problem: null }),
+  'extensions.connectors': () => previewConnectors(),
+  'extensions.addConnector': (draft: { name: string }) => {
+    if (['github', 'linear', ...previewWaiting].includes(draft.name)) return { ok: false, error: `There is already a connector called ${draft.name}.` };
+    previewWaiting.add(draft.name);
+    return { ok: true, status: previewConnectors() };
+  },
+  'extensions.removeConnector': (name: string) => { if (!previewWaiting.delete(name)) previewLeaving.add(name); return { ok: true, status: previewConnectors() }; },
   // The look is kept for the session, so choices in the preview stick and a change never answers with a failure.
   'appearance.get': () => ({ ...previewLook }),
   'appearance.set': ((change: Partial<typeof DEFAULT_APPEARANCE>) => { previewLook = { ...previewLook, ...change }; return { ...previewLook }; }) as never,
   'preferences.get': () => DEFAULT_PREFERENCES,
   'agent.getSettings': () => ({ baseUrl: 'https://portal.example/v1', model: 'Balanced', system: '', configured: true, hasKey: true, maxSteps: 24, keyStorage: 'session', fallbackBaseUrl: '', fallbackModel: '' }),
   'agent.question': () => null,
+  // Settings › Approvals and Browser list these: none are kept in the preview.
+  'agent.grants': () => [],
   ...PREVIEW_BROWSER,
   ...PREVIEW_CODE,
   ...PREVIEW_DESIGNS,
@@ -82,16 +97,20 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_SLIDES,
   ...PREVIEW_PHOTOS,
   ...PREVIEW_VIDEO,
+  ...PREVIEW_ACTIVITY,
   'bots.get': () => ({ bots: [
     { id: 'main', name: 'Mobius', instructions: '', model: '', createdMs: 0 },
     { id: 'rcpt01', name: 'File receipts', instructions: 'When a receipt arrives in Mail, add a row to the Expenses sheet.', model: '', createdMs: now - 6 * 86_400_000 },
     { id: 'wkly01', name: 'Weekly P2 summary', instructions: 'Every Friday, summarise the week on the Kestrel P2 build from Notes, Tasks and Mail.', model: 'Thorough', createdMs: now - 3 * 86_400_000 },
   ] }),
+  // Agents app (marked): the weekly agent runs on Fridays, so its page and the toolbar show when.
+  'schedules.list': () => [{ id: 'sch-wkly', title: 'Weekly P2 summary', prompt: 'Summarise the week on the Kestrel P2 build.', time: '16:00', days: [5], enabled: true, bot: 'wkly01', lastRunMs: now - 7 * 86_400_000 }],
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,
   'mini.isOpen': () => false,
   // Tasks are kept in memory for as long as the preview is open.
   ...PREVIEW_TASKS,
+  ...PREVIEW_FILES,
   // Documents are kept in memory for as long as the preview is open.
   ...PREVIEW_DOCS,
   // Reader's articles are kept in memory for as long as the preview is open.
@@ -155,9 +174,20 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'providers.accountStatus': () => ({ installed: true, signedIn: true, account: 'you@example.com' }),
   'providers.catalog': () => ({ current: 'claude-sonnet-5-5', groups: [{ kind: 'subscription', id: 'claude', name: 'Claude plan', active: true, models: [{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' }, { id: 'claude-opus-5-5', label: 'Opus 5.5' }], error: null }, { kind: 'local', id: 'local', name: 'On this computer', active: false, models: [{ id: 'qwen3-8b', label: 'Qwen3 8B' }], error: null }] }),
   'mail.accounts': () => [{ id: 'a1', name: 'Northway', email: 'you@northway.example', lastSyncMs: now, problem: null }],
-  'mail.list': () => MAIL,
+  // Flags and Archive are kept for as long as the preview is open.
+  'mail.list': ((box: string) => MAIL.filter((m) => box !== 'inbox' || !(m as { archived?: boolean }).archived)) as never,
+  'mail.flag': ((id: string, which: 'seen' | 'flagged', on: boolean) => { const m = MAIL.find((x) => x.id === id); if (m) m[which] = on; return { ok: true }; }) as never,
+  'mail.archive': ((id: string, on: boolean) => { const m = MAIL.find((x) => x.id === id); if (m) (m as { archived?: boolean }).archived = on; return { ok: true }; }) as never,
   // A reply Mobius suggested to Priya, waiting to be kept.
-  'mail.drafts': () => [{ id: 'd1', account: 'a1', to: 'priya@northway.example', cc: '', subject: 'Re: P2 build dates', body: 'Hi Priya,\n\nThe build week is the 23rd. I will send the plan to the team today.\n\nThanks', replyTo: 'm1', by: 'mobius', why: 'you asked me to confirm the build week', updatedMs: now }],
+  'mail.drafts': () => MAIL_DRAFTS.map((d) => ({ ...d })),
+  // Mail: drafts are kept in memory, so Keep and Close show the reply as yours under the message.
+  'mail.saveDraft': ((draft: Partial<(typeof MAIL_DRAFTS)[number]>) => {
+    const at = MAIL_DRAFTS.findIndex((d) => d.id === draft.id);
+    const saved = { ...(at >= 0 ? MAIL_DRAFTS[at]! : MAIL_DRAFTS[0]!), ...draft, id: draft.id || `d${Date.now()}`, updatedMs: Date.now() };
+    if (at >= 0) MAIL_DRAFTS[at] = saved; else MAIL_DRAFTS.unshift(saved);
+    return { ...saved };
+  }) as never,
+  'mail.deleteDraft': ((id: string) => { const at = MAIL_DRAFTS.findIndex((d) => d.id === id); if (at >= 0) MAIL_DRAFTS.splice(at, 1); return { ok: true }; }) as never,
   'mail.counts': () => ({ primary: 1, transactions: 0, updates: 0, all: 1, drafts: 0, suggested: 1 }),
   'mail.read': ((id: string) => { const m = MAIL.find((x) => x.id === id) ?? MAIL[0]!; return { id: m.id, from: m.from, to: m.to, cc: m.cc, subject: m.subject, dateMs: m.dateMs, text: MAIL_TEXT[m.id] ?? '', html: null, attachments: [], category: 'primary' }; }) as never,
 };

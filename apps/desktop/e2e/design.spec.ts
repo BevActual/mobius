@@ -53,7 +53,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Design');
   await shell().keyboard.press('Enter');
-  await shell().getByRole('button', { name: 'Home', exact: true }).click();
+  await shell().locator('.dock.left').getByRole('button', { name: 'Home', exact: true }).click();
   await expect(canvas().getByLabel('Frame Home')).toBeVisible();
 }
 
@@ -204,4 +204,23 @@ test('a frame is exported as a PNG into Photo', async () => {
   expect(bytes.subarray(1, 4).toString()).toBe('PNG');
   // Its size is the frame's, at 1×.
   expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)]).toEqual([393, 852]);
+});
+
+test('layers become a component; a copy keeps its own text, and detaches back into plain layers', async () => {
+  await start();
+  const tree = shell().getByRole('tree', { name: 'Frames and layers' });
+  await tree.getByRole('button', { name: 'Title', exact: true }).click();
+  await tree.getByRole('button', { name: 'Card', exact: true }).click({ modifiers: ['Shift'] });
+  await inspector().getByRole('button', { name: 'Create component' }).click();
+  // A component named after its biggest layer, to the right of Home, and one copy of it where the layers were.
+  await expect.poll(() => saved().frames.map((f) => [f.name, (f as { component?: boolean }).component ?? false])).toEqual([['Home', false], ['Card', true]]);
+  await expect.poll(() => saved().frames[0]!.children.map((c) => c.type)).toEqual(['instance']);
+  await expect(inspector()).toContainText('Copy of Card');
+  // The copy's own title.
+  await inspector().getByRole('textbox', { name: 'Title text' }).fill('Porto offsite');
+  await expect.poll(() => JSON.stringify(saved().frames[0]!.children[0])).toContain('"overrides":{"n1":{"text":"Porto offsite"}}');
+  await expect(canvas().getByLabel('Copy Card')).toContainText('Porto offsite');
+  // Detach: plain layers again, as the copy showed them.
+  await inspector().getByRole('button', { name: 'Detach' }).click();
+  await expect.poll(() => saved().frames[0]!.children.map((c) => [c.type, c.text ?? ''])).toEqual([['text', 'Porto offsite'], ['rect', '']]);
 });

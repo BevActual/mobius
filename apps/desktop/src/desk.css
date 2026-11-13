@@ -29,10 +29,14 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .desk-name { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); font-weight: var(--fw-medium); }
 .desk-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
 .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { text-align: left; }
+/* The one thing in an app worth a look ("Standup", "Ana Lopes"), between the app's name and its detail. */
+.desk-item { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); color: var(--ink); }
+.desk-item + .desk-text { flex: none; max-width: 45%; }
+.desk-row:has(.desk-item) .desk-name { width: 84px; color: var(--muted); font-weight: var(--fw-regular); }
 .desk-act { flex: none; height: 28px; padding: 0 12px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
 .desk-act:hover:not(:disabled) { background: var(--soft); }
 .desk-act[data-primary] { color: var(--on-accent); background: var(--accent); box-shadow: none; }
 .desk-act[data-primary]:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); }
-.desk-row[data-changed] { box-shadow: none; border: 1px dashed var(--accent); }
-.desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--accent); }
+.desk-row[data-changed] { box-shadow: none; border: 1px dashed var(--mobius); }
+.desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--mobius); }
 @container (max-width: 520px) { .desk-rows[data-columns] { grid-template-columns: 1fr; } }

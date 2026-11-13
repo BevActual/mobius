@@ -31,31 +31,16 @@
 .bot-confirm p { margin: 0; }
 
 /* An agent's page: a header, then inset groups with small titles above them, as in Apple's Settings. */
-.agent-page { height: 100%; overflow-y: auto; padding: var(--sp-8) var(--sp-6) var(--sp-8); }
-.agent-page > * { max-width: 640px; margin-left: auto; margin-right: auto; }
-.agent-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-6); }
-.agent-avatar { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 13px; background: color-mix(in srgb, var(--accent) 16%, var(--bg)); color: var(--accent); font-size: var(--fs-2xl); font-weight: 600; }
-.agent-avatar[data-main] { background: var(--accent); color: var(--on-accent); }
-.agent-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.agent-name { margin: 0; font-size: var(--fs-2xl); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent-sub { color: var(--muted); font-size: var(--fs-md); }
-.agent-actions { flex: none; display: flex; gap: var(--sp-2); }
-.agent-group-title { display: flex; align-items: baseline; gap: 6px; margin: var(--sp-5) auto 6px; padding: 0 var(--sp-3); font-size: var(--fs-sm); font-weight: 500; color: var(--muted); }
-.agent-count { font-weight: 400; }
-.agent-card { padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-panel); background: var(--soft); }
-.agent-instructions p { margin: 0; white-space: pre-wrap; line-height: 1.45; }
+/* The agent's page: plain parts between hairlines, as in Mail (no cards). Name and Run now are in the toolbar. */
+.agent-page { height: 100%; overflow-y: auto; padding: var(--sp-4) var(--sp-6) var(--sp-8); }
+.agent-page > * { max-width: 680px; margin-left: auto; margin-right: auto; }
+.agent-part { padding: var(--sp-4) 0; border-bottom: 1px solid var(--line); }
+.agent-part:last-child { border-bottom: 0; }
+.agent-part-title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-semibold, 600); color: var(--muted); }
+.agent-text { margin: 0; white-space: pre-wrap; line-height: var(--lh-body, 1.45); }
+.agent-meta { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
 .agent-muted { color: var(--muted); }
-.agent-empty { margin-top: 0; margin-bottom: 0; }
-.agent-rows { margin-top: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; }
-.agent-row { display: grid; grid-template-columns: 130px 1fr; gap: var(--sp-3); padding: 10px 0; border-bottom: 0.5px solid var(--line); }
-.agent-row:last-child { border-bottom: 0; }
-.agent-row dt { color: var(--muted); }
-.agent-row dd { margin: 0; }
-.agent-row .link-btn { margin-left: 6px; }
-.agent-sessions { list-style: none; margin-top: 0; margin-bottom: 0; padding: 0 var(--sp-2); }
-.agent-sessions li + li { border-top: 0.5px solid var(--line); }
-.agent-session { width: 100%; display: flex; align-items: center; gap: var(--sp-2); padding: 10px var(--sp-2); text-align: left; border-radius: var(--radius-control); }
-.agent-session:hover { background: var(--wash); }
-.agent-session-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent-session-when { flex: none; color: var(--muted); font-size: var(--fs-sm); }
-.agent-chev { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.agent-lede { margin: 0 0 var(--sp-3); color: var(--muted); }
+.agent-part .act-list { margin: 0 calc(-1 * var(--sp-2)); }
+/* From Mobius in the sidebar: how many agents' runs wait for you, in Mobius's colour, as Mail's Suggested replies. */
+.agent-to-review { padding-right: var(--sp-2); font-size: var(--fs-sm); color: var(--mobius, var(--accent)); white-space: nowrap; align-self: center; }

@@ -20,7 +20,7 @@
 .settings-page .settings-card .srow { min-height: 44px; }
 .settings-page .settings-card .srow-head { flex: 1 1 260px; }
 .settings-page .settings-card .srow-body { gap: 6px; }
-.settings-page .settings-card .srow-body:has(> ul, > .slist, > table, > .providers, > .provider-list, > .memory-body, > .saved-servers, > .share-setup, > .sidebar-apps, > .schedule-list) { flex: 1 1 100%; align-items: stretch; margin-left: 0; }
+.settings-page .settings-card .srow-body:has(> ul, > .slist, > table, > .providers, > .provider-list, > .memory-body, > .saved-servers, > .share-setup, > .sidebar-apps, > .schedule-list, > .usage-breakdown) { flex: 1 1 100%; align-items: stretch; margin-left: 0; }
 /* Small print under a control (which model, what to add first) reads as help: grey, right aligned, wrapping. */
 .settings-page .settings-card .srow-body > .srow-text { max-width: 280px; font-size: 12px; color: var(--muted); text-align: right; }
 .settings-page .settings-card .srow-body:has(> ul, > .slist, > table, > .memory-list) > .srow-text { max-width: none; text-align: left; }
@@ -92,8 +92,6 @@
 /* The clear button shows only on the row under the pointer or with the keyboard in it, so the list stays quiet. */
 .shortcut-item:hover .key-clear, .shortcut-item:focus-within .key-clear, .key-clear:focus-visible { opacity: 1; }
 
-/* The sidebar's search keeps its height in the column of sections (it is a flex item there). */
-.settings-nav .settings-search, .settings-side .settings-search { flex: none; height: 28px; min-height: 28px; }
 
 /* Saved servers: the list as rows, and Save Current Server… trailing under it. */
 .saved-servers { display: flex; flex-direction: column; gap: 8px; width: 100%; }
@@ -109,3 +107,59 @@
 .settings-sheet-field input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
 .settings-sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 @media (prefers-color-scheme: dark) { .settings-sheet { background: color-mix(in srgb, var(--ink) 8%, var(--bg)); } }
+
+/* Usage: three totals as tiles, tokens by day as thin bars, and the breakdown as a plain table. */
+.settings-page .settings-card .srow.usage-summary { padding: 12px 14px; }
+.usage-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.usage-tile { min-width: 0; padding: 10px 12px; border-radius: 10px; background: var(--field); }
+.usage-tile dt { font-size: 12px; color: var(--muted); }
+.usage-tile dd { margin: 2px 0 0; font-size: 22px; font-weight: 650; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.usage-tile > span { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) { .usage-tiles { grid-template-columns: minmax(0, 1fr); } }
+
+.settings-page .settings-card .srow.usage-chart-row, .settings-page .settings-card .srow.usage-summary { display: block; }
+.usage-chart-row .srow-title { margin: 0 0 10px; }
+.usage-chart { display: flex; align-items: stretch; gap: 2px; height: 140px; }
+.usage-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; outline: none; border-radius: 4px; }
+.usage-col:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 50%, transparent); }
+.usage-bar-track { flex: 1; width: 100%; max-width: 56px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--hairline); }
+.usage-bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--accent); transition: height var(--dur-med) var(--ease); }
+.usage-col:hover .usage-bar, .usage-col:focus-visible .usage-bar { background: color-mix(in srgb, var(--accent) 80%, var(--ink)); }
+.usage-day { position: relative; z-index: 1; font-size: 10px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.usage-none { margin: 0; font-size: 12px; color: var(--muted); }
+
+.usage-breakdown { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.settings-page .usage-breakdown .usage-group { margin: 0; }
+.usage-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.usage-table th, .usage-table td { padding: 6px 8px; text-align: right; white-space: nowrap; }
+.usage-table th:first-child { text-align: left; font-weight: 400; max-width: 220px; overflow: hidden; text-overflow: ellipsis; padding-left: 0; }
+.usage-table td:last-child { padding-right: 0; }
+.usage-table thead th { font-size: 11px; font-weight: 500; color: var(--muted); border-bottom: 0.5px solid var(--hairline); }
+.usage-table tbody tr + tr > * { border-top: 0.5px solid var(--hairline); }
+.usage-actions { display: inline-flex; gap: 8px; }
+
+/* The sidebar (the shared AppSidebar): the sections scroll under the search, each with its tinted icon at 20px, as in
+   System Settings. The dock's 16px rule for row icons is for line glyphs, not these tiles. */
+.settings-side { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.settings-side > .ui-side { flex: 1; min-height: 0; }
+.settings-side .settings-nav { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: auto; }
+.settings-nav-icon, .dock.left .settings-side .list-row svg.settings-nav-icon { width: 20px; height: 20px; padding: 4px; flex: none; border-radius: 5px; fill: none; stroke: #fff; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* A narrow column (the window is small, or Mobius is open beside Settings): rows stack their control under the name,
+   so help text set beside a control reads left aligned under it, and wide pieces fit rather than clip. */
+.settings-page .settings-column { container-type: inline-size; container-name: settings-column; }
+@container settings-column (max-width: 560px) {
+  .settings-page .settings-card .srow-body > .srow-text { max-width: none; text-align: left; }
+  .usage-tile { padding: 8px 10px; }
+  .usage-tile dd { font-size: 18px; }
+  .usage-tile > span { white-space: normal; }
+  .usage-table th:first-child { max-width: 140px; }
+}
+/* The breakdown scrolls sideways rather than clipping its last column. */
+.usage-table-wrap { width: 100%; overflow-x: auto; }
+
+/* Gateways: the name and its status on the left, its buttons trailing, so a long status never runs under the name. */
+.settings-page .prow { grid-template-columns: minmax(0, 1fr) auto; }
+.settings-page .prow-status { grid-column: 1; grid-row: 2; white-space: normal; }
+.settings-page .prow-actions { grid-column: 2; grid-row: 1 / span 2; flex-wrap: wrap; justify-content: flex-end; }
+.settings-page .prow-badge { white-space: nowrap; }

@@ -6,3 +6,8 @@
 import './ui.css';
 
 export { Menu, PointMenu, type MenuEntry } from './Menu';
+export { UndoToast } from './UndoToast';
+export { AppFrame, ToolbarControls, type ToolbarParts } from './AppFrame';
+export { ViewSwitch, type ViewChoice } from './ViewSwitch';
+export { AppSidebar, SidebarSearch, SidebarSection, SidebarRow } from './AppSidebar';
+export { PanelLayout, PanelsMenu, DOCK_SIZE, type PanelSpec, type PanelDock, type PanelsOfApp } from './PanelLayout';
