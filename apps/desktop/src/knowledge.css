@@ -6,7 +6,7 @@
 .wiki-private { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .wiki-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .wiki-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 10px; border-radius: 8px; }
-.wiki-line[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
+.wiki-line[data-proposed] { outline: 1px dashed var(--mobius); outline-offset: -1px; }
 .wiki-line-text { flex: 1; min-width: 12em; }
 .wiki-line-actions { display: inline-flex; align-items: center; gap: 6px; }
 .wiki-learned, .wiki-from { color: var(--accent); font-size: var(--fs-xs); }
@@ -30,9 +30,9 @@
 .wiki-page .wiki-lines { gap: 0; border-radius: 10px; background: var(--field); overflow: hidden; }
 .wiki-page .wiki-line { min-height: 40px; padding: 8px 12px; border-radius: 0; flex-wrap: nowrap; }
 .wiki-page .wiki-lines > .wiki-line + .wiki-line { box-shadow: inset 0 0.5px 0 var(--hairline); }
-.wiki-page .wiki-line[data-proposed] { outline: 0; background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.wiki-page .wiki-line[data-proposed] { outline: 0; background: color-mix(in srgb, var(--mobius) 6%, transparent); }
 /* What Mobius proposes is dashed, as everywhere in Mobius: here the whole Waiting card is. */
-.wiki-page .kn-group[data-waiting] .wiki-lines, .wiki-page .wiki-ask, .wiki-page .kn-changes { outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -1px; }
+.wiki-page .kn-group[data-waiting] .wiki-lines, .wiki-page .wiki-ask, .wiki-page .kn-changes { outline: 1px dashed color-mix(in srgb, var(--mobius) 70%, transparent); outline-offset: -1px; }
 .wiki-page .wiki-ask { border-radius: 10px; margin-bottom: 4px; }
 .wiki-line-body { flex: 1; min-width: 0; display: grid; gap: 1px; }
 .wiki-page .wiki-line-text { min-width: 0; }

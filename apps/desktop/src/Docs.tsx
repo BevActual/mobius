@@ -1,5 +1,5 @@
 import { settleGone, settleIn, settleKept } from './settle';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
 import { Extension, generateHTML } from '@tiptap/core';
@@ -14,14 +14,13 @@ import type { Node as PmNode } from '@tiptap/pm/model';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from './line-diff';
 import { liveTitle } from './notes-state';
-import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
+import { newItemIn } from './NotesSidebar';
 import { untitledHeading } from './NoteEditor';
 import { EmptyState } from './EmptyState';
 import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
 import type { NoteComment } from '@mobius/shared';
-import { ReviewActions, WhyThis } from './ReviewBar';
-import type { Start } from './SideNew';
+import { ReviewActions, TryAnotherContext, WhyThis } from './ReviewBar';
 import { tidyMarkdown } from './note-insert';
 import { fileMarkdown, noteImage, readFile } from './note-files';
 import { CommentComposer, CommentList, commentLine, useNoteComments } from './NoteComments';
@@ -30,16 +29,14 @@ import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { Menu, ToolbarControls, UndoToast } from './ui';
 import { timeLabel } from './dates';
 import './docs.css';
 
-export const DOCS_WORDS: SidebarWords = { app: 'Docs', group: 'folder', groups: 'Folders', item: 'document', items: 'documents', about: 'Documents are kept as Markdown files in your workspace, so other apps and the agent can open them too.', defaultGroup: 'Documents' };
 export const DEFAULT_FOLDER = 'Documents';
 
-export function DocsSidebar(props: { docs: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
-  const { docs, ...rest } = props;
-  return <NotesSidebar notes={docs} words={DOCS_WORDS} {...rest} />;
-}
+/** Docs' sidebar is in its own file, on the shared frame. */
+export { DocsSidebar } from './DocsSidebar';
 
 /** What Mobius's writing tools do: each is a request to the agent, about the selection or the whole document. */
 /** `comment` asks Mobius to answer a comment: its selection is the comment thread, as commentLine writes it. */
@@ -122,32 +119,6 @@ const docComments = (quotes: () => readonly string[]) => Extension.create({
 const keep = (e: { preventDefault: () => void }) => e.preventDefault();
 const Icon = ({ d, children }: { d?: string; children?: ReactNode }) => <svg viewBox="0 0 20 20" aria-hidden="true">{d ? <path d={d} /> : children}</svg>;
 
-/** A small menu under its button, closed by a click away or Escape. */
-function Menu({ label, button, title, children, wide, pressed }: { label: string; button: ReactNode; title: string; children: (close: () => void) => ReactNode; wide?: boolean; pressed?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const at = useRef<HTMLButtonElement>(null);
-  const place = () => {
-    const r = at.current?.getBoundingClientRect();
-    const width = wide ? 240 : 210;
-    if (!r) return { top: 0, left: 0 };
-    return { top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), minWidth: width };
-  };
-  return (
-    <>
-      <button ref={at} type="button" className="doc-tool" aria-label={label} title={title} aria-haspopup="menu" aria-expanded={open} aria-pressed={pressed} onPointerDown={keep} onClick={() => setOpen((o) => !o)}>{button}</button>
-      {open && createPortal(
-        <>
-          <div className="doc-writing-scrim" onMouseDown={() => setOpen(false)} />
-          <div className="doc-writing-menu doc-menu" role="menu" aria-label={label} style={place()} onKeyDown={(e) => { if (e.key === 'Escape') { setOpen(false); at.current?.focus(); } }}>
-            {children(() => setOpen(false))}
-          </div>
-        </>,
-        document.body,
-      )}
-    </>
-  );
-}
-
 /** Aa's panel: the styles and marks, under its button, closed by a click away or Escape. Stays open while formatting. */
 function Panel({ label, buttonLabel, title, button, marked, children }: { label: string; buttonLabel: string; title: string; button: ReactNode; marked: boolean; children: () => ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -175,9 +146,12 @@ const STYLES_SHOWN = [STYLES[1], STYLES[2], STYLES[3], STYLES[0], STYLES[4]];
 
 /**
  * The format bar in one row, as Notes has it: Aa opens a panel with the styles, marks and lists; the bar keeps what is
- * reached for while writing (checklist, table, link, insert), then the document's own things on the right.
+ * reached for while writing (checklist, link, insert, and the table's rows and columns while in one), then the
+ * document's own things on the right. In Docs it is the window's toolbar (`inFrame`); the wiki keeps it on the page.
+ * On the frame, Outline and History are in Document options (they become panels), and when the toolbar is short Checklist gives way
+ * (it is in Aa's lists too) and Writing tools shows only its pen.
  */
-function Toolbar({ editor, onTool, busy, extras, trailing }: {
+function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
   editor: Editor;
   onTool?: (tool: WritingTool, selection: string | null) => void;
   busy: boolean;
@@ -185,6 +159,8 @@ function Toolbar({ editor, onTool, busy, extras, trailing }: {
   extras: { onLink: () => void; onFile?: () => void; onHistory?: () => void; onShare?: (how: ShareHow) => void; outline: boolean; onOutline: () => void; comments: number; commentsOpen: boolean; onComments?: () => void; font: DocFont; onFont: (font: DocFont) => void };
   /** The folder's own controls at the end of the row (Knowledge's versions). */
   trailing?: ReactNode;
+  /** Drawn in the window's toolbar (zone 3 of the frame) rather than above the page. */
+  inFrame: boolean;
 }) {
   const state = useEditorState({
     editor,
@@ -197,20 +173,20 @@ function Toolbar({ editor, onTool, busy, extras, trailing }: {
   });
   const run = (f: (c: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) => () => { f(editor.chain().focus()).run(); };
   const setStyle = (id: string) => {
-    const chain = editor.chain().focus();
-    if (id === 'p') chain.setParagraph().run();
-    else if (id === 'code') chain.toggleCodeBlock().run();
-    else chain.setHeading({ level: Number(id.slice(1)) as 1 | 2 | 3 }).run();
+    const c = editor.chain().focus();
+    if (id === 'p') c.setParagraph().run();
+    else if (id === 'code') c.toggleCodeBlock().run();
+    else c.setHeading({ level: Number(id.slice(1)) as 1 | 2 | 3 }).run();
   };
   const selectedText = () => {
     const { from, to, empty } = editor.state.selection;
     return empty ? null : editor.state.doc.textBetween(from, to, '\n');
   };
   const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
-  const marked = state.bold || state.italic || state.strike || state.code || state.style !== 'p' || state.bullet || state.ordered || state.quote;
-  const [more, setMore] = useState<{ x: number; y: number } | null>(null);
-  return (
-    <div className="doc-toolbar" role="toolbar" aria-label="Format">
+  const marked = state.bold || state.italic || state.strike || state.code || state.style !== 'p' || state.bullet || state.ordered || state.quote || state.task;
+  const tableIcon = <Icon><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></Icon>;
+  const bar = (
+    <div className="doc-toolbar" data-frame={inFrame || undefined} role="toolbar" aria-label="Format">
       <Panel label="Text format" title="Styles, bold, italic and lists" marked={marked} button={<span className="doc-aa" aria-hidden="true">Aa</span>} buttonLabel="Format text">
         {() => (
           <>
@@ -233,126 +209,117 @@ function Toolbar({ editor, onTool, busy, extras, trailing }: {
                 <button type="button" className="doc-tool" aria-label="Numbered list" aria-pressed={state.ordered} title={`Numbered list (${mod}Shift+7)`} onPointerDown={keep} onClick={run((c) => c.toggleOrderedList())}>
                   <Icon d="M4 5h1.5v3M4 8h3M4 12.5c.5-.8 2.5-.8 2.5.3 0 .8-2.5 1.5-2.5 2.2h2.6M9.5 6h6M9.5 10h6M9.5 14h6" />
                 </button>
+                <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title={`Checklist (${mod}Shift+9)`} onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
+                  <Icon><circle cx="5.5" cy="6" r="2.2" /><path d="m4.4 6 .8.8 1.4-1.6" /><circle cx="5.5" cy="13.5" r="2.2" /><path d="M10 6h6.5M10 13.5h6.5" /></Icon>
+                </button>
                 <button type="button" className="doc-tool" aria-label="Quote" aria-pressed={state.quote} title={`Quote (${mod}Shift+B)`} onPointerDown={keep} onClick={run((c) => c.toggleBlockquote())}><Icon d="M5 6v8M9 7h7M9 10h7M9 13h5" /></button>
               </div>
             </div>
           </>
         )}
       </Panel>
-      <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title={`Checklist (${mod}Shift+9)`} onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
+      <button type="button" className="doc-tool" data-gives-way aria-label="Checklist" aria-pressed={state.task} title={`Checklist (${mod}Shift+9)`} onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
         <Icon><circle cx="5.5" cy="6" r="2.2" /><path d="m4.4 6 .8.8 1.4-1.6" /><circle cx="5.5" cy="13.5" r="2.2" /><path d="M10 6h6.5M10 13.5h6.5" /></Icon>
       </button>
-      {state.table ? (
-        <Menu label="Table" title="Rows and columns" pressed button={<Icon><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></Icon>}>
-          {(close) => (
-            <>
-              <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().addRowBefore().run(); }}>Add a row above</button>
-              <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().addRowAfter().run(); }}>Add a row below</button>
-              <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().addColumnBefore().run(); }}>Add a column before</button>
-              <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().addColumnAfter().run(); }}>Add a column after</button>
-              <hr />
-              <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().deleteRow().run(); }}>Delete the row</button>
-              <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().deleteColumn().run(); }}>Delete the column</button>
-              <button type="button" role="menuitem" className="danger" onClick={() => { close(); editor.chain().focus().deleteTable().run(); }}>Delete the table</button>
-            </>
-          )}
-        </Menu>
-      ) : (
-        <button type="button" className="doc-tool" aria-label="Table" title="Insert a table" onPointerDown={keep} onClick={run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }))}>
-          <Icon><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></Icon>
-        </button>
-      )}
       <button type="button" className="doc-tool" aria-label="Link" aria-pressed={state.link} title={state.link ? 'Remove the link' : 'Link to a web page or another document'} onPointerDown={keep} onClick={() => (state.link ? editor.chain().focus().extendMarkRange('link').unsetLink().run() : extras.onLink())}>
         <Icon d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" />
       </button>
-      <Menu label="Insert" title="Insert a picture, a divider or code" button={<Icon d="M10 4v12M4 10h12" />}>
-        {(close) => (
-          <>
-            {extras.onFile && <button type="button" role="menuitem" onClick={() => { close(); extras.onFile!(); }}>Picture or file…</button>}
-            <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().setHorizontalRule().run(); }}>Divider</button>
-            <button type="button" role="menuitem" onClick={() => { close(); editor.chain().focus().toggleCodeBlock().run(); }}>Code block</button>
-          </>
-        )}
-      </Menu>
+      <Menu label="Insert" entries={[
+        { label: 'Table', icon: tableIcon, run: run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true })) },
+        ...(extras.onFile ? [{ label: 'Picture or file…', run: extras.onFile }] : []),
+        { label: 'Divider', run: run((c) => c.setHorizontalRule()) },
+        { label: 'Code block', run: run((c) => c.toggleCodeBlock()) },
+      ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Insert a table, a picture, a divider or code"><Icon d="M10 4v12M4 10h12" /></button>} />
+      {/* While the caret is in a table, its rows and columns are one button away. */}
+      {state.table && (
+        <Menu label="Table" entries={[
+          { label: 'Add a row above', run: run((c) => c.addRowBefore()) },
+          { label: 'Add a row below', run: run((c) => c.addRowAfter()) },
+          { label: 'Add a column before', run: run((c) => c.addColumnBefore()) },
+          { label: 'Add a column after', run: run((c) => c.addColumnAfter()) },
+          { label: 'Delete the row', run: run((c) => c.deleteRow()), separated: true },
+          { label: 'Delete the column', run: run((c) => c.deleteColumn()) },
+          { label: 'Delete the table', run: run((c) => c.deleteTable()), danger: true },
+        ]} trigger={<button type="button" className="doc-tool" aria-label="Table" aria-pressed title="Rows and columns">{tableIcon}</button>} />
+      )}
       <span className="spacer" />
-      <button type="button" className="doc-tool" aria-label="Outline" aria-pressed={extras.outline} title={extras.outline ? 'Hide the outline' : 'Show the outline'} onClick={extras.onOutline}>
+      {!inFrame && <button type="button" className="doc-tool" aria-label="Outline" aria-pressed={extras.outline} title={extras.outline ? 'Hide the outline' : 'Show the outline'} onClick={extras.onOutline}>
         <Icon d="M4 5.5h12M6.5 10H16M9 14.5h7" />
-      </button>
-      {extras.onComments && (
+      </button>}
+      {/* On the page bar (the wiki has none) the margin's comments have their own button; on the frame there is one
+          Comments button, the window's, and the margin is shown or hidden from Document options. */}
+      {extras.onComments && !inFrame && (
         <button type="button" className="doc-tool doc-tool-count" aria-label={extras.comments ? `Comments, ${extras.comments} open` : 'Comments'} aria-pressed={extras.commentsOpen} title={extras.commentsOpen ? 'Hide comments' : 'Show comments'} onClick={extras.onComments}>
           <Icon d="M4.5 5.5h11a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H9l-3.5 2.5V14h-1a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1Z" />
           {extras.comments > 0 && <span className="doc-count">{extras.comments}</span>}
         </button>
       )}
-      {extras.onHistory && <button type="button" className="doc-tool" aria-label="History" title="Earlier versions of this document" onClick={extras.onHistory}><Icon d="M4 10a6 6 0 1 0 1.8-4.3M4 4v3.5h3.5M10 6.5V10l2.5 1.5" /></button>}
+      {extras.onHistory && !inFrame && <button type="button" className="doc-tool" aria-label="History" title="Earlier versions of this document" onClick={extras.onHistory}><Icon d="M4 10a6 6 0 1 0 1.8-4.3M4 4v3.5h3.5M10 6.5V10l2.5 1.5" /></button>}
       {trailing}
-      {extras.onShare && (
-        <Menu label="Share" title="Copy, export or print this document" wide button={<Icon d="M10 3.5v9M6.5 7 10 3.5 13.5 7M5.5 10.5v5h9v-5" />}>
-          {(close) => (
-            <>
-              <button type="button" role="menuitem" onClick={() => { close(); extras.onShare!('formatted'); }}>Copy</button>
-              <button type="button" role="menuitem" onClick={() => { close(); extras.onShare!('markdown'); }}>Copy as Markdown</button>
-              <hr />
-              <button type="button" role="menuitem" onClick={() => { close(); extras.onShare!('html'); }}>Export as web page</button>
-              <button type="button" role="menuitem" onClick={() => { close(); extras.onShare!('md'); }}>Export as Markdown</button>
-              <hr />
-              <button type="button" role="menuitem" onClick={() => { close(); extras.onShare!('print'); }}>Print or save as PDF…</button>
-            </>
-          )}
-        </Menu>
-      )}
-      <button type="button" className="doc-tool" aria-label="More" title="More for this document" aria-haspopup="menu" aria-expanded={more !== null}
-        onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMore((m) => (m ? null : { x: Math.max(8, r.right - 220), y: r.bottom + 6 })); }}>
-        <Icon><circle cx="5" cy="10" r="1.1" /><circle cx="10" cy="10" r="1.1" /><circle cx="15" cy="10" r="1.1" /></Icon>
-      </button>
-      {more && createPortal(
-        <ContextMenu x={more.x} y={more.y} label="More" onClose={() => setMore(null)} items={[
-          extras.font === 'serif'
-            ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans') }
-            : { label: 'Use a serif font', run: () => extras.onFont('serif') },
-        ]} />,
-        document.body,
-      )}
+      {extras.onShare && (() => {
+        const share = extras.onShare;
+        return (
+          <Menu label="Share" align="end" entries={[
+            { label: 'Copy', run: () => share('formatted') },
+            { label: 'Copy as Markdown', run: () => share('markdown') },
+            { label: 'Export as web page', run: () => share('html'), separated: true },
+            { label: 'Export as Markdown', run: () => share('md') },
+            { label: 'Print or save as PDF…', run: () => share('print'), separated: true },
+          ]} trigger={<button type="button" className="doc-tool" aria-label="Share" title="Copy, export or print this document"><Icon d="M10 3.5v9M6.5 7 10 3.5 13.5 7M5.5 10.5v5h9v-5" /></button>} />
+        );
+      })()}
+      {/* The document's view options. Not a second ⋯: the window's ⋯ beside it holds the app's menus. */}
+      <Menu label="Document options" align="end" entries={[
+        { label: extras.outline ? 'Hide the outline' : 'Show the outline', run: extras.onOutline },
+        ...(extras.onComments && inFrame ? [{ label: extras.commentsOpen ? 'Hide comments in the margin' : extras.comments ? `Show comments in the margin (${extras.comments} open)` : 'Show comments in the margin', run: extras.onComments }] : []),
+        ...(extras.onHistory ? [{ label: 'Earlier versions…', run: extras.onHistory }] : []),
+        extras.font === 'serif'
+          ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans'), separated: true }
+          : { label: 'Use a serif font', run: () => extras.onFont('serif'), separated: true },
+      ]} trigger={
+        <button type="button" className="doc-tool" aria-label="Document options" title="Outline, comments, earlier versions and the typeface">
+          <Icon><path d="M4 6.5h6M14 6.5h2M4 13.5h2M10 13.5h6" /><circle cx="12" cy="6.5" r="1.8" /><circle cx="8" cy="13.5" r="1.8" /></Icon>
+        </button>
+      } />
       {onTool && (
-        <Menu label="Writing tools" title="Ask Mobius to proofread, rewrite or summarise" wide button={<span className="doc-tool-mobius">Writing tools</span>}>
-          {(close) => (
-            <>
-              <p className="doc-writing-sees">Sees: {state.empty ? 'the whole document' : 'the selected text'}</p>
-              {WRITING_TOOLS.map((t) => (
-                <button key={t.id} type="button" role="menuitem" disabled={busy} onClick={() => { close(); onTool(t.id, t.id === 'summarise' ? null : selectedText()); }}>{t.label}</button>
-              ))}
-            </>
-          )}
-        </Menu>
+        <Menu label="Writing tools" align="end" entries={WRITING_TOOLS.map((t) => ({ label: t.label, disabled: busy, run: () => onTool(t.id, t.id === 'summarise' ? null : selectedText()) }))}
+          trigger={<button type="button" className="doc-tool doc-tool-writing" aria-label="Writing tools" title={`Ask Mobius to proofread, rewrite or summarise. It sees ${state.empty ? 'the whole document' : 'the selected text'}.`}><Icon d="m4.5 15.5 1-3.5 7.8-7.8a1.6 1.6 0 0 1 2.3 2.3l-7.8 7.8zM12 5.5 14.5 8" /><span className="doc-tool-mobius">Writing tools</span></button>} />
       )}
     </div>
   );
+  return inFrame ? <ToolbarControls label="Docs">{bar}</ToolbarControls> : bar;
 }
 
-/** What Mobius's last turn changed, as the page shows it: the blocks it added marked, and a note at each change with
- *  the words it took out and Keep and Discard for that change alone. Read from `look` when told to look again. */
-interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void }
+/** What Mobius's last turn changed, as the page shows it: each change one dashed block where it is (the blocks it
+ *  added, with the words it took out struck through at the top), and under it Discard, Try another and Keep for that
+ *  change alone. Read from `look` when told to look again. */
+interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number> }
 const changeKey = new PluginKey<DecorationSet>('doc-changes');
-function changeNote(group: number, removed: string[], view: ChangeView, look: () => ChangeView | null): HTMLElement {
+/** The words a change took out, struck through: the top of its dashed block, or all of it when nothing was added. */
+function changeWas(group: number, removed: string[], view: ChangeView, whole: boolean): HTMLElement {
+  const old = document.createElement('div');
+  old.className = 'doc-change-old';
+  old.contentEditable = 'false';
+  old.dataset.group = String(group);
+  if (whole) old.dataset.whole = '';
+  // Drawn as the page draws it (headings, lists, bold), through the editor's own schema; as lines when it will not read.
+  const html = view.render(removed.join('\n'));
+  if (html !== null) old.innerHTML = html;
+  else for (const line of removed) { const p = document.createElement('p'); p.textContent = line || ' '; old.append(p); }
+  return old;
+}
+/** The line under a change's block: who did it, then Discard, Try another and Keep. */
+function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null, head = false): HTMLElement {
   const note = document.createElement('div');
-  note.className = 'doc-change';
+  note.className = head ? 'doc-change-head' : 'doc-change';
   note.contentEditable = 'false';
   note.dataset.group = String(group);
   note.setAttribute('role', 'group');
-  note.setAttribute('aria-label', removed.length ? 'A change Mobius made' : 'Words Mobius added');
-  if (removed.length) {
-    const old = document.createElement('div');
-    old.className = 'doc-change-old';
-    // Drawn as the page draws it (headings, lists, bold), through the editor's own schema; as lines when it will not read.
-    const html = view.render(removed.join('\n'));
-    if (html !== null) old.innerHTML = html;
-    else for (const line of removed) { const p = document.createElement('p'); p.textContent = line || ' '; old.append(p); }
-    note.append(old);
-  }
+  note.setAttribute('aria-label', !added ? 'Words Mobius took out' : removed ? 'A change Mobius made' : 'Words Mobius added');
   const bar = document.createElement('div');
   bar.className = 'doc-change-bar';
   const who = document.createElement('span');
-  who.textContent = removed.length ? 'Mobius changed this' : 'Mobius added this';
+  who.textContent = !added ? 'Mobius took this out' : removed ? 'Mobius changed this' : 'Mobius added this';
   bar.append(who);
   const button = (label: string, name: string, kind: string, run: () => void) => {
     const b = document.createElement('button');
@@ -366,29 +333,64 @@ function changeNote(group: number, removed: string[], view: ChangeView, look: ()
     return b;
   };
   // Asked through `look` when pressed: the note can outlive the render it was drawn in, and its change's number holds.
-  bar.append(button('Discard', 'Discard this change', 'discard', () => look()?.discard(group)), button('Keep', 'Keep this change', 'keep', () => look()?.keep(group)));
+  bar.append(button('Discard', 'Discard this change', 'discard', () => look()?.discard(group)));
+  if (view.again) bar.append(button('Try another', 'Try another way for this change', 'again', () => look()?.again?.(group)));
+  bar.append(button('Keep', 'Keep this change', 'keep', () => look()?.keep(group)));
   note.append(bar);
   return note;
 }
 function changeDecorations(doc: PmNode, look: () => ChangeView | null): DecorationSet {
   const view = look();
   if (!view) return DecorationSet.empty;
-  const blocks: { from: number; to: number; text: string }[] = [];
+  // Each text block, and the top-level block it sits in: a change is boxed at the top level, so a list or a quote
+  // draws as one block rather than an outline round each item.
+  const tops: { from: number; to: number }[] = [];
+  doc.forEach((node, offset) => { tops.push({ from: offset, to: offset + node.nodeSize }); });
+  const blocks: { top: number; text: string }[] = [];
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true;
-    blocks.push({ from: pos, to: pos + node.nodeSize, text: node.textContent.replace(/\s+/g, ' ').trim() });
+    const $pos = doc.resolve(pos);
+    const from = $pos.depth === 0 ? pos : $pos.before(1);
+    blocks.push({ top: tops.findIndex((t) => t.from === from), text: node.textContent.replace(/\s+/g, ' ').trim() });
     return false;
   });
   const groups = changeGroups(view.diff);
   const { added, notes } = placeChanges(view.diff, groups, blocks.map((b) => b.text));
   const marks: Decoration[] = [];
-  for (const [b, g] of added) marks.push(Decoration.node(blocks[b]!.from, blocks[b]!.to, { class: 'doc-change-new', 'data-group': String(g) }));
-  for (const [g, at] of notes) {
+  const removedOf = (g: number) => {
     const removed = view.diff.filter((l, i) => groups[i] === g && l.kind === 'removed').map((l) => l.text);
     while (removed.length && !removed[removed.length - 1]!.trim()) removed.pop();
     while (removed.length && !removed[0]!.trim()) removed.shift();
-    const pos = at.block < 0 ? 0 : at.before ? blocks[at.block]!.from : blocks[at.block]!.to;
-    marks.push(Decoration.widget(pos, () => changeNote(g, removed, view, look), { side: at.before ? -1 : 1, key: `change-${g}-${pos}-${removed.join('\u0000').length}`, stopEvent: () => true, ignoreSelection: true }));
+    return removed;
+  };
+  const topGroup = new Map<number, number>();
+  for (const [b, g] of added) if (blocks[b]!.top >= 0) topGroup.set(blocks[b]!.top, g);
+  // The added blocks of one change draw as one dashed block: its top on the first (unless struck words sit above),
+  // its bottom on the last.
+  const firstOf = new Map<number, number>();
+  for (const [t, g] of topGroup) if (!firstOf.has(g) || t < firstOf.get(g)!) firstOf.set(g, t);
+  for (const [t, g] of topGroup) {
+    const top = topGroup.get(t - 1) !== g && (t !== firstOf.get(g) || removedOf(g).length === 0);
+    const bottom = topGroup.get(t + 1) !== g;
+    marks.push(Decoration.node(tops[t]!.from, tops[t]!.to, { class: 'doc-change-new', 'data-group': String(g), ...(top ? { 'data-top': '' } : {}), ...(bottom ? { 'data-bottom': '' } : {}) }));
+  }
+  for (const [g, at] of notes) {
+    const removed = removedOf(g);
+    const own = [...topGroup].filter(([, og]) => og === g).map(([t]) => t);
+    const key = `${g}-${removed.join('\u0000').length}`;
+    const opts = (side: number, k: string) => ({ side, key: `change-${k}-${key}`, stopEvent: () => true, ignoreSelection: true });
+    if (own.length) {
+      // A change taller than the view also has its answers at its top, so they are never only out of sight.
+      if (view.tall?.has(g)) marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeNote(g, removed.length > 0, true, view, look, true), opts(-2, 'head')));
+      if (removed.length) marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeWas(g, removed, view, false), opts(-1, 'was')));
+      marks.push(Decoration.widget(tops[Math.max(...own)]!.to, () => changeNote(g, removed.length > 0, true, view, look), opts(1, 'note')));
+      continue;
+    }
+    const near = at.block < 0 ? undefined : tops[blocks[at.block]!.top];
+    const pos = !near ? 0 : at.before ? near.from : near.to;
+    const side = at.before ? -2 : 1;
+    if (removed.length) marks.push(Decoration.widget(pos, () => changeWas(g, removed, view, true), opts(side, `was-${pos}`)));
+    marks.push(Decoration.widget(pos, () => changeNote(g, removed.length > 0, false, view, look), opts(side + 1, `note-${pos}`)));
   }
   return DecorationSet.create(doc, marks);
 }
@@ -414,8 +416,10 @@ type ShareHow = 'markdown' | 'formatted' | 'html' | 'md' | 'print';
  * earlier version back; Share copies, exports or prints it. A document the agent changed shows those changes as
  * proposals to keep or discard.
  */
-export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, busy = false, toolbarEnd }: {
+export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, busy = false, toolbarEnd, inFrame = false }: {
   docs: NotesState;
+  /** The format bar goes in the window's toolbar (Docs, on the frame); without it, it stays above the page (the wiki). */
+  inFrame?: boolean;
   /** The folder's own controls, at the end of the format bar (Knowledge's versions), so the page keeps one bar. */
   toolbarEnd?: ReactNode;
   autoFocus?: boolean;
@@ -441,6 +445,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   quotesNow.current = commentState.comments.filter((c) => !c.resolved).map((c) => c.quote);
   const commentMarks = useMemo(() => docComments(() => quotesNow.current), []);
   const changesNow = useRef<ChangeView | null>(null);
+  const tryAnother = useContext(TryAnotherContext);
   const changeMarks = useMemo(() => docChanges(() => changesNow.current), []);
   useEffect(() => { onComments?.(commentState.comments); }, [commentState.comments, onComments]);
   const askAbout = onTool ? (c: NoteComment) => onTool('comment', commentLine(c, commentState.comments)) : undefined;
@@ -754,14 +759,40 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   };
   // The page is told to mark the changes again whenever what it should show changes.
   changesNow.current = null;
+  // Which changes are taller than the view, measured once they are drawn; told to the page when that changes.
+  const tallGroups = useRef<ReadonlySet<number>>(new Set());
   const changesKey = review && !kept && diff && before !== null ? `${path}:${before.length}:${diff.length}:${diff.map((l) => l.kind[0]).join('')}` : '';
   useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(changeKey, true)); }, [editor, changesKey]);
+  useEffect(() => {
+    if (!changesKey || !editor || !scroller) { tallGroups.current = new Set(); return undefined; }
+    const measure = () => {
+      if (editor.isDestroyed) return;
+      const span = new Map<number, { top: number; bottom: number }>();
+      for (const el of editor.view.dom.querySelectorAll<HTMLElement>('.doc-change-new[data-group], .doc-change-old[data-group], .doc-change[data-group]')) {
+        const g = Number(el.dataset.group);
+        const r = el.getBoundingClientRect();
+        const was = span.get(g);
+        span.set(g, { top: Math.min(was?.top ?? r.top, r.top), bottom: Math.max(was?.bottom ?? r.bottom, r.bottom) });
+      }
+      const room = scroller.clientHeight - 48;
+      const tall = new Set([...span].filter(([, s]) => s.bottom - s.top > room).map(([g]) => g));
+      const was = tallGroups.current;
+      if (tall.size === was.size && [...tall].every((g) => was.has(g))) return;
+      tallGroups.current = tall;
+      if (changesNow.current) changesNow.current = { ...changesNow.current, tall };
+      editor.view.dispatch(editor.state.tr.setMeta(changeKey, true));
+    };
+    const frame = requestAnimationFrame(measure);
+    const resized = new ResizeObserver(() => measure());
+    resized.observe(scroller);
+    return () => { cancelAnimationFrame(frame); resized.disconnect(); };
+  }, [editor, scroller, changesKey]);
 
   if (!docs.page) {
     // The editor stays mounted (hidden), so it is ready the moment a document opens.
     return (
       <section className="doc-editor empty" aria-label="Document">
-        <EmptyState app="docs" label="No document open" title={docs.notebooks.some((n) => n.pages.length) ? 'No document open' : 'No documents yet'} line="Choose one on the left, or start a new one." action={{ label: 'New document', run: () => newItemIn(docs, null, DOCS_WORDS.defaultGroup) }} />
+        <EmptyState app="docs" label="No document open" title={docs.notebooks.some((n) => n.pages.length) ? 'No document open' : 'No documents yet'} line="Choose one on the left, or start a new one." action={{ label: 'New document', run: () => newItemIn(docs, null, DEFAULT_FOLDER) }} />
         <EditorContent editor={editor} hidden />
       </section>
     );
@@ -775,7 +806,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
     try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
   };
-  if (showing) changesNow.current = { diff, render: renderMarkdown, keep: keepOne, discard: discardOne };
+  if (showing) changesNow.current = { diff, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, tall: tallGroups.current };
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
@@ -788,7 +819,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
         </div>
       )}
       {editor && (
-        <Toolbar editor={editor} busy={busy} {...(onTool ? { onTool } : {})} trailing={toolbarEnd} extras={{
+        <Toolbar editor={editor} busy={busy} inFrame={inFrame} {...(onTool ? { onTool } : {})} trailing={toolbarEnd} extras={{
           font, onFont: setFont,
           onLink: () => setLinking(''),
           ...(own?.attach ? { onFile: () => picker.current?.click() } : {}),
@@ -834,14 +865,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
             </nav>
           )}
           <div className="doc-scroll" ref={setScroller}>
-            {restored && (
-              <div className="note-restored doc-banner" role="status">
-                <span>Restored the version from {restored.label}.</span>
-                <button type="button" className="review-btn" onClick={() => { docs.edit(restored.was); setRestored(null); }}>Undo</button>
-                <button type="button" className="review-btn" aria-label="Dismiss" onClick={() => setRestored(null)}>OK</button>
-              </div>
-            )}
-            {review && !kept && (
+            {review && !kept && !showing && (
               <div ref={reviewBar} className="note-review doc-review" role="status">
                 <span className="review-dot" aria-hidden="true" />
                 <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return wholeNew ? 'Mobius wrote this document in its last turn.' : `Mobius changed ${c.added + c.removed === 1 ? 'one line' : `${c.added + c.removed} lines`} here in its last turn.`; })() : 'Mobius changed this document in its last turn.'}<WhyThis conversation={review.conversation} /></span>
@@ -883,12 +907,13 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       {editMenu && createPortal(<ContextMenu x={editMenu.x} y={editMenu.y} label="Edit" items={editItems()} onClose={() => setEditMenu(null)} />, document.body)}
       {composing && <CommentComposer quote={composing.quote} top={composing.top} left={composing.left} add={commentState.add} onDone={() => setComposing(null)}
         {...(onTool ? { onAsk: (quote: string, text: string) => onTool('comment', commentLine({ id: '', quote, text, by: 'you', whenMs: 0, resolved: false }, [])) } : {})} />}
+      {restored && <UndoToast text={`Restored the version from ${restored.label}`} onUndo={() => { docs.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
       {note && <div className="doc-toast" role="status"><span>{note}</span><button type="button" className="review-btn" onClick={() => setNote(null)}>OK</button></div>}
       <footer className="doc-status">
         <button type="button" className="doc-count-btn" title={`Show ${COUNT_NEXT[count]} instead`} onClick={nextCount}>{countLabel(count, stats, chosenWords)}</button>
         {adding > 0 && <span>Adding {adding === 1 ? 'a file' : `${adding} files`}…</span>}
-        <span className="spacer" />
-        <span className="doc-saved" data-state={docs.status}>{saving}</span>
+        {/* On the frame, whether it is saved shows in the window's toolbar, under the document's name. */}
+        {!inFrame && <><span className="spacer" /><span className="doc-saved" data-state={docs.status}>{saving}</span></>}
       </footer>
     </section>
   );

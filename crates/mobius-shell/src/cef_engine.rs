@@ -621,6 +621,16 @@ pub struct CefEngine {
     shared: Arc<Shared>,
 }
 
+/// How many pixels make one point in `window` now, asked of Windows directly, so any thread may ask without waiting
+/// for the thread that owns the window.
+pub fn window_scale(window: isize) -> f64 {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::HiDpi::GetDpiForWindow;
+    // SAFETY: `window` is the Mobius window's handle; the call only reads its DPI (0 when the window is gone).
+    let dpi = unsafe { GetDpiForWindow(HWND(window as *mut _)) };
+    if dpi == 0 { 1.0 } else { f64::from(dpi) / 96.0 }
+}
+
 /// Run first thing in `main`: CEF starts the same program again for its helper processes, and those must do their work
 /// and leave without starting the application. Returns the exit code to leave with, or `None` for the real start.
 pub fn run_helper_process() -> Option<i32> {

@@ -25,6 +25,10 @@ test.afterEach(async () => {
 });
 
 const shell = () => mobius!.shell;
+/** The toolbar's title: the open folder's name. */
+const title = () => shell().locator('.strip-title');
+/** Files' own controls, in the toolbar. */
+const tools = () => shell().getByRole('group', { name: 'Files' });
 
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
@@ -47,19 +51,19 @@ test('Files shows the workspace as a drive, folder by folder, and a file opens i
   await expect(notes).toHaveAttribute('aria-selected', 'true');
   await expect(notes).toContainText('Notes folder');
   await notes.dblclick();
-  await expect(page.getByRole('heading', { name: 'Notes' })).toBeVisible();
+  await expect(title()).toHaveText('Notes');
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › notes › Work');
-  // Back and Forward walk the folders visited; the sidebar lists the workspace's folders.
-  await page.getByRole('button', { name: 'Back' }).click();
-  await expect(page.getByRole('heading', { name: 'Notes' })).toBeVisible();
-  await page.getByRole('button', { name: 'Forward' }).click();
-  await expect(page.getByRole('heading', { name: 'Work' })).toBeVisible();
-  await expect(shell().getByRole('list', { name: 'Folders' }).getByRole('button', { name: 'Notes' })).toHaveAttribute('aria-current', 'page');
-  // The filter narrows the folder; the keyboard selects and opens.
-  await page.getByRole('searchbox', { name: 'Filter this folder' }).fill('nothing like it');
+  // Back and Forward, in the toolbar, walk the folders visited; the sidebar lists the workspace's folders.
+  await tools().getByRole('button', { name: 'Back' }).click();
+  await expect(title()).toHaveText('Notes');
+  await tools().getByRole('button', { name: 'Forward' }).click();
+  await expect(title()).toHaveText('Work');
+  await expect(shell().getByRole('complementary', { name: 'Files sidebar' }).getByRole('region', { name: 'Folders' }).getByRole('button', { name: 'Notes' })).toHaveAttribute('aria-current', 'page');
+  // The sidebar's search narrows the folder; the keyboard selects and opens.
+  await shell().getByRole('searchbox', { name: 'Search this folder' }).fill('nothing like it');
   await expect(page).toContainText('Nothing here matches');
-  await page.getByRole('searchbox', { name: 'Filter this folder' }).fill('pla');
+  await shell().getByRole('searchbox', { name: 'Search this folder' }).fill('pla');
   const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
   await plan.click();
   await expect(plan).toContainText('Note');
@@ -79,7 +83,7 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log.locator('.msg.assistant')).toContainText('I wrote a brief');
   await openFiles();
-  const side = shell().getByRole('navigation', { name: 'Files' });
+  const side = shell().getByRole('complementary', { name: 'Files sidebar' });
   await side.getByRole('button', { name: /Made by Mobius/ }).click();
   const made = shell().getByRole('region', { name: 'Made by Mobius' });
   await expect(made.getByRole('option', { name: 'Work / Brief, from Mobius' })).toHaveAttribute('data-proposed');
@@ -101,7 +105,7 @@ test('a new folder is named in place, a file renamed with F2, and Delete moves i
   const page = shell().getByRole('region', { name: 'Files' });
   await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
-  await page.getByRole('button', { name: 'New folder' }).click();
+  await tools().getByRole('button', { name: 'New folder' }).click();
   const naming = page.getByRole('textbox', { name: 'New name for New folder' });
   await naming.fill('Battery');
   await naming.press('Enter');
@@ -128,10 +132,49 @@ test('a new folder is named in place, a file renamed with F2, and Delete moves i
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Build plan.md'), 'utf8')).toBe('# Plan\n');
 
   // An app's own folder cannot be renamed or thrown away from Files.
-  await page.getByRole('button', { name: 'Back' }).click();
-  await page.getByRole('button', { name: 'Back' }).click();
+  await tools().getByRole('button', { name: 'Back' }).click();
+  await tools().getByRole('button', { name: 'Back' }).click();
   await page.getByRole('row', { name: 'notes', exact: true }).click({ button: 'right' });
   const menu = shell().getByRole('menu', { name: 'notes' });
   await expect(menu.getByRole('menuitem', { name: 'Open' })).toBeVisible();
   await expect(menu.getByRole('menuitem', { name: /Rename|Move to Trash/ })).toHaveCount(0);
+});
+
+test('the Trash lists what was trashed and where it was, puts it back there, and empties only after asking', async () => {
+  await start();
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files' });
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
+  await plan.click();
+  await plan.press('Delete');
+  await expect(plan).toHaveCount(0);
+
+  const side = shell().getByRole('complementary', { name: 'Files sidebar' });
+  await side.getByRole('button', { name: 'Trash', exact: true }).click();
+  await expect(title()).toHaveText('Trash');
+  const trash = shell().getByRole('region', { name: 'Trash' });
+  const held = trash.getByRole('row', { name: 'Plan.md', exact: true });
+  await expect(held).toContainText('Notes › Work');
+  await held.click();
+  await tools().getByRole('button', { name: 'Put Back' }).click();
+  await expect(trash).toContainText('The Trash is empty');
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
+
+  // Gone for good only after saying so: Cancel keeps it, Delete empties the Trash.
+  await side.getByRole('button', { name: 'Workspace' }).click();
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Plan.md', exact: true }).click();
+  await page.getByRole('row', { name: 'Plan.md', exact: true }).press('Delete');
+  await side.getByRole('button', { name: 'Trash', exact: true }).click();
+  await tools().getByRole('button', { name: 'Empty Trash…' }).click();
+  const ask = trash.getByRole('alertdialog', { name: 'Delete for good?' });
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await expect(trash.getByRole('row', { name: 'Plan.md', exact: true })).toBeVisible();
+  await tools().getByRole('button', { name: 'Empty Trash…' }).click();
+  await ask.getByRole('button', { name: 'Delete' }).click();
+  await expect(trash).toContainText('The Trash is empty');
+  expect(fs.readdirSync(path.join(userData, 'workspace', '.trash')).filter((n) => !n.startsWith('.'))).toEqual([]);
 });
