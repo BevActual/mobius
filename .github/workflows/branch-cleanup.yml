@@ -3,6 +3,8 @@ name: branch cleanup
 # Keeps the branch list tidy: when a pull request merges, its branch is deleted, and when one merges or closes,
 # its ci-screens/<branch> screenshots branch goes too. Long-lived branches listed in KEEP are never touched.
 # A deleted branch can be restored from the pull request page ("Restore branch").
+# The job can wait in the runner queue for a long time, and by then the branch may already hold the next round's
+# work under the same name, so a branch is deleted only while it still points at the pull request's own last commit.
 on:
   pull_request:
     types: [closed]
@@ -22,13 +24,21 @@ jobs:
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
           MERGED: ${{ github.event.pull_request.merged }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           KEEP: main
         run: |
           for k in $KEEP; do
             if [ "$BRANCH" = "$k" ]; then echo "$BRANCH is long-lived; kept."; KEPT=1; fi
           done
           gone() { gh api -X DELETE "repos/$REPO/git/refs/heads/$1" >/dev/null 2>&1 && echo "Deleted $1" || echo "$1 was not there"; }
+          # Only while the branch is still this pull request's: new commits on it mean the next round has started.
+          tip() { gh api "repos/$REPO/git/ref/heads/$1" --jq .object.sha 2>/dev/null; }
           if [ -z "$KEPT" ]; then
-            gone "ci-screens/$BRANCH"
-            if [ "$MERGED" = "true" ]; then gone "$BRANCH"; else echo "Not merged; $BRANCH kept so the work is not lost."; fi
+            NOW=$(tip "$BRANCH")
+            if [ -n "$NOW" ] && [ "$NOW" != "$HEAD_SHA" ]; then
+              echo "$BRANCH has moved on to $NOW since this pull request ($HEAD_SHA); kept with its screenshots."
+            else
+              gone "ci-screens/$BRANCH"
+              if [ "$MERGED" = "true" ]; then gone "$BRANCH"; else echo "Not merged; $BRANCH kept so the work is not lost."; fi
+            fi
           fi

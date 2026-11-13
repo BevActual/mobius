@@ -29,11 +29,6 @@
 .tasks-side, .tasks-page { --flag: #ff9500; }
 
 /* ---------- Sidebar ---------- */
-.tasks-search { position: relative; display: flex; align-items: center; margin: 0 var(--sp-2) var(--sp-3); }
-.tasks-search svg { position: absolute; left: 8px; width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; pointer-events: none; }
-.tasks-search input { width: 100%; height: 28px; padding: 0 8px 0 28px; border: 0; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); font-size: var(--fs-md); outline: none; }
-.tasks-search input:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
-.tasks-search input::-webkit-search-cancel-button { cursor: pointer; }
 
 .smart-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 var(--sp-2) var(--sp-4) !important; }
 .tasks-side .smart-tile { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; gap: 6px 4px; width: 100%; height: auto; min-height: 0; padding: 8px 10px 7px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, var(--bg)); box-shadow: 0 0.5px 0 color-mix(in srgb, var(--ink) 8%, transparent); text-align: left; transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
@@ -227,3 +222,12 @@
 /* Scheduled: day headings in the ink colour, Overdue in red, as in Reminders. */
 .tasks-day .tasks-group-head { font-size: var(--fs-lg); color: var(--ink); }
 .tasks-day[data-overdue] .tasks-group-head { color: var(--danger); }
+
+/* Details: the due date as words on a pop-up button; the real date field sits over it, invisible, so a click or the
+   keyboard reaches the system's picker. */
+.inspector-date { position: relative; display: inline-flex; align-items: center; }
+.inspector-date-btn { padding: 3px 10px; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font-size: var(--fs-md); }
+.inspector-date[data-tone="late"] .inspector-date-btn { color: var(--danger); }
+.inspector-date-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.inspector-date-input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; opacity: 0; cursor: pointer; }
+.inspector-date:has(.inspector-date-input:focus-visible) .inspector-date-btn { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }

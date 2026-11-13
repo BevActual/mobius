@@ -12,6 +12,8 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
 import { emptyHistory, recorded, redone, undone, type History } from './photo-view';
 import { dropIndex, duplicateShot, filmstrip, insertClip, moveShot, nextEdit, parseTimecode, removeShot, rulerLabel, rulerMarks, splitAt, trimShot } from './video-view';
+import { exportFormat, exportName, renderCut, toBase64 } from './video-export';
+import { isNotesFailure } from '@mobius/shared';
 import './video.css';
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => (
@@ -237,6 +239,11 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   const [menu, setMenu] = useState<MenuAt | null>(null);
   const [full, setFull] = useState(false);
   const viewer = useRef<HTMLDivElement>(null);
+  // Export: how far along (0 to 1) while the film is made, then where it was saved.
+  const [exporting, setExporting] = useState<number | null>(null);
+  const [exported, setExported] = useState<string | null>(null);
+  const [exportError, setExportError] = useState('');
+  const stopExport = useRef<AbortController | null>(null);
   const titleField = useRef<HTMLInputElement>(null);
   const frame = useFrames(video);
   const { cut } = video;
@@ -300,6 +307,29 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   const seek = (to: number) => { const at = Math.max(0, Math.min(total, to)); const where = locate(cut, at); setT(at); if (where) cue(where.index, where.clipTime, playing); };
   const split = () => { const got = splitAt(cut, t); if (got) { edit(got.cut); setSelected(got.id); } };
   const remove = (id: string) => { edit(removeShot(cut, id)); setSelected(null); };
+  const format = useMemo(() => (typeof MediaRecorder === 'undefined' ? null : exportFormat((m) => MediaRecorder.isTypeSupported(m))), []);
+  const exportFilm = async () => {
+    if (!format || !video.project || exporting !== null) return;
+    if (playing) { player.current?.pause(); setPlaying(false); }
+    const stop = new AbortController();
+    stopExport.current = stop;
+    setExported(null); setExportError(''); setExporting(0);
+    const project = video.project;
+    try {
+      const film = await renderCut(cut, video.playable, format, (done) => setExporting(done), stop.signal);
+      const saved = await video.saveExport(exportName(project, format), await toBase64(film));
+      if (!saved) throw new Error('Video is not available here.');
+      if (isNotesFailure(saved)) throw new Error(saved.message);
+      setExported(saved.file);
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === 'AbortError')) setExportError(e instanceof Error ? e.message : String(e));
+    } finally {
+      stopExport.current = null;
+      setExporting(null);
+    }
+  };
+  useEffect(() => () => stopExport.current?.abort(), []);
+  useEffect(() => { stopExport.current?.abort(); setExported(null); setExportError(''); }, [video.project]);
   const duplicate = (id: string) => { const got = duplicateShot(cut, id); if (got) { edit(got.cut); setSelected(got.id); } };
   const nameIt = (id: string) => { setSelected(id); window.requestAnimationFrame(() => titleField.current?.focus()); };
   // Full screen: the viewer with its transport, as QuickTime and iMovie play.
@@ -333,7 +363,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   // Keys, as in other editors: Space plays, arrows step a frame (a second with Shift), Up and Down go between edits.
   const keys = useRef<(e: KeyboardEvent) => void>(() => undefined);
   keys.current = (e) => {
-    if (!page.current?.isConnected || e.defaultPrevented || typing(e.target) || document.querySelector('[aria-modal="true"]')) return;
+    if (!page.current?.isConnected || e.defaultPrevented || typing(e.target) || document.querySelector('[aria-modal="true"]') || stopExport.current) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
     if (mod && e.key === 'y') { e.preventDefault(); redo(); return; }
@@ -528,7 +558,28 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
           <Icon d="M4 10h12M10 4v12" />
         </label>
         <button type="button" className="btn" disabled={zoom === null} onClick={() => setZoom(null)} title="Fit the cut to the timeline">Fit</button>
+        {exporting === null ? (
+          <button type="button" className="btn primary video-export" disabled={!format || cut.shots.length === 0} onClick={() => void exportFilm()}
+            title={format ? 'Save the film as a video file in the project’s Exports folder. It plays through once while it is made.' : 'This window cannot record video'}>
+            <Icon d="M10 12.5V3.5M7 6.5l3-3 3 3M6.5 9H5.5A1.5 1.5 0 0 0 4 10.5v5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 14.5 9h-1" />
+            Export
+          </button>
+        ) : (
+          <span className="video-exporting" role="status" aria-label="Exporting">
+            <span className="video-progress" aria-hidden="true"><span style={{ width: `${Math.round(exporting * 100)}%` }} /></span>
+            <span>{`Exporting… ${Math.round(exporting * 100)}%`}</span>
+            <button type="button" className="btn" onClick={() => stopExport.current?.abort()}>Stop</button>
+          </span>
+        )}
       </div>
+      {exported && (
+        <p className="video-done" role="status">
+          <span>{`Saved the film as ${exported}.`}</span>
+          <button type="button" className="btn" onClick={() => void video.showExports()}>Show in folder</button>
+          <button type="button" className="strip-btn" aria-label="Dismiss" title="Dismiss" onClick={() => setExported(null)}><Icon d="M5 5l10 10M15 5 5 15" /></button>
+        </p>
+      )}
+      {exportError && <p className="tasks-message" role="alert">{`The film could not be exported: ${exportError}`}</p>}
       <div ref={strip} className="video-timeline" onDragOver={dragOver} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropAt(null); }} onDrop={dropOnTimeline}
         onPointerMove={(e) => { scrubMove(e); trimMove(e); }} onPointerUp={() => { scrubUp(); trimUp(); }} onPointerCancel={() => { scrubUp(); trimUp(); }}>
         <div className="video-track-wrap" style={{ width: Math.max(total * pxPerSec, width - 32) + 1 }}>

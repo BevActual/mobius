@@ -566,6 +566,10 @@ export interface MobiusBridge {
   extensions?: {
     /** The MCP servers from mcp.json: which run, which did not start and why. */
     connectors(): Promise<ConnectorStatus>;
+    /** Abilities › Add a Connector: written to mcp.json; it starts the next time Mobius opens. */
+    addConnector?(draft: ConnectorDraft): Promise<AgentResult<{ status: ConnectorStatus }>>;
+    /** Take a connector out of mcp.json; a running one stops the next time Mobius opens. */
+    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus }>>;
   };
   share?: {
     status(): Promise<ShareStatus>;
@@ -712,6 +716,10 @@ export interface MobiusBridge {
     saveCut(project: string, text: string, base: number | null): Promise<{ project: string; modified: number } | NotesFailure>;
     addClip(project: string, name: string, data: string): Promise<{ project: string; clip: string } | NotesFailure>;
     showFolder(project: string): Promise<{ ok: true } | NotesFailure>;
+    /** A film made from the cut (base64 MP4 or WebM), saved in the project's `Exports` folder under a fresh name. */
+    saveExport(project: string, name: string, data: string): Promise<{ project: string; file: string } | NotesFailure>;
+    /** Opens the project's `Exports` folder. */
+    showExports(project: string): Promise<{ ok: true } | NotesFailure>;
     onChanged(listener: (change: VideoChanged) => void): () => void;
   };
   /** The Skills app. Only the Tauri shell has it. */
@@ -1177,7 +1185,9 @@ export interface ModelCatalog { current: string; groups: ModelGroup[] }
 
 /** Settings > Advanced > Other apps. */
 export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number }
-export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null }
+export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null; /** In mcp.json, not started yet: starts when Mobius opens again. */ waiting?: string[]; /** Started, but no longer in mcp.json: stops when Mobius opens again. */ leaving?: string[] }
+/** A connector to add: a short name, the command that runs the MCP server, its arguments and its keys. */
+export interface ConnectorDraft { name: string; command: string; args: string[]; env: Record<string, string> }
 export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }
 
 /** Software Update's state, with the words to show and the version running. */
