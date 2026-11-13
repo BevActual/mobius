@@ -6,12 +6,13 @@ Quick pages, saved as you type.
 
 ![The Notes app in Mobius](../readme/apps/notes.png)
 
-- **Notebooks** in the sidebar, each one folding away, newest pages first, each row showing when it was edited and how it starts, with search, **Pinned** pages at the top,
+- **Notebooks** in the sidebar, each one folding away, newest pages first, one line per page with when it was edited at the end (the time today, the weekday this week, the date before that; hover for how it starts), with search, **Pinned** pages at the top,
   **New notebook** under the notebooks and a **Tags** section built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
   recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
-  bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Table, Link,
-  Record, Picture and Share, so nothing sits between you and the page. The **Notes** menu (**⋯** in the toolbar)
+  bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Link and
+  **+** (Insert: a table, a picture or file, Dictate, or a clipped web page), with Share at the end, as in Docs, so
+  nothing sits between you and the page. While you dictate, Stop stays in the toolbar. The **Notes** menu (**⋯** in the toolbar)
   opens Version history, clips a web page into the note and shows the Markdown file itself.
 - **History** (Notes menu › Version history…) lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).

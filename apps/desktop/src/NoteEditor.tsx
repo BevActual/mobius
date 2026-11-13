@@ -1,7 +1,7 @@
 import { EmptyState } from './EmptyState';
 import { newItemIn } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu, ToolbarControls, UndoToast } from './ui';
 import { settleGone, settleIn, settleKept } from './settle';
@@ -134,7 +134,9 @@ const markdownOf = (e: Editor) => tidyMarkdown(e.getMarkdown());
  * what is reached for while writing (checklist, table, link). The buttons show as pressed what the cursor is in.
  * Off in Markdown, where the marks are typed.
  */
-function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void }) {
+const TABLE_ICON = <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></svg>;
+
+function FormatButtons({ editor, onLink, insert }: { editor: Editor; onLink: () => void; insert: ReactNode }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -208,17 +210,21 @@ function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void 
       <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title="Checklist (Ctrl+Shift+9)" onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5.5" cy="6" r="2.2" /><path d="m4.4 6 .8.8 1.4-1.6" /><circle cx="5.5" cy="13.5" r="2.2" /><path d="M10 6h6.5M10 13.5h6.5" /></svg>
       </button>
-      <button type="button" className="doc-tool" aria-label="Table" aria-pressed={state.table} title={state.table ? 'Delete table' : 'Insert table'} onPointerDown={keep} onClick={run((c) => (state.table ? c.deleteTable() : c.insertTable({ rows: 3, cols: 2, withHeaderRow: true })))}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></svg>
-      </button>
       <button type="button" className="doc-tool" aria-label="Link" aria-pressed={state.link} title={state.link ? 'Remove the link' : 'Link to a note or a web page (or type [[)'} onPointerDown={keep} onClick={() => (state.link ? editor.chain().focus().unsetLink().run() : onLink())}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" /></svg>
       </button>
+      {insert}
+      {/* While the caret is in a table, its rows and columns are one button away (as in Docs). */}
       {state.table && (
-        <>
-          <button type="button" className="doc-tool text" onPointerDown={keep} onClick={run((c) => c.addRowAfter())}>+ Row</button>
-          <button type="button" className="doc-tool text" onPointerDown={keep} onClick={run((c) => c.addColumnAfter())}>+ Column</button>
-        </>
+        <Menu label="Table" entries={[
+          { label: 'Add a row above', run: run((c) => c.addRowBefore()) },
+          { label: 'Add a row below', run: run((c) => c.addRowAfter()) },
+          { label: 'Add a column before', run: run((c) => c.addColumnBefore()) },
+          { label: 'Add a column after', run: run((c) => c.addColumnAfter()) },
+          { label: 'Delete the row', run: run((c) => c.deleteRow()), separated: true },
+          { label: 'Delete the column', run: run((c) => c.deleteColumn()) },
+          { label: 'Delete the table', run: run((c) => c.deleteTable()), danger: true },
+        ]} trigger={<button type="button" className="doc-tool" aria-label="Table" aria-pressed title="Rows and columns">{TABLE_ICON}</button>} />
       )}
     </>
   );
@@ -588,6 +594,15 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   }
   const title = liveTitle(notes.text, notes.page.title || path?.split('/')[1]?.replace(/\.md$/, '') || '');
   const keep = (e: { preventDefault: () => void }) => e.preventDefault();
+  // Insert (+): what goes into the page, as in Docs. Table, a picture or a file, words said aloud, a clipped web page.
+  const insertMenu = (
+    <Menu label="Insert" entries={[
+      { label: 'Table', icon: TABLE_ICON, run: () => { if (source || !editor) put(TABLE); else editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(); } },
+      ...(window.mobius.notes?.attach ? [{ label: adding > 0 ? 'Adding…' : 'Picture or file…', disabled: adding > 0, run: () => picker.current?.click() }] : []),
+      { label: 'Dictate', disabled: recording.state !== 'idle', run: recording.toggle },
+      { label: 'Clip a web page…', run: () => setClipping(''), separated: true },
+    ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Insert a table, a picture or a file, dictation or a clipped web page"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>} />
+  );
   const edited = notes.page.base ? relativeTime(notes.page.base, Math.max(now, notes.page.base)) : '';
   return (
     <section ref={section} className="note-editor" aria-label={`Note: ${title}`} data-source={source || undefined}>
@@ -603,33 +618,21 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
         // The page's controls sit in the window's toolbar (ui/AppFrame), not in a row of their own above the page.
         <ToolbarControls label="Notes">
         <div className="note-format" role="toolbar" aria-label="Format">
-          {editor && !source && <FormatButtons editor={editor} onLink={() => setLinking('')} />}
+          {editor && !source && <FormatButtons editor={editor} onLink={() => setLinking('')} insert={insertMenu} />}
           {source && (
             <>
               <button type="button" className="doc-tool text" onPointerDown={keep} onClick={() => put(CHECKLIST)}>Checklist</button>
-              <button type="button" className="doc-tool text" onPointerDown={keep} onClick={() => put(TABLE)}>Table</button>
+              {insertMenu}
             </>
           )}
-          <span className="doc-tool-sep" />
-          <div className="note-insert" role="group" aria-label="Insert">
-            {recording.state === 'idle' ? (
-              <button type="button" className="doc-tool" aria-label="Record" title="Record what is said and keep the words in this page" onPointerDown={keep} onClick={recording.toggle}>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5" /><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17" /></svg>
-              </button>
-            ) : (
-              <button type="button" className="note-insert-btn" data-recording={recording.state === 'recording' || undefined} disabled={recording.state === 'transcribing'} title="Stop and keep the words in this page" onPointerDown={keep} onClick={recording.toggle}>
-                {recording.state === 'recording' ? `Stop · ${Math.floor(recording.seconds / 60)}:${String(recording.seconds % 60).padStart(2, '0')}` : 'Writing it down…'}
-              </button>
-            )}
-            {window.mobius.notes?.attach && (
-              <>
-                <button type="button" className="doc-tool" aria-label="Picture or file" title={adding > 0 ? 'Adding…' : 'Add a picture or a file to this page (or paste or drop one)'} aria-busy={adding > 0 || undefined} disabled={adding > 0} onPointerDown={keep} onClick={() => picker.current?.click()}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="11" rx="2" /><circle cx="7.5" cy="8.5" r="1.3" /><path d="m3.5 14 4-3.5 3 2.5 2.5-2 3.5 3" /></svg>
-                </button>
-                <input ref={picker} type="file" multiple hidden aria-label="Choose files to add" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; void addFiles(files); }} />
-              </>
-            )}
-          </div>
+          {/* While Mobius listens, the way to stop it stays in sight. */}
+          {recording.state !== 'idle' && (
+            <button type="button" className="note-insert-btn" data-recording={recording.state === 'recording' || undefined} disabled={recording.state === 'transcribing'} title="Stop and keep the words in this page" onPointerDown={keep} onClick={recording.toggle}>
+              {recording.state === 'recording' ? `Stop · ${Math.floor(recording.seconds / 60)}:${String(recording.seconds % 60).padStart(2, '0')}` : 'Writing it down…'}
+            </button>
+          )}
+          {window.mobius.notes?.attach && <input ref={picker} type="file" multiple hidden aria-label="Choose files to add" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; void addFiles(files); }} />}
+          <span className="spacer" />
           <Menu label="Share" align="end" entries={[
             { label: 'Copy', run: () => void share('formatted') },
             { label: 'Copy as Markdown', run: () => void share('markdown') },
