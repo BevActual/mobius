@@ -243,13 +243,17 @@
 
 /* The toolbar row is shared: Photo's tools take the room left after the title and give up words before buttons as it
    narrows: the back button keeps only its arrow, then Revert and Export only their icons, then the arrow goes. */
-.app .context-strip .ui-toolbar-slot:has(.photo-tools) { flex: 1 1 440px; min-width: 0; justify-content: flex-end; }
+.app .context-strip .ui-toolbar-slot:has(.photo-tools) { flex: 1 1 440px; min-width: 216px; justify-content: flex-end; }
 .app .context-strip .ui-toolbar-slot:has(.photo-tools) > .ui-toolbar-group { flex: 1; min-width: 0; }
+/* In a narrow window the photo's name in the title gives way first: the back button and the foot line name it too. */
+.app .context-strip:has(.photo-tools) .toolbar-place { flex: 0 1 auto; min-width: 0; }
+.app .context-strip:has(.photo-tools) .toolbar-place .strip-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .context-strip .photo-tools { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); container-type: inline-size; }
 .context-strip .photo-tools-group { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .context-strip .photo-tools-group + .photo-tools-group { position: relative; padding-left: var(--sp-2); }
 .context-strip .photo-tools-group + .photo-tools-group::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: var(--hairline-w); background: var(--line); }
 .context-strip .photo-tools-group:first-child { margin-right: auto; }
+.context-strip .photo-tools-group:not(:first-child) { flex: none; }
 .context-strip .photo-export svg, .context-strip .photo-tb svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .context-strip .photo-export svg, .context-strip .photo-tools [aria-label="Revert"] svg { display: none; }
 @container (max-width: 440px) { .context-strip .photo-back span, .context-strip .photo-tools .photo-meta { display: none; } .context-strip .photo-zoom { display: none; } }
@@ -263,4 +267,6 @@
   /* Narrowest: Esc and the album in the sidebar still go back, so the back arrow gives way to the edit tools. */
   .context-strip .photo-tools-group:first-child { display: none; }
   .context-strip .photo-tab { padding: 0 6px; }
+  /* Holding M still shows the original. */
+  .context-strip .photo-tools [aria-label="Show original"] { display: none; }
 }

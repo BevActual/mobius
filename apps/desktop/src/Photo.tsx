@@ -626,7 +626,6 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
         </div>
         </span>
         <span className="photo-tools-group" role="group" aria-label="Photo actions">
-        {busy && <span className="photo-meta" role="status">{busy}</span>}
         <button type="button" className="strip-btn photo-tb" aria-label="Show original" aria-pressed={before} title="Hold to see the original (M)" onPointerDown={() => setBefore(true)} onPointerUp={() => setBefore(false)} onPointerLeave={() => setBefore(false)} onKeyDown={(e) => { if (e.key === ' ') setBefore(true); }} onKeyUp={() => setBefore(false)}>
           <Icon d="M3.5 4.5h13v11h-13zM10 4.5v11M10 8l6.5-3.5M10 12.5l6.5-3.5" />
         </button>
@@ -643,7 +642,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
           {/* The photo's facts along the foot of the content, as the mock has them: its name and size as it will export. */}
           <p className="photo-info" role="status">
             <span>{open.path.split('/').pop()}{img ? ` · ${shownSize(img, geometry)}` : ''}</span>
-            <span>{photos.saved ? (edits.adjustments.length === 0 && isPlain(edits.geometry) ? 'Original' : `${edits.adjustments.length === 1 ? '1 edit' : `${edits.adjustments.length} edits`} · Original kept`) : 'Saving…'}</span>
+            <span>{busy || (photos.saved ? (edits.adjustments.length === 0 && isPlain(edits.geometry) ? 'Original' : `${edits.adjustments.length === 1 ? '1 edit' : `${edits.adjustments.length} edits`} · Original kept`) : 'Saving…')}</span>
           </p>
           <div className="photo-frame" ref={frame} onDoubleClick={() => { if (!cropping) setZoomed((z) => !z); }}>
             <canvas ref={shown} className="photo-canvas" role="img" aria-label={before ? 'The photo before edits' : 'The photo with edits'} />
