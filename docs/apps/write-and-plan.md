@@ -35,9 +35,11 @@ Longer documents, with an outline and comments.
   other documents, kept as Markdown. Under the title a quiet line says when it was edited and how many words it has;
   click the count for characters or reading time, or select some text to count just that.
 - **The toolbar** has the paragraph style (**Body ⌄**), **B**, **I** and **U**, then a bulleted list, a table and a
-  link, then **Share** and **⋯**. While you are in a table, its button has the rows and columns. **⋯** has the rest:
-  numbered lists, checklists, quotes, strikethrough and code; Insert (table, picture, divider, code block); Mobius's
-  writing tools; the margin's comments; earlier versions; and a serif font.
+  link, then **Share**. While you are in a table, its button has the rows and columns. The window's **⋯** opens on
+  the **Docs** menu with the rest: numbered lists, checklists, quotes, strikethrough and code; Insert (table, picture,
+  divider, code block); Mobius's writing tools; the margin's comments; earlier versions; and a serif font.
+- **Outline** is a tab in the right panel, beside **Mobius**: the document's headings, the one you are reading marked.
+  Click one to go there.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
 - **Mobius's writing tools** work on the selection or the whole document. Each change Mobius makes is one dashed block

@@ -30,11 +30,12 @@ import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { Menu, ToolbarControls, UndoToast, type MenuEntry } from './ui';
+import { AppMenu, Menu, PanelTab, ToolbarControls, UndoToast, type MenuEntry } from './ui';
 import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
 import { relativeTime } from './relative-time';
 import { publishOutline } from './docs-outline';
+import { DocOutlinePanel } from './DocOutlinePanel';
 import './docs.css';
 
 export const DEFAULT_FOLDER = 'Documents';
@@ -240,8 +241,9 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
     { label: 'Delete the table', run: run((c) => c.deleteTable()), danger: true },
   ];
   if (inFrame) {
-    // The timeless toolbar (Docs on the frame): the style, B I U, then lists, table and link, then Share and ⋯. What is
-    // used less often is in ⋯: the other lists and marks, Insert, Mobius's writing tools and the document's options.
+    // The timeless toolbar (Docs on the frame): the style, B I U, then lists, table and link, then Share. What is used
+    // less often is at the top of the window's one ⋯ (AppMenu): the other lists and marks, Insert, Mobius's writing tools
+    // and the document's options.
     const styleName = STYLES.find((s) => s.id === state.style)?.label ?? 'Body';
     const tick = (on: boolean) => (on ? <Icon d="m5 10.5 3.2 3L15 6.5" /> : undefined);
     const mobiusIcon = <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>;
@@ -249,13 +251,13 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
       <button type="button" className="strip-btn doc-bar-btn" aria-label={label} title={title} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })} data-gives-way={extra.gives || undefined} onPointerDown={keep} onClick={onClick}>{icon}</button>
     );
     const more: MenuEntry[] = [
-      { label: 'Numbered list', icon: tick(state.ordered), keys: `${mod}Shift+7`, run: run((c) => c.toggleOrderedList()) },
-      { label: 'Checklist', icon: tick(state.task), keys: `${mod}Shift+9`, run: run((c) => c.toggleTaskList()) },
-      { label: 'Quote', icon: tick(state.quote), keys: `${mod}Shift+B`, run: run((c) => c.toggleBlockquote()) },
-      { label: 'Strikethrough', icon: tick(state.strike), keys: `${mod}Shift+S`, run: run((c) => c.toggleStrike()) },
-      { label: 'Code', icon: tick(state.code), keys: `${mod}E`, run: run((c) => c.toggleCode()) },
+      { label: 'Numbered list', checked: state.ordered, keys: `${mod}Shift+7`, run: run((c) => c.toggleOrderedList()) },
+      { label: 'Checklist', checked: state.task, keys: `${mod}Shift+9`, run: run((c) => c.toggleTaskList()) },
+      { label: 'Quote', checked: state.quote, keys: `${mod}Shift+B`, run: run((c) => c.toggleBlockquote()) },
+      { label: 'Strikethrough', checked: state.strike, keys: `${mod}Shift+S`, run: run((c) => c.toggleStrike()) },
+      { label: 'Code', checked: state.code, keys: `${mod}E`, run: run((c) => c.toggleCode()) },
       // Also here for when the toolbar is too narrow for its own Underline, Table and Link.
-      { label: 'Underline', icon: tick(state.underline), keys: `${mod}U`, run: run((c) => c.toggleUnderline()) },
+      { label: 'Underline', checked: state.underline, keys: `${mod}U`, run: run((c) => c.toggleUnderline()) },
       { label: state.link ? 'Remove the link' : 'Add a link…', run: () => (state.link ? editor.chain().focus().extendMarkRange('link').unsetLink().run() : extras.onLink()), separated: true },
       { label: 'Insert a table', icon: tableIcon, run: run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true })) },
       ...(extras.onFile ? [{ label: 'Insert a picture or file…', run: extras.onFile }] : []),
@@ -302,11 +304,8 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
               ]} trigger={<button type="button" className="strip-btn doc-bar-btn" aria-label="Share" title="Copy, export or print this document"><Icon d="M10 3.5v9M6.5 7 10 3.5 13.5 7M5.5 10.5v5h9v-5" /></button>} />
             );
           })()}
-          <Menu label="More" align="end" entries={more} trigger={
-            <button type="button" className="strip-btn doc-bar-btn" aria-label="More" title="More formatting, Insert, writing tools and the document's options">
-              <Icon><circle cx="5" cy="10" r="1.1" /><circle cx="10" cy="10" r="1.1" /><circle cx="15" cy="10" r="1.1" /></Icon>
-            </button>
-          } />
+          {/* The rest is at the top of the toolbar's one ⋯ (the window's), which opens on it. */}
+          <AppMenu label="Docs" entries={more} />
         </div>
       </ToolbarControls>
     );
@@ -862,6 +861,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
           )}
         </form>
       )}
+      {/* The outline, as the right panel's Outline tab beside Mobius. */}
+      {inFrame && <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>}
       {history && path ? <NoteHistory path={path} text={docs.text} kind="docs" onRestore={restore} onClose={() => setHistory(false)} /> : (
         <div className="doc-body">
           {outlineOpen && !inFrame && (

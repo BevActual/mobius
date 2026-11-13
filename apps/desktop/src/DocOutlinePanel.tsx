@@ -2,8 +2,8 @@ import { useDocOutline } from './docs-outline';
 
 /**
  * The open document's outline as a panel: its headings, the one in view marked, each a button to go there. Built to
- * sit in the right panel as the Outline tab beside Mobius (the frame's PanelTab, when it lands); the sidebar lists the
- * same headings under the document.
+ * sit in the right panel as the Outline tab beside Mobius (Docs wraps it in PanelTab); the sidebar lists the same
+ * headings under the document.
  */
 export function DocOutlinePanel() {
   const outline = useDocOutline();
