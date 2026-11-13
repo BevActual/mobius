@@ -1571,7 +1571,6 @@ export function App() {
           : inFiles ? filesSub(files) // Files: how many items
           : undefined,
         middle: <>
-        {inMail && <MailToolbar mail={mail} />}
         </>,
         // Words and icons never share a capsule: the update notice stands on its own, before the icons.
         status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
