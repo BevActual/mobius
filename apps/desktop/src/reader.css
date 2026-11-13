@@ -5,8 +5,8 @@
    named once here for the page and for the swatches in Aa. */
 :root { --reader-serif: "Iowan Old Style", "Palatino Linotype", Georgia, serif; --reader-sepia: #f8f1e3; --reader-sepia-ink: #4f321c; --reader-grey: #4a4a4d; --reader-grey-ink: #e8e8ea; --reader-night: #121212; --reader-night-ink: #c9c9cc; }
 .reader-page[data-theme="sepia"] { --bg: var(--reader-sepia); --ink: var(--reader-sepia-ink); --muted: #8a6f55; --line: rgba(79, 50, 28, 0.16); --hairline: rgba(79, 50, 28, 0.14); --field: rgba(79, 50, 28, 0.06); --soft: #efe4cf; --capsule: #fdf8ee; --line-strong: rgba(79, 50, 28, 0.28); color-scheme: light; }
-.reader-page[data-theme="grey"] { --bg: var(--reader-grey); --ink: var(--reader-grey-ink); --muted: #b8b8bd; --line: rgba(255, 255, 255, 0.16); --hairline: rgba(255, 255, 255, 0.14); --field: rgba(255, 255, 255, 0.08); --soft: #58585c; --capsule: #5a5a5e; --line-strong: rgba(255, 255, 255, 0.24); color-scheme: dark; }
-.reader-page[data-theme="night"] { --bg: var(--reader-night); --ink: var(--reader-night-ink); --muted: #8e8e93; --line: rgba(255, 255, 255, 0.12); --hairline: rgba(255, 255, 255, 0.1); --field: rgba(255, 255, 255, 0.06); --soft: #242426; --capsule: #1f1f21; --line-strong: rgba(255, 255, 255, 0.2); color-scheme: dark; }
+.reader-page[data-theme="grey"] { --reader-mark: 20%; --bg: var(--reader-grey); --ink: var(--reader-grey-ink); --muted: #b8b8bd; --line: rgba(255, 255, 255, 0.16); --hairline: rgba(255, 255, 255, 0.14); --field: rgba(255, 255, 255, 0.08); --soft: #58585c; --capsule: #5a5a5e; --line-strong: rgba(255, 255, 255, 0.24); color-scheme: dark; }
+.reader-page[data-theme="night"] { --reader-mark: 30%; --bg: var(--reader-night); --ink: var(--reader-night-ink); --muted: #8e8e93; --line: rgba(255, 255, 255, 0.12); --hairline: rgba(255, 255, 255, 0.1); --field: rgba(255, 255, 255, 0.06); --soft: #242426; --capsule: #1f1f21; --line-strong: rgba(255, 255, 255, 0.2); color-scheme: dark; }
 
 .reader-save { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-list); padding: 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); }
 .reader-save input { flex: 1; min-width: 0; height: var(--control-h); padding: 0 var(--sp-3); border-radius: var(--radius-control); border: var(--hairline-w) solid var(--line); background: var(--field); color: var(--ink); font: inherit; font-size: var(--fs-md); }
@@ -57,7 +57,8 @@
 .toolbar-sub .reader-source:hover { color: var(--ink); text-decoration: underline; }
 .reader-title { margin: 0 0 var(--sp-6); font-size: var(--fs-display); font-weight: var(--fw-semibold); line-height: var(--lh-tight); letter-spacing: -0.01em; }
 .reader-body { position: relative; font-size: var(--read-size); line-height: 1.7; }
-.reader-body mark { background: color-mix(in srgb, var(--c-yellow) 40%, transparent); color: inherit; border-radius: var(--radius-small); padding: 0 1px; cursor: pointer; }
+/* A highlight is a soft tint with full ink on it (4.5:1 at least); the dark page colours take a lighter tint. */
+.reader-body mark { background: color-mix(in srgb, var(--c-yellow) var(--reader-mark, 40%), transparent); color: var(--ink); border-radius: var(--radius-small); padding: 0 1px; cursor: pointer; }
 .reader-mark-bar { position: absolute; z-index: 3; transform: translateX(-50%); white-space: nowrap; font: var(--fs-md)/var(--lh-body) var(--font); }
 .reader-notice { margin: var(--sp-2) 0; color: var(--muted); font-size: var(--fs-sm); }
 /* Highlights, a tab in the right panel before Mobius. */
