@@ -206,7 +206,9 @@ test('bots and their sessions are still there after a restart', async () => {
   await openApp('Agent');
   await openAgents();
   await expect(list().getByRole('region', { name: 'Agents' })).toContainText('Keeper');
-  await expect(list().getByRole('region', { name: 'Agents' })).toContainText('keeper-model');
+  // Its model is on its page.
+  await list().getByRole('button', { name: 'Keeper', exact: true }).click();
+  await expect(shell().getByRole('region', { name: 'Keeper' }).filter({ hasText: 'What it does' })).toContainText('keeper-model');
   await tab('Sessions').click();
   await expect(list().getByRole('region', { name: 'Keeper' })).toContainText('persist this');
 });
@@ -254,7 +256,7 @@ test('bots can be moved up and down, Mobius stays first, and the order is kept',
   await start();
   for (const name of ['Alpha', 'Beta', 'Gamma']) await newBot(name);
   await openAgents();
-  const names = async () => (await list().getByRole('region', { name: 'Agents' }).locator('.clist-title').allTextContents());
+  const names = async () => (await list().getByRole('region', { name: 'Agents' }).locator('.ui-side-name').allTextContents());
   await expect.poll(names).toEqual(['Mobius', 'Alpha', 'Beta', 'Gamma']);
   const menuItem = async (agent: string, item: string) => {
     await list().getByRole('button', { name: `More for ${agent}` }).click();
