@@ -74,6 +74,7 @@ import { changeTarget, toolTarget } from './actions';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { Desk } from './Desk';
 import { APP_ICONS, Rail } from './Rail';
+import { SidebarHead } from './SidebarHead';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
@@ -530,15 +531,6 @@ export function App() {
     search: 'Find anything',
   };
   const [panelOpen, setPanelOpen] = useState(true);
-  // The left panel: a narrow rail, or the full sidebar with the apps by name and the open app's own list under them.
-  // Apple: do not hide the sidebar by default. A narrow window folds it to the rail on its own, as Mail does.
-  const [narrowOpen, setNarrowOpen] = useState(false);
-  useEffect(() => { if (!narrow) setNarrowOpen(false); }, [narrow]);
-  const wide = narrow ? narrowOpen : appearance.value.navigation !== 'rail';
-  const toggleWide = useCallback(() => {
-    if (narrow) setNarrowOpen((o) => !o);
-    else void appearance.set({ navigation: wide ? 'rail' : 'sidebar' });
-  }, [narrow, wide, appearance]);
   const startedUp = useRef(false);
   // Mobius sits in the right panel, beside the work, in every app (docs/design: five zones). The sidebar is always the
   // app's own; it no longer turns into Mobius.
@@ -547,7 +539,6 @@ export function App() {
   const [learnOpen, setLearnOpen] = useState(false);
   const learnFrom = useRef<HTMLElement | null>(null);
   const [focusToken, setFocusToken] = useState(0);
-  const [switcherToken, setSwitcherToken] = useState(0);
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -564,9 +555,8 @@ export function App() {
   const [agentListOpen, setAgentListOpen] = useState(true);
   const leftOpen = inAgent ? agentListOpen : panelOpen;
   const setLeftOpen = inAgent ? setAgentListOpen : setPanelOpen;
-  const showWide = wide;
-  // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
-  const hasLeft = hasAppList && !showWide;
+  // The five zones (docs/design/panel-layouts.md): a slim rail, then the app sidebar as its own column beside the page.
+  const hasLeft = hasAppList || settingsOpen;
   const rightOpen = hasRight && chatOpen && !learnOpen;
   useEffect(() => { if (rightOpen && miniOpen) void window.mobius.mini.close(); }, [rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   // Learn (shell/learn-view): Mobius opening beside the page takes the slot back from Learn.
@@ -865,6 +855,8 @@ export function App() {
   // The open app's New, or none: an app with nothing to make from here (Projects, Photo, Files, Review...) shows no Create,
   // rather than one that starts a conversation.
   const createFor = (id: AppId): HubAction | undefined => createActions.find((a) => a.app === id);
+  // These apps' own sidebar lists start with their New row, so the head's New is left out.
+  const createInList: readonly AppId[] = ['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'];
   const appSidebar = (pinNode: ReactNode) => settingsOpen ? <div ref={setSettingsSlot} className="settings-side" /> : (
           <>
             {inAgent ? (
@@ -1008,7 +1000,7 @@ export function App() {
     keys: bindings,
     state: {
       // The sidebar is the app list with the open app's own list under it; with a separate list panel (hasLeft), that panel.
-      sidebarShown: hasLeft ? leftOpen : wide, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, split, canSplit: !narrow, miniOpen,
+      sidebarShown: hasLeft && leftOpen, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
@@ -1026,7 +1018,7 @@ export function App() {
       about: () => openSettingsAt('about'),
       edit,
       find: openFind,
-      toggleSidebar: () => (hasLeft ? setLeftOpen((open) => !open) : toggleWide()),
+      toggleSidebar: () => setLeftOpen((open) => !open),
       toggleAgent: () => setChatOpen((open) => !open),
       toggleSplit,
       toggleMini,
@@ -1352,7 +1344,7 @@ export function App() {
             focusToken={searchFocus}
             filter={searchFilter}
             onFilter={setSearchFilter}
-            chips={!(showWide || (hasLeft && leftOpen))}
+            chips={!(hasLeft && leftOpen)}
             canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
             onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}
             onOpen={openTarget}
@@ -1454,15 +1446,14 @@ export function App() {
               onModelChanged={() => void reloadSettings()}
             pin={pinned}
             place={appName(app)}
-            onPlace={() => { if (showWide) setSwitcherToken((n) => n + 1); else openHub(); }}
+            onPlace={openHub}
             menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
             onOpenVoice={() => openSettingsAt('voice')}
             {...(askHint ? { hint: askHint } : {})}
           />
   );
-  // The browser's own controls. With the full sidebar they live in it, under the app's name, and nothing but the
-  // page's title sits above the page; with the narrow rail they stay in the toolbar.
+  // The browser's own controls: back, forward, reload and the address, in the toolbar's middle (five zones).
   const browserChrome = (
     <BrowserChrome
       active={active}
@@ -1487,8 +1478,7 @@ export function App() {
       onCloseFind={() => setFindOpen(false)}
     />
   );
-  // The menus live in the sidebar, as one Menu button: in its head when it is full, at the top of the folded rail.
-  // Nothing sits on top of the page but its title row.
+  // The menus, as one ⋯ button at the toolbar's trailing end, just before Mobius.
   const menuBar = nativeMenus ? null : <MenuBar menus={menus} compact onOpenChange={setMenuOpen} />;
   // Try another, from any review bar: Mobius is told its change was put back and asked to do it differently.
   const tryAnother = settings?.configured && !conversation.state.busy
@@ -1497,12 +1487,10 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px', '--side-col': leftAttached ? `${leftWidth}px` : '0px' } as React.CSSProperties} data-side={leftAttached || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
-        expanded={showWide}
-        onToggle={toggleWide}
         onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); if (id === 'agent') setSideMode('sessions'); openApp(id); }}
         ownApps={[
           { id: 'bots', name: 'Agents', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
@@ -1513,39 +1501,20 @@ export function App() {
         activity={activity}
         changed={changed}
         needsYou={needsYou}
-        counts={{ browser: browser.tabs.length, tasks: dueToday }}
-        create={createFor(app)}
-        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'] as AppId[]).includes(app)}
-        menus={menuBar}
-        chrome={showWide && inBrowser && !settingsOpen ? browserChrome : null}
-        mobius={hasRight && !settingsOpen ? {
-          // The Mobius button shows and hides the right panel.
-          shown: rightOpen,
-          onToggle: () => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } },
-        } : null}
         onLauncher={openHub}
         {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
-        switcherToken={switcherToken}
-        onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
         settingsOpen={settingsOpen}
         apps={appearance.value.sidebarApps}
         onApps={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
         onEditApps={() => { setSettingsSection('layout'); openSettings(); }}
-        favourites={favourites}
-        onOpenFavourite={openFavourite}
-        onUnpin={togglePin}
-        onReorderFavourites={(next) => void appearance.set({ favourites: next })}
-        currentFavourite={settingsOpen ? null : currentFavourite}
-      >
-        {showWide && (hasAppList || settingsOpen) && appSidebar(null)}
-      </Rail>
-      <header className="context-strip" data-quiet={showWide || undefined}>
+      />
+      <header className="context-strip">
         <div className="strip-left" role="group" aria-label="Window">
-          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : inSearch ? 'Show scopes' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
+          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={settingsOpen ? 'Show sections' : inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : inSearch ? 'Show scopes' : 'Show tabs'} title={settingsOpen ? 'Show or hide the sections' : inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
         </div>
-        <div className="toolbar-place" data-browser={(inBrowser && !showWide) || undefined}>
+        <div className="toolbar-place" data-browser={inBrowser || undefined}>
           {/* The open document's name, or the app's when nothing is open, so the title bar is never blank. */}
           {(place || (!settingsOpen && appName(app))) && <h1 className="strip-title">{place || appName(app)}</h1>}
           {inAgent && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
@@ -1561,24 +1530,37 @@ export function App() {
           </div>
         )}
         {inMail && <MailToolbar mail={mail} />}
-        {inBrowser && !showWide && browserChrome}
+        {inBrowser && !settingsOpen && browserChrome}
         <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
         {/* Words and icons never share a capsule: the update notice stands on its own, before the icons. */}
         <div className="strip-texts"><UpdateNotice /></div>
+        {/* Trailing, the same in every app: comments, the menus as one ⋯ button, and Mobius always last. Split view
+            and Little Mobius live in the Window menu. */}
         <div className="strip-right" role="group" aria-label="Applications">
-          <button type="button" className="strip-btn" data-mini-toggle aria-pressed={miniOpen} aria-label={miniOpen ? 'Close Little Mobius' : 'Open Little Mobius'} title={withKeys(miniOpen ? 'Close the small agent window' : 'Little Mobius: the agent in a small window above your other apps', bindings.littleMobius)} onClick={toggleMini}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3.5" width="14" height="13" rx="3" /><rect x="9.5" y="9.5" width="5.5" height="5" rx="1.5" /></svg>
-          </button>
-          {!narrow && <button type="button" className="strip-btn" data-split-toggle aria-pressed={split} aria-label={split ? 'Close split view' : 'Split view'} title={withKeys(split ? 'Show one app' : 'Show two apps side by side', bindings.splitView)} onClick={toggleSplit}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="6.5" height="11" rx="2" /><rect x="11" y="4.5" width="6.5" height="11" rx="2" /></svg>
-          </button>}
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
+          {menuBar}
+          {hasRight && !settingsOpen && (
+            <button type="button" className="strip-btn strip-mobius" data-mobius-face aria-pressed={rightOpen} aria-label={rightOpen ? 'Hide Mobius' : 'Show Mobius'} title={rightOpen ? 'Hide Mobius' : 'Ask Mobius, beside the work'}
+              onClick={() => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } }}>
+              <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
+            </button>
+          )}
         </div>
       </header>
       <div className="body" style={layout}>
         {hasLeft && leftOpen && (
           <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
-            {appSidebar(pin('left'))}
+            <SidebarHead
+              title={settingsOpen ? 'Settings' : appName(app)}
+              create={settingsOpen || createInList.includes(app) ? undefined : createFor(app)}
+              favourites={settingsOpen ? [] : favourites}
+              onOpenFavourite={openFavourite}
+              onUnpin={togglePin}
+              onReorderFavourites={(next) => void appearance.set({ favourites: next })}
+              currentFavourite={settingsOpen ? null : currentFavourite}
+            >
+              {appSidebar(pin('left'))}
+            </SidebarHead>
             {resizer('left', 'Resize the list')}
           </div>
         )}

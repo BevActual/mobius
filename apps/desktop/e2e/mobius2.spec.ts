@@ -43,7 +43,8 @@ const openApp = async (name: string) => {
 
 test('split view shows two apps, follows the focused pane, swaps and closes', async () => {
   await start();
-  await shell().getByRole('button', { name: 'Split view', exact: true }).click();
+  // Split view is in the Window menu, and on Ctrl+\.
+  await shell().keyboard.press('Control+\\');
   const left = shell().getByRole('region', { name: 'Left pane: Browser' });
   const right = shell().getByRole('region', { name: 'Right pane: Notes' });
   await expect(left).toBeVisible();
@@ -58,7 +59,7 @@ test('split view shows two apps, follows the focused pane, swaps and closes', as
   await shell().getByRole('separator', { name: 'Resize the panes' }).focus();
   await shell().keyboard.press('ArrowRight');
   await expect(shell().getByRole('separator', { name: 'Resize the panes' })).toHaveAttribute('aria-valuenow', '55');
-  await shell().getByRole('button', { name: 'Close split view' }).click();
+  await shell().keyboard.press('Control+\\');
   await expect(shell().locator('.pane')).toHaveCount(1);
 });
 
@@ -66,14 +67,11 @@ test('leaving the browser for another app hides the page, and coming back shows 
   await start();
   const shown = async () => (await views(mobius!.app)).filter((v) => v.visible).length;
   await expect.poll(shown).toBe(1);
-  // The apps are one press away, in the sidebar's head.
-  await shell().locator('.rail[data-face="app"] [data-app-switcher]').click();
-  await shell().getByRole('button', { name: 'Notes', exact: true }).click();
+  // The apps are in the rail, always one press away.
+  await shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Notes', exact: true }).click();
   await expect(shell().locator('.note-editor')).toBeVisible();
   await expect.poll(shown).toBe(0);
-  // The apps are one press away, in the sidebar's head.
-  await shell().locator('.rail[data-face="app"] [data-app-switcher]').click();
-  await shell().getByRole('button', { name: 'Browser', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await expect.poll(shown).toBe(1);
 });
 

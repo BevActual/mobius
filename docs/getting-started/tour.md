@@ -2,21 +2,31 @@
 
 Every app in Mobius has the same frame, so once you know one you know them all.
 
-## The sidebar
+## The rail and the sidebar
 
-The sidebar on the left belongs to the app you are in: Notes shows your notebooks, Mail your mailboxes, Browser your
-tabs. Its **head** is the app switcher. Click it and the sidebar turns into the list of your apps; pick one and it turns
-back into that app's sidebar.
+The **rail** on the far left is a slim column of icons that never moves: your apps at the top, then **All apps**, and
+at the foot Mobius's own apps (Agents, Activity, Abilities) and **Settings**. Hover an icon for its name.
 
-- Right-click an app in the list to move or hide it.
+- Right-click an app in the rail to move or hide it.
 - An app Mobius is working in glows while it works. An app it changed while you were elsewhere carries a dot until you
   look.
-- A narrow window folds the sidebar to a rail of icons.
-- The **New** button at the top follows the app: New note, New task, New tab, New event.
+
+Beside it, the **sidebar** belongs to the app you are in: Notes shows your notebooks, Mail your mailboxes, Browser your
+tabs. It runs from the top of the window to the bottom, with the app's name at the top.
+
+- The **New** button under the name follows the app: New note, New task, New tab, New event.
+- The button at the start of the toolbar shows and hides the sidebar.
+
+## The toolbar
+
+One row over the page: the name of what is open, the app's own controls (the browser's address sits here), then at
+the end the comment button, **⋯** (the menus) and the **Mobius** button, always last. Split view and Little Mobius
+are in the **Window** menu.
 
 ## Mobius in every app
 
-Mobius sits in the panel on the right, beside your work, in every app. The **Mobius** button shows and hides it.
+Mobius sits in the panel on the right, beside your work, in every app. The **Mobius** button at the end of the
+toolbar shows and hides it.
 Mobius sees the app you have open (the note, the page, the selected text) and can work across all your apps from there.
 
 - **Little Mobius** (Ctrl+Shift+M) is the conversation in a small window that stays above your other apps.
