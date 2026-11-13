@@ -1,0 +1,52 @@
+/*
+ * Activity, the Apple way (HIG; Screen Time and the notification history as the bar): a sidebar of what to show, and a
+ * page that leads with what needs you, then reads as a history a day at a time, each line an app's icon, one sentence
+ * and the time. Grouped content sits on inset cards; history rows are separated by inset hairlines.
+ */
+
+/* Sidebar */
+.act-side .act-row-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.act-side .list-row[aria-current="page"] .act-row-icon:not([data-tile]) { stroke: var(--accent); }
+.act-side .act-row-icon[data-tile] { padding: 3px; border-radius: 5px; stroke: #fff; }
+.act-side .list-count[data-tone="warn"] { color: var(--warning); font-weight: var(--fw-semibold); }
+.act-side-heading { margin: var(--sp-4) var(--sp-2) var(--sp-1); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.act-side-foot { margin: auto var(--sp-3) var(--sp-2); padding-top: var(--sp-4); font-size: var(--fs-xs); color: var(--muted); }
+
+/* Page */
+.act-page { gap: var(--sp-5, 20px); }
+.act-head { display: grid; gap: var(--sp-1); }
+.act-lede { margin: 0; color: var(--muted); font-size: var(--fs-sm); line-height: var(--lh-body); max-width: 60ch; }
+
+.act-card { display: grid; gap: var(--sp-1); padding: var(--sp-2) var(--sp-3) var(--sp-3); border-radius: var(--radius-panel); background: color-mix(in srgb, var(--ink) 4%, var(--bg)); }
+.act-card > .ext-heading { padding: var(--sp-1) 0; }
+.act-card[data-tone="warn"] > .ext-heading { color: var(--warning); }
+.act-embed:empty { display: none; }
+.act-embed .clist-group { margin: var(--sp-1) 0 var(--sp-1); }
+.act-embed .group-toggle { padding: 0; font-size: var(--fs-md); font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.act-embed .group-toggle:hover { background: none; }
+.act-embed .clist { padding: 0; }
+
+.act-list { list-style: none; margin: 0; padding: 0; }
+.act-convo { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: 36px; padding: var(--sp-1) var(--sp-2); border-radius: var(--radius-control); text-align: left; transition: background var(--dur-fast) var(--ease); }
+.act-convo:hover { background: var(--wash); }
+.act-convo .act-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-medium); }
+.act-state { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
+.act-open { color: var(--accent); font-size: var(--fs-sm); opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.act-convo:hover .act-open, .act-convo:focus-visible .act-open { opacity: 1; }
+.act-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--muted); }
+.act-convo[data-state="needs_you"] .act-dot { background: var(--warning); }
+.act-convo[data-state="working"] .act-dot { background: var(--success); animation: act-pulse var(--dur-loop) linear infinite; }
+@keyframes act-pulse { 50% { opacity: 0.35; } }
+
+/* History, a day at a time */
+.act-day { display: grid; gap: var(--sp-1); }
+.act-day-label { position: sticky; top: calc(-1 * var(--sp-6)); z-index: 1; margin: 0; padding: var(--sp-2) 0 var(--sp-1); background: var(--bg); font-size: var(--fs-md); font-weight: 600; }
+.act-item { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-3); padding: var(--sp-2) 0; }
+.act-item + .act-item::before { content: ''; position: absolute; top: 0; left: 40px; right: 0; height: 1px; background: var(--hairline); }
+.act-tile { width: 28px; height: 28px; padding: 6px; border-radius: 7px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.act-text { display: grid; min-width: 0; }
+.act-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-sub { color: var(--muted); font-size: var(--fs-xs); }
+.act-final { color: var(--warning); }
+.act-item[data-warn] .act-what { color: var(--danger); }
+.act-time { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }

@@ -16,10 +16,9 @@ back into that app's sidebar.
 
 ## Mobius in every app
 
-The **Mobius** button turns the sidebar into the conversation with Mobius, right where you are working. Mobius sees the
-app you have open (the note, the page, the selected text) and can work across all your apps from there.
+Mobius sits in the panel on the right, beside your work, in every app. The **Mobius** button shows and hides it.
+Mobius sees the app you have open (the note, the page, the selected text) and can work across all your apps from there.
 
-- **Pin beside** keeps the conversation open next to the page instead of in the sidebar.
 - **Little Mobius** (Ctrl+Shift+M) is the conversation in a small window that stays above your other apps.
 - The message box says what Mobius would ask about where you are ("Ask about this note"), and what is open goes
   with your message.
@@ -28,8 +27,10 @@ app you have open (the note, the page, the selected text) and can work across al
 
 The Agent app opens on the **desk**. It greets you with the date and what is in flight, with a few suggestions to
 start from. Below that comes what waits for you (questions and approvals you can answer in place) and what Mobius is
-doing, then your recent conversations, what is open in your apps, and what is scheduled next. The sidebar here lists your
-conversations, with tabs for **Sessions**, **Activity** and **Agents**.
+doing, then your recent conversations, the one thing in each app worth a look (your next event, the first task due, the
+page you edited last), and what is scheduled next. The sidebar here lists your
+conversations, with tabs for **Sessions**, **Activity** and **Agents**. **Activity** is an app of its own: what Mobius
+did, a day at a time, and what needs you.
 
 ## Finding things
 
@@ -57,7 +58,7 @@ back in the thread, or keep it as a note for people. See [Review](../apps/review
 **Help › Learn Mobius** opens lessons beside the page: Start here, one lesson for each app (what it is for and what you
 can do in it) and how to work with Mobius. In an app, that app's lesson comes first. Search finds a lesson by anything
 it mentions, Previous and Next step through a topic, and Escape steps back, then closes. Learn takes the place of
-Mobius pinned beside the page, one at a time.
+Mobius in the right panel, one at a time.
 
 ## Settings
 

@@ -195,7 +195,8 @@ test('the Activity tab lists a turn’s changes to review, and Discard there put
   await shell().keyboard.press('Enter');
   const side = shell().getByRole('complementary', { name: 'Conversation list' });
   await side.getByRole('tab', { name: 'Activity' }).click();
-  const changes = side.getByRole('list', { name: 'Changes to review' });
+  const activity = shell().getByRole('region', { name: 'Activity', exact: true });
+  const changes = activity.getByRole('list', { name: 'Changes to review' });
   await expect(changes).toContainText('Changed 1 item');
   await changes.getByRole('button', { name: /^Discard the changes/ }).click();
   await expect(changes).toHaveCount(0);
@@ -219,17 +220,19 @@ test('Rewind to here in Activity puts the apps back as they were after that turn
   await openApp('Agent');
   const side = shell().getByRole('complementary', { name: 'Conversation list' });
   await side.getByRole('tab', { name: 'Activity' }).click();
-  const turns = side.getByRole('list', { name: 'Turns of this conversation' });
+  // The Activity app's page lists the open conversation's turns.
+  const activity = shell().getByRole('region', { name: 'Activity', exact: true });
+  const turns = activity.getByRole('list', { name: 'Turns of this conversation' });
   const first = turns.getByRole('listitem').filter({ hasText: 'make an ideas page' });
   await first.getByRole('button', { name: 'Rewind to here' }).click();
   // Asked once, naming what goes and what changes.
   await expect(first.getByRole('group', { name: 'Rewind' })).toContainText('Rewind 1 later turn? Notes will change.');
   await first.getByRole('button', { name: 'Rewind', exact: true }).click();
-  await expect(side.getByRole('status').filter({ hasText: 'Rewound to' })).toBeVisible();
+  await expect(activity.getByRole('status').filter({ hasText: 'Rewound to' })).toBeVisible();
   await expect.poll(() => fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
   expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(true);
   await expect(turns.getByRole('listitem')).toHaveCount(1);
-  await side.getByRole('status').filter({ hasText: 'Rewound to' }).getByRole('button', { name: 'Undo' }).click();
+  await activity.getByRole('status').filter({ hasText: 'Rewound to' }).getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8')).toContain('Venue');
   await expect(turns.getByRole('listitem')).toHaveCount(2);
 });

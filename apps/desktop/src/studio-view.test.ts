@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNote, fitTracks, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { addNote, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -56,5 +56,21 @@ describe('velocity lane and track list', () => {
   it('fits the track list to its tracks', () => {
     expect(fitTracks(4)).toBe(24 + 4 * 49);
     expect(fitTracks(0)).toBe(24 + 49);
+  });
+});
+
+describe('the loop', () => {
+  const cycle = { from: 8, to: 16 };
+  it('goes round the loop, running into it from before and starting at it from after', () => {
+    expect(songBeat(3, 0, null)).toBe(3);
+    expect(songBeat(10, 0, cycle)).toBe(10);
+    expect(songBeat(17, 0, cycle)).toBe(9);
+    expect(songBeat(0, 20, cycle)).toBe(8);
+    expect(songBeat(9, 12, cycle)).toBe(13);
+  });
+  it('is whole bars between the two picked on the ruler, inside the song', () => {
+    expect(cycleOf(3, 1, 8)).toEqual({ from: 4, to: 16 });
+    expect(cycleOf(2, 2, 8)).toEqual({ from: 8, to: 12 });
+    expect(cycleOf(-2, 20, 8)).toEqual({ from: 0, to: 32 });
   });
 });

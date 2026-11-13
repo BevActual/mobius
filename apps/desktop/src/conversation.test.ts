@@ -450,3 +450,14 @@ describe('how a turn ended', () => {
     expect(own.items).toEqual([]);
   });
 });
+
+describe('reads in a row fold into one line', () => {
+  it('names each app read once, with "your" once', async () => {
+    const { readsSummary, isReadTool } = await import('./conversation');
+    expect(readsSummary([{ name: 'mail.search' }, { name: 'mail.read' }, { name: 'calendar.list' }])).toBe('Read your mail and calendar');
+    expect(readsSummary([{ name: 'mail.read' }, { name: 'calendar.list' }, { name: 'tasks.list' }])).toBe('Read your mail, calendar and tasks');
+    expect(readsSummary([{ name: 'browser.read' }])).toBe('Read Browser');
+    expect(isReadTool('mail.search')).toBe(true);
+    expect(isReadTool('tasks.add')).toBe(false);
+  });
+});

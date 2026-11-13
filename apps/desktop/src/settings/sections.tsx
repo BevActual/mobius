@@ -46,6 +46,7 @@ import {
 import { APP_ICONS } from '../Rail';
 import { appName } from '../apps';
 import { relativeTime } from '../relative-time';
+import { dateTimeLabel } from '../dates';
 import { describeActivity } from './activity';
 import { privacyReport, whereItRuns } from './privacy';
 import { ProfilesPane } from './Profiles';
@@ -154,7 +155,6 @@ const DENSITIES: Array<{ id: Density; label: string }> = [{ id: 'comfortable', l
 const APPROVAL_MODES = MODES.map((m) => ({ id: m.id, label: m.name }));
 const SIDEBAR_MODES: Array<{ id: SidebarMode; label: string }> = [{ id: 'attached', label: 'Attached' }, { id: 'floating', label: 'Floating' }];
 const EFFORT_OPTIONS: Array<{ id: EffortChoice; label: string }> = [{ id: '', label: 'Default' }, { id: 'none', label: 'Off' }, { id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }];
-const AGENT_PLACES: Array<{ id: 'sidebar' | 'beside'; label: string }> = [{ id: 'sidebar', label: 'In the sidebar' }, { id: 'beside', label: 'Beside the page' }];
 const TOOL_STEPS: Array<{ id: ToolSteps; label: string }> = [{ id: 'show', label: 'Show all' }, { id: 'hide-finished', label: 'Hide finished' }];
 
 export function AppearanceSection({ subpage, highlight, appearance, onAppearance }: SectionProps) {
@@ -201,9 +201,6 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
         <Row path={path('sidebar-size')} title="Sidebar sizes" description="Drag the edge of a sidebar to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back." highlight={highlight === 'sidebar-size'}>
           <p className="srow-text">Now: list {appearance.leftWidth} px, agent panel {appearance.rightWidth} px.</p>
           <button type="button" className="btn" disabled={appearance.leftWidth === SIDEBAR_WIDTH.left.default && appearance.rightWidth === SIDEBAR_WIDTH.right.default} onClick={() => set({ leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default })}>Reset sizes</button>
-        </Row>
-        <Row path={path('agent-place')} title="Where Mobius opens" description="In the sidebar, which turns into Mobius, or pinned beside the page." highlight={highlight === 'agent-place'}>
-          <Choice label="Where Mobius opens" name="agent-place" value={appearance.agentPlace} options={AGENT_PLACES} onChange={(agentPlace) => set({ agentPlace })} />
         </Row>
         <Row path={path('density')} title="List density" description="How tightly tabs and conversations are packed." highlight={highlight === 'density'}>
           <Choice label="List density" name="density" value={appearance.density} options={DENSITIES} onChange={(density) => set({ density })} />
@@ -324,7 +321,7 @@ function ActivityList() {
                 <span>{line.text}</span>
                 {line.who && <span className="slist-sub">{line.who}</span>}
               </div>
-              <time className="slist-time" dateTime={new Date(entry.tsMs).toISOString()} title={new Date(entry.tsMs).toLocaleString()}>{relativeTime(entry.tsMs, Date.now())}</time>
+              <time className="slist-time" dateTime={new Date(entry.tsMs).toISOString()} title={dateTimeLabel(entry.tsMs, { year: true })}>{relativeTime(entry.tsMs, Date.now())}</time>
             </li>
           );
         })}

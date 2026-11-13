@@ -11,6 +11,7 @@ import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
 import { growFrom, morphOut, useMorphIn } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
+import { ActivityPage, ActivitySidebar, useActivityFeed } from './ActivityApp';
 import { useBookmarks } from './useBookmarks';
 import { useArchive } from './useArchive';
 import { useBots } from './useBots';
@@ -36,7 +37,7 @@ import { TasksPage, TasksSidebar } from './Tasks';
 import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { SheetGrid, SheetsSidebar } from './Sheets';
-import { MailPage, MailSidebar } from './Mail';
+import { BOX_NAMES, MailPage, MailSidebar, MailToolbar } from './Mail';
 import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
 import { useSheets } from './useSheets';
@@ -61,7 +62,7 @@ import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extens
 import { FilesPage, FilesSidebar, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
 import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
-import { HowIWork, SharedQueue, WikiSidebar, WikiVersions, useWikiIncoming, type WikiPlace } from './Wiki';
+import { HowIWork, SharedQueue, WikiPage, WikiSidebar, useWikiIncoming, type WikiPlace } from './Wiki';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
 import { useVideo } from './useVideo';
@@ -73,6 +74,7 @@ import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { Desk } from './Desk';
+import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail } from './Rail';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
@@ -180,7 +182,8 @@ export function App() {
     startedUp.current = true;
     if (!appearance.value.sidebarAtStart || appearance.value.leftSidebar === 'floating') setPanelOpen(false);
     if (appearance.value.leftSidebar === 'floating') setAgentListOpen(false);
-    if (appearance.value.agentPlace === 'beside' && appearance.value.rightSidebar !== 'floating') setChatOpen(true);
+    // Mobius sits in the right panel, beside the work, from the start (the layout adopted 2026-11-13).
+    if (appearance.value.rightSidebar !== 'floating') setChatOpen(true);
     if (!appearance.value.resumeLast) conversation.startFresh();
   }, [appearance.loaded, appearance.value, conversation]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -249,6 +252,9 @@ export function App() {
   const openFind = useCallback(() => { setFindOpen(true); setFinding((n) => n + 1); }, []);
   const inBrowser = app === 'browser';
   const inAgent = app === 'agent';
+  // Activity: one of Mobius's own apps, shown in the Agent app's place with its own sidebar and page.
+  const inActivity = inAgent && sideMode === 'activity';
+  const activityFeed = useActivityFeed(conversation.list, inActivity && !settingsOpen);
   const inNotes = app === 'notes';
   const inDocs = app === 'docs';
   const inSlides = app === 'slides';
@@ -491,7 +497,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : BOX_NAMES[mail.view.box]) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -539,11 +545,8 @@ export function App() {
     else void appearance.set({ navigation: wide ? 'rail' : 'sidebar' });
   }, [narrow, wide, appearance]);
   const startedUp = useRef(false);
-  // Where the agent sits when it is open: in the sidebar, which turns into Mobius (the default), or pinned beside the
-  // page. Pinning is kept per computer.
-  const chatPlace = appearance.value.agentPlace;
-  const setChatPlace = (place: 'beside' | 'sidebar') => { void appearance.set({ agentPlace: place }); };
-  // In the sidebar, Mobius waits to be asked and the app's own list shows; pinned beside, it is there from the start.
+  // Mobius sits in the right panel, beside the work, in every app (docs/design: five zones). The sidebar is always the
+  // app's own; it no longer turns into Mobius.
   const [chatOpen, setChatOpen] = useState(false);
   // Learn (shell/learn-view): lessons beside the page, in the slot Mobius uses when pinned beside. One at a time.
   const [learnOpen, setLearnOpen] = useState(false);
@@ -566,16 +569,13 @@ export function App() {
   const [agentListOpen, setAgentListOpen] = useState(true);
   const leftOpen = inAgent ? agentListOpen : panelOpen;
   const setLeftOpen = inAgent ? setAgentListOpen : setPanelOpen;
-  const chatInSide = hasRight && chatPlace === 'sidebar';
-  // Mobius in the sidebar takes the sidebar column at its usual width, even when it was folded to the rail or the
-  // window is narrow; closing it folds the column back.
-  const showWide = wide || (chatInSide && chatOpen && !settingsOpen);
+  const showWide = wide;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !showWide;
-  const rightOpen = hasRight && chatOpen && !chatInSide && !learnOpen;
+  const rightOpen = hasRight && chatOpen && !learnOpen;
   useEffect(() => { if (rightOpen && miniOpen) void window.mobius.mini.close(); }, [rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   // Learn (shell/learn-view): Mobius opening beside the page takes the slot back from Learn.
-  useEffect(() => { if (learnOpen && chatOpen && hasRight && !chatInSide) setLearnOpen(false); }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (learnOpen && chatOpen && hasRight) setLearnOpen(false); }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
   const [hovering, setHovering] = useState(false);
   const leftWidth = drag?.side === 'left' ? drag.width : appearance.value.leftWidth;
@@ -592,21 +592,6 @@ export function App() {
     const stage = document.querySelector<HTMLElement>('.stage');
     if (stage) growFrom(stage, 'left');
   }, [app]);
-  // Pin beside moves the card across, from the sidebar to its place beside the page, rather than fading one out and the
-  // other in.
-  const pinFrom = useRef<DOMRect | null>(null);
-  useLayoutEffect(() => {
-    const from = pinFrom.current;
-    pinFrom.current = null;
-    const card = document.querySelector<HTMLElement>('.dock.right:not([data-floating]) > .chat');
-    if (!from || !card || typeof card.animate !== 'function' || document.visibilityState === 'hidden') return;
-    const to = card.getBoundingClientRect();
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 }); return; }
-    card.animate([
-      { transformOrigin: '0 0', transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})` },
-      { transformOrigin: '0 0', transform: 'none' },
-    ], { duration: 320, easing: 'cubic-bezier(0.2, 0, 0, 1)' });
-  });
   // Shown again while it was on its way out (a shortcut, Mobius in the sidebar), it stays: a hide
   // still finishing would otherwise close it, since chatOpen never went false and the effect below does not run.
   const hides = useRef(0);
@@ -887,7 +872,9 @@ export function App() {
   const createFor = (id: AppId): HubAction | undefined => createActions.find((a) => a.app === id);
   const appSidebar = (pinNode: ReactNode) => settingsOpen ? <div ref={setSettingsSlot} className="settings-side" /> : (
           <>
-            {inAgent ? (
+            {inActivity ? (
+              <ActivitySidebar feed={activityFeed} conversations={conversation.list} pin={pinNode} />
+            ) : inAgent ? (
               <ConversationSidebar
                 conversations={conversation.list}
                 active={conversation.id}
@@ -1017,7 +1004,7 @@ export function App() {
   // Learn (shell/learn-view): opening it unpins Mobius from beside; closing puts focus back where it was.
   const openLearn = () => {
     learnFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (chatOpen && !chatInSide) setChatOpen(false);
+    if (chatOpen) setChatOpen(false);
     setLearnOpen(true);
   };
   const closeLearn = () => { setLearnOpen(false); if (learnFrom.current?.isConnected) learnFrom.current.focus(); };
@@ -1150,6 +1137,8 @@ export function App() {
     : [])));
   // And everything you can start (New document, New deck…), wherever you are: the menus only hold the open app's.
   for (const a of createActions) if (!launcherCommands.some((c) => c.label === a.label)) launcherCommands.push({ id: `new-${a.id}`, label: a.label, detail: appName(a.app), run: a.run });
+  // Activity: Mobius's own app, found by name.
+  launcherCommands.push({ id: 'open-activity', label: 'Activity', detail: 'What Mobius did, and what needs you', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } });
   // On macOS the menus go in the system menu bar; elsewhere they are drawn in the toolbar.
   const nativeMenus = window.mobius.platform === 'darwin' && window.mobius.menu !== undefined;
   const menusNow = useRef(menus);
@@ -1307,7 +1296,7 @@ export function App() {
       case 'design':
         return <DesignEditor designs={designs} review={designs.page && turnMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'files':
-        return <FilesPage files={files} onOpenFile={openChangedFile} />;
+        return <FilesPage files={files} onOpenFile={openChangedFile} onAsk={startWithMobius} />;
       case 'review':
         return <ReviewPage review={review} onOpenFile={openChangedFile} onOpenConversation={(id) => { conversation.select(id); openApp('agent'); }} />;
       case 'terminal':
@@ -1330,9 +1319,9 @@ export function App() {
       case 'wiki':
         if (wikiPlace.kind === 'mine') return <HowIWork asking={conversation.state.items} onAnswer={(id, approve) => void conversation.answer(id, approve, 'once')} />;
         if (wikiPlace.kind === 'shared') return <SharedQueue incoming={wikiIncoming} />;
-        return <div className="wiki-doc"><WikiVersions wiki={wiki} /><DocEditor docs={wiki} autoFocus={app === 'wiki'} busy={conversation.state.busy} /></div>;
+        return <WikiPage wiki={wiki} autoFocus={app === 'wiki'} busy={conversation.state.busy} />;
       case 'reader':
-        return <ReaderPage reading={reading} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && turnMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <ReaderPage reading={reading} onAsk={startWithMobius} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && turnMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'research':
         return <ResearchPage research={research} busy={conversation.state.busy} asking={askingResearch} onAskDone={() => setAskingResearch(false)} onAsk={onResearch} review={research.page && turnMarks.research.has(research.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'views':
@@ -1379,6 +1368,7 @@ export function App() {
           />
         );
       case 'agent':
+        if (inActivity) return <ActivityPage feed={activityFeed} conversations={conversation.list} active={conversation.id} onOpenConversation={(id) => { conversation.select(id); setSideMode('sessions'); }} onOpenSchedules={() => openSettingsAt('schedules')} />;
         return (
           <ChatPanel
             surface={surface}
@@ -1387,12 +1377,8 @@ export function App() {
             desk={(starters) => (
               <Desk
                 starters={starters}
-                rows={[
-                  ...(browser.tabs.length > 0 ? [{ app: 'browser' as const, text: plural(browser.tabs.length, 'tab') + ' open' }] : []),
-                  ...(mail.counts.all > 0 ? [{ app: 'mail' as const, text: `${mail.counts.all} unread` }] : []),
-                  ...(dueToday > 0 ? [{ app: 'tasks' as const, text: `${dueToday} due today` }] : []),
-                  ...(eventsToday > 0 ? [{ app: 'calendar' as const, text: `${plural(eventsToday, 'event')} today` }] : []),
-                ]}
+                rows={deskAppRows({ tabs: browser.tabs, mail: mail.messages, unread: mail.counts.all, dueToday: smartView('today', tasks.all, new Date()), events: calendar.events, notes: notes.notebooks, docs: docs.notebooks }, new Date())}
+                onOpenTarget={openTarget}
                 changed={changed}
                 activity={activity}
                 conversations={conversation.list}
@@ -1408,7 +1394,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={inMail ? <MailPlanCard onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
+            appCard={inMail ? (mail.open ? null : <MailPlanCard onChanged={() => void mail.refresh()} />) : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
@@ -1452,7 +1438,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={inMail ? <MailPlanCard onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
+            appCard={inMail ? (mail.open ? null : <MailPlanCard onChanged={() => void mail.refresh()} />) : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
@@ -1517,7 +1503,7 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
@@ -1534,15 +1520,14 @@ export function App() {
         changed={changed}
         needsYou={needsYou}
         counts={{ browser: browser.tabs.length, tasks: dueToday }}
-        create={createFor(app)}
+        create={inActivity ? undefined : createFor(app)}
         createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'] as AppId[]).includes(app)}
         menus={menuBar}
         chrome={showWide && inBrowser && !settingsOpen ? browserChrome : null}
         mobius={hasRight && !settingsOpen ? {
-          shown: chatInSide && chatOpen,
-          onToggle: () => { if (chatInSide && chatOpen) { setChatOpen(false); } else { hides.current += 1; setChatPlace('sidebar'); setChatOpen(true); setFocusToken((n) => n + 1); } },
-          onBeside: () => { setLearnOpen(false); pinFrom.current = document.querySelector('.rail[data-expanded]')?.getBoundingClientRect() ?? null; setChatPlace('beside'); setChatOpen(true); },
-          panel: chatInSide && chatOpen ? chatPanel(null) : null,
+          // The Mobius button shows and hides the right panel.
+          shown: rightOpen,
+          onToggle: () => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } },
         } : null}
         onLauncher={openHub}
         {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
@@ -1569,7 +1554,7 @@ export function App() {
         <div className="toolbar-place" data-browser={(inBrowser && !showWide) || undefined}>
           {/* The open document's name, or the app's when nothing is open, so the title bar is never blank. */}
           {(place || (!settingsOpen && appName(app))) && <h1 className="strip-title">{place || appName(app)}</h1>}
-          {inAgent && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
+          {inAgent && !inActivity && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
           {inNotes && notes.page && <span className="toolbar-sub">{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></span>}
           {inMail && <span className="toolbar-sub">{mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`}</span>}
           {inSheets && sheets.data && <span className="toolbar-sub">{sheets.data.sheet}</span>}
@@ -1581,6 +1566,7 @@ export function App() {
             <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
           </div>
         )}
+        {inMail && <MailToolbar mail={mail} />}
         {inBrowser && !showWide && browserChrome}
         <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
         {/* Words and icons never share a capsule: the update notice stands on its own, before the icons. */}
@@ -1642,11 +1628,7 @@ export function App() {
         </main>
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
-            {chatPanel(<>
-              <button type="button" className="head-icon" data-pinned-beside aria-label="Unpin from beside" title="Put Mobius back in the sidebar" onClick={() => setChatPlace('sidebar')}>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /><path d="M4 4l12 12" /></svg>
-              </button>
-            </>)}
+            {chatPanel(null)}
             {resizer('right', 'Resize the agent panel')}
           </div>
         )}

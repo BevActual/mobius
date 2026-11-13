@@ -279,9 +279,16 @@ export function createTauriBridge(): MobiusBridge {
     },
     files: {
       list: (path) => call('files', 'list', [path], () => ({ error: 'Not available.' })),
+      newFolder: (folder, name) => call('files', 'newFolder', [folder, name], () => ({ ok: false as const, error: 'Not here.' })),
+      rename: (path, name) => call('files', 'rename', [path, name], () => ({ ok: false as const, error: 'Not here.' })),
+      trash: (path) => call('files', 'trash', [path], () => ({ ok: false as const, error: 'Not here.' })),
+      putBack: (held, path) => call('files', 'putBack', [held, path], () => ({ ok: false as const, error: 'Not here.' })),
+      show: (path) => call('files', 'show', [path], () => undefined),
     },
     extensions: {
       connectors: () => call('extensions', 'connectors', [], () => ({ running: [], failed: [], problem: null })),
+      addConnector: (draft) => call('extensions', 'addConnector', [draft], () => ({ ok: false as const, error: 'Not available.' })),
+      removeConnector: (name) => call('extensions', 'removeConnector', [name], () => ({ ok: false as const, error: 'Not available.' })),
     },
     share: {
       status: () => call('share', 'status', [], () => ({ enabled: false, allowChanges: false, port: 0, running: false, url: null, problem: 'Not available.' })),
@@ -334,6 +341,8 @@ export function createTauriBridge(): MobiusBridge {
       saveCut: (project, text, base) => call('video', 'saveCut', [project, text, base], () => ({ ok: false as const, message: 'Video is not available.' })),
       addClip: (project, name, data) => call('video', 'addClip', [project, name, data], () => ({ ok: false as const, message: 'Video is not available.' })),
       showFolder: (project) => call('video', 'showFolder', [project], () => ({ ok: false as const, message: 'Video is not available.' })),
+      saveExport: (project, name, data) => call('video', 'saveExport', [project, name, data], () => ({ ok: false as const, message: 'Video is not available.' })),
+      showExports: (project) => call('video', 'showExports', [project], () => ({ ok: false as const, message: 'Video is not available.' })),
       onChanged: (listener) => on<VideoChanged>('mobius:video-changed', listener),
     },
     skills: {

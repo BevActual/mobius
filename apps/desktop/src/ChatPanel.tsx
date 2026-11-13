@@ -17,9 +17,9 @@ import { stampLabel, startsGroup } from './time-stamps';
 import { useSpeech } from './useSpeech';
 import { isSpeaking, readAloudNow } from './speech';
 import { EMPTY_QUEUE, afterTurn, clearQueue, editQueued, enqueue, removeQueued, resumeQueue, type MessageQueue, type Queued } from './message-queue';
-import { appsSeen, proposedPlan, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
+import { appsSeen, isReadTool, proposedPlan, readsSummary, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
-import { hereOf, type SurfaceState } from './surface';
+import { attachmentLabel, hereOf, type SurfaceState } from './surface';
 import { activityOf } from './activity';
 import { SettingsForm } from './settings/ModelForm';
 import { SignInForTask } from './SignIn';
@@ -199,19 +199,23 @@ function AppLinks({ names, onOpenItem }: { names: readonly string[]; onOpenItem?
   );
 }
 
-/** Three or more of the same finished call in a row, as one line ("Added 6 tasks to P2 build") that opens to show each. */
+/** Three or more of the same finished call in a row, or two or more finished reads, as one line ("Added 6 tasks to P2
+ * build", "Read your mail and calendar") that opens to show each. */
 function ToolGroup({ items, onAnswer, onDetails, onOpenItem }: { items: Extract<Item, { kind: 'tool' }>[]; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
   const [open, setOpen] = useState(false);
   const first = items[0]!;
-  const target = onOpenItem ? toolTarget(first.name, first.args) : null;
+  // Reads only say what was read; what was changed keeps its own rows, each a link to what it made.
+  const reads = items.every((i) => isReadTool(i.name)) && items.some((i) => i.name !== first.name);
+  const target = onOpenItem && !reads ? toolTarget(first.name, first.args) : null;
   const sameTarget = target && items.every((i) => JSON.stringify(toolTarget(i.name, i.args)) === JSON.stringify(target));
+  const summary = reads ? readsSummary(items) : groupSummary(first.name, items.map((i) => i.args));
   return (
     <div className="tool tool-group" data-status="done">
       <div className="tool-line">
         <span className="tool-dot" aria-hidden="true" />
         {sameTarget
-          ? <button type="button" className="tool-name link-btn" data-plain title={`Open it (${first.name})`} onClick={() => onOpenItem?.(target)}>{groupSummary(first.name, items.map((i) => i.args))}</button>
-          : <span className="tool-name" data-plain title={first.name}>{groupSummary(first.name, items.map((i) => i.args))}</span>}
+          ? <button type="button" className="tool-name link-btn" data-plain title={`Open it (${first.name})`} onClick={() => onOpenItem?.(target)}>{summary}</button>
+          : <span className="tool-name" data-plain title={reads ? items.map((i) => i.name).join(', ') : first.name}>{summary}</span>}
         <button type="button" className="msg-action tool-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : `Show all ${items.length}`}</button>
       </div>
       {open && items.map((i) => <ToolRow key={i.id} item={i} onAnswer={onAnswer} onDetails={onDetails} onOpenItem={onOpenItem} />)}
@@ -225,10 +229,12 @@ function toolRuns(items: readonly Item[]): Map<number, number> {
   for (let i = 0; i < items.length;) {
     const it = items[i]!;
     let j = i;
+    // Finished reads in a row fold into one line whatever they read; other calls when three or more are the same.
+    const reading = it.kind === 'tool' && it.status === 'done' && isReadTool(it.name);
     if (it.kind === 'tool' && it.status === 'done') {
-      while (j + 1 < items.length) { const next = items[j + 1]!; if (next.kind === 'tool' && next.status === 'done' && next.name === it.name) j++; else break; }
+      while (j + 1 < items.length) { const next = items[j + 1]!; if (next.kind === 'tool' && next.status === 'done' && (reading ? isReadTool(next.name) : next.name === it.name)) j++; else break; }
     }
-    if (j - i + 1 >= 3) runs.set(i, j - i + 1);
+    if (j - i + 1 >= (reading ? 2 : 3)) runs.set(i, j - i + 1);
     i = j + 1;
   }
   return runs;
@@ -673,7 +679,6 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                 <div className="empty">
                   <MobiusMark size={44} turning={!configured} className="empty-mark" />
                   <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
-                  {configured && <p className="greeting-note">{modeOf(preferences.value.approvalMode).greeting} You can change that below.</p>}
                   {configured && <div ref={setStarterSlot} className="empty-starters" />}
                 </div>
               )
@@ -690,7 +695,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                   )}
                   {item.attachments && item.attachments.length > 0 && (
                     <ul className="msg-chips" aria-label="Attached">
-                      {item.attachments.map((a, i) => <li key={i} className="chip" data-kind={a.kind} title={a.source}><span className="chip-kind" aria-hidden="true">{a.kind === 'page' ? 'Page' : a.kind === 'note' ? 'Note' : 'File'}</span><span className="chip-title">{a.title}</span></li>)}
+                      {item.attachments.map((a, i) => { const shown = attachmentLabel(a); return <li key={i} className="chip" data-kind={a.kind} title={a.source}><span className="chip-kind" aria-hidden="true">{shown.kind}</span><span className="chip-title">{shown.title}</span></li>; })}
                     </ul>
                   )}
                   {settled && index === lastUser && (
@@ -748,7 +753,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                 <ToolRow key={item.id} item={item} onAnswer={onAnswer} onDetails={onDetails} onOpenItem={onOpenItem} />
               ),
             )}
-            {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} />}
+            {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} since={(() => { const last = state.items.findLast((item) => item.kind === 'user'); return last?.kind === 'user' ? last.at : undefined; })()} />}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
               <div className="thinking" role="status" aria-label="Mobius is working"><MobiusMark size={22} turning /></div>

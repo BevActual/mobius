@@ -137,6 +137,6 @@ export function useVideo(active = true) {
   }, [api, refresh]);
 
   const lengthOf = useCallback((clip: string) => (project ? lengths[`${project}/${clip}`] : undefined), [project, lengths]);
-  return { available: api !== undefined, projects, project, clips, cut, base, change, saved, message, setMessage, open, refresh, reload: () => (project ? loadCut(project) : Promise.resolve()), createProject, addFiles, url, playable, lengthOf, showFolder: () => (project ? api?.showFolder(project) : undefined) };
+  return { available: api !== undefined, projects, project, clips, cut, base, change, saved, message, setMessage, open, refresh, reload: () => (project ? loadCut(project) : Promise.resolve()), createProject, addFiles, url, playable, lengthOf, showFolder: () => (project ? api?.showFolder(project) : undefined), saveExport: (name: string, data: string) => (project && api ? api.saveExport(project, name, data) : Promise.resolve(undefined)), showExports: () => (project ? api?.showExports(project) : undefined) };
 }
 export type VideoState = ReturnType<typeof useVideo>;

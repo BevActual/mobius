@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { setLocaleForTests } from './dates';
 import type { TaskItem } from '@mobius/shared';
 import { byDay, byList, dueLabel, LIST_COLORS, listColor, nest, parseWhen, searchTasks, smartView, splitDone, tasksIn } from './tasks-view';
 
 const t = (text: string, due: string | null = null, done = false, line = 0): TaskItem => ({ line, text, done, due });
 const today = new Date(2026, 10, 6, 15, 0); // 6 November 2026, afternoon
+// Dates follow the computer's regional format; these are written for en-GB.
+beforeAll(() => setLocaleForTests('en-GB'));
+afterAll(() => setLocaleForTests(null));
 
 describe('due dates in plain words', () => {
   it('says today, tomorrow, the weekday this week, else the date, and marks what is late', () => {
@@ -94,5 +98,16 @@ describe('scheduled by day', () => {
   });
   it('leaves out tasks without a date', () => {
     expect(byDay([{ list: 'Inbox', task: t('no date') }], today)).toEqual([]);
+  });
+});
+
+describe('dates in the regional format', () => {
+  it('writes the date and month the way the computer does', () => {
+    setLocaleForTests('en-US');
+    expect(dueLabel('2026-11-20', today).text).toBe('Nov 20');
+    expect(byDay([{ list: 'Inbox', task: t('x', '2027-01-02') }], today)[0]!.label).toBe('January 2027');
+    setLocaleForTests('de-DE');
+    expect(dueLabel('2026-11-10', today).text).toBe('Dienstag');
+    setLocaleForTests('en-GB');
   });
 });

@@ -561,11 +561,23 @@ export interface MobiusBridge {
   /** Only the desktop app: the workspace folder as a drive, for the person to look through. */
   files?: {
     list(path: string): Promise<{ path: string; entries: FileEntry[]; truncated: boolean } | { error: string }>;
+    /** The person's own actions in Files; the agent has none of these. Each answers with the item's new path. */
+    newFolder?(folder: string, name: string): Promise<FilesActionResult>;
+    rename?(path: string, name: string): Promise<FilesActionResult>;
+    /** Moves to the workspace's Trash; `path` in the answer is where it is held, for putBack. */
+    trash?(path: string): Promise<FilesActionResult>;
+    putBack?(held: string, path: string): Promise<FilesActionResult>;
+    /** Shows the item in Explorer or Finder. */
+    show?(path: string): Promise<void>;
   };
   /** Only the desktop app: what extends Mobius. */
   extensions?: {
     /** The MCP servers from mcp.json: which run, which did not start and why. */
     connectors(): Promise<ConnectorStatus>;
+    /** Abilities › Add a Connector: written to mcp.json; it starts the next time Mobius opens. */
+    addConnector?(draft: ConnectorDraft): Promise<AgentResult<{ status: ConnectorStatus }>>;
+    /** Take a connector out of mcp.json; a running one stops the next time Mobius opens. */
+    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus }>>;
   };
   share?: {
     status(): Promise<ShareStatus>;
@@ -712,6 +724,10 @@ export interface MobiusBridge {
     saveCut(project: string, text: string, base: number | null): Promise<{ project: string; modified: number } | NotesFailure>;
     addClip(project: string, name: string, data: string): Promise<{ project: string; clip: string } | NotesFailure>;
     showFolder(project: string): Promise<{ ok: true } | NotesFailure>;
+    /** A film made from the cut (base64 MP4 or WebM), saved in the project's `Exports` folder under a fresh name. */
+    saveExport(project: string, name: string, data: string): Promise<{ project: string; file: string } | NotesFailure>;
+    /** Opens the project's `Exports` folder. */
+    showExports(project: string): Promise<{ ok: true } | NotesFailure>;
     onChanged(listener: (change: VideoChanged) => void): () => void;
   };
   /** The Skills app. Only the Tauri shell has it. */
@@ -1000,7 +1016,7 @@ export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
 export type NavigationStyle = 'sidebar' | 'rail';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 380 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'sidebar', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -1176,8 +1192,11 @@ export interface ModelGroup {
 export interface ModelCatalog { current: string; groups: ModelGroup[] }
 
 /** Settings > Advanced > Other apps. */
-export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number }
-export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null }
+export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number; /** When it last changed, ms since 1970 (Files only). */ modified?: number }
+export type FilesActionResult = { ok: true; path: string } | { ok: false; error: string };
+export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null; /** In mcp.json, not started yet: starts when Mobius opens again. */ waiting?: string[]; /** Started, but no longer in mcp.json: stops when Mobius opens again. */ leaving?: string[] }
+/** A connector to add: a short name, the command that runs the MCP server, its arguments and its keys. */
+export interface ConnectorDraft { name: string; command: string; args: string[]; env: Record<string, string> }
 export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }
 
 /** Software Update's state, with the words to show and the version running. */

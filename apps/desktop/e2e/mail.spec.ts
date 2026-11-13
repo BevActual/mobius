@@ -73,7 +73,7 @@ test('an account signs in with an app password, mail is sorted here, and only th
   await page().getByRole('tab', { name: /^Primary/ }).click();
   await list.getByRole('option').first().click();
   await expect(page().getByRole('article')).toContainText('hold the terrace for eight');
-  await page().getByRole('button', { name: 'Reply', exact: true }).click();
+  await shell().getByRole('toolbar', { name: 'Message' }).getByRole('button', { name: 'Reply', exact: true }).click();
   const compose = page().getByRole('form', { name: 'Reply' });
   await expect(compose.getByRole('textbox', { name: 'To' })).toHaveValue('rui@example.com');
   await expect(compose.getByRole('textbox', { name: 'Subject' })).toHaveValue('Re: Terrace + lunch for the 13th');
@@ -107,4 +107,48 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   await page().getByRole('form', { name: 'Reply' }).getByRole('button', { name: 'Send', exact: true }).click();
   await expect.poll(() => servers.sent.length).toBe(1);
   expect(servers.sent[0]).toContain('two vegetarians');
+});
+
+test('the message toolbar: Reply All quotes the message, Flag files it under Flagged, Archive under Archive and back', async () => {
+  await start();
+  const list = page().getByRole('listbox', { name: 'Messages' });
+  const tools = shell().getByRole('toolbar', { name: 'Message' });
+  const boxes = shell().getByRole('navigation', { name: 'Mailboxes' });
+  await list.getByRole('option').first().click();
+  // Reply All starts above the quoted message, with the cursor there.
+  await tools.getByRole('button', { name: 'Reply All' }).click();
+  const compose = page().getByRole('form', { name: 'Reply' });
+  await expect(compose.getByRole('textbox', { name: 'To' })).toHaveValue('rui@example.com');
+  const body = compose.getByRole('textbox', { name: 'Message' });
+  await expect(body).toBeFocused();
+  await expect(body).toHaveValue(/Rui Almeida <rui@example.com> wrote:\n> Hi!/);
+  await compose.getByRole('button', { name: 'Close' }).click();
+  await list.getByRole('option').first().click();
+  // Forward carries the message, with no one to send it to yet.
+  await tools.getByRole('button', { name: 'Forward' }).click();
+  const forward = page().getByRole('form', { name: 'New message' });
+  await expect(forward.getByRole('textbox', { name: 'Subject' })).toHaveValue('Fwd: Terrace + lunch for the 13th');
+  await expect(forward.getByRole('textbox', { name: 'Message' })).toHaveValue(/Begin forwarded message:/);
+  await expect(forward.getByRole('textbox', { name: 'To' })).toBeFocused();
+  await forward.getByRole('button', { name: 'Close' }).click();
+
+  await list.getByRole('option').first().click();
+  await tools.getByRole('button', { name: 'Flag' }).click();
+  await expect(tools.getByRole('button', { name: 'Unflag' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(list.getByRole('option').first().getByRole('img', { name: 'Flagged' })).toBeVisible();
+  await expect.poll(() => servers.commands).toContain('UID STORE 7 +FLAGS.SILENT (\\Flagged)');
+  await boxes.getByRole('button', { name: 'Flagged' }).click();
+  await expect(list.getByRole('option')).toHaveCount(1);
+
+  await boxes.getByRole('button', { name: 'Inbox' }).click();
+  await list.getByRole('option').first().click();
+  await tools.getByRole('button', { name: 'Archive' }).click();
+  await expect(list.getByRole('option')).toHaveCount(0);
+  await boxes.getByRole('button', { name: 'Archive' }).click();
+  await expect(list.getByRole('option')).toHaveCount(1);
+  await list.getByRole('option').first().click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Move to Inbox' }).click();
+  await expect(list.getByRole('option')).toHaveCount(0);
+  await boxes.getByRole('button', { name: 'Inbox' }).click();
+  await expect(list.getByRole('option')).toHaveCount(1);
 });

@@ -84,7 +84,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
   await expect(nav.getByRole('group').locator('.settings-nav-heading')).toHaveText(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
-  await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Conversations', 'Schedules', 'Abilities', 'Advanced', 'About']);
+  await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Conversations', 'Schedules', 'Abilities', 'Advanced', 'About']);
   await expect(nav.getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
@@ -379,4 +379,21 @@ test('Software Update: About shows the version and says the updater is off in th
   await expect.poll(() => JSON.parse(fs.readFileSync(path.join(mobius!.userData, 'preferences.json'), 'utf8')).autoUpdate).toBe(false);
   // Nothing in the toolbar: there is no update waiting.
   await expect(shell().getByRole('button', { name: /Restart to install/ })).toHaveCount(0);
+});
+
+test('Usage counts a model call, groups it by model and app, and clears after asking', async () => {
+  await start([says(['ok'])]);
+  await say('hello');
+  await expect(log().locator('.msg.assistant')).toHaveText('ok');
+  await openSettings();
+  await go('Usage');
+  const totals = page().getByRole('region', { name: 'Totals' });
+  await expect(totals).toContainText(/Requests\s*1(?!\d)/, { timeout: 10_000 });
+  await expect(page().getByRole('table', { name: 'Usage by model' })).toContainText('fake-model');
+  await page().getByRole('tab', { name: 'App' }).click();
+  await expect(page().getByRole('table', { name: 'Usage by app' }).getByRole('row')).toHaveCount(2);
+  await expect(page().getByRole('button', { name: 'Copy as CSV' })).toBeEnabled();
+  await page().getByRole('button', { name: 'Clear Usage…' }).click();
+  await page().getByRole('group', { name: 'Confirm clearing usage' }).getByRole('button', { name: 'Clear All Usage' }).click();
+  await expect(page().getByText('Nothing used in this period.').first()).toBeVisible();
 });

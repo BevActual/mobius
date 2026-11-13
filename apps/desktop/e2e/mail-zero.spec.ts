@@ -80,6 +80,9 @@ test('Get to zero is a plan in the Mobius panel: keep it and the inbox empties, 
   await zero.getByRole('button', { name: 'Get to zero' }).click();
   await zero.getByRole('button', { name: 'Discard plan' }).click();
   await expect(inbox().getByRole('option')).toHaveCount(2);
+  // While one email is open the panel is about that email: the inbox plan steps aside, and comes back with none open.
+  await inbox().getByRole('option').first().click();
+  await expect(zero).toHaveCount(0);
 });
 
 test('the keys are told in the list tooltip, not a footer; E archives and H puts off the open message', async () => {
@@ -100,7 +103,7 @@ test('the keys are told in the list tooltip, not a footer; E archives and H puts
 test('Send later on a kept draft: Scheduled by you, and Unschedule', async () => {
   await start();
   await inbox().getByRole('option').filter({ hasText: 'Terrace' }).click();
-  await page().getByRole('button', { name: 'Reply', exact: true }).click();
+  await shell().getByRole('toolbar', { name: 'Message' }).getByRole('button', { name: 'Reply', exact: true }).click();
   const reply = page().getByRole('form', { name: 'Reply' });
   await reply.getByRole('textbox', { name: 'Message' }).fill('We are 8.');
   await reply.getByRole('textbox', { name: 'Subject' }).click();
