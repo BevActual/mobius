@@ -11,6 +11,7 @@
 
 /* Quick add: one line, said in words; what it will add shows underneath before Enter. */
 /* Calendar's controls in the toolbar's middle: where to go, the view, quick add and New. */
+.ui-toolbar-slot:has(.cal-tools) { flex: 1 1 auto; min-width: 0; }
 .ui-toolbar-group:has(> .cal-tools) { flex: 1; }
 /* Calendar's title ("November 2026") takes only its own width, so the controls get the rest of the toolbar. */
 .context-strip:has(.cal-tools) .toolbar-place { flex: 0 1 auto; }
