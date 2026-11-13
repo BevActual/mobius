@@ -1217,12 +1217,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 
 /* Calendar: a day, a week or a month. Each calendar has its colour; the agent's new events glow for a moment. */
 .stage .calendar-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
-.cal-head { flex-shrink: 0; display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); }
-.cal-head .spacer, .cal-editor-actions .spacer { flex: 1; }
+.cal-editor-actions .spacer { flex: 1; }
 .cal-title { margin: 0; font-size: var(--fs-xl); font-weight: 700; white-space: nowrap; }
-.cal-head .segmented { border-radius: var(--radius-pill); }
-.cal-head .segmented button { padding: 3px 13px; border-radius: var(--radius-pill); }
-.cal-head .segmented button[aria-checked="true"] { background: var(--bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16); font-weight: 600; }
 .cal-time { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .cal-days, .cal-all-day { display: grid; border-bottom: 1px solid var(--line); }
 .cal-day-head { padding: 6px 10px; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; }

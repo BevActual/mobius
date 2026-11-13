@@ -5,18 +5,29 @@
 
 /* The head: back, Today and forward at the start; the view in the middle; quick add and New event at the end. */
 /* A row that wraps rather than overlaps: in a narrow window the quick add and New event go to a second line. */
-.calendar-page .cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 10px var(--sp-4); }
-.cal-head-start, .cal-head-end { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.cal-head-start { flex: 1 0 auto; }
 /* Back, Today and Forward are one control, in the same capsule as the Browser's back and forward. */
-.calendar-page .cal-step > .btn { height: 26px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; font-weight: var(--fw-medium); }
-.calendar-page .cal-step > .btn:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.cal-head-end { flex: 1 1 280px; justify-content: flex-end; gap: var(--sp-2); }
-.cal-head-end > .btn { flex: none; white-space: nowrap; }
-.calendar-page .cal-head .segmented button { min-width: 64px; }
+.cal-step > .btn { height: 26px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: transparent; box-shadow: none; font-weight: var(--fw-medium); }
+.cal-step > .btn:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 
 /* Quick add: one line, said in words; what it will add shows underneath before Enter. */
-.cal-quick { position: relative; display: flex; align-items: center; gap: 6px; flex: 0 1 260px; min-width: 0; height: 30px; padding: 0 10px; border-radius: var(--radius-pill); background: var(--field); border: 1px solid transparent; }
+/* Calendar's controls in the toolbar's middle: where to go, the view, quick add and New. */
+.ui-toolbar-slot:has(.cal-tools) { flex: 1 1 auto; min-width: 0; }
+.ui-toolbar-group:has(> .cal-tools) { flex: 1; }
+/* Calendar's title ("November 2026") takes only its own width, so the controls get the rest of the toolbar. */
+.context-strip:has(.cal-tools) .toolbar-place { flex: 0 1 auto; }
+.cal-tools { flex: 1; min-width: 0; container-type: inline-size; }
+.cal-tools-row { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); min-width: 0; }
+/* When the toolbar is narrow (Mobius open beside a small window), Today's word goes first, then the +, then the
+   view switch. T, N, D, W, M and the arrow keys still do what they did. */
+@container (max-width: 330px) { .cal-tools-row .cal-step > .btn { display: none; } }
+@container (max-width: 290px) { .cal-tools-row .cal-quick-at { display: none; } }
+/* Squeezed further, the view switch goes too: Back and Forward are used more, and D, W and M still switch the view. */
+@container (max-width: 250px) { .cal-tools-row .ui-views { display: none; } }
+.cal-quick-at { position: relative; flex: none; }
+.cal-quick-btn { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: var(--ink); }
+.cal-quick-btn:hover, .cal-quick-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.cal-quick-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.cal-quick { position: absolute; z-index: 6; top: calc(100% + 6px); right: 0; width: 300px; box-shadow: var(--shadow-3); display: flex; align-items: center; gap: 6px; min-width: 0; height: 30px; padding: 0 10px; border-radius: var(--radius-pill); background: var(--bg); border: 1px solid transparent; }
 .cal-quick:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); background: var(--bg); }
 .cal-quick > svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; }
 .cal-quick input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; font: inherit; font-size: var(--fs-sm); color: inherit; outline: none; }
@@ -86,8 +97,6 @@
 .calendar-page .cal-more { font-weight: 600; }
 
 /* Undo, floating at the foot of the page like a toast. */
-.calendar-page .cal-undo { position: absolute; z-index: 6; left: 50%; bottom: var(--sp-4); transform: translateX(-50%); margin: 0; padding: 4px 4px 4px 14px; border-radius: var(--radius-pill); background: var(--bg); box-shadow: var(--shadow-3); white-space: nowrap; max-width: calc(100% - 32px); }
-.calendar-page .cal-undo span { overflow: hidden; text-overflow: ellipsis; }
 
 /* The editor: title and place up top, then the times as one grouped inset list. */
 .cal-editor { gap: var(--sp-3); border-radius: var(--sheet-radius); }
@@ -130,9 +139,6 @@
 .cal-mini-day:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 
 /* One add button beside the quick-add field: a round +. */
-.calendar-page .cal-new { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--on-accent, #fff); }
-.calendar-page .cal-new svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-.calendar-page .cal-new:hover { filter: brightness(1.06); }
 
 /* A suggestion opens beside its dashed event, as an event's popover does in Calendar. */
 .cal-suggest-pop { position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: var(--bg); color: var(--ink); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.2), 0 0 0 0.5px var(--line); font-size: var(--fs-sm); }
@@ -206,7 +212,6 @@
 /* The popover's title and place read as text being written, without a ring around them. */
 .cal-editor[data-pop] .cal-editor-title:focus, .cal-editor[data-pop] .cal-editor-place:focus { outline: none; box-shadow: none !important; }
 /* Undo keeps an edge in dark, where the page and the toast are the same colour. */
-.calendar-page .cal-undo { box-shadow: var(--shadow-3), 0 0 0 0.5px var(--line); }
 /* The popover points at what opened it: a small arrow on the side the event is, level with it. */
 .cal-pop-layer > .cal-editor[data-pop] { overflow: visible; }
 .cal-editor[data-pop][data-side]::before { content: ""; position: absolute; top: calc(var(--arrow) - 8px); width: 16px; height: 16px; background: var(--bg); transform: rotate(45deg); box-shadow: -1px 1px 0 0 color-mix(in srgb, var(--line) 60%, transparent); }
@@ -219,3 +224,8 @@
 /* What Mobius's last turn added or changed waits dashed, as a proposed task does, until it is kept. */
 .calendar-page .cal-event[data-proposed] { outline: 1.5px dashed color-mix(in srgb, var(--event) 75%, var(--bg)); outline-offset: -1.5px; }
 .calendar-page > .cal-review { width: auto; max-width: none; margin: 0 var(--sp-3) var(--sp-2); }
+/* A search hit's day, in its calendar's colour, before its title. */
+.cal-hit-day { flex: none; min-width: 44px; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--event) 70%, var(--ink)); }
+/* From Mobius, pressed: only the calendars Mobius changed. */
+[data-mobius-only] li:has(> .calendar-row:not([data-proposed])) { display: none; }
+.calendar-row[data-proposed] { outline: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--line)); outline-offset: -1px; border-radius: var(--row-radius); }
