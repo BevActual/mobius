@@ -12,6 +12,8 @@ type Res<T> = Result<T, String>;
 
 pub const MAX_READ: usize = 256 * 1024;
 pub const MAX_WRITE: usize = 1024 * 1024;
+/// Beside the Trash: one small file per trashed item, holding the path it came from.
+const TRASH_WHERE: &str = ".trash/.where";
 const MAX_LIST: usize = 500;
 const MAX_MATCHES: usize = 50;
 const MAX_SEARCH_FILE: u64 = 1024 * 1024;
@@ -150,6 +152,197 @@ impl Workspace {
     pub fn restore_file(&self, checkpoint: &str, path: &str) -> Res<()> {
         let root = self.real_root()?;
         self.checkpoints.restore_file(&root, checkpoint, path).map_err(|e| e.to_string())
+    }
+
+    /// The person browsing a folder in Files: like `files.list`, with when each entry last changed (ms since 1970).
+    /// The agent's tool leaves the dates out, so its listings stay short.
+    pub fn browse(&self, relative: &str) -> Res<Value> {
+        let folder = self.inside(relative)?;
+        let mut entries: Vec<(String, bool, u64, u64)> = fs::read_dir(&folder)
+            .map_err(|_| "that folder is not there".to_owned())?
+            .filter_map(Result::ok)
+            .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
+            .filter_map(|e| {
+                e.metadata().ok().map(|m| {
+                    let modified = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_millis() as u64);
+                    (e.file_name().to_string_lossy().into_owned(), m.is_dir(), m.len(), modified)
+                })
+            })
+            .collect();
+        entries.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.to_lowercase().cmp(&b.0.to_lowercase())));
+        let truncated = entries.len() > MAX_LIST;
+        let items: Vec<Value> = entries
+            .into_iter()
+            .take(MAX_LIST)
+            .map(|(n, dir, size, modified)| if dir { json!({ "name": n, "type": "folder", "modified": modified }) } else { json!({ "name": n, "type": "file", "bytes": size, "modified": modified }) })
+            .collect();
+        Ok(json!({ "path": relative, "entries": items, "truncated": truncated }))
+    }
+
+    /// A name the person typed for a file or folder: one part, nothing hidden, nothing Windows refuses.
+    fn check_name(name: &str) -> Res<&str> {
+        let name = name.trim();
+        if name.is_empty() || name == "." || name == ".." {
+            return Err("give it a name".into());
+        }
+        if name.starts_with('.') {
+            return Err("a name cannot start with a dot".into());
+        }
+        if name.chars().any(|c| matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control()) {
+            return Err("a name cannot have / \\ : * ? \" < > or |".into());
+        }
+        if name.len() > 200 {
+            return Err("that name is too long".into());
+        }
+        Ok(name)
+    }
+
+    /// A new, empty folder `name` inside `folder`. Returns its path.
+    pub fn new_folder(&self, folder: &str, name: &str) -> Res<String> {
+        let name = Self::check_name(name)?;
+        let relative = if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") };
+        let target = self.inside(&relative)?;
+        if target.exists() {
+            return Err(format!("there is already something called {name} here"));
+        }
+        fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+        Ok(relative)
+    }
+
+    /// Renames a file or folder in place. Returns its new path.
+    pub fn rename(&self, relative: &str, name: &str) -> Res<String> {
+        let name = Self::check_name(name)?;
+        if relative.is_empty() {
+            return Err("the workspace itself cannot be renamed".into());
+        }
+        let from = self.inside(relative)?;
+        if !from.exists() {
+            return Err("that is not there any more".into());
+        }
+        let parent = relative.rsplit_once('/').map_or("", |(p, _)| p);
+        let to_relative = if parent.is_empty() { name.to_owned() } else { format!("{parent}/{name}") };
+        let to = self.inside(&to_relative)?;
+        // Only a change of case may land on what is already there (Windows sees the same file).
+        if to.exists() && !to_relative.eq_ignore_ascii_case(relative) {
+            return Err(format!("there is already something called {name} here"));
+        }
+        fs::rename(&from, &to).map_err(|e| e.to_string())?;
+        Ok(to_relative)
+    }
+
+    /// Moves a file or folder to the workspace's Trash (`.trash/`, hidden from Files and the agent), so it can be put
+    /// back. Returns where it went inside the Trash.
+    pub fn trash(&self, relative: &str) -> Res<String> {
+        if relative.is_empty() {
+            return Err("the workspace itself cannot be moved to the Trash".into());
+        }
+        let from = self.inside(relative)?;
+        if !from.exists() {
+            return Err("that is not there any more".into());
+        }
+        let name = relative.rsplit('/').next().unwrap_or(relative);
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
+        let held = format!(".trash/{stamp}-{name}");
+        let to = self.real_root()?.join(&held);
+        if let Some(parent) = to.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::rename(&from, &to).map_err(|e| e.to_string())?;
+        // Where it came from, beside it, so the Trash can say so and put it back there later.
+        let where_ = self.real_root()?.join(TRASH_WHERE);
+        if fs::create_dir_all(&where_).is_ok() {
+            let _ = fs::write(where_.join(&held[".trash/".len()..]), relative);
+        }
+        Ok(held)
+    }
+
+    /// What is in the Trash, newest first: each item's name, where it came from, and when it was trashed.
+    pub fn trash_list(&self) -> Res<Value> {
+        let root = self.real_root()?;
+        let Ok(read) = fs::read_dir(root.join(".trash")) else { return Ok(json!({ "entries": [] })) };
+        let mut items: Vec<(u64, Value)> = read
+            .filter_map(Result::ok)
+            .filter_map(|e| {
+                let held = e.file_name().to_string_lossy().into_owned();
+                if held.starts_with('.') {
+                    return None;
+                }
+                let m = e.metadata().ok()?;
+                let (stamp, name) = held.split_once('-').map_or((0, held.as_str()), |(s, n)| (s.parse().unwrap_or(0), n));
+                let from = fs::read_to_string(root.join(TRASH_WHERE).join(&held)).unwrap_or_default();
+                let mut item = json!({ "held": format!(".trash/{held}"), "name": name, "from": from, "trashed": stamp, "type": if m.is_dir() { "folder" } else { "file" } });
+                if !m.is_dir() {
+                    item["bytes"] = json!(m.len());
+                }
+                Some((stamp, item))
+            })
+            .collect();
+        items.sort_by(|a, b| b.0.cmp(&a.0));
+        Ok(json!({ "entries": items.into_iter().map(|(_, v)| v).collect::<Vec<_>>() }))
+    }
+
+    /// Deletes for good: one item the Trash holds, or everything in it when `held` is empty. Returns how many went.
+    pub fn empty_trash(&self, held: &str) -> Res<usize> {
+        let root = self.real_root()?;
+        let names: Vec<String> = if held.is_empty() {
+            let Ok(read) = fs::read_dir(root.join(".trash")) else { return Ok(0) };
+            read.filter_map(Result::ok).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| !n.starts_with('.')).collect()
+        } else {
+            vec![Self::held_name(held)?.to_owned()]
+        };
+        let mut gone = 0;
+        for name in names {
+            let path = root.join(".trash").join(&name);
+            let done = if path.is_dir() { fs::remove_dir_all(&path) } else { fs::remove_file(&path) };
+            if done.is_ok() {
+                gone += 1;
+                let _ = fs::remove_file(root.join(TRASH_WHERE).join(&name));
+            } else if !held.is_empty() {
+                return Err("that is not in the Trash any more".into());
+            }
+        }
+        Ok(gone)
+    }
+
+    /// The name inside `.trash/` of something `trash` returned, refusing anything that reaches elsewhere.
+    fn held_name(held: &str) -> Res<&str> {
+        let name = held.strip_prefix(".trash/").unwrap_or("");
+        if name.is_empty() || name.starts_with('.') || name.contains('/') || name.contains('\\') || name.contains("..") {
+            return Err("that is not in the Trash".into());
+        }
+        Ok(name)
+    }
+
+    /// Puts back what `trash` moved: `held` is what it returned, `relative` where it was (empty: where the Trash
+    /// remembers it came from).
+    pub fn put_back(&self, held: &str, relative: &str) -> Res<String> {
+        let name = Self::held_name(held)?;
+        let root = self.real_root()?;
+        let remembered = fs::read_to_string(root.join(TRASH_WHERE).join(name)).unwrap_or_default();
+        let relative = if relative.is_empty() { remembered.as_str() } else { relative };
+        if relative.is_empty() {
+            return Err("where it came from is not known".into());
+        }
+        let from = root.join(".trash").join(name);
+        if !from.exists() {
+            return Err("that is not in the Trash any more".into());
+        }
+        let to = self.inside(relative)?;
+        if to.exists() {
+            return Err("something else is there now".into());
+        }
+        if let Some(parent) = to.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::rename(&from, &to).map_err(|e| e.to_string())?;
+        let _ = fs::remove_file(root.join(TRASH_WHERE).join(name));
+        Ok(relative.to_owned())
+    }
+
+    /// Where a workspace path really is on this computer, for showing it in Explorer or Finder.
+    pub fn locate(&self, relative: &str) -> Res<PathBuf> {
+        let target = self.inside(relative)?;
+        if target.exists() { Ok(target) } else { Err("that is not there any more".into()) }
     }
 
     fn checkpoint(&self, reason: &str) -> bool {
@@ -294,6 +487,56 @@ mod tests {
     }
     fn call(ws: &Workspace, name: &str, args: Value) -> Res<Value> {
         ws.run(name, &args).map(|s| serde_json::from_str(&s).unwrap())
+    }
+
+    #[test]
+    fn the_person_browses_with_dates_and_makes_renames_trashes_and_puts_back() {
+        let (_d, ws) = setup();
+        call(&ws, "files.write", json!({ "path": "notes/Work/Plan.md", "content": "the plan" })).unwrap();
+        let listed = ws.browse("notes/Work").unwrap();
+        assert_eq!(listed["entries"][0]["name"], "Plan.md");
+        assert!(listed["entries"][0]["modified"].as_u64().unwrap() > 0, "{listed}");
+        // The agent's listing stays without dates.
+        let tool = call(&ws, "files.list", json!({ "path": "notes/Work" })).unwrap();
+        assert!(tool["entries"][0].get("modified").is_none());
+
+        assert_eq!(ws.new_folder("notes", "Ideas").unwrap(), "notes/Ideas");
+        assert!(ws.new_folder("notes", "Ideas").is_err(), "not twice");
+        assert!(ws.new_folder("notes", "../out").is_err());
+        assert!(ws.new_folder("notes", ".hidden").is_err());
+        assert!(ws.new_folder("notes", "a:b").is_err());
+
+        assert_eq!(ws.rename("notes/Work/Plan.md", "Build plan.md").unwrap(), "notes/Work/Build plan.md");
+        assert!(ws.rename("notes/Work/Build plan.md", "../x.md").is_err());
+        assert!(ws.rename("notes/Work", "Ideas").is_err(), "no clobbering");
+        assert_eq!(ws.rename("notes/Ideas", "IDEAS").unwrap(), "notes/IDEAS");
+
+        let held = ws.trash("notes/Work/Build plan.md").unwrap();
+        assert!(held.starts_with(".trash/"), "{held}");
+        assert!(ws.browse("notes/Work").unwrap()["entries"].as_array().unwrap().is_empty());
+        assert!(ws.browse("").unwrap()["entries"].as_array().unwrap().iter().all(|e| e["name"] != ".trash"));
+        assert_eq!(ws.put_back(&held, "notes/Work/Build plan.md").unwrap(), "notes/Work/Build plan.md");
+        assert_eq!(fs::read_to_string(ws.locate("notes/Work/Build plan.md").unwrap()).unwrap(), "the plan");
+        assert!(ws.put_back(".trash/../notes", "x").is_err());
+
+        // The Trash remembers where things came from, puts them back there, and empties for good.
+        let a = ws.trash("notes/Work/Build plan.md").unwrap();
+        ws.new_folder("notes", "Old").unwrap();
+        let b = ws.trash("notes/Old").unwrap();
+        let list = ws.trash_list().unwrap();
+        let entries = list["entries"].as_array().unwrap();
+        assert_eq!(entries.len(), 2);
+        assert!(entries.iter().any(|e| e["name"] == "Build plan.md" && e["from"] == "notes/Work/Build plan.md" && e["type"] == "file"));
+        assert!(entries.iter().any(|e| e["name"] == "Old" && e["type"] == "folder"));
+        assert_eq!(ws.put_back(&a, "").unwrap(), "notes/Work/Build plan.md");
+        assert_eq!(ws.trash_list().unwrap()["entries"].as_array().unwrap().len(), 1);
+        assert!(ws.empty_trash(".trash/.where").is_err());
+        assert_eq!(ws.empty_trash(&b).unwrap(), 1);
+        ws.trash("notes/Work/Build plan.md").unwrap();
+        assert_eq!(ws.empty_trash("").unwrap(), 1);
+        assert!(ws.trash_list().unwrap()["entries"].as_array().unwrap().is_empty());
+        assert!(ws.locate("notes/Work/Build plan.md").is_err());
+        assert!(ws.trash("").is_err());
     }
 
     #[test]

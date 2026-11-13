@@ -9,6 +9,7 @@ import { FromMobius } from './FromMobius';
 import { RowMark } from './RowMark';
 import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { SidebarSearch } from './ui';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
@@ -97,8 +98,9 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
         </button>}
         {/* Delete is in the row's menu, not on hover; choosing it asks once more, here in the row. */}
+        {/* It goes away when focus moves to something else, not when the closing menu leaves focus nowhere. */}
         {confirming === pg.path && (
-          <button type="button" autoFocus className="note-delete confirm" aria-label={`Confirm delete ${pg.title}`} onClick={() => { setConfirming(null); void notes.remove(pg.path); }} onBlur={() => setConfirming(null)} onKeyDown={(e) => { if (e.key === 'Escape') setConfirming(null); }}>Delete</button>
+          <button type="button" autoFocus className="note-delete confirm" aria-label={`Confirm delete ${pg.title}`} onClick={() => { setConfirming(null); void notes.remove(pg.path); }} onBlur={(e) => { const to = e.relatedTarget as Node | null; if (to && !e.currentTarget.parentElement?.contains(to)) setConfirming(null); }} onKeyDown={(e) => { if (e.key === 'Escape') setConfirming(null); }}>Delete</button>
         )}
       </li>
     );
@@ -131,7 +133,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
       {(openNotebook || words.defaultGroup) && (
         <SideNew item={words.item} onNew={newItem} title={openNotebook ? `New ${words.item} in ${openNotebook}` : `New ${words.item}`} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
       )}
-      <input className="side-search" type="search" aria-label={`Search ${words.app.toLowerCase()}`} placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <SidebarSearch label={`Search ${words.app.toLowerCase()}`} value={query} onChange={setQuery} />
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
           <input autoFocus aria-label={`${cap(words.group)} name`} placeholder={`${cap(words.group)} name`} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />

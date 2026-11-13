@@ -1,0 +1,101 @@
+/* Files: the workspace as a drive, laid out like Finder's list view. What Mobius made is dashed until kept. */
+.files-page { gap: var(--sp-3); }
+.files-page { --files-col: min(100%, 720px); --files-sel: color-mix(in srgb, var(--accent) 80%, #000); }
+.files-crumbs, .files-table, .files-empty, .files-page > .field-error { width: var(--files-col); margin-inline: auto; }
+
+/* The path bar at the foot, as Finder's: where this folder is, each part a way back up. */
+.files-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-top: auto; padding-top: var(--sp-2); border-top: 1px solid var(--hairline); color: var(--muted); font-size: var(--fs-sm); }
+.files-crumbs .review-btn[aria-current="page"] { color: var(--ink); }
+
+/* The list: a header row of sortable columns, then one row per entry. */
+.files-head, .files-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 196px 64px; align-items: center; column-gap: var(--sp-3); }
+.files-table[aria-label="Made by Mobius"] .files-row { grid-template-columns: minmax(0, 1fr) 90px minmax(0, 200px); }
+.files-head { padding: 0 var(--sp-3) var(--sp-1); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-1); }
+.files-col { justify-self: start; display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; margin-left: -4px; border-radius: var(--radius-small, 4px); font-size: var(--fs-xs); font-weight: var(--fw-semibold, 600); color: var(--muted); }
+.files-col:hover { background: var(--wash); color: var(--ink); }
+.files-col[aria-sort="ascending"], .files-col[aria-sort="descending"] { color: var(--ink); }
+.files-col[data-col="size"] { justify-self: end; margin-left: 0; margin-right: -4px; }
+.files-sort { font-size: 9px; }
+
+.files-row { min-height: 34px; padding: 0 var(--sp-3); border-radius: var(--radius-control, 6px); cursor: default; user-select: none; transition: background var(--dur-fast) var(--ease); }
+.files-row:nth-child(even) { background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
+.files-row:hover { background: var(--wash); }
+.files-row:focus { outline: none; }
+.files-row[aria-selected="true"] { background: var(--files-sel); color: #fff; }
+.files-row[aria-selected="true"] .files-cell { color: inherit; }
+.files-row[aria-selected="true"] .files-icon[data-glyph] { color: #fff; }
+.files-row:focus-visible:not([aria-selected="true"]) { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent); }
+.files-row[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
+.files-row[data-proposed][aria-selected="true"] { outline-color: #fff; }
+.files-cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
+.files-name { display: flex; align-items: center; gap: var(--sp-2); color: var(--ink); font-size: var(--fs-md, 14px); }
+.files-label { overflow: hidden; text-overflow: ellipsis; }
+.files-size { text-align: right; font-variant-numeric: tabular-nums; }
+.files-held { color: var(--accent); }
+.files-row[aria-selected="true"] .files-held { color: inherit; }
+.files-none { padding: var(--sp-3); }
+
+/* Icons: an app's file wears that app's tile; folders are Finder blue; anything else is a plain page. */
+.files-icon { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.files-icon[data-app] { padding: 3px; border-radius: 5px; color: #fff; stroke-width: 1.8; }
+.files-icon[data-glyph="folder"] { color: #3a9bfc; fill: color-mix(in srgb, #3a9bfc 22%, transparent); }
+.files-icon[data-glyph="file"] { color: var(--muted); }
+.files-icon[data-glyph="place"], .files-icon[data-glyph="made"] { color: var(--accent); }
+.files-icon[data-size="side"] { width: 18px; height: 18px; }
+.files-icon[data-size="side"][data-app] { padding: 2.5px; border-radius: 5px; }
+.files-icon[data-size="hero"] { width: 48px; height: 48px; stroke-width: 1; }
+.files-icon[data-app="notes"] { background: var(--app-notes); }
+.files-icon[data-app="docs"] { background: var(--app-docs); }
+.files-icon[data-app="slides"] { background: var(--app-slides); }
+.files-icon[data-app="sheets"] { background: var(--app-sheets); }
+.files-icon[data-app="tasks"] { background: var(--app-tasks); }
+.files-icon[data-app="calendar"] { background: var(--app-calendar); }
+.files-icon[data-app="code"] { background: var(--app-code); }
+.files-icon[data-app="design"] { background: var(--app-design); }
+.files-icon[data-app="canvas"] { background: var(--app-canvas); }
+.files-icon[data-app="research"] { background: var(--app-research); }
+.files-icon[data-app="reader"] { background: var(--app-reader); }
+.files-icon[data-app="database"] { background: var(--app-database); }
+.files-icon[data-app="photo"] { background: var(--app-photo); }
+.files-icon[data-app="studio"] { background: var(--app-studio); }
+.files-icon[data-app="video"] { background: var(--app-video); }
+.files-icon[data-app="skills"] { background: var(--app-skills); }
+
+
+.files-empty { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-8) 0; text-align: center; }
+.files-empty .files-icon[data-glyph="folder"] { color: var(--muted); fill: none; }
+
+.files-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 6px 6px 12px; width: fit-content; max-width: var(--files-col); margin-left: max(0px, calc((100% - 720px) / 2)); border-radius: var(--radius-panel); background: var(--wash); font: var(--fs-sm)/1.2 var(--font); }
+.files-review > span { margin-right: var(--sp-2); }
+
+/* The shared undo toast keeps its own width (the page's column rule would stretch it) and stands above the path bar. */
+.files-page > .ui-undo { width: auto; margin: 0; }
+.files-page:has(> .files-path) > .ui-undo { bottom: calc(var(--sp-6) + 44px); }
+
+/* Back, Forward and New folder in the toolbar, and renaming in place. */
+.files-tool { border-radius: var(--radius-control); color: var(--ink); }
+.files-tool:hover:not(:disabled) { background: var(--wash); }
+.files-tool:disabled { color: var(--muted); opacity: 0.45; }
+.files-tool svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.files-rename { flex: 1; min-width: 0; margin: -2px 0; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--radius-small, 4px); background: var(--bg); color: var(--ink); font: inherit; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.files-notice { display: flex; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
+.files-notice { background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); }
+.files-notice .review-btn { margin-left: auto; }
+
+/* A narrow page (Mobius pinned beside, a small window): the name and size stay, Date and Kind step out first. */
+.files-page { container-type: inline-size; }
+@container (max-width: 620px) {
+  .files-head, .files-row { grid-template-columns: minmax(0, 1fr) 150px 64px; }
+  .files-head [data-col="modified"], .files-date { display: none; }
+}
+@container (max-width: 440px) {
+  .files-head, .files-row { grid-template-columns: minmax(0, 1fr) 64px; }
+  .files-head [data-col="kind"], .files-kind { display: none; }
+}
+
+/* The Trash: asking before anything is deleted for good. */
+.files-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); font-size: var(--fs-sm); }
+.files-confirm p { flex: 1 1 14em; margin: 0; }
+.files-icon[data-glyph="trash"] { color: var(--muted); fill: none; stroke: currentColor; }
+.files-trash .files-col { cursor: default; }
+.files-icon[data-size="side"][data-glyph="trash"] { color: var(--accent); }

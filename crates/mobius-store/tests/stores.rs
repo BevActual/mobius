@@ -23,7 +23,10 @@ fn appearance_starts_with_defaults_and_keeps_valid_changes_across_a_restart() {
     let mut a = appearance::open(file.clone());
     assert_eq!(a.get(), appearance::defaults());
     assert!(a.set(&json!({ "theme": "dark", "leftWidth": 300 })));
-    assert_eq!(appearance::open(file).get()["theme"], "dark");
+    assert_eq!(appearance::open(file.clone()).get()["theme"], "dark");
+    // Mid grey and Cool dark are themes too.
+    assert!(a.set(&json!({ "theme": "cool" })) && a.set(&json!({ "theme": "mid" })));
+    assert_eq!(appearance::open(file).get()["theme"], "mid");
 }
 
 #[test]

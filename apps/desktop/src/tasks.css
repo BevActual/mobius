@@ -26,51 +26,25 @@
   [data-color="yellow"] { --lc: #ffd60a; }
   [data-color="brown"] { --lc: #ac8e68; }
 }
-.tasks-side, .tasks-page { --flag: #ff9500; }
+.tasks-page { --flag: #ff9500; }
 
-/* ---------- Sidebar ---------- */
-.tasks-search { position: relative; display: flex; align-items: center; margin: 0 var(--sp-2) var(--sp-3); }
-.tasks-search svg { position: absolute; left: 8px; width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; pointer-events: none; }
-.tasks-search input { width: 100%; height: 28px; padding: 0 8px 0 28px; border: 0; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); font-size: var(--fs-md); outline: none; }
-.tasks-search input:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
-.tasks-search input::-webkit-search-cancel-button { cursor: pointer; }
+/* ---------- Sidebar (ui/AppSidebar) ---------- */
 
-.smart-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 var(--sp-2) var(--sp-4) !important; }
-.tasks-side .smart-tile { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; gap: 6px 4px; width: 100%; height: auto; min-height: 0; padding: 8px 10px 7px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, var(--bg)); box-shadow: 0 0.5px 0 color-mix(in srgb, var(--ink) 8%, transparent); text-align: left; transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
-.tasks-side .smart-tile:hover:not([aria-current]) { background: color-mix(in srgb, var(--ink) 10%, var(--bg)); }
-.tasks-side .smart-tile:active { transform: scale(0.98); }
-.tasks-side .smart-tile { grid-template-areas: 'icon count' 'name name'; }
-.smart-tile .smart-icon { grid-area: icon; }
-.smart-tile .smart-count { grid-area: count; }
-.smart-tile .list-name { grid-area: name; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
-.smart-count { justify-self: end; font-size: 20px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); }
-.smart-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--sc); }
-.smart-icon svg { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.smart-icon[data-view="flagged"] svg { fill: #fff; }
-.smart-icon[data-view="today"] { --sc: #007aff; }
-.smart-icon[data-view="scheduled"] { --sc: #ff3b30; }
-.smart-icon[data-view="all"] { --sc: #3a3a3c; }
-.smart-icon[data-view="flagged"] { --sc: #ff9500; }
-.smart-icon[data-view="completed"] { --sc: #8e8e93; }
-@media (prefers-color-scheme: dark) { .smart-icon[data-view="all"] { --sc: #636366; } }
-/* The open view's tile takes its colour, as in Reminders. */
-.tasks-side .smart-tile[aria-current] { background: var(--sc-on, var(--accent)); }
-.smart-tiles li:nth-child(1) .smart-tile { --sc-on: #007aff; }
-.smart-tiles li:nth-child(2) .smart-tile { --sc-on: #ff3b30; }
-.smart-tiles li:nth-child(3) .smart-tile { --sc-on: #48484a; }
-.smart-tiles li:nth-child(4) .smart-tile { --sc-on: #ff9500; }
-.smart-tiles li:nth-child(5) .smart-tile { --sc-on: #8e8e93; }
-.smart-tile[aria-current] .list-name, .smart-tile[aria-current] .smart-count { color: #fff; }
-.smart-tile[aria-current] .smart-icon { background: #fff; }
-.smart-tile[aria-current] .smart-icon svg { stroke: var(--sc); }
-.smart-tile[aria-current] .smart-icon[data-view="flagged"] svg { fill: var(--sc); }
-
-.tasks-side-heading { margin: 0 var(--sp-3) var(--sp-1); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); letter-spacing: 0.02em; }
-.tasks-side .list-item { position: relative; display: flex; align-items: center; border-radius: var(--radius-control); }
-.tasks-side .list-item .list-row { flex: 1; min-width: 0; gap: 8px; }
-.tasks-side .list-item[data-drop] { box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+/* The lists scroll under the search; the frame is flat, so the smart lists are plain glyphs and only the lists, which
+   are the person's own, carry a colour. */
+.tasks-nav { flex: 1; min-height: 0; overflow: auto; padding-bottom: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-3); }
+.tasks-nav .side-head { height: auto; margin: 0 0 var(--sp-1); }
+.tasks-nav .side-title { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.tasks-nav .list-row { gap: 8px; }
+.smart-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--muted); }
+.smart-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.smart-icon[data-view="flagged"] svg { fill: currentColor; }
+.list-row[aria-current] .smart-icon { color: currentColor; }
+.tasks-nav .list-item { position: relative; display: flex; align-items: center; border-radius: var(--radius-control); }
+.tasks-nav .list-item .list-row { flex: 1; min-width: 0; gap: 8px; }
+.tasks-nav .list-item[data-drop] { box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .list-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--lc); }
-.tasks-side .list-icon svg { width: 14px; height: 14px; fill: #fff; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; }
+.tasks-nav .list-icon svg { width: 14px; height: 14px; fill: #fff; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; }
 .list-more { flex: none; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
 .list-more svg { width: 16px; height: 16px; fill: currentColor; }
 .list-item:hover .list-more, .list-more:focus-visible, .list-more[aria-expanded="true"] { opacity: 1; }
@@ -192,15 +166,10 @@
 .inspector-switch input[role="switch"]:checked::after { transform: translateX(16px); }
 .inspector-switch input[role="switch"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* ---------- Undo ---------- */
-.tasks-undo { position: absolute; z-index: 30; left: 50%; bottom: var(--sp-6); transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border: 0.5px solid var(--line); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--bg) 82%, transparent); box-shadow: var(--shadow-2); font-size: var(--fs-md); white-space: nowrap; animation: tasks-up var(--dur-med) var(--ease); }
-.tasks-undo .btn { height: 26px; border-radius: var(--radius-pill); color: var(--accent); font-weight: var(--fw-semibold); }
-.tasks-undo-x { width: 24px; height: 24px; padding: 0; border-radius: 50%; color: var(--muted); }
-@keyframes tasks-up { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .task-inspector, .tasks-undo, .list-confirm, .task-when { animation: none; }
-  .task-line, .task-items .task-check, .tasks-side .smart-tile { transition: none; }
+  .task-inspector, .list-confirm, .task-when { animation: none; }
+  .task-line, .task-items .task-check { transition: none; }
 }
 @media (max-width: 900px) {
   .task-inspector { position: absolute; z-index: 25; inset: 0 0 0 auto; width: min(320px, 90%); box-shadow: var(--shadow-3); }
@@ -227,3 +196,28 @@
 /* Scheduled: day headings in the ink colour, Overdue in red, as in Reminders. */
 .tasks-day .tasks-group-head { font-size: var(--fs-lg); color: var(--ink); }
 .tasks-day[data-overdue] .tasks-group-head { color: var(--danger); }
+
+/* Details: the due date as words on a pop-up button; the real date field sits over it, invisible, so a click or the
+   keyboard reaches the system's picker. */
+.inspector-date { position: relative; display: inline-flex; align-items: center; }
+.inspector-date-btn { padding: 3px 10px; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font-size: var(--fs-md); }
+.inspector-date[data-tone="late"] .inspector-date-btn { color: var(--danger); }
+.inspector-date-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.inspector-date-input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; opacity: 0; cursor: pointer; }
+.inspector-date:has(.inspector-date-input:focus-visible) .inspector-date-btn { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+
+/* A list's pin and ⋯ show over its count on hover, so every count lines up at the same edge. */
+.tasks-nav .list-item .list-pin, .tasks-nav .list-item .list-more { position: absolute; top: 50%; transform: translateY(-50%); background: transparent; }
+.tasks-nav .list-item .list-more { right: 2px; }
+.tasks-nav .list-item .list-pin { right: 28px; }
+.tasks-nav .list-item:not(:has(.list-more)) .list-pin { right: 2px; }
+.tasks-nav .list-item:is(:hover, :focus-within) .list-count { visibility: hidden; }
+/* Times and repeats: a repeat mark after the due words; Time and Repeat rows in Details. */
+.task-repeat { display: inline-flex; align-items: center; color: var(--muted); vertical-align: -2px; }
+.task-repeat[data-after] { margin-left: 5px; }
+.task-repeat svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.inspector-label .task-repeat { margin-right: 6px; }
+.inspector-time { display: inline-flex; align-items: center; gap: 4px; }
+.task-time { padding: 3px 8px; border: 0; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font: inherit; font-size: var(--fs-md); }
+.task-time:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+.inspector-hint { margin: 0; font-size: var(--fs-sm); color: var(--muted); }

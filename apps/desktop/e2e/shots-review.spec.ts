@@ -42,7 +42,6 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('button', { name: /Show details of/ }).click();
       await shell.waitForTimeout(400);
       await shot('1-browser');
-      await shell.locator('.rail[data-face="app"] [data-app-switcher]').click();
       await shell.getByRole('button', { name: /^Applications/ }).click();
       await shell.waitForTimeout(300);
       await shot('2-launcher');
@@ -66,28 +65,22 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Today/ }).click();
       await shell.waitForTimeout(400);
       await shot('3d-tasks-today');
-      // The apps are one press away, in the sidebar's head.
-      await shell.locator('.rail[data-face="app"] [data-app-switcher]').click();
       await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Search', exact: true }).click();
       await shell.waitForTimeout(400);
       await shot('3e-search');
       await shell.getByRole('searchbox', { name: 'Search everything' }).fill('the');
       await shell.waitForTimeout(500);
       await shot('3f-search-results');
-      // The apps are one press away, in the sidebar's head.
-      await shell.locator('.rail[data-face="app"] [data-app-switcher]').click();
       await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Tasks', exact: true }).click();
       await shell.waitForTimeout(500);
       await shot('3g-sidebar-tasks');
-      // The apps are one press away, in the sidebar's head.
-      await shell.locator('.rail[data-face="app"] [data-app-switcher]').click();
       await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Browser', exact: true }).click();
       await shell.waitForTimeout(400);
       await shot('3h-sidebar-browser');
-      await shell.getByRole('button', { name: 'Collapse sidebar' }).click();
+      await shell.getByRole('button', { name: 'Show tabs' }).click();
       await shell.waitForTimeout(400);
       await shot('3i-rail-browser');
-      await shell.getByRole('button', { name: 'Expand sidebar' }).click();
+      await shell.getByRole('button', { name: 'Show tabs' }).click();
       await shell.keyboard.press('Control+k');
       await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
       await shell.keyboard.press('Enter');

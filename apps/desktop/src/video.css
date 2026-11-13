@@ -111,3 +111,13 @@
 .video-viewer:fullscreen { background: #000; }
 .video-viewer:fullscreen .video-screen { border-radius: 0; }
 .video-viewer:fullscreen .video-hud { bottom: var(--sp-6); }
+
+/* Export: the button at the end of the edit tools, its progress while the film plays through, and where it went. */
+.video-export { display: inline-flex; align-items: center; gap: 6px; }
+.video-export svg { width: 15px; height: 15px; }
+.video-exporting { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.video-progress { width: 120px; height: 4px; overflow: hidden; border-radius: 2px; background: var(--soft); }
+.video-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width var(--dur-fast) var(--ease); }
+.video-done { display: flex; align-items: center; gap: var(--sp-2); margin: 0 var(--sp-3) var(--sp-2); padding: 6px 6px 6px 12px; border-radius: var(--radius-group); background: var(--field); font-size: var(--fs-sm); }
+.video-done > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .video-progress > span { transition: none; } }

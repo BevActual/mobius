@@ -43,7 +43,8 @@ const openApp = async (name: string) => {
 
 test('split view shows two apps, follows the focused pane, swaps and closes', async () => {
   await start();
-  await shell().getByRole('button', { name: 'Split view', exact: true }).click();
+  // Split view is in the Window menu, and on Ctrl+\.
+  await shell().keyboard.press('Control+\\');
   const left = shell().getByRole('region', { name: 'Left pane: Browser' });
   const right = shell().getByRole('region', { name: 'Right pane: Notes' });
   await expect(left).toBeVisible();
@@ -58,7 +59,7 @@ test('split view shows two apps, follows the focused pane, swaps and closes', as
   await shell().getByRole('separator', { name: 'Resize the panes' }).focus();
   await shell().keyboard.press('ArrowRight');
   await expect(shell().getByRole('separator', { name: 'Resize the panes' })).toHaveAttribute('aria-valuenow', '55');
-  await shell().getByRole('button', { name: 'Close split view' }).click();
+  await shell().keyboard.press('Control+\\');
   await expect(shell().locator('.pane')).toHaveCount(1);
 });
 
@@ -66,14 +67,11 @@ test('leaving the browser for another app hides the page, and coming back shows 
   await start();
   const shown = async () => (await views(mobius!.app)).filter((v) => v.visible).length;
   await expect.poll(shown).toBe(1);
-  // The apps are one press away, in the sidebar's head.
-  await shell().locator('.rail[data-face="app"] [data-app-switcher]').click();
-  await shell().getByRole('button', { name: 'Notes', exact: true }).click();
+  // The apps are in the rail, always one press away.
+  await shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Notes', exact: true }).click();
   await expect(shell().locator('.note-editor')).toBeVisible();
   await expect.poll(shown).toBe(0);
-  // The apps are one press away, in the sidebar's head.
-  await shell().locator('.rail[data-face="app"] [data-app-switcher]').click();
-  await shell().getByRole('button', { name: 'Browser', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await expect.poll(shown).toBe(1);
 });
 
@@ -193,9 +191,9 @@ test('the Activity tab lists a turn’s changes to review, and Discard there put
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
   await shell().keyboard.press('Enter');
-  const side = shell().getByRole('complementary', { name: 'Conversation list' });
-  await side.getByRole('tab', { name: 'Activity' }).click();
-  const changes = side.getByRole('list', { name: 'Changes to review' });
+  await shell().getByRole('navigation', { name: 'Apps' }).locator('.rail-end').getByRole('button', { name: 'Activity', exact: true }).click();
+  const activity = shell().getByRole('region', { name: 'Activity', exact: true });
+  const changes = activity.getByRole('list', { name: 'Changes to review' });
   await expect(changes).toContainText('Changed 1 item');
   await changes.getByRole('button', { name: /^Discard the changes/ }).click();
   await expect(changes).toHaveCount(0);
@@ -217,19 +215,20 @@ test('Rewind to here in Activity puts the apps back as they were after that turn
     await expect(log().locator('.msg.assistant').last()).toHaveText(reply);
   }
   await openApp('Agent');
-  const side = shell().getByRole('complementary', { name: 'Conversation list' });
-  await side.getByRole('tab', { name: 'Activity' }).click();
-  const turns = side.getByRole('list', { name: 'Turns of this conversation' });
+  await shell().getByRole('navigation', { name: 'Apps' }).locator('.rail-end').getByRole('button', { name: 'Activity', exact: true }).click();
+  // The Activity app's page lists the open conversation's turns.
+  const activity = shell().getByRole('region', { name: 'Activity', exact: true });
+  const turns = activity.getByRole('list', { name: 'Turns of this conversation' });
   const first = turns.getByRole('listitem').filter({ hasText: 'make an ideas page' });
   await first.getByRole('button', { name: 'Rewind to here' }).click();
   // Asked once, naming what goes and what changes.
   await expect(first.getByRole('group', { name: 'Rewind' })).toContainText('Rewind 1 later turn? Notes will change.');
   await first.getByRole('button', { name: 'Rewind', exact: true }).click();
-  await expect(side.getByRole('status').filter({ hasText: 'Rewound to' })).toBeVisible();
+  await expect(activity.getByRole('status').filter({ hasText: 'Rewound to' })).toBeVisible();
   await expect.poll(() => fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
   expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(true);
   await expect(turns.getByRole('listitem')).toHaveCount(1);
-  await side.getByRole('status').filter({ hasText: 'Rewound to' }).getByRole('button', { name: 'Undo' }).click();
+  await activity.getByRole('status').filter({ hasText: 'Rewound to' }).getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8')).toContain('Venue');
   await expect(turns.getByRole('listitem')).toHaveCount(2);
 });

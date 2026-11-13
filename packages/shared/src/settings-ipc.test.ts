@@ -5,6 +5,8 @@ import { CONTEXT_SIZES, DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, parseContextSiz
 describe('appearance changes', () => {
   it('accepts any of the three settings alone or together, and drops anything else', () => {
     expect(parseAppearancePatch({ theme: 'dark' })).toEqual({ theme: 'dark' });
+    expect(parseAppearancePatch({ theme: 'mid' })).toEqual({ theme: 'mid' });
+    expect(parseAppearancePatch({ theme: 'cool' })).toEqual({ theme: 'cool' });
     expect(parseAppearancePatch({ zoom: 1.25, chatTextScale: 1.1 })).toEqual({ zoom: 1.25, chatTextScale: 1.1 });
     expect(parseAppearancePatch({ theme: 'light', evil: 1 })).toEqual({ theme: 'light' });
   });
@@ -14,7 +16,7 @@ describe('appearance changes', () => {
     }
   });
   it('has sensible defaults', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'sidebar', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
   });
 });
 

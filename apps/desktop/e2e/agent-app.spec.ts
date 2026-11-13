@@ -26,7 +26,7 @@ async function start(replies: ModelReply[]): Promise<Launched> {
 const shell = () => mobius!.shell;
 const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mobius' });
 const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
-const list = (): Locator => shell().getByRole('complementary', { name: 'Conversation list' });
+const list = (): Locator => shell().getByRole('complementary', { name: 'Agent sidebar' });
 const say = async (text: string) => {
   // A message typed while the previous turn is still finishing is not sent, so wait for it to end.
   await expect(mobius!.shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);
@@ -42,14 +42,14 @@ const visibleViews = async () => (await views(mobius!.app)).filter((v) => v.visi
 
 test('the launcher opens the Agent as a full app: the page is hidden and the side panel gives way', async () => {
   await start([]);
-  await expect(shell().getByRole('complementary', { name: 'Agent' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toBeVisible();
   expect(await visibleViews()).toHaveLength(1);
   await openApp('Agent');
   await expect(shell().getByRole('region', { name: 'Agent conversation' })).toBeVisible();
-  await expect(shell().getByRole('complementary', { name: 'Agent' })).toHaveCount(0);
+  await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toHaveCount(0);
   await expect(shell().getByRole('textbox', { name: 'Address or question' })).toHaveCount(0);
   await expect.poll(async () => (await visibleViews()).length).toBe(0);
-  await expect(shell().getByRole('button', { name: 'Switch app. Current: Agent' })).toBeVisible();
+  await expect(shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Agent', exact: true })).toHaveAttribute('aria-current', 'page');
 });
 
 test('going back to the Browser restores the page, the tabs and the side panel with the same conversation', async () => {
@@ -60,7 +60,7 @@ test('going back to the Browser restores the page, the tabs and the side panel w
   await openApp('Browser');
   await expect(shell().getByRole('textbox', { name: 'Address or question' })).toBeVisible();
   await expect.poll(async () => (await visibleViews()).length).toBe(1);
-  await expect(shell().getByRole('complementary', { name: 'Agent' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toBeVisible();
   await expect(log().locator('.msg.user')).toHaveText('Hello from the app');
   await expect(log().locator('.msg.assistant')).toHaveText('Shared reply.');
 });
@@ -70,7 +70,7 @@ test('the conversation list shows saved conversations, switches, starts new ones
   await openApp('Agent');
   await say('Alpha topic');
   await expect(log().locator('.msg.assistant')).toHaveText('Alpha reply.');
-  await list().getByRole('button', { name: 'New conversation' }).click();
+  await shell().getByRole('button', { name: 'Create' }).click();
   await expect(log().locator('.msg')).toHaveCount(0);
   await say('Beta topic');
   await expect(log().locator('.msg.assistant')).toHaveText('Beta reply.');
@@ -115,7 +115,7 @@ test('settings opens over the Agent app and closes back to it', async () => {
 test('apps that are not built cannot be opened', async () => {
   await start([]);
   await openApp('Documents');
-  await expect(shell().getByRole('button', { name: 'Switch app. Current: Browser' })).toBeVisible();
+  await expect(shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Browser', exact: true })).toHaveAttribute('aria-current', 'page');
 });
 
 test('a conversation waiting for you is flagged in the list and on the app button even from the Browser', async () => {

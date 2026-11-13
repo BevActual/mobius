@@ -199,10 +199,10 @@ test('the Agent app’s Activity tab shows what finished today, and what is sche
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
   await shell().keyboard.press('Enter');
-  const side = shell().getByRole('complementary', { name: 'Conversation list' });
-  await side.getByRole('tab', { name: 'Activity' }).click();
-  await expect(side.getByRole('list', { name: 'Done today' })).toContainText('tidy my inbox');
-  await expect(side.getByRole('list', { name: 'Scheduled requests' })).toContainText('Weekdays at 08:00');
+  await shell().getByRole('navigation', { name: 'Apps' }).locator('.rail-end').getByRole('button', { name: 'Activity', exact: true }).click();
+  const activity = shell().getByRole('region', { name: 'Activity', exact: true });
+  await expect(activity.getByRole('list', { name: 'Done today' })).toContainText('tidy my inbox');
+  await expect(activity.getByRole('list', { name: 'Scheduled requests' })).toContainText('Weekdays at 08:00');
 });
 
 test('profiles: Personal is there, a new one can be made in Settings, and the open one is marked', async () => {

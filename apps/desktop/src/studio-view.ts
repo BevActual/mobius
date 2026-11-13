@@ -95,6 +95,27 @@ export function nudgeVelocity(notes: readonly SongNote[], picked: Picked, by: nu
 /** How tall the track list is when it fits its tracks: the ruler plus one lane each, at least room for one. */
 export const fitTracks = (tracks: number, ruler = 24, lane = 49) => ruler + Math.max(1, tracks) * lane;
 
+/** A loop of whole bars, in beats: from `from` up to (not including) `to`. */
+export interface Cycle { from: number; to: number }
+
+/**
+ * Where the song is after `played` beats of playing from `start`, going round `cycle` when there is one. Playing from
+ * before the loop runs into it and then goes round; playing from after it starts at the loop.
+ */
+export function songBeat(played: number, start: number, cycle: Cycle | null): number {
+  if (!cycle) return start + played;
+  const from = start >= cycle.to ? cycle.from : start;
+  const at = from + played;
+  return at < cycle.to ? at : cycle.from + ((at - cycle.to) % (cycle.to - cycle.from));
+}
+
+/** The loop between two bars picked on the ruler (either way round, counted from 0), kept inside the song. */
+export function cycleOf(barA: number, barB: number, bars: number): Cycle {
+  const a = Math.max(0, Math.min(bars - 1, Math.min(barA, barB)));
+  const b = Math.max(a + 1, Math.min(bars, Math.max(barA, barB) + 1));
+  return { from: a * BEATS_PER_BAR, to: b * BEATS_PER_BAR };
+}
+
 /** The notes inside a box drawn on the roll, from beat `b0` to `b1` and pitch `p0` to `p1` (either way round). */
 export function notesIn(notes: readonly SongNote[], b0: number, b1: number, p0: number, p1: number): Set<number> {
   const [s, e] = b0 < b1 ? [b0, b1] : [b1, b0];

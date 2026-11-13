@@ -81,9 +81,10 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'mail':
       if (state.mail) {
         return [
+          // The whole job in one ask: to-dos, a meeting, and a reply, each waiting for the person (the launch demo).
+          { label: 'Take care of this', prompt: `Take care of the attached email. Add any to-dos it asks of me to my Tasks with tasks.add, with their due dates. If it asks for a meeting, read my calendar with calendar.list, pick a time that clashes with nothing, and suggest it with calendar.suggest. Then suggest a short reply in my voice with mail.draft (replyTo: ${state.mail.id}) that says what I will do and when. Do not send anything. End with one line for each thing you did.`, attach: 'mail' },
           { label: 'Draft a reply', prompt: `Suggest a short reply to the attached email with mail.draft (replyTo: ${state.mail.id}), in my voice, answering what it asks. Check my calendar first if it is about a time.`, attach: 'mail' },
           { label: 'Add a reminder', prompt: 'If the attached email asks me to do something by a time, suggest a calendar event for it with calendar.suggest, a little before it is due. Say what you suggested.', attach: 'mail' },
-          { label: 'Save to Notes', prompt: 'Write the parts of the attached email worth keeping as a short note in my Notes, with who sent it and when.', attach: 'mail' },
         ];
       }
       return [
@@ -247,11 +248,11 @@ export const isStarter = (s: Suggestion) => s.prompt.endsWith(' ');
 export function tasksContext(tasks: Pick<TasksState, 'view' | 'all'>): { title: string; text: string } {
   const { view, all } = tasks;
   if (view.kind === 'list') {
-    const lines = (all[view.name] ?? []).map((t) => `- [${t.done ? 'x' : ' '}] ${t.text}${t.due ? ` (due ${t.due})` : ''}`);
+    const lines = (all[view.name] ?? []).map((t) => `- [${t.done ? 'x' : ' '}] ${t.text}${t.due ? ` (due ${t.due}${t.time ? ` ${t.time}` : ''})` : ''}${t.repeat ? ` (every ${t.repeat})` : ''}`);
     return { title: view.name, text: `# ${view.name}\n${lines.join('\n')}` };
   }
   const title = smartName(view.id);
-  const lines = smartView(view.id, all, new Date()).map(({ list, task }) => `- [${task.done ? 'x' : ' '}] ${task.text} (${[task.due ? `due ${task.due}` : '', task.flagged ? 'flagged' : '', `in ${list}`].filter(Boolean).join(', ')})`);
+  const lines = smartView(view.id, all, new Date()).map(({ list, task }) => `- [${task.done ? 'x' : ' '}] ${task.text} (${[task.due ? `due ${task.due}${task.time ? ` ${task.time}` : ''}` : '', task.repeat ? `every ${task.repeat}` : '', task.flagged ? 'flagged' : '', `in ${list}`].filter(Boolean).join(', ')})`);
   return { title, text: `# ${title}\n${lines.join('\n')}` };
 }
 
@@ -309,4 +310,29 @@ export function withSelection(item: ContextItem, selection: string | null): Cont
   const said = selection.length > 2000 ? `${selection.slice(0, 2000)}…` : selection;
   const line = /^[A-Z]{1,3}\d+(:[A-Z]{1,3}\d+)?$/.test(said) ? `Selected: ${said}` : `Selected text: "${said}"`;
   return { ...item, text: `${line}\n\n${item.text}`.slice(0, MAX_CONTEXT_ITEM_CHARS) };
+}
+
+const WORD_APP: Record<string, string> = { notes: 'Notes', docs: 'Docs', slides: 'Slides', designs: 'Design', studio: 'Music', boards: 'Canvas', views: 'Views', research: 'Research', reading: 'Reader', databases: 'Database', terminal: 'Terminal', sheets: 'Sheets', photos: 'Photo', video: 'Video', code: 'Code' };
+const WORD_KIND: Record<string, string> = { notes: 'Note', docs: 'Doc', slides: 'Deck', designs: 'Design', studio: 'Song', boards: 'Board', views: 'View', research: 'Report', reading: 'Article', databases: 'Database', terminal: 'Terminal', sheets: 'Sheet', photos: 'Photo', video: 'Cut', code: 'File' };
+
+/**
+ * What an attached item is, in the words its chip uses everywhere (the message box and the sent message say the
+ * same): Email for a message from Mail, Note for a note, Page for a web page. Its name drops that word.
+ */
+export function attachmentLabel(item: Pick<ContextItem, 'kind' | 'source' | 'title'>): { kind: string; title: string } {
+  if (item.kind === 'page') return { kind: 'Page', title: item.title };
+  if (item.kind === 'note') return { kind: 'Note', title: item.title };
+  if (item.source.startsWith('mail:')) return { kind: 'Email', title: bare(item.title) };
+  if (item.source === 'tasks') return { kind: 'List', title: item.title.replace(/^Tasks: /, '') };
+  const kind = WORD_KIND[item.source.split('/')[0] ?? ''];
+  return { kind: kind ?? 'File', title: bare(item.title) };
+}
+
+/** The app an attached item comes from, for "Based on Mail · Calendar". */
+export function attachmentApp(item: Pick<ContextItem, 'kind' | 'source'>): string {
+  if (item.kind === 'page') return 'Browser';
+  if (item.kind === 'note') return 'Notes';
+  if (item.source.startsWith('mail:')) return 'Mail';
+  if (item.source === 'tasks') return 'Tasks';
+  return WORD_APP[item.source.split('/')[0] ?? ''] ?? 'Files';
 }

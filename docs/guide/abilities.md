@@ -1,7 +1,7 @@
 # Abilities
 
-**Abilities** is the one place to add things to Mobius: apps, skills, connectors and plugins. Open it from the app
-switcher, the launcher (Ctrl+K, then type "Abilities"), or **Settings › Abilities**.
+**Abilities** is the one place to add things to Mobius: apps, skills, connectors and plugins. Open it from its button at
+the foot of the rail, the launcher (Ctrl+K, then type "Abilities"), or **Settings › Abilities**.
 
 (Browser add-ons are a separate thing and are still called *extensions*.)
 
@@ -15,7 +15,7 @@ A new install starts with the everyday apps, **Notes, Tasks, Calendar, Mail, Doc
 apps, which are always there: **Agent, Abilities, Projects, Files and Review**.
 
 **Abilities › Apps** lists every other app by what it is for, each with one line on what it does and a switch. Turning
-the switch on adds the app to the switcher, the launcher and the sidebar. Turning it off takes it away but **keeps its
+the switch on adds the app to the rail, the launcher and the app hub. Turning it off takes it away but **keeps its
 files**, so adding it again brings them back. Click an added app's row to open it.
 
 Apps load the first time you open them, not when Mobius starts, so adding more apps does not slow down startup.
@@ -55,8 +55,15 @@ as your mode says. Servers start with a minimal environment: only the variables 
 Everything a server returns is treated as untrusted text.
 
 **Abilities › Connectors** shows each server Mobius started with a green dot, and each one that could not start with a
-red dot; **Show Details** says why. **Add a Connector…** (on the page, or in **Add**) shows what to put in `mcp.json`,
-with **Copy Example** and **Open Data Folder**; reopen Mobius after changing it.
+red dot; **Show details** says why.
+
+**Add a connector…** (on the page, or in **Add**) writes the server into `mcp.json` for you: give the **Command** and its
+**Arguments** from the server's own instructions (for example `npx` and `-y @modelcontextprotocol/server-github`),
+check the suggested **Name**, and add any **Keys** it needs, such as `GITHUB_TOKEN`. Keys are kept in `mcp.json` on this
+computer. The new connector shows *Added. It starts when Mobius reopens.* until you reopen Mobius.
+
+**Remove…** in a connector's menu (**⋯**, a right-click, or Shift+F10) takes it out of `mcp.json` after you confirm. A running one stops the next time Mobius opens.
+**Edit mcp.json yourself…** in the sheet opens the data folder, for anything the form does not cover.
 
 ### Mobius for other apps
 

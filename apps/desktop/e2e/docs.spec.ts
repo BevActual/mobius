@@ -46,7 +46,8 @@ test('a new document is written on the page with formatting and kept as Markdown
   await page().click();
   await shell().keyboard.press('Control+End');
   // Styles are in the Aa panel, as in Notes; it stays open while formatting and the keys still go to the page.
-  await editor().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Format text' }).click();
+  // The format bar is the window's toolbar, on the frame.
+  await shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Format text' }).click();
   await shell().getByRole('dialog', { name: 'Text format' }).getByRole('button', { name: 'Heading', exact: true }).click();
   await shell().keyboard.type('Plan');
   await shell().keyboard.press('Enter');
@@ -61,7 +62,7 @@ test('a new document is written on the page with formatting and kept as Markdown
   await expect(editor().getByText(/\d+ words/)).toBeVisible();
 });
 
-test('a writing tool asks Mobius, and its changes show as proposals that can be discarded one by one', async () => {
+test('a writing tool asks Mobius, and its changes are marked in the page, each kept or discarded on its own', async () => {
   fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
   fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
   await start([
@@ -69,11 +70,12 @@ test('a writing tool asks Mobius, and its changes show as proposals that can be 
     callsTool('files-edit', { path: 'docs/Work/Offsite brief.md', old: '- Plan on the 13th', new: '- Plan on the terrace on the 13th' }),
     says(['Made it shorter.']),
   ]);
-  await shell().getByRole('tree', { name: 'Folders' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
   await expect(page()).toContainText('We have been talking');
+  // What Mobius will see is said on the button: the whole document, since nothing is selected.
+  await expect(shell().getByRole('button', { name: 'Writing tools' })).toHaveAttribute('title', /It sees the whole document/);
   await shell().getByRole('button', { name: 'Writing tools' }).click();
   const menu = shell().getByRole('menu', { name: 'Writing tools' });
-  await expect(menu).toContainText('Sees: the whole document');
   await menu.getByRole('menuitem', { name: 'Make it shorter' }).click();
 
   const log = shell().getByRole('log', { name: 'Conversation' });
@@ -81,15 +83,20 @@ test('a writing tool asks Mobius, and its changes show as proposals that can be 
   await expect(log.locator('.msg.assistant')).toHaveText('Made it shorter.');
   expect(JSON.stringify(model!.requests[0])).toContain('docs/Work/Offsite brief.md');
 
-  const proposals = editor().getByLabel('Changes Mobius made');
-  await expect(proposals.locator('.doc-proposal')).toHaveCount(2);
-  await expect(proposals.locator('.doc-proposal-old').first()).toContainText('We have been talking');
-  await expect(proposals.locator('.doc-proposal-new').first()).toContainText('We need a few days away');
-  await proposals.locator('.doc-proposal').nth(1).getByRole('button', { name: 'Discard' }).click();
+  // Each change is marked in the page where it is: what was added tinted, a note before it with the words taken out.
+  const notes = page().locator('.doc-change');
+  await expect(notes).toHaveCount(2);
+  await expect(notes.first().locator('.doc-change-old')).toContainText('We have been talking');
+  await expect(page().locator('.doc-change-new').first()).toContainText('We need a few days away');
+  await notes.nth(1).getByRole('button', { name: 'Discard this change' }).click();
   await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8')).toContain('- Plan on the 13th');
   expect(fs.readFileSync(file('Work/Offsite brief.md'), 'utf8')).toContain('We need a few days away');
-  await editor().getByRole('button', { name: 'Keep' }).click();
-  await expect(proposals).toHaveCount(0);
+  await expect(notes).toHaveCount(1);
+  // Keeping the last change keeps the turn: the marks and the bar above the page go.
+  await notes.first().getByRole('button', { name: 'Keep this change' }).click();
+  await expect(notes).toHaveCount(0);
+  await expect(page().locator('.doc-change-new')).toHaveCount(0);
+  await expect(editor().locator('.doc-review')).toHaveCount(0);
   await expect(page()).toContainText('We need a few days away, together, to plan next year.');
 });
 
@@ -98,7 +105,7 @@ test('a comment on chosen words, a link to another document, and Share all work 
   fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
   fs.writeFileSync(file('Work/Venues.md'), '# Venues\n\nThe lodge, or the farm.\n');
   await start();
-  await shell().getByRole('tree', { name: 'Folders' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
   await expect(page()).toContainText('We have been talking');
 
   // A comment: kept beside the document, its words marked in the page.
@@ -116,14 +123,14 @@ test('a comment on chosen words, a link to another document, and Share all work 
   await page().getByText('Plan on the 13th').click();
   await shell().keyboard.press('End');
   await shell().keyboard.type(', see ');
-  await editor().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Link' }).click();
+  await shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Link' }).click();
   await shell().getByRole('combobox', { name: 'Link to' }).fill('venu');
   await expect(shell().getByRole('option', { name: /Venues/ })).toBeVisible();
   await shell().keyboard.press('Enter');
   await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8'), { timeout: 5000 }).toContain('- Plan on the 13th, see [Venues](Venues.md)');
 
   // Share: a copy saved in Exports.
-  await editor().getByRole('button', { name: 'Share' }).click();
+  await shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Share' }).click();
   await shell().getByRole('menuitem', { name: 'Export as Markdown' }).click();
   await expect(shell().getByRole('status').filter({ hasText: 'Saved to Exports/Offsite brief.md' })).toBeVisible();
   expect(fs.readFileSync(path.join(userData, 'workspace', 'Exports', 'Offsite brief.md'), 'utf8')).toContain('[Venues](Venues.md)');

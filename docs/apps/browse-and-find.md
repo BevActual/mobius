@@ -25,10 +25,15 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 ![The Mail app in Mobius](../readme/apps/mail.png)
 
 - **Accounts** sign in with an app password. Ready-made settings for iCloud, Fastmail, Gmail and Yahoo, or any provider by its IMAP and SMTP servers.
-- **Categories:** Primary, Transactions, Updates and All. Move a message to another category from its header.
+- **Mailboxes:** Inbox, Drafts, Flagged, Sent and Archive. Flagged and Archive gather your flagged and archived mail.
+- **Categories:** Primary, Transactions, Updates and All. Move a message to another with **Move to…** in its toolbar or its right-click menu.
+- **The message toolbar** in the window's top row, as in Apple Mail: Reply, Reply All, Forward, Archive, Flag, Mark as Unread and Remind Me Tomorrow. Right-click a message in the list for the same actions without opening it.
+- **Replies quote the message** under where you write, and forwards carry who it was from and to. Attachments are not forwarded yet.
+- **Keys:** the up and down arrows move through the list; E archives, R replies and H brings the message back tomorrow at 8:00.
 - **Email is shown safely:** no scripts, and nothing loaded from the web, so tracking pixels don't fire.
 - **Suggested replies** are dashed until you keep one (it opens as your draft), discard it or ask for another.
-- **Get to zero** (in the Mobius panel while Mail is open) proposes a plan for the whole inbox, dashed until kept.
+- **Take care of this** (in the Mobius panel with an email open) does the whole job in one ask: to-dos go to Tasks with their due dates, a meeting it asks for is suggested at a free time in Calendar, and a reply is suggested. Each waits for you.
+- **Get to zero** (in the Mobius panel while no email is open) proposes a plan for the whole inbox, dashed until kept.
 - **Ask about your mail** in the Mobius composer: the answer lists the messages it came from, and each one opens.
 - **Send later:** tomorrow at 8:00, Monday at 9:00, or when the person is usually on mail.
 
@@ -68,7 +73,9 @@ Browser, or give Reader an address.
 - **Save a link** (the link button, or New › Save a link) shows the link field; with nothing open it is always there.
   **Save this tab** keeps the page open in the Browser.
 - **Highlights:** select a passage and press Highlight (or H); they are listed under the article and can be copied to
-  Notes. **Done reading** (E) moves the article to Archive.
+  Notes. **Ask Mobius** on a selected passage or a highlight starts a message with it quoted, the article attached.
+- **J** and **K** move to the next and previous article in the list. **Done reading** (E) moves the article to Archive
+  and opens the next one.
 
 **Kept in:** `workspace/reading/`, each article a Markdown file.
 
@@ -78,6 +85,23 @@ Your whole workspace as a drive.
 
 ![The Files app in Mobius](../readme/apps/files.png)
 
-- **The drive** shows the workspace's folders. Files open in their own app. A file Mobius made is dashed until kept; a
-  folder says how many such files it holds.
+- **The drive** is a list like Finder's: Name, Kind and Size columns (click one to sort; folders stay first), and each
+  file wears the icon of the app that opens it. A file Mobius made is dashed until kept; a folder says how many such
+  files it holds.
+- **Select, then open.** A click selects, a double-click or Enter opens: folders in place, files in their own app. The
+  arrow keys move, Backspace goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
+- **The toolbar** names the open folder with how many items it holds, and has Back, Forward and New folder. The
+  **path bar** at the foot shows where the folder is; click any part to go back up.
+- **Search**, at the top of the sidebar, narrows the open folder by name. **Right-click** a row to open, rename, copy its path, show it in Explorer,
+  ask Mobius about it, or move it to the Trash.
+- **New folder** (Ctrl+Shift+N) is named in place; **F2** renames; **Delete** moves to the Trash, with Undo in a toast
+  at the foot of the page. The Trash is
+  `workspace/.trash/`, hidden from Files' folders and from Mobius.
+- **Trash**, under Places in the sidebar, lists what you moved there, when, and where it was. **Put Back** (or a
+  double-click) returns it to that folder; **Empty Trash** and **Delete Immediately** (right-click) delete for good, and
+  always ask first. Mobius cannot empty the Trash. An app's own folder (notes/, docs/...) is never renamed or
+  trashed from here.
+- **Date Modified** shows when each file and folder last changed. The agent's own `files.list` leaves dates out.
+- **The sidebar** has Workspace and Trash under Places, the workspace's folders (Notes, Docs, Sheets...) under Folders, a dot on
+  any folder holding something from Mobius, and Made by Mobius under From Mobius.
 - **Made by Mobius** collects what Mobius created, dashed until you keep it, with a count of what is waiting.

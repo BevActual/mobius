@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changedIds, contrast, freshId, moveLayer, nextFramePlace, parseDesign, resolveColor, writeDesign, type DesignDoc } from './design-format';
+import { changedIds, componentOf, contrast, copyOf, detach, freshId, makeComponent, moveLayer, nextFramePlace, withOverride, parseDesign, resolveColor, writeDesign, type DesignDoc } from './design-format';
 
 const FILE = JSON.stringify({
   version: 1,
@@ -82,5 +82,31 @@ describe('designs', () => {
     expect(d.frames[1]!.children[0]).toMatchObject({ id: 'n1', x: 24 - 460, y: 80 });
     expect(moveLayer(d, 'n2', 'n2', 'above')).toBe(false);
     expect(moveLayer(d, 'f1', 'n2', 'above')).toBe(false);
+  });
+
+  it('make a component from layers, leave a copy in their place, and keep copies with their own text', () => {
+    const d = doc(FILE);
+    const made = makeComponent(d, 'f1', ['n1', 'n2'], 'Card')!;
+    const main = d.frames.find((f) => f.id === made.component)!;
+    expect(main).toMatchObject({ name: 'Card', component: true, x: 933, w: 345, h: 180 });
+    expect(main.children.map((c) => [c.id, c.x, c.y])).toEqual([['n1', 0, 0], ['n2', 0, 60]]);
+    const copy = d.frames[0]!.children.find((c) => c.id === made.copy)!;
+    expect(copy).toMatchObject({ type: 'instance', of: made.component, x: 24, y: 80, w: 345, h: 180 });
+    expect(d.frames[0]!.children.map((c) => c.id)).toEqual([made.copy]);
+    expect(componentOf(d, copy)).toBe(main);
+    copy.overrides = { n1: { text: 'Porto' } };
+    expect(withOverride(main.children[0]!, copy).text).toBe('Porto');
+    // Written and read back as it was.
+    expect(doc(writeDesign(d))).toEqual(d);
+    // A second copy; then the first, twice as wide, made back into plain layers with its own text.
+    d.frames[0]!.children.push(copyOf(d, main, 24, 400));
+    copy.w = 690;
+    const ids = detach(d, copy.id);
+    expect(ids).toHaveLength(2);
+    expect(d.frames[0]!.children.map((c) => c.type)).toEqual(['text', 'rect', 'instance']);
+    expect(d.frames[0]!.children[0]).toMatchObject({ text: 'Porto', x: 24, w: 690 });
+    expect(new Set(d.frames[0]!.children.map((c) => c.id)).size).toBe(3);
+    expect(makeComponent(d, 'f1', ['nope'], 'X')).toBeNull();
+    expect(doc('{"frames":[{"children":[{"type":"instance"}]}]}').frames[0]!.children[0]!.type).toBe('rect');
   });
 });

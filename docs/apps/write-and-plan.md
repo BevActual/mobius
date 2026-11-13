@@ -10,9 +10,10 @@ Quick pages, saved as you type.
   built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
   recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
-  bold, italic, strikethrough, code, lists and quote; the bar keeps Checklist, Table and Link at hand. The **⋯** menu
-  clips a web page into the note and shows the Markdown file itself.
-- **History** lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
+  bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Table, Link,
+  Record, Picture and Share, so nothing sits between you and the page. The **Notes** menu (**⋯** in the toolbar)
+  opens Version history, clips a web page into the note and shows the Markdown file itself.
+- **History** (Notes menu › Version history…) lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).
 - **Share** copies the page, exports it as a web page or Markdown, or prints it.
 - Select text for Mobius's actions right where it is. A page Mobius changed shows its edits to keep or discard, line by
@@ -26,17 +27,22 @@ Longer documents, with an outline and comments.
 
 ![The Docs app in Mobius](../readme/apps/docs.png)
 
+- **The sidebar** lists **Recent** documents, then each folder with its documents. Right-click a document to open or
+  delete it (Delete asks once more). **New folder** is at the foot of the folders.
 - **A page to write on**: headings, lists, checklists, tables, pictures and links to other documents, kept as Markdown.
-  **Aa** in the bar holds the styles, bold, italic and lists, as in Notes; checklist, table, link and insert sit beside it.
-  **More** (⋯) switches the page between the sans-serif font and a serif one.
+  The format bar is the window's toolbar, beside the document's name and whether it is saved. **Aa** holds the styles,
+  bold, italic and lists, as in Notes; checklist, link and **Insert** (table, picture, divider, code) sit beside it,
+  and **Table** appears while you are in one, for its rows and columns. **Document options** shows the outline and the
+  margin's comments, opens earlier versions and switches the page between the sans-serif font and a serif one.
 - **The outline** of headings sits beside the page and marks the part you are looking at as you scroll. It folds away
-  when the window is narrow; hide it if you prefer. A document opens at its top.
+  when the window is narrow; hide it in Document options if you prefer. A document opens at its top.
 - **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
-- **Mobius's writing tools** work on the selection or the whole document. What Mobius changes comes back as
-  proposals, old text struck and new text marked, each with its own Discard.
-- **History** puts an earlier version back. **Share** copies, exports as a web page or Markdown, or prints and saves as
+- **Mobius's writing tools** work on the selection or the whole document. What Mobius changes is marked in the page
+  where it is, as tracked changes are: new words tinted, and a note above them with the words taken out, struck
+  through. Each change has its own **Keep** and **Discard**; the bar above the page keeps or discards them all.
+- **Earlier versions** (in Document options) puts one back, and **Undo** in the note at the foot takes it back again. **Share** copies, exports as a web page or Markdown, or prints and saves as
   PDF.
 
 **Kept in:** `workspace/docs/`, each document a Markdown file.
@@ -47,18 +53,26 @@ Lists of things to do, as in Apple's Reminders.
 
 ![The Tasks app in Mobius](../readme/apps/tasks.png)
 
-- **Smart lists**: Today, Scheduled, All, Flagged and Completed, then your own lists with how many are open.
+- **The sidebar** has Search, New list, the **Smart lists** (Today, Scheduled, All, Flagged and Completed), then
+  **My lists** with how many are open. Hover a list to pin it or open its menu (Rename, Delete).
   **Scheduled** sorts tasks under day headings: Overdue, Today, Tomorrow, each day of the coming week, then by month.
+- **Times and repeats**: type a time after the day ("Call Sam tomorrow at 3pm", "Stand-up mon 9:30"; a time on its
+  own means today), or set a time and a repeat (every day, weekday, week, month or year) in the inspector. Ticking off
+  a repeating task moves it to its next day and leaves it open.
 - **Right-click a task** to show its details, set it due today, tomorrow or next week, flag it, move it to another
   list or delete it.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
   the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it.
-- **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back.
-- **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date), its
-  flag, its list and its subtasks. Drag tasks to reorder them or move them between lists.
+- **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back. Completed
+  tasks fold away under the list; **Clear N completed** in the toolbar removes them.
+- **Deleting** a task or a list shows **Undo** at the bottom of the page (Ctrl+Z works too).
+- **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
+  picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
+  format. Drag tasks to reorder them or move them between lists.
 - Tasks Mobius added are dashed until kept. **Discard** puts the list back as it was before that turn.
 
-**Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines.
+**Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines, such as
+`- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)`.
 
 ## Calendar
 
@@ -76,7 +90,10 @@ Your calendars by day, week or month.
   Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
 - **The event you clicked stays picked out.** Press Delete to remove it, Enter to open it or Ctrl+D to duplicate it;
   each change can be undone. Right-click an event for Open, Duplicate, Move to another calendar and Delete.
-- **The current time** is a red line across the week, with the time written in the hour column.
+- **The current time** is a red line across the week, with the time written in the hour column. Times follow your
+  computer's clock, 24-hour or with AM and PM.
+- **What Mobius adds or changes** in a turn is drawn dashed, and Calendar opens on the week of the first change with a
+  bar to **Keep** or **Discard** it, as Tasks does for a list. **Show** goes back to it.
 - **Suggestions from Mobius** are drawn dashed. Open one to see why, then **Keep** (add it), **Discard** (decline it) or
   **Try another**.
 
@@ -94,6 +111,8 @@ Spreadsheets with formulas.
   the rows above reads as the total, in bold with a rule above it.
 - Each column letter has a menu (hover it for the chevron) to sort by that column, add or delete columns and fit the
   width. Sorting keeps the header and total rows where they are.
+- **Number formats**: show a column's numbers as Number (1,234.50), Currency or Percentage from the % button or the
+  column's menu. Currency and grouping follow the computer's region. The CSV keeps the plain number.
 - **Find** with Ctrl+F: matching cells are tinted, and Enter (or Shift+Enter) moves from one to the next.
 - Sheets are tabs below the grid. Insert and remove rows and columns; Ctrl+Z undoes any step.
 
@@ -106,6 +125,12 @@ Sheets, and each table opens with three views:
 
 - **Data** shows the rows, 100 to a page. Click a column's heading to sort by it (again for high to low, a third time
   for no order), and type in **Filter rows** to keep the rows where any column holds those words.
+  In a table you can change, double-click a cell to type a new value (Enter keeps it, Escape puts it back), and
+  **Add row** adds an empty row and opens its first cell. Right-click a cell to edit it, copy its value, set it to
+  NULL or delete its row. The last change shows **Undo** at the bottom. From the keyboard the grid is one Tab stop:
+  the arrow keys move between cells (Home, End, Ctrl+Home and Ctrl+End jump), Enter or F2 types into a cell, Delete
+  sets it to NULL, Ctrl+Delete deletes the row, Ctrl+C copies the value, Ctrl+Z undoes and Shift+F10 opens the menu. A view, or a table made WITHOUT ROWID, is
+  shown read-only: change it in SQL.
 - **Structure** lists the columns with their types, which ones need a value, defaults and the key, and the statement
   that made the table.
 - **SQL** runs any statement and shows what it gave. **History** brings back an earlier one, and **Copy as CSV** copies

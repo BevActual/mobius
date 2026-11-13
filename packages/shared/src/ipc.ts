@@ -145,10 +145,12 @@ export const isNotesFailure = (value: unknown): value is NotesFailure =>
  * One task in a list of the Tasks app: a checkbox line in `tasks/<list>.md`. `line` is where it is in the file.
  * `notes` are the lines indented under it; `parent` is the line of the task it sits under, when it is a subtask.
  */
-export interface TaskItem { line: number; text: string; done: boolean; due: string | null; flagged?: boolean; notes?: string; parent?: number | null }
+export interface TaskItem { line: number; text: string; done: boolean; due: string | null; /** HH:MM on the due date. */ time?: string | null; repeat?: TaskRepeat | null; flagged?: boolean; notes?: string; parent?: number | null }
+/** How a task comes back once ticked off: its due date moves to the next one and it stays open. */
+export type TaskRepeat = 'day' | 'weekday' | 'week' | 'month' | 'year';
 export interface TaskList { list: string; tasks: TaskItem[]; version: string }
 export interface TaskListInfo { name: string; open: number; done: number }
-export interface TaskChange { text?: string; done?: boolean; due?: string | null; flagged?: boolean; notes?: string }
+export interface TaskChange { text?: string; done?: boolean; due?: string | null; time?: string | null; repeat?: TaskRepeat | null; flagged?: boolean; notes?: string }
 /** Where a task points: its line and its words, which must still match. */
 export interface TaskAt { line: number; expect: string }
 /** `by` says who changed it, so the window can show the agent's work without stealing focus. */
@@ -561,11 +563,28 @@ export interface MobiusBridge {
   /** Only the desktop app: the workspace folder as a drive, for the person to look through. */
   files?: {
     list(path: string): Promise<{ path: string; entries: FileEntry[]; truncated: boolean } | { error: string }>;
+    /** The person's own actions in Files; the agent has none of these. Each answers with the item's new path. */
+    newFolder?(folder: string, name: string): Promise<FilesActionResult>;
+    rename?(path: string, name: string): Promise<FilesActionResult>;
+    /** Moves to the workspace's Trash; `path` in the answer is where it is held, for putBack. */
+    trash?(path: string): Promise<FilesActionResult>;
+    /** `path` empty: back to where the Trash remembers it came from. */
+    putBack?(held: string, path: string): Promise<FilesActionResult>;
+    /** What the Trash holds, newest first. */
+    trashList?(): Promise<{ entries: TrashEntry[] } | { error: string }>;
+    /** Deletes for good, only after the person confirms: one held item, or everything when `held` is empty. */
+    emptyTrash?(held: string): Promise<{ ok: true; gone: number } | { ok: false; error: string }>;
+    /** Shows the item in Explorer or Finder. */
+    show?(path: string): Promise<void>;
   };
   /** Only the desktop app: what extends Mobius. */
   extensions?: {
     /** The MCP servers from mcp.json: which run, which did not start and why. */
     connectors(): Promise<ConnectorStatus>;
+    /** Abilities › Add a Connector: written to mcp.json; it starts the next time Mobius opens. */
+    addConnector?(draft: ConnectorDraft): Promise<AgentResult<{ status: ConnectorStatus }>>;
+    /** Take a connector out of mcp.json; a running one stops the next time Mobius opens. */
+    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus }>>;
   };
   share?: {
     status(): Promise<ShareStatus>;
@@ -580,7 +599,7 @@ export interface MobiusBridge {
     read(list: string): Promise<TaskList | NotesFailure>;
     createList(name: string): Promise<{ name: string } | NotesFailure>;
     /** `under`: the task it goes under, as a subtask. */
-    add(list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt }): Promise<TaskList | NotesFailure>;
+    add(list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt; time?: string; repeat?: TaskRepeat }): Promise<TaskList | NotesFailure>;
     update(list: string, line: number, expect: string, change: TaskChange): Promise<TaskList | NotesFailure>;
     /** Takes its notes and subtasks too; `removed` is what went, for `restore`. */
     remove(list: string, line: number, expect: string): Promise<(TaskList & { removed?: { line: number; text: string } }) | NotesFailure>;
@@ -712,6 +731,10 @@ export interface MobiusBridge {
     saveCut(project: string, text: string, base: number | null): Promise<{ project: string; modified: number } | NotesFailure>;
     addClip(project: string, name: string, data: string): Promise<{ project: string; clip: string } | NotesFailure>;
     showFolder(project: string): Promise<{ ok: true } | NotesFailure>;
+    /** A film made from the cut (base64 MP4 or WebM), saved in the project's `Exports` folder under a fresh name. */
+    saveExport(project: string, name: string, data: string): Promise<{ project: string; file: string } | NotesFailure>;
+    /** Opens the project's `Exports` folder. */
+    showExports(project: string): Promise<{ ok: true } | NotesFailure>;
     onChanged(listener: (change: VideoChanged) => void): () => void;
   };
   /** The Skills app. Only the Tauri shell has it. */
@@ -738,6 +761,22 @@ export interface MobiusBridge {
     add(album: string, name: string, data: string): Promise<{ path: string } | NotesFailure>;
     /** Writes the edited picture (JPEG, base64) next to the photo; says where. */
     export(path: string, data: string): Promise<{ path: string } | NotesFailure>;
+    /** Renames a photo in its album (its edits go with it); a name already taken gets a number. */
+    rename(path: string, name: string): Promise<{ path: string } | NotesFailure>;
+    /** Moves a photo and its edits into another album. */
+    move(path: string, album: string): Promise<{ path: string } | NotesFailure>;
+    /** Moves a photo and its edits to Recently Deleted; `deleted` is its path there. */
+    delete(path: string): Promise<{ path: string; deleted: string } | NotesFailure>;
+    /** What is in Recently Deleted, each photo with the album it came from (paths are within Recently Deleted). */
+    deleted(): Promise<(PhotoInfo & { album: string })[] | NotesFailure>;
+    readDeleted(path: string): Promise<PhotoContent | NotesFailure>;
+    /** Puts a photo back in its album, making the album again if it has gone. */
+    recover(path: string): Promise<{ path: string } | NotesFailure>;
+    /** Deletes everything in Recently Deleted for good. */
+    emptyDeleted(): Promise<{ emptied: true } | NotesFailure>;
+    renameAlbum(album: string, name: string): Promise<{ name: string } | NotesFailure>;
+    /** Its photos go to Recently Deleted; refused when it holds other files. */
+    deleteAlbum(album: string): Promise<{ name: string; deleted: number } | NotesFailure>;
     onChanged(listener: (change: PhotosChanged) => void): () => void;
   };
   /** The Studio app: songs kept like notes, as JSON in `studio/<folder>/<song>.json`. Only the Tauri shell has it. */
@@ -947,7 +986,8 @@ export interface DownloadEntry {
   risky: boolean;
 }
 
-export type ThemeChoice = 'system' | 'light' | 'dark';
+/** Mid grey runs the window light and Cool dark runs it dark; the stylesheet does the rest (tokens.css). */
+export type ThemeChoice = 'system' | 'light' | 'mid' | 'dark' | 'cool';
 export type ChatFont = 'system' | 'serif' | 'mono';
 export type TextDirection = 'auto' | 'ltr' | 'rtl';
 export type Density = 'comfortable' | 'compact';
@@ -1000,7 +1040,7 @@ export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
 export type NavigationStyle = 'sidebar' | 'rail';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 380 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'sidebar', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -1176,8 +1216,13 @@ export interface ModelGroup {
 export interface ModelCatalog { current: string; groups: ModelGroup[] }
 
 /** Settings > Advanced > Other apps. */
-export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number }
-export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null }
+export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number; /** When it last changed, ms since 1970 (Files only). */ modified?: number }
+export type FilesActionResult = { ok: true; path: string } | { ok: false; error: string };
+/** Something in Files' Trash: `held` is where it is kept, `from` where it was (empty when not known). */
+export interface TrashEntry { held: string; name: string; from: string; trashed: number; type: 'file' | 'folder'; bytes?: number }
+export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null; /** In mcp.json, not started yet: starts when Mobius opens again. */ waiting?: string[]; /** Started, but no longer in mcp.json: stops when Mobius opens again. */ leaving?: string[] }
+/** A connector to add: a short name, the command that runs the MCP server, its arguments and its keys. */
+export interface ConnectorDraft { name: string; command: string; args: string[]; env: Record<string, string> }
 export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }
 
 /** Software Update's state, with the words to show and the version running. */
@@ -1279,7 +1324,7 @@ const oneOf = <T extends string>(...choices: T[]) => (v: unknown): v is T => typ
 
 /** How each appearance setting is checked. Adding a setting means adding it here, to the type, and to the defaults. */
 export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) => v is AppearanceSettings[K] } = {
-  theme: oneOf<ThemeChoice>('system', 'light', 'dark'),
+  theme: oneOf<ThemeChoice>('system', 'light', 'mid', 'dark', 'cool'),
   zoom: (v): v is number => inRange(v, ZOOM_RANGE),
   chatTextScale: (v): v is number => inRange(v, CHAT_TEXT_RANGE),
   chatFont: oneOf<ChatFont>('system', 'serif', 'mono'),

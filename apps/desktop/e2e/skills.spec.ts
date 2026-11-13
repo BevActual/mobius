@@ -108,8 +108,7 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors in on
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   const rail = shell().getByRole('navigation', { name: 'Apps' });
-  if ((await rail.getAttribute('data-face')) !== 'apps') await rail.locator('[data-app-switcher]').click();
-  await rail.getByRole('region', { name: 'Mobius’s apps' }).getByRole('button', { name: 'Abilities', exact: true }).click();
+  await rail.locator('.rail-end').getByRole('button', { name: 'Abilities', exact: true }).click();
   const places = shell().getByRole('navigation', { name: 'Abilities' });
   await expect(places.getByRole('button')).toHaveText([/^Apps\d+$/, /^Skills\d*$/, /^Connectors\d*$/]);
   await expect(places.getByRole('button', { name: /^Apps/ })).toHaveAttribute('aria-current', 'page');
@@ -132,7 +131,7 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors in on
   await shell().getByRole('searchbox', { name: 'Search abilities' }).fill('');
   // An added app opens from its row.
   await library.getByRole('button', { name: 'Open Sheets' }).click();
-  await expect(rail.locator('[data-app-switcher]')).toHaveAttribute('aria-label', 'Switch app. Current: Sheets');
+  await expect(rail.getByRole('button', { name: 'Sheets', exact: true })).toHaveAttribute('aria-current', 'page');
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Extensions');
   await shell().keyboard.press('Enter');
@@ -140,10 +139,25 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors in on
   const page = shell().getByRole('region', { name: 'Connectors' });
   await expect(page).toContainText('No connectors yet');
   await expect(page.getByRole('switch', { name: 'Let other apps use Mobius' })).toBeVisible();
-  // Add a Connector explains mcp.json in a sheet.
-  await page.getByRole('button', { name: 'Add a Connector…' }).click();
+  // Add a Connector writes the server into mcp.json; it waits for Mobius to open again, and can be taken out.
+  await page.getByRole('button', { name: 'Add a connector…' }).click();
   const sheet = shell().getByRole('dialog', { name: 'Add a connector' });
-  await expect(sheet).toContainText('mcp.json');
-  await sheet.getByRole('button', { name: 'Done' }).click();
+  await sheet.getByRole('textbox', { name: 'Command' }).fill('npx');
+  await sheet.getByRole('textbox', { name: 'Arguments' }).fill('-y @modelcontextprotocol/server-github');
+  await expect(sheet.getByRole('textbox', { name: 'Name' })).toHaveValue('github');
+  await sheet.getByRole('button', { name: 'Add a key' }).click();
+  await sheet.getByRole('textbox', { name: 'Key 1 name' }).fill('GITHUB_TOKEN');
+  await sheet.getByLabel('Key 1 value').fill('t0ken');
+  await sheet.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(sheet).toBeHidden();
+  const mcp = path.join(userData, 'mcp.json');
+  await expect.poll(() => fs.existsSync(mcp) && JSON.parse(fs.readFileSync(mcp, 'utf8')).servers?.github).toEqual({ command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_TOKEN: 't0ken' } });
+  const row = page.getByRole('listitem', { name: 'github' });
+  await expect(row).toContainText('starts when Mobius reopens');
+  // Remove is in the row's menu (⋯, a right-click or Shift+F10), never a button at rest, and asks first.
+  await row.getByRole('button', { name: 'More for github' }).click();
+  await shell().getByRole('menuitem', { name: 'Remove…' }).click();
+  await row.getByRole('group', { name: 'Remove github?' }).getByRole('button', { name: 'Remove' }).click();
+  await expect(row).toBeHidden();
+  await expect.poll(() => JSON.parse(fs.readFileSync(mcp, 'utf8')).servers).toEqual({});
 });

@@ -24,8 +24,12 @@
 .doc-editor .doc-page ul[data-type="taskList"] input:checked { background: var(--accent); border-color: var(--accent); }
 .doc-editor .doc-page ul[data-type="taskList"] input:checked::after { content: ""; width: 7px; height: 4px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 0 1.8px 1.8px; transform: rotate(-45deg); }
 .doc-editor .doc-page li[data-checked="true"] > div { color: var(--muted); text-decoration: line-through; }
+/* Tables, as in Pages: a rounded frame, a tinted header row with a firmer line under it, and light lines inside so
+   the words lead, not the grid. */
 .doc-editor .doc-page table { border-radius: 8px; overflow: hidden; border-style: hidden; box-shadow: 0 0 0 1px var(--line-strong); }
-.doc-editor .doc-page th { background: color-mix(in srgb, var(--panel) 70%, var(--bg)); }
+.doc-editor .doc-page :is(th, td) { padding: 7px 10px; border-color: color-mix(in srgb, var(--line) 75%, transparent); }
+.doc-editor .doc-page th { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); border-bottom: 1px solid var(--line-strong); font-size: 13px; font-weight: 600; color: color-mix(in srgb, var(--ink) 80%, var(--muted)); }
+.doc-editor .doc-page tr:hover > td { background: color-mix(in srgb, var(--ink) 2%, transparent); }
 .doc-editor .doc-page .note-figure { margin: 16px 0; }
 .doc-editor .doc-page .note-figure img { display: block; max-width: 100%; max-height: 560px; border-radius: 8px; }
 .doc-editor .doc-page .note-figure.ProseMirror-selectednode img { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
@@ -37,25 +41,26 @@
 /* The toolbar: one row, grouped, quiet until used. */
 .doc-editor .doc-toolbar { gap: 1px; padding: 6px var(--sp-3); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; background: color-mix(in srgb, var(--bg) 88%, transparent); border-bottom: 0.5px solid var(--hairline, var(--line)); }
 .doc-editor .doc-toolbar select { height: 28px; min-width: 112px; font-size: var(--fs-sm); }
-.doc-editor .doc-tool { flex: none; min-width: 30px; height: 28px; border-radius: 7px; color: color-mix(in srgb, var(--ink) 85%, var(--muted)); }
-.doc-editor .doc-tool:disabled { opacity: 0.35; background: none; }
-.doc-editor .doc-tool[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
-.doc-editor .doc-tool[aria-expanded="true"] { background: var(--soft); }
-.doc-editor .doc-tool-sep { flex: none; height: 16px; margin: 0 5px; background: var(--hairline, var(--line)); }
+.doc-toolbar .doc-tool { flex: none; min-width: 30px; height: 28px; border-radius: 7px; color: color-mix(in srgb, var(--ink) 85%, var(--muted)); }
+.doc-toolbar .doc-tool:disabled { opacity: 0.35; background: none; }
+.doc-toolbar .doc-tool[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.doc-toolbar .doc-tool[aria-expanded="true"] { background: var(--soft); }
+.doc-toolbar .doc-tool-sep { flex: none; height: 16px; margin: 0 5px; background: var(--hairline, var(--line)); }
 .doc-tool-count { position: relative; }
 .doc-count { position: absolute; top: 1px; right: 0; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: #ffb300; color: #1d1d1f; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; }
-.doc-tool-mobius { padding: 0 6px; font-size: var(--fs-sm); font-weight: 600; color: var(--accent); white-space: nowrap; }
-.doc-editor .doc-tool:has(.doc-tool-mobius) { padding: 0 6px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: var(--radius-pill); margin-left: 4px; }
-.doc-editor .doc-tool:has(.doc-tool-mobius):hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.doc-tool-mobius { padding: 0 4px 0 0; font-size: var(--fs-sm); font-weight: 600; color: var(--accent); white-space: nowrap; }
+.doc-toolbar .doc-tool:has(.doc-tool-mobius) { padding: 0 6px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: var(--radius-pill); margin-left: 4px; }
+.doc-toolbar .doc-tool:has(.doc-tool-mobius):hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 
-/* Menus from the toolbar. */
-.doc-menu { gap: 1px; padding: 5px; border: 0.5px solid var(--hairline, var(--line)); box-shadow: 0 10px 32px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.08); }
-.doc-menu button { padding: 5px 10px; border-radius: 6px; font-size: var(--fs-sm); }
-.doc-menu button:hover, .doc-menu button:focus-visible { background: var(--accent); color: var(--on-accent); }
-.doc-menu button:disabled { opacity: 0.4; background: none; color: inherit; }
-.doc-menu button.danger { color: var(--danger); }
-.doc-menu button.danger:hover { background: var(--danger); color: #fff; }
-.doc-menu hr { width: calc(100% - 16px); height: 1px; margin: 4px 8px; border: 0; background: var(--line); }
+/* On the frame, the bar is the window's toolbar (zone 3): no strip of its own, and it takes the room the title leaves.
+   When that room is short, Checklist (also in Aa's lists) gives way, and Writing tools keeps only its pen. */
+.ui-toolbar-slot:has(.doc-toolbar[data-frame]) { flex: 1 1 auto; min-width: 0; }
+.ui-toolbar-group:has(> .doc-toolbar[data-frame]) { flex: 1; }
+.app[data-app="docs"] .toolbar-place { flex: 0 1 auto; max-width: 30%; }
+.doc-toolbar[data-frame] { flex: 1; min-width: 0; flex-wrap: nowrap; padding: 0; border: 0; background: none; overflow: hidden; container: doc-bar / inline-size; }
+@container doc-bar (max-width: 400px) { .doc-toolbar [data-gives-way] { display: none; } }
+@container doc-bar (max-width: 340px) { .doc-toolbar .doc-tool-writing .doc-tool-mobius { display: none; } }
+.doc-toolbar .doc-tool-writing { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); }
 
 /* Linking: a field under the toolbar, with the documents whose names match. */
 .doc-linkbar { position: relative; z-index: 4; display: flex; align-items: center; gap: var(--sp-2); padding: 8px var(--sp-3); border-bottom: 0.5px solid var(--hairline, var(--line)); background: var(--bg); }
@@ -99,7 +104,6 @@
 .doc-selection { border: 0.5px solid var(--hairline, var(--line)); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08); }
 .doc-selection .selection-btn:disabled { opacity: 0.4; }
 .selection-sep { width: 1px; height: 16px; margin: 0 2px; background: var(--line); }
-.doc-banner { max-width: 816px; margin: 0 auto 12px; border-radius: var(--radius-group); }
 .doc-toast { position: absolute; z-index: 7; left: 50%; bottom: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px); padding: 5px 5px 5px 14px; border-radius: var(--radius-pill); background: var(--bg); box-shadow: var(--shadow-3); font-size: var(--fs-sm); white-space: nowrap; animation: app-in var(--dur-fast) var(--ease); }
 .doc-toast span { overflow: hidden; text-overflow: ellipsis; }
 
@@ -128,16 +132,16 @@
 .doc-editor .doc-count-btn { margin: -2px -6px; padding: 2px 6px; border: 0; border-radius: 5px; background: none; color: inherit; font: inherit; cursor: default; }
 .doc-editor .doc-count-btn:hover { background: var(--soft); }
 
-/* Checklists in Mobius's proposals, drawn as the page draws them: the box beside its words. */
-.doc-proposal ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
-.doc-proposal ul[data-type="taskList"] li { display: flex; gap: 8px; align-items: flex-start; }
-.doc-proposal ul[data-type="taskList"] li > label { flex: none; margin-top: 3px; }
-.doc-proposal ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
-.doc-proposal ul[data-type="taskList"] input { appearance: none; width: 14px; height: 14px; margin: 0; border-radius: 50%; border: 1.5px solid var(--muted); display: grid; place-items: center; pointer-events: none; }
-.doc-proposal ul[data-type="taskList"] input:checked { background: var(--accent); border-color: var(--accent); }
-.doc-proposal ul[data-type="taskList"] input:checked::after { content: ""; width: 6px; height: 3px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 0 1.6px 1.6px; transform: rotate(-45deg); }
+/* Checklists in the words Mobius took out, drawn as the page draws them: the box beside its words. */
+.doc-change-old ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
+.doc-change-old ul[data-type="taskList"] li { display: flex; gap: 8px; align-items: flex-start; }
+.doc-change-old ul[data-type="taskList"] li > label { flex: none; margin-top: 3px; }
+.doc-change-old ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
+.doc-change-old ul[data-type="taskList"] input { appearance: none; width: 14px; height: 14px; margin: 0; border-radius: 50%; border: 1.5px solid var(--muted); display: grid; place-items: center; pointer-events: none; }
+.doc-change-old ul[data-type="taskList"] input:checked { background: var(--accent); border-color: var(--accent); }
+.doc-change-old ul[data-type="taskList"] input:checked::after { content: ""; width: 6px; height: 3px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 0 1.6px 1.6px; transform: rotate(-45deg); }
 
-/* The typeface: the app's sans-serif by default, as Notes and Pages' blank document; serif when chosen in More, headings
+/* The typeface: the app's sans-serif by default, as Notes and Pages' blank document; serif when chosen in Document options, headings
    and body both, so the two are paired on purpose. Tables and code keep their own. */
 .doc-editor .doc-page, .doc-editor .doc-page :is(h1, h2, h3) { font-family: var(--font, system-ui), sans-serif; }
 .doc-editor .doc-page { font-size: 16px; line-height: 1.6; }
@@ -145,10 +149,10 @@
 .doc-editor[data-font="serif"] .doc-page { font-size: 16.5px; line-height: 1.65; }
 
 /* Aa: the styles, marks and lists in one panel under the bar, as in Notes. */
-.doc-editor .doc-aa-btn { padding: 0 8px; }
+.doc-toolbar .doc-aa-btn { padding: 0 8px; }
 .doc-aa { font-weight: 600; font-size: var(--fs-md); letter-spacing: -0.01em; }
-.doc-editor .doc-aa-btn[aria-expanded="true"], .doc-editor .doc-aa-btn[data-marked] { color: var(--accent); }
-.doc-editor .doc-aa-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.doc-toolbar .doc-aa-btn[aria-expanded="true"], .doc-toolbar .doc-aa-btn[data-marked] { color: var(--accent); }
+.doc-toolbar .doc-aa-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 13%, transparent); }
 .doc-aa-panel { position: fixed; z-index: 60; width: 272px; display: grid; gap: 10px; padding: 10px; border-radius: 14px; border: 0.5px solid var(--hairline); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.08); animation: app-in var(--dur-fast) var(--ease); }
 .doc-aa-styles { display: grid; gap: 1px; }
 .doc-aa-style { text-align: left; padding: 5px 10px; border-radius: 8px; color: var(--ink); line-height: 1.25; transition: background-color var(--dur-fast) var(--ease); }
@@ -165,3 +169,17 @@
 .doc-aa-group .doc-tool:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .doc-aa-group .doc-tool[aria-pressed="true"] { color: var(--accent); background: var(--bg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
 @media (prefers-reduced-motion: reduce) { .doc-aa-panel { animation: none; } }
+
+/* Mobius's changes, in the page where they are: what it added is tinted with a bar at its side; a note before it shows
+   what it took out, struck through, with Keep and Discard for that change alone. */
+.doc-editor .doc-page .doc-change-new { position: relative; border-radius: 3px; background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.doc-editor .doc-page .doc-change-new::before { content: ""; position: absolute; left: -16px; top: 2px; bottom: 2px; width: 2px; border-radius: 1px; background: var(--accent); }
+.doc-editor .doc-page .doc-change { margin: 0.6em 0 0.35em; padding: 8px 10px 6px 12px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--bg)); background: color-mix(in srgb, var(--accent) 4%, var(--bg)); font-family: var(--font, system-ui), sans-serif; font-size: var(--fs-sm); line-height: 1.45; user-select: none; }
+.doc-change-old { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 70%, transparent); margin-bottom: 4px; }
+.doc-editor .doc-page .doc-change-old :is(h1, h2, h3, p, ul, ol, blockquote) { margin: 0 0 2px; font-size: inherit; font-weight: inherit; letter-spacing: 0; line-height: inherit; }
+.doc-editor .doc-page .doc-change-old :is(ul, ol) { padding-left: 18px; }
+.doc-editor .doc-page li > .doc-change-new::before { left: -40px; }
+.doc-change-bar { display: flex; align-items: center; gap: 6px; }
+.doc-change-bar span { margin-right: auto; font-size: var(--fs-xs); font-weight: 600; color: var(--accent); }
+.doc-change-bar .review-btn { height: 24px; padding: 0 10px; font-size: var(--fs-xs); }
+@media print { .doc-change { display: none !important; } .doc-paper .doc-change-new { background: none; box-shadow: none; } .doc-paper .doc-change-new::before { display: none; } }
