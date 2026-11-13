@@ -40,6 +40,10 @@ Frames on a canvas, as in Sketch and Figma.
   list to change what is in front, or onto another frame to move them there.
 - **Export** a frame as a PNG at 1×, 2× or 3× from the inspector (or right-click › Export as PNG). It is saved in
   Photo, in a **Design exports** album.
+- **Components**: pick layers and choose **Create component** (Ctrl+Alt+K). They move to a component frame, marked in
+  purple, and a copy takes their place. Insert more copies from the component's inspector. Change the component and
+  every copy follows; a copy can still have its own text and colours. **Go to main** selects the component, and
+  **Detach** turns a copy back into plain layers.
 - Mobius's changes are dashed to keep or discard. It can also make pictures with your
   [Images model](../guide/models-and-gateways.md#a-model-for-each-job).
 
@@ -77,7 +81,9 @@ A small studio for writing songs as notes.
   picked notes move together.
 - **The divider** between the tracks and the roll: the track list fits its tracks, and dragging the divider (or
   Up and Down on it) gives more room to either side. Home fits it to the tracks again.
-- **Transport** to play, with the song's tempo and key.
+- **Transport** to play, with the song's tempo and key. Loop goes round the whole song, or drag along the top of the
+  ruler to loop some bars. Right-click the ruler (or press its top twice quickly) to loop the whole song again.
+- **Add Track** opens a menu of instruments. Right-click a track's header to duplicate, mute, solo or delete it.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
 
 **Kept in:** `workspace/studio/`, each song a JSON file of notes.
@@ -96,7 +102,12 @@ Cut footage into a short film.
 - **Keys** as in other editors: Space plays, S splits, I and O set the shot's start and end at the playhead,
   Ctrl+D (⌘D on a Mac) duplicates, the arrows step a frame and Up and Down jump between edits.
 
-**Kept in:** `workspace/video/<project>/`, the cut as `cut.json`. Your clips are never changed.
+- **Export** saves the film, titles and sound included, as a video file in the project's `Exports` folder (MP4
+  where the window can make it, otherwise WebM). It plays the cut through once while it is made, so a two-minute film
+  takes two minutes; Stop ends it early.
+
+**Kept in:** `workspace/video/<project>/`, the cut as `cut.json` and exported films in `Exports/`. Your clips are never
+changed.
 
 ## Code
 

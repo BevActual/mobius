@@ -76,10 +76,40 @@ function whereFilter(columns: readonly string[], filter: string): string {
 }
 
 /** The statement for one page of the Data view. */
-export function browseQuery(table: string, columns: readonly string[], b: Browse): string {
+export function browseQuery(table: string, columns: readonly string[], b: Browse, withRowid = false): string {
   const order = b.sort ? ` ORDER BY ${quoteIdent(b.sort.column)} ${b.sort.desc ? 'DESC' : 'ASC'}` : '';
-  return `SELECT * FROM ${quoteIdent(table)}${whereFilter(columns, b.filter)}${order} LIMIT ${PAGE_ROWS} OFFSET ${b.page * PAGE_ROWS}`;
+  return `SELECT ${withRowid ? `rowid AS ${quoteIdent(ROWID)}, ` : ''}* FROM ${quoteIdent(table)}${whereFilter(columns, b.filter)}${order} LIMIT ${PAGE_ROWS} OFFSET ${b.page * PAGE_ROWS}`;
 }
+
+/** The hidden first column of the Data view's rows when they can be changed: each row's rowid, to say which row. */
+export const ROWID = '__mobius_rowid';
+
+/** A value as SQL: NULL, a number as it is, or text in quotes. */
+export const sqlLiteral = (v: DbCell): string => (v === null ? 'NULL' : typeof v === 'number' ? String(v) : sqlString(v));
+
+/** What was typed into a cell, as the value to keep: a number in a column of numbers, nothing when a number column is emptied, else the text. */
+export function typedValue(text: string, type: string): DbCell {
+  if (!/int|real|floa|doub|num|dec/i.test(type)) return text;
+  const t = text.trim();
+  if (t === '') return null;
+  const n = Number(t.replace(/,/g, ''));
+  return Number.isFinite(n) && /^[-+]?[\d,]*\.?\d+(e[-+]?\d+)?$/i.test(t) ? n : text;
+}
+
+/** A cell as it is typed into: NULL as nothing, numbers in full. */
+export const editText = (v: DbCell): string => (v === null ? '' : String(v));
+
+export const updateCellSql = (table: string, column: string, rowid: number, v: DbCell): string => `UPDATE ${quoteIdent(table)} SET ${quoteIdent(column)} = ${sqlLiteral(v)} WHERE rowid = ${rowid}`;
+export const deleteRowSql = (table: string, rowid: number): string => `DELETE FROM ${quoteIdent(table)} WHERE rowid = ${rowid}`;
+/** A new row: defaults everywhere, except a column that needs a value and has no default, which starts empty (or 0). */
+export function addRowSql(table: string, needed: readonly { name: string; type: string }[] = []): string {
+  if (needed.length === 0) return `INSERT INTO ${quoteIdent(table)} DEFAULT VALUES`;
+  const blank = (type: string) => (/int|real|floa|doub|num|dec/i.test(type) ? '0' : "''");
+  return `INSERT INTO ${quoteIdent(table)} (${needed.map((c) => quoteIdent(c.name)).join(', ')}) VALUES (${needed.map((c) => blank(c.type)).join(', ')})`;
+}
+/** A deleted row put back as it was, at its rowid. */
+export const restoreRowSql = (table: string, rowid: number, columns: readonly string[], values: readonly DbCell[]): string =>
+  `INSERT INTO ${quoteIdent(table)} (rowid, ${columns.map(quoteIdent).join(', ')}) VALUES (${rowid}, ${values.map(sqlLiteral).join(', ')})`;
 
 /** How many rows the Data view's filter keeps. */
 export const countQuery = (table: string, columns: readonly string[], filter: string): string => `SELECT count(*) FROM ${quoteIdent(table)}${whereFilter(columns, filter)}`;

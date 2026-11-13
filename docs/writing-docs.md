@@ -18,7 +18,8 @@ the lesson's card, and the bold lead-ins of its list (`- **Smart lists**: …`) 
 - Name an app's section exactly as the app is named in the app (Knowledge, Music, Abilities), or Learn cannot match it.
 - Pictures are left out in Learn (the app is beside it), tables become lists, and links between pages read as words.
 
-`apps/desktop/src/learn.test.ts` reads the real pages and lists any app that has no section yet.
+`apps/desktop/src/learn.test.ts` reads the real pages and **fails** when an app in the app list has no section, so a new or
+renamed app adds its `## <App name>` section in the same pull request.
 
 ## Where a page goes
 

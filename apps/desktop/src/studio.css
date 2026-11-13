@@ -41,8 +41,10 @@
 .studio-zoom { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
 .studio-zoom svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .studio-zoom input { width: 84px; accent-color: var(--accent); }
-.studio-page .studio-add select { height: 28px; padding: 0 26px 0 12px; border: 0; border-radius: 7px; background-color: var(--accent); color: var(--on-accent, #fff); font: inherit; font-size: var(--fs-sm); font-weight: 600; }
-.studio-page .studio-add select option { color: var(--ink); background: var(--bg); }
+.studio-page .studio-add { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 12px 0 9px; border: 0; border-radius: 7px; background: var(--accent); color: var(--on-accent, #fff); font: inherit; font-size: var(--fs-sm); font-weight: 600; }
+.studio-page .studio-add:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
+.studio-page .studio-add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.studio-page .studio-add svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 
 /* ---------- Arrangement ---------- */
 .studio-page .studio-arrange { flex: none; min-height: 96px; overflow: auto; padding: 0; position: relative; }
@@ -52,6 +54,11 @@
 .studio-ruler:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
 .studio-ruler-bar { position: absolute; top: 0; bottom: 0; padding: 5px 0 0 4px; border-left: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); font: 600 10.5px/1 var(--font); color: var(--muted); font-variant-numeric: tabular-nums; }
 .studio-cycle { position: absolute; left: 0; top: 2px; height: 7px; border-radius: 3px; background: color-mix(in srgb, #ffd60a 75%, transparent); pointer-events: none; }
+/* A loop of some bars shows its ends, as Logic's cycle does. */
+.studio-cycle[data-part] { background: #ffd60a; box-shadow: inset 2px 0 0 color-mix(in srgb, #000 25%, #ffd60a), inset -2px 0 0 color-mix(in srgb, #000 25%, #ffd60a); }
+/* The top of the ruler, where a drag picks the bars to loop. */
+.studio-cycle-zone { position: absolute; left: 0; right: 0; top: 0; height: 11px; cursor: ew-resize; }
+.studio-cycle-zone:hover { background: color-mix(in srgb, #ffd60a 14%, transparent); }
 .studio-playhead-cap { position: absolute; bottom: 0; width: 0; height: 0; margin-left: -5px; border: 5px solid transparent; border-top: 7px solid var(--danger); border-bottom: 0; pointer-events: none; }
 
 .studio-page .studio-track { display: grid; grid-template-columns: var(--head) max-content; border-bottom: 0.5px solid var(--line); cursor: default; }

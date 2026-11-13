@@ -178,5 +178,12 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await expect(shell().getByLabel('Selected cell')).toHaveText('A4');
   await shell().keyboard.press('Escape');
   await expect(shell().getByRole('search', { name: 'Find in sheet' })).toHaveCount(0);
+
+  // Column D shown as currency from the Number format menu: the cell shows dollars, the file keeps the plain number.
+  await cell('D2').click();
+  await shell().getByRole('button', { name: 'Number format' }).click();
+  await shell().getByRole('menu', { name: 'Number format' }).getByRole('menuitem', { name: /^Currency/ }).click();
+  await expect(cell('D5')).toHaveText(/5[,. \u00a0\u202f]?420[.,]00/);
+  await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toContain('Total,,,=SUM(D2:D4)\n');
   await expect(cell('A1')).toHaveText('Item');
 });

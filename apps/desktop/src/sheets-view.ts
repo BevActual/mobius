@@ -1,3 +1,4 @@
+import { systemLocale } from './dates';
 /** Column letters as spreadsheets name them: A..Z, AA..AZ, and on. */
 export function columnName(col: number): string {
   let n = col;
@@ -157,8 +158,49 @@ export function selectionStats(values: readonly string[]): { count: number; numb
   return { count: values.filter((v) => v !== '').length, numbers: nums.length, sum, average: nums.length ? sum / nums.length : 0, min: nums.length ? Math.min(...nums) : 0, max: nums.length ? Math.max(...nums) : 0 };
 }
 
-/** A number for the status bar: grouped, with at most two decimals. */
-export const statNumber = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+/** A number for the status bar: grouped the way this computer writes numbers, with at most two decimals. */
+export const statNumber = (n: number) => n.toLocaleString(systemLocale(), { maximumFractionDigits: 2 });
+
+/** How a column shows its numbers. Automatic shows them as worked out or typed; the file keeps them plain either way. */
+export type NumberFormat = 'auto' | 'number' | 'currency' | 'percent';
+export const NUMBER_FORMATS: readonly { id: NumberFormat; label: string; example: string }[] = [
+  { id: 'auto', label: 'Automatic', example: '1234.5' },
+  { id: 'number', label: 'Number', example: '1,234.50' },
+  { id: 'currency', label: 'Currency', example: '$1,234.50' },
+  { id: 'percent', label: 'Percentage', example: '12%' },
+];
+
+/** The currency of the computer's region, for the Currency format; dollars where the region is not known. */
+export function localCurrency(locale: string | undefined): string {
+  const region = (() => { try { return new Intl.Locale(locale ?? navigator.language).maximize().region; } catch { return undefined; } })();
+  const euro = ['AT', 'BE', 'CY', 'DE', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PT', 'SI', 'SK'];
+  const byRegion: Record<string, string> = { US: 'USD', GB: 'GBP', CA: 'CAD', AU: 'AUD', NZ: 'NZD', JP: 'JPY', IN: 'INR', CH: 'CHF', SE: 'SEK', NO: 'NOK', DK: 'DKK', CN: 'CNY', KR: 'KRW', BR: 'BRL', MX: 'MXN', ZA: 'ZAR', SG: 'SGD', HK: 'HKD' };
+  return region ? (euro.includes(region) ? 'EUR' : byRegion[region] ?? 'USD') : 'USD';
+}
+
+/** What a cell shows in a column with this format. Words, errors and empty cells are shown as they are. */
+export function formatted(shown: string, format: NumberFormat | undefined, locale: string | undefined = systemLocale()): string {
+  if (!format || format === 'auto') return shown;
+  const n = numberIn(shown);
+  if (n === null) return shown;
+  try {
+    if (format === 'percent') return n.toLocaleString(locale, { style: 'percent', maximumFractionDigits: 2 });
+    if (format === 'currency') return n.toLocaleString(locale, { style: 'currency', currency: localCurrency(locale) });
+    return n.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch { return shown; }
+}
+
+/** Column formats after a column is put in (`insert`) or taken out at `at`: the ones after it move along. */
+export function shiftFormats(formats: Readonly<Record<number, NumberFormat>>, at: number, insert: boolean): Record<number, NumberFormat> {
+  const out: Record<number, NumberFormat> = {};
+  for (const [k, f] of Object.entries(formats)) {
+    const c = Number(k);
+    if (c < at) out[c] = f;
+    else if (insert) out[c + 1] = f;
+    else if (c > at) out[c - 1] = f;
+  }
+  return out;
+}
 
 /**
  * The cells a fill puts beyond `seed` (as typed), `count` more along the way: two or more numbers keep their step,
