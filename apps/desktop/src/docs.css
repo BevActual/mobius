@@ -24,8 +24,12 @@
 .doc-editor .doc-page ul[data-type="taskList"] input:checked { background: var(--accent); border-color: var(--accent); }
 .doc-editor .doc-page ul[data-type="taskList"] input:checked::after { content: ""; width: 7px; height: 4px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 0 1.8px 1.8px; transform: rotate(-45deg); }
 .doc-editor .doc-page li[data-checked="true"] > div { color: var(--muted); text-decoration: line-through; }
+/* Tables, as in Pages: a rounded frame, a tinted header row with a firmer line under it, and light lines inside so
+   the words lead, not the grid. */
 .doc-editor .doc-page table { border-radius: 8px; overflow: hidden; border-style: hidden; box-shadow: 0 0 0 1px var(--line-strong); }
-.doc-editor .doc-page th { background: color-mix(in srgb, var(--panel) 70%, var(--bg)); }
+.doc-editor .doc-page :is(th, td) { padding: 7px 10px; border-color: color-mix(in srgb, var(--line) 75%, transparent); }
+.doc-editor .doc-page th { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); border-bottom: 1px solid var(--line-strong); font-size: 13px; font-weight: 600; color: color-mix(in srgb, var(--ink) 80%, var(--muted)); }
+.doc-editor .doc-page tr:hover > td { background: color-mix(in srgb, var(--ink) 2%, transparent); }
 .doc-editor .doc-page .note-figure { margin: 16px 0; }
 .doc-editor .doc-page .note-figure img { display: block; max-width: 100%; max-height: 560px; border-radius: 8px; }
 .doc-editor .doc-page .note-figure.ProseMirror-selectednode img { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }

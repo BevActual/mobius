@@ -1,11 +1,11 @@
 :root {
   --strip: 28px; --context: 48px; --rail: 52px; --side: 248px; --chat-width: clamp(300px, 27vw, 400px);
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
-body { background: var(--shell); color: var(--ink); font: 13px/1.5 var(--font); -webkit-font-smoothing: antialiased; overflow: hidden; }
+body { background: var(--shell); color: var(--ink); font: 13px/1.5 var(--font); font-optical-sizing: auto; -webkit-font-smoothing: antialiased; overflow: hidden; }
 button, input, select, textarea { font: inherit; color: inherit; }
 select { appearance: none; height: var(--control-h-lg); padding: 0 var(--sp-6) 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg) var(--chevron) no-repeat right var(--sp-2) center / 12px; cursor: pointer; }
 select:hover:not(:disabled) { border-color: var(--line-strong); }
