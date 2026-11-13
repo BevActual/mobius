@@ -233,7 +233,7 @@ test('files open as tabs that keep what was typed; quick open, find and comment 
   await shell().keyboard.press('Enter');
   await expect(shell().getByRole('textbox', { name: 'Contents of tests/budget.test.js' })).toHaveValue(TEST);
   const tabs = shell().getByRole('tablist', { name: 'Open files' });
-  await expect(tabs.getByRole('tab')).toHaveText(['JSbudget.js', 'Tbudget.test.js']);
+  await expect(tabs.getByRole('tab')).toHaveText(['budget.js', 'budget.test.js']);
   await expect(tabs.getByRole('button', { name: 'Close src/budget.js (not saved)' })).toBeVisible();
   await tabs.getByRole('tab', { name: 'budget.js', exact: false }).first().click();
   await expect(editor).toHaveValue(`${BUDGET}const typed = splitTotal()`);
@@ -254,6 +254,6 @@ test('files open as tabs that keep what was typed; quick open, find and comment 
   await expect(shell().getByRole('search', { name: 'Find in file' })).toContainText('1 of 3');
   await shell().keyboard.press('Escape');
   await tabs.getByRole('button', { name: 'Close src/budget.js (not saved)' }).click();
-  await expect(tabs.getByRole('tab')).toHaveText(['Tbudget.test.js']);
+  await expect(tabs.getByRole('tab')).toHaveText(['budget.test.js']);
   expect(budget()).toBe(BUDGET);
 });
