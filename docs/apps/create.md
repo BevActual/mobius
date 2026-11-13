@@ -101,11 +101,12 @@ Cut footage into a short film.
 - **Projects** in the sidebar, each with its footage. Add a clip to the cut or drag it into the timeline.
 - **The timeline** shows each shot as a filmstrip. Trim from either end, split, duplicate, move and remove shots.
   Right-click a shot for its menu, or a clip in Footage to add it or show its folder.
-- **The viewer** plays the shots in order, and full screen with F. The chosen shot's details sit beside it, with In
-  and Out as timecode (type `0:02.5`, or plain seconds).
+- **The viewer** plays the shots in order, and full screen with F. Undo, split, duplicate, remove, zoom and Export sit
+  in the toolbar.
+- **The Shot panel** on the right (Ctrl+Shift+I) shows the chosen shot: In and Out as timecode (type `0:02.5`, or plain
+  seconds), its title, and its place in the cut.
 - **Keys** as in other editors: Space plays, S splits, I and O set the shot's start and end at the playhead,
   Ctrl+D (⌘D on a Mac) duplicates, the arrows step a frame and Up and Down jump between edits.
-
 - **Export** saves the film, titles and sound included, as a video file in the project's `Exports` folder (MP4
   where the window can make it, otherwise WebM). It plays the cut through once while it is made, so a two-minute film
   takes two minutes; Stop ends it early.
