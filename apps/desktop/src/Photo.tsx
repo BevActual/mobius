@@ -13,13 +13,8 @@ import { ASPECTS, GRID_SIZES, HANDLES, aspectRatio, dragCrop, fitAspect, flipped
 import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
-import { AppSidebar, PanelTab, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
+import { AppSidebar, PanelTab, SidebarSearch, SidebarSection, ToolbarControls, useShowPanelTab } from './ui';
 
-/** The toolbar's Adjust, Filters and Crop bring the right panel's Adjust tab forward if Mobius is showing there. */
-function showAdjustTab() {
-  const tab = document.getElementById('panel-tab-adjust');
-  if (tab && tab.getAttribute('aria-selected') !== 'true') tab.click();
-}
 import './photo.css';
 
 const PREVIEW_MAX = 1600;
@@ -379,6 +374,8 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [before, setBefore] = useState(false);
   const [busy, setBusy] = useState('');
+  // The toolbar's Adjust, Filters and Crop bring the right panel's Adjust tab forward, opening the panel if it is shut.
+  const showPanel = useShowPanelTab();
   const [tab, setTab] = useState<Tab>('adjust');
   const [aspect, setAspect] = useState<AspectId>('free');
   const [zoomed, setZoomed] = useState(false);
@@ -627,7 +624,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
         <span className="photo-tools-group">
         <div className="photo-tabs" role="tablist" aria-label="Edit">
           {TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" id={`photo-tab-${t.id}`} aria-controls="photo-tabpanel" aria-selected={tab === t.id} className="photo-tab" onClick={() => { setTab(t.id); showAdjustTab(); }}>{t.name}</button>
+            <button key={t.id} type="button" role="tab" id={`photo-tab-${t.id}`} aria-controls="photo-tabpanel" aria-selected={tab === t.id} className="photo-tab" onClick={() => { setTab(t.id); showPanel('adjust'); }}>{t.name}</button>
           ))}
         </div>
         </span>
