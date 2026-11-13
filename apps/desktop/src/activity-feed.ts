@@ -14,11 +14,34 @@ export interface FeedItem {
   by: 'mobius' | 'you' | 'other';
   /** Sending, paying, deleting and running commands: nothing puts these back. */
   final: boolean;
+  /** Mobius changed something in an app (wrote, added, sent, deleted), not only looked. */
+  changed: boolean;
   /** It went wrong. */
   warn: boolean;
 }
 
 export interface FeedDay { label: string; items: FeedItem[] }
+
+/** Where the sidebar looks: what needs you, a stretch of time, or one app. */
+export type ActivityPlace = 'needs' | 'today' | 'week' | 'all' | `app:${AppId}`;
+/** Who did it, from the toolbar: everything, Mobius alone, you alone, or only what cannot be undone. */
+export type ActivityWho = 'everything' | 'mobius' | 'you' | 'final';
+
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+/** The item is in that place: today since midnight, this week the last seven days counting today. */
+export function inPlace(item: FeedItem, place: ActivityPlace, now: Date): boolean {
+  if (place === 'all') return true;
+  if (place === 'needs') return false;
+  if (place === 'today') return item.when >= startOfDay(now);
+  if (place === 'week') return item.when >= startOfDay(now) - 6 * 86_400_000;
+  return item.app === place.slice(4);
+}
+
+/** The item was done by whom the toolbar asks for. */
+export function byWho(item: FeedItem, who: ActivityWho): boolean {
+  return who === 'everything' || matches(item, who);
+}
 
 /** The app a capability belongs to, by the part before its dot. */
 const APP_OF: Record<string, AppId> = {
@@ -116,7 +139,9 @@ export function feedOf(entries: readonly ActivityEntry[]): FeedItem[] {
     // Only what actually happened (or was allowed to) is marked: a refused send changed nothing.
     const final = isFinal(e.capability) && (e.kind === 'tool.completed' || e.kind === 'permission.approved');
     const by = e.who ? (WHO[e.who] ?? 'other') : 'mobius';
-    const base = { seq: e.seq, when: e.tsMs, app, final, by } as const;
+    const verb = e.capability?.split('.')[1] ?? '';
+    const changed = by === 'mobius' && e.kind === 'tool.completed' && /^(write|edit|add|update|draft|send|delete|execute|remember|forget|generate|pay|push|commit|run)$/.test(verb);
+    const base = { seq: e.seq, when: e.tsMs, app, final, by, changed } as const;
     const tool = e.tool ?? e.capability ?? 'a tool';
     switch (e.kind) {
       case 'tool.completed': {

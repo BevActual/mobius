@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnRecord } from '@mobius/shared';
 import { describeChange } from './ReviewStrip';
 import { timeLabel } from './dates';
+import { UndoToast } from './ui';
 
 const APP_OF_KIND: Record<string, string> = {
   Note: 'Notes', Doc: 'Docs', Deck: 'Slides', Sheet: 'Sheets', Tasks: 'Tasks', Calendar: 'Calendar', Code: 'Code', Design: 'Design',
@@ -75,10 +76,7 @@ export function Turns({ conversation, busy, version = 0 }: { conversation: strin
     <section aria-label="Turns">
       <h3 className="clist-group"><span className="group-toggle"><span>Turns</span><span className="group-count">{turns.length}</span></span></h3>
       {rewound && (
-        <p className="cal-undo" role="status">
-          <span>Rewound to “{rewound.ask || 'that turn'}”.</span>
-          <button type="button" className="review-btn" onClick={() => void undo()}>Undo</button>
-        </p>
+        <UndoToast text={`Rewound to “${rewound.ask || 'that turn'}”`} onUndo={() => void undo()} onDismiss={() => setRewound(null)} />
       )}
       {problem && <p className="review-problem" role="alert">{problem}</p>}
       <ul className="clist turn-list" role="list" aria-label="Turns of this conversation">

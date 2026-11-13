@@ -11,7 +11,7 @@ import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
 import { growFrom, morphOut, useMorphIn } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
-import { ActivityPage, ActivitySidebar, useActivityFeed } from './ActivityApp';
+import { ActivityPage, ActivitySidebar, activitySub, useActivityFeed } from './ActivityApp';
 import { useBookmarks } from './useBookmarks';
 import { useArchive } from './useArchive';
 import { useBots } from './useBots';
@@ -1393,7 +1393,7 @@ export function App() {
           />
         );
       case 'agent':
-        if (inActivity) return <ActivityPage feed={activityFeed} conversations={conversation.list} active={conversation.id} onOpenConversation={(id) => { conversation.select(id); setSideMode('sessions'); }} onOpenSchedules={() => openSettingsAt('schedules')} />;
+        if (inActivity) return <ActivityPage feed={activityFeed} conversations={conversation.list} active={conversation.id} onOpenConversation={(id) => { conversation.select(id); setSideMode('sessions'); }} onOpenApp={openApp} onOpenSchedules={() => openSettingsAt('schedules')} />;
         return (
           <ChatPanel
             surface={surface}
@@ -1557,7 +1557,8 @@ export function App() {
         </>,
         // The open document's name, or the app's when nothing is open, so the title bar is never blank.
         title: place || (!settingsOpen && appName(app)) || undefined,
-        sub: inAgent && !inActivity ? (settings?.configured ? `Talking to ${settings.model}` : 'No model connected')
+        sub: inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
+          : inAgent ? (settings?.configured ? `Talking to ${settings.model}` : 'No model connected')
           : inNotes && notes.page ? <>{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></>
           // Docs (marked, Docs' own line): the document's folder and whether it is saved, as Notes has it.
           : inDocs && docs.page ? <>{docs.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={docs.status}>{statusText(docs.status)}</span></>
