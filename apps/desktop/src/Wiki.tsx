@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { ContextMenu } from './ContextMenu';
 import { EmptyState } from './EmptyState';
 import { SideNew } from './SideNew';
+import { UndoToast } from './ui';
 import { relativeTime } from './relative-time';
 import { DocEditor } from './Docs';
 import { dayLabel, nearDayLabel, timeLabel } from './dates';
@@ -184,14 +185,9 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
     <section className="skills-page wiki-page" aria-label="How I work">
       <header className="kn-head">
         <h1>How I work</h1>
-        <p className="wiki-private">Only you and your Mobius see this page. Mobius reads it before every reply.</p>
+        <span className="kn-about" role="img" tabIndex={0} aria-label="Only you and your Mobius see this page. Mobius reads it before every reply." title="Only you and your Mobius see this page. Mobius reads it before every reply."><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 9v4.5M10 6.6v.1" /></svg></span>
       </header>
-      {undo && (
-        <p className="cal-undo" role="status">
-          <span>{undo.label}</span>
-          <button type="button" className="review-btn" onClick={() => { const u = undo; setUndo(null); void u.run().then(load); }}>Undo</button>
-        </p>
-      )}
+      {undo && <UndoToast text={undo.label} onUndo={() => { const u = undo; setUndo(null); void u.run().then(load); }} onDismiss={() => setUndo(null)} />}
       {problem && <p className="field-error" role="alert">{problem}</p>}
       {(asks.length > 0 || learned.length > 0) && (
         <section className="kn-group" aria-label="Waiting for you" data-waiting>
@@ -231,7 +227,7 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
         <span className="wiki-add-plus" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg></span>
         <input aria-label="Add a line" placeholder="Add how you work, in one line" value={adding} maxLength={300} onChange={(e) => setAdding(e.target.value)} />
         <span className="kn-popup"><select aria-label="Kind of line" value={kind} onChange={(e) => setKind(e.target.value as MemoryCategory)}>{MEMORY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select></span>
-        <button type="submit" className="review-btn" data-kind="keep" disabled={!adding.trim()}>Add</button>
+        {adding.trim() && <button type="submit" className="review-btn" data-kind="keep">Add</button>}
       </form>
     </section>
   );
@@ -268,9 +264,9 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
     <section className="skills-page wiki-page" aria-label="Suggested changes">
       <header className="kn-head">
         <h1>Suggested changes</h1>
-        <p className="wiki-private">Lines offered by people, by your own How I work and by Mobius. Nothing reaches a page until you keep it.</p>
+        <span className="kn-about" role="img" tabIndex={0} aria-label="Lines offered by people, by your own How I work and by Mobius. Nothing reaches a page until you keep it." title="Lines offered by people, by your own How I work and by Mobius. Nothing reaches a page until you keep it."><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 9v4.5M10 6.6v.1" /></svg></span>
       </header>
-      {undo && <p className="cal-undo" role="status"><span>{undo.label}</span><button type="button" className="review-btn" onClick={() => void undoLast()}>Undo</button></p>}
+      {undo && <UndoToast text={undo.label} onUndo={() => void undoLast()} onDismiss={() => setUndo(null)} />}
       {problem && <p className="field-error" role="alert">{problem}</p>}
       {incoming.waiting.length === 0 && <EmptyState app="wiki" title="Nothing is waiting" line="When someone, or Mobius, offers a line for a page, it waits here for you." label="Nothing is waiting" />}
       {incoming.waiting.length > 0 && (
@@ -335,11 +331,7 @@ export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocu
     <div className="wiki-doc">
       <DocEditor docs={wiki} autoFocus={autoFocus} busy={busy} toolbarEnd={button} />
       {putBack && !open && (
-        <div className="kn-put-back" role="status">
-          <span>Put back the version from {putBack.label}.</span>
-          <button type="button" className="btn" onClick={() => { wiki.edit(putBack.was); setPutBack(null); }}>Undo</button>
-          <button type="button" className="kn-put-back-x" aria-label="Dismiss" onClick={() => setPutBack(null)}>×</button>
-        </div>
+        <UndoToast text={`Put back the version from ${putBack.label}.`} onUndo={() => { wiki.edit(putBack.was); setPutBack(null); }} onDismiss={() => setPutBack(null)} />
       )}
       {open && path && <WikiVersions path={path} text={wiki.text} onPutBack={(v) => { setPutBack({ was: wiki.text, label: whenLabel(v.whenMs) }); wiki.edit(v.content); setOpen(false); }} onClose={() => setOpen(false)} />}
     </div>

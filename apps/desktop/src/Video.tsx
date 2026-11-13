@@ -2,7 +2,7 @@ import { RowMark } from './RowMark';
 import { FromMobius } from './FromMobius';
 import { EmptyState } from './EmptyState';
 import { SideNew } from './SideNew';
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { changedShots, cutLength, locate, parseCut, shotLength, shotStart, timecode, type Cut, type Shot } from './cut-format';
@@ -14,6 +14,7 @@ import { emptyHistory, recorded, redone, undone, type History } from './photo-vi
 import { dropIndex, duplicateShot, filmstrip, insertClip, moveShot, nextEdit, parseTimecode, removeShot, rulerLabel, rulerMarks, splitAt, trimShot } from './video-view';
 import { exportFormat, exportName, renderCut, toBase64 } from './video-export';
 import { isNotesFailure } from '@mobius/shared';
+import { PanelLayout, ToolbarControls, type PanelSpec } from './ui';
 import './video.css';
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => (
@@ -238,6 +239,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   const [width, setWidth] = useState(900);
   const [menu, setMenu] = useState<MenuAt | null>(null);
   const [full, setFull] = useState(false);
+  const [aspect, setAspect] = useState(16 / 9);
   const viewer = useRef<HTMLDivElement>(null);
   // Export: how far along (0 to 1) while the film is made, then where it was saved.
   const [exporting, setExporting] = useState<number | null>(null);
@@ -245,6 +247,9 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   const [exportError, setExportError] = useState('');
   const stopExport = useRef<AbortController | null>(null);
   const titleField = useRef<HTMLInputElement>(null);
+  // The chosen shot's details: a panel in the right dock, beside Mobius. Its body is drawn from the latest render.
+  const inspector = useRef<() => ReactNode>(() => null);
+  const panels = useMemo<PanelSpec[]>(() => [{ id: 'shot', name: 'Shot', dock: 'right', shown: true, keys: 'mod+shift+i', render: () => inspector.current() }], []);
   const frame = useFrames(video);
   const { cut } = video;
   const file = video.project ? `video/${video.project}/cut.json` : null;
@@ -464,74 +469,111 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   if (!video.project) return <section className="video-page empty" aria-label="Video"><EmptyState app="video" label="No project open" title={video.projects.length ? 'No project open' : 'No projects yet'} line="A project is a folder of clips and its cut. The clips are never changed." action={{ label: 'New project', run: () => void video.createProject('Project') }} /></section>;
   const sel = cut.shots.find((s) => s.id === selected) ?? null;
   const selIndex = sel ? cut.shots.indexOf(sel) : -1;
+  const shotLabel = (i: number) => `Shot ${i + 1}`;
+  inspector.current = () => (
+    <div className="video-inspector">
+      {sel ? (
+        <>
+          <header className="video-inspector-head">
+            <h2>{shotLabel(selIndex)}</h2>
+            <span title={sel.clip}>{sel.clip}</span>
+          </header>
+          <section className="video-group" aria-label="Trim">
+            <h3>Trim</h3>
+            <div className="video-fields">
+              <TimeField key={`in-${sel.id}`} label="In" value={sel.in} title="Where the shot starts in its clip: 0:02.5, or seconds" onCommit={(v) => setShot(sel.id, 'in', (s) => { s.in = Math.max(0, Math.min(v, s.out - 0.1)); })} />
+              <TimeField key={`out-${sel.id}`} label="Out" value={sel.out} title="Where the shot ends in its clip: 0:06.0, or seconds" onCommit={(v) => setShot(sel.id, 'out', (s) => { s.out = Math.min(video.lengthOf(s.clip) || Infinity, v); })} />
+            </div>
+            <div className="video-pair">
+              <button type="button" className="btn" disabled={playheadIn(sel.id) === null} title="Start the shot at the playhead (I)" onClick={() => { const at = playheadIn(sel.id); if (at !== null) setShot(sel.id, 'in', (s) => { s.in = at; }); }}>Start here</button>
+              <button type="button" className="btn" disabled={playheadIn(sel.id) === null} title="End the shot at the playhead (O)" onClick={() => { const at = playheadIn(sel.id); if (at !== null) setShot(sel.id, 'out', (s) => { s.out = at; }); }}>End here</button>
+            </div>
+            <p className="video-note">{`${timecode(shotLength(sel))} of ${video.lengthOf(sel.clip) ? timecode(video.lengthOf(sel.clip)!) : 'the clip'}`}</p>
+          </section>
+          <section className="video-group" aria-label="Title">
+            <h3>Title</h3>
+            <input ref={titleField} className="video-text" aria-label="Title" value={sel.title} maxLength={200} placeholder="None" onChange={(e) => setShot(sel.id, 'title', (s) => { s.title = e.target.value; })} />
+          </section>
+          <section className="video-group" aria-label="Order">
+            <h3>Order</h3>
+            <div className="video-pair">
+              <button type="button" className="btn" disabled={selIndex <= 0} title="Move the shot earlier" onClick={() => edit(moveShot(cut, sel.id, selIndex - 1))}>Earlier</button>
+              <button type="button" className="btn" disabled={selIndex >= cut.shots.length - 1} title="Move the shot later" onClick={() => edit(moveShot(cut, sel.id, selIndex + 1))}>Later</button>
+            </div>
+          </section>
+          <button type="button" className="video-remove" onClick={() => remove(sel.id)}>Remove shot</button>
+        </>
+      ) : (
+        <p className="video-inspector-empty">Choose a shot in the timeline to trim it, title it or move it.</p>
+      )}
+    </div>
+  );
   const names = [...changed].map((id) => { const i = cut.shots.findIndex((s) => s.id === id); return i >= 0 ? `shot ${i + 1}` : id; });
   const ruler = rulerMarks(Math.max(total, width / pxPerSec), pxPerSec);
   const canSplit = splitAt(cut, t) !== null;
+  const status = exported
+    ? null
+    : sel
+      ? `${sel.clip} · in ${timecode(sel.in)} · out ${timecode(sel.out)} · ${timecode(shotLength(sel))}. Drag an edge to trim, S splits at the playhead.`
+      : `${cut.shots.length} ${cut.shots.length === 1 ? 'shot' : 'shots'} · ${timecode(total)}${video.saved ? '' : ' · Saving…'}`;
   return (
+    <div className="video-root">
+    <PanelLayout app="video" panels={panels}>
     <section ref={page} className="video-page" aria-label="Video" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-      <div className="video-top">
-        <div ref={viewer} className="video-viewer" data-full={full || undefined}>
-          <div className="video-screen">
-            <video ref={player} className="video-player" aria-label="Viewer" playsInline onTimeUpdate={onTime} onEnded={onTime} onError={() => setUnplayable(true)} onLoadedMetadata={() => setUnplayable(false)} onClick={toggle} />
-            {shot?.title && <div className="video-title">{shot.title}</div>}
-            {cut.shots.length === 0 && <p className="video-empty">Drag clips from Footage into the timeline to start the cut, or ask Mobius for a rough cut.</p>}
-            {unplayable && <p className="video-empty" role="status">This clip cannot be played in this window. Its file is untouched, and the cut still works.</p>}
-          </div>
-          <div className="video-hud glass" role="toolbar" aria-label="Transport">
-            <button type="button" className="strip-btn" aria-label="Previous edit" title="Previous edit (↑)" disabled={!shot} onClick={() => { const to = nextEdit(cut, t, -1); seek(to ?? 0); }}><Icon d="M4.5 5h2v10h-2zM16 5l-8.5 5 8.5 5z" fill /></button>
-            <button type="button" className="video-play" aria-label={playing ? 'Pause' : 'Play'} title={`${playing ? 'Pause' : 'Play'} (Space)`} disabled={!shot} onClick={toggle}><Icon d={playing ? PAUSE : PLAY} fill /></button>
-            <button type="button" className="strip-btn" aria-label="Next edit" title="Next edit (↓)" disabled={!shot} onClick={() => { const to = nextEdit(cut, t, 1); if (to !== null) seek(to); }}><Icon d="M13.5 5h2v10h-2zM4 5l8.5 5L4 15z" fill /></button>
-            <span className="video-time" aria-label="Time">{`${timecode(t)} / ${timecode(total)}`}</span>
-            <button type="button" className="strip-btn" aria-label={full ? 'Exit full screen' : 'Full screen'} title={`${full ? 'Exit full screen' : 'Full screen'} (F)`} disabled={!shot} onClick={fullScreen}><Icon d={full ? EXIT_FULL : FULL} /></button>
-          </div>
+      <ToolbarControls label="Edit">
+        <div className="ui-toolbar-group">
+          <button type="button" className="strip-btn" aria-label="Undo" title={`Undo (${MOD()}Z)`} disabled={history.current.past.length === 0} onClick={undo}><Icon d="M7.5 6 4 9.5 7.5 13M4.5 9.5H12a4 4 0 0 1 0 8h-2" /></button>
+          <button type="button" className="strip-btn" aria-label="Redo" title={`Redo (${MOD()}Y)`} disabled={history.current.future.length === 0} onClick={redo}><Icon d="M12.5 6 16 9.5 12.5 13M15.5 9.5H8a4 4 0 0 0 0 8h2" /></button>
         </div>
-        <aside className="video-inspector" aria-label="Shot">
-          {sel ? (
-            <>
-              <header className="video-inspector-head">
-                <h2>{`Shot ${selIndex + 1}`}</h2>
-                <span title={sel.clip}>{sel.clip}</span>
-              </header>
-              <section className="video-group" aria-label="Trim">
-                <h3>Trim</h3>
-                <div className="video-fields">
-                  <TimeField key={`in-${sel.id}`} label="In" value={sel.in} title="Where the shot starts in its clip: 0:02.5, or seconds" onCommit={(v) => setShot(sel.id, 'in', (s) => { s.in = Math.max(0, Math.min(v, s.out - 0.1)); })} />
-                  <TimeField key={`out-${sel.id}`} label="Out" value={sel.out} title="Where the shot ends in its clip: 0:06.0, or seconds" onCommit={(v) => setShot(sel.id, 'out', (s) => { s.out = Math.min(video.lengthOf(s.clip) || Infinity, v); })} />
-                </div>
-                <div className="video-pair">
-                  <button type="button" className="btn" disabled={playheadIn(sel.id) === null} title="Start the shot at the playhead (I)" onClick={() => { const at = playheadIn(sel.id); if (at !== null) setShot(sel.id, 'in', (s) => { s.in = at; }); }}>Start here</button>
-                  <button type="button" className="btn" disabled={playheadIn(sel.id) === null} title="End the shot at the playhead (O)" onClick={() => { const at = playheadIn(sel.id); if (at !== null) setShot(sel.id, 'out', (s) => { s.out = at; }); }}>End here</button>
-                </div>
-                <p className="video-note">{`${timecode(shotLength(sel))} of ${video.lengthOf(sel.clip) ? timecode(video.lengthOf(sel.clip)!) : 'the clip'}`}</p>
-              </section>
-              <section className="video-group" aria-label="Title">
-                <h3>Title</h3>
-                <input ref={titleField} className="video-text" aria-label="Title" value={sel.title} maxLength={200} placeholder="None" onChange={(e) => setShot(sel.id, 'title', (s) => { s.title = e.target.value; })} />
-              </section>
-              <section className="video-group" aria-label="Order">
-                <h3>Order</h3>
-                <div className="cap-group video-order">
-                  <button type="button" className="strip-btn" disabled={selIndex <= 0} title="Move the shot earlier" onClick={() => edit(moveShot(cut, sel.id, selIndex - 1))}>Earlier</button>
-                  <button type="button" className="strip-btn" disabled={selIndex >= cut.shots.length - 1} title="Move the shot later" onClick={() => edit(moveShot(cut, sel.id, selIndex + 1))}>Later</button>
-                </div>
-              </section>
-              <button type="button" className="video-remove" onClick={() => remove(sel.id)}>Remove shot</button>
-            </>
+        <div className="ui-toolbar-group">
+          <button type="button" className="strip-btn" aria-label="Split at the playhead" title="Split at the playhead (S)" disabled={!canSplit} onClick={split}><Icon d="M10 3v14M6 6l-3 4 3 4M14 6l3 4-3 4" /></button>
+          <button type="button" className="strip-btn" aria-label="Duplicate shot" title={`Duplicate the chosen shot (${MOD()}D)`} disabled={!sel} onClick={() => sel && duplicate(sel.id)}><Icon d="M4 4h9v9H4zM7 7h9v9H7z" /></button>
+          <button type="button" className="strip-btn" aria-label="Remove shot" title="Remove the chosen shot (Delete)" disabled={!sel} onClick={() => sel && remove(sel.id)}><Icon d="M5 6h10M8 6V4.5h4V6M6.5 6l.7 9.5h5.6l.7-9.5" /></button>
+        </div>
+        <div className="ui-toolbar-group">
+          <label className="video-zoom" title="Zoom the timeline">
+            <Icon d="M4 10h12" />
+            <input type="range" aria-label="Zoom" min={10} max={240} step={1} value={Math.round(pxPerSec)} onChange={(e) => setZoom(Number(e.target.value))} />
+            <Icon d="M4 10h12M10 4v12" />
+          </label>
+          <button type="button" className="btn" disabled={zoom === null} onClick={() => setZoom(null)} title="Fit the cut to the timeline">Fit</button>
+        </div>
+        <div className="ui-toolbar-group">
+          {exporting === null ? (
+            <button type="button" className="btn primary video-export" disabled={!format || cut.shots.length === 0} onClick={() => void exportFilm()}
+              title={format ? 'Save the film as a video file in the project’s Exports folder. It plays through once while it is made.' : 'This window cannot record video'}>
+              Export…
+            </button>
           ) : (
-            <div className="video-inspector-empty">
-              <p>Choose a shot to trim it, title it or move it. The clips themselves are never changed.</p>
-              <dl className="video-keys">
-                <dt>Space</dt><dd>Play or pause</dd>
-                <dt>S</dt><dd>Split at the playhead</dd>
-                <dt>↑ ↓</dt><dd>Previous or next edit</dd>
-                <dt>← →</dt><dd>A frame back or on</dd>
-                <dt>I, O</dt><dd>Start or end the shot here</dd>
-                <dt>{`${MOD()}D`}</dt><dd>Duplicate the shot</dd>
-                <dt>F</dt><dd>Full screen</dd>
-              </dl>
-            </div>
+            <span className="video-exporting" role="status" aria-label="Exporting">
+              <span className="video-progress" aria-hidden="true"><span style={{ width: `${Math.round(exporting * 100)}%` }} /></span>
+              <span>{`${Math.round(exporting * 100)}%`}</span>
+              <button type="button" className="btn" onClick={() => stopExport.current?.abort()}>Stop</button>
+            </span>
           )}
-        </aside>
+        </div>
+      </ToolbarControls>
+      <div ref={viewer} className="video-viewer" data-full={full || undefined}>
+        <div className="video-screen">
+          {/* The picture's own box, its clip's shape, as large as fits: the title sits on the picture, not the page. */}
+          <div className="video-frame" style={{ '--ar': aspect } as CSSProperties}>
+            <video ref={player} className="video-player" aria-label="Viewer" playsInline onTimeUpdate={onTime} onEnded={onTime} onError={() => setUnplayable(true)}
+              onLoadedMetadata={(e) => { setUnplayable(false); const v = e.currentTarget; if (v.videoWidth > 0 && v.videoHeight > 0) setAspect(v.videoWidth / v.videoHeight); }} onClick={toggle} />
+            {shot?.title && <div className="video-title">{shot.title}</div>}
+          </div>
+          {cut.shots.length === 0 && <p className="video-empty">Drag clips from Footage into the timeline to start the cut, or ask Mobius for a rough cut.</p>}
+          {unplayable && <p className="video-empty" role="status">This clip cannot be played in this window. Its file is untouched, and the cut still works.</p>}
+        </div>
+        <div className="video-transport" role="toolbar" aria-label="Transport">
+          <span className="video-time" aria-label="Time">{timecode(t)}</span>
+          <span className="video-buttons">
+            <button type="button" className="strip-btn" aria-label="Previous edit" title="Previous edit (↑)" disabled={!shot} onClick={() => { const to = nextEdit(cut, t, -1); seek(to ?? 0); }}><Icon d="M5 5v10M15.5 5.5 8 10l7.5 4.5z" /></button>
+            <button type="button" className="video-play" aria-label={playing ? 'Pause' : 'Play'} title={`${playing ? 'Pause' : 'Play'} (Space)`} disabled={!shot} onClick={toggle}><Icon d={playing ? PAUSE : PLAY} fill /></button>
+            <button type="button" className="strip-btn" aria-label="Next edit" title="Next edit (↓)" disabled={!shot} onClick={() => { const to = nextEdit(cut, t, 1); if (to !== null) seek(to); }}><Icon d="M15 5v10M4.5 5.5 12 10l-7.5 4.5z" /></button>
+            <button type="button" className="strip-btn" aria-label={full ? 'Exit full screen' : 'Full screen'} title={`${full ? 'Exit full screen' : 'Full screen'} (F)`} disabled={!shot} onClick={fullScreen}><Icon d={full ? EXIT_FULL : FULL} /></button>
+          </span>
+          <span className="video-time video-length" aria-label="Length">{timecode(total)}</span>
+        </div>
       </div>
       {video.message && <p className="tasks-message" role="alert">{video.message}</p>}
       {changed.size > 0 && (
@@ -540,44 +582,6 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
           <span>{`Mobius ${before === null ? 'made the cut' : `changed ${names.join(', ')}`}; dashed below. The clips are untouched.`}{review && <WhyThis conversation={review.conversation} />}</span>
           <ReviewActions onKeep={keep} onDiscard={discard} />
         </div>
-      )}
-      <div className="video-tools" role="toolbar" aria-label="Edit">
-        <div className="cap-group">
-          <button type="button" className="strip-btn" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={history.current.past.length === 0} onClick={undo}><Icon d="M7.5 6 4 9.5 7.5 13M4.5 9.5H12a4 4 0 0 1 0 8h-2" /></button>
-          <button type="button" className="strip-btn" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={history.current.future.length === 0} onClick={redo}><Icon d="M12.5 6 16 9.5 12.5 13M15.5 9.5H8a4 4 0 0 0 0 8h2" /></button>
-        </div>
-        <div className="cap-group">
-          <button type="button" className="strip-btn" aria-label="Split at the playhead" title="Split at the playhead (S)" disabled={!canSplit} onClick={split}><Icon d="M10 3v14M6 6l-3 4 3 4M14 6l3 4-3 4" /></button>
-          <button type="button" className="strip-btn" aria-label="Duplicate shot" title={`Duplicate the chosen shot (${MOD()}D)`} disabled={!sel} onClick={() => sel && duplicate(sel.id)}><Icon d="M4 4h9v9H4zM7 7h9v9H7z" /></button>
-          <button type="button" className="strip-btn" aria-label="Remove shot" title="Remove the chosen shot (Delete)" disabled={!sel} onClick={() => sel && remove(sel.id)}><Icon d="M5 6h10M8 6V4.5h4V6M6.5 6l.7 9.5h5.6l.7-9.5" /></button>
-        </div>
-        <span className="video-meta">{`${cut.shots.length} ${cut.shots.length === 1 ? 'shot' : 'shots'}${video.saved ? '' : ' · Saving…'}`}</span>
-        <label className="video-zoom" title="Zoom the timeline">
-          <Icon d="M4 10h12" />
-          <input type="range" aria-label="Zoom" min={10} max={240} step={1} value={Math.round(pxPerSec)} onChange={(e) => setZoom(Number(e.target.value))} />
-          <Icon d="M4 10h12M10 4v12" />
-        </label>
-        <button type="button" className="btn" disabled={zoom === null} onClick={() => setZoom(null)} title="Fit the cut to the timeline">Fit</button>
-        {exporting === null ? (
-          <button type="button" className="btn primary video-export" disabled={!format || cut.shots.length === 0} onClick={() => void exportFilm()}
-            title={format ? 'Save the film as a video file in the project’s Exports folder. It plays through once while it is made.' : 'This window cannot record video'}>
-            <Icon d="M10 12.5V3.5M7 6.5l3-3 3 3M6.5 9H5.5A1.5 1.5 0 0 0 4 10.5v5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 14.5 9h-1" />
-            Export
-          </button>
-        ) : (
-          <span className="video-exporting" role="status" aria-label="Exporting">
-            <span className="video-progress" aria-hidden="true"><span style={{ width: `${Math.round(exporting * 100)}%` }} /></span>
-            <span>{`Exporting… ${Math.round(exporting * 100)}%`}</span>
-            <button type="button" className="btn" onClick={() => stopExport.current?.abort()}>Stop</button>
-          </span>
-        )}
-      </div>
-      {exported && (
-        <p className="video-done" role="status">
-          <span>{`Saved the film as ${exported}.`}</span>
-          <button type="button" className="btn" onClick={() => void video.showExports()}>Show in folder</button>
-          <button type="button" className="strip-btn" aria-label="Dismiss" title="Dismiss" onClick={() => setExported(null)}><Icon d="M5 5l10 10M15 5 5 15" /></button>
-        </p>
       )}
       {exportError && <p className="tasks-message" role="alert">{`The film could not be exported: ${exportError}`}</p>}
       <div ref={strip} className="video-timeline" onDragOver={dragOver} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropAt(null); }} onDrop={dropOnTimeline}
@@ -599,7 +603,18 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
           <span className="video-playhead" style={{ left: t * pxPerSec }} aria-hidden="true" onPointerDown={scrubDown} />
         </div>
       </div>
+      <footer className="video-status">
+        {exported ? (
+          <span className="video-done" role="status">
+            <span>{`Saved the film as ${exported}.`}</span>
+            <button type="button" className="video-link" onClick={() => void video.showExports()}>Show in folder</button>
+            <button type="button" className="video-link" onClick={() => setExported(null)}>Done</button>
+          </span>
+        ) : <span>{status}</span>}
+      </footer>
       <Menu menu={menu} onClose={() => setMenu(null)} />
     </section>
+    </PanelLayout>
+    </div>
   );
 }

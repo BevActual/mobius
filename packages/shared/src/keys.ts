@@ -139,7 +139,8 @@ export function conflictFor(bindings: KeyBindings, action: ShortcutAction, bindi
 
 /** How a combination reads on screen. */
 export function describeCombo(binding: string, platform: string): string {
-  const combo = parseCombo(binding);
+  // Written either way ("H" or "h", "Mod+Shift+K"): it reads the same.
+  const combo = parseCombo(binding) ?? parseCombo(binding.toLowerCase());
   if (!combo) return '';
   const mac = platform === 'darwin';
   const names: Record<string, string> = { space: 'Space', up: 'Up', down: 'Down', left: 'Left', right: 'Right' };

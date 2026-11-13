@@ -54,7 +54,7 @@ Lists of things to do, as in Apple's Reminders.
 ![The Tasks app in Mobius](../readme/apps/tasks.png)
 
 - **The sidebar** has Search, New list, the **Smart lists** (Today, Scheduled, All, Flagged and Completed), then
-  **My lists** with how many are open. Hover a list to pin it or open its menu (Rename, Delete).
+  **My lists**, each with a dot in its colour and how many are open. Hover a list to pin it or open its menu (Rename, Delete).
   **Scheduled** sorts tasks under day headings: Overdue, Today, Tomorrow, each day of the coming week, then by month.
 - **Times and repeats**: type a time after the day ("Call Sam tomorrow at 3pm", "Stand-up mon 9:30"; a time on its
   own means today), or set a time and a repeat (every day, weekday, week, month or year) in the inspector. Ticking off
@@ -64,7 +64,7 @@ Lists of things to do, as in Apple's Reminders.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
   the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it.
 - **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back. Completed
-  tasks fold away under the list; **Clear N completed** in the toolbar removes them.
+  tasks fold away under the list; **Clear N Completed** in the fold's ⋯ menu (or the window's ⋯ menu) removes them.
 - **Deleting** a task or a list shows **Undo** at the bottom of the page (Ctrl+Z works too).
 - **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
   picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
@@ -110,6 +110,9 @@ Spreadsheets with formulas.
 
 ![The Sheets app in Mobius](../readme/apps/sheets.png)
 
+- The window's toolbar holds Undo and Redo, **Σ** (sum, average and more of the picked cells), **%** (number formats),
+  **Table** (add or delete rows and columns) and **Sort**. The cell's name and the formula bar are one slim row on
+  top of the grid.
 - Type in the cell or the formula bar. Formulas such as `=SUM(B2:B4)`, `=D2/People!B1` and `=IF(A1>0,"yes","no")` work
   across sheets, with a hint for the function you are in.
 - Columns size themselves to fit, and a first row of words over numbers reads as a header. A last row that adds up
@@ -126,12 +129,14 @@ Spreadsheets with formulas.
 ## Database
 
 SQLite databases you can browse without writing SQL, or query with it. Make one, or import a CSV file or a sheet from
-Sheets, and each table opens with three views:
+Sheets, and each table opens with three views. The table's name is the window's title, with its database and column
+count beside it, and **Data**, **Structure** and **SQL** sit in the toolbar.
 
-- **Data** shows the rows, 100 to a page. Click a column's heading to sort by it (again for high to low, a third time
-  for no order), and type in **Filter rows** to keep the rows where any column holds those words.
+- **Data** shows the rows, 100 to a page. The line under the rows says which rows these are, with arrows to the next
+  and previous pages. Click a column's heading to sort by it (again for high to low, a third time for no order), and
+  type in **Filter rows** in the toolbar to keep the rows where any column holds those words.
   In a table you can change, double-click a cell to type a new value (Enter keeps it, Escape puts it back), and
-  **Add row** adds an empty row and opens its first cell. Right-click a cell to edit it, copy its value, set it to
+  **+** (Add row) in the toolbar adds an empty row and opens its first cell. Right-click a cell to edit it, copy its value, set it to
   NULL or delete its row. The last change shows **Undo** at the bottom. From the keyboard the grid is one Tab stop:
   the arrow keys move between cells (Home, End, Ctrl+Home and Ctrl+End jump), Enter or F2 types into a cell, Delete
   sets it to NULL, Ctrl+Delete deletes the row, Ctrl+C copies the value, Ctrl+Z undoes and Shift+F10 opens the menu. A view, or a table made WITHOUT ROWID, is

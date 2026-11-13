@@ -43,8 +43,9 @@
 .tasks-nav .list-item { position: relative; display: flex; align-items: center; border-radius: var(--radius-control); }
 .tasks-nav .list-item .list-row { flex: 1; min-width: 0; gap: var(--sp-2); }
 .tasks-nav .list-item[data-drop] { box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.list-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--lc); }
-.tasks-nav .list-icon svg { width: 14px; height: 14px; fill: var(--on-accent); stroke: var(--on-accent); stroke-width: 1.6; stroke-linecap: round; }
+/* A list is a small dot in its colour, in the icon's column so names line up with the smart lists. */
+.list-dot { flex: none; display: grid; place-items: center; width: 22px; height: 22px; }
+.list-dot::before { content: ""; width: var(--sp-2); height: var(--sp-2); border-radius: 50%; background: var(--lc); }
 .list-more { flex: none; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
 .list-more svg { width: 16px; height: 16px; fill: currentColor; }
 .list-item:hover .list-more, .list-more:focus-visible, .list-more[aria-expanded="true"] { opacity: 1; }
@@ -149,11 +150,10 @@
 .inspector-subtasks { list-style: none; margin: 0; padding: 0; display: grid; }
 .inspector-subtasks li { display: flex; align-items: center; gap: 10px; min-height: 30px; border-bottom: 0.5px solid var(--line); font-size: var(--fs-md); }
 .inspector-subtasks li[data-done] span { color: var(--muted); }
-.inspector-subtasks .task-check, .inspector-add .task-check { width: 17px; height: 17px; margin: 0; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--muted) 70%, transparent); }
+.inspector-subtasks .task-check { width: 17px; height: 17px; margin: 0; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--muted) 70%, transparent); }
 .inspector-subtasks .task-check[aria-checked="true"] { border-color: var(--lc, var(--accent)); background: var(--lc, var(--accent)); color: var(--on-accent); }
 .inspector-subtasks .task-check svg { width: 11px; height: 11px; stroke-width: 2; }
 .inspector-add { display: flex; align-items: center; gap: 10px; min-height: 30px; }
-.inspector-add .task-check { border-style: dashed; }
 .inspector-add input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: var(--fs-md); }
 .inspector-mobius { display: flex; flex-wrap: wrap; gap: 6px; background: transparent; box-shadow: none; padding: 0; }
 .inspector-mobius .side-start { height: 26px; padding: 0 10px; font-size: var(--fs-sm); }
@@ -221,3 +221,10 @@
 .task-time { padding: 3px var(--sp-2); border: 0; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font: inherit; font-size: var(--fs-md); }
 .task-time:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
 .inspector-hint { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+
+/* The add rows: a plain line with a + where the check would be, not a dashed circle. */
+.task-plus { flex: none; width: 21px; height: 21px; padding: 2px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; }
+.inspector-add .task-plus { width: 17px; height: 17px; padding: 1px; }
+/* The Completed fold's own ⋯ (Clear), quiet until the fold is hovered or the menu is open. */
+.tasks-done-more { opacity: 0; }
+.tasks-done-head:is(:hover, :focus-within) .tasks-done-more, .tasks-done-more[aria-expanded="true"], .tasks-done-more[data-popup-open] { opacity: 1; }
