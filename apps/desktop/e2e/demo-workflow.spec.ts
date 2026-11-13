@@ -133,9 +133,9 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
   model = await startModel([
     callsTool('calendar-list', { from: MEET, to: MEET }),
     callsTool('tasks-add', { list: 'Kestrel P2', text: 'Send Priya the updated P2 parts list', due: DUE, flagged: true }),
-    callsTool('calendar-suggest', { calendar: 'Calendar', title: 'P2 brake kit review with Priya', start: `${MEET}T10:00`, end: `${MEET}T10:30`, why: 'Priya asked for 10:00; it is free, right after your stand-up.' }),
+    callsTool('calendar-add', { calendar: 'Calendar', title: 'P2 brake kit review with Priya', start: `${MEET}T10:00`, end: `${MEET}T10:30` }),
     callsTool('mail-draft', { replyTo: '{{request:([0-9a-f]{8}/inbox/7)}}', body: `Hi Priya,\n\n${weekday(MEET_IN)} at 10 works. I've put it in for half an hour. You'll have the updated parts list by ${weekday(DUE_IN)}.\n\nAndrew`, why: 'Confirms the time and when the parts list will reach her.' }),
-    says(['Added the parts list to Kestrel P2, due ', weekday(DUE_IN), '.\nSuggested the brake kit review for ', weekday(MEET_IN), ' at 10:00, after your stand-up.\nDrafted a reply for you to check. Nothing is sent.']),
+    says(['Added the parts list to Kestrel P2, due ', weekday(DUE_IN), '.\nBooked the brake kit review for ', weekday(MEET_IN), ' at 10:00, after your stand-up.\nDrafted a reply for you to check. Nothing is sent.']),
   ]);
   report = { test: 'main', started: new Date().toISOString(), steps: [], approvalsAsked: [] };
   mobius = await launch(fixture.origin + '/', { newPerson: true, openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
