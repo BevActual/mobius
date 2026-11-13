@@ -86,6 +86,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'preferences.get': () => DEFAULT_PREFERENCES,
   'agent.getSettings': () => ({ baseUrl: 'https://portal.example/v1', model: 'Balanced', system: '', configured: true, hasKey: true, maxSteps: 24, keyStorage: 'session', fallbackBaseUrl: '', fallbackModel: '' }),
   'agent.question': () => null,
+  // Settings › Approvals and Browser list these: none are kept in the preview.
+  'agent.grants': () => [],
   ...PREVIEW_BROWSER,
   ...PREVIEW_CODE,
   ...PREVIEW_DESIGNS,
