@@ -133,7 +133,7 @@ export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { pl
         {row('connectors', connectorCount(status))}
       </SidebarSection>
       {(skills.list.length > 0 || naming) && (
-        <SidebarSection title="Skills" action={<button type="button" className="strip-btn" aria-label="New skill" title="New skill" onClick={() => setNaming(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg></button>}>
+        <SidebarSection title="Skills" action={<button type="button" className="strip-btn" aria-label="New skill" title="New skill (Ctrl+N)" onClick={() => setNaming(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg></button>}>
           {naming && (
             <li>
               <form className="skill-new" onSubmit={(e) => void create(e)}>
@@ -173,7 +173,7 @@ export function SkillList({ skills }: { skills: SkillsState }) {
   return (
     <section className="skills-page abl-page" aria-label="Skills">
       {!skills.available && <p className="abl-empty">Skills are not available here.</p>}
-      {skills.available && skills.list.length === 0 && <p className="abl-empty">No skills yet.</p>}
+      {skills.available && skills.list.length === 0 && <div className="abl-empty-row"><p className="abl-empty">No skills yet.</p><button type="button" className="btn" onClick={requestNewSkill}>New skill</button></div>}
       {skills.list.length > 0 && shown.length === 0 && <p className="abl-empty">No skills match “{q.trim()}”.</p>}
       {shown.length > 0 && (
         <ul role="list" className="abl-rows" aria-label="Skills">
@@ -239,8 +239,8 @@ function AppLibrary({ which, onOpenApp }: { which: 'installed' | 'available'; on
     setUndoable({ text: add ? `Added ${app.name}` : `Removed ${app.name}. Its files are kept.`, undo: () => { void change(app.id, !add); setUndoable(null); } });
   };
   const entries = (app: AppInfo) => [
-    { label: 'Open', run: () => onOpenApp?.(app.id), disabled: !onOpenApp },
-    { label: 'Remove', danger: true, separated: true, run: () => void set(app, false) },
+    { label: 'Open', keys: 'Enter', run: () => onOpenApp?.(app.id), disabled: !onOpenApp },
+    { label: 'Remove', keys: 'Delete', danger: true, separated: true, run: () => void set(app, false) },
   ];
   const icon = (app: AppInfo) => <svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon">{APP_ICONS[app.id]}</svg>;
   return (
@@ -252,12 +252,12 @@ function AppLibrary({ which, onOpenApp }: { which: 'installed' | 'available'; on
           <h2 className="abl-group-title">{group}</h2>
           <ul role="list" className="abl-rows">
             {members.map((app) => (
-              <li key={app.id} className="abl-item" onContextMenu={(e) => { if (which !== 'installed') return; e.preventDefault(); setMenu({ app, x: e.clientX, y: e.clientY }); }}>
+              <li key={app.id} className="abl-item" onKeyDown={(e) => { if (which === 'installed' && e.key === 'Delete' && e.target === e.currentTarget.querySelector('.abl-main')) { e.preventDefault(); void set(app, false); } }} onContextMenu={(e) => { if (which !== 'installed') return; e.preventDefault(); setMenu({ app, x: e.clientX, y: e.clientY }); }}>
                 {which === 'installed' && onOpenApp
                   ? <button type="button" className="abl-main" aria-label={`Open ${app.name}`} onClick={() => onOpenApp(app.id)}>{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></button>
                   : <span className="abl-main">{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></span>}
                 {which === 'installed'
-                  ? <Menu label={`${app.name} actions`} align="end" entries={entries(app)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${app.name}`} title="More"><MoreGlyph /></button>} />
+                  ? <Menu label={`${app.name} actions`} align="end" entries={entries(app)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${app.name}`} title="More actions"><MoreGlyph /></button>} />
                   : <button type="button" className="btn abl-add" aria-label={`Add ${app.name}`} onClick={() => void set(app, true)}>Add</button>}
               </li>
             ))}
@@ -267,6 +267,17 @@ function AppLibrary({ which, onOpenApp }: { which: 'installed' | 'available'; on
       {menu && <ContextMenu x={menu.x} y={menu.y} label={menu.app.name} onClose={() => setMenu(null)} items={entries(menu.app)} />}
       {undoable && <UndoToast text={undoable.text} onUndo={undoable.undo} onDismiss={() => setUndoable(null)} />}
     </>
+  );
+}
+
+/** Two grey rows while the connectors load: no spinner in content. */
+function ConnectorsLoading() {
+  return (
+    <ul className="abl-rows abl-loading" role="list" aria-label="Loading connectors" aria-busy="true">
+      {[40, 56].map((w) => (
+        <li key={w} className="abl-item"><span className="abl-main"><span className="abl-bar abl-bar-icon" /><span className="abl-text"><span className="abl-bar" style={{ width: `${w}%` }} /><span className="abl-bar" style={{ width: `${w - 16}%` }} /></span></span></li>
+      ))}
+    </ul>
   );
 }
 
@@ -302,7 +313,7 @@ function Connectors() {
     });
   };
   const sub = (r: (typeof rows)[number]) => (r.state === 'waiting' ? 'Starts when Mobius reopens' : r.state === 'failed' ? `Couldn’t start: ${r.error ?? 'unknown problem'}` : 'Connected');
-  const entries = (name: string) => [{ label: 'Remove', danger: true, run: () => void remove(name) }];
+  const entries = (name: string) => [{ label: 'Remove', keys: 'Delete', danger: true, run: () => void remove(name) }];
   return (
     <>
       {api?.addConnector && (
@@ -313,17 +324,18 @@ function Connectors() {
       {!api && <p className="abl-empty">Only the desktop app runs connectors.</p>}
       {status?.problem && <p className="field-error abl-problem" role="alert">{status.problem}</p>}
       {problem && <p className="field-error abl-problem" role="alert">{problem}</p>}
-      {api && status && rows.length === 0 && <p className="abl-empty">No connectors yet.</p>}
+      {api && !status && <ConnectorsLoading />}
+      {api && status && rows.length === 0 && <div className="abl-empty-row"><p className="abl-empty">No connectors yet.</p>{api.addConnector && <button type="button" className="btn" onClick={() => addingConnector.set(true)}>Add a connector…</button>}</div>}
       {rows.length > 0 && shown.length === 0 && <p className="abl-empty">No connectors match “{q.trim()}”.</p>}
       {shown.length > 0 && (
         <ul className="abl-rows" role="list" aria-label="Connectors">
           {shown.map((r) => (
-            <li key={r.name} className="abl-item" aria-label={r.name} onContextMenu={(e) => { if (!api?.removeConnector) return; e.preventDefault(); setMenu({ name: r.name, x: e.clientX, y: e.clientY }); }}>
+            <li key={r.name} className="abl-item" aria-label={r.name} tabIndex={api?.removeConnector ? 0 : undefined} onKeyDown={(e) => { if (e.key === 'Delete' && e.target === e.currentTarget && api?.removeConnector) { e.preventDefault(); void remove(r.name); } }} onContextMenu={(e) => { if (!api?.removeConnector) return; e.preventDefault(); setMenu({ name: r.name, x: e.clientX, y: e.clientY }); }}>
               <span className="abl-main">
                 <span className="abl-icon-wrap"><svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon"><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></svg><span className="abl-dot" data-state={r.state} aria-hidden="true" /></span>
                 <span className="abl-text"><span className="abl-name">{r.name}</span><span className={r.state === 'failed' ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
               </span>
-              {api?.removeConnector && <Menu label={`${r.name} actions`} align="end" entries={entries(r.name)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${r.name}`} title="More"><MoreGlyph /></button>} />}
+              {api?.removeConnector && <Menu label={`${r.name} actions`} align="end" entries={entries(r.name)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${r.name}`} title="More actions"><MoreGlyph /></button>} />}
             </li>
           ))}
         </ul>

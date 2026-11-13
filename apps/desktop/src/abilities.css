@@ -18,7 +18,7 @@
 .abl-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 8px 0; color: inherit; text-align: left; background: none; border: 0; font: inherit; }
 button.abl-main { cursor: default; }
 button.abl-main:hover, button.abl-main:active { background: none; }
-button.abl-main:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+button.abl-main:focus-visible, .abl-item:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; border-radius: 6px; }
 
 /* A line icon in the ink, never a tinted tile. */
 .abl-icon { flex: none; width: 20px; height: 20px; fill: none; stroke: var(--body, var(--ink)); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -26,12 +26,12 @@ button.abl-main:focus-visible { outline: 2px solid var(--accent); outline-offset
 .abl-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .abl-name { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .abl-sub { color: var(--muted); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.abl-error { color: var(--danger, #d70015); }
+.abl-error { color: var(--danger); }
 
 /* A connector's state: a small dot on its icon's corner. Waiting is a ring. */
 .abl-dot { position: absolute; right: -3px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); box-shadow: 0 0 0 2px var(--paper, var(--bg)); }
-.abl-dot[data-state="on"] { background: #34c759; }
-.abl-dot[data-state="failed"] { background: var(--danger, #ff3b30); }
+.abl-dot[data-state="on"] { background: var(--success); }
+.abl-dot[data-state="failed"] { background: var(--danger); }
 .abl-dot[data-state="waiting"] { background: var(--paper, var(--bg)); box-shadow: inset 0 0 0 1.5px var(--muted), 0 0 0 2px var(--paper, var(--bg)); }
 
 /* The row's trailing control: Add, or ⋯ (shown on hover or focus, and always for touch). */
@@ -59,9 +59,17 @@ button.abl-main:focus-visible { outline: 2px solid var(--accent); outline-offset
 .abl-field > span { flex: 0 0 92px; font-weight: var(--fw-medium); }
 .abl-field input, .abl-key input { flex: 1; min-width: 0; height: 26px; padding: 0 8px; border: 0.5px solid var(--hairline); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
 .abl-field input[aria-invalid="true"] { border-color: var(--danger); }
-.abl-field input:focus-visible, .abl-key input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.abl-field input:focus-visible, .abl-key input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .abl-keys { display: grid; gap: 6px; }
 .abl-keys-empty { margin: 0 0 0 14px; }
 .abl-key { min-height: 40px; gap: 8px; }
 .abl-spacer { flex: 1; }
 .btn.abl-link { border: 0; background: none; box-shadow: none; padding-left: 0; color: var(--accent); }
+
+/* An empty list: one plain line and its action. */
+.abl-empty-row { display: flex; align-items: center; gap: var(--sp-3); padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.abl-empty-row .abl-empty { padding: 0; flex: 1; }
+/* Loading: grey bars the shape of the rows that are coming. */
+.abl-loading .abl-item:hover { background: none; }
+.abl-bar { display: block; height: 10px; border-radius: 5px; background: var(--soft); }
+.abl-bar-icon { flex: none; width: 20px; height: 20px; border-radius: 5px; }
