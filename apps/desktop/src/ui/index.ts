@@ -13,3 +13,4 @@ export { AppSidebar, SidebarSearch, SidebarSection, SidebarRow } from './AppSide
 export { PanelLayout, PanelsMenu, DOCK_SIZE, type PanelSpec, type PanelDock, type PanelsOfApp } from './PanelLayout';
 export { PanelTab, PanelTabsProvider, RightPanelTabs, useShowPanelTab } from './PanelTabs';
 export { AppMenu, AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';
+export { TooltipLayer, KeyCaps, splitTitle } from './Tooltip';
