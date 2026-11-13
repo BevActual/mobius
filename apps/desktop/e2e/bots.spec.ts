@@ -48,9 +48,13 @@ const say = async (text: string) => {
     await expect(log().locator('.msg.user').filter({ hasText: text })).toHaveCount(1, { timeout: 2000 });
   }).toPass({ timeout: 15_000 });
 };
-/** Agents and the Agent app's sessions open from the rail (Agents at its foot), not from tabs in the sidebar. */
+/** Agents opens from All apps and the Agent app's sessions from Home in the rail, not from tabs in the sidebar. */
 const railApps = (): Locator => shell().getByRole('navigation', { name: 'Apps' });
-const tab = (name: 'Agents' | 'Sessions') => (name === 'Agents' ? railApps().locator('.rail-end').getByRole('button', { name: 'Agents', exact: true }) : railApps().getByRole('button', { name: 'Agent', exact: true }));
+const tab = (name: 'Agents' | 'Sessions') => railApps().getByRole('button', { name: name === 'Agents' ? 'Agents' : 'Home', exact: true });
+const openAgents = async () => {
+  await railApps().locator('[data-app-library]').click();
+  await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Agents', exact: true }).click();
+};
 /** An agent's action, from its row's More menu. */
 const fromMenu = async (agent: string, item: string) => {
   // A menu still closing would make the More button close it again rather than open it: wait until none is open.
@@ -65,7 +69,7 @@ const fromMenu = async (agent: string, item: string) => {
   }
 };
 async function newBot(name: string, instructions = '', modelName = ''): Promise<void> {
-  await tab('Agents').click();
+  await openAgents();
   await list().getByRole('button', { name: 'New agent' }).click();
   const form = list().getByRole('form', { name: 'New agent' });
   await form.getByLabel('Name').fill(name);
@@ -81,7 +85,7 @@ async function newBot(name: string, instructions = '', modelName = ''): Promise<
 test('the side list switches between sessions and bots, and starts with Mobius alone', async () => {
   await start();
   await expect(tab('Sessions')).toHaveAttribute('aria-current', 'page');
-  await tab('Agents').click();
+  await openAgents();
   await expect(tab('Agents')).toHaveAttribute('aria-current', 'page');
   const rows = list().getByRole('region', { name: 'Agents' }).getByRole('listitem');
   await expect(rows).toHaveCount(1);
@@ -106,7 +110,7 @@ test('a bot is made, its sessions use its instructions and model, and other sess
   expect(JSON.stringify(first.messages)).toContain('Always cite sources.');
   // A plain session keeps the usual setup.
   await shell().getByRole('button', { name: 'Create' }).click();
-  await tab('Agents').click();
+  await openAgents();
   await fromMenu('Mobius', 'New session');
   await say('hello plain');
   await expect(log().locator('.msg.assistant')).toHaveText('plain answer');
@@ -126,7 +130,7 @@ test('sessions are grouped under their bot and a bot opens its latest session', 
   await expect(list().getByRole('heading', { name: 'Mobius' })).toBeVisible();
   await expect(list().getByRole('region', { name: 'Writer' })).toContainText('writer question');
   await expect(list().getByRole('region', { name: 'Mobius' })).toContainText('plain question');
-  await tab('Agents').click();
+  await openAgents();
   await list().getByRole('button', { name: /^Mobius/ }).first().click();
   await expect(log().locator('.msg.user')).toHaveText('plain question');
 });
@@ -134,7 +138,7 @@ test('sessions are grouped under their bot and a bot opens its latest session', 
 test('a bot can be renamed and its instructions changed, and the next message uses them', async () => {
   await start([says(['ok'])]);
   await newBot('Helper', 'Old rules.');
-  await tab('Agents').click();
+  await openAgents();
   await fromMenu('Helper', 'Edit…');
   const form = list().getByRole('form', { name: 'Edit agent' });
   await form.getByLabel('Name').fill('Coach');
@@ -152,7 +156,7 @@ test('a bot can be renamed and its instructions changed, and the next message us
 test('a name already in use or an empty one is refused with a reason', async () => {
   await start();
   await newBot('Twin');
-  await tab('Agents').click();
+  await openAgents();
   await list().getByRole('button', { name: 'New agent' }).click();
   const form = list().getByRole('form', { name: 'New agent' });
   await expect(form.getByRole('button', { name: 'Create' })).toBeDisabled();
@@ -169,11 +173,11 @@ test('removing a bot asks first, takes its sessions with it, and leaves the othe
   await say('to the bot');
   await expect(log().locator('.msg.assistant')).toHaveText('bot said');
   await shell().getByRole('button', { name: 'Create' }).click().catch(() => undefined);
-  await tab('Agents').click();
+  await openAgents();
   await fromMenu('Mobius', 'New session');
   await say('to mobius');
   await expect(log().locator('.msg.assistant')).toHaveText('plain said');
-  await tab('Agents').click();
+  await openAgents();
   await fromMenu('Temp', 'Remove…');
   await expect(list()).toContainText('Remove Temp and its session?');
   await list().getByRole('button', { name: 'Keep' }).click();
@@ -195,7 +199,7 @@ test('bots and their sessions are still there after a restart', async () => {
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model!.url, MOBIUS_AGENT_MODEL: 'chat-model' } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openApp('Agent');
-  await tab('Agents').click();
+  await openAgents();
   await expect(list().getByRole('region', { name: 'Agents' })).toContainText('Keeper');
   await expect(list().getByRole('region', { name: 'Agents' })).toContainText('keeper-model');
   await tab('Sessions').click();
@@ -244,7 +248,7 @@ test('searching the sessions shows only matches, even inside a folded group', as
 test('bots can be moved up and down, Mobius stays first, and the order is kept', async () => {
   await start();
   for (const name of ['Alpha', 'Beta', 'Gamma']) await newBot(name);
-  await tab('Agents').click();
+  await openAgents();
   const names = async () => (await list().getByRole('region', { name: 'Agents' }).locator('.clist-title').allTextContents());
   await expect.poll(names).toEqual(['Mobius', 'Alpha', 'Beta', 'Gamma']);
   const menuItem = async (agent: string, item: string) => {
@@ -271,7 +275,7 @@ test('bots can be moved up and down, Mobius stays first, and the order is kept',
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model!.url, MOBIUS_AGENT_MODEL: 'chat-model' } });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openApp('Agent');
-  await tab('Agents').click();
+  await openAgents();
   await expect.poll(names).toEqual(['Mobius', 'Gamma', 'Alpha', 'Beta']);
 });
 

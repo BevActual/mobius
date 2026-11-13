@@ -68,11 +68,11 @@ export const OWN_ICONS: Record<OwnApp['id'], ReactNode> = {
 };
 
 interface Props {
-  /** Agents, Activity, Abilities and Settings: Mobius's own apps, at the foot of the rail. */
+  /** Agents, Activity, Abilities and Settings: Mobius's own apps. Settings sits at the foot; the others open from All
+   *  apps and show in the rail only while they are the one showing. */
   ownApps?: readonly OwnApp[];
-  /** The open profile's name, when it is not Personal. */
-  profile?: string;
-  onProfiles?: () => void;
+  /** The Mobius panel, at the foot of the rail with Settings. */
+  mobius?: { open: boolean; toggle: () => void };
   app: AppId;
   onOpen: (id: AppId) => void;
   /** What the agent is doing now: the app it is working in shows it, live. */
@@ -93,12 +93,19 @@ interface Props {
   onEditApps?: () => void;
 }
 
+/** Home's mark in the rail: a house, a line drawing like the rest. */
+const HOME_ICON = <><path d="M3.5 9 10 3.5 16.5 9" /><path d="M5 7.8V16h10V7.8" /></>;
+/** Home and Search lead the rail, above a hairline; the person's apps follow. */
+const LEAD: readonly AppId[] = ['agent', 'search'];
+const railName = (id: AppId, name: string) => (id === 'agent' ? 'Home' : name);
+
 /**
- * Zone 1 of the frame (docs/design/panel-layouts.md): a slim rail of icons that never moves. The person's apps at the
- * top, then All apps; Mobius's own apps and Settings at the foot. The name of each shows on hover. The app the agent
- * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
+ * Zone 1 of the frame (docs/design/panel-layouts.md): a slim rail of icons that never moves. Home and Search, a
+ * hairline, the person's apps, then All apps; an app opened from All apps shows its own icon, lit, while it is open.
+ * Mobius and Settings at the foot. The name of each shows on hover. The app the agent is working in glows while it
+ * works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, ownApps = [], onOpen, activity, changed, needsYou, onLauncher, launcherKeys = '', settingsKeys = '', settingsOpen, apps, onApps, onEditApps, profile, onProfiles }: Props) {
+export function Rail({ app, ownApps = [], mobius, onOpen, activity, changed, needsYou, onLauncher, launcherKeys = '', settingsKeys = '', settingsOpen, apps, onApps, onEditApps }: Props) {
   // While an app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
   const dragged = useRef(false);
@@ -108,6 +115,8 @@ export function Rail({ app, ownApps = [], onOpen, activity, changed, needsYou, o
   // Only the apps added from Abilities (and Home) are listed.
   const listed = (chosen ? RAIL_APPS.filter((a) => chosen.includes(a.id)).sort((a, b) => chosen.indexOf(a.id) - chosen.indexOf(b.id)) : RAIL_APPS).filter((a) => isInstalled(a.id));
   const order = listed.map((a) => a.id);
+  const lead = listed.filter((a) => LEAD.includes(a.id));
+  const rest = listed.filter((a) => !LEAD.includes(a.id));
   // Right-click an app (or Shift+F10) to move or hide it.
   const [menu, setMenu] = useState<{ id: AppId; x: number; y: number } | null>(null);
   // After the app changes under a pointer that has not moved, the button now under it is not "hovered".
@@ -121,48 +130,71 @@ export function Rail({ app, ownApps = [], onOpen, activity, changed, needsYou, o
     [next[at], next[to]] = [next[to]!, next[at]!];
     onApps?.(next);
   };
-  const ownCurrent = ownApps.some((o) => o.current);
+  const ownCurrent = ownApps.some((o) => o.current && o.id !== 'settings');
+  // An app opened from All apps (or one of Mobius's own) shows in the rail, lit, while it is the one showing.
+  const ownShowing = ownApps.find((o) => o.current && o.id !== 'settings');
+  const settings = ownApps.find((o) => o.id === 'settings');
+  const visiting = !settingsOpen && !ownShowing && !order.includes(app) ? app : null;
   const here = (o: { current: boolean }) => o.current && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />;
+  const appItem = ({ id, name }: { id: AppId; name: string }, reorder: boolean) => {
+    // The Agent app showing Agents or Activity is that app, not Agent.
+    const current = app === id && !settingsOpen && !(id === 'agent' && ownCurrent);
+    const working = activity !== null && (activity.app === id || (id === 'agent' && activity.app === null && app !== 'agent'));
+    const waiting = id === 'agent' ? needsYou : 0;
+    return (
+      <Reorder.Item as="li" key={id} value={id} drag={reorder && onApps ? 'y' : false} dragListener={reorder && Boolean(onApps)}
+        onDragStart={() => { dragged.current = true; }}
+        onDragEnd={() => { const next = latestDrag.current; if (next) onApps?.(next); setDragOrder(null); window.setTimeout(() => { dragged.current = false; }, 0); }}>
+        <button
+          type="button"
+          className="rail-btn"
+          aria-label={railName(id, name)}
+          aria-current={current ? 'page' : undefined}
+          data-working={working || undefined}
+          data-changed={(changed.has(id) && !current) || undefined}
+          title={railName(id, name)}
+          onClick={() => { if (!dragged.current) onOpen(id); }}
+          onKeyDown={onApps ? (event) => {
+            // Alt+Up and Alt+Down move the focused app; focus stays with it.
+            if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+            event.preventDefault();
+            move(id, event.key === 'ArrowUp' ? -1 : 1);
+            const button = event.currentTarget;
+            requestAnimationFrame(() => button.focus());
+          } : undefined}
+          aria-keyshortcuts={onApps ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
+          onContextMenu={onApps ? (event) => { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); setMenu({ id, x: event.clientX || r.right, y: event.clientY || r.top }); } : undefined}
+        >
+          {here({ current })}
+          <svg viewBox="0 0 20 20" aria-hidden="true" data-app={id}>{id === 'agent' ? HOME_ICON : APP_ICONS[id]}</svg>
+          {waiting > 0 && <span className="rail-badge" role="status" aria-label={`${waiting} waiting for you`}>{waiting}</span>}
+        </button>
+      </Reorder.Item>
+    );
+  };
   return (
     <nav className="rail" aria-label="Apps" data-pointer-still={still || undefined} onPointerMove={still ? () => setStill(false) : undefined}>
-      <Reorder.Group as="ul" axis="y" role="list" className="rail-apps" values={order} onReorder={(next: AppId[]) => { if (onApps) setDragOrder(next); }}>
-        {listed.map(({ id, name }) => {
-          // The Agent app showing Agents or Activity is that app, not Agent.
-          const current = app === id && !settingsOpen && !(id === 'agent' && ownCurrent);
-          const working = activity !== null && (activity.app === id || (id === 'agent' && activity.app === null && app !== 'agent'));
-          const waiting = id === 'agent' ? needsYou : 0;
-          return (
-            <Reorder.Item as="li" key={id} value={id} drag={onApps ? 'y' : false} dragListener={Boolean(onApps)}
-              onDragStart={() => { dragged.current = true; }}
-              onDragEnd={() => { const next = latestDrag.current; if (next) onApps?.(next); setDragOrder(null); window.setTimeout(() => { dragged.current = false; }, 0); }}>
-              <button
-                type="button"
-                className="rail-btn"
-                aria-label={name}
-                aria-current={current ? 'page' : undefined}
-                data-working={working || undefined}
-                data-changed={(changed.has(id) && !current) || undefined}
-                title={name}
-                onClick={() => { if (!dragged.current) onOpen(id); }}
-                onKeyDown={onApps ? (event) => {
-                  // Alt+Up and Alt+Down move the focused app; focus stays with it.
-                  if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
-                  event.preventDefault();
-                  move(id, event.key === 'ArrowUp' ? -1 : 1);
-                  const button = event.currentTarget;
-                  requestAnimationFrame(() => button.focus());
-                } : undefined}
-                aria-keyshortcuts={onApps ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
-                onContextMenu={onApps ? (event) => { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); setMenu({ id, x: event.clientX || r.right, y: event.clientY || r.top }); } : undefined}
-              >
-                {here({ current })}
-                <svg viewBox="0 0 20 20" aria-hidden="true" data-app={id}>{APP_ICONS[id]}</svg>
-                {waiting > 0 && <span className="rail-badge" role="status" aria-label={`${waiting} waiting for you`}>{waiting}</span>}
-              </button>
-            </Reorder.Item>
-          );
-        })}
+      {lead.length > 0 && (
+        <Reorder.Group as="ul" axis="y" role="list" className="rail-apps rail-lead" values={lead.map((a) => a.id)} onReorder={() => undefined}>
+          {lead.map((a) => appItem(a, false))}
+        </Reorder.Group>
+      )}
+      {lead.length > 0 && rest.length > 0 && <hr className="rail-rule" aria-hidden="true" />}
+      <Reorder.Group as="ul" axis="y" role="list" className="rail-apps" values={rest.map((a) => a.id)} onReorder={(next: AppId[]) => { if (onApps) setDragOrder([...lead.map((a) => a.id), ...next]); }}>
+        {rest.map((a) => appItem(a, true))}
       </Reorder.Group>
+      {visiting && (
+        <button type="button" className="rail-btn" data-visiting aria-label={appName(visiting)} aria-current="page" title={appName(visiting)} onClick={() => onOpen(visiting)}>
+          {here({ current: true })}
+          <svg viewBox="0 0 20 20" aria-hidden="true" data-app={visiting}>{APP_ICONS[visiting]}</svg>
+        </button>
+      )}
+      {ownShowing && (
+        <button type="button" className="rail-btn" data-own={ownShowing.id} aria-label={ownShowing.name} aria-current="page" title={ownShowing.name} onClick={ownShowing.run}>
+          {here(ownShowing)}
+          <svg viewBox="0 0 20 20" aria-hidden="true">{OWN_ICONS[ownShowing.id]}</svg>
+        </button>
+      )}
       <button type="button" className="rail-btn" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${RAIL_APPS.find((a) => a.id === app)?.name ?? appName(app)}`} title={withKeys('All apps and commands', launcherKeys)} onClick={onLauncher}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="4" width="4.5" height="4.5" rx="1" /><rect x="11.5" y="4" width="4.5" height="4.5" rx="1" /><rect x="4" y="11.5" width="4.5" height="4.5" rx="1" /><rect x="11.5" y="11.5" width="4.5" height="4.5" rx="1" /></svg>
       </button>
@@ -175,17 +207,17 @@ export function Rail({ app, ownApps = [], onOpen, activity, changed, needsYou, o
         ]} />
       )}
       <div className="rail-end">
-        {profile && onProfiles && (
-          <button type="button" className="rail-btn rail-profile" aria-label={`Profile: ${profile}. Change profile`} title={`Profile: ${profile}`} onClick={onProfiles}>
-            <span className="rail-profile-badge" aria-hidden="true">{profile.slice(0, 1).toUpperCase()}</span>
+        {mobius && (
+          <button type="button" className="rail-btn rail-mobius" aria-label="Mobius" aria-pressed={mobius.open} title={mobius.open ? 'Hide Mobius' : 'Ask Mobius, beside the work'} onClick={mobius.toggle}>
+            <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
           </button>
         )}
-        {ownApps.map((o) => (
-          <button key={o.id} type="button" className="rail-btn" data-own={o.id} aria-label={o.name} aria-current={o.current ? 'page' : undefined} title={o.id === 'settings' ? withKeys(o.name, settingsKeys) : o.name} onClick={o.run}>
-            {here(o)}
-            <svg viewBox="0 0 20 20" aria-hidden="true">{OWN_ICONS[o.id]}</svg>
+        {settings && (
+          <button type="button" className="rail-btn" data-own="settings" aria-label={settings.name} aria-current={settings.current ? 'page' : undefined} title={withKeys(settings.name, settingsKeys)} onClick={settings.run}>
+            {here(settings)}
+            <svg viewBox="0 0 20 20" aria-hidden="true">{OWN_ICONS.settings}</svg>
           </button>
-        ))}
+        )}
       </div>
     </nav>
   );
