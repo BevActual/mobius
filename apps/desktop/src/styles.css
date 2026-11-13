@@ -2756,3 +2756,18 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .from-mobius-filter { color: var(--ink); font-weight: var(--fw-regular); }
 .from-mobius-filter .from-mobius-count { flex: none; font-size: var(--fs-sm); color: var(--mobius); }
 .dock.left .from-mobius { border-top: 0; padding-top: 0; }
+
+/* One Mobius change block in every app (frame review): the dashed indigo edge Docs draws round a change, on the page's
+   own paper, with no tint and no dot; who changed it in small indigo words, then Discard, Try another and Keep. */
+:is(.note-review, .files-review, .studio-review, .skill-review, .design-review, .photo-review) { background: var(--paper); border: 1px dashed var(--mobius); border-radius: 6px; outline: 0; box-shadow: none; }
+:is(.note-review, .files-review, .studio-review, .skill-review, .design-review, .photo-review) .review-dot { display: none; }
+.note-review .note-review-text, .skill-review-head > span:nth-child(2), :is(.files-review, .studio-review, .design-review, .photo-review) > span:not(.review-problem) { font-size: var(--fs-xs); color: var(--mobius); }
+:is(.note-review, .files-review, .studio-review, .skill-review, .design-review, .photo-review) .review-why { color: var(--muted); }
+:is(.note-review, .files-review, .studio-review, .skill-review, .design-review, .photo-review) .review-btn { height: 24px; padding: 0 10px; font-size: var(--fs-xs); }
+/* The line under a change block, in every app: who changed it, then Discard, Try another and Keep. */
+.doc-change-bar { display: flex; align-items: center; gap: 6px; }
+.doc-change-bar span { margin-right: auto; font-size: var(--fs-xs); color: var(--mobius); }
+.doc-change-bar .review-btn { height: 24px; padding: 0 10px; font-size: var(--fs-xs); }
+.task-items > .task-change { list-style: none; margin: 6px 0 10px; }
+.task[data-proposed] { outline: 1px dashed var(--mobius); outline-offset: -1px; border-radius: 6px; }
+.task[data-proposed] > .task-line { outline: 0; }
