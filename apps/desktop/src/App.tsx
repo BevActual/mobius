@@ -55,7 +55,7 @@ import { useTerminal } from './useTerminal';
 import { ReviewPage, ReviewSidebar, useReview } from './Review';
 import { BrowserChrome, BrowserPage, BrowserSidebar } from './Browser';
 import { PhotoEditor, PhotoSidebar } from './Photo';
-import { StudioEditor, StudioSidebar } from './Studio';
+import { StudioEditor, StudioSidebar, StudioSub } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
 import { SkillEditor } from './Skills';
 import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
@@ -1111,7 +1111,7 @@ export function App() {
       },
       studio: {
         newSong: () => createActions.find((a) => a.id === 'song')!.run(),
-        play: () => (document.querySelector<HTMLButtonElement>('.studio-transport .btn.primary'))?.click(),
+        play: () => (document.querySelector<HTMLButtonElement>('.studio-play'))?.click(), // Music (marked): the toolbar's Play
       },
       photo: {
         newAlbum: () => void photos.createAlbum('Album'),
@@ -1566,6 +1566,7 @@ export function App() {
           : inCalendar ? (eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
           : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
           : inFiles ? filesSub(files) // Files: how many items
+          : inStudio && songs.page ? <StudioSub songs={songs} /> // Music (marked, Music's own): the song's key and whether it is saved
           : undefined,
         middle: <>
         {inBrowser && !settingsOpen && browserChrome}

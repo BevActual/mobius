@@ -32,10 +32,14 @@ function file() { return path.join(userData, 'workspace', 'studio', 'Songs', 'Ni
 const saved = () => JSON.parse(fs.readFileSync(file(), 'utf8')) as typeof SONG;
 const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
 
-/** Adds a track from the Add Track menu. */
+/** Adds a track from Sounds in the sidebar. */
 async function addTrack(name: string): Promise<void> {
-  await shell().getByRole('button', { name: 'Add Track' }).click();
-  await shell().getByRole('menu', { name: 'Add a track' }).getByRole('menuitem', { name }).click();
+  await shell().getByRole('complementary', { name: 'Music sidebar' }).getByRole('region', { name: 'Sounds' }).getByRole('button', { name, exact: true }).click();
+}
+/** Opens the notes editor on a track, with a double-click on its first clip. */
+async function openNotes(name: string): Promise<void> {
+  await tracks().getByRole('listitem', { name }).getByRole('button', { name: new RegExp(`^${name}, bars? 1`) }).dblclick();
+  await expect(shell().getByRole('grid', { name: `Notes of ${name}` })).toBeVisible();
 }
 
 async function start(replies: ModelReply[] = []): Promise<void> {
@@ -47,6 +51,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().keyboard.press('Enter');
   await shell().getByRole('button', { name: 'Night Drive', exact: true }).click();
   await expect(tracks().getByRole('listitem', { name: 'Keys' })).toBeVisible();
+  await openNotes('Keys');
 }
 
 test('a song is tracks of notes: added by clicking, with tracks to add, mute and play', async () => {
@@ -66,10 +71,18 @@ test('a song is tracks of notes: added by clicking, with tracks to add, mute and
   await shell().getByRole('spinbutton', { name: 'Tempo' }).fill('96');
   await expect.poll(() => saved().tempo).toBe(96);
 
+  // The Device panel sets how the chosen track sounds, kept in the song.
+  await tracks().getByRole('listitem', { name: 'Keys' }).click();
+  const cutoff = shell().getByRole('region', { name: 'Device' }).getByRole('slider', { name: 'Cutoff' });
+  await cutoff.focus();
+  await shell().keyboard.press('ArrowLeft');
+  await expect.poll(() => (saved().tracks[0] as { sound?: { cutoff: number } }).sound?.cutoff).toBeLessThan(5000);
+
   await shell().getByRole('button', { name: 'Play' }).click();
-  await expect(shell().getByRole('button', { name: 'Stop' })).toBeVisible();
-  await expect(shell().getByLabel('Position')).not.toHaveText('1.1BAR', { timeout: 5000 });
+  await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
+  await expect(shell().getByLabel('Position')).not.toHaveText('1 . 1 . 1', { timeout: 5000 });
   await shell().getByRole('button', { name: 'Stop' }).click();
+  await expect(shell().getByRole('button', { name: 'Play' })).toBeVisible();
 });
 
 test('notes are moved, stretched, picked with a box and deleted, and Undo takes each step back', async () => {
@@ -111,10 +124,11 @@ test('notes are moved, stretched, picked with a box and deleted, and Undo takes 
   await expect(shell().getByRole('toolbar', { name: 'Notes' })).toContainText('2 notes');
   await roll.press('Delete');
   await expect.poll(() => saved().tracks[0]!.notes.map((n) => n.pitch)).toEqual([66]);
-  // A track duplicated, then taken back.
-  await tracks().getByRole('button', { name: 'Duplicate Keys' }).click();
+  // A track duplicated from its menu, then taken back.
+  await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Keys' }).getByRole('menuitem', { name: 'Duplicate' }).click();
   await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys', 'Keys copy']);
-  await shell().getByRole('button', { name: 'Undo' }).click();
+  await roll.press('Control+z');
   await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys']);
 });
 
@@ -177,7 +191,8 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   // Dragging along the top of the ruler from bar 2 to bar 3 loops those bars; the ruler's menu loops the whole song again.
   const ruler = shell().getByRole('slider', { name: 'Playhead' });
   const r = (await ruler.boundingBox())!;
-  const bar = 4 * 28;
+  // The arrangement fits the song across the window, so a bar is a quarter of this four-bar song's ruler.
+  const bar = r.width / 4;
   await shell().mouse.move(r.x + bar * 1.5, r.y + 4);
   await shell().mouse.down();
   await shell().mouse.move(r.x + bar * 2.5, r.y + 4, { steps: 4 });
@@ -193,4 +208,7 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Keys' }).getByRole('menuitem', { name: 'Delete Track' }).click();
   await expect.poll(() => saved().tracks.length).toBe(0);
+  // Deleting says what went, with Undo to bring it back.
+  await shell().getByRole('status').filter({ hasText: 'Deleted “Keys”' }).getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys']);
 });
