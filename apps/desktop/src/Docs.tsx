@@ -29,8 +29,11 @@ import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { Menu, ToolbarControls, UndoToast } from './ui';
+import { Menu, ToolbarControls, UndoToast, type MenuEntry } from './ui';
+import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
+import { relativeTime } from './relative-time';
+import { publishOutline } from './docs-outline';
 import './docs.css';
 
 export const DEFAULT_FOLDER = 'Documents';
@@ -82,6 +85,47 @@ const readOutline = () => { try { return window.localStorage.getItem(OUTLINE_KEY
 const COUNT_NEXT: Record<CountShown, string> = { words: 'characters', characters: 'reading time', minutes: 'words' };
 const COUNT_KEY = 'mobius.docs.count';
 const readCount = (): CountShown => { try { const v = window.localStorage.getItem(COUNT_KEY); return COUNT_ORDER.includes(v as CountShown) ? v as CountShown : 'words'; } catch { return 'words'; } };
+
+/** The quiet line under the title ("Edited just now · 148 words"), drawn in the page after the first heading, as the
+ *  timeless mock has it. Its count is a button that shows the next count. Read from `look` when told to look again. */
+interface MetaLine { text: string; count: string; next: string; onCount: () => void }
+const metaKey = new PluginKey<DecorationSet>('doc-meta');
+function metaDecorations(doc: PmNode, look: () => MetaLine | null): DecorationSet {
+  const line = look();
+  if (!line) return DecorationSet.empty;
+  const first = doc.firstChild;
+  // After the title when the document starts with one; otherwise at the top.
+  const at = first && first.type.name === 'heading' && Number(first.attrs.level) === 1 ? first.nodeSize : 0;
+  const draw = () => {
+    const p = document.createElement('p');
+    p.className = 'doc-meta';
+    p.contentEditable = 'false';
+    if (line.text) p.append(`${line.text} · `);
+    const count = document.createElement('button');
+    count.type = 'button';
+    count.className = 'doc-meta-count';
+    count.title = `Show ${line.next} instead`;
+    count.textContent = line.count;
+    count.addEventListener('mousedown', (e) => e.preventDefault());
+    count.addEventListener('click', () => look()?.onCount());
+    p.append(count);
+    return p;
+  };
+  return DecorationSet.create(doc, [Decoration.widget(at, draw, { side: -10, key: `meta:${line.text}:${line.count}`, ignoreSelection: true, stopEvent: () => true })]);
+}
+const docMeta = (look: () => MetaLine | null) => Extension.create({
+  name: 'docMeta',
+  addProseMirrorPlugins() {
+    return [new Plugin<DecorationSet>({
+      key: metaKey,
+      state: {
+        init: (_, state) => metaDecorations(state.doc, look),
+        apply: (tr, old) => (tr.docChanged || tr.getMeta(metaKey) ? metaDecorations(tr.doc, look) : old),
+      },
+      props: { decorations: (state) => metaKey.getState(state) },
+    })];
+  },
+});
 
 /** The words open comments are about, marked in the page. `quotes` is read when the plugin is told to look again. */
 const commentKey = new PluginKey<DecorationSet>('doc-comments');
@@ -166,7 +210,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
     editor,
     selector: ({ editor: e }) => ({
       style: e.isActive('heading', { level: 1 }) ? 'h1' : e.isActive('heading', { level: 2 }) ? 'h2' : e.isActive('heading', { level: 3 }) ? 'h3' : e.isActive('codeBlock') ? 'code' : 'p',
-      bold: e.isActive('bold'), italic: e.isActive('italic'), strike: e.isActive('strike'), code: e.isActive('code'), link: e.isActive('link'),
+      bold: e.isActive('bold'), italic: e.isActive('italic'), underline: e.isActive('underline'), strike: e.isActive('strike'), code: e.isActive('code'), link: e.isActive('link'),
       bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), task: e.isActive('taskList'), quote: e.isActive('blockquote'), table: e.isActive('table'),
       empty: e.state.selection.empty,
     }),
@@ -185,6 +229,87 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
   const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
   const marked = state.bold || state.italic || state.strike || state.code || state.style !== 'p' || state.bullet || state.ordered || state.quote || state.task;
   const tableIcon = <Icon><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></Icon>;
+  const tableRows: MenuEntry[] = [
+    { label: 'Add a row above', run: run((c) => c.addRowBefore()) },
+    { label: 'Add a row below', run: run((c) => c.addRowAfter()) },
+    { label: 'Add a column before', run: run((c) => c.addColumnBefore()) },
+    { label: 'Add a column after', run: run((c) => c.addColumnAfter()) },
+    { label: 'Delete the row', run: run((c) => c.deleteRow()), separated: true },
+    { label: 'Delete the column', run: run((c) => c.deleteColumn()) },
+    { label: 'Delete the table', run: run((c) => c.deleteTable()), danger: true },
+  ];
+  if (inFrame) {
+    // The timeless toolbar (Docs on the frame): the style, B I U, then lists, table and link, then Share and ⋯. What is
+    // used less often is in ⋯: the other lists and marks, Insert, Mobius's writing tools and the document's options.
+    const styleName = STYLES.find((s) => s.id === state.style)?.label ?? 'Body';
+    const tick = (on: boolean) => (on ? <Icon d="m5 10.5 3.2 3L15 6.5" /> : undefined);
+    const mobiusIcon = <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>;
+    const btn = (label: string, title: string, pressed: boolean | undefined, onClick: () => void, icon: ReactNode, extra: { gives?: boolean } = {}) => (
+      <button type="button" className="strip-btn doc-bar-btn" aria-label={label} title={title} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })} data-gives-way={extra.gives || undefined} onPointerDown={keep} onClick={onClick}>{icon}</button>
+    );
+    const more: MenuEntry[] = [
+      { label: 'Numbered list', icon: tick(state.ordered), keys: `${mod}Shift+7`, run: run((c) => c.toggleOrderedList()) },
+      { label: 'Checklist', icon: tick(state.task), keys: `${mod}Shift+9`, run: run((c) => c.toggleTaskList()) },
+      { label: 'Quote', icon: tick(state.quote), keys: `${mod}Shift+B`, run: run((c) => c.toggleBlockquote()) },
+      { label: 'Strikethrough', icon: tick(state.strike), keys: `${mod}Shift+S`, run: run((c) => c.toggleStrike()) },
+      { label: 'Code', icon: tick(state.code), keys: `${mod}E`, run: run((c) => c.toggleCode()) },
+      // Also here for when the toolbar is too narrow for its own Underline, Table and Link.
+      { label: 'Underline', icon: tick(state.underline), keys: `${mod}U`, run: run((c) => c.toggleUnderline()) },
+      { label: state.link ? 'Remove the link' : 'Add a link…', run: () => (state.link ? editor.chain().focus().extendMarkRange('link').unsetLink().run() : extras.onLink()), separated: true },
+      { label: 'Insert a table', icon: tableIcon, run: run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true })) },
+      ...(extras.onFile ? [{ label: 'Insert a picture or file…', run: extras.onFile }] : []),
+      { label: 'Insert a divider', run: run((c) => c.setHorizontalRule()) },
+      { label: 'Insert a code block', run: run((c) => c.toggleCodeBlock()) },
+      // Mobius's writing tools: on the chosen words, or the whole document when none are chosen.
+      ...(onTool ? WRITING_TOOLS.map((t, i) => ({ label: t.label, icon: mobiusIcon, disabled: busy, separated: i === 0, run: () => onTool(t.id, t.id === 'summarise' ? null : selectedText()) })) : []),
+      ...(extras.onComments ? [{ label: extras.commentsOpen ? 'Hide comments in the margin' : extras.comments ? `Show comments in the margin (${extras.comments} open)` : 'Show comments in the margin', run: extras.onComments, separated: true }] : []),
+      ...(extras.onHistory ? [{ label: 'Earlier versions…', run: extras.onHistory, separated: !extras.onComments }] : []),
+      extras.font === 'serif'
+        ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans') }
+        : { label: 'Use a serif font', run: () => extras.onFont('serif') },
+    ];
+    return (
+      <ToolbarControls label="Docs">
+        <div className="doc-toolbar doc-bar" data-frame role="toolbar" aria-label="Format">
+          <span className="doc-bar-group">
+            <Menu label="Paragraph style" entries={STYLES_SHOWN.map((s) => ({ label: s.label, icon: tick(state.style === s.id), run: () => setStyle(s.id) }))}
+              trigger={<button type="button" className="doc-bar-style" aria-label={`Paragraph style: ${styleName}`} title="The paragraph's style"><span>{styleName}</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>} />
+            {btn('Bold', `Bold (${mod}B)`, state.bold, run((c) => c.toggleBold()), <b>B</b>)}
+            {btn('Italic', `Italic (${mod}I)`, state.italic, run((c) => c.toggleItalic()), <i>I</i>)}
+            {btn('Underline', `Underline (${mod}U)`, state.underline, run((c) => c.toggleUnderline()), <u>U</u>, { gives: true })}
+          </span>
+          <span className="doc-bar-group">
+            {btn('Bulleted list', `Bulleted list (${mod}Shift+8)`, state.bullet, run((c) => c.toggleBulletList()),
+              <Icon><circle cx="5" cy="6" r="1" /><circle cx="5" cy="10" r="1" /><circle cx="5" cy="14" r="1" /><path d="M8.5 6h7M8.5 10h7M8.5 14h7" /></Icon>)}
+            {/* Table inserts one; in a table, it has the rows and columns. */}
+            {state.table
+              ? <Menu label="Table" entries={tableRows} trigger={<button type="button" className="strip-btn doc-bar-btn" aria-label="Table" aria-pressed title="Rows and columns">{tableIcon}</button>} />
+              : btn('Table', 'Insert a table', undefined, run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true })), tableIcon, { gives: true })}
+            {btn('Link', state.link ? 'Remove the link' : 'Link to a web page or another document', state.link, () => (state.link ? editor.chain().focus().extendMarkRange('link').unsetLink().run() : extras.onLink()),
+              <Icon d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" />, { gives: true })}
+          </span>
+          <span className="spacer" />
+          {extras.onShare && (() => {
+            const share = extras.onShare;
+            return (
+              <Menu label="Share" align="end" entries={[
+                { label: 'Copy', run: () => share('formatted') },
+                { label: 'Copy as Markdown', run: () => share('markdown') },
+                { label: 'Export as web page', run: () => share('html'), separated: true },
+                { label: 'Export as Markdown', run: () => share('md') },
+                { label: 'Print or save as PDF…', run: () => share('print'), separated: true },
+              ]} trigger={<button type="button" className="strip-btn doc-bar-btn" aria-label="Share" title="Copy, export or print this document"><Icon d="M10 3.5v9M6.5 7 10 3.5 13.5 7M5.5 10.5v5h9v-5" /></button>} />
+            );
+          })()}
+          <Menu label="More" align="end" entries={more} trigger={
+            <button type="button" className="strip-btn doc-bar-btn" aria-label="More" title="More formatting, Insert, writing tools and the document's options">
+              <Icon><circle cx="5" cy="10" r="1.1" /><circle cx="10" cy="10" r="1.1" /><circle cx="15" cy="10" r="1.1" /></Icon>
+            </button>
+          } />
+        </div>
+      </ToolbarControls>
+    );
+  }
   const bar = (
     <div className="doc-toolbar" data-frame={inFrame || undefined} role="toolbar" aria-label="Format">
       <Panel label="Text format" title="Styles, bold, italic and lists" marked={marked} button={<span className="doc-aa" aria-hidden="true">Aa</span>} buttonLabel="Format text">
@@ -287,7 +412,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
       )}
     </div>
   );
-  return inFrame ? <ToolbarControls label="Docs">{bar}</ToolbarControls> : bar;
+  return bar;
 }
 
 /** What Mobius's last turn changed, as the page shows it: each change one dashed block where it is (the blocks it
@@ -447,6 +572,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const changesNow = useRef<ChangeView | null>(null);
   const tryAnother = useContext(TryAnotherContext);
   const changeMarks = useMemo(() => docChanges(() => changesNow.current), []);
+  const metaNow = useRef<MetaLine | null>(null);
+  const metaMarks = useMemo(() => docMeta(() => metaNow.current), []);
   useEffect(() => { onComments?.(commentState.comments); }, [commentState.comments, onComments]);
   const askAbout = onTool ? (c: NoteComment) => onTool('comment', commentLine(c, commentState.comments)) : undefined;
   // The selection bar sits just above the chosen words.
@@ -473,6 +600,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       image,
       commentMarks,
       changeMarks,
+      ...(inFrame ? [metaMarks] : []),
     ],
     content: '',
     editorProps: {
@@ -572,6 +700,30 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const nextCount = () => setCount((c) => { const next = COUNT_ORDER[(COUNT_ORDER.indexOf(c) + 1) % COUNT_ORDER.length]!; try { window.localStorage.setItem(COUNT_KEY, next); } catch { /* Not kept. */ } return next; });
   const [font, setFontState] = useState<DocFont>(readFont);
   const setFont = (f: DocFont) => { setFontState(f); try { window.localStorage.setItem(FONT_KEY, f); } catch { /* Not kept. */ } };
+  // On the frame, the outline is in the sidebar, under the document (docs-outline), and the count is in the line
+  // under the title, with when it was last edited.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(t); }, []);
+  const modified = docs.notebooks.flatMap((nb) => nb.pages).find((pg) => pg.path === path)?.modified ?? 0;
+  const edited = relativeTime(modified, Math.max(now, modified));
+  metaNow.current = inFrame && path ? { text: edited ? `Edited ${edited.charAt(0).toLowerCase()}${edited.slice(1)}` : '', count: countLabel(count, stats, chosenWords), next: COUNT_NEXT[count], onCount: nextCount } : null;
+  const metaText = metaNow.current ? `${metaNow.current.text}|${metaNow.current.count}` : '';
+  useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(metaKey, true)); }, [editor, metaText]);
+  const outlineFrom = outline.length > 0 && outline[0]!.level === 1 && outline[0]!.pos === 0 ? 1 : 0;
+  const outlineNow = useRef(outline);
+  outlineNow.current = outline;
+  const outlineKey = outline.slice(outlineFrom).map((h) => `${h.level}${h.text}`).join('\u0000');
+  useEffect(() => {
+    if (!inFrame || !path) return undefined;
+    publishOutline({
+      path,
+      items: outlineNow.current.slice(outlineFrom).map((h) => ({ level: h.level, text: h.text })),
+      current: current - outlineFrom,
+      go: (i) => { const h = outlineNow.current[i + outlineFrom]; if (h && editor && !editor.isDestroyed) editor.chain().focus().setTextSelection(h.pos + 1).scrollIntoView().run(); },
+    });
+    return undefined;
+  }, [inFrame, path, outlineKey, outlineFrom, current, editor]);
+  useEffect(() => (inFrame ? () => publishOutline(null) : undefined), [inFrame]);
   const [outlineOpen, setOutlineOpen] = useState(readOutline);
   const toggleOutline = () => setOutlineOpen((o) => { try { window.localStorage.setItem(OUTLINE_KEY, o ? '0' : '1'); } catch { /* Not kept. */ } return !o; });
   const openComments = commentState.comments.filter((c) => !c.resolved).length;
@@ -810,7 +962,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
-    <section ref={section} className="doc-editor" aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}>
+    <section ref={section} className="doc-editor" data-frame={inFrame || undefined} aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}>
       {docs.status === 'conflict' && (
         <div className="note-conflict" role="alert">
           <span>This document was changed somewhere else while you were editing it.</span>
@@ -854,7 +1006,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       )}
       {history && path ? <NoteHistory path={path} text={docs.text} kind="docs" onRestore={restore} onClose={() => setHistory(false)} /> : (
         <div className="doc-body">
-          {outlineOpen && (
+          {outlineOpen && !inFrame && (
             <nav className="doc-outline" aria-label="Outline">
               <span className="doc-outline-title">Outline</span>
               {outline.length === 0 && <span className="doc-outline-empty">Headings show here as you add them.</span>}
@@ -909,12 +1061,15 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
         {...(onTool ? { onAsk: (quote: string, text: string) => onTool('comment', commentLine({ id: '', quote, text, by: 'you', whenMs: 0, resolved: false }, [])) } : {})} />}
       {restored && <UndoToast text={`Restored the version from ${restored.label}`} onUndo={() => { docs.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
       {note && <div className="doc-toast" role="status"><span>{note}</span><button type="button" className="review-btn" onClick={() => setNote(null)}>OK</button></div>}
-      <footer className="doc-status">
-        <button type="button" className="doc-count-btn" title={`Show ${COUNT_NEXT[count]} instead`} onClick={nextCount}>{countLabel(count, stats, chosenWords)}</button>
-        {adding > 0 && <span>Adding {adding === 1 ? 'a file' : `${adding} files`}…</span>}
-        {/* On the frame, whether it is saved shows in the window's toolbar, under the document's name. */}
-        {!inFrame && <><span className="spacer" /><span className="doc-saved" data-state={docs.status}>{saving}</span></>}
-      </footer>
+      {/* On the frame there is no status bar: the count is under the title and whether it is saved is in the toolbar.
+          It shows only while files are being added. */}
+      {(!inFrame || adding > 0) && (
+        <footer className="doc-status">
+          {!inFrame && <button type="button" className="doc-count-btn" title={`Show ${COUNT_NEXT[count]} instead`} onClick={nextCount}>{countLabel(count, stats, chosenWords)}</button>}
+          {adding > 0 && <span>Adding {adding === 1 ? 'a file' : `${adding} files`}…</span>}
+          {!inFrame && <><span className="spacer" /><span className="doc-saved" data-state={docs.status}>{saving}</span></>}
+        </footer>
+      )}
     </section>
   );
 }

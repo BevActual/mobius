@@ -1,29 +1,33 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { NoteHit, NotePage } from '@mobius/shared';
 import { onCommand } from './commands';
 import { relativeTime } from './relative-time';
 import type { NotesState } from './useNotes';
 import { SideNew, type Start } from './SideNew';
-import { FromMobius } from './FromMobius';
+import { dayLabel, daysFrom, timeLabel, weekdayLabel } from './dates';
+import { useDocOutline } from './docs-outline';
 import { newItemIn } from './NotesSidebar';
 import { AppSidebar, PointMenu, SidebarRow, SidebarSection, SidebarSearch, type MenuEntry } from './ui';
 
-/** How many documents Recent lists: the ones worked on last, wherever they are kept. */
-const RECENT = 5;
-
-const PageIcon = () => (
-  <svg className="doc-side-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.5h5.5L15 7v9.5H6z" /><path d="M11.5 3.5V7H15" /></svg>
-);
+/** When a document was last edited, as the row's right side says it: a time today, a weekday this week, else a date. */
+export function editedLabel(modified: number, now: number): string {
+  if (!Number.isFinite(modified) || modified <= 0) return '';
+  const days = daysFrom(modified, now);
+  if (days === 0) return timeLabel(modified);
+  if (days > -7) return weekdayLabel(modified);
+  return dayLabel(modified, { now });
+}
 
 /**
- * Docs' sidebar, on the shared frame (ui/AppSidebar): New, Search, Recent, then each folder with its documents, then
- * From Mobius. A row says when the document was edited and how it starts in its tooltip; its menu opens or deletes it,
- * and Delete asks once more in a second menu at the same place.
+ * Docs' sidebar, as the timeless mock has it (ui/AppSidebar): New, Search, then each folder as a heading over its
+ * documents, each with when it was edited on the right. Under the open document, its headings, indented: choosing one
+ * moves the page there. Then From Mobius, the documents its last turn changed. A row's menu opens or deletes it, and
+ * Delete asks once more in a second menu at the same place. New folder is in the app's menu (and its command).
  */
-export function DocsSidebar({ docs, pin, changed, starts, onStart }: {
+export function DocsSidebar({ docs, changed, starts, onStart }: {
   docs: NotesState;
-  /** The button that attaches or floats the list, shown beside the first section's name. */
-  pin: ReactNode;
+  /** The button that attaches or floats the list; the shell's head has it now, so it is not drawn here. */
+  pin?: ReactNode;
   /** Documents Mobius's last turn changed, marked until the turn is kept or undone. */
   changed?: ReadonlySet<string>;
   starts?: readonly Start[];
@@ -37,7 +41,8 @@ export function DocsSidebar({ docs, pin, changed, starts, onStart }: {
   useEffect(() => onCommand('new-folder', () => setNaming(true)), []);
 
   const all = useMemo(() => docs.notebooks.flatMap((nb) => nb.pages.map((pg) => ({ ...pg, folder: nb.name }))), [docs.notebooks]);
-  const recent = useMemo(() => [...all].sort((a, b) => b.modified - a.modified).slice(0, RECENT), [all]);
+  const outline = useDocOutline();
+  const fromMobius = all.filter((pg) => changed?.has(pg.path));
   const openFolder = docs.page?.path.split('/')[0] ?? docs.notebooks[0]?.name;
 
   // A document Mobius changed in its last turn opens when none is, once, so a visit after asking lands on it.
@@ -68,13 +73,30 @@ export function DocsSidebar({ docs, pin, changed, starts, onStart }: {
     if (made) { setNaming(false); setName(''); await docs.createPage(made); }
   };
 
-  const row = (pg: NotePage, where?: string, key = pg.path) => {
+  const row = (pg: NotePage) => {
     const when = relativeTime(pg.modified, Math.max(now, pg.modified));
+    const open = docs.page?.path === pg.path;
+    const headings = open && outline?.path === pg.path ? outline.items : [];
     return (
-      <SidebarRow key={key} icon={<PageIcon />} label={pg.title} current={docs.page?.path === pg.path} proposed={changed?.has(pg.path) === true}
-        title={[where, when && `Edited ${when}`, pg.preview].filter(Boolean).join(' · ')}
-        onSelect={() => void docs.open(pg.path, pg.title)}
-        onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg }); }} />
+      <Fragment key={pg.path}>
+        <SidebarRow label={pg.title} current={open} proposed={changed?.has(pg.path) === true}
+          title={[when && `Edited ${when}`, pg.preview].filter(Boolean).join(' · ')}
+          onSelect={() => void docs.open(pg.path, pg.title)}
+          onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg }); }}
+          {...(open ? {} : { trail: <span className="doc-side-when" aria-hidden="true">{editedLabel(pg.modified, now)}</span> })} />
+        {headings.length > 0 && (
+          <li className="doc-side-outline">
+            <ul role="list" aria-label={`Outline of ${pg.title}`}>
+              {headings.map((h, i) => (
+                <li key={`${i}:${h.text}`}>
+                  <button type="button" className="list-row doc-side-heading" data-level={Math.min(h.level, 3)} aria-current={i === outline!.current ? 'location' : undefined}
+                    onClick={() => outline!.go(i)}>{h.text || 'Untitled'}</button>
+                </li>
+              ))}
+            </ul>
+          </li>
+        )}
+      </Fragment>
     );
   };
 
@@ -106,7 +128,7 @@ export function DocsSidebar({ docs, pin, changed, starts, onStart }: {
         <SidebarSection title="Results">
           {hits.length === 0 && <li className="side-empty">No documents match.</li>}
           {hits.map((hit) => (
-            <SidebarRow key={hit.path} icon={<PageIcon />} label={hit.title} current={docs.page?.path === hit.path}
+            <SidebarRow key={hit.path} label={hit.title} current={docs.page?.path === hit.path}
               title={`${hit.notebook}${hit.line ? ` — ${hit.line}` : ''}`} onSelect={() => void docs.open(hit.path, hit.title)} />
           ))}
         </SidebarSection>
@@ -117,29 +139,20 @@ export function DocsSidebar({ docs, pin, changed, starts, onStart }: {
               <p>No documents yet.</p>
             </div>
           )}
-          {/* Recent only when it adds something: more documents than it lists, or more than one folder. */}
-          {recent.length > 0 && (docs.notebooks.length > 1 || all.length > RECENT) && (
-            <SidebarSection title="Recent" action={pin}>
-              {recent.map((pg) => row(pg, pg.folder, `recent:${pg.path}`))}
-            </SidebarSection>
-          )}
           {docs.notebooks.map((nb) => (
-            <SidebarSection key={nb.name} title={nb.name} action={
-              <button type="button" className="strip-btn" aria-label={`New document in ${nb.name}`} title="New document" onClick={() => void docs.createPage(nb.name)}>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg>
-              </button>
-            }>
+            <SidebarSection key={nb.name} title={nb.name}>
               {nb.pages.length === 0 && <li className="side-empty">No documents yet.</li>}
               {nb.pages.map((pg) => row(pg))}
             </SidebarSection>
           ))}
-          {!naming && (
-            <button type="button" className="side-new-row doc-side-folder" onClick={() => setNaming(true)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 6.5a1 1 0 0 1 1-1h3.5l1.5 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" /><path d="M10 9v4M8 11h4" /></svg>
-              <span>New folder</span>
-            </button>
+          {fromMobius.length > 0 && (
+            <SidebarSection title="From Mobius">
+              {fromMobius.map((pg) => (
+                <SidebarRow key={pg.path} label={pg.title} title={`In ${pg.folder}`}
+                  onSelect={() => void docs.open(pg.path, pg.title)} trail={<span className="doc-side-review">To review</span>} />
+              ))}
+            </SidebarSection>
           )}
-          <FromMobius items={all.filter((pg) => changed?.has(pg.path)).map((pg) => ({ key: pg.path, name: pg.title, where: pg.folder, current: docs.page?.path === pg.path, onOpen: () => void docs.open(pg.path, pg.title) }))} />
         </>
       )}
       {menu && <PointMenu key={menu.confirm ? 'confirm' : 'menu'} x={menu.x} y={menu.y} label={menu.confirm ? `Delete ${menu.page.title}?` : menu.page.title} entries={menuEntries(menu)}
