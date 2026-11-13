@@ -238,8 +238,6 @@ export function ReaderPage({ reading, review, tab, onAsk }: { reading: NotesStat
     setPicked(null);
     setMarked(null);
     window.getSelection()?.removeAllRanges();
-    // Asking from the Highlights tab: bring Mobius's tab forward so the message is in view.
-    document.getElementById('panel-tab-mobius')?.click();
     onAsk(`About this passage:\n\n> ${text.replace(/\s+/g, ' ').trim()}\n\n`);
   };
   const keys = useRef({ highlight, archive, picked, inArchive, step });
