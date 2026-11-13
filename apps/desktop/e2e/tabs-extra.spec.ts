@@ -44,6 +44,8 @@ test('a tab can be duplicated and a closed one brought back', async () => {
   await expect(titles()).toHaveText(['Fixture home', 'Fixture home', 'Second page']);
   await shell().getByRole('button', { name: 'Close Second page' }).click();
   await expect(titles()).toHaveCount(2);
-  await shell().getByRole('button', { name: 'Reopen closed tab' }).click();
+  // Reopen closed tab is in a tab's right-click menu (and the Browser menu, Ctrl+Shift+T).
+  await shell().locator('.tab', { hasText: 'Fixture home' }).first().click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Reopen closed tab' }).click();
   await expect(titles()).toHaveText(['Fixture home', 'Fixture home', 'Second page']);
 });

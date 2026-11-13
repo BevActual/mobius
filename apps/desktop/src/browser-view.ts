@@ -77,3 +77,11 @@ export function dropPlan(tabs: readonly BrowserTabState[], dragId: string, overI
   const unchanged = (dragged.pinned === true) === pinned && (at === was);
   return unchanged ? null : { pinned, index: at };
 }
+
+/** Whether a tab or bookmark matches the sidebar's search: every word in its title or address, any case. */
+export function sidebarMatch(query: string, title: string, url: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const text = `${title} ${url.replace(/^https?:\/\/(www\.)?/, '')}`.toLowerCase();
+  return words.every((w) => text.includes(w));
+}

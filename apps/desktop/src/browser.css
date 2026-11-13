@@ -4,7 +4,23 @@
 /* Tabs */
 .browser-side .tab-lists { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-bottom: 2px; }
 .browser-side .tabs { overflow: visible; }
-.browser-side .tabs-pinned { padding-bottom: 6px; border-bottom: 0.5px solid var(--line); }
+/* The sidebar's parts inside the shared frame sidebar (ui/AppSidebar): search, Pinned, Tabs, Bookmarks. */
+.ui-side > .browser-side { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: 4px; }
+.browser-side > .side-search { margin: 0 4px 4px; }
+/* Room for the shared magnifier: `.dock.left .side-search` still wins over the shared rule here (told the Builder). */
+.dock.left .browser-side > .side-search { padding-left: 28px; }
+.browser-side .ui-side-section .tab-icon { flex: none; }
+.browser-side > .ui-side-section .list-row .tab-icon { width: 16px; height: 16px; border-radius: 4px; }
+
+/* The browser's controls take the toolbar's middle, so the address gets the room. */
+.ui-toolbar-group:has(> .browser-chrome) { flex: 1; min-width: 0; }
+.browser-chrome .address { min-width: 64px; }
+/* In a narrow toolbar the address keeps its room: the star and the selected-text button step out (both are in the
+   Browser menu too), as Safari folds its toolbar. */
+.ui-toolbar-group:has(> .browser-chrome) { container-type: inline-size; }
+@container (max-width: 260px) {
+  .browser-chrome > [aria-label="This page"], .browser-chrome > .selection-menu-wrap { display: none; }
+}
 .browser-side .tab { position: relative; height: 32px; }
 .browser-side .tab-main { height: 32px; padding: 0 8px; gap: 9px; color: var(--ink); }
 .browser-side .tab:not([aria-current="page"]):hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrowserTabState } from '@mobius/shared';
-import { addressParts, dropPlan, hostOf, suggestionsFor, tileHue, tileLetter } from './browser-view';
+import { addressParts, dropPlan, hostOf, sidebarMatch, suggestionsFor, tileHue, tileLetter } from './browser-view';
 
 const tab = (id: string, url: string, title: string, extra: Partial<BrowserTabState> = {}): BrowserTabState => ({ id, url, title, loading: false, canGoBack: false, canGoForward: false, active: false, icon: null, ...extra });
 
@@ -66,5 +66,15 @@ describe('dropping a dragged tab', () => {
     expect(dropPlan(tabs, 't2', 't1', true)).toBeNull();
     expect(dropPlan(tabs, 't2', 't3', false)).toBeNull();
     expect(dropPlan(tabs, 'gone', 't1', false)).toBeNull();
+  });
+});
+
+describe('sidebarMatch', () => {
+  it('matches every word against the title and the address, in any case', () => {
+    expect(sidebarMatch('', 'Anything', 'https://a.example')).toBe(true);
+    expect(sidebarMatch('axion motor', 'Axion 150 kW traction motor', 'https://axion.example/motors/150')).toBe(true);
+    expect(sidebarMatch('WIKIPEDIA', 'Electric vehicle battery', 'https://en.wikipedia.org/wiki/EV')).toBe(true);
+    expect(sidebarMatch('axion pack', 'Axion 150 kW traction motor', 'https://axion.example/')).toBe(false);
+    expect(sidebarMatch('https', 'Page', 'https://www.page.example/')).toBe(false);
   });
 });
