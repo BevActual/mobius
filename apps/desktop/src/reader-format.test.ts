@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addHighlight, articleFile, articleTitle, highlightsOf, parseArticle, readingMinutes, removeHighlight, savedWhen, stepSize, timeLeft } from './reader-format';
+import { addHighlight, articleFile, articleTitle, highlightsOf, parseArticle, readingMinutes, removeHighlight, neighbour, savedWhen, stepSize, timeLeft } from './reader-format';
+import { setLocaleForTests } from './dates';
 
 describe('reader', () => {
   it('writes a fetched page as an article, without repeating its title', () => {
@@ -29,12 +30,24 @@ describe('reader', () => {
 
 describe('reader look and place', () => {
   it('says when an article was saved as a person would', () => {
+    setLocaleForTests('en-US');
     const now = new Date(2026, 10, 12, 15, 0);
     expect(savedWhen('2026-11-12', now)).toBe('today');
     expect(savedWhen('2026-11-11', now)).toBe('yesterday');
     expect(savedWhen('2026-11-09', now)).toBe('Monday');
     expect(savedWhen('2026-10-31', now)).toBe('Oct 31');
     expect(savedWhen('2025-12-02', now)).toBe('Dec 2, 2025');
+    setLocaleForTests('en-GB');
+    expect(savedWhen('2026-10-31', now)).toBe('31 Oct');
+    setLocaleForTests(null);
+  });
+
+  it('finds the next and previous article, newest first', () => {
+    const pages = [{ path: 'a', modified: 1 }, { path: 'c', modified: 3 }, { path: 'b', modified: 2 }];
+    expect(neighbour(pages, 'c', 1)?.path).toBe('b');
+    expect(neighbour(pages, 'b', -1)?.path).toBe('c');
+    expect(neighbour(pages, 'a', 1)).toBeUndefined();
+    expect(neighbour(pages, 'x', 1)).toBeUndefined();
   });
 
   it('counts down the minutes left while reading', () => {

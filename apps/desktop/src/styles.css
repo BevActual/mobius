@@ -1479,7 +1479,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .mail-cats { display: flex; gap: 2px; padding: var(--sp-2) var(--sp-2) 0; flex-wrap: wrap; }
 .mail-cats button { height: 26px; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--fs-sm); display: inline-flex; align-items: center; gap: 6px; }
 .mail-cats button[aria-selected="true"] { background: var(--wash); color: var(--accent); font-weight: 600; }
-.mail-cat-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; display: inline-grid; place-items: center; }
+.mail-cat-count { color: var(--muted); font-size: var(--fs-sm); font-weight: 400; font-variant-numeric: tabular-nums; }
+.mail-box-icon { flex: none; width: 17px; height: 17px; margin-right: 8px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.mail-box-icon[data-box="flagged"] { stroke: var(--flag, #f59e0b); }
 .mail-search { margin: var(--sp-2); }
 .mail-list { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--sp-2) var(--sp-2); display: flex; flex-direction: column; gap: 1px; }
 .mail-row { display: flex; flex-direction: column; gap: 1px; text-align: left; padding: 8px 10px 8px 16px; border-radius: var(--radius-group); position: relative; min-width: 0; }
@@ -1502,6 +1504,18 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .mail-subject { font-size: var(--fs-lg); font-weight: 600; }
 .mail-to { font-size: var(--fs-sm); color: var(--muted); }
 .mail-reader-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
+.mail-tools { gap: var(--sp-2); }
+.mail-tools-group { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: var(--glass-tint); box-shadow: var(--glass-edge); }
+.mail-tools .strip-btn { border-radius: 999px; color: var(--ink); }
+.mail-tools .strip-btn:hover { background: var(--soft); color: var(--ink); }
+.mail-tools .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.mail-tools .strip-btn[aria-pressed="true"] { background: none; color: var(--flag, #f59e0b); }
+.mail-tools .strip-btn svg [data-dot] { fill: var(--accent); stroke: none; }
+.mail-tools .strip-btn svg[data-filled="true"] path { fill: currentColor; }
+.mail-row-flag { display: inline-flex; color: var(--flag, #f59e0b); }
+.mail-row-flag svg { width: 12px; height: 12px; fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.mail-row[data-flagged]:not([data-unread])::before { content: none; }
+.btn.mail-draft-it { color: var(--accent); }
 .mail-reader-actions select { height: 30px; padding: 0 24px 0 10px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--bg) var(--chevron) no-repeat right 8px center / 12px; appearance: none; font: inherit; font-size: var(--fs-sm); color: inherit; }
 .btn.mobius { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .mail-html { width: 100%; border: 0; border-radius: var(--radius-group); background: #fff; }
@@ -2415,11 +2429,11 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* A new chat: a calm greeting in the middle, and three starters as plain text under it. */
 .chat .empty { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .chat .empty .greeting { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
-.chat .empty .greeting-note { margin: 0; font-size: 12px; color: var(--muted); max-width: 32ch; }
 .empty-starters:empty { display: none; }
-.starters { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 14px; }
-.starter { height: 28px; padding: 0 10px; border-radius: 8px; font-size: 13px; color: var(--accent); background: transparent; }
-.starter:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+/* Suggestions on an empty conversation: pills, as on the Home desk, in the panel and the Agent app alike. */
+.starters { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-2); margin-top: var(--sp-4); }
+.starter { height: var(--control-h); padding: 0 var(--sp-3); border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
+.starter:hover { background: var(--soft); }
 .starter:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 0; }
 
 

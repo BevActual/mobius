@@ -72,6 +72,13 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await expect(article.getByRole('region', { name: 'Highlights' })).toContainText('1 highlight');
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('==Breakfast included.==');
 
+  // Ask Mobius about a passage: the message starts with it quoted, ready to finish.
+  const other = article.getByText('Nine rooms in Príncipe Real.');
+  await other.selectText();
+  await other.dispatchEvent('mouseup');
+  await article.getByRole('toolbar', { name: 'Selected text' }).getByRole('button', { name: 'Ask Mobius' }).click();
+  await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toHaveValue(/> Nine rooms in Príncipe Real\./);
+
   await bar.getByRole('button', { name: 'Done reading' }).click();
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'reading', 'Archive', 'Casa Amora.md'))).toBe(true);
   await expect.poll(() => fs.existsSync(file)).toBe(false);

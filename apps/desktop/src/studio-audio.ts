@@ -1,4 +1,5 @@
 import { BEATS_PER_BAR, audible, type Instrument, type Song } from './song-format';
+import { songBeat, type Cycle } from './studio-view';
 
 /**
  * A small synthesiser for playing a song in the window: a few simple voices made with Web Audio, scheduled ahead of
@@ -98,8 +99,11 @@ export function previewNote(instrument: Instrument, pitch: number, velocity = 0.
 
 export interface Player { stop(): void; beat(): number }
 
-/** Plays the song from `fromBeat`, looping when `loop`; `beat()` says where it is now. */
-export function play(song: Song, fromBeat = 0, loop = false, click = false): Player {
+/**
+ * Plays the song from `fromBeat`. With a `loop` it goes round those bars (a whole-song loop is { from: 0, to: the end });
+ * without one it stops at the end. `beat()` says where it is now.
+ */
+export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click = false): Player {
   const ctx = new AudioContext();
   void ctx.resume().catch(() => {});
   const master = ctx.createGain();
@@ -108,23 +112,28 @@ export function play(song: Song, fromBeat = 0, loop = false, click = false): Pla
   const noiseBuf = noise(ctx);
   const spb = 60 / song.tempo;
   const total = song.bars * BEATS_PER_BAR;
+  const cycle = loop && loop.to > loop.from ? { from: Math.max(0, loop.from), to: Math.min(total, loop.to) } : null;
   const start = ctx.currentTime + 0.08;
   const tracks = audible(song);
-  let scheduledTo = fromBeat;
+  // Time is counted in beats played since Play; songBeat() turns that into where in the song it is.
+  let scheduled = 0;
   let stopped = false;
+  const ended = () => !cycle && fromBeat + scheduled >= total;
   const schedule = () => {
-    if (stopped || (!loop && scheduledTo >= total)) return;
-    const now = (ctx.currentTime - start) / spb + fromBeat;
-    const until = now + 2;
-    while (scheduledTo < until) {
-      const from = scheduledTo, to = Math.min(until, Math.ceil((scheduledTo + 0.0001) / total) * total);
-      const lap = Math.floor(from / total);
+    if (stopped || ended()) return;
+    const until = (ctx.currentTime - start) / spb + 2;
+    while (scheduled < until && !ended()) {
+      const s = songBeat(scheduled, fromBeat, cycle);
+      // Played straight on to the loop's end (going round after it), or to the song's end without a loop.
+      const end = cycle ? cycle.to : total;
+      const span = Math.min(until - scheduled, end - s);
+      if (span <= 1e-9) { scheduled += 1e-6; continue; }
+      const at = (b: number) => start + (scheduled + (b - s)) * spb;
       // The metronome: a high tick on each bar, a lower one on the other beats.
       if (click) {
-        for (let b = Math.ceil(from - 1e-6); b < to; b++) {
-          const at = start + (b - fromBeat) * spb;
-          if (at < ctx.currentTime) continue;
-          tick(ctx, master, at, b % BEATS_PER_BAR === 0);
+        for (let b = Math.ceil(s - 1e-6); b < s + span; b++) {
+          if (at(b) < ctx.currentTime) continue;
+          tick(ctx, master, at(b), b % BEATS_PER_BAR === 0);
         }
       }
       for (const t of tracks) {
@@ -132,21 +141,20 @@ export function play(song: Song, fromBeat = 0, loop = false, click = false): Pla
         out.gain.value = t.volume;
         out.connect(master);
         for (const n of t.notes) {
-          const b = n.start + lap * total;
-          if (b < from || b >= to) continue;
-          const at = start + (b - fromBeat) * spb;
-          if (t.instrument === 'drums') drum(ctx, out, n.pitch, at, n.velocity, noiseBuf);
-          else tone(ctx, out, t.instrument, n.pitch, at, n.length * spb, n.velocity);
+          if (n.start < s - 1e-9 || n.start >= s + span - 1e-9) continue;
+          // A note that runs past the loop's end is cut there, so it does not ring over the next time round.
+          const length = cycle ? Math.min(n.length, cycle.to - n.start) : n.length;
+          if (t.instrument === 'drums') drum(ctx, out, n.pitch, at(n.start), n.velocity, noiseBuf);
+          else tone(ctx, out, t.instrument, n.pitch, at(n.start), length * spb, n.velocity);
         }
       }
-      scheduledTo = to;
-      if (!loop && scheduledTo >= total) break;
+      scheduled += span;
     }
   };
   schedule();
   const timer = window.setInterval(schedule, 250);
   return {
     stop() { stopped = true; window.clearInterval(timer); void ctx.close(); },
-    beat() { const b = (ctx.currentTime - start) / spb + fromBeat; return loop ? ((b % total) + total) % total : b; },
+    beat() { return songBeat(Math.max(0, (ctx.currentTime - start) / spb), fromBeat, cycle); },
   };
 }
