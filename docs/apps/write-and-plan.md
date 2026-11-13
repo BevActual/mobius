@@ -55,8 +55,9 @@ Lists of things to do, as in Apple's Reminders.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
   the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it.
 - **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back.
-- **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date), its
-  flag, its list and its subtasks. Drag tasks to reorder them or move them between lists.
+- **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
+  picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
+  format. Drag tasks to reorder them or move them between lists.
 - Tasks Mobius added are dashed until kept. **Discard** puts the list back as it was before that turn.
 
 **Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines.

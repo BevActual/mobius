@@ -45,7 +45,6 @@ const SECTIONS: readonly SettingsSection[] = [
         row('left-sidebar', 'Tab and conversation list', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'left'),
         row('right-sidebar', 'Agent panel', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'right', 'chat panel'),
         row('sidebar-size', 'Sidebar sizes', 'Drag the edge of a sidebar to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back.', 'width', 'resize', 'wider', 'narrower', 'reset size'),
-        row('agent-place', 'Where Mobius opens', 'In the sidebar, which turns into Mobius, or pinned beside the page.', 'mobius', 'sidebar', 'beside', 'pin', 'panel', 'right', 'agent panel', 'morph'),
         row('density', 'List density', 'How tightly tabs and conversations are packed.', 'compact', 'comfortable', 'spacing', 'sidebar', 'dense'),
       ] },
       { id: 'chat-display', label: 'Conversation', rows: [
