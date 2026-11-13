@@ -180,7 +180,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
       <div className="browser-side">
         <SidebarSearch label="Search tabs and bookmarks" placeholder="Search" value={query} onChange={setQuery} />
         <div className="tab-lists" onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) drag.end(); }}>
-          <section className="ui-side-section" aria-label="Tabs">
+          <section className="ui-side-section">
             <div className="side-head">
               <span className="side-title">Tabs</span>
               <div className="side-actions">
@@ -199,7 +199,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
             {searching && open.length === 0 && pinned.length === 0 && saved.length === 0 && <p className="tabs-empty">Nothing matches.</p>}
           </section>
           {pinned.length > 0 && (
-            <section className="ui-side-section" aria-label="Pinned">
+            <section className="ui-side-section">
               <div className="side-head"><span className="side-title">Pinned</span></div>
               <ul className="tabs tabs-pinned" role="list" aria-label="Pinned tabs">
                 <AnimatePresence initial={false}>{pinned.map(row)}</AnimatePresence>
