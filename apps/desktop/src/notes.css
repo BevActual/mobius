@@ -37,8 +37,8 @@
 .note-page hr { margin: var(--sp-6) 0; border: 0; border-top: var(--hairline-w) solid var(--line); }
 .note-page ::selection { background: var(--sel); }
 .note-page .is-empty::before { content: attr(data-placeholder); float: left; height: 0; color: var(--muted); pointer-events: none; }
-/* A #tag in the text: a soft tint, as content colour is shown. */
-.note-page .note-tag { padding: 0 var(--sp-1); border-radius: var(--radius-small); background: var(--field); color: var(--muted); }
+/* A #tag in the text: the same outlined chip as the tags beside the word count. */
+.note-page .note-tag { padding: 0 var(--sp-1); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-pill); color: var(--muted); }
 
 /* Tables: a hairline grid, a grey semibold header, figures that line up. */
 .note-page table { width: 100%; margin: 0 0 var(--sp-4); table-layout: fixed; border-collapse: separate; border-spacing: 0; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); overflow: hidden; font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
@@ -202,11 +202,13 @@
 .note-restored > span { flex: 1; }
 
 /* ── The note list (sidebar) ──────────────────────────────────────────────────────────────────────── */
-/* One row height (--row-list) for every page: the title with its date at the end, and one grey line under it. Pin and
+/* One row height for every page, the two-line master-list height (56px comfortable, 48px compact): the title with its date at the end, and one grey line under it. Pin and
    the delete confirm take the date's place on hover, so the row never changes height or shifts. */
+.notes-side[data-app="notes"] { --note-row: calc(var(--row-list) + var(--sp-4)); }
 .notes-side[data-app="notes"] .ui-side-row-trail { position: relative; }
-.dock .side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row { height: var(--row-list); min-height: var(--row-list); padding-block: var(--sp-1); padding-right: calc(2 * var(--sp-8) + var(--sp-2)); line-height: var(--lh-tight); }
-.notes-side[data-app="notes"] .note-side-when { position: absolute; top: var(--sp-1); right: var(--sp-2); line-height: calc(var(--fs-md) * var(--lh-tight)); pointer-events: none; color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dock .side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row { height: var(--note-row); min-height: var(--note-row); padding-block: var(--sp-2); padding-right: calc(2 * var(--sp-8) + var(--sp-2)); line-height: var(--lh-tight); }
+.notes-side[data-app="notes"] .ui-side-row-trail .ui-side-text { gap: var(--sp-1); }
+.notes-side[data-app="notes"] .note-side-when { position: absolute; top: var(--sp-2); right: var(--sp-2); line-height: calc(var(--fs-md) * var(--lh-tight)); pointer-events: none; color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .notes-side .ui-side-row-trail:hover > .note-delete, .notes-side .ui-side-row-trail > .note-delete:focus-visible { opacity: 1; }
 .notes-side[data-app="notes"] .ui-side-row-trail > .note-delete { position: absolute; right: var(--sp-1); margin: 0; }
 .notes-side[data-app="notes"] .ui-side-row-trail > .note-pin[aria-pressed="true"] { opacity: 0; }
@@ -216,7 +218,7 @@
 .notes-side .ui-side-section + .ui-side-section, .notes-side .notes-new-group { margin-top: var(--sp-2); }
 /* While the list is read: grey placeholder bars the shape of the rows, not a spinner. */
 .notes-loading { display: grid; gap: var(--sp-2); margin: 0; padding: var(--sp-2) var(--sp-3); list-style: none; }
-.notes-loading li { display: grid; gap: var(--sp-1); height: var(--row-list); align-content: center; }
+.notes-loading li { display: grid; gap: var(--sp-1); height: calc(var(--row-list) + var(--sp-4)); align-content: center; }
 .notes-loading li::before, .notes-loading li::after { content: ""; height: var(--sp-2); border-radius: var(--radius-small); background: var(--sel); }
 .notes-loading li::before { width: 70%; }
 .notes-loading li::after { width: 45%; opacity: 0.6; }
