@@ -111,8 +111,11 @@
 .browser-side .side-head { position: relative; }
 .browser-side .side-head > .side-actions { margin-left: auto; }
 .browser-side .dl-wrap { display: inline-flex; }
-.browser-side .dl-button { position: relative; }
-.browser-side .dl-ring { position: absolute; inset: 3px; width: calc(100% - 6px); height: calc(100% - 6px); transform: rotate(-90deg); fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; pointer-events: none; }
+/* The same size, stroke and grey as the head's other tools (the shared `.side-actions .strip-btn`), ink only while busy. */
+.browser-side .dl-button { position: relative; width: 26px; min-width: 26px; height: 26px; border-radius: 7px; color: var(--muted); }
+.browser-side .dl-button:hover, .browser-side .dl-button[aria-expanded="true"] { background: var(--side-hover); color: var(--ink); }
+.browser-side .dl-button svg { width: var(--sp-4); height: var(--sp-4); }
+.browser-side .dl-button .dl-ring { position: absolute; inset: 1px; width: calc(100% - 2px); height: calc(100% - 2px); transform: rotate(-90deg); fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; pointer-events: none; }
 .browser-side .dl-pop {
   position: absolute; z-index: var(--z-menu); top: calc(100% + var(--sp-1)); left: 0; right: 0; max-height: 360px; overflow: auto;
   padding: var(--menu-pad); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-menu);
