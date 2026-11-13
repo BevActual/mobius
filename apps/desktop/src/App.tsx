@@ -78,7 +78,7 @@ import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail, type OwnApp } from './Rail';
 import { SidebarHead } from './SidebarHead';
-import { AppFrame, PanelsMenu } from './ui';
+import { AppFrame, PanelsMenu, RightPanelTabs } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
@@ -1654,7 +1654,8 @@ export function App() {
         </main>
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
-            {chatPanel(null)}
+            {/* The open app's own tabs (PanelTab) come first, then Mobius; with none, Mobius alone. */}
+            <RightPanelTabs mobius={chatPanel(null)} onClose={hideRight} />
             {resizer('right', 'Resize the agent panel')}
           </div>
         )}
