@@ -50,6 +50,7 @@
 /* The app's controls keep their own width; the title beside them gives way (ellipsizes) first. */
 .ui-toolbar-slot { display: flex; align-items: center; gap: var(--sp-2); flex: 0 0 auto; justify-content: center; }
 .ui-toolbar-slot:empty { display: none; }
+.ui-toolbar-slot[hidden] { display: none; }
 .ui-toolbar-group { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; }
 
 /* The view switch: segmented, the current view ink-inverted. */
