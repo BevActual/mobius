@@ -35,21 +35,21 @@
 .tasks-nav { flex: 1; min-height: 0; overflow: auto; padding-bottom: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-3); }
 .tasks-nav .side-head { height: auto; margin: 0 0 var(--sp-1); }
 .tasks-nav .side-title { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
-.tasks-nav .list-row { gap: 8px; }
+.tasks-nav .list-row { gap: var(--sp-2); }
 .smart-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--muted); }
 .smart-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .smart-icon[data-view="flagged"] svg { fill: currentColor; }
 .list-row[aria-current] .smart-icon { color: currentColor; }
 .tasks-nav .list-item { position: relative; display: flex; align-items: center; border-radius: var(--radius-control); }
-.tasks-nav .list-item .list-row { flex: 1; min-width: 0; gap: 8px; }
+.tasks-nav .list-item .list-row { flex: 1; min-width: 0; gap: var(--sp-2); }
 .tasks-nav .list-item[data-drop] { box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .list-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--lc); }
-.tasks-nav .list-icon svg { width: 14px; height: 14px; fill: #fff; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; }
+.tasks-nav .list-icon svg { width: 14px; height: 14px; fill: var(--on-accent); stroke: var(--on-accent); stroke-width: 1.6; stroke-linecap: round; }
 .list-more { flex: none; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
 .list-more svg { width: 16px; height: 16px; fill: currentColor; }
 .list-item:hover .list-more, .list-more:focus-visible, .list-more[aria-expanded="true"] { opacity: 1; }
 .list-rename { flex: 1; }
-.list-confirm { position: absolute; z-index: 20; top: calc(100% + 2px); left: 4px; right: 4px; padding: 12px; border: 0.5px solid var(--line); border-radius: 12px; background: var(--bg); box-shadow: var(--shadow-2); animation: tasks-pop var(--dur-fast) var(--ease); }
+.list-confirm { position: absolute; z-index: 20; top: calc(100% + 2px); left: 4px; right: 4px; padding: var(--sp-3); border: 0.5px solid var(--line); border-radius: 12px; background: var(--bg); box-shadow: var(--shadow-2); animation: tasks-pop var(--dur-fast) var(--ease); }
 .list-confirm p { margin: 0 0 10px; font-size: var(--fs-sm); line-height: 1.4; }
 .list-confirm-actions { display: flex; justify-content: flex-end; gap: 6px; }
 @keyframes tasks-pop { from { opacity: 0; transform: translateY(-3px) scale(0.98); } to { opacity: 1; transform: none; } }
@@ -60,17 +60,17 @@
 .tasks-main { min-width: 0; overflow: auto; padding: var(--sp-6) var(--sp-8) var(--sp-8); }
 .tasks-main > * { max-width: 680px; margin-left: auto; margin-right: auto; }
 
-.task-new { gap: 12px; padding: 8px 6px 8px 4px; border-bottom: 0.5px solid var(--line); }
+.task-new { gap: var(--sp-3); padding: var(--sp-2) 6px var(--sp-2) var(--sp-1); border-bottom: 0.5px solid var(--line); }
 .task-new input[aria-label="New task"] { font-size: var(--fs-lg); }
 .task-new input[aria-label="New task"]::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
-.task-when { flex: none; height: 24px; padding: 0 8px; gap: 4px; border: 0; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-size: var(--fs-sm); font-weight: var(--fw-medium); animation: tasks-pop var(--dur-fast) var(--ease); }
+.task-when { flex: none; height: 24px; padding: 0 var(--sp-2); gap: var(--sp-1); border: 0; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-size: var(--fs-sm); font-weight: var(--fw-medium); animation: tasks-pop var(--dur-fast) var(--ease); }
 .task-when svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .task-new:has(.task-when) .task-date { display: none; }
 .task-when .chip-x { margin-left: 2px; opacity: 0.6; }
 .task-when:hover .chip-x { opacity: 1; }
 
 .task-items .task { display: block; padding: 0; border: 0; border-radius: 0; background: transparent; }
-.task-line { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 7px 6px 7px 4px; border-radius: 8px; transition: background var(--dur-fast) var(--ease); }
+.task-line { position: relative; display: flex; align-items: flex-start; gap: var(--sp-3); padding: 7px 6px 7px var(--sp-1); border-radius: var(--radius-control); transition: background var(--dur-fast) var(--ease); }
 /* The hairline runs from the words, not under the checkbox, as in Reminders. */
 .task-line::after { content: ""; position: absolute; left: 38px; right: 0; bottom: 0; height: 0.5px; background: var(--line); }
 .task-line:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
@@ -85,7 +85,7 @@
 .task-items .task-check { width: 21px; height: 21px; margin-top: 3px; border: 1.5px solid color-mix(in srgb, var(--muted) 70%, transparent); border-radius: 50%; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 .task-items .task-check:hover:not(:disabled) { border-color: var(--lc, var(--accent)); }
 .task-items .task-check:active { transform: scale(0.88); }
-.task-items .task-check[aria-checked="true"] { border-color: var(--lc, var(--accent)); background: var(--lc, var(--accent)); color: #fff; }
+.task-items .task-check[aria-checked="true"] { border-color: var(--lc, var(--accent)); background: var(--lc, var(--accent)); color: var(--on-accent); }
 .task-check svg { stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .task-text { padding: 2px 0; font-size: var(--fs-lg); line-height: 1.35; }
 .task[data-done] > .task-line .task-text { color: var(--muted); text-decoration: none; }
@@ -97,7 +97,7 @@
 .task-subcount { font-variant-numeric: tabular-nums; }
 .task-flagged { flex: none; display: inline-grid; place-items: center; width: 18px; height: 26px; color: var(--flag); }
 .task-flagged svg { width: 15px; height: 15px; fill: currentColor; stroke: currentColor; stroke-width: 1.2; stroke-linejoin: round; }
-.task-tools { position: absolute; top: 5px; right: 4px; margin-top: 0; padding-left: 16px; border-radius: 0 8px 8px 0; background: linear-gradient(to right, transparent, var(--tools-bg, var(--bg)) 16px); }
+.task-tools { position: absolute; top: 5px; right: 4px; margin-top: 0; padding-left: var(--sp-4); border-radius: 0 var(--radius-control) var(--radius-control) 0; background: linear-gradient(to right, transparent, var(--tools-bg, var(--bg)) 16px); }
 .task-line:hover { --tools-bg: color-mix(in srgb, var(--ink) 4%, var(--bg)); }
 .task[data-picked] > .task-line { --tools-bg: color-mix(in srgb, var(--lc, var(--accent)) 12%, var(--bg)); }
 .task-tools svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -113,32 +113,32 @@
 .task-subtasks { margin-left: 33px; }
 .task-subtasks .task-check { width: 17px; height: 17px; margin-top: 3px; }
 .task-subtasks .task-text { font-size: var(--fs-md); }
-.task-subtasks .task-line { padding-top: 4px; padding-bottom: 4px; }
+.task-subtasks .task-line { padding-top: var(--sp-1); padding-bottom: var(--sp-1); }
 .task-subtasks .task-line::after { left: 34px; }
 
-.task-drop-end { height: 28px; border-radius: 8px; }
+.task-drop-end { height: 28px; border-radius: var(--radius-control); }
 .task-drop-end[data-drop] { box-shadow: inset 0 2px 0 var(--accent); }
 
 .tasks-group { margin-top: var(--sp-5); }
 .tasks-group:first-of-type { margin-top: var(--sp-3); }
-.tasks-group-head { margin: 0 0 2px; padding: 0 4px; font-size: var(--fs-xl); font-weight: 700; color: var(--lc); }
+.tasks-group-head { margin: 0 0 2px; padding: 0 var(--sp-1); font-size: var(--fs-xl); font-weight: 700; color: var(--lc); }
 .tasks-group-head button { padding: 0; font: inherit; color: inherit; background: none; }
 .tasks-group-head button:hover { background: none; text-decoration: underline; text-underline-offset: 3px; }
 .tasks-searching { display: flex; align-items: center; justify-content: space-between; margin-top: 0; color: var(--muted); font-size: var(--fs-sm); }
 .tasks-empty { margin-top: var(--sp-8); font-size: var(--fs-md); }
 
 /* ---------- Inspector ---------- */
-.task-inspector { width: 320px; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: var(--sp-4); border-left: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2.5%, var(--bg)); animation: tasks-in var(--dur-med) var(--ease); }
+.task-inspector { width: 320px; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); border-left: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2.5%, var(--bg)); animation: tasks-in var(--dur-med) var(--ease); }
 @keyframes tasks-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
-.task-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.task-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .task-inspector-where { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--lc); }
 .task-inspector textarea { width: 100%; resize: none; border: 0; outline: none; background: transparent; color: var(--ink); font: inherit; }
 .task-inspector .task-inspector-title { font-size: var(--fs-xl); font-weight: var(--fw-semibold); line-height: 1.3; }
-.task-inspector .task-inspector-notes { min-height: 72px; padding: 8px 10px; border-radius: 10px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--line); font-size: var(--fs-md); line-height: 1.45; }
+.task-inspector .task-inspector-notes { min-height: 72px; padding: var(--sp-2) 10px; border-radius: var(--radius-group); background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--line); font-size: var(--fs-md); line-height: 1.45; }
 .task-inspector-notes:focus { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
-.inspector-group { display: grid; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--line); }
-.inspector-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
-.inspector-row + .inspector-row { padding-top: 8px; border-top: 0.5px solid var(--line); }
+.inspector-group { display: grid; gap: var(--sp-2); padding: 10px var(--sp-3); border-radius: var(--radius-group); background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--line); }
+.inspector-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 28px; }
+.inspector-row + .inspector-row { padding-top: var(--sp-2); border-top: 0.5px solid var(--line); }
 .inspector-label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-md); }
 .inspector-row select { max-width: 60%; height: 26px; }
 .inspector-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -150,19 +150,19 @@
 .inspector-subtasks li { display: flex; align-items: center; gap: 10px; min-height: 30px; border-bottom: 0.5px solid var(--line); font-size: var(--fs-md); }
 .inspector-subtasks li[data-done] span { color: var(--muted); }
 .inspector-subtasks .task-check, .inspector-add .task-check { width: 17px; height: 17px; margin: 0; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--muted) 70%, transparent); }
-.inspector-subtasks .task-check[aria-checked="true"] { border-color: var(--lc, var(--accent)); background: var(--lc, var(--accent)); color: #fff; }
+.inspector-subtasks .task-check[aria-checked="true"] { border-color: var(--lc, var(--accent)); background: var(--lc, var(--accent)); color: var(--on-accent); }
 .inspector-subtasks .task-check svg { width: 11px; height: 11px; stroke-width: 2; }
 .inspector-add { display: flex; align-items: center; gap: 10px; min-height: 30px; }
 .inspector-add .task-check { border-style: dashed; }
 .inspector-add input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: var(--fs-md); }
 .inspector-mobius { display: flex; flex-wrap: wrap; gap: 6px; background: transparent; box-shadow: none; padding: 0; }
 .inspector-mobius .side-start { height: 26px; padding: 0 10px; font-size: var(--fs-sm); }
-.task-inspector-foot { margin-top: auto; display: flex; justify-content: center; padding-top: 4px; }
+.task-inspector-foot { margin-top: auto; display: flex; justify-content: center; padding-top: var(--sp-1); }
 
 /* A switch, as on Apple platforms. */
 .inspector-switch input[role="switch"] { appearance: none; flex: none; position: relative; width: 38px; height: 22px; margin: 0; border-radius: 11px; background: color-mix(in srgb, var(--ink) 16%, transparent); transition: background var(--dur-fast) var(--ease); cursor: pointer; }
-.inspector-switch input[role="switch"]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.25); transition: transform var(--dur-fast) var(--ease); }
-.inspector-switch input[role="switch"]:checked { background: #34c759; }
+.inspector-switch input[role="switch"]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--bg); box-shadow: var(--shadow-1); transition: transform var(--dur-fast) var(--ease); }
+.inspector-switch input[role="switch"]:checked { background: var(--accent); }
 .inspector-switch input[role="switch"]:checked::after { transform: translateX(16px); }
 .inspector-switch input[role="switch"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -217,7 +217,7 @@
 .task-repeat[data-after] { margin-left: 5px; }
 .task-repeat svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .inspector-label .task-repeat { margin-right: 6px; }
-.inspector-time { display: inline-flex; align-items: center; gap: 4px; }
-.task-time { padding: 3px 8px; border: 0; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font: inherit; font-size: var(--fs-md); }
+.inspector-time { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.task-time { padding: 3px var(--sp-2); border: 0; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font: inherit; font-size: var(--fs-md); }
 .task-time:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
 .inspector-hint { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
