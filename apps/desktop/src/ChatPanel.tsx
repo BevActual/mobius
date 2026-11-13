@@ -392,7 +392,7 @@ export interface ChatPanelProps {
 }
 
 /** The title of the conversation, which opens the list of the others. */
-function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 0, extra = [] }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onNew: () => void; /** Changes when something outside asks for the list (the needs-you capsule). */ openToken?: number; extra?: Array<{ label: string; onSelect: () => void }> }) {
+function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 0, extra = [], asTitle = false }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onNew: () => void; /** The panel's plain "Mobius" title opens the list, so the head has no list icon. */ asTitle?: boolean; /** Changes when something outside asks for the list (the needs-you capsule). */ openToken?: number; extra?: Array<{ label: string; onSelect: () => void }> }) {
   const [open, setOpen] = useState(false);
   useEffect(() => { if (openToken) setOpen(true); }, [openToken]);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -434,8 +434,8 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
 
   return (
     <div className="convo">
-      <button ref={trigger} type="button" className="head-icon" aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={`All chats · now: ${title}`} onClick={() => setOpen((value) => !value)}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5.5h9M7 10h9M7 14.5h9" /><circle cx="4" cy="5.5" r="0.6" /><circle cx="4" cy="10" r="0.6" /><circle cx="4" cy="14.5" r="0.6" /></svg>
+      <button ref={trigger} type="button" className={asTitle ? 'chat-title chat-title-btn' : 'head-icon'} aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={`All chats · now: ${title}`} onClick={() => setOpen((value) => !value)}>
+        {asTitle ? 'Mobius' : <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5.5h9M7 10h9M7 14.5h9" /><circle cx="4" cy="5.5" r="0.6" /><circle cx="4" cy="10" r="0.6" /><circle cx="4" cy="14.5" r="0.6" /></svg>}
       </button>
       {open && (
         <div ref={menu} className="convo-menu" role="menu" aria-label="Conversations" onKeyDown={move}>
@@ -615,27 +615,23 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
     <Shell variant={variant} empty={state.items.length === 0}>
       <div className="chat-head" data-lead={lead || onPlace ? true : undefined}>
         {lead}
-        {variant === 'panel' && !lead && <MobiusMark size={22} className="chat-mark" />}
         {variant === 'full' && !needsSetup ? (
           <span className="chat-titles">
             <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span>
             <span className="chat-sub">Mobius</span>
           </span>
+        ) : variant === 'panel' && !lead && (!needsSetup || menuItems.length > 0) ? (
+          // The panel's head is its name and close, nothing more: the name opens every chat (and what waits for you).
+          <span className="chat-titles">
+            <ConversationMenu asTitle conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />
+          </span>
         ) : (
           <span className="chat-titles">
             <span className="chat-title">Mobius</span>
-            {place && (onPlace
-              ? <button type="button" className="chat-sub chat-place" data-app-switcher aria-label={`In ${place}: switch app`} title="Switch app" onClick={onPlace}>In {place}<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>
-              : <span className="chat-sub">In {place}</span>)}
           </span>
         )}
-        {variant === 'panel' && waiting > 0 && (
-          <button type="button" className="needs-you" title="Open the chats that wait for you" onClick={() => setChatsToken((n) => n + 1)}>
-            <span className="needs-you-dot" aria-hidden="true" />{waiting} needs you
-          </button>
-        )}
         <div className="chat-head-actions">
-          {variant === 'panel' && (!needsSetup || menuItems.length > 0) && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />}
+          {variant === 'panel' && lead && (!needsSetup || menuItems.length > 0) && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />}
           {pin}
           {variant === 'panel' && onHide && !lead && (
             <button type="button" className="head-icon" aria-label="Hide" title="Hide Mobius" onClick={onHide}>
@@ -683,6 +679,9 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {state.items.length === 0 && (
               configured && desk ? (
                 <div className="empty" data-desk>{desk(<div ref={setStarterSlot} className="empty-starters" />)}</div>
+              ) : configured && variant === 'panel' ? (
+                // Beside an app: no logo or greeting, only a few quiet things to ask about what is open.
+                <div className="empty empty-quiet"><div ref={setStarterSlot} className="empty-starters" /></div>
               ) : (
                 <div className="empty">
                   <MobiusMark size={44} turning={!configured} className="empty-mark" />

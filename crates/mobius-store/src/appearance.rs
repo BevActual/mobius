@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use crate::settings::{Field, Settings, in_range, is_flag, one_of};
 
 pub const LEFT_WIDTH: (f64, f64, f64) = (200.0, 420.0, 248.0);
-pub const RIGHT_WIDTH: (f64, f64, f64) = (300.0, 640.0, 380.0);
+pub const RIGHT_WIDTH: (f64, f64, f64) = (300.0, 640.0, 320.0);
 
 /// The apps the sidebar may list. Its `sidebarApps` setting says which, in what order; the rest stay in All apps.
 pub const SIDEBAR_APPS: [&str; 10] = ["agent", "search", "browser", "mail", "notes", "docs", "sheets", "slides", "tasks", "calendar"];
