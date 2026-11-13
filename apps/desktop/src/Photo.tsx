@@ -697,8 +697,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
               </div>
               <div className="photo-panel-head">
                 <span className="photo-panel-title">Layers</span>
-                <button type="button" className="photo-chip" aria-pressed={auto !== undefined} title="Let Photo set the light and colour" onClick={toggleAuto}>
-                  <Icon d="M10 3l1.6 3.9L15.5 8l-3.9 1.6L10 13.5 8.4 9.6 4.5 8l3.9-1.1zM15 13l.7 1.6 1.6.7-1.6.7L15 17.6l-.7-1.6-1.6-.7 1.6-.7z" />Auto
+                <button type="button" className="photo-chip" aria-pressed={auto !== undefined} title="Let Photo set the light and colour" onClick={toggleAuto}>Auto
                 </button>
                 <button type="button" className="strip-btn" aria-label="Add adjustment" title="Add adjustment" onClick={add}><Icon d={PLUS} /></button>
               </div>

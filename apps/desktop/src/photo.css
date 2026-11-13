@@ -199,11 +199,11 @@
 .photo-page .photo-slider input, .context-strip .photo-zoom input { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; margin: 0; background: transparent; cursor: default; }
 .photo-page .photo-slider input::-webkit-slider-runnable-track { height: 6px; border-radius: var(--radius-pill); background: linear-gradient(to right, var(--line) var(--from), var(--ink) var(--from), var(--ink) var(--to), var(--line) var(--to)); }
 .context-strip .photo-zoom input::-webkit-slider-runnable-track { height: 6px; border-radius: var(--radius-pill); background: var(--line); }
-.photo-page .photo-slider input::-webkit-slider-thumb, .context-strip .photo-zoom input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -4px; border-radius: var(--radius-pill); background: var(--paper); box-shadow: 0 0 0 1.5px var(--ink); }
+.photo-page .photo-slider input::-webkit-slider-thumb, .context-strip .photo-zoom input::-webkit-slider-thumb { -webkit-appearance: none; width: 4px; height: 16px; margin-top: -5px; border-radius: var(--radius-pill); background: var(--ink); }
 .photo-page .photo-slider input:focus-visible, .context-strip .photo-zoom input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: var(--radius-control); }
 .photo-page .photo-slider input::-moz-range-track, .context-strip .photo-zoom input::-moz-range-track { height: 6px; border-radius: var(--radius-pill); background: var(--line); }
 .photo-page .photo-slider input::-moz-range-progress { height: 6px; border-radius: var(--radius-pill); background: var(--ink); }
-.photo-page .photo-slider input::-moz-range-thumb, .context-strip .photo-zoom input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: var(--radius-pill); background: var(--paper); box-shadow: 0 0 0 1.5px var(--ink); }
+.photo-page .photo-slider input::-moz-range-thumb, .context-strip .photo-zoom input::-moz-range-thumb { width: 4px; height: 16px; border: 0; border-radius: var(--radius-pill); background: var(--ink); }
 
 /* Buttons in the panel: Auto, the aspect choices, Rotate left, Flip and Reset are secondary buttons; a chosen one has
    the grey fill with ink text. Done is the panel's one primary button. */
