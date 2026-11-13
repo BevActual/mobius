@@ -27,11 +27,12 @@ const openIn = async (path: string) => {
   await address.press('Enter');
 };
 
-test('a tab can be pinned to the front, and unpinned', async () => {
+test('a tab can be pinned, and unpinned', async () => {
   await openIn('/second');
   await expect(titles()).toHaveText(['Fixture home', 'Second page']);
   await shell().getByRole('button', { name: 'Pin Second page' }).click();
-  await expect(titles()).toHaveText(['Second page', 'Fixture home']);
+  await expect(shell().getByRole('list', { name: 'Pinned tabs' }).locator('.tab-title')).toHaveText(['Second page']);
+  await expect(shell().getByRole('list', { name: 'Open tabs' }).locator('.tab-title')).toHaveText(['Fixture home']);
   await expect(shell().getByRole('button', { name: 'Unpin Second page' })).toHaveAttribute('aria-pressed', 'true');
   await shell().getByRole('button', { name: 'Unpin Second page' }).click();
   await expect(shell().getByRole('button', { name: 'Pin Second page' })).toHaveAttribute('aria-pressed', 'false');

@@ -6,9 +6,10 @@ const tab = (id: string, url: string, title: string, extra: Partial<BrowserTabSt
 
 describe('the address at rest', () => {
   it('shows the site name and whether the connection is private', () => {
-    expect(addressParts('https://www.veltro.example/packs?x=1')).toEqual({ secure: true, host: 'veltro.example' });
-    expect(addressParts('http://localhost:5173/')).toEqual({ secure: false, host: 'localhost' });
-    expect(addressParts('file:///C:/Users/me/Report%201.pdf')).toEqual({ secure: false, host: 'Report 1.pdf' });
+    expect(addressParts('https://www.veltro.example/packs?x=1')).toEqual({ secure: true, host: 'veltro.example', path: 'packs?x=1' });
+    expect(addressParts('https://axion.example/motors/150/')).toEqual({ secure: true, host: 'axion.example', path: 'motors/150' });
+    expect(addressParts('http://localhost:5173/')).toEqual({ secure: false, host: 'localhost', path: '' });
+    expect(addressParts('file:///C:/Users/me/Report%201.pdf')).toEqual({ secure: false, host: 'Report 1.pdf', path: '' });
   });
   it('leaves anything else as it is', () => {
     expect(addressParts('')).toBeNull();

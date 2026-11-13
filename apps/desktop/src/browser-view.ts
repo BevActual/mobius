@@ -9,12 +9,14 @@ import type { BookmarkEntry, BrowserTabState, HistoryEntry } from '@mobius/share
 export const hostOf = (url: string): string => { try { return new URL(url).hostname.replace(/^www\./, '') || url; } catch { return url; } };
 
 /** An address as Safari shows it at rest: whether the connection is private, and the site's name alone. */
-export function addressParts(url: string): { secure: boolean; host: string } | null {
+export function addressParts(url: string): { secure: boolean; host: string; path: string } | null {
   if (!url || !/^(https?|file):/i.test(url)) return null;
   try {
     const u = new URL(url);
-    if (u.protocol === 'file:') return { secure: false, host: decodeURIComponent(u.pathname.split('/').pop() || 'File') };
-    return { secure: u.protocol === 'https:', host: u.hostname.replace(/^www\./, '') };
+    if (u.protocol === 'file:') return { secure: false, host: decodeURIComponent(u.pathname.split('/').pop() || 'File'), path: '' };
+    // The path after the site's name, without its first slash or a lone trailing one ("packs/60kwh"); empty on a site's home.
+    const path = decodeURIComponent(`${u.pathname}${u.search}`).replace(/^\//, '').replace(/\/$/, '');
+    return { secure: u.protocol === 'https:', host: u.hostname.replace(/^www\./, ''), path };
   } catch {
     return null;
   }

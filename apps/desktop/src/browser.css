@@ -13,6 +13,7 @@
 .browser-side > .ui-side-section .list-row .tab-icon { width: 16px; height: 16px; border-radius: 4px; }
 
 /* The browser's controls take the toolbar's middle, so the address gets the room. */
+.ui-toolbar-slot:has(.browser-chrome) { flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
 .ui-toolbar-group:has(> .browser-chrome) { flex: 1; min-width: 0; }
 .browser-chrome .address { min-width: 64px; }
 /* In a narrow toolbar the address keeps its room: the star and the selected-text button step out (both are in the
@@ -23,8 +24,9 @@
 }
 .browser-side .tab { position: relative; height: 32px; }
 .browser-side .tab-main { height: 32px; padding: 0 8px; gap: 9px; color: var(--ink); }
-.browser-side .tab:not([aria-current="page"]):hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.browser-side .tab[aria-current="page"] { background: var(--bg); box-shadow: 0 0 0 0.5px var(--line), 0 1px 2px rgba(0, 0, 0, 0.06); }
+/* Plain rows, as the other sidebars: the hover and the selection are the sidebar's own greys. */
+.browser-side .tab:not([aria-current="page"]):hover { background: var(--side-hover); }
+.browser-side .tab[aria-current="page"] { background: var(--side-select); box-shadow: none; }
 .browser-side .tab-title { flex: 1 1 auto; min-width: 0; font-size: var(--fs-md, 13px); }
 .browser-side .tab[aria-current="page"] .tab-title { font-weight: 500; }
 .browser-side .tab-icon { width: 16px; height: 16px; border-radius: 4px; }
@@ -37,18 +39,15 @@
 .browser-side .tab-loading { width: 6px; height: 6px; animation: tab-pulse var(--dur-loop) var(--ease) infinite; }
 @keyframes tab-pulse { 50% { opacity: 0.25; } }
 
-/* The row's buttons float over the end of the title, so a title gets the whole row until the pointer is on it. */
-.browser-side .tab-actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; align-items: center; gap: 0; padding: 0 3px 0 18px; border-radius: 0 var(--radius-control) var(--radius-control) 0; opacity: 0; background: linear-gradient(to right, transparent, var(--row-bg) 16px); --row-bg: color-mix(in srgb, var(--ink) 5%, var(--side-bg, var(--panel))); transition: opacity var(--dur-fast, var(--dur-fast)); }
-.browser-side .tab[aria-current="page"] .tab-actions { --row-bg: var(--bg); }
+/* The row's buttons sit at the end of the row; the title gets the whole row until the pointer is on it, then
+   makes room (the sidebar greys are see-through, so the buttons can't simply cover the title). */
+.browser-side .tab-actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; align-items: center; gap: 0; padding: 0 3px; opacity: 0; transition: opacity var(--dur-fast); }
 .browser-side .tab:hover .tab-actions, .browser-side .tab:focus-within .tab-actions { opacity: 1; }
+.browser-side .tab:hover .tab-main, .browser-side .tab:focus-within .tab-main { padding-right: 72px; }
 .browser-side .tab .tab-close { opacity: 1; width: 22px; height: 22px; margin: 0; color: var(--muted); }
 .browser-side .tab .tab-close svg { width: 11px; height: 11px; }
 .browser-side .tab[data-pinned="true"] .tab-pin { color: var(--accent); }
-/* The tab that is showing keeps its close button, as in Safari; its other buttons wait for the pointer. */
-.browser-side .tab[aria-current="page"] .tab-actions { opacity: 1; }
-.browser-side .tab[aria-current="page"]:not(:hover):not(:focus-within) .tab-actions > :not(.tab-x) { opacity: 0; }
-/* Until then only the close button's end of the row is covered, so the hidden buttons do not hide the end of its title. */
-.browser-side .tab[aria-current="page"]:not(:hover):not(:focus-within) .tab-actions { background: linear-gradient(to right, transparent calc(100% - 42px), var(--row-bg) calc(100% - 26px)); }
+/* Every row, the showing one too, keeps its buttons (close, pin, duplicate) out of sight until the pointer is on it. */
 .browser-side .tabs-empty { margin: 2px 8px; font-size: var(--fs-sm); color: var(--muted); }
 
 /* Dragging: the tab being moved fades, and a line shows where it will land. */
@@ -62,8 +61,11 @@
 /* The address bar: the site's name at rest, the whole address while editing. */
 .address[data-editing] .address-rest { display: none; }
 .address:not([data-editing]) input:not(:placeholder-shown) { color: transparent; caret-color: transparent; }
-.address-rest { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 0 12px; pointer-events: none; color: var(--ink); font-size: var(--fs-md, 13px); white-space: nowrap; overflow: hidden; }
+.address-rest { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-start; gap: 6px; padding: 0 12px; pointer-events: none; color: var(--ink); font-size: var(--fs-md, 13px); white-space: nowrap; overflow: hidden; }
 .address-rest > span { overflow: hidden; text-overflow: ellipsis; }
+/* The site's name in ink, the rest of the address in grey after it, as in the mock. */
+.address-rest .address-host { flex: none; max-width: 60%; font-weight: var(--fw-medium, 500); }
+.address-rest .address-path { flex: 0 1 auto; min-width: 0; color: var(--muted); }
 .address-rest svg { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .address input { text-overflow: ellipsis; }
 .address[data-editing] input { text-align: left; }
@@ -120,7 +122,8 @@
 .start-page .start-reading svg { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
 
 /* Downloads: a button in the sidebar's head with a ring for progress, and a popover that drops down inside the sidebar. */
-.browser-side > .side-head { position: relative; }
+.browser-side .side-head { position: relative; }
+.browser-side .side-head > .side-actions { margin-left: auto; }
 .browser-side .dl-wrap { display: inline-flex; }
 .browser-side .dl-button { position: relative; }
 .browser-side .dl-button[data-busy] { color: var(--accent); }
@@ -134,6 +137,7 @@
 .browser-side .dl-actions { gap: 10px; }
 .browser-side .dl-btn { height: auto; padding: 0; font-size: var(--fs-sm); color: var(--accent); background: none; }
 .browser-side .dl-btn:hover { text-decoration: underline; text-underline-offset: 2px; }
-/* A bookmarked or pinned page shows in the accent colour, drawn in outline like the other tools. */
-.strip-middle .strip-btn[aria-pressed="true"] svg { fill: none; }
+/* A saved page shows a filled star, not a pressed box. */
+.browser-chrome [aria-label="This page"] .strip-btn[aria-pressed="true"] { background: none; }
+.browser-chrome [aria-label="This page"] .strip-btn[aria-pressed="true"] svg { fill: currentColor; }
 .browser-side .dl-item .dl-btn { align-self: flex-start; }

@@ -6,11 +6,14 @@ A full web browser, with Mobius able to read and work on pages for you.
 
 ![The Browser app in Mobius](../readme/apps/browser.png)
 
-- **The sidebar** holds a search for your tabs and bookmarks, then **Pinned**, **Tabs** and **Bookmarks**. Back,
-  forward, reload and the address are in the toolbar; the address suggests open tabs, bookmarks and history as you type.
-- **Tabs** live in the sidebar, as in Safari and Arc. Pinned tabs sit in their own group above the rest; drag a tab to
-  reorder it or across the line to pin it. A small Mobius mark on a tab means Mobius is reading or using it; a hand means
-  you took it back.
+- **The toolbar** has back, forward and reload, the address (the site in full ink, the rest of the address in grey),
+  and the star. Everything else about the page (Save to Reader, selected text, pin to the sidebar) is in **⋯**. The address suggests open
+  tabs, bookmarks and history as you type.
+- **The sidebar** holds New tab (Ctrl+T), a search for your tabs and bookmarks, then **Tabs**, **Pinned** and **From
+  Mobius**. Tabs live in the sidebar, as in Safari and Arc: each is a plain row whose buttons (pin, duplicate, close)
+  show when the pointer is on it, and right-clicking a tab gives the rest. Drag a tab to reorder it or across the line
+  to pin it. The Mobius mark shows only on tabs Mobius opened or is using; **From Mobius › Opened for research** shows
+  just those.
 - **A new tab** opens Mobius's start page: your favourites, other sites you visit most, and your reading list. It is drawn
   by Mobius, so none of it is shown to a web page.
 - **Bookmarks** with the star beside the address, **Find** (Ctrl+F), downloads and history. To pin a page to the
