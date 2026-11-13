@@ -7,12 +7,8 @@ test.beforeEach(async () => {
   fixture = await startFixture();
   mobius = await launch(fixture.origin + '/');
   await expect(shell().getByText('Core ready')).toBeVisible();
-  // These tests are about the app's own list beside the page, which the narrow rail keeps separate.
-  // Set once the window has read its own settings, which can land after this on a slow start: try until it holds.
-  await expect(async () => {
-    await shell().evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
-    await expect(shell().locator('.dock.left')).toHaveCount(1, { timeout: 1500 });
-  }).toPass({ timeout: 15_000 });
+  // These tests are about the app's own list beside the page (zone 2), next to the rail.
+  await expect(shell().locator('.dock.left')).toHaveCount(1, { timeout: 15_000 });
   // The sidebar folds with a short animation: measure only once it has settled.
   await expect.poll(async () => Math.round((await shell().locator('.rail').boundingBox())!.width)).toBe(52);
 });

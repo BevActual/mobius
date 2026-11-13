@@ -42,7 +42,7 @@ fn is_clippings_page(v: &Value) -> bool {
     v.as_str().is_some_and(|s| s.is_empty() || (s.ends_with(".md") && s.chars().count() <= 500 && !s.chars().any(char::is_control)))
 }
 
-static FIELDS: [Field; 18] = [
+static FIELDS: [Field; 17] = [
     Field { name: "theme", default: || json!("system"), check: |v| one_of(v, &["system", "light", "mid", "dark", "cool"]) },
     Field { name: "zoom", default: || json!(1), check: |v| in_range(v, 0.75, 1.5) },
     Field { name: "chatTextScale", default: || json!(1), check: |v| in_range(v, 0.85, 1.4) },
@@ -53,8 +53,6 @@ static FIELDS: [Field; 18] = [
     Field { name: "sidebarAtStart", default: || json!(true), check: is_flag },
     Field { name: "resumeLast", default: || json!(true), check: is_flag },
     Field { name: "leftSidebar", default: || json!("attached"), check: |v| one_of(v, &["attached", "floating"]) },
-    // The app list on the left: the full sidebar (the default, so it is easy to find) or a narrow rail of icons.
-    Field { name: "navigation", default: || json!("sidebar"), check: |v| one_of(v, &["sidebar", "rail"]) },
     Field { name: "rightSidebar", default: || json!("attached"), check: |v| one_of(v, &["attached", "floating"]) },
     // Kept for older saved files; Mobius now always sits in the right panel, beside the work.
     Field { name: "agentPlace", default: || json!("beside"), check: |v| one_of(v, &["sidebar", "beside"]) },

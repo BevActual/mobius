@@ -32,7 +32,6 @@ test('opens one window with a single visible page glued to the slot', async () =
 
 test('the page stays glued to the slot when the window resizes and the panel toggles', async () => {
   await expectVisibleView(mobius.app);
-  await mobius.shell.evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
   await resizeWindow(mobius.app, 1000, 700);
   await mobius.shell.getByRole('button', { name: 'Show tabs' }).click();
   await expect.poll(async () => {

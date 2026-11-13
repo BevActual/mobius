@@ -1024,7 +1024,7 @@ export function App() {
     keys: bindings,
     state: {
       // The sidebar is the app list with the open app's own list under it; with a separate list panel (hasLeft), that panel.
-      sidebarShown: hasLeft && leftOpen, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, split, canSplit: !narrow, miniOpen,
+      sidebarShown: hasLeft && leftOpen, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
@@ -1044,6 +1044,7 @@ export function App() {
       find: openFind,
       toggleSidebar: () => setLeftOpen((open) => !open),
       toggleAgent: () => setChatOpen((open) => !open),
+      toggleComments: () => setCommenting((on) => !on),
       toggleSplit,
       toggleMini,
       zoom: (zoom) => void appearance.set({ zoom }),

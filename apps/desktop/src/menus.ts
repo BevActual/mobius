@@ -22,6 +22,7 @@ export interface MenuContext {
     hasSidebar: boolean;
     agentShown: boolean;
     hasAgentPanel: boolean;
+    commenting: boolean;
     split: boolean;
     canSplit: boolean;
     miniOpen: boolean;
@@ -44,6 +45,7 @@ export interface MenuContext {
     find: () => void;
     toggleSidebar: () => void;
     toggleAgent: () => void;
+    toggleComments: () => void;
     toggleSplit: () => void;
     toggleMini: () => void;
     zoom: (zoom: number) => void;
@@ -108,6 +110,7 @@ export function buildMenus(c: MenuContext): Menu[] {
   const view: Menu = { id: 'view', label: 'View', items: [
     item('sidebar', 'Sidebar', d.toggleSidebar, { checked: s.sidebarShown, disabled: !s.hasSidebar }),
     item('agent-panel', 'Agent panel', d.toggleAgent, { checked: s.agentShown, disabled: !s.hasAgentPanel }),
+    item('comments', 'Comments', d.toggleComments, { keys: 'c', checked: s.commenting }),
     separator,
     item('zoom-in', 'Zoom in', () => d.zoom(nextZoom(s.zoom, 1)), { disabled: s.zoom >= ZOOM_STEPS.at(-1)! }),
     item('zoom-out', 'Zoom out', () => d.zoom(nextZoom(s.zoom, -1)), { disabled: s.zoom <= ZOOM_STEPS[0] }),
