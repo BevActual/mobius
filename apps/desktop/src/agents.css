@@ -25,7 +25,11 @@
 .bot-row .clist-sub { display: block; }
 .bot-more { flex: none; width: 24px; height: 24px; margin-right: 4px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
 .bot-more svg { width: 16px; height: 16px; fill: currentColor; }
-.bot-row:hover .bot-more, .bot-more:focus-visible, .bot-more[aria-expanded="true"] { opacity: 1; }
+.ui-side-row-trail:hover > .bot-more, .bot-more:focus-visible, .bot-more[aria-expanded="true"] { opacity: 1; }
+/* The More button sits over the row's trailing edge, so the selected row runs the sidebar's full width like every other app's. */
+.agent-side .ui-side-row-trail { position: relative; flex-wrap: wrap; }
+.agent-side .ui-side-row-trail > .bot-more { position: absolute; right: var(--sp-1); top: 50%; transform: translateY(-50%); margin: 0; }
+.agent-side .ui-side-row-trail > .bot-confirm, .agent-side .ui-side-row-trail > .field-error { flex-basis: 100%; }
 .bot-more:hover { background: var(--wash); color: var(--ink); }
 .bot-confirm { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; margin: 0 8px 8px; padding: 8px 10px; border-radius: 10px; background: var(--soft); font-size: var(--fs-sm); }
 .bot-confirm p { margin: 0; }
