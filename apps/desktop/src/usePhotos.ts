@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type PhotoAlbum } from '@mobius/shared';
+import { isNotesFailure, type PhotoAlbum, type PhotoInfo } from '@mobius/shared';
 import { parseEdits, writeEdits, type PhotoEdits } from './photo-edit';
 import { emptyHistory, recorded, redone, undone, type History } from './photo-view';
 
 const LAST_KEY = 'mobius.photos.last';
 const SAVE_DELAY_MS = 400;
+/** The album shown when Recently Deleted is open: no real album's name starts with a dot. */
+export const RECENTLY_DELETED = '.deleted';
+export type DeletedPhoto = PhotoInfo & { album: string };
 export interface OpenPhoto { path: string; dataUrl: string; base: number | null }
 
 /** The Photo app's state: albums, the open photo, its edits as changed here (saved shortly after), and what it looks like. */
@@ -154,6 +157,94 @@ export function usePhotos(active = true) {
 
   const showAlbum = useCallback((name: string) => { setAlbum(name); setBrowsing(true); }, []);
 
-  return { available: api !== undefined, albums, album: album ?? albums[0]?.name ?? null, browsing, showAlbum, setBrowsing, undo: () => step(true), redo: () => step(false), canUndo: (here?.past.length ?? 0) > 0, canRedo: (here?.future.length ?? 0) > 0, read: (path: string) => api?.read(path), open, edits, change, saved, message, setMessage, selected, setSelected, described, setDescribed, openPhoto, reload: () => (live.current.open ? load(live.current.open.path, true) : Promise.resolve(false)), createAlbum, addFiles, exportPicture, refresh };
+  // Managing the library: renaming, moving and deleting photos and albums. Deleted photos wait in Recently Deleted.
+  const [deleted, setDeleted] = useState<DeletedPhoto[]>([]);
+  const refreshDeleted = useCallback(async () => {
+    const list = await api?.deleted?.().catch(() => null);
+    setDeleted(list && !isNotesFailure(list) ? list : []);
+  }, [api]);
+  useEffect(() => { if (active) void refreshDeleted(); }, [active, refreshDeleted]);
+  const failed = (r: unknown): r is { message: string } => { if (r && isNotesFailure(r as never)) { setMessage((r as { message: string }).message); return true; } return false; };
+  /** A photo now at `to` instead of `from`: the open photo follows it, keeping its undo. */
+  const relocated = useCallback(async (from: string, to: string) => {
+    const h = histories.current.get(from);
+    if (h) { histories.current.set(to, h); histories.current.delete(from); }
+    if (live.current.open?.path === from) await load(to, true);
+  }, [load]);
+  const settleOpen = useCallback(async (path: string) => {
+    if (live.current.open?.path === path && !live.current.saved) await save();
+  }, [save]);
+  const renamePhoto = useCallback(async (path: string, name: string) => {
+    if (!api?.rename) return null;
+    await settleOpen(path);
+    const r = await api.rename(path, name);
+    if (failed(r)) return null;
+    await relocated(path, r.path);
+    await refresh();
+    return r.path;
+  }, [api, refresh, relocated, settleOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const movePhoto = useCallback(async (path: string, to: string) => {
+    if (!api?.move) return null;
+    await settleOpen(path);
+    const r = await api.move(path, to);
+    if (failed(r)) return null;
+    await relocated(path, r.path);
+    await refresh();
+    setMessage(`Moved to ${to}.`);
+    return r.path;
+  }, [api, refresh, relocated, settleOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const deletePhoto = useCallback(async (path: string) => {
+    if (!api?.delete) return false;
+    await settleOpen(path);
+    const r = await api.delete(path);
+    if (failed(r)) return false;
+    histories.current.delete(path);
+    if (live.current.open?.path === path) { setOpen(null); setBrowsing(true); }
+    await Promise.all([refresh(), refreshDeleted()]);
+    return true;
+  }, [api, refresh, refreshDeleted, settleOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const recoverPhoto = useCallback(async (path: string) => {
+    if (!api?.recover) return null;
+    const r = await api.recover(path);
+    if (failed(r)) return null;
+    await Promise.all([refresh(), refreshDeleted()]);
+    setMessage(`Put back in ${r.path.split('/')[0]}.`);
+    return r.path;
+  }, [api, refresh, refreshDeleted]); // eslint-disable-line react-hooks/exhaustive-deps
+  const emptyDeleted = useCallback(async () => {
+    if (!api?.emptyDeleted) return;
+    const r = await api.emptyDeleted();
+    if (failed(r)) return;
+    await refreshDeleted();
+  }, [api, refreshDeleted]); // eslint-disable-line react-hooks/exhaustive-deps
+  const renameAlbum = useCallback(async (from: string, name: string) => {
+    if (!api?.renameAlbum) return null;
+    const o = live.current.open;
+    if (o && o.path.startsWith(`${from}/`) && !live.current.saved) await save();
+    const r = await api.renameAlbum(from, name);
+    if (failed(r)) return null;
+    for (const [k, h] of [...histories.current]) if (k.startsWith(`${from}/`)) { histories.current.set(`${r.name}/${k.slice(from.length + 1)}`, h); histories.current.delete(k); }
+    if (o && o.path.startsWith(`${from}/`)) await load(`${r.name}/${o.path.slice(from.length + 1)}`, true);
+    setAlbum((cur) => (cur === from ? r.name : cur));
+    await refresh();
+    return r.name;
+  }, [api, load, refresh, save]); // eslint-disable-line react-hooks/exhaustive-deps
+  const deleteAlbum = useCallback(async (name: string) => {
+    if (!api?.deleteAlbum) return false;
+    const o = live.current.open;
+    if (o && o.path.startsWith(`${name}/`) && !live.current.saved) await save();
+    const r = await api.deleteAlbum(name);
+    if (failed(r)) return false;
+    if (o && o.path.startsWith(`${name}/`)) setOpen(null);
+    const list = await refresh();
+    await refreshDeleted();
+    setAlbum((cur) => (cur === name ? (list[0]?.name ?? null) : cur));
+    setBrowsing(true);
+    if (r.deleted > 0) setMessage(`${r.deleted === 1 ? '1 photo' : `${r.deleted} photos`} moved to Recently Deleted.`);
+    return true;
+  }, [api, refresh, refreshDeleted, save]); // eslint-disable-line react-hooks/exhaustive-deps
+  const readDeleted = (path: string) => api?.readDeleted?.(path);
+
+  return { available: api !== undefined, albums, album: album ?? albums[0]?.name ?? null, browsing, showAlbum, setBrowsing, undo: () => step(true), redo: () => step(false), canUndo: (here?.past.length ?? 0) > 0, canRedo: (here?.future.length ?? 0) > 0, read: (path: string) => api?.read(path), open, edits, change, saved, message, setMessage, selected, setSelected, described, setDescribed, openPhoto, reload: () => (live.current.open ? load(live.current.open.path, true) : Promise.resolve(false)), createAlbum, addFiles, exportPicture, refresh, deleted, refreshDeleted, readDeleted, renamePhoto, movePhoto, deletePhoto, recoverPhoto, emptyDeleted, renameAlbum, deleteAlbum };
 }
 export type PhotosState = ReturnType<typeof usePhotos>;
