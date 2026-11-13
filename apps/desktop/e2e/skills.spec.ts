@@ -40,8 +40,9 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 
 test('a skill is plain steps kept as SKILL.md, and every change keeps the version before it', async () => {
   await start();
-  // New skill is the sidebar's New, first as New is in every app.
-  await shell().getByRole('button', { name: /^New skill/ }).first().click();
+  // New skill is the sidebar's New (its Create button), first as New is in every app.
+  await expect(shell().getByRole('button', { name: 'Create', exact: true })).toHaveAttribute('title', 'New skill');
+  await shell().getByRole('button', { name: 'Create', exact: true }).click();
   await shell().getByRole('textbox', { name: 'Skill name' }).fill('Compare stays');
   await shell().getByRole('textbox', { name: 'When to use it' }).fill('When choosing where to stay');
   await shell().getByRole('textbox', { name: 'When to use it' }).press('Enter');
@@ -81,6 +82,8 @@ test('/name asks for a skill, Mobius is told what skills there are, and its impr
   expect(first.messages.find((m) => m.role === 'system')!.content).toContain('- compare-stays: When choosing where to stay, compare places side by side');
   expect(first.messages.filter((m) => m.role === 'user').pop()!.content).toContain('Use the skill "compare-stays" (read it with skills.read and follow its steps) for: Lisbon, 12 to 14 March');
 
+  // Skills lists the skills as rows; the changed one opens from its row to show the change.
+  await shell().getByRole('button', { name: 'Open /compare-stays' }).click();
   const review = shell().getByRole('region', { name: 'Skills' }).getByRole('group', { name: "Mobius's change" });
   await expect(review).toContainText('+ 2. Check each cancellation policy');
   await review.getByRole('button', { name: 'Discard' }).click();
@@ -110,8 +113,8 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors as pl
   await rail.locator('[data-app-library]').click();
   await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Abilities', exact: true }).click();
   const side = shell().getByRole('complementary', { name: 'Abilities sidebar' });
-  await expect(side.getByRole('region', { name: 'Apps' }).getByRole('button')).toHaveText([/^Installed\d+$/, /^Available\d*$/]);
-  await expect(side.getByRole('region', { name: 'Tools' }).getByRole('button')).toHaveText([/^Skills\d*$/, /^Connectors\d*$/]);
+  await expect(side.getByRole('region', { name: 'Apps' }).locator('button.list-row')).toHaveText([/^Installed\d+$/, /^Available\d*$/]);
+  await expect(side.getByRole('region', { name: 'Tools' }).locator('button.list-row')).toHaveText([/^Skills\d*$/, /^Connectors\d*$/]);
   await expect(side.getByRole('button', { name: /^Installed/ })).toHaveAttribute('aria-current', 'page');
   // Each app is a row that says what it is for. Remove is in its ⋯ menu, keeps its files, and Undo puts it back.
   const installed = shell().getByRole('region', { name: 'Installed' });
