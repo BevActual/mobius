@@ -2296,7 +2296,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .dock.left .list-divider { height: 0.5px; margin: 6px 8px; background: var(--hairline); }
 .dock.left .side-new-row { gap: 8px; padding: 0 8px; }
 .dock.left .side-starts { padding: 2px 8px 6px 32px; }
-.dock.left .side-search { height: 28px; margin: 0 4px 6px; padding: 0 10px; font-size: 13px; border-radius: 8px; }
+.dock.left .side-search { height: 28px; margin: 0 4px 6px; font-size: 13px; border-radius: 8px; }
 
 /* One icon style: 16px line icons, 1.6 stroke. */
 .dock.left :is(.side-new-row, .list-row, .note-row, .files-row, .side-actions) svg:not([data-app]) { width: 16px; height: 16px; stroke-width: 1.6; }
@@ -2746,3 +2746,8 @@ input.side-search.side-search {
 .chat .review-strip .review-head { flex-wrap: wrap; row-gap: var(--sp-1); }
 .chat .review-strip .review-toggle { flex: 0 1 auto; min-width: 0; max-width: 100%; }
 .chat .review-strip .review-toggle .review-summary { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+
+/* A suggestion's steps, behind Details under its words in the person's message. */
+.msg.user .msg-steps { margin-top: var(--sp-1); font-size: var(--fs-xs); color: var(--muted); }
+.msg.user .msg-steps summary { cursor: default; }
+.msg.user .msg-steps p { margin: var(--sp-1) 0 0; white-space: pre-wrap; }

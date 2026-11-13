@@ -90,11 +90,15 @@ Your whole workspace as a drive.
   files it holds.
 - **Select, then open.** A click selects, a double-click or Enter opens: folders in place, files in their own app. The
   arrow keys move, Backspace goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
-- **Filter** narrows the open folder by name. **Right-click** a row to open, rename, copy its path, show it in Explorer,
+- **The toolbar** names the open folder with how many items it holds, and has Back, Forward and New folder. The
+  **path bar** at the foot shows where the folder is; click any part to go back up.
+- **Search**, at the top of the sidebar, narrows the open folder by name. **Right-click** a row to open, rename, copy its path, show it in Explorer,
   ask Mobius about it, or move it to the Trash.
-- **New folder** (Ctrl+Shift+N) is named in place; **F2** renames; **Delete** moves to the Trash, with Undo. The Trash is
+- **New folder** (Ctrl+Shift+N) is named in place; **F2** renames; **Delete** moves to the Trash, with Undo in a toast
+  at the foot of the page. The Trash is
   `workspace/.trash/`, hidden from Files and from Mobius. An app's own folder (notes/, docs/...) is never renamed or
   trashed from here.
 - **Date Modified** shows when each file and folder last changed. The agent's own `files.list` leaves dates out.
-- **The sidebar** lists the workspace's folders (Notes, Docs, Sheets...) one click away.
+- **The sidebar** has Workspace under Places, the workspace's folders (Notes, Docs, Sheets...) under Folders, a dot on
+  any folder holding something from Mobius, and Made by Mobius under From Mobius.
 - **Made by Mobius** collects what Mobius created, dashed until you keep it, with a count of what is waiting.
