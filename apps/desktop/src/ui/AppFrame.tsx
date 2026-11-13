@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
 import { PanelRegistryContext, type PanelsOfApp } from './PanelLayout';
+import { PanelTabsProvider } from './PanelTabs';
 import { AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';
 import { createPortal } from 'react-dom';
 
@@ -55,6 +56,7 @@ export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
     <AppMenuProvider value={setAppMenu}>
     <PanelRegistryContext.Provider value={setPanels}>
     <ToolbarSlot.Provider value={slot}>
+    <PanelTabsProvider>
       <div className="app" style={style} {...data}>
         {rail}
         <header className="context-strip">
@@ -71,6 +73,7 @@ export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
         </header>
         {children}
       </div>
+    </PanelTabsProvider>
     </ToolbarSlot.Provider>
     </PanelRegistryContext.Provider>
     </AppMenuProvider>
