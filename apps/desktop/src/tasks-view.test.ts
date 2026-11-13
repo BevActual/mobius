@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setLocaleForTests } from './dates';
 import type { TaskItem } from '@mobius/shared';
-import { byDay, byList, dueLabel, LIST_COLORS, listColor, nest, parseWhen, searchTasks, smartView, splitDone, tasksIn } from './tasks-view';
+import { byDay, byList, dueLabel, LIST_COLORS, listColor, nest, parseWhen, parseWhenAndTime, searchTasks, smartView, splitDone, tasksIn, timeWords } from './tasks-view';
 
 const t = (text: string, due: string | null = null, done = false, line = 0): TaskItem => ({ line, text, done, due });
 const today = new Date(2026, 10, 6, 15, 0); // 6 November 2026, afternoon
@@ -109,5 +109,30 @@ describe('dates in the regional format', () => {
     setLocaleForTests('de-DE');
     expect(dueLabel('2026-11-10', today).text).toBe('Dienstag');
     setLocaleForTests('en-GB');
+  });
+});
+
+describe('times and repeats', () => {
+  const when = (text: string) => parseWhenAndTime(text, today);
+  it('reads a time after the day, or on its own for today', () => {
+    expect(when('Call Sam tomorrow at 3pm')).toEqual({ text: 'Call Sam', due: '2026-11-07', time: '15:00', phrase: 'tomorrow at 3pm' });
+    expect(when('Stand-up mon 9:30')).toEqual({ text: 'Stand-up', due: '2026-11-09', time: '09:30', phrase: 'mon 9:30' });
+    expect(when('Ring Mum at 6pm')).toEqual({ text: 'Ring Mum', due: '2026-11-06', time: '18:00', phrase: 'at 6pm' });
+    expect(when('Lunch at 12am')).toEqual({ text: 'Lunch', due: '2026-11-06', time: '00:00', phrase: 'at 12am' });
+    expect(when('Gym 7am')?.time).toBe('07:00');
+    // Numbers that are not times stay words; a day alone still works.
+    expect(when('Buy 2')).toBeNull();
+    expect(when('Read chapter 12')).toBeNull();
+    expect(when('Call Sam tomorrow')).toEqual({ text: 'Call Sam', due: '2026-11-07', phrase: 'tomorrow' });
+    expect(when('at 3pm')).toBeNull();
+    expect(when('Meet at 25:00')).toBeNull();
+  });
+  it('writes a time the way the computer does, and Scheduled puts a day in time order', () => {
+    expect(timeWords('16:05')).toBe('16:05');
+    const rows = smartView('scheduled', { Inbox: [{ ...t('later', '2026-11-07'), line: 0 }, { ...t('nine', '2026-11-07'), time: '09:00', line: 1 }, { ...t('eight', '2026-11-07'), time: '08:00', line: 2 }] }, today);
+    expect(rows.map((r) => r.task.text)).toEqual(['eight', 'nine', 'later']);
+  });
+  it('knows the words of a task that has a time, a repeat and a flag', () => {
+    expect([...tasksIn('- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)\n- [x] Pay (due 2026-11-01)')]).toEqual(['Stand-up', 'Pay']);
   });
 });

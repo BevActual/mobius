@@ -191,8 +191,7 @@ test('the Activity tab lists a turn’s changes to review, and Discard there put
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
   await shell().keyboard.press('Enter');
-  const side = shell().getByRole('complementary', { name: 'Conversation list' });
-  await side.getByRole('tab', { name: 'Activity' }).click();
+  await shell().getByRole('navigation', { name: 'Apps' }).locator('.rail-end').getByRole('button', { name: 'Activity', exact: true }).click();
   const activity = shell().getByRole('region', { name: 'Activity', exact: true });
   const changes = activity.getByRole('list', { name: 'Changes to review' });
   await expect(changes).toContainText('Changed 1 item');
@@ -216,8 +215,7 @@ test('Rewind to here in Activity puts the apps back as they were after that turn
     await expect(log().locator('.msg.assistant').last()).toHaveText(reply);
   }
   await openApp('Agent');
-  const side = shell().getByRole('complementary', { name: 'Conversation list' });
-  await side.getByRole('tab', { name: 'Activity' }).click();
+  await shell().getByRole('navigation', { name: 'Apps' }).locator('.rail-end').getByRole('button', { name: 'Activity', exact: true }).click();
   // The Activity app's page lists the open conversation's turns.
   const activity = shell().getByRole('region', { name: 'Activity', exact: true });
   const turns = activity.getByRole('list', { name: 'Turns of this conversation' });

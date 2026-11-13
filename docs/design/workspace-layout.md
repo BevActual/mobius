@@ -83,9 +83,9 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 - **Calendar** (`calendar/*.ics`): day, week and month; subscribed links and CalDAV accounts (iCloud, Fastmail,
   Nextcloud) beside the person's own calendars; Mobius's suggestions dashed with Decline and Add. Google and Microsoft
   sign-in need app registrations ([calendar sign-in](../reference/calendar-sign-in.md)).
-- **Notes** format bar: Aa (styles and marks in one panel), a checklist, a table or a link at the cursor, Record (up
-  to ten minutes, turned into words by the speech model and kept as a section), and in the ⋯ menu Clip a web page (a
-  page's first paragraphs quoted with its link) and the Markdown view.
+- **Notes** controls, in the toolbar: Aa (styles and marks in one panel), a checklist, a table or a link at the cursor, Record (up
+  to ten minutes, turned into words by the speech model and kept as a section) and Share; the Notes menu (⋯)
+  has Version history, Clip a web page (a page's first paragraphs quoted with its link) and the Markdown view.
 - **Docs** (`docs/<folder>/*.md`): a page with formatting, an outline, writing tools, and the agent's changes as
   proposals in the page.
 - **Sheets** (`sheets/<workbook>/*.csv`): formulas worked out in Rust for the window and the agent alike; cells the

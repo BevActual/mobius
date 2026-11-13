@@ -40,6 +40,12 @@ const side = (): Locator => shell().getByRole('complementary', { name: 'Notes si
 const text = (): Locator => shell().getByRole('textbox', { name: 'Note text' });
 const source = (): Locator => shell().getByRole('textbox', { name: 'Page text' });
 const format = (): Locator => shell().getByRole('toolbar', { name: 'Format' });
+/** Chooses an item in the Notes menu, under the toolbar's Menu button. */
+const notesMenu = async (item: string): Promise<void> => {
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
+  await shell().locator('.menu-names').getByRole('button', { name: 'Notes', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Notes' }).getByRole('menuitem', { name: item }).click();
+};
 const status = (): Locator => shell().locator('.note-status');
 const file = (...parts: string[]) => path.join(userData, 'workspace', 'notes', ...parts);
 const onDisk = (...parts: string[]) => fs.readFileSync(file(...parts), 'utf8');
@@ -161,11 +167,10 @@ test('the format bar makes a checklist you tick, and More clips a web page where
   await shell().keyboard.press('End');
   await shell().keyboard.press('Enter');
   await shell().keyboard.press('Enter');
-  // Clipping is in the bar's More menu.
-  await format().getByRole('button', { name: 'More' }).click();
-  await shell().getByRole('menu', { name: 'More' }).getByRole('menuitem', { name: 'Clip a web page…' }).click();
-  await format().getByRole('textbox', { name: 'Address to clip' }).fill(`${fixture.origin}/casa-amora`);
-  await format().getByRole('button', { name: 'Clip', exact: true }).click();
+  // Clipping is in the Notes menu (Menu in the toolbar).
+  await notesMenu('Clip a web page…');
+  await shell().getByRole('textbox', { name: 'Address to clip' }).fill(`${fixture.origin}/casa-amora`);
+  await shell().getByRole('button', { name: 'Clip', exact: true }).click();
   await expect(text().locator('blockquote')).toContainText('Nine rooms in Príncipe Real.');
   await expect(text().getByRole('link', { name: 'Casa Amora' })).toBeVisible();
   await expect(status()).toHaveText('Saved');
@@ -203,8 +208,7 @@ test('the Markdown view shows the file as it is kept, and typing there is saved'
   await start();
   await side().getByRole('button', { name: 'Plan', exact: true }).click();
   await expect(text().getByRole('checkbox', { name: 'Task item checkbox for Call Sam' })).not.toBeChecked();
-  await format().getByRole('button', { name: 'More' }).click();
-  await shell().getByRole('menu', { name: 'More' }).getByRole('menuitem', { name: 'Show Markdown' }).click();
+  await notesMenu('Show Markdown');
   await expect(source()).toHaveValue('# Plan\n\n- [ ] Call Sam\n');
   await source().press('Control+End');
   await source().pressSequentially('- [x] Book the sled\n');
@@ -239,7 +243,7 @@ test('History shows what the page was, compared with now, and Restore puts it ba
   await shell().keyboard.type(' Book the sled.');
   await expect(status()).toHaveText('Saved');
   expect(onDisk('Work', 'Plan.md')).toBe('# Plan\n\nCall Sam. Book the sled.\n');
-  await format().getByRole('button', { name: 'History' }).click();
+  await notesMenu('Version history…');
   const history = shell().getByRole('region', { name: 'History' });
   await expect(history.getByRole('navigation', { name: 'Versions' }).getByRole('button')).toHaveCount(1);
   await expect(history.getByRole('list', { name: 'What restoring changes' })).toContainText('Call Sam.');
