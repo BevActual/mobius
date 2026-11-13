@@ -55,7 +55,7 @@ test('clips are played through the media address, added to the cut as shots, tri
   await expect.poll(() => fs.existsSync(cutFile()) && saved().shots.map((s) => [s.clip, s.in, s.out])).toEqual([['terrace.webm', 0, 5], ['sunset.webm', 0, 5]]);
 
   await timeline().getByRole('option', { name: /^Shot 2: sunset\.webm/ }).click();
-  const shot = shell().getByRole('complementary', { name: 'Shot' });
+  const shot = shell().getByRole('region', { name: 'Shot' });
   // In and Out read as timecode, and take it or plain seconds.
   await expect(shot.getByRole('textbox', { name: 'Out' })).toHaveValue('0:05.0');
   await shot.getByRole('textbox', { name: 'Out' }).fill('2.5');
@@ -64,7 +64,7 @@ test('clips are played through the media address, added to the cut as shots, tri
   await shot.getByRole('textbox', { name: 'Title' }).fill('Sunset');
   await shot.getByRole('button', { name: 'Earlier' }).click();
   await expect.poll(() => saved().shots.map((s) => [s.clip, s.out, (s as { title?: string }).title ?? ''])).toEqual([['sunset.webm', 2.5, 'Sunset'], ['terrace.webm', 5, '']]);
-  await expect(shell().getByLabel('Time', { exact: true })).toContainText('/ 0:07.5');
+  await expect(shell().getByLabel('Length', { exact: true })).toHaveText('0:07.5');
 
   const before = await shell().getByLabel('Time', { exact: true }).textContent();
   await shell().getByRole('toolbar', { name: 'Transport' }).getByRole('button', { name: 'Play' }).click();
@@ -99,7 +99,7 @@ test('the cut is exported as a film in the project’s Exports folder, never lis
   fs.writeFileSync(cutFile(), JSON.stringify({ version: 1, shots: [{ id: 's1', clip: 'sunset.webm', in: 0, out: 1, title: 'Lisbon' }, { id: 's2', clip: 'terrace.webm', in: 1, out: 2 }] }));
   await start();
   await expect(timeline().getByRole('option')).toHaveCount(2);
-  await shell().getByRole('toolbar', { name: 'Edit' }).getByRole('button', { name: 'Export' }).click();
+  await shell().getByRole('group', { name: 'Edit' }).getByRole('button', { name: /^Export/ }).click();
   // It plays through once (two seconds) while it is made.
   const done = shell().getByRole('status').filter({ hasText: 'Saved the film as Exports/Offsite recap.' });
   await expect(done).toBeVisible({ timeout: 30_000 });

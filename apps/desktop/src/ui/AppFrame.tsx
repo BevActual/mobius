@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
 import { PanelRegistryContext, type PanelsOfApp } from './PanelLayout';
+import { PanelTabsProvider } from './PanelTabs';
+import { AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';
 import { createPortal } from 'react-dom';
 
 /**
@@ -23,8 +25,9 @@ export interface ToolbarParts {
   middle?: ReactNode;
   /** Status that stands on its own between the middle and the end (the core's state, an update). */
   status?: ReactNode;
-  /** The trailing end, the same in every app: comments, ⋯ and the Mobius button, always last. */
-  trail?: ReactNode;
+  /** The trailing end, the same in every app: comments, ⋯ and the Mobius button, always last. Given the open app's
+   *  own menu (`AppMenu`), which goes first in the one ⋯. */
+  trail?: ReactNode | ((appMenu: AppMenuState | null) => ReactNode);
   /** Changes how the title row lays out (the browser's address takes the room). */
   wideMiddle?: boolean;
   /** The Panels menu, at the end of the middle: given the open app's own panels (none when it has none). */
@@ -41,16 +44,23 @@ interface FrameProps {
   style?: CSSProperties;
   /** data-* attributes the shell's styles and tests read. */
   data?: Record<`data-${string}`, string | boolean | undefined>;
+  /** Opens the right panel (zone 5), for an app that brings one of its tabs forward while the panel is shut. */
+  openRight?: () => void;
+  /** Changes whenever the person asks Mobius something, so Mobius comes in front of an app's panel tab. */
+  mobiusAsked?: string | number;
 }
 
 const ToolbarSlot = createContext<HTMLElement | null>(null);
 
-export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
+export function AppFrame({ rail, toolbar, children, style, data, openRight, mobiusAsked }: FrameProps) {
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [panels, setPanels] = useState<PanelsOfApp | null>(null);
+  const [appMenu, setAppMenu] = useAppMenuHost();
   return (
+    <AppMenuProvider value={setAppMenu}>
     <PanelRegistryContext.Provider value={setPanels}>
     <ToolbarSlot.Provider value={slot}>
+    <PanelTabsProvider open={openRight} mobiusAsked={mobiusAsked}>
       <div className="app" style={style} {...data}>
         {rail}
         <header className="context-strip">
@@ -63,12 +73,14 @@ export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
           <div ref={setSlot} className="ui-toolbar-slot" hidden={toolbar.appControls === false} />
           {toolbar.panels?.(panels)}
           {toolbar.status}
-          <div className="strip-right" role="group" aria-label="Applications">{toolbar.trail}</div>
+          <div className="strip-right" role="group" aria-label="Applications">{typeof toolbar.trail === 'function' ? toolbar.trail(appMenu) : toolbar.trail}</div>
         </header>
         {children}
       </div>
+    </PanelTabsProvider>
     </ToolbarSlot.Provider>
     </PanelRegistryContext.Provider>
+    </AppMenuProvider>
   );
 }
 
