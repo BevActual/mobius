@@ -73,6 +73,7 @@ import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { Desk } from './Desk';
+import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail } from './Rail';
 import { SidebarHead } from './SidebarHead';
@@ -113,6 +114,17 @@ function useNarrowWindow(width: number): boolean {
     return () => list.removeEventListener('change', on);
   }, [query]);
   return narrow;
+}
+
+/** The window's width, kept current as it is resized. */
+function useWindowWidth(): number {
+  const [width, setWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const on = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return width;
 }
 
 /** A button's tooltip with its shortcut after it, when it has one. */
@@ -564,8 +576,12 @@ export function App() {
   useEffect(() => { if (learnOpen && chatOpen && hasRight) setLearnOpen(false); }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
   const [hovering, setHovering] = useState(false);
-  const leftWidth = drag?.side === 'left' ? drag.width : appearance.value.leftWidth;
-  const rightWidth = drag?.side === 'right' ? drag.width : appearance.value.rightWidth;
+  // A narrow window draws the docks narrower than saved, so the content keeps room for its toolbar (dock-fit.ts).
+  const windowWidth = useWindowWidth();
+  const fitted = fitDocks(windowWidth, appearance.value.leftWidth, appearance.value.rightWidth,
+    hasLeft && !leftFloating && leftOpen, (!rightFloating && rightOpen) || learnOpen);
+  const leftWidth = drag?.side === 'left' ? drag.width : fitted.left;
+  const rightWidth = drag?.side === 'right' ? drag.width : fitted.right;
   const leftDock = useRef<HTMLDivElement>(null);
   const rightDock = useRef<HTMLDivElement>(null);
   const hideLeft = useCallback(() => setLeftOpen(false), [setLeftOpen]);
