@@ -58,7 +58,8 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await look.press('Escape');
   await expect(look).toBeHidden();
 
-  // Mobius reads along: the article goes with the request.
+  // Mobius reads along: the article goes with the request. Reader's right panel opens on Highlights, so go to Mobius.
+  await shell.getByRole('tab', { name: 'Mobius' }).click();
   await shell.getByRole('button', { name: 'Summarise this' }).click();
   await expect(shell.getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toContainText('breakfast included');
   expect(JSON.stringify(model.requests[0]!.messages)).toContain('Nine rooms in Príncipe Real.');
@@ -69,8 +70,8 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await passage.dispatchEvent('mouseup');
   await article.getByRole('toolbar', { name: 'Selected text' }).getByRole('button', { name: /Highlight/ }).click();
   await expect(article.locator('mark')).toHaveText('Breakfast included.');
-  // Highlights collect in their own panel, beside the article.
-  await shell.keyboard.press('Control+Shift+H');
+  // Highlights collect in their own tab in the right panel, before Mobius.
+  await shell.getByRole('tab', { name: 'Highlights' }).click();
   await expect(shell.getByRole('region', { name: 'Highlights' })).toContainText('Breakfast included.');
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('==Breakfast included.==');
 
@@ -79,6 +80,7 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await other.selectText();
   await other.dispatchEvent('mouseup');
   await article.getByRole('toolbar', { name: 'Selected text' }).getByRole('button', { name: 'Ask Mobius' }).click();
+  await expect(shell.getByRole('tab', { name: 'Mobius' })).toHaveAttribute('aria-selected', 'true');
   await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toHaveValue(/> Nine rooms in Príncipe Real\./);
 
   await bar.getByRole('button', { name: 'Done reading' }).click();

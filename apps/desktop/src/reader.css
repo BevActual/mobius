@@ -11,7 +11,7 @@
 .reader-message { margin: 4px 16px 0; color: var(--danger); font-size: var(--fs-sm); }
 
 /* How far through: a hairline that fills as you read. */
-.reader-main { display: flex; flex-direction: column; min-height: 0; }
+.reader-main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .reader-progress { position: relative; height: 2px; background: transparent; flex: none; }
 .reader-progress span { position: absolute; inset: 0; background: var(--ink); opacity: 0.25; transform-origin: left center; transition: transform var(--dur-fast) var(--ease); }
 
@@ -59,7 +59,7 @@
 .reader-mark-bar { position: absolute; z-index: 3; transform: translateX(-50%); white-space: nowrap; }
 .reader-mark-bar kbd { margin-left: 4px; opacity: 0.6; font-size: 10px; }
 .reader-notice { margin: 8px 0; color: var(--muted); font-size: var(--fs-sm); }
-/* Highlights, in the right dock beside Mobius. */
+/* Highlights, a tab in the right panel before Mobius. */
 .reader-notes { display: grid; gap: var(--sp-3); padding: var(--sp-3); align-content: start; }
 .reader-notes ul { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--sp-3); }
 .reader-notes li { display: grid; gap: 2px; padding-left: 10px; border-left: 3px solid #ffd60a; font-size: var(--fs-sm); line-height: 1.5; color: var(--ink); }
