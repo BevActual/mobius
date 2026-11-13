@@ -827,6 +827,11 @@ export function App() {
       else if (action === 'find' && app === 'browser') { claim(); openFind(); }
       else if (action === 'splitView') { claim(); toggleSplit(); }
       else if (action === 'littleMobius') { claim(); toggleMini(); }
+      // New (Cmd-N, Ctrl-N elsewhere) is fixed too: it presses the open sidebar's New, whatever that makes there.
+      else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'KeyN') {
+        const create = document.querySelector<HTMLButtonElement>('.dock.left .side-new > .side-new-row, .dock.left .app-side-new');
+        if (create && !create.disabled) { claim(); create.click(); }
+      }
       // Stop is fixed (Cmd-period, Ctrl-period elsewhere) unless that press was given to something else.
       else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'Period' && conversation.state.busy) { claim(); void conversation.stop(); }
     };
