@@ -12,6 +12,7 @@ import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { dayLabel } from './dates';
+import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import './tasks.css';
 
 /** A task being dragged: which list it is in and where. */
@@ -82,35 +83,24 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
   });
   const deletingInfo = tasks.lists.find((l) => l.name === deleting);
   return (
-    <aside className="side tasks-side" aria-label="Tasks sidebar">
-      <input className="side-search" type="search" aria-label="Search tasks" placeholder="Search" value={tasks.query} onChange={(e) => tasks.setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') tasks.setQuery(''); }} />
-      <SideNew item="list" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
-      <div className="side-head">
-        <span className="side-title">Lists</span>
-        <span className="side-actions">
-          {pin}
-        </span>
-      </div>
-      <nav className="task-lists" aria-label="Lists">
-        <ul role="list" className="smart-tiles" aria-label="Views">
+    <AppSidebar label="Tasks sidebar">
+      <SidebarSearch label="Search tasks" value={tasks.query} onChange={tasks.setQuery} />
+      <SideNew item="list" onNew={() => setNaming(true)} />
+      <nav className="task-lists tasks-nav" aria-label="Lists">
+        <SidebarSection title="Smart lists">
           {SMART_VIEWS.map((v) => (
-            <li key={v.id}>
-              <button type="button" className="smart-tile" aria-current={current('smart', v.id)} onClick={() => tasks.setView({ kind: 'smart', id: v.id })}>
-                <SmartIcon id={v.id} />
-                <span className="list-name">{v.name}</span>
-                <span className="smart-count">{v.id === 'completed' ? '' : count(v.id) || ''}</span>
-              </button>
-            </li>
+            <SidebarRow key={v.id} icon={<SmartIcon id={v.id} />} label={v.name} count={count(v.id)} current={current('smart', v.id) === 'page'} onSelect={() => tasks.setView({ kind: 'smart', id: v.id })} />
           ))}
-        </ul>
-        <h2 className="tasks-side-heading">My Lists</h2>
+        </SidebarSection>
+        <SidebarSection title="My lists" action={pin}>
         {naming && (
+          <li>
           <form className="notes-name" onSubmit={(e) => void submit(e)}>
             <input autoFocus aria-label="List name" placeholder="List name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
             <button type="submit" className="btn primary">Create</button>
           </form>
+          </li>
         )}
-        <ul role="list" aria-label="My lists">
           {tasks.lists.map((l) => (
             <li key={l.name} className="list-item" data-drop={dropOn === l.name || undefined} {...drop(l.name)}>
               {renaming === l.name ? (
@@ -155,10 +145,10 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
               )}
             </li>
           ))}
-        </ul>
+        </SidebarSection>
         <FromMobius items={tasks.lists.filter((l) => changed?.has(l.name)).map((l) => ({ key: l.name, name: l.name, current: current('list', l.name) === 'page', onOpen: () => tasks.setView({ kind: 'list', name: l.name }) }))} />
       </nav>
-    </aside>
+    </AppSidebar>
   );
 }
 
@@ -572,6 +562,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
 
   let body: ReactNode;
   let empty = '';
+  let doneHere = 0;
   if (query) {
     const found = searchTasks(query, tasks.all);
     body = byList(found).map((g) => (
@@ -585,6 +576,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
     const list = tasks.all[view.name] ?? [];
     const { open, done } = splitDone(nest(list).map((n) => n.task));
     const subsOf = (t: TaskItem) => list.filter((s) => s.parent === t.line && s !== t);
+    doneHere = done.length;
     body = (
       <>
         <ul className="task-items" role="list" aria-label="To do">
@@ -600,7 +592,6 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
                 <svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
                 <span>Completed · {done.length}</span>
               </button>
-              {showDone && <button type="button" className="btn" onClick={() => void tasks.clearDone(view.name)}>Clear</button>}
             </div>
             {showDone && (
               <ul className="task-items" role="list" aria-label="Completed">
@@ -638,6 +629,12 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
   const title = view.kind === 'list' ? view.name : smartName(view.id);
   return (
     <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
+      {/* The list's own control sits in the toolbar's middle (ui/AppFrame), not in a row of its own here. */}
+      {view.kind === 'list' && !query && doneHere > 0 && (
+        <ToolbarControls label="Tasks">
+          <button type="button" className="tool-btn" onClick={() => void tasks.clearDone(view.name)}>Clear {doneHere} completed</button>
+        </ToolbarControls>
+      )}
       <div className="tasks-main">
         {review && view.kind === 'list' && (
           <div className="note-review" role="status">
@@ -658,11 +655,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
       </div>
       {picked && <TaskInspector key={`${picked.list}:${picked.task.text}`} tasks={tasks} list={picked.list} task={picked.task} onAsk={ask} />}
       {tasks.deleted && (
-        <div className="tasks-undo" role="status">
-          <span>{tasks.deleted.kind === 'list' ? 'Deleted the list' : 'Deleted'} “{(tasks.deleted.kind === 'list' ? tasks.deleted.list : tasks.deleted.text).replace(/^(.{39}).{2,}$/, '$1…')}”</span>
-          <button type="button" className="btn" onClick={() => void tasks.undoDelete()}>Undo</button>
-          <button type="button" className="tasks-undo-x" aria-label="Dismiss" onClick={tasks.dismissDeleted}>×</button>
-        </div>
+        <UndoToast text={`${tasks.deleted.kind === 'list' ? 'Deleted the list' : 'Deleted'} “${tasks.deleted.kind === 'list' ? tasks.deleted.list : tasks.deleted.text}”`} onUndo={() => void tasks.undoDelete()} onDismiss={tasks.dismissDeleted} />
       )}
     </section>
   );
