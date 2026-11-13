@@ -2587,11 +2587,30 @@ impl Bridge {
                 (Some(f), Some(data)) => p.export(f, data),
                 _ => Err("a photo and a picture are needed".to_owned()),
             },
+            // Photo app: managing the library (Photo thread).
+            "rename" => match (text(0), text(1)) {
+                (Some(f), Some(name)) => p.rename(f, name),
+                _ => Err("a photo and a name are needed".to_owned()),
+            },
+            "move" => match (text(0), text(1)) {
+                (Some(f), Some(album)) => p.move_to(f, album),
+                _ => Err("a photo and an album are needed".to_owned()),
+            },
+            "delete" => text(0).ok_or_else(|| "a photo is needed".to_owned()).and_then(|f| p.delete(f)),
+            "deleted" => p.deleted(),
+            "readDeleted" => text(0).ok_or_else(|| "a photo is needed".to_owned()).and_then(|f| p.read_deleted(f)),
+            "recover" => text(0).ok_or_else(|| "a photo is needed".to_owned()).and_then(|f| p.recover(f)),
+            "emptyDeleted" => p.empty_deleted(),
+            "renameAlbum" => match (text(0), text(1)) {
+                (Some(a), Some(name)) => p.rename_album(a, name),
+                _ => Err("an album and a name are needed".to_owned()),
+            },
+            "deleteAlbum" => text(0).ok_or_else(|| "an album is needed".to_owned()).and_then(|a| p.delete_album(a)),
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
             Ok(value) => {
-                if matches!(method, "createAlbum" | "saveEdits" | "add" | "export") {
+                if matches!(method, "createAlbum" | "saveEdits" | "add" | "export" | "rename" | "move" | "delete" | "recover" | "emptyDeleted" | "renameAlbum" | "deleteAlbum") {
                     (self.emit)("mobius:photos-changed", json!({ "path": value.get("path"), "by": "person" }));
                 }
                 value

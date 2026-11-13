@@ -754,6 +754,22 @@ export interface MobiusBridge {
     add(album: string, name: string, data: string): Promise<{ path: string } | NotesFailure>;
     /** Writes the edited picture (JPEG, base64) next to the photo; says where. */
     export(path: string, data: string): Promise<{ path: string } | NotesFailure>;
+    /** Renames a photo in its album (its edits go with it); a name already taken gets a number. */
+    rename(path: string, name: string): Promise<{ path: string } | NotesFailure>;
+    /** Moves a photo and its edits into another album. */
+    move(path: string, album: string): Promise<{ path: string } | NotesFailure>;
+    /** Moves a photo and its edits to Recently Deleted; `deleted` is its path there. */
+    delete(path: string): Promise<{ path: string; deleted: string } | NotesFailure>;
+    /** What is in Recently Deleted, each photo with the album it came from (paths are within Recently Deleted). */
+    deleted(): Promise<(PhotoInfo & { album: string })[] | NotesFailure>;
+    readDeleted(path: string): Promise<PhotoContent | NotesFailure>;
+    /** Puts a photo back in its album, making the album again if it has gone. */
+    recover(path: string): Promise<{ path: string } | NotesFailure>;
+    /** Deletes everything in Recently Deleted for good. */
+    emptyDeleted(): Promise<{ emptied: true } | NotesFailure>;
+    renameAlbum(album: string, name: string): Promise<{ name: string } | NotesFailure>;
+    /** Its photos go to Recently Deleted; refused when it holds other files. */
+    deleteAlbum(album: string): Promise<{ name: string; deleted: number } | NotesFailure>;
     onChanged(listener: (change: PhotosChanged) => void): () => void;
   };
   /** The Studio app: songs kept like notes, as JSON in `studio/<folder>/<song>.json`. Only the Tauri shell has it. */
