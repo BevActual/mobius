@@ -249,8 +249,8 @@ test('with the agent panel put away, the Mobius button brings it back on the rig
   await expect(shell().getByRole('button', { name: 'Show agent' })).toHaveCount(0);
   await expect(shell().getByRole('search', { name: 'Ask the agent' })).toHaveCount(0);
   for (const glyph of await shell().getByRole('group', { name: 'Applications' }).getByRole('button').all()) expect(await glyph.getAttribute('title')).toBeTruthy();
-  await shell().getByRole('complementary', { name: 'Agent' }).getByRole('button', { name: 'Hide' }).click();
-  await expect(shell().getByRole('complementary', { name: 'Agent' })).toHaveCount(0);
+  await shell().getByRole('complementary', { name: 'Agent', exact: true }).getByRole('button', { name: 'Hide' }).click();
+  await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toHaveCount(0);
   await mobiusButton().click();
   const ask = composer();
   await expect(ask).toHaveAttribute('placeholder', 'Ask about this page');

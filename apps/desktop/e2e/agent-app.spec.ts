@@ -42,11 +42,11 @@ const visibleViews = async () => (await views(mobius!.app)).filter((v) => v.visi
 
 test('the launcher opens the Agent as a full app: the page is hidden and the side panel gives way', async () => {
   await start([]);
-  await expect(shell().getByRole('complementary', { name: 'Agent' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toBeVisible();
   expect(await visibleViews()).toHaveLength(1);
   await openApp('Agent');
   await expect(shell().getByRole('region', { name: 'Agent conversation' })).toBeVisible();
-  await expect(shell().getByRole('complementary', { name: 'Agent' })).toHaveCount(0);
+  await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toHaveCount(0);
   await expect(shell().getByRole('textbox', { name: 'Address or question' })).toHaveCount(0);
   await expect.poll(async () => (await visibleViews()).length).toBe(0);
   await expect(shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Agent', exact: true })).toHaveAttribute('aria-current', 'page');
@@ -60,7 +60,7 @@ test('going back to the Browser restores the page, the tabs and the side panel w
   await openApp('Browser');
   await expect(shell().getByRole('textbox', { name: 'Address or question' })).toBeVisible();
   await expect.poll(async () => (await visibleViews()).length).toBe(1);
-  await expect(shell().getByRole('complementary', { name: 'Agent' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toBeVisible();
   await expect(log().locator('.msg.user')).toHaveText('Hello from the app');
   await expect(log().locator('.msg.assistant')).toHaveText('Shared reply.');
 });

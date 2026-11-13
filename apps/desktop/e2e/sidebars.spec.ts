@@ -24,7 +24,7 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 const tabs = (): Locator => shell().getByRole('complementary', { name: 'Browser sidebar' });
-const agentPanel = (): Locator => shell().getByRole('complementary', { name: 'Agent' });
+const agentPanel = (): Locator => shell().getByRole('complementary', { name: 'Agent', exact: true });
 const left = (): Locator => shell().locator('.dock.left');
 const right = (): Locator => shell().locator('.dock.right');
 const appearance = () => shell().evaluate(() => window.mobius.appearance.get());
