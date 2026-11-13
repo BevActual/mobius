@@ -212,3 +212,12 @@
 .tasks-nav .list-item .list-pin { right: 28px; }
 .tasks-nav .list-item:not(:has(.list-more)) .list-pin { right: 2px; }
 .tasks-nav .list-item:is(:hover, :focus-within) .list-count { visibility: hidden; }
+/* Times and repeats: a repeat mark after the due words; Time and Repeat rows in Details. */
+.task-repeat { display: inline-flex; align-items: center; color: var(--muted); vertical-align: -2px; }
+.task-repeat[data-after] { margin-left: 5px; }
+.task-repeat svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.inspector-label .task-repeat { margin-right: 6px; }
+.inspector-time { display: inline-flex; align-items: center; gap: 4px; }
+.task-time { padding: 3px 8px; border: 0; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font: inherit; font-size: var(--fs-md); }
+.task-time:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+.inspector-hint { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
