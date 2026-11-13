@@ -51,7 +51,8 @@
 .sheet-page .sheet-table td[data-in] { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); }
 .sheet-page .sheet-table td[data-focus] { z-index: 1; }
 .sheet-page .sheet-table td[data-formula]:not([data-error]) { color: var(--ink); }
-.sheet-page .sheet-table td[data-changed] { box-shadow: none; }
+/* What Mobius changed in its last turn: the shared dashed indigo edge, as in Docs and Tasks, until you keep it. */
+.sheet-page .sheet-table td[data-changed] { outline: 1px dashed var(--mobius); outline-offset: -2px; }
 .sheet-page .sheet-table td[data-ref="0"] { background: color-mix(in srgb, #0a84ff 10%, var(--bg)); }
 .sheet-page .sheet-table td[data-ref="1"] { background: color-mix(in srgb, #ff9f0a 12%, var(--bg)); }
 .sheet-page .sheet-table td[data-ref="2"] { background: color-mix(in srgb, #30d158 12%, var(--bg)); }
