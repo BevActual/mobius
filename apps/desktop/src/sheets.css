@@ -1,5 +1,5 @@
-/* Sheets: a Numbers-like grid in the Instrument style (docs/design/instrument.md). Sheets is a compact app: the page
-   sets data-density="compact", so every size below comes from the compact tokens (13px text, 32px rows). Quiet
+/* Sheets: a Numbers-like grid in the Instrument style (docs/design/instrument.md). Sheets is a compact app (COMPACT_APPS):
+   the frame sets data-density="compact" while it is open, so every size below comes from the compact tokens. Quiet
    hairlines, a header row that reads as one, the selection as a grey block with an ink edge, cell values in tabular
    figures and formulas in the mono face. Light and dark come from the theme tokens. */
 

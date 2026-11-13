@@ -282,14 +282,14 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   if (!data && !sheets.settled && sheets.available) {
     const bars = ['46%', '38%', '52%', '30%', '44%', '36%'];
     return (
-      <section className="sheet-page" data-density="compact" aria-label="Sheet" aria-busy="true">
+      <section className="sheet-page" aria-label="Sheet" aria-busy="true">
         <div className="sheet-loading" aria-hidden="true">{bars.map((w, i) => <span key={i} style={{ ['--w' as string]: w }} />)}</div>
       </section>
     );
   }
   if (!data) {
     return (
-      <section className="sheet-page empty" data-density="compact" aria-label="Sheet">
+      <section className="sheet-page empty" aria-label="Sheet">
         <EmptyState app="sheets" label="No workbook open" title={sheets.workbooks.length ? 'No workbook open' : 'No workbooks yet'} line="Choose one on the left, or start a new one." action={{ label: 'New workbook', run: () => { if (namers > 0) window.dispatchEvent(new Event(NEW_WORKBOOK)); else void sheets.createWorkbook('Workbook'); } }} />
       </section>
     );
@@ -614,7 +614,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   ];
 
   return (
-    <section className="sheet-page" data-density="compact" aria-label={`Sheet: ${data.sheet}`}>
+    <section className="sheet-page" aria-label={`Sheet: ${data.sheet}`}>
       <ToolbarControls label="Sheet">
         <span className="sheet-tools">
           <span className="sheet-tools-group">
