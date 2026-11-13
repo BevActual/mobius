@@ -73,22 +73,24 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
   };
   const items = (m: Menu): ContextMenuItem[] => m.table
     ? [
-        { action: 'open', label: 'Open', run: () => void db.choose(m.db, m.table) },
+        { action: 'open', label: 'Open', keys: 'Enter', run: () => void db.choose(m.db, m.table) },
         { action: 'copy', label: 'Copy as CSV', run: () => void copyTable(m.db, m.table!) },
-        { action: 'rename', label: 'Rename…', run: () => setRenaming({ db: m.db, table: m.table }) },
-        { action: 'delete', label: 'Delete table…', danger: true, separated: true, run: () => setDeleting({ db: m.db, table: m.table }) },
+        { action: 'rename', label: 'Rename…', keys: 'F2', run: () => setRenaming({ db: m.db, table: m.table }) },
+        { action: 'delete', label: 'Delete table…', keys: 'Delete', danger: true, separated: true, run: () => setDeleting({ db: m.db, table: m.table }) },
       ]
     : [
         { label: 'Import a CSV file…', run: () => { if (db.open !== m.db) void db.choose(m.db).then(() => file.current?.click()); else file.current?.click(); } },
-        { action: 'delete', label: 'Delete database…', danger: true, separated: true, run: () => setDeleting({ db: m.db }) },
+        { label: 'Delete database…', keys: 'Delete', danger: true, separated: true, run: () => setDeleting({ db: m.db }) },
       ];
   const openMenu = (e: React.MouseEvent, at: Omit<Menu, 'x' | 'y'>, fromButton = false) => {
     e.preventDefault();
     const r = e.currentTarget.getBoundingClientRect();
     setMenu(fromButton ? { ...at, x: r.left, y: r.bottom + 4 } : { ...at, x: e.clientX, y: e.clientY });
   };
-  /** Shift+F10 or the menu key opens a row's menu, as right-click does. */
+  /** Shift+F10 or the menu key opens a row's menu, as right-click does; F2 renames a table, Delete asks to delete. */
   const menuKey = (e: React.KeyboardEvent, at: Omit<Menu, 'x' | 'y'>) => {
+    if (e.key === 'F2' && at.table) { e.preventDefault(); setRenaming({ db: at.db, table: at.table }); return; }
+    if (e.key === 'Delete') { e.preventDefault(); setDeleting(at.table ? { db: at.db, table: at.table } : { db: at.db }); return; }
     if (!((e.shiftKey && e.key === 'F10') || e.key === 'ContextMenu')) return;
     e.preventDefault();
     const r = e.currentTarget.getBoundingClientRect();
@@ -100,7 +102,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
   const shownDbs = db.list.filter((d) => hit(d.name) || d.tables.some((t) => hit(t.name)));
   const rowsIn = (d: string) => db.list.find((x) => x.name === d)?.tables.reduce((n, t) => n + Math.max(0, t.rows), 0) ?? 0;
   return (
-    <aside className="side db-side" aria-label="Database sidebar">
+    <aside className="side db-side" aria-label="Database sidebar" data-density="compact">
       {db.list.length > 0 && <input className="side-search" type="search" aria-label="Search databases and tables" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} />}
       <div className="side-head">
         <span className="side-title">Databases</span>
@@ -144,7 +146,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
                 <DbIcon />
                 <span className="db-name">{d.name}</span>
               </button>
-              <button type="button" className="db-more" aria-label={`More for ${d.name}`} aria-haspopup="menu" aria-expanded={menu?.db === d.name && !menu.table} title="More" onClick={(e) => openMenu(e, { db: d.name }, true)}><MoreIcon /></button>
+              <button type="button" className="db-more" aria-label={`More for ${d.name}`} aria-haspopup="menu" aria-expanded={menu?.db === d.name && !menu.table} title="More (Shift+F10)" onClick={(e) => openMenu(e, { db: d.name }, true)}><MoreIcon /></button>
             </div>
             {deleting?.db === d.name && !deleting.table && (
               <Confirm label={`Delete “${d.name}”?`} line={`Its ${d.tables.length === 1 ? 'table' : `${d.tables.length} tables`} and ${rowsIn(d.name).toLocaleString()} ${rowsIn(d.name) === 1 ? 'row' : 'rows'} go too. This can’t be undone.`}
@@ -167,7 +169,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
                           <TableIcon />
                           <span className="db-name">{t.name}</span><span className="db-count">{t.rows < 0 ? '' : t.rows.toLocaleString()}</span>
                         </button>
-                        <button type="button" className="db-more" aria-label={`More for ${t.name}`} aria-haspopup="menu" aria-expanded={menu?.table === t.name} title="More" onClick={(e) => openMenu(e, { db: d.name, table: t.name }, true)}><MoreIcon /></button>
+                        <button type="button" className="db-more" aria-label={`More for ${t.name}`} aria-haspopup="menu" aria-expanded={menu?.table === t.name} title="More (Shift+F10)" onClick={(e) => openMenu(e, { db: d.name, table: t.name }, true)}><MoreIcon /></button>
                       </div>
                     )}
                     {deleting?.db === d.name && deleting.table === t.name && (
@@ -296,6 +298,17 @@ function Grid({ columns, rows, sort, onSort, edit }: { columns: string[]; rows: 
 type CellMenu = { x: number; y: number; row: number; col: number };
 
 /** A table's rows: filtered, sorted by a column, a page at a time; in a table with rowids, changed in place. */
+/** Grey bars the shape of the rows that are coming: loading never shows a spinner. */
+function Loading() {
+  return (
+    <div className="db-loading" aria-label="Loading rows" role="status">
+      {[62, 48, 70, 40, 56, 66, 44, 58].map((w, i) => <span key={i} style={{ '--w': `${w}%` } as React.CSSProperties} />)}
+    </div>
+  );
+}
+
+const hasNoFilter = (b: Browse) => b.filter.trim() === '';
+
 function DataView({ db }: { db: DatabasesState }) {
   const [filter, setFilter] = useState(db.browse.filter);
   const [editing, setEditing] = useState<At | null>(null);
@@ -373,8 +386,15 @@ function DataView({ db }: { db: DatabasesState }) {
       </DbTools>
       <div className="db-result" aria-label="Result">
         {r && !r.ok && <p className="db-error" role="alert">{r.message}</p>}
+        {!r && <Loading />}
         {r?.ok && <Grid columns={columns} rows={rows} sort={db.browse.sort} onSort={(c) => db.setBrowse({ sort: nextSort(db.browse.sort, c) })} edit={edit} />}
-        {r?.ok && (
+        {r?.ok && shown === 0 && db.browse.page === 0 && (
+          <div className="db-empty">
+            <p>{db.browse.filter.trim() ? 'No rows match.' : 'No rows yet.'}</p>
+            {hasNoFilter(db.browse) && hasId && <button type="button" className="btn" onClick={() => void db.addRow().then((id) => setFresh(id))}>Add row</button>}
+          </div>
+        )}
+        {r?.ok && shown > 0 && (
           <footer className="db-foot">
             <span className="db-foot-line" role="status">
               {pageLine(db.browse.page, shown, db.total, db.browse.filter.trim() !== '')}
@@ -418,6 +438,7 @@ function StructureView({ db }: { db: DatabasesState }) {
   }, [db.open, db.table, info?.columns.map((c) => `${c.name}:${c.type}`).join()]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="db-structure">
+      {!cols && <Loading />}
       {cols && !cols.ok && <p className="db-error" role="alert">{cols.message}</p>}
       {cols?.ok && (
         <table className="db-columns" aria-label="Columns">
@@ -522,7 +543,7 @@ export function DatabasePage({ db, review }: { db: DatabasesState; review?: { co
   const { show, keep, discard } = useDbReview(review, db.open);
   if (!db.open) {
     return (
-      <section className="db-page empty" aria-label="Database">
+      <section className="db-page empty" aria-label="Database" data-density="compact">
         <EmptyState app="database" label="No database open" title={db.list.length ? 'No database open' : 'No databases yet'}
           line={db.list.length ? 'Choose one on the left, or import a CSV file to make a new one.' : 'Import a CSV file to make a table, then query it in SQL, or ask Mobius in words.'}
           action={{ label: 'Import a CSV file', run: () => window.dispatchEvent(new Event(IMPORT_CSV)) }} />
@@ -533,7 +554,7 @@ export function DatabasePage({ db, review }: { db: DatabasesState; review?: { co
   const table = info?.tables.find((t) => t.name === db.table);
   const view: DbView = table ? db.view : 'sql';
   return (
-    <section className="db-page" aria-label="Database">
+    <section className="db-page" aria-label="Database" data-density="compact">
       {show && (
         <div className="note-review db-review" role="status">
           <span className="review-dot" aria-hidden="true" />
