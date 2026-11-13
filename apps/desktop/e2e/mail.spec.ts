@@ -104,7 +104,13 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   expect(servers.sent.length).toBe(0);
   // Keep opens it as your draft.
   await suggested.getByRole('button', { name: 'Keep' }).click();
-  await page().getByRole('form', { name: 'Reply' }).getByRole('button', { name: 'Send', exact: true }).click();
+  await page().getByRole('form', { name: 'Reply' }).getByRole('button', { name: 'Close' }).click();
+  // Kept, it waits under the message it answers, ready to send from there.
+  await list.getByRole('option').first().click();
+  const kept = page().getByRole('region', { name: 'Your draft reply' });
+  await expect(kept).toContainText('two vegetarians');
+  await expect(page().getByRole('button', { name: 'Draft a reply with Mobius' })).toHaveCount(0);
+  await kept.getByRole('button', { name: 'Send', exact: true }).click();
   await expect.poll(() => servers.sent.length).toBe(1);
   expect(servers.sent[0]).toContain('two vegetarians');
 });

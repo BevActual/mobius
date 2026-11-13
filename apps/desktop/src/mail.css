@@ -82,3 +82,7 @@
 .mail-account:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
 .mail-tools .strip-btn svg circle { fill: currentColor; stroke: none; }
 .mail-tools .strip-btn svg [data-dot] { fill: var(--accent); }
+/* A reply the person kept, under the message it answers: theirs now, so a plain edge, with Send right there. */
+.mail-kept { display: flex; flex-direction: column; gap: 6px; padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-group); border: 1px solid var(--hairline); background: var(--bg); }
+.mail-kept-head { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+.mail-kept-problem { margin: 0; font-size: var(--fs-xs); color: var(--danger, #b3261e); }

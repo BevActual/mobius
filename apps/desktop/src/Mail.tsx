@@ -268,6 +268,28 @@ function Suggested({ mail, draft }: { mail: MailState; draft: MailDraft }) {
   );
 }
 
+/** A reply the person kept (from a suggestion or from Keep all), shown under the message it answers, ready to send. */
+function KeptReply({ mail, draft }: { mail: MailState; draft: MailDraft }) {
+  const [sending, setSending] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const send = async () => {
+    setSending(true);
+    setProblem(await mail.send(draft));
+    setSending(false);
+  };
+  return (
+    <section className="mail-kept" aria-label="Your draft reply">
+      <span className="mail-kept-head">Your draft reply{draft.to && <> · To: {draft.to}</>}</span>
+      <p className="mail-suggested-body">{draft.body}</p>
+      <div className="mail-suggested-actions">
+        <button type="button" className="btn primary" disabled={sending || !draft.to.trim()} onClick={() => void send()}>{sending ? 'Sending…' : 'Send'}</button>
+        <button type="button" className="btn" onClick={() => mail.setEditing(draft)}>Edit</button>
+      </div>
+      {problem && <p className="mail-kept-problem" role="alert">{problem}</p>}
+    </section>
+  );
+}
+
 /** The categories a message can move to, as menu items. */
 const moveItems = (mail: MailState, id: string, now: MailCategory | undefined, then?: () => void) => CATEGORIES.filter((c) => c.id !== 'all').map((c, i) => ({
   label: `Move to ${c.label}`, disabled: (now ?? 'primary') === c.id, separated: i === 0,
@@ -315,6 +337,7 @@ function MessageTools({ mail, content }: { mail: MailState; content: MailContent
 
 function Reader({ mail, content, onDraftReply }: { mail: MailState; content: MailContent; onDraftReply?: (m: MailContent) => void }) {
   const suggestions = mail.drafts.filter((d) => d.by === 'mobius' && d.replyTo === content.id);
+  const kept = mail.drafts.filter((d) => d.by === 'you' && d.replyTo === content.id);
   const [showHtml, setShowHtml] = useState(true);
   // The keyboard follows the message opened: E, R and H act on it straight away, whatever was clicked to open it.
   const reader = useRef<HTMLElement>(null);
@@ -330,13 +353,14 @@ function Reader({ mail, content, onDraftReply }: { mail: MailState; content: Mai
           <div className="mail-to">To: {content.to.map(shownName).join(', ') || 'you'}{content.cc.length > 0 && <> · Cc: {content.cc.map(shownName).join(', ')}</>}</div>
         </div>
       </header>
-      {((onDraftReply && suggestions.length === 0) || content.html) && (
+      {((onDraftReply && suggestions.length === 0 && kept.length === 0) || content.html) && (
         <div className="mail-reader-actions">
-          {onDraftReply && suggestions.length === 0 && <button type="button" className="btn mail-draft-it" onClick={() => onDraftReply(content)}>Draft a reply with Mobius</button>}
+          {onDraftReply && suggestions.length === 0 && kept.length === 0 && <button type="button" className="btn mail-draft-it" onClick={() => onDraftReply(content)}>Draft a reply with Mobius</button>}
           {content.html && <button type="button" className="btn" aria-pressed={!showHtml} onClick={() => setShowHtml((s) => !s)}>{showHtml ? 'Plain text' : 'Formatted'}</button>}
         </div>
       )}
       {suggestions.map((d) => <Suggested key={d.id} mail={mail} draft={d} />)}
+      {kept.map((d) => <KeptReply key={d.id} mail={mail} draft={d} />)}
       {content.html && showHtml ? <HtmlBody html={content.html} /> : <pre className="mail-text">{content.text}</pre>}
       {content.attachments.length > 0 && <p className="mail-attachments">Attached: {content.attachments.join(', ')}</p>}
     </article>
