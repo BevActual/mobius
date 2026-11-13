@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, audible, type Instrument, type Song } from './song-format';
+import { BEATS_PER_BAR, audible, type Instrument, type Song, type Sound } from './song-format';
 import { songBeat, type Cycle } from './studio-view';
 
 /**
@@ -45,7 +45,43 @@ function drum(ctx: AudioContext, out: AudioNode, pitch: number, at: number, velo
   src.stop(at + len + 0.05);
 }
 
-function tone(ctx: AudioContext, out: AudioNode, instrument: Instrument, pitch: number, at: number, seconds: number, velocity: number) {
+/** A note through a track's own sound settings: a sine and a saw mixed by shape, one or two voices, a filter, an envelope. */
+function shaped(ctx: AudioContext, out: AudioNode, instrument: Instrument, sound: Sound, pitch: number, at: number, seconds: number, velocity: number) {
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = sound.cutoff;
+  filter.Q.value = 0.7 + sound.resonance * 14;
+  filter.connect(gain);
+  gain.connect(out);
+  const { attack, release } = sound;
+  const peak = velocity * (instrument === 'pad' ? 0.18 : instrument === 'lead' ? 0.12 : instrument === 'bass' ? 0.35 : 0.3);
+  const held = Math.max(attack, seconds);
+  gain.gain.setValueAtTime(0, at);
+  gain.gain.linearRampToValueAtTime(peak, at + attack);
+  if (instrument === 'piano') gain.gain.exponentialRampToValueAtTime(Math.max(0.001, peak * 0.3), at + Math.max(attack + 0.01, seconds));
+  else gain.gain.setValueAtTime(peak, at + held);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + held + release);
+  const detunes = sound.detune > 0 ? [-sound.detune / 2, sound.detune / 2] : [0];
+  for (const cents of detunes) {
+    for (const [type, level] of [['sine', 1 - sound.shape], ['sawtooth', sound.shape]] as const) {
+      if (level <= 0.001) continue;
+      const osc = ctx.createOscillator();
+      const mix = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq(pitch);
+      osc.detune.value = cents;
+      mix.gain.value = level / detunes.length;
+      osc.connect(mix);
+      mix.connect(filter);
+      osc.start(at);
+      osc.stop(at + held + release + 0.05);
+    }
+  }
+}
+
+function tone(ctx: AudioContext, out: AudioNode, instrument: Instrument, pitch: number, at: number, seconds: number, velocity: number, sound?: Sound) {
+  if (sound) { shaped(ctx, out, instrument, sound, pitch, at, seconds, velocity); return; }
   const gain = ctx.createGain();
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
@@ -87,13 +123,13 @@ function tick(ctx: AudioContext, out: AudioNode, at: number, accent: boolean) {
 
 let sampler: AudioContext | null = null;
 /** One note heard at once, as a key is pressed or a note is put on the roll. */
-export function previewNote(instrument: Instrument, pitch: number, velocity = 0.8, seconds = 0.35): void {
+export function previewNote(instrument: Instrument, pitch: number, velocity = 0.8, seconds = 0.35, sound?: Sound): void {
   try {
     sampler ??= new AudioContext();
     void sampler.resume().catch(() => {});
     const at = sampler.currentTime + 0.01;
     if (instrument === 'drums') drum(sampler, sampler.destination, pitch, at, velocity, noise(sampler));
-    else tone(sampler, sampler.destination, instrument, pitch, at, seconds, velocity);
+    else tone(sampler, sampler.destination, instrument, pitch, at, seconds, velocity, sound);
   } catch { /* No sound here (a test browser); the note is still put in. */ }
 }
 
@@ -145,7 +181,7 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
           // A note that runs past the loop's end is cut there, so it does not ring over the next time round.
           const length = cycle ? Math.min(n.length, cycle.to - n.start) : n.length;
           if (t.instrument === 'drums') drum(ctx, out, n.pitch, at(n.start), n.velocity, noiseBuf);
-          else tone(ctx, out, t.instrument, n.pitch, at(n.start), length * spb, n.velocity);
+          else tone(ctx, out, t.instrument, n.pitch, at(n.start), length * spb, n.velocity, t.sound);
         }
       }
       scheduled += span;
