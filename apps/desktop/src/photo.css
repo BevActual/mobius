@@ -47,8 +47,9 @@
 .photo-page.empty { display: flex; }
 
 /* The photo on its dark stage */
-.photo-page .photo-body { grid-template-columns: 1fr 272px; }
-.photo-page .photo-stage { overflow: hidden; padding: 28px 56px; background: #1d1d1f; }
+/* With the app sidebar beside it, the stage keeps room for the photo; the panel gives some up first. */
+.photo-page .photo-body { grid-template-columns: minmax(120px, 1fr) minmax(220px, 272px); }
+.photo-page .photo-stage { overflow: hidden; padding: 28px clamp(8px, 5%, 56px); background: #1d1d1f; }
 .photo-page .photo-stage[data-zoomed] { overflow: auto; align-items: flex-start; justify-content: flex-start; }
 .photo-page .photo-stage[data-zoomed] .photo-frame { max-width: none; max-height: none; margin: auto; }
 .photo-page .photo-stage[data-zoomed] .photo-canvas { max-width: none; max-height: none; cursor: zoom-out; }

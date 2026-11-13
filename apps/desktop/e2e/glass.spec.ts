@@ -6,22 +6,18 @@ let mobius: Launched | undefined;
 test.beforeEach(async () => { fixture = await startFixture(); });
 test.afterEach(async () => { await mobius?.close(); mobius = undefined; await fixture.close(); });
 
-/** The blur of the floating sidebar's card and of Mobius beside the page, as drawn now. */
+/** The blur of Mobius beside the page and of the toolbar, as drawn now. The sidebar is flat on the frame (five zones). */
 const blurs = (shell: Page) => shell.evaluate(() => {
-  const rail = document.querySelector('.rail[data-expanded]');
   const panel = document.querySelector('.dock.right:not([data-floating]) > .chat');
   return {
-    sidebar: rail ? getComputedStyle(rail, '::before').backdropFilter : 'missing',
     panel: panel ? getComputedStyle(panel).backdropFilter : 'missing',
     toolbar: getComputedStyle(document.querySelector('.strip-right')!).backdropFilter,
   };
 });
 
-test('the sidebar, Mobius beside the page and the toolbar are glass, and turn solid when the system asks for less transparency', async () => {
+test('Mobius beside the page and the toolbar are glass, and turn solid when the system asks for less transparency', async () => {
   mobius = await launch(fixture.origin + '/');
   const shell = mobius.shell;
-  await expect(shell.locator('.rail[data-expanded]')).toBeAttached({ timeout: 15_000 });
-  // Mobius beside the page can mount a moment after the sidebar; wait for it too.
   await expect(shell.locator('.dock.right:not([data-floating]) > .chat')).toBeAttached({ timeout: 15_000 });
   const glass = await blurs(shell);
   for (const [where, filter] of Object.entries(glass)) expect(filter, where).toContain('blur(24px)');

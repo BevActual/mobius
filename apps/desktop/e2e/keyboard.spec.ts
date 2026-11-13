@@ -161,5 +161,5 @@ test('the launcher opens from the message box too, and starts new things in any 
   await expect(shell().getByRole('option', { name: /New document/ })).toBeVisible();
   await shell().keyboard.press('Enter');
   await expect(launcher()).toHaveCount(0);
-  await expect(shell().getByRole('button', { name: /Switch app\. Current: Docs/ })).toBeVisible();
+  await expect(shell().locator('.app')).toHaveAttribute('data-app', 'docs');
 });
