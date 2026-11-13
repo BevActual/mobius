@@ -82,5 +82,3 @@
 .mail-account:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
 .mail-tools .strip-btn svg circle { fill: currentColor; stroke: none; }
 .mail-tools .strip-btn svg [data-dot] { fill: var(--accent); }
-/* The message tools keep their width in the shared toolbar slot; the mailbox title gives way first. */
-.ui-toolbar-slot:has(.mail-tools) { flex: 0 0 auto; }
