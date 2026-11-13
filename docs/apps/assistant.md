@@ -13,8 +13,9 @@ The Agent app is Mobius's home. It opens on the **desk** and holds your conversa
   mail, the note or doc you edited last; one press opens it, and an app Mobius changed carries a dashed edge until you
   look) and **Next**
   (what is scheduled).
-- **The sidebar** lists conversations. Its tabs are **Sessions** (your conversations), **Activity** (opens the
-  [Activity app](#activity)) and **Agents**.
+- **The sidebar** starts with a search, then your conversations (grouped by agent once you have more than one),
+  what is scheduled, and the ones you archived. **Create** at its head starts a new conversation. **Agents** and
+  [Activity](#activity) open from the foot of the rail.
 - **The message box** takes text, pictures and files, dictation (hold Ctrl+Space), `/skill` names, the mode
   (Shift+Tab), the model and the effort.
 - **In a turn**, Mobius shows its plan as a checklist, each tool it uses as a plain sentence ("Added 6 tasks to P2
@@ -25,7 +26,7 @@ The same conversation is available in every app in the right panel beside your w
 
 ## Agents
 
-Agents are named helpers for jobs you repeat. Open them from the **Agents** tab in the Agent app's sidebar.
+Agents are named helpers for jobs you repeat. Open them from **Agents** at the foot of the rail; **+** beside the list makes a new one.
 
 - Each agent has a name, its instructions, a model, and how it starts: **When you ask**, or **On a schedule** (weekdays or every day, at a time; it still starts when you ask, too).
 - An agent's **More** button (⋯), or a right-click on it, has New session, Edit, Move up, Move down and Remove. Mobius
