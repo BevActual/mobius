@@ -610,6 +610,11 @@ export function App() {
   // The Mobius button (toolbar and rail foot): show or hide Mobius beside the work.
   // An app bringing one of its panel tabs forward (useShowPanelTab) opens the right panel without moving focus.
   const openRight = useCallback(() => { hides.current += 1; setLearnOpen(false); setChatOpen(true); }, []);
+  // A step waiting for the person's answer brings Mobius in front of an app's panel tab too (kept until the next one,
+  // so answering it does not move the panel again).
+  const waitingNow = conversation.state.items.filter((item) => 'status' in item && item.status === 'waiting').map((item) => ('requestId' in item ? String(item.requestId) : '?')).join(',');
+  const lastWaiting = useRef('');
+  if (waitingNow) lastWaiting.current = waitingNow;
   const toggleMobius = () => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } };
   useEffect(() => { if (chatOpen) hides.current += 1; }, [chatOpen]);
   const leftFromEdge = useRef(false);
@@ -1543,7 +1548,7 @@ export function App() {
     <TryAnotherContext.Provider value={tryAnother}>
     <AppFrame
       openRight={openRight}
-      mobiusAsked={`${focusToken}:${incoming?.token ?? 0}`}
+      mobiusAsked={`${focusToken}:${incoming?.token ?? 0}:${lastWaiting.current}`}
       style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px', '--side-col': leftAttached ? `${leftWidth}px` : '0px' } as React.CSSProperties}
       data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
       rail={
