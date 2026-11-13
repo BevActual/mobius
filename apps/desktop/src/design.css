@@ -21,6 +21,7 @@
 .design-tools .design-zoom:hover { background: var(--soft); color: var(--ink); }
 
 /* The content: the layer list, then the canvas. */
+/* The layer list is 0.8 of a sidebar: at 1440 with the Inspector and Mobius open, the canvas needs the room more. */
 .design-body { flex: 1; min-height: 0; height: 100%; display: grid; grid-template-columns: calc(var(--sidebar-w) * 0.8) 1fr; }
 .design-layers { overflow: auto; padding: var(--sp-2); background: var(--paper, var(--bg)); border-right: var(--hairline-w) solid var(--line); }
 .design-layers ul { list-style: none; margin: 0; padding: 0; }
@@ -106,30 +107,31 @@
 .design-page .design-review .review-actions { flex-wrap: wrap; justify-content: center; margin-left: 0; }
 .design-tool-hint { position: absolute; z-index: 3; left: 50%; bottom: var(--sp-3); transform: translateX(-50%); padding: var(--sp-1) var(--sp-3); border-radius: var(--radius-control); background: var(--paper, var(--bg)); box-shadow: 0 0 0 var(--hairline-w) var(--line); font-size: var(--fs-sm); color: var(--muted); pointer-events: none; white-space: nowrap; }
 
-/* Canvas: the person's design, its handles and guides. Its sizes follow the zoom, so they are its own. */
+/* Canvas: the person's design, its handles and guides. Its sizes follow the zoom, so they are its own. Selection is
+   an ink line with a paper edge each side, so it reads on light and dark frames in every theme. */
 .design-view { position: relative; overflow: hidden; cursor: default; touch-action: none; outline: none; background-color: var(--paper, var(--bg)); background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 20px 20px; }
 .design-view[data-tool]:not([data-tool="move"]) { cursor: crosshair; }
 .design-view[data-panning] { cursor: grab; }
 .design-view:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent); }
 .design-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .design-frame { position: absolute; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.1), 0 10px 30px rgba(0, 0, 0, 0.07); }
-.design-frame[data-selected] { box-shadow: 0 0 0 calc(1.5px / var(--z, 1)) var(--accent), 0 10px 30px rgba(0, 0, 0, 0.07); }
+.design-frame[data-selected] { box-shadow: 0 0 0 calc(1.5px / var(--z, 1)) var(--accent), 0 0 0 calc(2.5px / var(--z, 1)) var(--paper), 0 10px 30px rgba(0, 0, 0, 0.07); }
 .design-clip { position: absolute; inset: 0; overflow: hidden; cursor: default; }
 .design-frame-name { position: absolute; left: 0; white-space: nowrap; color: var(--muted); cursor: default; user-select: none; line-height: 1; }
 .design-frame-name:hover { color: var(--ink); }
 .design-frame[data-selected] > .design-frame-name { color: var(--accent); }
 .design-frame-stroke { position: absolute; inset: 0; pointer-events: none; }
 .design-node { position: absolute; cursor: default; user-select: none; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }
-.design-node:hover:not([data-selected]) { box-shadow: 0 0 0 calc(1px / var(--z, 1)) var(--accent); }
+.design-node:hover:not([data-selected]) { box-shadow: 0 0 0 calc(1px / var(--z, 1)) var(--accent), 0 0 0 calc(2px / var(--z, 1)) var(--paper); }
 .design-node[data-selected] { cursor: move; }
 .design-node[data-editing] { visibility: hidden; }
 .design-node[data-locked] { pointer-events: none; }
 .design-node[data-type="instance"] { overflow: visible; }
 .design-frame[data-proposed], .design-node[data-proposed] { outline: 2px dashed var(--mobius); outline-offset: 2px; }
 .design-typing { visibility: visible; z-index: 2; border: 0; outline: calc(1.5px / var(--z, 1)) solid var(--accent); resize: none; overflow: hidden; font-family: inherit; padding: 0; cursor: text; }
-.design-handles { position: absolute; border: calc(1.5px / var(--z, 1)) solid var(--accent); pointer-events: none; }
+.design-handles { position: absolute; border: calc(1.5px / var(--z, 1)) solid var(--accent); pointer-events: none; box-shadow: 0 0 0 calc(1px / var(--z, 1)) var(--paper), inset 0 0 0 calc(1px / var(--z, 1)) var(--paper); }
 .design-handles[data-many] { border-width: calc(1px / var(--z, 1)); }
-.design-handle { position: absolute; width: calc(8px / var(--z, 1)); height: calc(8px / var(--z, 1)); margin: calc(-4px / var(--z, 1)) 0 0 calc(-4px / var(--z, 1)); border: calc(1px / var(--z, 1)) solid var(--accent); border-radius: calc(1.5px / var(--z, 1)); background: #fff; pointer-events: auto; }
+.design-handle { position: absolute; width: calc(8px / var(--z, 1)); height: calc(8px / var(--z, 1)); margin: calc(-4px / var(--z, 1)) 0 0 calc(-4px / var(--z, 1)); border: calc(1px / var(--z, 1)) solid var(--accent); border-radius: calc(1.5px / var(--z, 1)); background: var(--paper); box-shadow: 0 0 0 calc(1px / var(--z, 1)) var(--paper); pointer-events: auto; }
 .design-handle[data-handle="nw"] { left: 0; top: 0; cursor: nwse-resize; }
 .design-handle[data-handle="n"] { left: 50%; top: 0; cursor: ns-resize; }
 .design-handle[data-handle="ne"] { left: 100%; top: 0; cursor: nesw-resize; }
