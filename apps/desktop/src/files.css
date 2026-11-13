@@ -1,19 +1,10 @@
 /* Files: the workspace as a drive, laid out like Finder's list view. What Mobius made is dashed until kept. */
 .files-page { gap: var(--sp-3); }
 .files-page { --files-col: min(100%, 720px); --files-sel: color-mix(in srgb, var(--accent) 80%, #000); }
-.files-bar, .files-crumbs, .files-table, .files-empty, .files-page > .field-error { width: var(--files-col); margin-inline: auto; }
+.files-crumbs, .files-table, .files-empty, .files-page > .field-error { width: var(--files-col); margin-inline: auto; }
 
-/* The bar: Back and Forward, the place's name, the filter. */
-.files-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); min-height: 34px; }
-.files-nav { display: inline-flex; gap: 2px; }
-.files-nav .strip-btn { border-radius: var(--radius-control); color: var(--ink); }
-.files-nav .strip-btn:hover:not(:disabled) { background: var(--wash); }
-.files-nav .strip-btn:disabled { color: var(--muted); opacity: 0.45; }
-.files-nav svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.files-title { flex: 1 1 8em; min-width: 6em; margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-semibold, 600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.files-filter { flex: 0 1 200px; min-width: 96px; margin: 0; width: auto; }
-
-.files-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-top: calc(-1 * var(--sp-2)); color: var(--muted); font-size: var(--fs-sm); }
+/* The path bar at the foot, as Finder's: where this folder is, each part a way back up. */
+.files-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-top: auto; padding-top: var(--sp-2); border-top: 1px solid var(--hairline); color: var(--muted); font-size: var(--fs-sm); }
 .files-crumbs .review-btn[aria-current="page"] { color: var(--ink); }
 
 /* The list: a header row of sortable columns, then one row per entry. */
@@ -70,8 +61,6 @@
 .files-icon[data-app="video"] { background: var(--app-video); }
 .files-icon[data-app="skills"] { background: var(--app-skills); }
 
-.files-side-heading { margin: var(--sp-3) var(--sp-3) var(--sp-1); font-size: var(--fs-xs); font-weight: var(--fw-semibold, 600); color: var(--muted); letter-spacing: 0.02em; }
-.files-place { gap: var(--sp-2); }
 
 .files-empty { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-8) 0; text-align: center; }
 .files-empty .files-icon[data-glyph="folder"] { color: var(--muted); fill: none; }
@@ -79,13 +68,17 @@
 .files-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 6px 6px 12px; width: fit-content; max-width: var(--files-col); margin-left: max(0px, calc((100% - 720px) / 2)); border-radius: var(--radius-panel); background: var(--wash); font: var(--fs-sm)/1.2 var(--font); }
 .files-review > span { margin-right: var(--sp-2); }
 
-/* New folder, renaming in place, and what just went to the Trash. */
+/* The shared undo toast keeps its own width (the page's column rule would stretch it) and stands above the path bar. */
+.files-page > .ui-undo { width: auto; margin: 0; }
+.files-page:has(> .files-path) > .ui-undo { bottom: calc(var(--sp-6) + 44px); }
+
+/* Back, Forward and New folder in the toolbar, and renaming in place. */
 .files-tool { border-radius: var(--radius-control); color: var(--ink); }
-.files-tool:hover { background: var(--wash); }
+.files-tool:hover:not(:disabled) { background: var(--wash); }
+.files-tool:disabled { color: var(--muted); opacity: 0.45; }
 .files-tool svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .files-rename { flex: 1; min-width: 0; margin: -2px 0; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--radius-small, 4px); background: var(--bg); color: var(--ink); font: inherit; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
-.files-trashed, .files-notice { display: flex; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
-.files-trashed > span { flex: 1; }
+.files-notice { display: flex; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
 .files-notice { background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); }
 .files-notice .review-btn { margin-left: auto; }
 
