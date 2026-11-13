@@ -104,7 +104,13 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   expect(servers.sent.length).toBe(0);
   // Keep opens it as your draft.
   await suggested.getByRole('button', { name: 'Keep' }).click();
-  await page().getByRole('form', { name: 'Reply' }).getByRole('button', { name: 'Send', exact: true }).click();
+  await page().getByRole('form', { name: 'Reply' }).getByRole('button', { name: 'Close' }).click();
+  // Kept, it waits under the message it answers, ready to send from there.
+  await list.getByRole('option').first().click();
+  const kept = page().getByRole('region', { name: 'Your draft reply' });
+  await expect(kept).toContainText('two vegetarians');
+  await expect(page().getByRole('button', { name: 'Draft a reply with Mobius' })).toHaveCount(0);
+  await kept.getByRole('button', { name: 'Send', exact: true }).click();
   await expect.poll(() => servers.sent.length).toBe(1);
   expect(servers.sent[0]).toContain('two vegetarians');
 });
@@ -113,7 +119,7 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   await start();
   const list = page().getByRole('listbox', { name: 'Messages' });
   const tools = shell().getByRole('toolbar', { name: 'Message' });
-  const boxes = shell().getByRole('navigation', { name: 'Mailboxes' });
+  const boxes = shell().getByRole('region', { name: 'Mailboxes' });
   await list.getByRole('option').first().click();
   // Reply All starts above the quoted message, with the cursor there.
   await tools.getByRole('button', { name: 'Reply All' }).click();
@@ -141,6 +147,12 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   await expect(list.getByRole('option')).toHaveCount(1);
 
   await boxes.getByRole('button', { name: 'Inbox' }).click();
+  await list.getByRole('option').first().click();
+  await tools.getByRole('button', { name: 'Archive' }).click();
+  await expect(list.getByRole('option')).toHaveCount(0);
+  // The shared Undo toast takes it back.
+  await page().getByRole('status').filter({ hasText: 'Archived “Terrace + lunch for the 13th”' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(list.getByRole('option')).toHaveCount(1);
   await list.getByRole('option').first().click();
   await tools.getByRole('button', { name: 'Archive' }).click();
   await expect(list.getByRole('option')).toHaveCount(0);

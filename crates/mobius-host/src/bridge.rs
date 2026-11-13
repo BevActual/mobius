@@ -661,6 +661,12 @@ impl Bridge {
                     Err(error) => json!({ "ok": false, "error": error }),
                 })
             }
+            ("files", "trashList") => Ok(self.workspace.trash_list().unwrap_or_else(|error| json!({ "error": error }))),
+            // Deleting for good: only ever from the person's own Empty Trash or Delete Immediately, after they confirm.
+            ("files", "emptyTrash") => Ok(match self.workspace.empty_trash(arg(0).as_str().unwrap_or("")) {
+                Ok(gone) => json!({ "ok": true, "gone": gone }),
+                Err(error) => json!({ "ok": false, "error": error }),
+            }),
             ("files", "show") => {
                 if let (Ok(path), Some(d)) = (self.workspace.locate(arg(0).as_str().unwrap_or("")), self.dialogs.get()) {
                     d.show_path(&path);
@@ -1050,7 +1056,7 @@ impl Bridge {
         lock(&self.history).visit(url, title);
     }
 
-    /// The theme chosen in settings: `system`, `light` or `dark`.
+    /// The theme chosen in settings: `system`, `light`, `mid`, `dark` or `cool`.
     pub fn theme(&self) -> String {
         lock(&self.appearance).get().get("theme").and_then(Value::as_str).unwrap_or("system").to_owned()
     }
