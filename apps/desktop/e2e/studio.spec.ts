@@ -137,7 +137,9 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
     callsTool('files-write', { path: 'studio/Songs/Night Drive.json', content: JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }) }),
     says(['Added a bass line on the roots, on 1 and the and of 3.']),
   ]);
-  // Music's Device tab is first in the right panel; Mobius is beside it.
+  // Music's Device tab is first in the right panel; Mobius is beside it. The window is made wide enough for the panel
+  // to sit beside the page rather than over it.
+  await resizeWindow(mobius!.app, 1440, 900);
   await shell().getByRole('tab', { name: 'Mobius' }).click();
   await shell().getByRole('button', { name: 'Add a bass line' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });

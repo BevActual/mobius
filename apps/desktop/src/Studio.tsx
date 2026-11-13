@@ -672,7 +672,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           <input aria-label="Tempo" type="number" min={30} max={300} value={song.tempo} onChange={(e) => { const v = Number(e.target.value); if (v >= 30 && v <= 300) change((s) => { s.tempo = Math.round(v); }, 'tempo'); }} />
           <span aria-hidden="true">bpm</span>
         </label>
-        <span className="studio-readout" aria-label="Meter: 4 beats to a bar" title="Every song is in 4 / 4 for now">4 / 4</span>
+        <span className="studio-readout studio-meter" aria-label="Meter: 4 beats to a bar" title="Every song is in 4 / 4 for now">4 / 4</span>
         <button type="button" className="strip-btn" aria-label="Loop" title={loop ? `Looping ${loopWords}. Drag along the top of the ruler to loop some bars.` : 'Loop'} aria-pressed={loop} onClick={() => setLoop((l) => !l)}><Icon d={ICONS.loop} /></button>
       </ToolbarControls>
       <div className="studio-main">

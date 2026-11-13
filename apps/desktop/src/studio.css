@@ -158,3 +158,16 @@
 
 /* With no tracks there is nothing to scroll to: the ruler is cut off at the edge, not given a scrollbar. */
 .studio-page .studio-arrange[data-empty] { overflow-x: hidden; }
+
+/* A narrower window: the toolbar keeps Play, Stop, the tempo and Loop, and lets the meter and then the position go first (the ruler still shows where the song is), so it
+   never runs under the right panel. */
+@media (max-width: 1360px) {
+  .studio-meter, .studio-sep { display: none; }
+  .studio-readout { padding: 0 6px; }
+  .studio-pos { min-width: 0; }
+}
+@media (max-width: 1240px) {
+  .studio-pos { display: none; }
+  .studio-tempo span { display: none; }
+  .studio-tempo input { width: 30px; }
+}
