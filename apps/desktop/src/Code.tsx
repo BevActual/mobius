@@ -6,7 +6,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormE
 import { onCommand, sendCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { IS_MAC, cursorAt, deletePair, findAll, indentLines, keyLabel, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
-import { applyGroups, badgeOf, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, type DiffRow, type GitMark, type Lang } from './code-view';
+import { applyGroups, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, type DiffRow, type GitMark, type Lang } from './code-view';
 import { RowMark } from './RowMark';
 import type { CodeState } from './useCode';
 import { ReviewActions, WhyThis } from './ReviewBar';
@@ -86,7 +86,7 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
                         <svg className="code-caret" data-open={isOpen || undefined} viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
                         <svg className="code-folder" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h3.6l1.6 1.8H16a1.5 1.5 0 0 1 1.5 1.5v7.2A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z" /></svg>
                       </>
-                    ) : <span className="code-badge" data-lang={langOf(e.path)} aria-hidden="true">{badgeOf(e.path)}</span>}
+                    ) : <FileGlyph />}
                     <span className="code-file-name">{name}</span>
                     {mark ? <RowMark changed /> : !e.folder && marks.has(e.path) && <GitLetter mark={marks.get(e.path)!} />}
                   </button>
@@ -120,6 +120,11 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
 }
 
 /** A file's right-click menu: the shared one, opened from a point inside the sidebar. */
+/** A file in the tree, tabs and breadcrumb: one grey line icon. The name already says the type. */
+function FileGlyph() {
+  return <svg className="code-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.75h5L12.25 5v8.5a.75.75 0 0 1-.75.75h-7.5a.75.75 0 0 1-.75-.75V2.5A.75.75 0 0 1 4 1.75Z" /><path d="M9 1.75V5h3.25" /></svg>;
+}
+
 function FileMenu({ x, y, label, items, onClose }: { x: number; y: number; label: string; items: ContextMenuItem[]; onClose: () => void }) {
   const side = document.querySelector('.code-side')?.getBoundingClientRect();
   const left = side ? Math.max(side.left + 4, Math.min(x, side.right - 214)) : x;
@@ -389,7 +394,6 @@ function Editor({ code, lang, bar, setBar }: { code: CodeState; lang: Lang; bar:
         <span>Ln {here.line}, Col {here.col}{picked > 0 ? ` (${picked} selected)` : ''}</span>
         <span>{langName(path)}</span>
         <span>Spaces: 2</span>
-        <span className="code-status-keys">{keyLabel('P')} Open · {keyLabel('F')} Find · {keyLabel('G')} Line · {keyLabel('/')} Comment</span>
       </footer>
     </div>
   );
@@ -429,7 +433,7 @@ function QuickOpen({ code, onClose }: { code: CodeState; onClose: () => void }) 
             const where = path.slice(0, path.length - name.length - 1);
             return (
               <li key={path} id={`code-quick-${i}`} role="option" aria-selected={i === lit} onMouseEnter={() => setLit(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(path)}>
-                <span className="code-badge" data-lang={langOf(path)} aria-hidden="true">{badgeOf(path)}</span>
+                <FileGlyph />
                 <span className="code-quick-name">{name}</span>
                 {where && <span className="code-quick-where">{where}</span>}
               </li>
@@ -454,7 +458,7 @@ function FileTabs({ code }: { code: CodeState }) {
         return (
           <div key={path} className="code-tab" data-current={current || undefined} title={path} onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); void code.closeTab(path); } }}>
             <button type="button" role="tab" aria-selected={current} className="code-tab-main" onClick={() => { if (!current) void code.openFile(path); }}>
-              <span className="code-badge" data-lang={langOf(path)} aria-hidden="true">{badgeOf(path)}</span>
+              <FileGlyph />
               <span className="code-tab-name">{name}</span>
             </button>
             <button type="button" className="code-tab-close" data-unsaved={unsaved || undefined} aria-label={`Close ${path}${unsaved ? ' (not saved)' : ''}`} title={unsaved ? 'Not saved: closing drops what was typed' : 'Close'} onClick={() => void code.closeTab(path)}>
@@ -572,7 +576,7 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
                 return (
                   <li key={path}>
                     <button type="button" className="code-none-row" onClick={() => void code.openFile(path)}>
-                      <span className="code-badge" data-lang={langOf(path)} aria-hidden="true">{badgeOf(path)}</span>
+                      <FileGlyph />
                       <span className="code-none-name">{name}</span>
                       {where && <span className="code-none-where">{where}</span>}
                     </button>
@@ -682,14 +686,14 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
                 {code.open.path.split('/').map((part, i, parts) => (
                   <Fragment key={i}>
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
-                    {i === parts.length - 1 ? <span className="code-path"><span className="code-badge" data-lang={lang} aria-hidden="true">{badgeOf(code.open!.path)}</span>{part}</span> : <span>{part}</span>}
+                    {i === parts.length - 1 ? <span className="code-path"><FileGlyph />{part}</span> : <span>{part}</span>}
                   </Fragment>
                 ))}
               </nav>
               {code.dirty && <span className="code-dirty" role="status">Not saved</span>}
               <span className="code-head-actions">
                 {code.dirty && <button type="button" className="btn" onClick={() => code.setDraft(code.open?.text ?? '')}>Revert</button>}
-                {code.open.text !== null && <button type="button" className="btn primary" disabled={!code.dirty} onClick={() => void code.save()}>Save <kbd>{keyLabel('S')}</kbd></button>}
+                {code.open.text !== null && <button type="button" className={code.dirty ? 'btn primary' : 'code-quiet'} disabled={!code.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void code.save()}>Save</button>}
               </span>
             </header>
             {code.message && <p className="tasks-message" role="alert">{code.message}</p>}

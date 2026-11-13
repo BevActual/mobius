@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyGroups, badgeOf, changeGroups, gitMark, gitMarks, highlight, langOf, lineDiff, parentsOf, testLineKind } from './code-view';
+import { applyGroups, changeGroups, gitMark, gitMarks, highlight, langOf, lineDiff, parentsOf, testLineKind } from './code-view';
 
 const OLD = `import { Share } from './types'
 
@@ -24,8 +24,6 @@ describe('code', () => {
     expect(langOf('src/budget.ts')).toBe('ts');
     expect(langOf('main.rs')).toBe('rust');
     expect(langOf('README')).toBe('plain');
-    expect(badgeOf('tests/budget.test.ts')).toBe('T');
-    expect(badgeOf('src/budget.ts')).toBe('TS');
     expect(parentsOf('src/lib/a.ts')).toEqual(['src', 'src/lib']);
   });
 

@@ -125,7 +125,8 @@ A code editor for projects in your workspace.
   Mobius asks before either.
 - **With no file open**, a start page shows the project, the files you opened lately, and Open a file, New file and
   Run tests.
-- **Shortcuts** show as your computer writes them: Ctrl on Windows and Linux, ⌘ on a Mac.
+- **Shortcuts** live in tooltips and Help, not the status bar, and show as your computer writes them: Ctrl on Windows
+  and Linux, ⌘ on a Mac. Files wear one grey line icon; colour is kept for git marks and Mobius's changes.
 - **Console**: Mobius can run a command in the project's folder (it asks every time, and stops after five minutes)
   beside your own.
 
