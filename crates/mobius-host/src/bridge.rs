@@ -2716,7 +2716,10 @@ impl Bridge {
                         let at = u.get("line").and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok())?;
                         Some((at, u.get("expect").and_then(Value::as_str)?))
                     });
-                    tasks.add_with(list, words, text(2).filter(|d| !d.is_empty()), flagged, under)
+                    // A time on the due date and a repeat ride with the options too.
+                    let opt = |k: &str| opts.and_then(|o| o.get(k)).and_then(Value::as_str).filter(|v| !v.is_empty());
+                    let when = mobius_workspace::tasks::When { due: text(2).filter(|d| !d.is_empty()), time: opt("time"), repeat: opt("repeat") };
+                    tasks.add_task(list, words, when, flagged, under)
                 }
                 _ => Err("a list and some words are needed".to_owned()),
             },
@@ -2729,10 +2732,22 @@ impl Bridge {
                         Some(Value::String(d)) => Some(Some(d.clone())),
                         Some(_) => return json!({ "ok": false, "message": "a due date is written YYYY-MM-DD" }),
                     };
+                    // Tasks: a time on the due date and a repeat, cleared the same way as the date.
+                    let cleared = |k: &str| match change.get(k) {
+                        None => Ok(None),
+                        Some(Value::Null) => Ok(Some(None)),
+                        Some(Value::String(v)) => Ok(Some((!v.is_empty()).then(|| v.clone()))),
+                        Some(_) => Err(()),
+                    };
+                    let (Ok(time), Ok(repeat)) = (cleared("time"), cleared("repeat")) else {
+                        return json!({ "ok": false, "message": "a time is written HH:MM and a repeat is a word" });
+                    };
                     let change = Change {
                         text: change.get("text").and_then(Value::as_str).map(str::to_owned),
                         done: change.get("done").and_then(Value::as_bool),
                         due,
+                        time,
+                        repeat,
                         flagged: change.get("flagged").and_then(Value::as_bool),
                         notes: change.get("notes").and_then(Value::as_str).map(str::to_owned),
                     };

@@ -9,7 +9,7 @@ import { usePreferences } from './usePreferences';
 import { ClaimChecks, RichText } from './RichText';
 import { unsureClaims, withoutMarks } from './markdown';
 import { ReviewStrip, TurnHistory } from './ReviewStrip';
-import { splitContext, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
+import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
 import { modeOf } from './approval-modes';
@@ -590,6 +590,14 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
     const element = log.current;
     if (element && stuck.current) element.scrollTop = element.scrollHeight;
   }, [state.items]);
+  // What arrives after the reply (the review strip, a tool row filling in) keeps the end in view too, when it was.
+  useEffect(() => {
+    const element = log.current;
+    if (!element || typeof MutationObserver === 'undefined') return undefined;
+    const follow = new MutationObserver(() => { if (stuck.current) element.scrollTop = element.scrollHeight; });
+    follow.observe(element, { childList: true, subtree: true });
+    return () => follow.disconnect();
+  }, []);
 
   useEffect(() => {
     if (focusToken) field.current?.focus();
@@ -687,7 +695,9 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
               item.kind === 'user' ? (
                 <Fragment key={item.id}>
                   {stamps.has(item.id) && item.at !== undefined && <p className="msg-stamp"><time dateTime={new Date(item.at).toISOString()}>{stampLabel(item.at, Date.now())}</time></p>}
-                  <div className="msg user">{item.text}</div>
+                  {(() => { const { shown, steps } = splitSteps(item.text); return (
+                    <div className="msg user">{shown}{steps !== null && <details className="msg-steps"><summary>Details</summary><p>{steps}</p></details>}</div>
+                  ); })()}
                   {item.images && item.images.length > 0 && (
                     <ul className="msg-images" aria-label="Pictures attached">
                       {item.images.map((src, i) => <li key={i}><img src={src} alt={`Picture ${i + 1}`} /></li>)}

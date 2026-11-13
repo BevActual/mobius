@@ -145,10 +145,12 @@ export const isNotesFailure = (value: unknown): value is NotesFailure =>
  * One task in a list of the Tasks app: a checkbox line in `tasks/<list>.md`. `line` is where it is in the file.
  * `notes` are the lines indented under it; `parent` is the line of the task it sits under, when it is a subtask.
  */
-export interface TaskItem { line: number; text: string; done: boolean; due: string | null; flagged?: boolean; notes?: string; parent?: number | null }
+export interface TaskItem { line: number; text: string; done: boolean; due: string | null; /** HH:MM on the due date. */ time?: string | null; repeat?: TaskRepeat | null; flagged?: boolean; notes?: string; parent?: number | null }
+/** How a task comes back once ticked off: its due date moves to the next one and it stays open. */
+export type TaskRepeat = 'day' | 'weekday' | 'week' | 'month' | 'year';
 export interface TaskList { list: string; tasks: TaskItem[]; version: string }
 export interface TaskListInfo { name: string; open: number; done: number }
-export interface TaskChange { text?: string; done?: boolean; due?: string | null; flagged?: boolean; notes?: string }
+export interface TaskChange { text?: string; done?: boolean; due?: string | null; time?: string | null; repeat?: TaskRepeat | null; flagged?: boolean; notes?: string }
 /** Where a task points: its line and its words, which must still match. */
 export interface TaskAt { line: number; expect: string }
 /** `by` says who changed it, so the window can show the agent's work without stealing focus. */
@@ -597,7 +599,7 @@ export interface MobiusBridge {
     read(list: string): Promise<TaskList | NotesFailure>;
     createList(name: string): Promise<{ name: string } | NotesFailure>;
     /** `under`: the task it goes under, as a subtask. */
-    add(list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt }): Promise<TaskList | NotesFailure>;
+    add(list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt; time?: string; repeat?: TaskRepeat }): Promise<TaskList | NotesFailure>;
     update(list: string, line: number, expect: string, change: TaskChange): Promise<TaskList | NotesFailure>;
     /** Takes its notes and subtasks too; `removed` is what went, for `restore`. */
     remove(list: string, line: number, expect: string): Promise<(TaskList & { removed?: { line: number; text: string } }) | NotesFailure>;

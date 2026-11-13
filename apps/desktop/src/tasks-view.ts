@@ -1,14 +1,14 @@
-import type { TaskItem } from '@mobius/shared';
-import { dayLabel, formatWith, weekdayLabel } from './dates';
+import type { TaskItem, TaskRepeat } from '@mobius/shared';
+import { dayLabel, formatWith, timeLabel, weekdayLabel } from './dates';
 
 /** The list every task lands in when no list is named (matches the Rust side). */
 export const DEFAULT_LIST_NAME = 'Inbox';
 
-/** The text of each task in a list's Markdown, done or not, without its due date: "- [ ] Call Sam (due 2026-11-10)". */
+/** The text of each task in a list's Markdown, done or not, without what follows it: "- [ ] Call Sam (due 2026-11-10 09:00) (every week) (flagged)". */
 export function tasksIn(markdown: string): ReadonlySet<string> {
   const found = new Set<string>();
   for (const line of markdown.split(/\r?\n/)) {
-    const m = /^\s*[-*] \[[ xX]\] (.*?)(?:\s+\(due \d{4}-\d{2}-\d{2}\))?\s*$/.exec(line);
+    const m = /^\s*[-*] \[[ xX]\] (.*?)(?:\s+\((?:due \d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?|every (?:day|weekday|week|month|year)|flagged)\))*\s*$/.exec(line);
     if (m && m[1]) found.add(m[1]);
   }
   return found;
@@ -63,7 +63,8 @@ export function smartView(view: SmartView, lists: Record<string, TaskItem[]>, no
   if (view === 'all') return open;
   if (view === 'flagged') return open.filter((x) => x.task.flagged);
   const dated = open.filter((x) => x.task.due !== null && (view === 'scheduled' || x.task.due! <= today));
-  return dated.sort((a, b) => a.task.due!.localeCompare(b.task.due!));
+  // Earliest first; on one day, tasks with a time in time order, then the rest.
+  return dated.sort((a, b) => a.task.due!.localeCompare(b.task.due!) || (a.task.time ?? '99').localeCompare(b.task.time ?? '99'));
 }
 
 /** Tasks whose words or notes have every word of `query` in them, from every list. */
@@ -173,4 +174,48 @@ export function byDay(rows: readonly Located[], now: Date): { key: string; label
     else out.push({ key, label, exact, rows: [r] });
   }
   return out;
+}
+
+/** A time of day "HH:MM" in the computer's own clock ("16:00" or "4:00 PM"). */
+export function timeWords(time: string, on: Date = new Date()): string {
+  const [h, m] = time.split(':').map(Number);
+  return timeLabel(new Date(on.getFullYear(), on.getMonth(), on.getDate(), h ?? 0, m ?? 0));
+}
+
+/** How a task repeats, as a menu says it. */
+export const REPEATS: readonly { id: TaskRepeat; name: string }[] = [
+  { id: 'day', name: 'Every Day' },
+  { id: 'weekday', name: 'Every Weekday' },
+  { id: 'week', name: 'Every Week' },
+  { id: 'month', name: 'Every Month' },
+  { id: 'year', name: 'Every Year' },
+];
+export const repeatName = (r: TaskRepeat): string => REPEATS.find((x) => x.id === r)?.name ?? '';
+
+/** A time said at the end ("at 3pm", "9:30", "15:00", "at 9", "7am"): the words before it and the time as HH:MM. */
+const TIME = /(?:^|\s)(?:at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?|(\d{1,2}):(\d{2})\s*(am|pm)?|(\d{1,2})\s*(am|pm))\s*$/i;
+function saidTime(text: string): { rest: string; time: string; phrase: string } | null {
+  const m = TIME.exec(text);
+  if (!m) return null;
+  const [hRaw, mRaw, ampm] = m[1] !== undefined ? [m[1], m[2], m[3]] : m[4] !== undefined ? [m[4], m[5], m[6]] : [m[7], undefined, m[8]];
+  let h = Number(hRaw);
+  const min = Number(mRaw ?? 0);
+  if (ampm) {
+    if (h < 1 || h > 12) return null;
+    h = (h % 12) + (ampm.toLowerCase() === 'pm' ? 12 : 0);
+  }
+  if (h > 23 || min > 59) return null;
+  return { rest: text.slice(0, m.index).trim(), time: `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`, phrase: m[0].trim() };
+}
+
+/**
+ * A date and time said at the end of a new task ("Call Sam tomorrow at 3pm", "Stand-up mon 9:30", "Ring Mum at 6pm"):
+ * the words without them, the day, and the time when one was said. A time on its own means today.
+ */
+export function parseWhenAndTime(text: string, now: Date): { text: string; due: string; time?: string; phrase: string } | null {
+  const t = saidTime(text);
+  if (!t || !t.rest) return parseWhen(text, now);
+  const day = parseWhen(t.rest, now);
+  if (day) return { text: day.text, due: day.due, time: t.time, phrase: `${day.phrase} ${t.phrase}` };
+  return { text: t.rest, due: isoDay(now), time: t.time, phrase: t.phrase };
 }
