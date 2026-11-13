@@ -55,7 +55,7 @@ import { useTerminal } from './useTerminal';
 import { ReviewPage, ReviewSidebar, useReview } from './Review';
 import { BrowserChrome, BrowserPage, BrowserSidebar } from './Browser';
 import { PhotoEditor, PhotoSidebar } from './Photo';
-import { StudioEditor, StudioSidebar } from './Studio';
+import { StudioEditor, StudioSidebar, StudioSub } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
 import { SkillEditor } from './Skills';
 import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
@@ -78,7 +78,7 @@ import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail, type OwnApp } from './Rail';
 import { SidebarHead } from './SidebarHead';
-import { AppFrame, PanelsMenu, RightPanelTabs, type AppMenuState } from './ui';
+import { AppFrame, PanelsMenu, RightPanelTabs, TooltipLayer, type AppMenuState } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
@@ -608,6 +608,13 @@ export function App() {
             { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
   ];
   // The Mobius button (toolbar and rail foot): show or hide Mobius beside the work.
+  // An app bringing one of its panel tabs forward (useShowPanelTab) opens the right panel without moving focus.
+  const openRight = useCallback(() => { hides.current += 1; setLearnOpen(false); setChatOpen(true); }, []);
+  // A step waiting for the person's answer brings Mobius in front of an app's panel tab too (kept until the next one,
+  // so answering it does not move the panel again).
+  const waitingNow = conversation.state.items.filter((item) => 'status' in item && item.status === 'waiting').map((item) => ('requestId' in item ? String(item.requestId) : '?')).join(',');
+  const lastWaiting = useRef('');
+  if (waitingNow) lastWaiting.current = waitingNow;
   const toggleMobius = () => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } };
   useEffect(() => { if (chatOpen) hides.current += 1; }, [chatOpen]);
   const leftFromEdge = useRef(false);
@@ -1113,7 +1120,7 @@ export function App() {
       },
       studio: {
         newSong: () => createActions.find((a) => a.id === 'song')!.run(),
-        play: () => (document.querySelector<HTMLButtonElement>('.studio-transport .btn.primary'))?.click(),
+        play: () => (document.querySelector<HTMLButtonElement>('.studio-play'))?.click(), // Music (marked): the toolbar's Play
       },
       photo: {
         newAlbum: () => void photos.createAlbum('Album'),
@@ -1540,6 +1547,8 @@ export function App() {
   return (
     <TryAnotherContext.Provider value={tryAnother}>
     <AppFrame
+      openRight={openRight}
+      mobiusAsked={`${focusToken}:${incoming?.token ?? 0}:${lastWaiting.current}`}
       style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px', '--side-col': leftAttached ? `${leftWidth}px` : '0px' } as React.CSSProperties}
       data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
       rail={
@@ -1580,6 +1589,7 @@ export function App() {
           : inCalendar ? (eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
           : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
           : inFiles ? filesSub(files) // Files: how many items
+          : inStudio && songs.page ? <StudioSub songs={songs} /> // Music (marked, Music's own): the song's key and whether it is saved
           : inDatabase ? databaseSub(databases) // Database: the table's database and columns
           : undefined,
         middle: <>
@@ -1711,6 +1721,7 @@ export function App() {
       <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp}
         onAsk={settings?.configured ? (question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined}
         commands={launcherCommands} />
+      <TooltipLayer />
     </AppFrame>
     </TryAnotherContext.Provider>
   );

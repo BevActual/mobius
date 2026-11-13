@@ -142,3 +142,44 @@ export const GRIDS: readonly { label: string; beats: number }[] = [
 
 /** Whether a MIDI pitch is a black key. */
 export const isBlack = (pitch: number) => [1, 3, 6, 8, 10].includes(((pitch % 12) + 12) % 12);
+
+/**
+ * A track's notes as clips along the arrangement: each run of bars that has notes, split where a whole bar is empty.
+ * `from` and `to` are bars counted from 0, `to` not included.
+ */
+export function clipsOf(notes: readonly SongNote[], bars: number): { from: number; to: number }[] {
+  const used = new Array<boolean>(bars).fill(false);
+  for (const n of notes) {
+    const first = Math.floor(n.start / BEATS_PER_BAR);
+    const last = Math.min(bars - 1, Math.floor((n.start + n.length - 1e-6) / BEATS_PER_BAR));
+    for (let b = Math.max(0, first); b <= last; b++) used[b] = true;
+  }
+  const clips: { from: number; to: number }[] = [];
+  used.forEach((on, b) => {
+    if (!on) return;
+    const was = clips[clips.length - 1];
+    if (was && was.to === b) was.to = b + 1; else clips.push({ from: b, to: b + 1 });
+  });
+  return clips;
+}
+
+/** A Device setting's value as the panel writes it: "35%", "12 ct", "1.2 kHz", "840 ms", "2.1 s". */
+export function soundText(key: 'shape' | 'detune' | 'cutoff' | 'resonance' | 'attack' | 'release', v: number): string {
+  if (key === 'shape' || key === 'resonance') return `${Math.round(v * 100)}%`;
+  if (key === 'detune') return `${Math.round(v)} ct`;
+  if (key === 'cutoff') return v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} kHz` : `${Math.round(v)} Hz`;
+  return v >= 1 ? `${v.toFixed(1)} s` : `${Math.round(v * 1000)} ms`;
+}
+
+/**
+ * Where a setting sits along its slider, from 0 to 1, and back. Cutoff, attack and release are heard in ratios, so
+ * they move evenly in octaves rather than in Hz or seconds.
+ */
+export function toSlider(v: number, lo: number, hi: number, log: boolean): number {
+  return log ? Math.log(v / lo) / Math.log(hi / lo) : (v - lo) / (hi - lo);
+}
+export function fromSlider(t: number, lo: number, hi: number, log: boolean): number {
+  const x = Math.max(0, Math.min(1, t));
+  const v = log ? lo * (hi / lo) ** x : lo + x * (hi - lo);
+  return Math.round(v * 1000) / 1000;
+}

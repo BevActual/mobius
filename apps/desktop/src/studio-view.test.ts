@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNote, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { addNote, clipsOf, fromSlider, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -72,5 +72,29 @@ describe('the loop', () => {
     expect(cycleOf(3, 1, 8)).toEqual({ from: 4, to: 16 });
     expect(cycleOf(2, 2, 8)).toEqual({ from: 8, to: 12 });
     expect(cycleOf(-2, 20, 8)).toEqual({ from: 0, to: 32 });
+  });
+});
+
+describe('the arrangement and the Device panel', () => {
+  const n = (start: number, length = 1) => ({ pitch: 60, start, length, velocity: 0.8 });
+  it('groups notes into clips, split where a whole bar is empty', () => {
+    expect(clipsOf([n(0), n(5), n(16), n(19.5, 2)], 8)).toEqual([{ from: 0, to: 2 }, { from: 4, to: 6 }]);
+    expect(clipsOf([], 4)).toEqual([]);
+    // A note that ends on a bar line does not reach into the next bar.
+    expect(clipsOf([n(0, 4)], 4)).toEqual([{ from: 0, to: 1 }]);
+  });
+  it('writes each setting as the panel shows it', () => {
+    expect(soundText('shape', 0.35)).toBe('35%');
+    expect(soundText('detune', 12)).toBe('12 ct');
+    expect(soundText('cutoff', 1200)).toBe('1.2 kHz');
+    expect(soundText('cutoff', 700)).toBe('700 Hz');
+    expect(soundText('attack', 0.84)).toBe('840 ms');
+    expect(soundText('release', 2.1)).toBe('2.1 s');
+  });
+  it('moves cutoff along its slider in octaves, and back', () => {
+    expect(toSlider(80, 80, 12000, true)).toBe(0);
+    expect(fromSlider(1, 80, 12000, true)).toBe(12000);
+    expect(fromSlider(toSlider(1200, 80, 12000, true), 80, 12000, true)).toBeCloseTo(1200, 0);
+    expect(fromSlider(0.5, 0, 50, false)).toBe(25);
   });
 });
