@@ -65,17 +65,17 @@ Browser, or give Reader an address.
 
 ![The Reader app in Mobius](../readme/apps/reader.png)
 
-- **The article has the page.** The bar above it says where it came from, when you saved it and how many minutes are
-  left; a thin line fills as you read, and each article opens where you stopped. Opening Reader shows your newest
-  article.
-- **Aa** sets the text size, the font (sans serif or serif) and the page colour (Match Mobius, Sepia, Grey or Night),
-  as in Safari Reader. Your choice is kept on this computer.
-- **Save a link** (the link button, or New › Save a link) shows the link field; with nothing open it is always there.
-  **Save this tab** keeps the page open in the Browser.
-- **Highlights:** select a passage and press Highlight (or H); they are listed under the article and can be copied to
-  Notes. **Ask Mobius** on a selected passage or a highlight starts a message with it quoted, the article attached.
-- **J** and **K** move to the next and previous article in the list. **Done reading** (E) moves the article to Archive
-  and opens the next one.
+- **The sidebar** lists the Reading list, any lists of your own and the Archive as plain rows, then From Mobius
+  (articles Mobius changed, to review). **New article** saves a link.
+- **The article** is set in a serif at reading width. Above its title, a quiet line says when you saved it and how many
+  minutes are left; it opens where you stopped. The toolbar shows its title and the site it came from (click the site
+  to open the original in the Browser).
+- **In the toolbar:** Save a link, **Aa** (text size, sans serif or serif, and the page colour: Match Mobius, Sepia,
+  Grey or Night) and **Done reading** (E), which moves it to Archive, opens the next article and offers Undo.
+- **Highlights:** select a passage and press Highlight (or H). They collect in the Highlights panel beside the article
+  (Ctrl+Shift+H, or the Panels menu), where each can be asked about and all copied to Notes. **Ask Mobius** on a
+  selected passage starts a message with it quoted, the article attached.
+- **J** and **K** move to the next and previous article in the list.
 
 **Kept in:** `workspace/reading/`, each article a Markdown file.
 

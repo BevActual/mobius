@@ -47,7 +47,7 @@ import { DesignEditor, DesignSidebar } from './Design';
 import { CanvasBoard, CanvasSidebar } from './Canvas';
 import { ViewPage, ViewsSidebar, newView } from './Views';
 import { ResearchPage, ResearchSidebar } from './Research';
-import { ReaderPage, ReaderSidebar, saveToReader } from './Reader';
+import { ReaderPage, ReaderSidebar, readerSub, saveToReader } from './Reader';
 import { DatabasePage, DatabaseSidebar } from './Database';
 import { useDatabases } from './useDatabases';
 import { TerminalPage, TerminalSidebar } from './Terminal';
@@ -1561,6 +1561,7 @@ export function App() {
           : inNotes && notes.page ? <>{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></>
           // Docs (marked, Docs' own line): the document's folder and whether it is saved, as Notes has it.
           : inDocs && docs.page ? <>{docs.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={docs.status}>{statusText(docs.status)}</span></>
+          : inReader && reading.page ? readerSub(reading.text) // Reader: the site the article came from
           : inMail ? (mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`)
           : inSheets && sheets.data ? sheets.data.sheet
           : inCalendar ? (eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
