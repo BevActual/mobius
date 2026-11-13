@@ -191,9 +191,9 @@ function Suggested({ mail, draft }: { mail: MailState; draft: MailDraft }) {
       <p className="mail-suggested-body">{draft.body}</p>
       <div className="mail-suggested-actions">
         <span className="mail-suggested-head" title={draft.why ? `Why this: ${draft.why}. Mobius never sends; you press Send.` : 'Mobius never sends; you press Send.'}>Draft from Mobius</span>
-        <button type="button" className="btn" title="Delete this suggestion" onClick={() => void mail.deleteDraft(draft.id)}>Discard</button>
-        {tryAnother && <button type="button" className="btn" title="Put it back and ask Mobius for another" onClick={() => void mail.deleteDraft(draft.id).then(tryAnother)}>Try another</button>}
-        <button type="button" className="btn mail-keep" title="Keep it: it opens as your draft, to change and send" onClick={() => mail.setEditing({ ...draft, by: 'you' })}>Keep and edit</button>
+        <button type="button" className="review-btn" title="Delete this suggestion" onClick={() => void mail.deleteDraft(draft.id)}>Discard</button>
+        {tryAnother && <button type="button" className="review-btn" data-kind="again" title="Put it back and ask Mobius for another" onClick={() => void mail.deleteDraft(draft.id).then(tryAnother)}>Try another</button>}
+        <button type="button" className="review-btn" data-kind="keep" title="Keep it: it opens as your draft, to change and send" onClick={() => mail.setEditing({ ...draft, by: 'you' })}>Keep and edit</button>
       </div>
     </section>
   );

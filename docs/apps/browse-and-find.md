@@ -27,7 +27,7 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 
 - **Accounts** are in **Settings › Mail**, and sign in with an app password. Ready-made settings for iCloud, Fastmail, Gmail and Yahoo, or any provider by its IMAP and SMTP servers.
 - **The sidebar** holds New message, Search, your mailboxes (Inbox, Drafts, Flagged, Sent and Archive), Labels, and From Mobius. Flagged and Archive gather your flagged and archived mail.
-- **The list** shows one message per line: who it is from, the subject and its first words, and the date. Unread mail is in bold with a small dot. A short list ends with one line and New message.
+- **The list** shows each message in two lines: who it is from and the date, then the subject and its first words. Unread mail is in bold with a small dot. A short list ends with one line and New message.
 - **Labels:** Mobius sorts the Inbox into Primary, Transactions and Updates; the Inbox shows them all. Move a message to another from the toolbar’s ⋯ or from its right-click menu.
 - **The message toolbar** in the window's top row, as in Apple Mail: Reply, Reply All and Forward; Archive and Flag; and, at the top of the toolbar’s ⋯, Mark as Unread, Remind Me Tomorrow and moving it to another category. Archive and Remind Me Tomorrow can be undone from the note that appears at the bottom. Right-click a message in the list for the same actions without opening it.
 - **Replies quote the message** under where you write, and forwards carry who it was from and to. Attachments are not forwarded yet.
