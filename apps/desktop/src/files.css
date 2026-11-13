@@ -25,7 +25,7 @@
 .files-row[aria-selected="true"] .files-cell { color: inherit; }
 .files-row[aria-selected="true"] .files-icon[data-glyph] { color: #fff; }
 .files-row:focus-visible:not([aria-selected="true"]) { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent); }
-.files-row[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
+.files-row[data-proposed] { outline: 1px dashed var(--mobius); outline-offset: -1px; }
 .files-row[data-proposed][aria-selected="true"] { outline-color: #fff; }
 .files-cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 .files-name { display: flex; align-items: center; gap: var(--sp-2); color: var(--ink); font-size: var(--fs-md, 14px); }
@@ -65,7 +65,7 @@
 .files-empty { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-8) 0; text-align: center; }
 .files-empty .files-icon[data-glyph="folder"] { color: var(--muted); fill: none; }
 
-.files-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 6px 6px 12px; width: fit-content; max-width: var(--files-col); margin-left: max(0px, calc((100% - 720px) / 2)); border-radius: var(--radius-panel); background: var(--wash); font: var(--fs-sm)/1.2 var(--font); }
+.files-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 6px 6px 12px; width: fit-content; max-width: var(--files-col); margin-left: max(0px, calc((100% - 720px) / 2)); border-radius: var(--radius-panel); background: var(--mobius-wash); font: var(--fs-sm)/1.2 var(--font); }
 .files-review > span { margin-right: var(--sp-2); }
 
 /* The shared undo toast keeps its own width (the page's column rule would stretch it) and stands above the path bar. */
@@ -92,3 +92,10 @@
   .files-head, .files-row { grid-template-columns: minmax(0, 1fr) 64px; }
   .files-head [data-col="kind"], .files-kind { display: none; }
 }
+
+/* The Trash: asking before anything is deleted for good. */
+.files-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); font-size: var(--fs-sm); }
+.files-confirm p { flex: 1 1 14em; margin: 0; }
+.files-icon[data-glyph="trash"] { color: var(--muted); fill: none; stroke: currentColor; }
+.files-trash .files-col { cursor: default; }
+.files-icon[data-size="side"][data-glyph="trash"] { color: var(--accent); }

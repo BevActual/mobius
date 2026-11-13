@@ -6,8 +6,8 @@ Quick pages, saved as you type.
 
 ![The Notes app in Mobius](../readme/apps/notes.png)
 
-- **Notebooks** in the sidebar, newest pages first, each row showing when it was edited and how it starts, with search, **Pinned** pages at the top and a **Tags** section
-  built from every `#tag` you write.
+- **Notebooks** in the sidebar, each one folding away, newest pages first, each row showing when it was edited and how it starts, with search, **Pinned** pages at the top,
+  **New notebook** under the notebooks and a **Tags** section built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
   recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
   bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Table, Link,
@@ -32,8 +32,8 @@ Longer documents, with an outline and comments.
 - **A page to write on**: headings, lists, checklists, tables, pictures and links to other documents, kept as Markdown.
   The format bar is the window's toolbar, beside the document's name and whether it is saved. **Aa** holds the styles,
   bold, italic and lists, as in Notes; checklist, link and **Insert** (table, picture, divider, code) sit beside it,
-  and **Table** appears while you are in one, for its rows and columns. **Document options** shows the outline, opens
-  earlier versions and switches the page between the sans-serif font and a serif one.
+  and **Table** appears while you are in one, for its rows and columns. **Document options** shows the outline and the
+  margin's comments, opens earlier versions and switches the page between the sans-serif font and a serif one.
 - **The outline** of headings sits beside the page and marks the part you are looking at as you scroll. It folds away
   when the window is narrow; hide it in Document options if you prefer. A document opens at its top.
 - **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
@@ -84,8 +84,13 @@ Your calendars by day, week or month.
   read only), and CalDAV accounts with an app password, such as iCloud, Fastmail and Nextcloud. Google and Outlook can
   be subscribed to through their private iCal address; signing in to them directly needs app registrations (see
   [calendar sign-in](../reference/calendar-sign-in.md)).
-- **Make an event** by sweeping across the hours, double-clicking a time, right-clicking empty time, or with New event.
-  Drag an event to move it, in any view.
+- **Make an event** by sweeping across the hours, double-clicking a time, right-clicking empty time, or with **New
+  event** at the top of the sidebar. The **+** in the toolbar takes one said in words, such as "Lunch fri 1pm". Drag an
+  event to move it, in any view.
+- **Search** at the top of the sidebar finds events from a month back to a year ahead, by title, place or notes. Pick
+  one to go to its day.
+- **The toolbar** holds Back, Today and Forward, and Day, Week and Month. When Mobius is open beside a small window,
+  Today's word, then the +, then the views give way; T, N, D, W, M and the arrow keys still work.
 - **Open an event** with a click: it edits in a popover beside it. Changes are kept when you click elsewhere or press
   Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
 - **The event you clicked stays picked out.** Press Delete to remove it, Enter to open it or Ctrl+D to duplicate it;

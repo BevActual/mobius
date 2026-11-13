@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ContextMenu } from './ContextMenu';
+import { AppSidebar, Menu, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailBox, MailState } from './useMail';
 import { ReviewActions } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { EmptyState } from './EmptyState';
+import './mail.css';
 import { dayLabel, formatWith, timeLabel, weekdayLabel } from './dates';
 
 const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
@@ -44,6 +45,7 @@ const MAIL_ICONS = {
   flag: <path d="M5 17V3.5M5 4h9l-2 3.5 2 3.5H5" />,
   unread: <><rect x="3" y="5" width="14" height="10.5" rx="2" /><path d="m3.5 6 6.5 5 6.5-5" /><circle cx="16" cy="5" r="2.6" data-dot /></>,
   later: <><circle cx="10" cy="10.5" r="6.5" /><path d="M10 7v3.5l2.5 1.5" /></>,
+  more: <><circle cx="5" cy="10" r="1.3" /><circle cx="10" cy="10" r="1.3" /><circle cx="15" cy="10" r="1.3" /></>,
   move: <><path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" /><path d="M8.5 10.5h5M11.5 8.5l2 2-2 2" /></>,
 } as const;
 function Glyph({ name, filled = false }: { name: keyof typeof MAIL_ICONS; filled?: boolean }) {
@@ -113,64 +115,56 @@ function AccountDialog({ mail, onClose }: { mail: MailState; onClose: () => void
 }
 
 /** Mailboxes, drafts and accounts. */
-export function MailSidebar({ mail, pin, starts, onStart }: { mail: MailState; pin?: ReactNode; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
+export function MailSidebar({ mail, pin }: { mail: MailState; pin?: ReactNode; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const [adding, setAdding] = useState(false);
   const [accountMenu, setAccountMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const v = mail.view;
-  const here = (kind: MailBox | 'drafts') => (kind === 'drafts' ? v.kind === 'drafts' : v.kind === 'box' && v.box === kind) ? 'page' : undefined;
-  const box = (b: 'sent' | 'flagged' | 'archive') => <li><button type="button" className="list-row" aria-current={here(b)} onClick={() => mail.setView({ kind: 'box', box: b, category: 'all' })}><BoxGlyph name={b} /><span className="list-name">{BOX_NAMES[b]}</span></button></li>;
+  const here = (kind: MailBox | 'drafts') => (kind === 'drafts' ? v.kind === 'drafts' : v.kind === 'box' && v.box === kind);
+  const box = (b: 'sent' | 'flagged' | 'archive') => <SidebarRow icon={<BoxGlyph name={b} />} label={BOX_NAMES[b]} current={here(b)} onSelect={() => mail.setView({ kind: 'box', box: b, category: 'all' })} />;
+  const account = mail.accounts.find((a) => a.id === accountMenu?.id);
   return (
-    <aside className="side mail-side" aria-label="Mail sidebar">
-      <SideNew item="message" onNew={mail.compose} disabled={mail.accounts.length === 0} title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} {...(mail.accounts.length > 0 && starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
-      <div className="side-head">
-        <span className="side-title">Mailboxes</span>
-        <span className="side-actions">
-          {pin}
-          <button type="button" className="strip-btn" aria-label="Get mail" title="Get mail now" disabled={mail.syncing || mail.accounts.length === 0} onClick={() => void mail.sync()}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
-          </button>
-        </span>
-      </div>
-      <nav className="task-lists" aria-label="Mailboxes">
-        <ul role="list">
-          <li><button type="button" className="list-row" aria-current={here('inbox')} onClick={() => mail.setView({ kind: 'box', box: 'inbox', category: v.kind === 'box' && v.box === 'inbox' ? v.category : 'primary' })}><BoxGlyph name="inbox" /><span className="list-name">Inbox</span><span className="list-count">{mail.counts.all || ''}</span></button></li>
-          <li><button type="button" className="list-row" aria-current={here('drafts')} onClick={() => mail.setView({ kind: 'drafts' })}><BoxGlyph name="drafts" /><span className="list-name">Drafts</span><span className="list-count">{mail.counts.drafts + mail.counts.suggested || ''}</span></button></li>
-          {box('flagged')}
-          {box('sent')}
-          {box('archive')}
-        </ul>
-        <div className="list-divider" role="separator" />
-        <ul role="list" aria-label="Mail accounts">
-          {mail.accounts.map((a) => (
-            <li key={a.id} className="mail-account" tabIndex={0} title={`${a.email}: right-click for more`}
-              onContextMenu={(e) => { e.preventDefault(); setAccountMenu({ id: a.id, x: e.clientX, y: e.clientY }); }}
-              onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setAccountMenu({ id: a.id, x: r.left + 12, y: r.bottom }); } }}>
-              <span className="list-name">{a.email}</span>
-              {/* Removing an account is in a menu of its own (right-click), so it is not hit by mistake. */}
-              {accountMenu?.id === a.id && createPortal(
-                <ContextMenu x={accountMenu.x} y={accountMenu.y} label={`${a.email} menu`} onClose={() => setAccountMenu((m) => (m?.id === a.id ? null : m))} items={[
-                  { action: 'delete', label: 'Remove account…', danger: true, run: () => setRemoving(a.id) },
-                ]} />,
-                document.body,
-              )}
-              {removing === a.id && (
-                <div className="list-confirm" role="alertdialog" aria-label={`Remove ${a.email}?`}>
-                  <p>Remove {a.email} from Mobius? Its mail stays with your provider.</p>
-                  <div className="list-confirm-actions">
-                    <button type="button" className="btn" autoFocus onClick={() => setRemoving(null)}>Cancel</button>
-                    <button type="button" className="btn danger" onClick={() => { setRemoving(null); void mail.removeAccount(a.id); }}>Remove</button>
-                  </div>
+    <AppSidebar label="Mail sidebar">
+      <SideNew item="message" onNew={mail.compose} disabled={mail.accounts.length === 0} title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} />
+      <SidebarSearch label="Search mail" value={mail.query} onChange={mail.setQuery} />
+      <SidebarSection title="Mailboxes" action={<>
+        {pin}
+        <button type="button" className="strip-btn" aria-label="Get mail" title="Get mail now" disabled={mail.syncing || mail.accounts.length === 0} onClick={() => void mail.sync()}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
+        </button>
+      </>}>
+        <SidebarRow icon={<BoxGlyph name="inbox" />} label="Inbox" count={mail.counts.all} current={here('inbox')} onSelect={() => mail.setView({ kind: 'box', box: 'inbox', category: v.kind === 'box' && v.box === 'inbox' ? v.category : 'primary' })} />
+        <SidebarRow icon={<BoxGlyph name="drafts" />} label="Drafts" count={mail.counts.drafts + mail.counts.suggested} current={here('drafts')} onSelect={() => mail.setView({ kind: 'drafts' })} />
+        {box('flagged')}
+        {box('sent')}
+        {box('archive')}
+      </SidebarSection>
+      <SidebarSection title="Accounts">
+        {mail.accounts.map((a) => (
+          <li key={a.id} className="mail-account" tabIndex={0} title={`${a.email}: right-click for more`}
+            onContextMenu={(e) => { e.preventDefault(); setAccountMenu({ id: a.id, x: e.clientX, y: e.clientY }); }}
+            onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setAccountMenu({ id: a.id, x: r.left + 12, y: r.bottom }); } }}>
+            <span className="list-name">{a.email}</span>
+            {removing === a.id && (
+              <div className="list-confirm" role="alertdialog" aria-label={`Remove ${a.email}?`}>
+                <p>Remove {a.email} from Mobius? Its mail stays with your provider.</p>
+                <div className="list-confirm-actions">
+                  <button type="button" className="btn" autoFocus onClick={() => setRemoving(null)}>Cancel</button>
+                  <button type="button" className="btn danger" onClick={() => { setRemoving(null); void mail.removeAccount(a.id); }}>Remove</button>
                 </div>
-              )}
-              {a.problem && <p className="calendar-account-problem" role="alert">{a.problem}</p>}
-            </li>
-          ))}
-        </ul>
-        <button type="button" className="calendar-add-account" onClick={() => setAdding(true)}>Add a mail account…</button>
-      </nav>
+              </div>
+            )}
+            {a.problem && <p className="calendar-account-problem" role="alert">{a.problem}</p>}
+          </li>
+        ))}
+        <li><button type="button" className="calendar-add-account" onClick={() => setAdding(true)}>Add a mail account…</button></li>
+      </SidebarSection>
+      {/* Removing an account is in a menu of its own (right-click), so it is not hit by mistake. */}
+      {accountMenu && account && <PointMenu x={accountMenu.x} y={accountMenu.y} label={`${account.email} menu`} onClose={() => setAccountMenu(null)} entries={[
+        { label: 'Remove account…', danger: true, run: () => setRemoving(account.id) },
+      ]} />}
       {adding && <AccountDialog mail={mail} onClose={() => setAdding(false)} />}
-    </aside>
+    </AppSidebar>
   );
 }
 
@@ -274,6 +268,28 @@ function Suggested({ mail, draft }: { mail: MailState; draft: MailDraft }) {
   );
 }
 
+/** A reply the person kept (from a suggestion or from Keep all), shown under the message it answers, ready to send. */
+function KeptReply({ mail, draft }: { mail: MailState; draft: MailDraft }) {
+  const [sending, setSending] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const send = async () => {
+    setSending(true);
+    setProblem(await mail.send(draft));
+    setSending(false);
+  };
+  return (
+    <section className="mail-kept" aria-label="Your draft reply">
+      <span className="mail-kept-head">Your draft reply{draft.to && <> · To: {draft.to}</>}</span>
+      <p className="mail-suggested-body">{draft.body}</p>
+      <div className="mail-suggested-actions">
+        <button type="button" className="btn primary" disabled={sending || !draft.to.trim()} onClick={() => void send()}>{sending ? 'Sending…' : 'Send'}</button>
+        <button type="button" className="btn" onClick={() => mail.setEditing(draft)}>Edit</button>
+      </div>
+      {problem && <p className="mail-kept-problem" role="alert">{problem}</p>}
+    </section>
+  );
+}
+
 /** The categories a message can move to, as menu items. */
 const moveItems = (mail: MailState, id: string, now: MailCategory | undefined, then?: () => void) => CATEGORIES.filter((c) => c.id !== 'all').map((c, i) => ({
   label: `Move to ${c.label}`, disabled: (now ?? 'primary') === c.id, separated: i === 0,
@@ -284,23 +300,22 @@ const moveItems = (mail: MailState, id: string, now: MailCategory | undefined, t
  * The open message's actions, in the window's toolbar row as in Apple Mail, in three capsules:
  * reply, reply all, forward | archive, flag, unread | remind me, move to.
  */
-export function MailToolbar({ mail }: { mail: MailState }) {
+function MailToolbar({ mail }: { mail: MailState }) {
   if (!mail.open || mail.editing) return null;
-  return <MessageTools mail={mail} content={mail.open} />;
+  return <ToolbarControls label="Mail"><MessageTools mail={mail} content={mail.open} /></ToolbarControls>;
 }
 
 function MessageTools({ mail, content }: { mail: MailState; content: MailContent }) {
   const row = mail.messages.find((m) => m.id === content.id);
   const flagged = row?.flagged ?? false;
   const archived = row?.archived ?? (mail.view.kind === 'box' && mail.view.box === 'archive');
-  const [moving, setMoving] = useState<{ x: number; y: number } | null>(null);
   const tool = (name: keyof typeof MAIL_ICONS, label: string, run: (e: ReactMouseEvent<HTMLButtonElement>) => void, extra: { keys?: string; pressed?: boolean; filled?: boolean } = {}) => (
     <button type="button" className="strip-btn" aria-label={label} title={extra.keys ? `${label} (${extra.keys})` : label} {...(extra.keys ? { 'aria-keyshortcuts': extra.keys } : {})} {...(extra.pressed !== undefined ? { 'aria-pressed': extra.pressed } : {})} onClick={run}>
       <Glyph name={name} filled={extra.filled ?? false} />
     </button>
   );
   return (
-    <div className="strip-middle toolbar-tools mail-tools" role="toolbar" aria-label="Message">
+    <div className="mail-tools" role="toolbar" aria-label="Message">
       <span className="mail-tools-group">
         {tool('reply', 'Reply', () => mail.reply(content), { keys: 'R' })}
         {tool('replyAll', 'Reply All', () => mail.reply(content, true))}
@@ -309,19 +324,20 @@ function MessageTools({ mail, content }: { mail: MailState; content: MailContent
       <span className="mail-tools-group">
         {archived ? tool('unarchive', 'Move to Inbox', () => void mail.archive(content.id, false)) : tool('archive', 'Archive', () => void mail.archive(content.id), { keys: 'E' })}
         {tool('flag', flagged ? 'Unflag' : 'Flag', () => void mail.flag(content.id, 'flagged', !flagged), { pressed: flagged, filled: flagged })}
-        {tool('unread', 'Mark as Unread', () => { void mail.flag(content.id, 'seen', false); mail.setOpen(null); })}
+        {/* The rest, used less often, in one menu, so the toolbar fits beside the Mobius panel. */}
+        <Menu label="More message actions" align="end" entries={[
+          { label: 'Mark as Unread', icon: <Glyph name="unread" />, run: () => { void mail.flag(content.id, 'seen', false); mail.setOpen(null); } },
+          ...(!archived && row?.box !== 'sent' ? [{ label: 'Remind Me Tomorrow', icon: <Glyph name="later" />, keys: 'H', run: () => void mail.remindTomorrow(content.id) }] : []),
+          ...moveItems(mail, content.id, content.category, () => void mail.read(content.id)),
+        ]} trigger={<button type="button" className="strip-btn" aria-label="More" title="More"><Glyph name="more" /></button>} />
       </span>
-      <span className="mail-tools-group">
-        {!archived && row?.box !== 'sent' && tool('later', 'Remind Me Tomorrow', () => void mail.remindTomorrow(content.id), { keys: 'H' })}
-        {tool('move', 'Move to…', (e) => { const r = e.currentTarget.getBoundingClientRect(); setMoving({ x: r.left, y: r.bottom + 4 }); })}
-      </span>
-      {moving && createPortal(<ContextMenu x={moving.x} y={moving.y} label="Move to" items={moveItems(mail, content.id, content.category, () => void mail.read(content.id))} onClose={() => setMoving(null)} />, document.body)}
     </div>
   );
 }
 
 function Reader({ mail, content, onDraftReply }: { mail: MailState; content: MailContent; onDraftReply?: (m: MailContent) => void }) {
   const suggestions = mail.drafts.filter((d) => d.by === 'mobius' && d.replyTo === content.id);
+  const kept = mail.drafts.filter((d) => d.by === 'you' && d.replyTo === content.id);
   const [showHtml, setShowHtml] = useState(true);
   // The keyboard follows the message opened: E, R and H act on it straight away, whatever was clicked to open it.
   const reader = useRef<HTMLElement>(null);
@@ -337,13 +353,14 @@ function Reader({ mail, content, onDraftReply }: { mail: MailState; content: Mai
           <div className="mail-to">To: {content.to.map(shownName).join(', ') || 'you'}{content.cc.length > 0 && <> · Cc: {content.cc.map(shownName).join(', ')}</>}</div>
         </div>
       </header>
-      {((onDraftReply && suggestions.length === 0) || content.html) && (
+      {((onDraftReply && suggestions.length === 0 && kept.length === 0) || content.html) && (
         <div className="mail-reader-actions">
-          {onDraftReply && suggestions.length === 0 && <button type="button" className="btn mail-draft-it" onClick={() => onDraftReply(content)}>Draft a reply with Mobius</button>}
+          {onDraftReply && suggestions.length === 0 && kept.length === 0 && <button type="button" className="btn mail-draft-it" onClick={() => onDraftReply(content)}>Draft a reply with Mobius</button>}
           {content.html && <button type="button" className="btn" aria-pressed={!showHtml} onClick={() => setShowHtml((s) => !s)}>{showHtml ? 'Plain text' : 'Formatted'}</button>}
         </div>
       )}
       {suggestions.map((d) => <Suggested key={d.id} mail={mail} draft={d} />)}
+      {kept.map((d) => <KeptReply key={d.id} mail={mail} draft={d} />)}
       {content.html && showHtml ? <HtmlBody html={content.html} /> : <pre className="mail-text">{content.text}</pre>}
       {content.attachments.length > 0 && <p className="mail-attachments">Attached: {content.attachments.join(', ')}</p>}
     </article>
@@ -428,7 +445,6 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
             ))}
           </div>
         )}
-        <input className="side-search mail-search" type="search" aria-label="Search mail" placeholder="Search" value={mail.query} onChange={(e) => mail.setQuery(e.target.value)} />
         {v.kind === 'drafts' ? (
           <div role="listbox" aria-label="Drafts" className="mail-list">
             {mail.drafts.length === 0 && <p className="side-empty">No drafts.</p>}
@@ -456,7 +472,9 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
               : <EmptyState app="mail" label="No message open" title="No message open" line="Choose one in the list." />}
         {adding && mail.accounts.length === 0 && <AccountDialog mail={mail} onClose={() => setAdding(false)} />}
       </div>
-      {rowMenu && createPortal(<ContextMenu x={rowMenu.x} y={rowMenu.y} label={`${rowMenu.m.subject || 'Message'} menu`} onClose={() => setRowMenu(null)} items={rowItems(mail, rowMenu.m)} />, document.body)}
+      {rowMenu && <PointMenu x={rowMenu.x} y={rowMenu.y} label={`${rowMenu.m.subject || 'Message'} menu`} onClose={() => setRowMenu(null)} entries={rowItems(mail, rowMenu.m)} />}
+      {mail.undo && <UndoToast text={mail.undo.text} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} />}
+      <MailToolbar mail={mail} />
     </section>
   );
 }

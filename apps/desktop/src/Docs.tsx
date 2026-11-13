@@ -246,7 +246,9 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
       {!inFrame && <button type="button" className="doc-tool" aria-label="Outline" aria-pressed={extras.outline} title={extras.outline ? 'Hide the outline' : 'Show the outline'} onClick={extras.onOutline}>
         <Icon d="M4 5.5h12M6.5 10H16M9 14.5h7" />
       </button>}
-      {extras.onComments && (
+      {/* On the page bar (the wiki has none) the margin's comments have their own button; on the frame there is one
+          Comments button, the window's, and the margin is shown or hidden from Document options. */}
+      {extras.onComments && !inFrame && (
         <button type="button" className="doc-tool doc-tool-count" aria-label={extras.comments ? `Comments, ${extras.comments} open` : 'Comments'} aria-pressed={extras.commentsOpen} title={extras.commentsOpen ? 'Hide comments' : 'Show comments'} onClick={extras.onComments}>
           <Icon d="M4.5 5.5h11a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H9l-3.5 2.5V14h-1a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1Z" />
           {extras.comments > 0 && <span className="doc-count">{extras.comments}</span>}
@@ -269,12 +271,13 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
       {/* The document's view options. Not a second ⋯: the window's ⋯ beside it holds the app's menus. */}
       <Menu label="Document options" align="end" entries={[
         { label: extras.outline ? 'Hide the outline' : 'Show the outline', run: extras.onOutline },
+        ...(extras.onComments && inFrame ? [{ label: extras.commentsOpen ? 'Hide comments in the margin' : extras.comments ? `Show comments in the margin (${extras.comments} open)` : 'Show comments in the margin', run: extras.onComments }] : []),
         ...(extras.onHistory ? [{ label: 'Earlier versions…', run: extras.onHistory }] : []),
         extras.font === 'serif'
           ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans'), separated: true }
           : { label: 'Use a serif font', run: () => extras.onFont('serif'), separated: true },
       ]} trigger={
-        <button type="button" className="doc-tool" aria-label="Document options" title="Outline, earlier versions and the typeface">
+        <button type="button" className="doc-tool" aria-label="Document options" title="Outline, comments, earlier versions and the typeface">
           <Icon><path d="M4 6.5h6M14 6.5h2M4 13.5h2M10 13.5h6" /><circle cx="12" cy="6.5" r="1.8" /><circle cx="8" cy="13.5" r="1.8" /></Icon>
         </button>
       } />

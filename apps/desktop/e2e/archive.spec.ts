@@ -27,7 +27,7 @@ const openAgent = async () => {
   await expect(list()).toBeVisible();
 };
 const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mobius' });
-const list = (): Locator => shell().getByRole('complementary', { name: 'Conversation list' });
+const list = (): Locator => shell().getByRole('complementary', { name: 'Agent sidebar' });
 const row = (title: string): Locator => list().locator('.clist-item', { hasText: title });
 const say = async (text: string) => {
   await expect(shell().getByRole('button', { name: 'Stop' })).toHaveCount(0);

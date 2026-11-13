@@ -19,6 +19,8 @@ export interface MenuEntry {
   disabled?: boolean;
   /** A line before this row. */
   separated?: boolean;
+  /** A row that is on or off (a panel shown or hidden): a tick when on. */
+  checked?: boolean;
 }
 
 /** Open state that waits for the closing morph before the menu really goes, then runs what was chosen. */
@@ -54,8 +56,25 @@ function useMorphingOpen(initial: boolean, onClosed?: () => void) {
   return { open, show, close, popupRef, finalFocus };
 }
 
+const TICK = <svg className="ui-menu-icon ui-menu-tick" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>;
+
 function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: () => void) => void }) {
-  return entries.map((entry, i) => (
+  return entries.map((entry, i) => entry.checked !== undefined ? (
+    <Base.CheckboxItem
+      key={`${entry.label}-${i}`}
+      className="ui-menu-item"
+      label={entry.label}
+      disabled={entry.disabled}
+      closeOnClick={false}
+      checked={entry.checked}
+      data-separated={entry.separated || undefined}
+      onClick={() => pick(entry.run)}
+    >
+      {entry.checked ? TICK : <span className="ui-menu-icon" aria-hidden="true" />}
+      <span className="ui-menu-label">{entry.label}</span>
+      {entry.keys && <kbd className="ui-menu-keys">{entry.keys}</kbd>}
+    </Base.CheckboxItem>
+  ) : (
     <Base.Item
       key={`${entry.label}-${i}`}
       className="ui-menu-item"

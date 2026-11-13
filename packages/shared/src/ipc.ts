@@ -568,7 +568,12 @@ export interface MobiusBridge {
     rename?(path: string, name: string): Promise<FilesActionResult>;
     /** Moves to the workspace's Trash; `path` in the answer is where it is held, for putBack. */
     trash?(path: string): Promise<FilesActionResult>;
+    /** `path` empty: back to where the Trash remembers it came from. */
     putBack?(held: string, path: string): Promise<FilesActionResult>;
+    /** What the Trash holds, newest first. */
+    trashList?(): Promise<{ entries: TrashEntry[] } | { error: string }>;
+    /** Deletes for good, only after the person confirms: one held item, or everything when `held` is empty. */
+    emptyTrash?(held: string): Promise<{ ok: true; gone: number } | { ok: false; error: string }>;
     /** Shows the item in Explorer or Finder. */
     show?(path: string): Promise<void>;
   };
@@ -981,7 +986,8 @@ export interface DownloadEntry {
   risky: boolean;
 }
 
-export type ThemeChoice = 'system' | 'light' | 'dark';
+/** Mid grey runs the window light and Cool dark runs it dark; the stylesheet does the rest (tokens.css). */
+export type ThemeChoice = 'system' | 'light' | 'mid' | 'dark' | 'cool';
 export type ChatFont = 'system' | 'serif' | 'mono';
 export type TextDirection = 'auto' | 'ltr' | 'rtl';
 export type Density = 'comfortable' | 'compact';
@@ -1002,8 +1008,6 @@ export interface AppearanceSettings {
   resumeLast: boolean;
   /** The list on the left (tabs, or conversations): part of the window, or floating over it and hiding itself. */
   leftSidebar: SidebarMode;
-  /** The app list on the left: the full sidebar with names and the app's own list, or a narrow rail of icons. */
-  navigation: NavigationStyle;
   /** The agent panel on the right: part of the window, or floating over it and hiding itself. */
   rightSidebar: SidebarMode;
   /** Where Mobius opens: the sidebar turns into Mobius (the default), or it is pinned beside the page. */
@@ -1032,9 +1036,8 @@ const isFavourite = (v: unknown): v is Favourite => {
 export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'] as const;
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
-export type NavigationStyle = 'sidebar' | 'rail';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 380 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -1212,6 +1215,8 @@ export interface ModelCatalog { current: string; groups: ModelGroup[] }
 /** Settings > Advanced > Other apps. */
 export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number; /** When it last changed, ms since 1970 (Files only). */ modified?: number }
 export type FilesActionResult = { ok: true; path: string } | { ok: false; error: string };
+/** Something in Files' Trash: `held` is where it is kept, `from` where it was (empty when not known). */
+export interface TrashEntry { held: string; name: string; from: string; trashed: number; type: 'file' | 'folder'; bytes?: number }
 export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null; /** In mcp.json, not started yet: starts when Mobius opens again. */ waiting?: string[]; /** Started, but no longer in mcp.json: stops when Mobius opens again. */ leaving?: string[] }
 /** A connector to add: a short name, the command that runs the MCP server, its arguments and its keys. */
 export interface ConnectorDraft { name: string; command: string; args: string[]; env: Record<string, string> }
@@ -1316,7 +1321,7 @@ const oneOf = <T extends string>(...choices: T[]) => (v: unknown): v is T => typ
 
 /** How each appearance setting is checked. Adding a setting means adding it here, to the type, and to the defaults. */
 export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) => v is AppearanceSettings[K] } = {
-  theme: oneOf<ThemeChoice>('system', 'light', 'dark'),
+  theme: oneOf<ThemeChoice>('system', 'light', 'mid', 'dark', 'cool'),
   zoom: (v): v is number => inRange(v, ZOOM_RANGE),
   chatTextScale: (v): v is number => inRange(v, CHAT_TEXT_RANGE),
   chatFont: oneOf<ChatFont>('system', 'serif', 'mono'),
@@ -1326,7 +1331,6 @@ export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) 
   sidebarAtStart: (v): v is boolean => typeof v === 'boolean',
   resumeLast: (v): v is boolean => typeof v === 'boolean',
   leftSidebar: oneOf<SidebarMode>('attached', 'floating'),
-  navigation: oneOf<NavigationStyle>('sidebar', 'rail'),
   rightSidebar: oneOf<SidebarMode>('attached', 'floating'),
   agentPlace: oneOf<'sidebar' | 'beside'>('sidebar', 'beside'),
   leftWidth: (v): v is number => inRange(v, SIDEBAR_WIDTH.left),

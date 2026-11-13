@@ -37,7 +37,7 @@ import { TasksPage, TasksSidebar } from './Tasks';
 import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { SheetGrid, SheetsSidebar } from './Sheets';
-import { BOX_NAMES, MailPage, MailSidebar, MailToolbar } from './Mail';
+import { BOX_NAMES, MailPage, MailSidebar } from './Mail';
 import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
 import { useSheets } from './useSheets';
@@ -78,7 +78,7 @@ import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail } from './Rail';
 import { SidebarHead } from './SidebarHead';
-import { AppFrame } from './ui';
+import { AppFrame, PanelsMenu } from './ui';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
@@ -878,7 +878,7 @@ export function App() {
   // rather than one that starts a conversation.
   const createFor = (id: AppId): HubAction | undefined => createActions.find((a) => a.app === id);
   // These apps' own sidebar lists start with their New row, so the head's New is left out.
-  const createInList: readonly AppId[] = ['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'];
+  const createInList: readonly AppId[] = ['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'sheets'];
   const appSidebar = (pinNode: ReactNode) => settingsOpen ? <div ref={setSettingsSlot} className="settings-side" /> : (
           <>
             {inActivity ? (
@@ -958,7 +958,7 @@ export function App() {
             ) : inDocs ? (
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
-              <CalendarSidebar calendar={calendar} pin={pinNode} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
+              <CalendarSidebar calendar={calendar} pin={pinNode} changed={turnMarks.calendars} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inSearch ? (
               <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
             ) : inTasks ? (
@@ -1024,7 +1024,7 @@ export function App() {
     keys: bindings,
     state: {
       // The sidebar is the app list with the open app's own list under it; with a separate list panel (hasLeft), that panel.
-      sidebarShown: hasLeft && leftOpen, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, split, canSplit: !narrow, miniOpen,
+      sidebarShown: hasLeft && leftOpen, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
@@ -1044,6 +1044,7 @@ export function App() {
       find: openFind,
       toggleSidebar: () => setLeftOpen((open) => !open),
       toggleAgent: () => setChatOpen((open) => !open),
+      toggleComments: () => setCommenting((on) => !on),
       toggleSplit,
       toggleMini,
       zoom: (zoom) => void appearance.set({ zoom }),
@@ -1560,11 +1561,22 @@ export function App() {
           : inFiles ? filesSub(files) // Files: how many items
           : undefined,
         middle: <>
-        {inMail && <MailToolbar mail={mail} />}
         {inBrowser && !settingsOpen && browserChrome}
         </>,
         // Words and icons never share a capsule: the update notice stands on its own, before the icons.
         status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
+        // The Panels menu: the sidebar, the open app's own panels, Mobius, and Reset layout.
+        panels: (own) => settingsOpen ? null : (
+          <PanelsMenu
+            app={own}
+            shell={[
+              { name: 'Sidebar', shown: hasLeft && leftOpen, toggle: () => setLeftOpen((open) => !open) },
+              ...(hasRight ? [{ name: 'Mobius', shown: chatOpen, toggle: () => setChatOpen((open) => !open) }] : []),
+            ]}
+            describeKeys={(keys) => describeCombo(keys, window.mobius.platform)}
+            onReset={() => setLeftOpen(true)}
+          />
+        ),
         trail: <>
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
           {menuBar}

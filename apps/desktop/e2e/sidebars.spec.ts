@@ -7,12 +7,8 @@ test.beforeEach(async () => {
   fixture = await startFixture();
   mobius = await launch(fixture.origin + '/');
   await expect(shell().getByText('Core ready')).toBeVisible();
-  // These tests are about the app's own list beside the page, which the narrow rail keeps separate.
-  // Set once the window has read its own settings, which can land after this on a slow start: try until it holds.
-  await expect(async () => {
-    await shell().evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
-    await expect(shell().locator('.dock.left')).toHaveCount(1, { timeout: 1500 });
-  }).toPass({ timeout: 15_000 });
+  // These tests are about the app's own list beside the page (zone 2), next to the rail.
+  await expect(shell().locator('.dock.left')).toHaveCount(1, { timeout: 15_000 });
   // The sidebar folds with a short animation: measure only once it has settled.
   await expect.poll(async () => Math.round((await shell().locator('.rail').boundingBox())!.width)).toBe(52);
 });
@@ -24,7 +20,7 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 const tabs = (): Locator => shell().getByRole('complementary', { name: 'Browser sidebar' });
-const agentPanel = (): Locator => shell().getByRole('complementary', { name: 'Agent' });
+const agentPanel = (): Locator => shell().getByRole('complementary', { name: 'Agent', exact: true });
 const left = (): Locator => shell().locator('.dock.left');
 const right = (): Locator => shell().locator('.dock.right');
 const appearance = () => shell().evaluate(() => window.mobius.appearance.get());
@@ -122,13 +118,13 @@ test('the conversation list in the Agent app floats and resizes the same way', a
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
   await shell().keyboard.press('Enter');
-  await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toBeVisible();
-  await shell().getByRole('complementary', { name: 'Conversation list' }).getByRole('button', { name: 'Float the list' }).click();
+  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toBeVisible();
+  await shell().getByRole('complementary', { name: 'Agent sidebar' }).getByRole('button', { name: 'Float the list' }).click();
   await shell().keyboard.press('Escape');
   await shell().locator('.context-strip').click({ position: { x: 4, y: 4 } });
-  await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toHaveCount(0);
+  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toHaveCount(0);
   await shell().getByRole('button', { name: 'Show conversations' }).click();
-  await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toBeVisible();
 });
 
 test('a sidebar can be dragged wider and narrower, within limits, and the width is kept', async () => {

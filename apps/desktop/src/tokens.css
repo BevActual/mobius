@@ -1,8 +1,8 @@
 /*
  * Mobius design tokens. Every size, space, colour and motion value the interface uses comes from here, so the
  * applications look like one product. Grounded in Apple's Human Interface Guidelines (macOS): a 4-pt grid, a small
- * type scale, semantic colours with a dark counterpart, and quick, interruptible motion. Mobius 2 (macOS 27 era):
- * capsule controls, an edge-to-edge sidebar, one unified toolbar, and indigo as the single accent.
+ * type scale, semantic colours with a dark counterpart, and quick, interruptible motion. The timeless theme
+ * (docs/design/theme-tokens.md): a flat neutral frame, ink for controls and state, indigo only for Mobius.
  */
 :root {
   color-scheme: light dark;
@@ -29,12 +29,12 @@
   --sp-6: 24px;
   --sp-8: 32px;
 
-  /* Shape. Mobius 2: rounded, like macOS 27. Controls are capsules; lists and cards use soft corners. */
-  --radius-small: 4px;
-  --radius-control: 8px;
-  --radius-group: 10px;
-  --radius-panel: 14px;
-  --radius-sheet: 18px;
+  /* Shape: small, plain corners. A button is a 6px rectangle; pills only for things round by nature. */
+  --radius-small: 3px;
+  --radius-control: 6px;
+  --radius-group: 6px;
+  --radius-panel: 8px;
+  --radius-sheet: 8px;
   --radius-pill: 999px;
   --control-h: 28px;
   --control-h-lg: 36px;
@@ -42,41 +42,85 @@
   --menu-row-h: 30px;
   --menu-min-w: 200px;
   --menu-pad: 5px;
-  --hairline-w: 0.5px;
+  --hairline-w: 1px;
 
-  /* Colour roles: surfaces, text, lines, accent, and status. */
-  --bg: #ffffff;
-  --panel: #fafafc;
-  --chrome: #f2f2f5;
-  --shell: #f5f5f7;
-  /* The sidebar runs edge to edge; the toolbar spans the work area; fields and capsules sit on them. */
-  --sidebar: #f0f0f4;
-  --toolbar: color-mix(in srgb, #fafafc 92%, transparent);
-  --field: rgba(0, 0, 0, 0.045);
-  --capsule: rgba(255, 255, 255, 0.78);
-  --hairline: rgba(0, 0, 0, 0.1);
-  --ink: #1d1d1f;
-  --muted: #65656b;
-  --line: #e5e5e9;
-  --line-strong: #c7c7cc;
-  --soft: #ededf0;
-  /* One accent, used sparingly: the primary action, the current place, the agent. */
-  --accent: #5856d6;
-  --on-accent: #ffffff;
-  --wash: #eeeefc;
-  --danger: #c5221f;
-  --danger-wash: #fce8e6;
+  /*
+   * Colour roles: the timeless theme (docs/design/theme-tokens.md). The frame is neutral, controls and state are ink,
+   * indigo is Mobius and only Mobius, red is record, error or delete, and colour belongs to the person's content.
+   * A theme is only these values; Light is here, Dark under prefers-color-scheme, Mid grey and Cool dark below.
+   */
+  --frame: #f4f3ef;
+  --paper: #ffffff;
+  --raised: #ffffff;
+  --ink: #1b1b1a;
+  --body: #2a2a28;
+  --muted: #6f6e69;
+  --faint: #a3a29c;
+  --on-ink: #ffffff;
+  --line: #e3e1da;
+  --line-soft: #efede7;
+  --sel: #e9e7e0;
+  --mobius: #4b48c8;
+  --mobius-wash: #f0effb;
+  --on-mobius: #ffffff;
+  --red: #b3261e;
+  --red-wash: #fbeceb;
   --success: #1e7b34;
   --success-wash: #e6f4ea;
   --warning: #9a5b00;
   --warning-wash: #fef3e0;
 
+  /* Content colours: one palette for anything the person colours. Text on any of them is always #1b1b1a. */
+  --c-amber: #e8a33d;
+  --c-yellow: #e6c84a;
+  --c-green: #9ccf5a;
+  --c-teal: #4fb7a8;
+  --c-blue: #5aa7e0;
+  --c-violet: #b08ae6;
+  --c-pink: #e58fb5;
+  --c-coral: #e2705f;
+  --c-stone: #a8a39a;
+  --on-content: #1b1b1a;
+
+  /*
+   * Today's names, kept as aliases while apps move over to the names above. New code uses the new names.
+   * --accent is now ink: the primary action and the current place. Anything Mobius made, proposes or is doing uses
+   * --mobius by name.
+   */
+  --bg: var(--paper);
+  --panel: var(--paper);
+  --chrome: var(--frame);
+  --shell: var(--frame);
+  --sidebar: var(--frame);
+  --toolbar: var(--frame);
+  --soft: var(--sel);
+  --hairline: var(--line);
+  --line-strong: var(--faint);
+  --accent: var(--ink);
+  --on-accent: var(--on-ink);
+  --wash: var(--sel);
+  --danger: var(--red);
+  --danger-wash: var(--red-wash);
+  /* A quiet neutral fill (fields, tags, code); buttons sit on the frame with no fill until hovered. */
+  --field: color-mix(in srgb, var(--ink) 5%, transparent);
+  --capsule: transparent;
+
+  /* Density: comfortable here, compact under data-density. The rail stays the same in both. */
+  --row-h: 30px;
+  --toolbar-h: 44px;
+  --panel-head-h: 30px;
+  --info-h: 24px;
+  --rail-w: 52px;
+  --sidebar-w: 240px;
+  --panel-w: 340px;
+  --dock-h: 260px;
+
   /* Elevation. */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08);
-  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
-  --shadow-3: 0 14px 44px rgba(0, 0, 0, 0.3);
-  /* A menu over the page: its glass edge, and a soft drop shadow. */
-  --shadow-menu: 0 18px 50px rgba(0, 0, 0, 0.22);
+  /* Shadows only on things that float (menus, popovers, dialogs, popped-out panels). Docked surfaces use hairlines. */
+  --shadow-1: none;
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.10), 0 0 0 1px var(--line);
+  --shadow-3: 0 12px 40px rgba(0, 0, 0, 0.18), 0 0 0 1px var(--line);
+  --shadow-menu: var(--shadow-2);
   --z-menu: 950;
   --z-toast: 40;
 
@@ -94,7 +138,7 @@
   --dur-loop: 1.6s;
   --dur-spin: 800ms;
 
-  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2365656b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%236f6e69' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   /* Each app's colour, used only for its tile in the app hub. */
   --app-agent: linear-gradient(140deg, #7a5cff, #2f7bff);
   --app-search: linear-gradient(140deg, #5d6b80, #39424f);
@@ -126,40 +170,102 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1c1c1e;
-    --panel: #212124;
-    --chrome: #29292c;
-    --shell: #18181a;
-    --sidebar: #232326;
-    --toolbar: color-mix(in srgb, #262629 92%, transparent);
-    --field: rgba(255, 255, 255, 0.07);
-    --capsule: rgba(255, 255, 255, 0.07);
-    --hairline: rgba(255, 255, 255, 0.1);
-    --ink: #f5f5f7;
-    --muted: #b0b0b6;
-    --line: #3a3a3e;
-    --line-strong: #56565b;
-    --soft: #343437;
-    --accent: #8c8aff;
-    --on-accent: #0e0d2b;
-    --wash: #2b2a4d;
-    --danger: #ff8a80;
-    --danger-wash: #3d1f1d;
+    --frame: #1a1a19;
+    --paper: #222221;
+    --raised: #2b2b29;
+    --ink: #ecebe6;
+    --body: #d8d7d1;
+    --muted: #a09f99;
+    --faint: #6f6e69;
+    --on-ink: #1a1a19;
+    --line: #353533;
+    --line-soft: #2b2b29;
+    --sel: #30302e;
+    --mobius: #9a98f5;
+    --mobius-wash: #2a2946;
+    --on-mobius: #12112e;
+    --red: #f08a80;
+    --red-wash: #3d1f1d;
     --success: #7bd88f;
     --success-wash: #1c3324;
     --warning: #f2b45a;
     --warning-wash: #3a2c12;
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
-    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23b0b0b6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--line);
+    --shadow-3: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--line);
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23a09f99' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
 }
 
+/*
+ * Mid grey and Cool dark: chosen in Settings › Appearance › Theme. The window runs light under Mid grey and dark
+ * under Cool dark, so anything still written against prefers-color-scheme follows along.
+ */
+:root[data-theme="mid"] {
+  --frame: #c6c6c3;
+  --paper: #d9d9d6;
+  --raised: #e2e2df;
+  --ink: #121211;
+  --body: #1f1f1d;
+  --muted: #4f4f49;
+  --faint: #7c7c76;
+  --on-ink: #d9d9d6;
+  --line: #aeaeaa;
+  --line-soft: #c9c9c5;
+  --sel: #b6b6b2;
+  --mobius: #3a37b8;
+  --mobius-wash: #c9c8ea;
+  --on-mobius: #ffffff;
+  --red: #a3221b;
+  --red-wash: #e3c4c1;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%234f4f49' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+:root[data-theme="cool"] {
+  --frame: #171b21;
+  --paper: #1e232b;
+  --raised: #262d36;
+  --ink: #e6eaf0;
+  --body: #cfd5dd;
+  --muted: #97a1ae;
+  --faint: #667080;
+  --on-ink: #171b21;
+  --line: #303843;
+  --line-soft: #262d36;
+  --sel: #2b333e;
+  --mobius: #a3a1ff;
+  --mobius-wash: #2a2c50;
+  --on-mobius: #12112e;
+  --red: #f08a80;
+  --red-wash: #3d2324;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2397a1ae' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+html[data-density='compact'] {
+  --fs-xs: 10.5px;
+  --fs-sm: 11.5px;
+  --fs-md: 12.5px;
+  --fs-lg: 14px;
+  --row-h: 26px;
+  --control-h: 24px;
+  --control-h-lg: 30px;
+  --menu-row-h: 26px;
+  --toolbar-h: 40px;
+  --panel-head-h: 26px;
+  --info-h: 22px;
+  --sidebar-w: 220px;
+  --panel-w: 320px;
+  --dock-h: 240px;
+}
+
+/* More contrast: secondary text reads as body text, and hairlines are as strong as secondary text was. */
 @media (prefers-contrast: more) {
-  :root { --muted: #44444a; --line: #9b9ba3; --line-strong: #6e6e76; --hairline: #9b9ba3; --field: #ffffff; --capsule: #ffffff; --toolbar: #fafafc; }
+  :root { --muted: #2a2a28; --line: #6f6e69; --line-soft: #6f6e69; }
+  :root[data-theme="mid"] { --muted: #1f1f1d; --line: #4f4f49; --line-soft: #4f4f49; }
 }
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
-  :root { --muted: #d0d0d6; --line: #888890; --line-strong: #a8a8b0; --hairline: #888890; --field: #2c2c30; --capsule: #2c2c30; --toolbar: #262629; }
+  :root { --muted: #d8d7d1; --line: #a09f99; --line-soft: #a09f99; }
+}
+@media (prefers-contrast: more) {
+  :root[data-theme="cool"] { --muted: #cfd5dd; --line: #97a1ae; --line-soft: #97a1ae; }
 }
 @media (prefers-reduced-motion: reduce) {
   /* No movement: what moved now fades (--dur-fade), and nothing repeats. */
