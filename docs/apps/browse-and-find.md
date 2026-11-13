@@ -87,8 +87,8 @@ Your whole workspace as a drive.
 ![The Files app in Mobius](../readme/apps/files.png)
 
 - **The drive** is a list like Finder's: Name, Kind and Size columns (click one to sort; folders stay first), and each
-  file wears the icon of the app that opens it. A file Mobius made is dashed until kept; a folder says how many such
-  files it holds.
+  file wears the icon of the app that opens it. A file Mobius made is dashed until kept; a folder holding such files
+  has an indigo dot (hover it for how many).
 - **Select, then open.** A click selects, a double-click or Enter opens: folders in place, files in their own app. The
   arrow keys move, Backspace goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
 - **The toolbar** names the open folder with how many items it holds, and has Back, Forward and New folder. The
@@ -104,5 +104,5 @@ Your whole workspace as a drive.
   trashed from here.
 - **Date Modified** shows when each file and folder last changed. The agent's own `files.list` leaves dates out.
 - **The sidebar** has Workspace and Trash under Places, the workspace's folders (Notes, Docs, Sheets...) under Folders, a dot on
-  any folder holding something from Mobius, and Made by Mobius under From Mobius.
+  a folder holding something new from Mobius until you look in it, and Made by Mobius under From Mobius.
 - **Made by Mobius** collects what Mobius created, dashed until you keep it, with a count of what is waiting.
