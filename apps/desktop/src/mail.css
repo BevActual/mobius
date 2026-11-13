@@ -11,7 +11,6 @@
 .mail-row[data-suggested] { outline: 1px dashed var(--mobius, var(--accent)); outline-offset: -4px; }
 .mail-row-top { display: flex; gap: var(--sp-2); align-items: baseline; }
 .mail-row-top b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--ink); }
-.mail-row:not([data-unread]) .mail-row-top b { font-weight: 500; }
 .mail-row-subject { color: var(--body, var(--ink)); }
 .mail-when { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
 .mail-row-subject, .mail-row-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
@@ -49,7 +48,9 @@
 .mail-suggested-head { font-size: var(--fs-md); font-weight: 500; color: var(--mobius, var(--accent)); cursor: help; }
 /* Mobius's draft: one dashed indigo block, its text as the person would send it. */
 .mail-suggested-body { margin: 0; padding: var(--sp-4) var(--sp-5); border: 1px dashed var(--mobius, var(--accent)); border-radius: var(--radius-panel); white-space: pre-wrap; font-size: var(--fs-lg); line-height: 1.6; color: var(--body, var(--ink)); }
-.mail-suggested-actions { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
+/* The four stay on one row: Draft from Mobius, Discard, Try another, Keep and edit. */
+.mail-suggested-actions { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; white-space: nowrap; }
+.mail-suggested-actions > * { flex: none; }
 .mail-suggested-actions .mail-suggested-head { margin-right: var(--sp-1); white-space: nowrap; }
 .btn.mail-keep { background: var(--ink); border-color: var(--ink); color: var(--on-ink, #fff); }
 .btn.mail-keep:hover { background: color-mix(in srgb, var(--ink) 85%, var(--paper, #fff)); }
@@ -89,4 +90,4 @@
 .mail-to-review { padding-right: var(--sp-2); font-size: var(--fs-sm); color: var(--mobius, var(--accent)); white-space: nowrap; align-self: center; }
 /* Empty places in Mail: a plain line icon, not a coloured tile. */
 .mail-page .empty-state-icon { background: none; box-shadow: none; color: var(--faint, var(--muted)); }
-.mail-suggested-actions .btn { height: 28px; padding: 0 10px; }
+.mail-suggested-actions .btn { height: 28px; padding: 0 10px; font-size: var(--fs-md); }
