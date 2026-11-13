@@ -8,6 +8,7 @@ import { ChangesWaiting, ScheduledList } from './ConversationSidebar';
 import { Turns } from './Rewind';
 import { EmptyState } from './EmptyState';
 import { relativeTime } from './relative-time';
+import { dateTimeLabel, longDateLabel, timeLabel } from './dates';
 import { AppSidebar, SidebarRow, SidebarSection, ToolbarControls, ViewSwitch, type ViewChoice } from './ui';
 import './activity.css';
 
@@ -116,7 +117,6 @@ const WHO_VIEWS: readonly ViewChoice<ActivityWho>[] = [
   { id: 'final', name: 'Can’t undo' },
 ];
 
-const time = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 const Glyph = ({ app }: { app: AppId | null }) => <svg viewBox="0 0 20 20" aria-hidden="true" className="act-icon">{app ? APP_ICONS[app] : OWN_ICONS.activity}</svg>;
 
 function Line({ item, picked, onPick, onOpenApp }: { item: FeedItem; picked: boolean; onPick: () => void; onOpenApp: (app: AppId) => void }) {
@@ -129,9 +129,9 @@ function Line({ item, picked, onPick, onOpenApp }: { item: FeedItem; picked: boo
           <span className="act-what">{item.text}</span>
           <span className="act-sub">{item.app ? appName(item.app) : 'Mobius'}{item.by === 'you' ? ' · You' : ''}{item.final ? ' · Can’t be undone' : ''}</span>
         </span>
-        <time className="act-time" dateTime={new Date(item.when).toISOString()} title={new Date(item.when).toLocaleString()}>{time(item.when)}</time>
+        <time className="act-time" dateTime={new Date(item.when).toISOString()} title={dateTimeLabel(item.when)}>{timeLabel(item.when)}</time>
       </button>
-      {item.app && <button type="button" className="act-act" onClick={() => onOpenApp(item.app!)}>Open</button>}
+      {item.app && <button type="button" className="act-act" title={`Open ${appName(item.app)}`} onClick={() => onOpenApp(item.app!)}>Open</button>}
     </li>
   );
 }
@@ -149,7 +149,7 @@ function ConversationLine({ c, picked, onPick, onOpen }: { c: ConversationInfo; 
           <span className="act-sub">{state}</span>
         </span>
       </button>
-      <button type="button" className="act-act" onClick={onOpen}>Open</button>
+      <button type="button" className="act-act" title="Open the conversation" onClick={onOpen}>Open</button>
     </li>
   );
 }
@@ -185,7 +185,7 @@ function Detail({ feed, picked: p, conversations, onOpenConversation, onOpenApp 
           <dl className="act-facts">
             <dt>App</dt><dd>{item.app ? appName(item.app) : 'Mobius'}</dd>
             <dt>By</dt><dd>{item.by === 'you' ? 'You' : item.by === 'mobius' ? 'Mobius' : 'A connected app'}</dd>
-            <dt>When</dt><dd>{new Date(item.when).toLocaleString([], { weekday: 'long', hour: 'numeric', minute: '2-digit', month: 'long', day: 'numeric' })}</dd>
+            <dt>When</dt><dd>{longDateLabel(item.when, { year: false })}, {timeLabel(item.when)}</dd>
           </dl>
           {item.final && <p className="act-detail-note">This can’t be undone, so Mobius asked before doing it.</p>}
           <div className="act-detail-actions">
@@ -250,6 +250,11 @@ export function ActivityPage({ feed, conversations, active, onOpenConversation, 
             <ul className="act-list" role="list">{d.items.map((item) => <Line key={item.seq} item={item} picked={isPicked({ kind: 'item', seq: item.seq })} onPick={() => pick({ kind: 'item', seq: item.seq })} onOpenApp={onOpenApp} />)}</ul>
           </section>
         ))}
+        {!feed.loaded && (
+          <ul className="act-list act-loading" aria-label="Loading" aria-busy="true">
+            {[62, 48, 70, 55, 40, 66].map((w, i) => <li key={i} className="act-row"><span className="act-bar" style={{ width: `${w}%` }} /></li>)}
+          </ul>
+        )}
         {feed.loaded && nothing && <EmptyState icon={OWN_ICONS.activity} title={title} line={line} />}
       </div>
       <Detail feed={feed} picked={picked} conversations={conversations} onOpenConversation={onOpenConversation} onOpenApp={onOpenApp} />

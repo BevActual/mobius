@@ -21,13 +21,12 @@
 .act-mark { width: 6px; height: 6px; border-radius: 3px; }
 .act-mark[data-mobius] { background: var(--mobius, var(--accent)); }
 .act-mark[data-state="needs"] { background: var(--warning); }
-.act-mark[data-state="working"] { background: var(--success); animation: act-pulse var(--dur-loop) linear infinite; }
-@keyframes act-pulse { 50% { opacity: 0.35; } }
+.act-mark[data-state="working"] { background: var(--ink); }
 
 .act-icon { width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .act-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .act-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); color: var(--ink); }
-.act-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
+.act-sub { font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 .act-row[data-warn] .act-what { color: var(--danger); }
 .act-time { font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
@@ -45,6 +44,10 @@
 .act-embed .clist { padding: 0; }
 .act-embed .clist-item { border-radius: 0; border-bottom: 1px solid var(--line); padding-left: 50px; padding-right: 16px; }
 
+/* Loading: placeholder bars where the rows will be, never a spinner. */
+.act-loading .act-row { padding: 0 16px 0 46px; min-height: 56px; }
+.act-loading .act-row:hover { background: none; }
+.act-bar { display: block; height: 10px; border-radius: 5px; background: var(--soft, var(--wash)); }
 .act-scroll > .empty-state { margin-top: 20vh; }
 
 /* The detail, on the right */
@@ -54,7 +57,7 @@
 .act-detail-actions { display: flex; gap: var(--sp-2); }
 .act-facts { display: grid; grid-template-columns: max-content 1fr; gap: var(--sp-2) var(--sp-5); margin: 0; max-width: 680px; font-size: var(--fs-md); }
 .act-facts dt { color: var(--muted); }
-.act-facts dd { margin: 0; color: var(--ink); }
+.act-facts dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
 .act-detail-note { margin: 0; max-width: 60ch; color: var(--body, var(--ink)); font-size: var(--fs-md); line-height: var(--lh-body); }
 .act-detail .clist-group { margin: var(--sp-2) 0 0; }
 .act-detail-empty { align-items: center; justify-content: center; color: var(--muted); text-align: center; }

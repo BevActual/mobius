@@ -1,5 +1,6 @@
 import type { ActivityEntry } from '@mobius/shared';
 import type { AppId } from './apps';
+import { formatWith, weekdayLabel } from './dates';
 
 /** What the Activity app's sidebar can narrow the list to. */
 export type ActivityFilter = 'everything' | 'needs' | 'mobius' | 'you' | 'final' | `app:${AppId}`;
@@ -206,8 +207,8 @@ export function dayLabel(when: number, now: Date): string {
   if (days <= 0) return 'Today';
   if (days === 1) return 'Yesterday';
   const date = new Date(when);
-  if (days < 7) return date.toLocaleDateString('en-US', { weekday: 'long' });
-  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
+  if (days < 7) return weekdayLabel(date, 'long');
+  return formatWith(date, { month: 'long', day: 'numeric', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
 }
 
 /** The items, newest first, in one group per day. */

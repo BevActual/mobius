@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { setLocaleForTests } from './dates';
 import type { ActivityEntry } from '@mobius/shared';
 import { appOfCapability, appsIn, byDay, byWho, dayLabel, feedOf, inPlace, isFinal, matches } from './activity-feed';
 
@@ -79,6 +80,8 @@ describe('filters', () => {
 });
 
 describe('days', () => {
+  beforeAll(() => setLocaleForTests('en-US'));
+  afterAll(() => setLocaleForTests(null));
   const now = new Date(2026, 10, 12, 18, 0);
   it('read Today, Yesterday, a weekday, then a date', () => {
     expect(dayLabel(now.getTime(), now)).toBe('Today');
