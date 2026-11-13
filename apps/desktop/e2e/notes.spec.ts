@@ -75,9 +75,9 @@ test('a first notebook and page are real files, and typing is saved as Markdown'
   await shell().keyboard.type('Ship Notes this week.');
   await expect(status()).toHaveText('Saved');
   await expect.poll(() => onDisk('Work', 'Untitled.md')).toBe('# Launch plan\n\nShip Notes this week.\n');
-  // The list and the top strip take the title from the first heading; the row says how the page starts.
+  // The list and the top strip take the title from the first heading; the row's tooltip says how the page starts.
   await expect(side().getByRole('button', { name: 'Launch plan', exact: true })).toBeVisible();
-  await expect(side().getByRole('button', { name: 'Launch plan', exact: true })).toContainText('Ship Notes this week.');
+  await expect(side().getByRole('button', { name: 'Launch plan', exact: true })).toHaveAttribute('title', /Ship Notes this week\./);
   await expect(shell().locator('.strip-title')).toHaveText('Launch plan');
 });
 
@@ -187,8 +187,8 @@ test('#tags in pages show under Tags, and a tag lists the pages that carry it', 
   const tags = side().getByRole('region', { name: 'Tags' });
   // The section's rows (not its fold button); a tag written in two cases is one tag, with its first spelling.
   await expect(tags.getByRole('list').getByRole('button')).toHaveText(['#kestrel/p21', /^#supplier2$/i]);
-  // Each row says how its page starts.
-  await expect(side().getByRole('button', { name: 'Packs', exact: true })).toContainText('Veltro holds the price');
+  // Each row's tooltip says how its page starts.
+  await expect(side().getByRole('button', { name: 'Packs', exact: true })).toHaveAttribute('title', /Veltro holds the price/);
   await tags.getByRole('button', { name: /^#supplier/i }).click();
   const tagged = side().getByRole('region', { name: /^#supplier$/i });
   // One row per page (each row also has its pin and delete buttons).
