@@ -490,7 +490,10 @@ mod browser {
         for bad in [json!({ "name": "Git Hub", "command": "x" }), json!({ "name": "gh", "command": " " }), json!({ "name": "github", "command": "y" })] {
             assert_eq!(b.call("extensions", "addConnector", &[bad]).unwrap()["ok"], json!(false));
         }
-        assert_eq!(b.call("extensions", "removeConnector", &[json!("github")]).unwrap()["ok"], json!(true));
+        let removed = b.call("extensions", "removeConnector", &[json!("github")]).unwrap();
+        assert_eq!(removed["ok"], json!(true));
+        // What was removed comes back, so Undo can put it back as it was.
+        assert_eq!(removed["removed"], json!({ "command": "npx", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } }));
         let saved: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
         assert!(saved["servers"].get("github").is_none());
         assert_eq!(saved["note"], "mine");

@@ -126,12 +126,12 @@ pub fn add_server(config: &std::path::Path, name: &str, command: &str, args: &[S
     write_root(config, &root)
 }
 
-/// Take a server out of mcp.json. A server that is running stops the next time Mobius opens.
-pub fn remove_server(config: &std::path::Path, name: &str) -> Result<(), String> {
+/// Take a server out of mcp.json, giving back its entry so it can be put back (Undo). A server that is running stops
+/// the next time Mobius opens.
+pub fn remove_server(config: &std::path::Path, name: &str) -> Result<Value, String> {
     let mut root = read_root(config)?;
     let removed = root.get_mut("servers").and_then(Value::as_object_mut).and_then(|s| s.remove(name));
-    if removed.is_none() {
-        return Err(format!("There is no connector called {name} in mcp.json."));
-    }
-    write_root(config, &root)
+    let Some(entry) = removed else { return Err(format!("There is no connector called {name} in mcp.json.")) };
+    write_root(config, &root)?;
+    Ok(entry)
 }
