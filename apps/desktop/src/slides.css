@@ -3,53 +3,53 @@
    screen with a presenter's view. Rules sit under .slides-page so they win over the older ones in styles.css. */
 
 /* Toolbar */
-.slides-page .slides-tool { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 7px; font-size: var(--fs-sm); color: var(--ink); }
-.slides-page .slides-tool:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.slides-page .slides-tool:disabled { opacity: 0.35; }
+:is(.slides-page, .slides-format) .slides-tool { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 7px; font-size: var(--fs-sm); color: var(--ink); }
+:is(.slides-page, .slides-format) .slides-tool:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+:is(.slides-page, .slides-format) .slides-tool:disabled { opacity: 0.35; }
 
 /* Navigator */
-.slides-page .slides-nav { flex: 0 0 188px; gap: 6px; padding: 12px 10px 24px 6px; border-right: 0.5px solid var(--line); background: var(--bg); outline: none; }
-.slides-page .slides-thumb { position: relative; gap: 4px; padding: 3px 4px 3px 0; border-radius: 8px; cursor: default; }
-.slides-page .slides-thumb:focus-visible { outline: none; }
-.slides-page .slides-thumb .slide-face { border-radius: 5px; box-shadow: 0 0 0 0.5px var(--line), 0 1px 2px rgba(0, 0, 0, 0.08); font-size: 4.2px; }
-.slides-page .slides-thumb[aria-current="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.slides-page .slides-thumb[aria-current="true"] .slide-face { box-shadow: 0 0 0 2px var(--ink); }
-.slides-page .slides-thumb[aria-current="true"]:focus-visible .slide-face { box-shadow: 0 0 0 2px var(--ink), 0 0 0 5px color-mix(in srgb, var(--accent) 30%, transparent); }
-.slides-page .slides-thumb[data-proposed] .slide-face { box-shadow: none; outline: 2px dashed color-mix(in srgb, var(--mobius) 70%, var(--bg)); outline-offset: 1px; }
-.slides-page .slides-num { width: 18px; font-size: 11px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
-.slides-page .slides-thumb[aria-current="true"] .slides-num { color: var(--ink); }
-.slides-page .slides-thumb[data-dragging] { opacity: 0.4; }
-.slides-page .slides-thumb[data-drop]::after { content: ''; position: absolute; left: 20px; right: 2px; height: 3px; border-radius: 2px; background: var(--accent); pointer-events: none; }
-.slides-page .slides-thumb[data-drop="before"]::after { top: -5px; }
-.slides-page .slides-thumb[data-drop="after"]::after { bottom: -5px; }
+:is(.slides-page, .slides-format) .slides-nav { flex: 0 0 188px; gap: 6px; padding: 12px 10px 24px 6px; border-right: 0.5px solid var(--line); background: var(--bg); outline: none; }
+:is(.slides-page, .slides-format) .slides-thumb { position: relative; gap: 4px; padding: 3px 4px 3px 0; border-radius: 8px; cursor: default; }
+:is(.slides-page, .slides-format) .slides-thumb:focus-visible { outline: none; }
+:is(.slides-page, .slides-format) .slides-thumb .slide-face { border-radius: 5px; box-shadow: 0 0 0 0.5px var(--line), 0 1px 2px rgba(0, 0, 0, 0.08); font-size: 4.2px; }
+:is(.slides-page, .slides-format) .slides-thumb[aria-current="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+:is(.slides-page, .slides-format) .slides-thumb[aria-current="true"] .slide-face { box-shadow: 0 0 0 2px var(--ink); }
+:is(.slides-page, .slides-format) .slides-thumb[aria-current="true"]:focus-visible .slide-face { box-shadow: 0 0 0 2px var(--ink), 0 0 0 5px color-mix(in srgb, var(--accent) 30%, transparent); }
+:is(.slides-page, .slides-format) .slides-thumb[data-proposed] .slide-face { box-shadow: none; outline: 2px dashed color-mix(in srgb, var(--mobius) 70%, var(--bg)); outline-offset: 1px; }
+:is(.slides-page, .slides-format) .slides-num { width: 18px; font-size: 11px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+:is(.slides-page, .slides-format) .slides-thumb[aria-current="true"] .slides-num { color: var(--ink); }
+:is(.slides-page, .slides-format) .slides-thumb[data-dragging] { opacity: 0.4; }
+:is(.slides-page, .slides-format) .slides-thumb[data-drop]::after { content: ''; position: absolute; left: 20px; right: 2px; height: 3px; border-radius: 2px; background: var(--accent); pointer-events: none; }
+:is(.slides-page, .slides-format) .slides-thumb[data-drop="before"]::after { top: -5px; }
+:is(.slides-page, .slides-format) .slides-thumb[data-drop="after"]::after { bottom: -5px; }
 
 /* The slide on its stage, and its notes */
-.slides-page .slides-main { padding: 0; gap: 0; background: color-mix(in srgb, var(--ink) 5%, var(--bg)); align-items: stretch; overflow: hidden; }
-.slides-page .slides-stage { flex: 1; min-height: 0; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 28px 32px; container-type: size; }
-.slides-page .slides-canvas { width: min(100cqw, calc(100cqh * 16 / 9), 1100px); }
-.slides-page .slides-canvas .slide-face { border-radius: 4px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.08), 0 18px 40px rgba(0, 0, 0, 0.12); font-size: clamp(6px, min(1.5cqw, 2.67cqh), 16px); }
-.slides-page .slide-face .slide-text-edit { font-size: 1.5em; line-height: 1.45; }
-.slides-page .slide-face input::placeholder, .slides-page .slide-face textarea::placeholder { color: currentColor; opacity: 0.35; }
+:is(.slides-page, .slides-format) .slides-main { padding: 0; gap: 0; background: color-mix(in srgb, var(--ink) 5%, var(--bg)); align-items: stretch; overflow: hidden; }
+:is(.slides-page, .slides-format) .slides-stage { flex: 1; min-height: 0; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 28px 32px; container-type: size; }
+:is(.slides-page, .slides-format) .slides-canvas { width: min(100cqw, calc(100cqh * 16 / 9), 1100px); }
+:is(.slides-page, .slides-format) .slides-canvas .slide-face { border-radius: 4px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.08), 0 18px 40px rgba(0, 0, 0, 0.12); font-size: clamp(6px, min(1.5cqw, 2.67cqh), 16px); }
+:is(.slides-page, .slides-format) .slide-face .slide-text-edit { font-size: 1.5em; line-height: 1.45; }
+:is(.slides-page, .slides-format) .slide-face input::placeholder, .slides-page .slide-face textarea::placeholder { color: currentColor; opacity: 0.35; }
 
 /* Format inspector */
-.slides-page .slides-format { flex: 0 0 248px; display: flex; flex-direction: column; gap: 12px; padding: 12px; overflow-y: auto; border-left: 0.5px solid var(--line); background: var(--bg); }
-.slides-page .slides-format-title { font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
-.slides-page .slides-section { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 0.5px solid var(--line); }
-.slides-page .slides-section-title { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
-.slides-page .slides-swatches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.slides-page .slides-swatch { display: flex; flex-direction: column; gap: 4px; align-items: stretch; padding: 3px; border-radius: 8px; }
-.slides-page .slides-swatch .slide-face { padding: 0; align-items: center; justify-content: center; border-radius: 5px; font-size: 6px; box-shadow: 0 0 0 0.5px var(--line); }
-.slides-page .slides-swatch[aria-checked="true"] .slide-face { box-shadow: 0 0 0 2px var(--accent); }
-.slides-page .slides-swatch-name { font-size: var(--fs-xs); color: var(--muted); text-align: center; }
-.slides-page .slides-swatch[aria-checked="true"] .slides-swatch-name { color: var(--ink); font-weight: 600; }
-.slides-page .slides-layout-list { display: flex; flex-wrap: wrap; gap: 4px; }
-.slides-page .slides-chip { height: 24px; padding: 0 10px; border-radius: 999px; background: var(--field); font-size: var(--fs-xs); color: var(--ink); }
-.slides-page .slides-chip:hover { background: color-mix(in srgb, var(--ink) 10%, var(--field)); }
-.slides-page .slides-deck-facts { margin: 0; font-size: var(--fs-sm); color: var(--ink); }
-.slides-page .slides-format .btn { height: 28px; }
-.slides-page .slides-keys dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: var(--fs-xs); }
-.slides-page .slides-keys dt { color: var(--ink); font-weight: 600; white-space: nowrap; }
-.slides-page .slides-keys dd { margin: 0; color: var(--muted); }
+.slides-format { display: flex; flex-direction: column; gap: 12px; height: 100%; padding: 12px; overflow-y: auto; }
+.slides-format-title { font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
+:is(.slides-page, .slides-format) .slides-section { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 0.5px solid var(--line); }
+:is(.slides-page, .slides-format) .slides-section-title { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+:is(.slides-page, .slides-format) .slides-swatches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+:is(.slides-page, .slides-format) .slides-swatch { display: flex; flex-direction: column; gap: 4px; align-items: stretch; padding: 3px; border-radius: 8px; }
+:is(.slides-page, .slides-format) .slides-swatch .slide-face { padding: 0; align-items: center; justify-content: center; border-radius: 5px; font-size: 6px; box-shadow: 0 0 0 0.5px var(--line); }
+:is(.slides-page, .slides-format) .slides-swatch[aria-checked="true"] .slide-face { box-shadow: 0 0 0 2px var(--accent); }
+:is(.slides-page, .slides-format) .slides-swatch-name { font-size: var(--fs-xs); color: var(--muted); text-align: center; }
+:is(.slides-page, .slides-format) .slides-swatch[aria-checked="true"] .slides-swatch-name { color: var(--ink); font-weight: 600; }
+:is(.slides-page, .slides-format) .slides-layout-list { display: flex; flex-wrap: wrap; gap: 4px; }
+:is(.slides-page, .slides-format) .slides-chip { height: 24px; padding: 0 10px; border-radius: 999px; background: var(--field); font-size: var(--fs-xs); color: var(--ink); }
+:is(.slides-page, .slides-format) .slides-chip:hover { background: color-mix(in srgb, var(--ink) 10%, var(--field)); }
+:is(.slides-page, .slides-format) .slides-deck-facts { margin: 0; font-size: var(--fs-sm); color: var(--ink); }
+.slides-format .btn { height: 28px; }
+:is(.slides-page, .slides-format) .slides-keys dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: var(--fs-xs); }
+:is(.slides-page, .slides-format) .slides-keys dt { color: var(--ink); font-weight: 600; white-space: nowrap; }
+:is(.slides-page, .slides-format) .slides-keys dd { margin: 0; color: var(--muted); }
 
 /* Menus: layouts to add, and a slide's right-click menu */
 .slides-layout-face .slide-face { font-size: 3px; border-radius: 4px; box-shadow: 0 0 0 0.5px var(--line); }
@@ -83,49 +83,47 @@
 
 /* Fixes after the first look: the toolbar's spacer, thumbnails drawn to scale, and a slide that starts at the top
    rather than losing its top when it runs long. */
-.slides-page .slides-thumb { container-type: inline-size; }
-.slides-page .slides-thumb .slide-face { font-size: calc((100cqw - 22px) * 0.015); }
+:is(.slides-page, .slides-format) .slides-thumb { container-type: inline-size; }
+:is(.slides-page, .slides-format) .slides-thumb .slide-face { font-size: calc((100cqw - 22px) * 0.015); }
 .slides-layout-face { container-type: inline-size; }
 .slides-layout-face .slide-face { font-size: 1.5cqw; }
-.slides-page .slide-face, .slide-play .slide-face, .slides-layout-face .slide-face { justify-content: safe center; }
+:is(.slides-page, .slides-format) .slide-face, .slide-play .slide-face, .slides-layout-face .slide-face { justify-content: safe center; }
 /* Empty fields keep their place but show their hint only under the pointer or while typing, so the slide reads as it plays. */
-.slides-page .slides-canvas:not(:hover):not(:focus-within) .slide-face :is(input, textarea):placeholder-shown::placeholder { opacity: 0; }
+:is(.slides-page, .slides-format) .slides-canvas:not(:hover):not(:focus-within) .slide-face :is(input, textarea):placeholder-shown::placeholder { opacity: 0; }
 
 /* In a narrow window the slide keeps its room: the navigator narrows. */
 .stage .slides-page { container-type: inline-size; }
-.slides-page .slides-body > .ui-panels { flex: 1; min-width: 260px; }
+:is(.slides-page, .slides-format) .slides-body > .ui-panels { flex: 1; min-width: 260px; }
 /* The thumbnails and the slide share the content; the notes panel runs under both. */
-.slides-page .slides-work { display: flex; min-height: 0; }
+:is(.slides-page, .slides-format) .slides-work { display: flex; min-height: 0; }
 @container (max-width: 640px) {
   .slides-page .slides-nav { flex-basis: 132px; }
-  /* Until Format is a tab beside Mobius, it steps aside in a narrow window so the slide keeps its room. */
-  .slides-page .slides-format { display: none; }
 }
 
 /* Second pass. The layout menu sits on the shared glass menu surface, three up, each face drawn to scale above its name. */
 .slides-layout-face { display: block; width: 100%; }
 
 /* The inspector: a segmented Slide | Deck control, then only what that choice holds. */
-.slides-page .slides-format { gap: 0; padding: 12px 12px 16px; }
-.slides-page .slides-panes { display: flex; align-self: stretch; margin-bottom: 4px; border-radius: var(--radius-pill); }
-.slides-page .slides-panes button { flex: 1; height: 24px; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--fs-sm); color: var(--ink); }
-.slides-page .slides-panes button[aria-checked="true"] { background: var(--bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16); font-weight: 600; }
-.slides-page .slides-format .slides-section { padding: 12px 0; }
-.slides-page .slides-format .slides-section:first-of-type { border-top: 0; }
-.slides-page .slides-layout-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.slides-page .slides-layout-pick { display: flex; flex-direction: column; gap: 4px; padding: 3px; border-radius: 8px; font-size: var(--fs-xs); color: var(--muted); text-align: center; }
-.slides-page .slides-layout-pick .slide-face { text-align: left; border-radius: 5px; box-shadow: 0 0 0 0.5px var(--line); }
-.slides-page .slides-layout-pick:hover .slide-face { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
-.slides-page .slides-layout-pick:hover { color: var(--ink); }
-.slides-page .slides-tool-list { display: flex; flex-direction: column; padding: 2px; border-radius: 10px; background: var(--field); }
-.slides-page .slides-ask { height: 30px; padding: 0 10px; border-radius: 8px; text-align: left; font-size: var(--fs-sm); color: var(--ink); }
-.slides-page .slides-ask:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.slides-page .slides-ask:disabled { opacity: 0.4; }
-.slides-page .slides-format .btn { align-self: stretch; }
+.slides-format { gap: 0; padding: 12px 12px 16px; }
+:is(.slides-page, .slides-format) .slides-panes { display: flex; align-self: stretch; margin-bottom: 4px; border-radius: var(--radius-pill); }
+:is(.slides-page, .slides-format) .slides-panes button { flex: 1; height: 24px; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--fs-sm); color: var(--ink); }
+:is(.slides-page, .slides-format) .slides-panes button[aria-checked="true"] { background: var(--bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16); font-weight: 600; }
+.slides-format .slides-section { padding: 12px 0; }
+.slides-format .slides-section:first-of-type { border-top: 0; }
+:is(.slides-page, .slides-format) .slides-layout-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+:is(.slides-page, .slides-format) .slides-layout-pick { display: flex; flex-direction: column; gap: 4px; padding: 3px; border-radius: 8px; font-size: var(--fs-xs); color: var(--muted); text-align: center; }
+:is(.slides-page, .slides-format) .slides-layout-pick .slide-face { text-align: left; border-radius: 5px; box-shadow: 0 0 0 0.5px var(--line); }
+:is(.slides-page, .slides-format) .slides-layout-pick:hover .slide-face { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+:is(.slides-page, .slides-format) .slides-layout-pick:hover { color: var(--ink); }
+:is(.slides-page, .slides-format) .slides-tool-list { display: flex; flex-direction: column; padding: 2px; border-radius: 10px; background: var(--field); }
+:is(.slides-page, .slides-format) .slides-ask { height: 30px; padding: 0 10px; border-radius: 8px; text-align: left; font-size: var(--fs-sm); color: var(--ink); }
+:is(.slides-page, .slides-format) .slides-ask:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+:is(.slides-page, .slides-format) .slides-ask:disabled { opacity: 0.4; }
+.slides-format .btn { align-self: stretch; }
 
 /* The picked slide in the navigator: one accent ring, as in Keynote, not a ring on a tinted row. */
-.slides-page .slides-thumb[aria-current="true"] { background: transparent; }
-.slides-page .slides-thumb[aria-current="true"] .slides-num { color: var(--ink); font-weight: 600; }
+:is(.slides-page, .slides-format) .slides-thumb[aria-current="true"] { background: transparent; }
+:is(.slides-page, .slides-format) .slides-thumb[aria-current="true"] .slides-num { color: var(--ink); font-weight: 600; }
 
 /* Bullets keep their dots while typed: the list underneath sets the height and draws the dots, the field over it holds
    the same lines in see-through text width for width, so wrapped lines stay lined up. */
@@ -137,23 +135,23 @@
 
 /* Duplicate and Delete share one capsule after Add slide, as Mail and Calendar group their tools. */
 /* The layout the slide reads as carries the same ring as its style. */
-.slides-page .slides-layout-pick[aria-pressed="true"] .slide-face { box-shadow: 0 0 0 2px var(--accent); }
-.slides-page .slides-layout-pick[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
+:is(.slides-page, .slides-format) .slides-layout-pick[aria-pressed="true"] .slide-face { box-shadow: 0 0 0 2px var(--accent); }
+:is(.slides-page, .slides-format) .slides-layout-pick[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
 
 /* Round 2. In Play: a transition pop-up and a Skip switch, each a row with its label on the left. */
-.slides-page .slides-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; font-size: var(--fs-sm); color: var(--ink); }
-.slides-page .slides-popup { height: 26px; padding: 0 24px 0 10px; border: 0; border-radius: 7px; background: var(--field) var(--chevrons-updown) no-repeat right 7px center / 8px 12px; appearance: none; font: inherit; font-size: var(--fs-sm); color: var(--ink); }
+:is(.slides-page, .slides-format) .slides-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; font-size: var(--fs-sm); color: var(--ink); }
+:is(.slides-page, .slides-format) .slides-popup { height: 26px; padding: 0 24px 0 10px; border: 0; border-radius: 7px; background: var(--field) var(--chevrons-updown) no-repeat right 7px center / 8px 12px; appearance: none; font: inherit; font-size: var(--fs-sm); color: var(--ink); }
 /* A pop-up that picks a value shows up-and-down chevrons, as on the Mac. */
-.slides-page { --chevrons-updown: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1.5 4.5 4 2l2.5 2.5M1.5 7.5 4 10l2.5-2.5' fill='none' stroke='%238e8e93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
-.slides-page .slides-popup:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+:is(.slides-page, .slides-format) { --chevrons-updown: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1.5 4.5 4 2l2.5 2.5M1.5 7.5 4 10l2.5-2.5' fill='none' stroke='%238e8e93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+:is(.slides-page, .slides-format) .slides-popup:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* A skipped slide stays in the navigator, dimmed and short, as Keynote collapses it. */
-.slides-page .slides-thumb[data-skipped] .slide-face { aspect-ratio: 16 / 3.2; justify-content: center; padding-right: 28px; background: var(--field); color: var(--muted); }
-.slides-page .slides-thumb[data-skipped] .slide-face > :not(.slide-title) { display: none; }
-.slides-page .slides-thumb[data-skipped] .slide-face .slide-title { color: var(--muted); font-weight: 600; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.slides-page .slides-thumb[data-skipped] .slide-face[data-picture] { display: flex; }
-.slides-page .slides-skipped { position: absolute; right: 10px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 18px; height: 18px; color: var(--muted); }
-.slides-page .slides-skipped svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+:is(.slides-page, .slides-format) .slides-thumb[data-skipped] .slide-face { aspect-ratio: 16 / 3.2; justify-content: center; padding-right: 28px; background: var(--field); color: var(--muted); }
+:is(.slides-page, .slides-format) .slides-thumb[data-skipped] .slide-face > :not(.slide-title) { display: none; }
+:is(.slides-page, .slides-format) .slides-thumb[data-skipped] .slide-face .slide-title { color: var(--muted); font-weight: 600; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:is(.slides-page, .slides-format) .slides-thumb[data-skipped] .slide-face[data-picture] { display: flex; }
+:is(.slides-page, .slides-format) .slides-skipped { position: absolute; right: 10px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 18px; height: 18px; color: var(--muted); }
+:is(.slides-page, .slides-format) .slides-skipped svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Play's transitions. Dissolve fades the slide in; Push slides the old one out as the new one comes in beside it;
    Move in brings the new one over the old. Going back runs them the other way. None cuts. */
@@ -182,12 +180,12 @@
 .slide-face[data-picture="full"] > .slide-picture { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .slide-face[data-picture="full"] > :not(.slide-picture) { position: relative; }
 .slide-picture.missing { background: color-mix(in srgb, currentColor 10%, transparent); }
-.slides-page .slides-canvas[data-dropping] .slide-face { outline: 3px solid var(--accent); outline-offset: 3px; }
-.slides-page .slides-pair { display: flex; gap: 6px; }
-.slides-page .slides-pair .btn { flex: 1; height: 28px; }
-.slides-page .slides-problem { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 12px; border-bottom: 0.5px solid var(--line); background: color-mix(in srgb, var(--danger) 8%, var(--bg)); font-size: var(--fs-sm); color: var(--ink); }
-.slides-page .slides-problem .slides-tool { margin-left: auto; height: 24px; }
-.slides-page .slide-face textarea.slide-title { field-sizing: content; min-height: 1.1em; }
+:is(.slides-page, .slides-format) .slides-canvas[data-dropping] .slide-face { outline: 3px solid var(--accent); outline-offset: 3px; }
+:is(.slides-page, .slides-format) .slides-pair { display: flex; gap: 6px; }
+:is(.slides-page, .slides-format) .slides-pair .btn { flex: 1; height: 28px; }
+:is(.slides-page, .slides-format) .slides-problem { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 12px; border-bottom: 0.5px solid var(--line); background: color-mix(in srgb, var(--danger) 8%, var(--bg)); font-size: var(--fs-sm); color: var(--ink); }
+:is(.slides-page, .slides-format) .slides-problem .slides-tool { margin-left: auto; height: 24px; }
+:is(.slides-page, .slides-format) .slide-face textarea.slide-title { field-sizing: content; min-height: 1.1em; }
 
 /* The redesign (docs/design/panel-layouts.md): Slides' controls sit in the shared toolbar, as Mail's do, so these
    rules live outside .slides-page. Groups are split by a hairline; Play is the one filled button, last. */

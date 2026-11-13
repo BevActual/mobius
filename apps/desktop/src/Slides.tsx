@@ -9,7 +9,7 @@ import { LAYOUTS, clock, layoutOf, playOrder, dropIndex, jumpTarget, moveSlide, 
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
-import { Menu, PanelLayout, ToolbarControls, type PanelSpec } from './ui';
+import { Menu, PanelLayout, PanelTab, ToolbarControls, type PanelSpec } from './ui';
 import './slides.css';
 
 export const SLIDES_WORDS: SidebarWords = { app: 'Slides', group: 'folder', groups: 'Folders', item: 'deck', items: 'decks', about: 'Decks are kept as Markdown files in your workspace, a slide between each line of ---, so other apps and the agent can open them too.', defaultGroup: 'Presentations' };
@@ -194,7 +194,7 @@ function Play({ slides, start, onClose }: { slides: Slide[]; start: number; onCl
 
 /**
  * The Format inspector, as Keynote's: one segmented control at the top (Slide | Deck), and only what belongs to that
- * choice below it. It stands on its own so the frame can show it as a panel beside Mobius.
+ * choice below it. It is a tab in the right panel, before Mobius.
  */
 function SlidesFormat({ slides, at, current, change, toggleSkip, adding, onReplace, onPlay, onTool, busy }: {
   slides: readonly Slide[]; at: number; current: Slide; change: (patch: Partial<Slide>) => void; toggleSkip: () => void;
@@ -298,7 +298,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const navRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const notesView = useRef<ReactNode>(null);
-  const NOTES_PANEL = useMemo<PanelSpec[]>(() => [{ id: 'notes', name: 'Presenter notes', dock: 'bottom', shown: true, render: () => notesView.current }], []);
+  const NOTES_PANEL = useMemo<PanelSpec[]>(() => [{ id: 'notes', name: 'Presenter notes', dock: 'bottom', shown: true, size: 120, render: () => notesView.current }], []);
   useEffect(() => { setDraft(null); }, [at, path]);
   useEffect(() => setAt(0), [path]);
 
@@ -570,7 +570,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
         </main>
         </div>
         </PanelLayout>
-        <SlidesFormat slides={slides} at={at} current={current} change={change} toggleSkip={toggleSkip} adding={adding} onReplace={() => picker.current?.click()} onPlay={setPlaying} onTool={onTool} busy={busy} />
+        <PanelTab id="format" name="Format"><SlidesFormat slides={slides} at={at} current={current} change={change} toggleSkip={toggleSkip} adding={adding} onReplace={() => picker.current?.click()} onPlay={setPlaying} onTool={onTool} busy={busy} /></PanelTab>
       </div>
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={`Slide ${menu.i + 1}`} items={menuFor(menu.i)} onClose={() => setMenu(null)} />, document.body)}
       {playing !== null && <Play slides={slides} start={Math.min(playing, slides.length - 1)} onClose={() => setPlaying(null)} />}
