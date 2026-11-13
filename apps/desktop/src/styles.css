@@ -498,7 +498,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 /* Notes: the page as formatted text, kept as Markdown. The Markdown view is the same column as a text box. */
 .note-format { gap: 2px; }
 .note-format .note-insert { width: auto; max-width: none; margin: 0; padding: 0; }
-.note-format .note-clip { flex-basis: 100%; margin: 4px 0 0; }
 .note-source[aria-pressed="true"] { background: var(--wash); color: var(--accent); }
 .note-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
 .note-scroll[hidden] { display: none; }
