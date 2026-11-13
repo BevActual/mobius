@@ -69,8 +69,8 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await passage.dispatchEvent('mouseup');
   await article.getByRole('toolbar', { name: 'Selected text' }).getByRole('button', { name: /Highlight/ }).click();
   await expect(article.locator('mark')).toHaveText('Breakfast included.');
-  // Highlights collect in their own panel, beside the article.
-  await shell.keyboard.press('Control+Shift+H');
+  // Highlights collect in their own tab in the right panel, before Mobius.
+  await shell.getByRole('tab', { name: 'Highlights' }).click();
   await expect(shell.getByRole('region', { name: 'Highlights' })).toContainText('Breakfast included.');
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('==Breakfast included.==');
 

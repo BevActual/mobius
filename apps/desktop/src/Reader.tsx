@@ -8,7 +8,7 @@ import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { EmptyState } from './EmptyState';
 import { SideNew } from './SideNew';
-import { AppSidebar, PanelLayout, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type PanelSpec } from './ui';
+import { AppSidebar, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import './reader.css';
 
 /** The toolbar's grey line for the open article: the site it came from, which opens the original in the Browser. */
@@ -283,19 +283,6 @@ export function ReaderPage({ reading, review, tab, onAsk }: { reading: NotesStat
   }
   const changed = review && before !== undefined && before !== reading.text;
   const eyebrow = [article.saved ? `Saved ${savedWhen(article.saved)}` : null, timeLeft(article.minutes, read)].filter(Boolean).join(' · ');
-  const panels: PanelSpec[] = [{
-    id: 'highlights', name: 'Highlights', dock: 'right', keys: 'mod+shift+h',
-    render: () => (
-      <div className="reader-notes">
-        {highlights.length === 0
-          ? <p className="reader-notes-empty">Select a passage and press Highlight (H). Your highlights collect here.</p>
-          : <>
-            <ul>{highlights.map((h, i) => <li key={i}><span>{h}</span>{onAsk && <button type="button" className="btn link" onClick={() => ask(h)}>Ask Mobius</button>}</li>)}</ul>
-            <button type="button" className="btn" onClick={() => void toNotes()}>Copy to Notes</button>
-          </>}
-      </div>
-    ),
-  }];
   return (
     <section className="reader-page" aria-label="Reader" data-theme={look.theme}>
       <ToolbarControls label="Reader">
@@ -305,8 +292,18 @@ export function ReaderPage({ reading, review, tab, onAsk }: { reading: NotesStat
       </ToolbarControls>
       {adding && saveBar}
       {message && <p className="reader-message" role="alert">{message}</p>}
-      <PanelLayout app="reader" panels={panels}>
-        <div className="reader-main">
+      {/* Highlights: a tab in the right panel, before Mobius. */}
+      <PanelTab id="highlights" name="Highlights">
+        <div className="reader-notes" role="region" aria-label="Highlights">
+          {highlights.length === 0
+            ? <p className="reader-notes-empty">Select a passage and press Highlight (H). Your highlights collect here.</p>
+            : <>
+              <ul>{highlights.map((h, i) => <li key={i}><span>{h}</span>{onAsk && <button type="button" className="btn link" onClick={() => ask(h)}>Ask Mobius</button>}</li>)}</ul>
+              <button type="button" className="btn" onClick={() => void toNotes()}>Copy to Notes</button>
+            </>}
+        </div>
+      </PanelTab>
+      <div className="reader-main">
         <div className="reader-progress" role="progressbar" aria-label="Read so far" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(read * 100)}><span style={{ transform: `scaleX(${read})` }} /></div>
         <div className="reader-scroll" ref={scroller} onScroll={onScroll}>
           <article className="reader-article" aria-label="Article" data-size={look.size} data-face={look.face}>
@@ -333,8 +330,7 @@ export function ReaderPage({ reading, review, tab, onAsk }: { reading: NotesStat
             </div>
           </article>
         </div>
-        </div>
-      </PanelLayout>
+      </div>
       {toast}
     </section>
   );
