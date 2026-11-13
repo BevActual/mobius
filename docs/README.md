@@ -50,8 +50,8 @@ you want to build or change Mobius, go to **Developers**.
 | [Driving the app from an agent](developers/driving-the-app.md) | The `mobius-drive` MCP server for Claude Code |
 | [Releases and updates](developers/releasing.md) | Packaging the installer, signing, and the in-app updater |
 | [Architecture decisions](adr/README.md) | Why Mobius is built the way it is (ADRs) |
-| [Design](design/workspace-layout.md) | One adaptive surface: the layout rules every app follows |
-| [Design rules](design/rules.md) | How sidebars, toolbars, controls, menus, glass and motion look and behave in every app |
+| [Workspace layout](design/workspace-layout.md) | One frame for every app: the five zones, views and panels, and the theme |
+| [Design rules](design/rules.md) | The eight principles, and how the zones, controls, menus, theme and motion look and behave in every app |
 | [Reference notes](reference/README.md) | Comparisons with Hermes Agent, and calendar sign-in requirements |
 
 ## Help
