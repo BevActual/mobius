@@ -78,7 +78,7 @@ import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail } from './Rail';
 import { SidebarHead } from './SidebarHead';
-import { AppFrame, ToolbarControls } from './ui';
+import { AppFrame } from './ui';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
@@ -1570,12 +1570,6 @@ export function App() {
       }}
     >
       <div className="body" style={layout}>
-        {/* An app's own controls go in the toolbar's middle from wherever the app is drawn (ui/AppFrame). */}
-        {inTasks && tasks.view.kind === 'list' && tasksDone > 0 && (
-          <ToolbarControls label="Tasks">
-            <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
-          </ToolbarControls>
-        )}
         {hasLeft && leftOpen && (
           <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
             <SidebarHead

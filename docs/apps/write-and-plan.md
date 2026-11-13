@@ -48,13 +48,16 @@ Lists of things to do, as in Apple's Reminders.
 
 ![The Tasks app in Mobius](../readme/apps/tasks.png)
 
-- **Smart lists**: Today, Scheduled, All, Flagged and Completed, then your own lists with how many are open.
+- **The sidebar** has Search, New list, the **Smart lists** (Today, Scheduled, All, Flagged and Completed), then
+  **My lists** with how many are open. Hover a list to pin it or open its menu (Rename, Delete).
   **Scheduled** sorts tasks under day headings: Overdue, Today, Tomorrow, each day of the coming week, then by month.
 - **Right-click a task** to show its details, set it due today, tomorrow or next week, flag it, move it to another
   list or delete it.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
   the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it.
-- **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back.
+- **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back. Completed
+  tasks fold away under the list; **Clear N completed** in the toolbar removes them.
+- **Deleting** a task or a list shows **Undo** at the bottom of the page (Ctrl+Z works too).
 - **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
   picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
   format. Drag tasks to reorder them or move them between lists.
