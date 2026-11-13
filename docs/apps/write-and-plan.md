@@ -34,8 +34,9 @@ Longer documents, with an outline and comments.
 - **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
-- **Mobius's writing tools** work on the selection or the whole document. What Mobius changes comes back as
-  proposals, old text struck and new text marked, each with its own Discard.
+- **Mobius's writing tools** work on the selection or the whole document. What Mobius changes is marked in the page
+  where it is, as tracked changes are: new words tinted, and a note above them with the words taken out, struck
+  through. Each change has its own **Keep** and **Discard**; the bar above the page keeps or discards them all.
 - **History** puts an earlier version back. **Share** copies, exports as a web page or Markdown, or prints and saves as
   PDF.
 
