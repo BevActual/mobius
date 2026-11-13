@@ -61,7 +61,7 @@ import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extens
 import { FilesPage, FilesSidebar, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
 import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
-import { HowIWork, SharedQueue, WikiSidebar, WikiVersions, useWikiIncoming, type WikiPlace } from './Wiki';
+import { HowIWork, SharedQueue, WikiPage, WikiSidebar, useWikiIncoming, type WikiPlace } from './Wiki';
 import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
 import { useVideo } from './useVideo';
@@ -73,6 +73,7 @@ import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { Desk } from './Desk';
+import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail } from './Rail';
 import { SidebarHead } from './SidebarHead';
@@ -114,6 +115,17 @@ function useNarrowWindow(width: number): boolean {
     return () => list.removeEventListener('change', on);
   }, [query]);
   return narrow;
+}
+
+/** The window's width, kept current as it is resized. */
+function useWindowWidth(): number {
+  const [width, setWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const on = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return width;
 }
 
 /** A button's tooltip with its shortcut after it, when it has one. */
@@ -495,7 +507,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : BOX_NAMES[mail.view.box]) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : BOX_NAMES[mail.view.box]) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -565,8 +577,12 @@ export function App() {
   useEffect(() => { if (learnOpen && chatOpen && hasRight) setLearnOpen(false); }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
   const [hovering, setHovering] = useState(false);
-  const leftWidth = drag?.side === 'left' ? drag.width : appearance.value.leftWidth;
-  const rightWidth = drag?.side === 'right' ? drag.width : appearance.value.rightWidth;
+  // A narrow window draws the docks narrower than saved, so the content keeps room for its toolbar (dock-fit.ts).
+  const windowWidth = useWindowWidth();
+  const fitted = fitDocks(windowWidth, appearance.value.leftWidth, appearance.value.rightWidth,
+    hasLeft && !leftFloating && leftOpen, (!rightFloating && rightOpen) || learnOpen);
+  const leftWidth = drag?.side === 'left' ? drag.width : fitted.left;
+  const rightWidth = drag?.side === 'right' ? drag.width : fitted.right;
   const leftDock = useRef<HTMLDivElement>(null);
   const rightDock = useRef<HTMLDivElement>(null);
   const hideLeft = useCallback(() => setLeftOpen(false), [setLeftOpen]);
@@ -1304,7 +1320,7 @@ export function App() {
       case 'wiki':
         if (wikiPlace.kind === 'mine') return <HowIWork asking={conversation.state.items} onAnswer={(id, approve) => void conversation.answer(id, approve, 'once')} />;
         if (wikiPlace.kind === 'shared') return <SharedQueue incoming={wikiIncoming} />;
-        return <div className="wiki-doc"><WikiVersions wiki={wiki} /><DocEditor docs={wiki} autoFocus={app === 'wiki'} busy={conversation.state.busy} /></div>;
+        return <WikiPage wiki={wiki} autoFocus={app === 'wiki'} busy={conversation.state.busy} />;
       case 'reader':
         return <ReaderPage reading={reading} onAsk={startWithMobius} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && turnMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'research':
