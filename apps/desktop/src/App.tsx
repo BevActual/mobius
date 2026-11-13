@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { MenuBar } from './MenuBar';
-import { buildMenus, type MenuContext, findItem, menusAsData } from './menus';
+import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type SidebarMode } from '@mobius/shared';
 import { commentsOutline } from './NoteComments';
@@ -78,7 +78,7 @@ import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail, type OwnApp } from './Rail';
 import { SidebarHead } from './SidebarHead';
-import { AppFrame, PanelsMenu } from './ui';
+import { AppFrame, PanelsMenu, type AppMenuState } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
@@ -976,7 +976,7 @@ export function App() {
             ) : inTasks ? (
               <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
-          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} />
+          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} />
             )}
             <CommentsGroup threads={openComments} onOpen={(t) => { if (t.doc === commentDoc) setCommentFocus(t.id); }} />
           </>
@@ -994,6 +994,8 @@ export function App() {
   const favourites = appearance.value.favourites ?? [];
   const pinnedNotes = useMemo(() => new Set(favourites.filter((f) => f.kind === 'note').map((f) => f.id)), [favourites]);
   const pagePinned = active !== undefined && favourites.some((f) => f.kind === 'page' && f.id === active.url);
+  // Browser: the pages pinned to the sidebar, for the tab menu's Pin to the sidebar.
+  const pinnedPages = useMemo(() => new Set(favourites.filter((f) => f.kind === 'page').map((f) => f.id)), [favourites]);
   const pinnedLists = useMemo(() => new Set(favourites.filter((f) => f.kind === 'list').map((f) => f.id)), [favourites]);
   const togglePin = (fav: Favourite) => {
     const has = favourites.some((f) => f.kind === fav.kind && f.id === fav.id);
@@ -1498,8 +1500,6 @@ export function App() {
     <BrowserChrome
       active={active}
       saved={saved}
-      pagePinned={pagePinned}
-      onTogglePagePin={() => active && togglePin({ kind: 'page', id: active.url, title: active.title || active.url })}
       selectionMenu={selectionMenu}
       setSelectionMenu={setSelectionMenu}
       selectionReady={cover !== null}
@@ -1519,7 +1519,20 @@ export function App() {
     />
   );
   // The menus, as one ⋯ button at the toolbar's trailing end, just before Mobius.
-  const menuBar = nativeMenus ? null : <MenuBar menus={menus} compact onOpenChange={setMenuOpen} />;
+  // The one ⋯: the shell's menus, with the open app's own commands (AppMenu) in its menu, which the ⋯ opens on. On
+  // macOS the shell's menus are in the system menu bar, so the ⋯ holds only the app's own.
+  const menuBar = (own: AppMenuState | null) => {
+    const extra: MenuItem[] = own ? own.entries.flatMap((e, i): MenuItem[] => [
+      ...(e.separated && i > 0 ? [{ kind: 'separator' as const }] : []),
+      { kind: 'item', id: `own-${i}`, label: e.label, run: e.run, ...(e.keys ? { keys: e.keys } : {}), ...(e.disabled ? { disabled: true } : {}), ...(e.checked !== undefined ? { checked: e.checked } : {}) },
+    ]) : [];
+    const base = nativeMenus ? [] : menus;
+    const has = base.some((m) => m.id === 'app');
+    const withOwn: Menu[] = !own ? base
+      : has ? base.map((m) => (m.id === 'app' ? { ...m, items: [...extra, { kind: 'separator' as const }, ...m.items] } : m))
+      : [...base.slice(0, Math.max(0, base.findIndex((m) => m.id === 'window'))), { id: 'app', label: own.label, items: extra }, ...base.slice(Math.max(0, base.findIndex((m) => m.id === 'window')))];
+    return withOwn.length ? <MenuBar menus={withOwn} compact onOpenChange={setMenuOpen} /> : null;
+  };
   // Try another, from any review bar: Mobius is told its change was put back and asked to do it differently.
   const tryAnother = settings?.configured && !conversation.state.busy
     ? () => { if (!shows('agent')) setChatOpen(true); void conversation.send(TRY_ANOTHER_ASK, []); }
@@ -1586,9 +1599,9 @@ export function App() {
             onReset={() => setLeftOpen(true)}
           />
         ),
-        trail: <>
+        trail: (appMenu) => <>
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
-          {menuBar}
+          {menuBar(appMenu)}
           {hasRight && !settingsOpen && (
             <button type="button" className="strip-btn strip-mobius" data-mobius-face aria-pressed={rightOpen} aria-label={rightOpen ? 'Hide Mobius' : 'Show Mobius'} title={rightOpen ? 'Hide Mobius' : 'Ask Mobius, beside the work'}
               onClick={toggleMobius}>
