@@ -1054,6 +1054,16 @@ fn a_task_carries_a_flag_notes_and_subtasks_and_moves_between_lists_through_the_
     call(&b, "tasks", "restoreList", json!(["P2 build", gone["text"]]));
     assert!(std::fs::read_to_string(dir.path().join("workspace/tasks/P2 build.md")).unwrap().contains("Book the sled"));
     assert_eq!(call(&b, "tasks", "restore", json!(["Inbox", 0, "# not a task"]))["ok"], false);
+    // A time on the due date and a repeat go with the add options and the change; ticking off a repeat moves it on.
+    let added = call(&b, "tasks", "add", json!(["Home", "Water the plants", "2026-11-12", { "time": "08:00", "repeat": "week" }]));
+    let at = added["tasks"][0]["line"].clone();
+    assert_eq!((added["tasks"][0]["time"].clone(), added["tasks"][0]["repeat"].clone()), (json!("08:00"), json!("week")));
+    call(&b, "tasks", "update", json!(["Home", at, "Water the plants", { "done": true }]));
+    let home = dir.path().join("workspace/tasks/Home.md");
+    assert_eq!(std::fs::read_to_string(&home).unwrap(), "# Home\n\n- [ ] Water the plants (due 2026-11-19 08:00) (every week)\n");
+    call(&b, "tasks", "update", json!(["Home", at, "Water the plants", { "time": null, "repeat": "" }]));
+    assert_eq!(std::fs::read_to_string(&home).unwrap(), "# Home\n\n- [ ] Water the plants (due 2026-11-19)\n");
+    assert_eq!(call(&b, "tasks", "update", json!(["Home", at, "Water the plants", { "time": 9 }]))["ok"], false);
 }
 
 /// A provider's models endpoint that answers only to one key, and remembers what it was sent.
