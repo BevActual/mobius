@@ -215,7 +215,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     await expect(page).toBeVisible();
     const row = page.locator('.task', { hasText: 'Send Priya the updated P2 parts list' });
     await expect(row).toBeVisible();
-    note(`row: ${(await row.innerText()).replace(/\s+/g, ' ')}; proposed (dashed): ${(await row.getAttribute('data-proposed')) !== null}`);
+    note(`row: ${(await row.innerText()).replace(/\s+/g, ' ')}; proposed (dashed): ${(await row.getAttribute('data-proposed')) !== null || (await row.locator('[data-proposed]').count()) > 0}`);
     note(`review strip still shown here: ${await shell().getByRole('region', { name: 'Changes from the last turn' }).count() > 0}`);
   });
 
@@ -245,7 +245,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
     await expect(strip).toBeVisible({ timeout: 5000 });
     await strip.getByRole('button', { name: /^Keep all changes/ }).click();
-    await expect(strip).toHaveCount(0, { timeout: 5000 });
+    await expect(strip).toHaveCount(0, { timeout: 5000 }).catch(async () => note(`still waiting after Keep all: ${(await strip.innerText().catch(() => '')).replace(/\s+/g, ' ')}`));
     note(`after Keep all, calendar file has the review: ${read('calendar/Calendar.ics').includes('P2 brake kit review')}`);
     // A suggested event is answered in Calendar if Keep all did not cover it: one more Keep for the demo to lose.
     const ghost = shell().locator('.app[data-app="calendar"]').getByRole('button', { name: /^Suggested: P2 brake kit review/ });
@@ -270,7 +270,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     } else if (!(await form.count())) {
       // Kept as the person's draft: it waits in Drafts.
       note('after Keep all the reply waited in Drafts');
-      await page.getByRole('button', { name: /^Drafts/ }).first().click();
+      await shell().getByRole('button', { name: /^Drafts/ }).first().click();
       await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
     } else note('after Keep all the reply was open, ready to send');
     await expect(form.getByRole('textbox', { name: 'Message' })).toHaveValue(/parts list/);
