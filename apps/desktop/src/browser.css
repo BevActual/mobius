@@ -1,24 +1,58 @@
-/* The Browser app, as Safari's sidebar and address bar: quiet rows, actions only under the pointer, the site's name at
-   rest in the bar, and a start page of coloured site tiles. Shared tokens only, so light and dark both follow. */
+/* The Browser app (Instrument, comfortable density): quiet sidebar rows, actions only under the pointer, the site's name
+   at rest in the address field, and a start page of site tiles. Sizes, colours and rows come from tokens.css only, so
+   both densities and every theme follow. Web pages themselves are never styled here. */
 
-/* Tabs */
-.browser-side .tab-lists { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-bottom: 2px; }
-.browser-side .tabs { overflow: visible; }
-/* The sidebar's parts inside the shared frame sidebar (ui/AppSidebar): search, Pinned, Tabs, Bookmarks. */
-.ui-side > .browser-side { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: 4px; }
-.browser-side > .side-search { margin: 0 4px 4px; }
-/* Room for the shared magnifier: `.dock.left .side-search` still wins over the shared rule here (told the Builder). */
-.dock.left .browser-side > .side-search { padding-left: 28px; }
+/* The sidebar's parts inside the shared frame sidebar (ui/AppSidebar): search, Tabs, Pinned, Bookmarks, From Mobius. */
+.ui-side > .browser-side { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: var(--sp-1); }
+.browser-side > .side-search { margin: 0 var(--sp-1) var(--sp-1); }
+.browser-side .tab-lists { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-1); }
+.browser-side .tabs { overflow: visible; gap: 0; }
 .browser-side .ui-side-section .tab-icon { flex: none; }
-.browser-side > .ui-side-section .list-row .tab-icon { width: 16px; height: 16px; border-radius: 4px; }
 
-/* The browser's controls take the toolbar's middle, so the address gets the room. */
+/* Tabs: plain sidebar rows, one height, in the sidebar's own greys. */
+.browser-side .tab { position: relative; height: var(--row-side); }
+.browser-side .tab-main { height: var(--row-side); padding: 0 var(--sp-2); gap: var(--sp-2); color: var(--ink); font-size: var(--fs-md); }
+.browser-side .tab:not([aria-current="page"]):hover { background: var(--side-hover); }
+.browser-side .tab[aria-current="page"] { background: var(--side-select); box-shadow: none; }
+.browser-side .tab-title { flex: 1 1 auto; min-width: 0; }
+.browser-side .tab[aria-current="page"] .tab-title { font-weight: var(--fw-medium); }
+.browser-side .tab-icon { width: var(--sp-4); height: var(--sp-4); border-radius: var(--radius-small); }
+/* A site without a favicon: its letter on a soft tint of its palette colour. */
+.browser-side .tab-icon.placeholder {
+  display: grid; place-items: center; font-size: var(--fs-floor); font-weight: var(--fw-semibold); line-height: 1; color: var(--ink);
+  background: color-mix(in srgb, var(--tile, var(--c-stone)) 35%, transparent);
+}
+.browser-side .tab-icon.placeholder:empty { background: var(--sel); }
+/* The Mobius mark, only on a tab Mobius opened or is using. */
+.browser-side .tab .tab-driver { display: inline-grid; place-items: center; flex: none; width: var(--sp-5); height: var(--sp-5); padding: 0; border: 0; border-radius: var(--radius-small); background: none; color: var(--mobius); }
+.browser-side .tab-driver svg { width: var(--sp-4); height: var(--sp-4); }
+.browser-side .tab .tab-driver[data-driver="yours"] { color: var(--muted); }
+.browser-side .tab-driver[data-driver="yours"] svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.browser-side .tab-loading { width: 6px; height: 6px; background: var(--muted); animation: tab-pulse var(--dur-loop) var(--ease) infinite; }
+@keyframes tab-pulse { 50% { opacity: 0.25; } }
+
+/* The row's buttons (pin, duplicate, close) sit at its end, out of sight until the pointer or focus is on the row; the
+   title then makes room, since the sidebar greys are see-through and can't simply cover it. */
+.browser-side .tab-actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; align-items: center; gap: 0; padding: 0 var(--sp-1); opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.browser-side .tab:hover .tab-actions, .browser-side .tab:focus-within .tab-actions { opacity: 1; }
+.browser-side .tab:hover .tab-main, .browser-side .tab:focus-within .tab-main { padding-right: calc(3 * var(--control-h) + var(--sp-2)); }
+.browser-side .tab .tab-close { opacity: 1; width: var(--control-h); height: var(--control-h); margin: 0; border-radius: var(--radius-control); color: var(--muted); }
+.browser-side .tab .tab-close:hover { background: var(--side-hover); color: var(--ink); }
+.browser-side .tab .tab-close svg { width: var(--sp-3); height: var(--sp-3); }
+.browser-side .tab[data-pinned="true"] .tab-pin { color: var(--ink); }
+.browser-side .tabs-empty { margin: 0; padding: 0 var(--sp-2); line-height: var(--row-side); font-size: var(--fs-sm); color: var(--muted); }
+
+/* Dragging: the tab being moved fades, and a line shows where it will land. */
+.browser-side .tab[data-dragging] { opacity: 0.4; }
+.browser-side .tab[data-drop]::after { content: ''; position: absolute; left: 6px; right: 6px; height: 2px; border-radius: 1px; background: var(--ink); pointer-events: none; }
+.browser-side .tab[data-drop="before"]::after { top: -1px; }
+.browser-side .tab[data-drop="after"]::after { bottom: -1px; }
+
+/* The toolbar's middle: back, forward and reload, the address, then the star. The address takes the room. */
 .ui-toolbar-slot:has(.browser-chrome) { flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
-.ui-toolbar-group:has(> .browser-chrome) { flex: 1; min-width: 0; }
+.ui-toolbar-group:has(> .browser-chrome) { flex: 1; min-width: 0; container-type: inline-size; }
 .browser-chrome .address { min-width: 64px; }
-/* In a narrow toolbar the address keeps its room: the star and the selected-text button step out (both are in the
-   Browser menu too), as Safari folds its toolbar. */
-.ui-toolbar-group:has(> .browser-chrome) { container-type: inline-size; }
+/* In a narrow toolbar the address keeps its room: the star and the selection menu step out (both are in ⋯ too). */
 @container (max-width: 260px) {
   .browser-chrome > [aria-label="This page"], .browser-chrome > .selection-menu-wrap { display: none; }
 }
@@ -28,122 +62,107 @@
   .browser-chrome:has(> .findbar) > :not(.findbar) { display: none; }
   .browser-chrome > .findbar { flex: 1 1 auto; margin-left: 0; }
 }
-.browser-side .tab { position: relative; height: 32px; }
-.browser-side .tab-main { height: 32px; padding: 0 8px; gap: 9px; color: var(--ink); }
-/* Plain rows, as the other sidebars: the hover and the selection are the sidebar's own greys. */
-.browser-side .tab:not([aria-current="page"]):hover { background: var(--side-hover); }
-.browser-side .tab[aria-current="page"] { background: var(--side-select); box-shadow: none; }
-.browser-side .tab-title { flex: 1 1 auto; min-width: 0; font-size: var(--fs-md, 13px); }
-.browser-side .tab[aria-current="page"] .tab-title { font-weight: 500; }
-.browser-side .tab-icon { width: 16px; height: 16px; border-radius: 4px; }
-.browser-side .tab-icon.placeholder { display: grid; place-items: center; font-size: 10px; font-weight: 700; line-height: 1; color: #fff; background: hsl(var(--hue, 220) 60% 52%); }
-.browser-side .tab-icon.placeholder:empty { background: color-mix(in srgb, var(--ink) 12%, transparent); }
-.browser-side .tab .tab-driver { display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--accent); }
-.browser-side .tab-driver svg { width: 14px; height: 14px; }
-.browser-side .tab .tab-driver[data-driver="yours"] { color: var(--muted); }
-.browser-side .tab-driver[data-driver="yours"] svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.browser-side .tab-loading { width: 6px; height: 6px; animation: tab-pulse var(--dur-loop) var(--ease) infinite; }
-@keyframes tab-pulse { 50% { opacity: 0.25; } }
+/* A saved page shows a filled star, not a pressed box. */
+.browser-chrome [aria-label="This page"] .strip-btn[aria-pressed="true"] { background: none; }
+.browser-chrome [aria-label="This page"] .strip-btn[aria-pressed="true"] svg { fill: currentColor; }
 
-/* The row's buttons sit at the end of the row; the title gets the whole row until the pointer is on it, then
-   makes room (the sidebar greys are see-through, so the buttons can't simply cover the title). */
-.browser-side .tab-actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; align-items: center; gap: 0; padding: 0 3px; opacity: 0; transition: opacity var(--dur-fast); }
-.browser-side .tab:hover .tab-actions, .browser-side .tab:focus-within .tab-actions { opacity: 1; }
-.browser-side .tab:hover .tab-main, .browser-side .tab:focus-within .tab-main { padding-right: 72px; }
-.browser-side .tab .tab-close { opacity: 1; width: 22px; height: 22px; margin: 0; color: var(--muted); }
-.browser-side .tab .tab-close svg { width: 11px; height: 11px; }
-.browser-side .tab[data-pinned="true"] .tab-pin { color: var(--accent); }
-/* Every row, the showing one too, keeps its buttons (close, pin, duplicate) out of sight until the pointer is on it. */
-.browser-side .tabs-empty { margin: 2px 8px; font-size: var(--fs-sm); color: var(--muted); }
+/* The address and Find fields: the shared field (the sidebar search's height, the field grey, control corners), with
+   an ink edge on focus and no glow. */
+.browser-chrome .address input, .browser-chrome .findbar {
+  box-sizing: border-box; height: calc(var(--row-side) - 4px); border: 0; border-radius: var(--radius-control);
+  background: var(--field); font-size: var(--fs-md); color: var(--ink); box-shadow: none;
+}
+.browser-chrome .address input { padding: 0 var(--sp-3); }
+.browser-chrome .address input:focus, .browser-chrome .findbar:focus-within { background: var(--paper); box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); }
+.browser-chrome .findbar input { font-size: var(--fs-md); }
+.browser-chrome .findbar-count { min-width: 0; font-size: var(--fs-sm); }
 
-/* Dragging: the tab being moved fades, and a line shows where it will land. */
-.browser-side .tab[data-dragging] { opacity: 0.4; }
-.browser-side .tab[data-drop]::after { content: ''; position: absolute; left: 6px; right: 6px; height: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; }
-.browser-side .tab[data-drop="before"]::after { top: -2px; }
-.browser-side .tab[data-drop="after"]::after { bottom: -2px; }
-
-/* A tab's right-click menu. */
-
-/* The address bar: the site's name at rest, the whole address while editing. */
+/* The address at rest: the site's name in ink, the rest of the address in grey after it; the whole address while
+   editing. */
 .address[data-editing] .address-rest { display: none; }
 .address:not([data-editing]) input:not(:placeholder-shown) { color: transparent; caret-color: transparent; }
-.address-rest { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-start; gap: 6px; padding: 0 12px; pointer-events: none; color: var(--ink); font-size: var(--fs-md, 13px); white-space: nowrap; overflow: hidden; }
+.address-rest { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-start; gap: 6px; padding: 0 var(--sp-3); pointer-events: none; color: var(--ink); font-size: var(--fs-md); white-space: nowrap; overflow: hidden; }
 .address-rest > span { overflow: hidden; text-overflow: ellipsis; }
-/* The site's name in ink, the rest of the address in grey after it, as in the mock. */
-.address-rest .address-host { flex: none; max-width: 60%; font-weight: var(--fw-medium, 500); }
+.address-rest .address-host { flex: none; max-width: 60%; font-weight: var(--fw-medium); }
 .address-rest .address-path { flex: 0 1 auto; min-width: 0; color: var(--muted); }
-.address-rest svg { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.address-rest svg { flex: none; width: var(--sp-3); height: var(--sp-3); fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .address input { text-overflow: ellipsis; }
 .address[data-editing] input { text-align: left; }
-.address-progress { position: absolute; left: 10px; right: 10px; bottom: 1px; height: 2px; border-radius: 1px; overflow: hidden; pointer-events: none; }
-.address-progress::before { content: ''; position: absolute; inset: 0; width: 40%; border-radius: 1px; background: var(--accent); animation: address-load var(--dur-loop) var(--ease) infinite; }
+/* Loading: a thin line along the field's foot, moving only while the page loads. */
+.address-progress { position: absolute; left: var(--sp-2); right: var(--sp-2); bottom: 1px; height: 2px; border-radius: 1px; overflow: hidden; pointer-events: none; }
+.address-progress::before { content: ''; position: absolute; inset: 0; width: 40%; border-radius: 1px; background: var(--ink); animation: address-load var(--dur-loop) var(--ease) infinite; }
 @keyframes address-load { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 @media (prefers-reduced-motion: reduce) { .address-progress::before { animation: none; width: 100%; opacity: 0.5; } .browser-side .tab-loading { animation: none; } }
 
-.address-suggestions { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 900; margin: 0; padding: 5px; list-style: none; border-radius: 12px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); }
-.address-suggestion { min-width: 0; display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 7px; cursor: default; }
-.address-suggestion[aria-selected="true"] { background: var(--accent); color: var(--on-accent, #fff); }
-.address-suggestion svg { flex: none; width: 15px; height: 15px; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.address-suggestion[aria-selected="true"] svg { stroke: currentColor; }
+/* Suggestions under the address: the shared menu's look, with the chosen row in the selection grey. */
+.address-suggestions {
+  position: absolute; left: 0; right: 0; top: calc(100% + var(--sp-1)); z-index: var(--z-menu); margin: 0; padding: var(--menu-pad); list-style: none;
+  border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-menu);
+}
+.address-suggestion { min-width: 0; display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-list); padding: 0 var(--sp-2); border-radius: calc(var(--radius-panel) - var(--menu-pad)); cursor: default; }
+.address-suggestion[aria-selected="true"] { background: var(--sel); color: var(--ink); }
+.address-suggestion svg { flex: none; width: var(--sp-4); height: var(--sp-4); fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .address-suggestion-text { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
 .address-suggestion-title, .address-suggestion-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.address-suggestion-title { font-size: var(--fs-md, 13px); }
-.address-suggestion-url { font-size: var(--fs-xs, 11px); color: var(--muted); }
-.address-suggestion[aria-selected="true"] .address-suggestion-url { color: inherit; opacity: 0.8; }
+.address-suggestion-title { font-size: var(--fs-md); color: var(--ink); }
+.address-suggestion-url { font-size: var(--fs-xs); color: var(--muted); }
 
-/* Find, under the address bar in the sidebar. */
-.rail-chrome .findbar { margin: 0; background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
-.rail-chrome .findbar input { width: auto; }
-.rail-chrome .findbar-count { min-width: 0; }
-
-/* Downloads, as Safari's list: a name, a quiet line under it, small buttons. */
-.browser-side .downloads { margin-top: 10px; padding-top: 6px; border-top: 0.5px solid var(--line); }
-.browser-side .downloads .side-head { height: 28px; margin-bottom: 2px; }
-.browser-side .downloads .side-head .btn { height: 22px; padding: 0 8px; font-size: var(--fs-sm); border: 0; background: none; color: var(--accent); }
-.browser-side .dl-list { gap: 2px; }
-.browser-side .dl-item { gap: 3px; padding: 6px 8px; background: transparent; border-radius: 8px; }
-.browser-side .dl-item:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.browser-side .dl-name { font-size: var(--fs-md, 13px); }
-.browser-side .dl-item progress { height: 4px; appearance: none; border: 0; border-radius: 2px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
-.browser-side .dl-item progress::-webkit-progress-bar { background: transparent; }
-.browser-side .dl-item progress::-webkit-progress-value { background: var(--accent); border-radius: 2px; }
-.browser-side .dl-item .btn { height: 22px; padding: 0 8px; border-radius: 999px; }
-
-/* The start page: a greeting, then rows of coloured site tiles. */
-.start-page .start-inner { width: min(720px, calc(100% - 64px)); margin: 10vh auto 64px; gap: 28px; }
-.start-page .start-head { text-align: center; }
-.start-page .start-greeting { margin: 0 0 6px; font-size: 28px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
-.start-page .start-heading { margin: 0 0 10px 6px; font-size: 15px; font-weight: 700; color: var(--ink); }
-.start-page .start-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 6px; }
-.start-page .start-tile { padding: 10px 4px 8px; }
-.start-page .start-tile:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.start-page .start-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
-.start-page .start-tile-mark { width: 56px; height: 56px; border-radius: 14px; font-size: 24px; font-weight: 600; color: #fff; background: linear-gradient(160deg, hsl(var(--hue, 220) 70% 60%), hsl(var(--hue, 220) 62% 46%)); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 0 0 0.5px rgba(255, 255, 255, 0.18); }
-/* Names take two lines before they are cut, as on Safari's start page. */
-.start-page .start-tile { justify-content: flex-start; }
-.start-page .start-tile-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; text-align: center; line-height: 1.25; min-height: 2.5em; font-size: 11.5px; color: var(--ink); overflow-wrap: anywhere; }
-.start-page .start-reading { gap: 0; padding: 4px; border-radius: 12px; background: var(--panel); box-shadow: 0 0 0 0.5px var(--line); }
-.start-page .start-reading button { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
-.start-page .start-reading button:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.start-page .start-reading svg { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
-
-/* Downloads: a button in the sidebar's head with a ring for progress, and a popover that drops down inside the sidebar. */
+/* Downloads: a button at the end of the Tabs head (a ring while something downloads) and a popover list under it. */
 .browser-side .side-head { position: relative; }
 .browser-side .side-head > .side-actions { margin-left: auto; }
 .browser-side .dl-wrap { display: inline-flex; }
 .browser-side .dl-button { position: relative; }
-.browser-side .dl-button[data-busy] { color: var(--accent); }
-.browser-side .dl-ring { position: absolute; inset: 3px; width: calc(100% - 6px); height: calc(100% - 6px); transform: rotate(-90deg); fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; pointer-events: none; }
-.browser-side .dl-pop { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0; max-height: 360px; overflow: auto; padding: 6px; border-radius: 12px; background: var(--bg); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18), 0 0 0 0.5px var(--line); }
+.browser-side .dl-ring { position: absolute; inset: 3px; width: calc(100% - 6px); height: calc(100% - 6px); transform: rotate(-90deg); fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; pointer-events: none; }
+.browser-side .dl-pop {
+  position: absolute; z-index: var(--z-menu); top: calc(100% + var(--sp-1)); left: 0; right: 0; max-height: 360px; overflow: auto;
+  padding: var(--menu-pad); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-menu);
+}
 .browser-side .dl-pop .downloads { margin: 0; padding: 0; border: 0; }
-.browser-side .dl-head { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 4px 0 8px; }
-.browser-side .dl-title { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
-.browser-side .dl-clear { height: 22px; padding: 0 6px; border-radius: 6px; font-size: var(--fs-sm); color: var(--accent); }
-.browser-side .dl-clear:disabled { opacity: 0.4; }
-.browser-side .dl-actions { gap: 10px; }
-.browser-side .dl-btn { height: auto; padding: 0; font-size: var(--fs-sm); color: var(--accent); background: none; }
+.browser-side .dl-head { display: flex; align-items: center; justify-content: space-between; height: var(--menu-row-h); padding: 0 var(--sp-1) 0 var(--sp-2); }
+.browser-side .dl-title { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.browser-side .dl-clear { height: var(--control-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-sm); color: var(--ink); }
+.browser-side .dl-clear:hover { background: var(--sel); }
+.browser-side .dl-clear:disabled { color: var(--faint); }
+/* Each download is one row height: its name, and one grey line under it (or its progress). */
+.browser-side .dl-list { gap: 0; }
+.browser-side .dl-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: center; column-gap: var(--sp-2); row-gap: 2px;
+  height: calc(var(--row-list) + var(--sp-3)); padding: 0 var(--sp-2); border-radius: calc(var(--radius-panel) - var(--menu-pad)); background: transparent;
+}
+.browser-side .dl-item:hover { background: var(--sel); }
+.browser-side .dl-name { grid-column: 1 / -1; font-size: var(--fs-md); font-weight: var(--fw-regular); color: var(--ink); }
+.browser-side .dl-sub { font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.browser-side .dl-item[data-state="failed"] .dl-sub { color: var(--danger); }
+.browser-side .dl-item progress { align-self: center; width: 100%; height: 4px; appearance: none; border: 0; border-radius: 2px; background: var(--sel); overflow: hidden; }
+.browser-side .dl-item progress::-webkit-progress-bar { background: transparent; }
+.browser-side .dl-item progress::-webkit-progress-value { background: var(--ink); border-radius: 2px; }
+.browser-side .dl-actions { display: flex; gap: var(--sp-3); }
+.browser-side .dl-btn { height: auto; padding: 0; font-size: var(--fs-sm); color: var(--ink); background: none; align-self: center; }
 .browser-side .dl-btn:hover { text-decoration: underline; text-underline-offset: 2px; }
-/* A saved page shows a filled star, not a pressed box. */
-.browser-chrome [aria-label="This page"] .strip-btn[aria-pressed="true"] { background: none; }
-.browser-chrome [aria-label="This page"] .strip-btn[aria-pressed="true"] svg { fill: currentColor; }
-.browser-side .dl-item .dl-btn { align-self: flex-start; }
+
+/* The start page: a greeting, then site tiles and the reading list in a reading column. */
+.start-page .start-inner { width: min(var(--reading-w), calc(100% - 2 * var(--sp-8))); margin: 10vh auto var(--sp-8); gap: var(--sp-6); }
+.start-page .start-head { text-align: center; }
+.start-page .start-greeting { margin: 0; font-size: var(--fs-display); font-weight: var(--fw-semibold); letter-spacing: -0.01em; color: var(--ink); }
+.start-page .start-heading { margin: 0 0 var(--sp-2) var(--sp-2); font-size: var(--fs-lg); font-weight: var(--fw-semibold); color: var(--ink); }
+.start-page .start-empty { font-size: var(--fs-md); color: var(--muted); }
+.start-page .start-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: var(--sp-2); }
+.start-page .start-tile { justify-content: flex-start; padding: var(--sp-3) var(--sp-1) var(--sp-2); border-radius: var(--radius-panel); }
+.start-page .start-tile:hover { background: var(--sel); }
+.start-page .start-tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
+/* A site's tile: its letter in ink on a soft tint of its palette colour. */
+.start-page .start-tile-mark {
+  width: 56px; height: 56px; border-radius: var(--radius-panel); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); color: var(--ink);
+  background: color-mix(in srgb, var(--tile, var(--c-stone)) 30%, var(--paper)); box-shadow: none;
+}
+/* Names take two lines before they are cut, as on Safari's start page. */
+.start-page .start-tile-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; text-align: center; line-height: var(--lh-tight); min-height: calc(2em * var(--lh-tight)); font-size: var(--fs-xs); color: var(--ink); overflow-wrap: anywhere; }
+/* While favourites and history load: grey placeholder tiles, not a spinner. */
+.start-page .start-loading .start-tile-mark { background: var(--sel); }
+.start-page .start-bar { width: 60%; height: var(--sp-2); margin-top: var(--sp-1); border-radius: var(--radius-small); background: var(--sel); }
+/* The reading list: plain content rows, one height, hairlines between. */
+.start-page .start-reading { gap: 0; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+.start-page .start-reading li + li { border-top: var(--hairline-w) solid var(--line-soft); }
+.start-page .start-reading button { display: flex; align-items: center; gap: var(--sp-3); height: var(--row-list); padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-md); color: var(--ink); }
+.start-page .start-reading button:hover { background: var(--sel); }
+.start-page .start-reading svg { flex: none; width: var(--sp-4); height: var(--sp-4); fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linejoin: round; }

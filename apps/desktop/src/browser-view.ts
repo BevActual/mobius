@@ -22,12 +22,13 @@ export function addressParts(url: string): { secure: boolean; host: string; path
   }
 }
 
-/** A steady colour for a site's letter tile, picked from its name so it is the same every time. */
-const HUES = [211, 262, 330, 4, 28, 142, 174, 190, 291, 45];
-export function tileHue(site: string): number {
+/** The shared content palette (tokens.css): a site's letter tile takes one of these, never a colour of its own. */
+const TILE_COLOURS = ['amber', 'yellow', 'green', 'teal', 'blue', 'violet', 'pink', 'coral'] as const;
+/** A steady colour for a site's letter tile, from the shared palette and picked from its name, so it is the same every time. */
+export function tileColour(site: string): string {
   let h = 0;
   for (const ch of site) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return HUES[h % HUES.length]!;
+  return `var(--c-${TILE_COLOURS[h % TILE_COLOURS.length]!})`;
 }
 /** The letter a site's tile shows. */
 export const tileLetter = (site: string): string => (site.replace(/^[^a-z0-9]+/i, '')[0] ?? '?').toUpperCase();

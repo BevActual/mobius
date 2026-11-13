@@ -6,9 +6,9 @@ A full web browser, with Mobius able to read and work on pages for you.
 
 ![The Browser app in Mobius](../readme/apps/browser.png)
 
-- **The toolbar** has back, forward and reload, the address (the site in full ink, the rest of the address in grey),
-  and the star. Everything else about the page (Save to Reader, selected text, pin to the sidebar) is in **⋯**. The address suggests open
-  tabs, bookmarks and history as you type.
+- **The toolbar** has back (Alt+Left), forward (Alt+Right) and reload (Ctrl+R), the address (Ctrl+L; the site in full
+  ink, the rest of the address in grey) and the star. Everything else about the page (Save to Reader, selected text,
+  pin to the sidebar) is in **⋯**. The address suggests open tabs, bookmarks and history as you type.
 - **The sidebar** holds New tab (Ctrl+T), a search for your tabs and bookmarks, then **Tabs**, **Pinned** and **From
   Mobius**. Tabs live in the sidebar, as in Safari and Arc: each is a plain row whose buttons (pin, duplicate, close)
   show when the pointer is on it, and right-clicking a tab gives the rest. Drag a tab to reorder it or across the line

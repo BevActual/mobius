@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrowserTabState } from '@mobius/shared';
-import { addressParts, dropPlan, hostOf, sidebarMatch, suggestionsFor, tileHue, tileLetter } from './browser-view';
+import { addressParts, dropPlan, hostOf, sidebarMatch, suggestionsFor, tileColour, tileLetter } from './browser-view';
 
 const tab = (id: string, url: string, title: string, extra: Partial<BrowserTabState> = {}): BrowserTabState => ({ id, url, title, loading: false, canGoBack: false, canGoForward: false, active: false, icon: null, ...extra });
 
@@ -21,7 +21,8 @@ describe('the address at rest', () => {
 
 describe('site tiles', () => {
   it('gives a site the same colour and letter every time', () => {
-    expect(tileHue('veltro.example')).toBe(tileHue('veltro.example'));
+    expect(tileColour('veltro.example')).toBe(tileColour('veltro.example'));
+    expect(tileColour('veltro.example')).toMatch(/^var\(--c-[a-z]+\)$/);
     expect(tileLetter('veltro.example')).toBe('V');
     expect(tileLetter('-9gag.com')).toBe('9');
     expect(tileLetter('')).toBe('?');
