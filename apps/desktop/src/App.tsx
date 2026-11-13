@@ -78,7 +78,7 @@ import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail } from './Rail';
 import { SidebarHead } from './SidebarHead';
-import { AppFrame } from './ui';
+import { AppFrame, PanelsMenu } from './ui';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
@@ -1565,6 +1565,18 @@ export function App() {
         </>,
         // Words and icons never share a capsule: the update notice stands on its own, before the icons.
         status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
+        // The Panels menu: the sidebar, the open app's own panels, Mobius, and Reset layout.
+        panels: (own) => settingsOpen ? null : (
+          <PanelsMenu
+            app={own}
+            shell={[
+              { name: 'Sidebar', shown: hasLeft && leftOpen, toggle: () => setLeftOpen((open) => !open) },
+              ...(hasRight ? [{ name: 'Mobius', shown: chatOpen, toggle: () => setChatOpen((open) => !open) }] : []),
+            ]}
+            describeKeys={(keys) => describeCombo(keys, window.mobius.platform)}
+            onReset={() => setLeftOpen(true)}
+          />
+        ),
         trail: <>
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
           {menuBar}
