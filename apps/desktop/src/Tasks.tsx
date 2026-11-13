@@ -1,6 +1,4 @@
 import { RowMark } from './RowMark';
-import { createPortal } from 'react-dom';
-import { ContextMenu } from './ContextMenu';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
@@ -12,7 +10,7 @@ import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { dayLabel } from './dates';
-import { AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, UndoToast } from './ui';
+import { AppSidebar, Menu, PointMenu, SidebarRow, SidebarSearch, SidebarSection, UndoToast } from './ui';
 import './tasks.css';
 
 /** A task being dragged: which list it is in and where. */
@@ -126,12 +124,11 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
                       <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
                     </button>
                   )}
-                  {menu?.name === l.name && createPortal(
-                    <ContextMenu x={menu.x} y={menu.y} label={l.name} onClose={() => setMenu((m) => (m?.name === l.name ? null : m))} items={[
-                      { action: 'rename', label: 'Rename…', run: () => setRenaming(l.name) },
-                      { action: 'delete', label: 'Delete list…', danger: true, separated: true, run: () => setDeleting(l.name) },
-                    ]} />,
-                    document.body,
+                  {menu?.name === l.name && (
+                    <PointMenu x={menu.x} y={menu.y} label={l.name} onClose={() => setMenu((m) => (m?.name === l.name ? null : m))} entries={[
+                      { label: 'Rename…', run: () => setRenaming(l.name) },
+                      { label: 'Delete list…', danger: true, separated: true, run: () => setDeleting(l.name) },
+                    ]} />
                   )}
                 </>
               )}
@@ -270,12 +267,14 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const days = quickDays(now);
   const others = tasks.lists.filter((l) => l.name !== list);
   const menuItems = [
-    { label: isPicked ? 'Hide Details' : 'Show Details', keys: `${MOD}I`, run: details },
-    ...days.map((q, i) => ({ label: `Due ${q.label.replace(/\b\w/g, (c) => c.toUpperCase())}`, separated: i === 0, disabled: task.due === q.day, run: () => setDue(q.day) })),
-    ...(task.due ? [{ label: 'No Due Date', run: () => setDue(null) }] : []),
+    { label: task.done ? 'Mark not done' : 'Mark done', keys: 'Space', run: tick },
+    { label: 'Rename', keys: 'Enter', run: () => { setWords(task.text); setEditing(true); } },
+    { label: isPicked ? 'Hide details' : 'Show details', keys: `${MOD}I`, run: details },
+    ...days.map((q, i) => ({ label: `Due ${q.label.toLowerCase()}`, separated: i === 0, disabled: task.due === q.day, run: () => setDue(q.day) })),
+    ...(task.due ? [{ label: 'No due date', run: () => setDue(null) }] : []),
     { label: task.flagged ? 'Unflag' : 'Flag', separated: true, run: () => void tasks.change(list, task, { flagged: !task.flagged }) },
-    ...others.map((l, i) => ({ action: 'move' as const, label: `Move to ${l.name}`, separated: i === 0, run: () => void tasks.move(list, task, l.name) })),
-    { action: 'delete' as const, label: 'Delete', danger: true, separated: true, keys: 'Del', run: remove },
+    ...others.map((l, i) => ({ label: `Move to ${l.name}`, separated: i === 0, run: () => void tasks.move(list, task, l.name) })),
+    { label: 'Delete', danger: true, separated: true, keys: 'Delete', run: remove },
   ];
   const note = (task.notes ?? '').split('\n')[0] ?? '';
   const subsDone = subtasks.filter((s) => s.done).length;
@@ -306,15 +305,17 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
             <button type="button" className="task-text" title="Click to change" onClick={() => { setWords(task.text); setEditing(true); }}>{task.text}</button>
           )}
           {note && <span className="task-note">{note}</span>}
-          {((task.due && (!hideDue || task.time || task.repeat)) || task.repeat || showList || subtasks.length > 0) && (
-            <span className="task-meta">
-              {task.due ? <Due due={task.due} time={task.time} repeat={task.repeat} now={now} dayShown={!hideDue} /> : task.repeat && <Due due="" repeat={task.repeat} now={now} dayShown={false} />}
-              {showList && <span className="task-list">{list}</span>}
-              {subtasks.length > 0 && <span className="task-subcount">{subsDone} of {subtasks.length}</span>}
-            </span>
-          )}
         </div>
-        {task.flagged && <span className="task-flagged" role="img" aria-label="Flagged" title="Flagged"><FlagGlyph /></span>}
+        {/* The trailing edge, as in Linear: the subtask count, the list (in views across lists), the flag, then the
+            due date in tabular figures, grey unless overdue. */}
+        {((task.due && (!hideDue || task.time || task.repeat)) || task.repeat || showList || subtasks.length > 0 || task.flagged) && (
+          <span className="task-meta">
+            {subtasks.length > 0 && <span className="task-subcount" title={`${subsDone} of ${subtasks.length} subtasks done`}>{subsDone}/{subtasks.length}</span>}
+            {showList && <span className="task-list"><span className="list-dot" data-color={listColor(list)} aria-hidden="true" />{list}</span>}
+            {task.flagged && <span className="task-flagged" role="img" aria-label="Flagged" title="Flagged"><FlagGlyph /></span>}
+            {task.due ? <Due due={task.due} time={task.time} repeat={task.repeat} now={now} dayShown={!hideDue} /> : task.repeat && <Due due="" repeat={task.repeat} now={now} dayShown={false} />}
+          </span>
+        )}
         <span className="task-tools">
           {dating ? (
             <input type="date" className="task-date" aria-label={`Due date for ${task.text}`} autoFocus defaultValue={task.due ?? ''}
@@ -336,10 +337,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
             <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 9v5M10 6.4v.2" /></svg>
           </button>
         </span>
-        {menu && createPortal(
-          <ContextMenu x={menu.x} y={menu.y} label={task.text} items={menuItems} onClose={() => { setMenu(null); line.current?.focus(); }} />,
-          document.body,
-        )}
+        {menu && <PointMenu x={menu.x} y={menu.y} label={task.text} entries={menuItems} onClose={() => { setMenu(null); line.current?.focus(); }} />}
       </div>
       {subtasks.length > 0 && (
         <ul className="task-items task-subtasks" role="list" aria-label={`Subtasks of ${task.text}`}>
@@ -600,7 +598,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
     const found = searchTasks(query, tasks.all);
     body = byList(found).map((g) => (
       <section key={g.list} className="tasks-group" data-color={listColor(g.list)} aria-label={g.list}>
-        <h2 className="tasks-group-head">{g.list}</h2>
+        <h2 className="tasks-group-head"><span className="list-dot" data-color={listColor(g.list)} aria-hidden="true" />{g.list}<span className="tasks-group-count">{g.rows.length}</span></h2>
         <ul className="task-items" role="list" aria-label="To do">{g.rows.map((r) => row(r, { showList: false }))}</ul>
       </section>
     ));
@@ -635,7 +633,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
                 <svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
                 <span>Completed · {done.length}</span>
               </button>
-              <Menu label="Completed" align="end" entries={[{ label: `Clear ${done.length} Completed`, run: () => void tasks.clearDone(view.name) }]}
+              <Menu label="Completed" align="end" entries={[{ label: `Clear ${done.length} completed`, run: () => void tasks.clearDone(view.name) }]}
                 trigger={<button type="button" className="strip-btn tasks-done-more" aria-label="More for Completed" title="More"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg></button>} />
             </div>
             {showDone && (
@@ -654,14 +652,14 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
     if (view.id === 'all' || view.id === 'completed') {
       body = byList(rows).map((g) => (
         <section key={g.list} className="tasks-group" data-color={listColor(g.list)} aria-label={g.list}>
-          <h2 className="tasks-group-head"><button type="button" onClick={() => tasks.setView({ kind: 'list', name: g.list })}>{g.list}</button></h2>
+          <h2 className="tasks-group-head"><span className="list-dot" data-color={listColor(g.list)} aria-hidden="true" /><button type="button" onClick={() => tasks.setView({ kind: 'list', name: g.list })}>{g.list}</button><span className="tasks-group-count">{g.rows.length}</span></h2>
           <ul className="task-items" role="list" aria-label={view.id === 'completed' ? 'Completed' : 'To do'}>{withSubtasks(g.rows).map(({ at, subtasks }) => row(at, { showList: false, subtasks }))}</ul>
         </section>
       ));
     } else if (view.id === 'scheduled') {
       body = byDay(rows, now).map((g) => (
         <section key={g.key} className="tasks-group tasks-day" data-overdue={g.key === 'overdue' || undefined} aria-label={g.label}>
-          <h2 className="tasks-group-head">{g.label}</h2>
+          <h2 className="tasks-group-head">{g.label}<span className="tasks-group-count">{g.rows.length}</span></h2>
           <ul className="task-items" role="list" aria-label="To do">{g.rows.map((r) => row(r, { showList: true, hideDue: g.exact }))}</ul>
         </section>
       ));
@@ -671,6 +669,15 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
     if (rows.length === 0) empty = { today: 'Nothing is due today.', scheduled: 'Nothing has a date yet.', flagged: 'No flagged tasks. Flag one to keep it in sight.', all: 'No open tasks.', completed: 'Nothing is completed yet.' }[view.id];
   }
 
+  // Until the lists are first read: placeholder rows, not "nothing here" and not a spinner.
+  if (!tasks.loaded) {
+    empty = '';
+    body = (
+      <ul className="task-items tasks-loading" role="list" aria-label="Loading tasks" aria-busy="true">
+        {[64, 48, 72, 40].map((w) => <li key={w} className="task-skeleton"><span className="task-skeleton-check" /><span className="task-skeleton-bar" style={{ width: `${w}%` }} /></li>)}
+      </ul>
+    );
+  }
   const title = view.kind === 'list' ? view.name : smartName(view.id);
   return (
     <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
