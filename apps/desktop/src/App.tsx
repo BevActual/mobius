@@ -181,7 +181,8 @@ export function App() {
     startedUp.current = true;
     if (!appearance.value.sidebarAtStart || appearance.value.leftSidebar === 'floating') setPanelOpen(false);
     if (appearance.value.leftSidebar === 'floating') setAgentListOpen(false);
-    if (appearance.value.agentPlace === 'beside' && appearance.value.rightSidebar !== 'floating') setChatOpen(true);
+    // Mobius sits in the right panel, beside the work, from the start (the layout adopted 2026-11-13).
+    if (appearance.value.rightSidebar !== 'floating') setChatOpen(true);
     if (!appearance.value.resumeLast) conversation.startFresh();
   }, [appearance.loaded, appearance.value, conversation]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -540,11 +541,8 @@ export function App() {
     else void appearance.set({ navigation: wide ? 'rail' : 'sidebar' });
   }, [narrow, wide, appearance]);
   const startedUp = useRef(false);
-  // Where the agent sits when it is open: in the sidebar, which turns into Mobius (the default), or pinned beside the
-  // page. Pinning is kept per computer.
-  const chatPlace = appearance.value.agentPlace;
-  const setChatPlace = (place: 'beside' | 'sidebar') => { void appearance.set({ agentPlace: place }); };
-  // In the sidebar, Mobius waits to be asked and the app's own list shows; pinned beside, it is there from the start.
+  // Mobius sits in the right panel, beside the work, in every app (docs/design: five zones). The sidebar is always the
+  // app's own; it no longer turns into Mobius.
   const [chatOpen, setChatOpen] = useState(false);
   // Learn (shell/learn-view): lessons beside the page, in the slot Mobius uses when pinned beside. One at a time.
   const [learnOpen, setLearnOpen] = useState(false);
@@ -567,16 +565,13 @@ export function App() {
   const [agentListOpen, setAgentListOpen] = useState(true);
   const leftOpen = inAgent ? agentListOpen : panelOpen;
   const setLeftOpen = inAgent ? setAgentListOpen : setPanelOpen;
-  const chatInSide = hasRight && chatPlace === 'sidebar';
-  // Mobius in the sidebar takes the sidebar column at its usual width, even when it was folded to the rail or the
-  // window is narrow; closing it folds the column back.
-  const showWide = wide || (chatInSide && chatOpen && !settingsOpen);
+  const showWide = wide;
   // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
   const hasLeft = hasAppList && !showWide;
-  const rightOpen = hasRight && chatOpen && !chatInSide && !learnOpen;
+  const rightOpen = hasRight && chatOpen && !learnOpen;
   useEffect(() => { if (rightOpen && miniOpen) void window.mobius.mini.close(); }, [rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   // Learn (shell/learn-view): Mobius opening beside the page takes the slot back from Learn.
-  useEffect(() => { if (learnOpen && chatOpen && hasRight && !chatInSide) setLearnOpen(false); }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (learnOpen && chatOpen && hasRight) setLearnOpen(false); }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
   const [hovering, setHovering] = useState(false);
   const leftWidth = drag?.side === 'left' ? drag.width : appearance.value.leftWidth;
@@ -593,21 +588,6 @@ export function App() {
     const stage = document.querySelector<HTMLElement>('.stage');
     if (stage) growFrom(stage, 'left');
   }, [app]);
-  // Pin beside moves the card across, from the sidebar to its place beside the page, rather than fading one out and the
-  // other in.
-  const pinFrom = useRef<DOMRect | null>(null);
-  useLayoutEffect(() => {
-    const from = pinFrom.current;
-    pinFrom.current = null;
-    const card = document.querySelector<HTMLElement>('.dock.right:not([data-floating]) > .chat');
-    if (!from || !card || typeof card.animate !== 'function' || document.visibilityState === 'hidden') return;
-    const to = card.getBoundingClientRect();
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 }); return; }
-    card.animate([
-      { transformOrigin: '0 0', transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})` },
-      { transformOrigin: '0 0', transform: 'none' },
-    ], { duration: 320, easing: 'cubic-bezier(0.2, 0, 0, 1)' });
-  });
   // Shown again while it was on its way out (a shortcut, Mobius in the sidebar), it stays: a hide
   // still finishing would otherwise close it, since chatOpen never went false and the effect below does not run.
   const hides = useRef(0);
@@ -1018,7 +998,7 @@ export function App() {
   // Learn (shell/learn-view): opening it unpins Mobius from beside; closing puts focus back where it was.
   const openLearn = () => {
     learnFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (chatOpen && !chatInSide) setChatOpen(false);
+    if (chatOpen) setChatOpen(false);
     setLearnOpen(true);
   };
   const closeLearn = () => { setLearnOpen(false); if (learnFrom.current?.isConnected) learnFrom.current.focus(); };
@@ -1514,7 +1494,7 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-mobius-side={(chatInSide && chatOpen && !settingsOpen) || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
+    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
       <Rail
         {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
         app={app}
@@ -1536,10 +1516,9 @@ export function App() {
         menus={menuBar}
         chrome={showWide && inBrowser && !settingsOpen ? browserChrome : null}
         mobius={hasRight && !settingsOpen ? {
-          shown: chatInSide && chatOpen,
-          onToggle: () => { if (chatInSide && chatOpen) { setChatOpen(false); } else { hides.current += 1; setChatPlace('sidebar'); setChatOpen(true); setFocusToken((n) => n + 1); } },
-          onBeside: () => { setLearnOpen(false); pinFrom.current = document.querySelector('.rail[data-expanded]')?.getBoundingClientRect() ?? null; setChatPlace('beside'); setChatOpen(true); },
-          panel: chatInSide && chatOpen ? chatPanel(null) : null,
+          // The Mobius button shows and hides the right panel.
+          shown: rightOpen,
+          onToggle: () => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } },
         } : null}
         onLauncher={openHub}
         {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
@@ -1640,11 +1619,7 @@ export function App() {
         </main>
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
-            {chatPanel(<>
-              <button type="button" className="head-icon" data-pinned-beside aria-label="Unpin from beside" title="Put Mobius back in the sidebar" onClick={() => setChatPlace('sidebar')}>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /><path d="M4 4l12 12" /></svg>
-              </button>
-            </>)}
+            {chatPanel(null)}
             {resizer('right', 'Resize the agent panel')}
           </div>
         )}
