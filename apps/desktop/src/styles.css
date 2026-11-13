@@ -2694,3 +2694,19 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .tasks-nav .list-icon svg { fill: var(--lc) !important; stroke: var(--lc) !important; }
 .hub-icon { width: 32px; height: 32px; }
 .hub-icon svg { width: 22px; height: 22px; }
+/* Timeless Mobius panel: the head is its name and close; the name opens every chat. Empty, it shows a few quiet
+   things to ask, left-aligned under the context line, with no logo or greeting. */
+.chat-title-btn { padding: 0 6px; margin-left: -6px; height: 28px; border: 0; border-radius: var(--radius-control); background: none; color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.chat-title-btn:hover, .chat-title-btn[aria-expanded="true"] { background: var(--sel); }
+.chat .empty.empty-quiet { margin: 0; align-self: stretch; width: 100%; text-align: left; padding: var(--sp-2) 4px; }
+.empty-quiet .empty-starters { width: 100%; }
+.empty-quiet .empty-starters { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; justify-content: flex-start; }
+.empty-quiet .starter { height: auto; padding: 4px 6px; margin-left: -6px; background: none; box-shadow: none; color: var(--muted); font-weight: 400; text-align: left; }
+.empty-quiet .starter:hover { background: var(--sel); color: var(--ink); }
+/* The message box says plainly which model and how much it may do ("Sonnet · Ask first"): text, not capsules. */
+.composer-tools { flex-wrap: nowrap; }
+.composer-tools .pill { height: 24px; padding: 0 4px; background: none; box-shadow: none; color: var(--muted); font-weight: 400; }
+.composer-tools .pill:hover:not(:disabled), .composer-tools .pill[aria-expanded="true"] { background: var(--sel); color: var(--ink); }
+.composer-tools .pill .chev { display: none; }
+.composer-tools .pill-compact::before { content: "·"; margin-right: 6px; color: var(--faint); }
+.empty-quiet .starters { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; margin: 0; }
