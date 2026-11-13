@@ -153,7 +153,7 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   await expect(list.getByRole('option')).toHaveCount(1);
   // The less used actions are at the top of the toolbar's one ⋯.
   await list.getByRole('option').first().click();
-  await shell().getByRole('group', { name: 'Applications' }).getByRole('button', { name: 'Menu' }).click();
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu' }).click();
   await shell().getByRole('menuitem', { name: 'Mark as Unread' }).click();
   await expect(list.locator('.mail-row[data-unread]')).toHaveCount(1);
 
