@@ -14,18 +14,25 @@ interface TabsApi {
   remove: (id: string) => void;
   hosts: Record<string, HTMLElement | null>;
   setHost: (id: string, el: HTMLElement | null) => void;
+  /** A tab asked for by `useShowPanelTab`, until the panel has brought it forward. */
+  wanted: { id: string; at: number } | null;
+  show: (id: string) => void;
+  done: () => void;
 }
 
 const PanelTabsContext = createContext<TabsApi | null>(null);
 
 /** Held by the frame: the tabs the open app has asked for, and where each one's content is drawn. */
-export function PanelTabsProvider({ children }: { children: ReactNode }) {
+export function PanelTabsProvider({ children, open }: { children: ReactNode; open?: () => void }) {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [hosts, setHosts] = useState<Record<string, HTMLElement | null>>({});
   const add = useCallback((tab: Tab) => setTabs((all) => (all.some((t) => t.id === tab.id && t.name === tab.name) ? all : [...all.filter((t) => t.id !== tab.id), tab])), []);
   const remove = useCallback((id: string) => setTabs((all) => all.filter((t) => t.id !== id)), []);
   const setHost = useCallback((id: string, el: HTMLElement | null) => setHosts((all) => (all[id] === el ? all : { ...all, [id]: el })), []);
-  const api = useMemo(() => ({ tabs, add, remove, hosts, setHost }), [tabs, add, remove, hosts, setHost]);
+  const [wanted, setWanted] = useState<{ id: string; at: number } | null>(null);
+  const show = useCallback((id: string) => { setWanted({ id, at: Date.now() }); open?.(); }, [open]);
+  const done = useCallback(() => setWanted(null), []);
+  const api = useMemo(() => ({ tabs, add, remove, hosts, setHost, wanted, show, done }), [tabs, add, remove, hosts, setHost, wanted, show, done]);
   return <PanelTabsContext.Provider value={api}>{children}</PanelTabsContext.Provider>;
 }
 
@@ -46,6 +53,15 @@ export function PanelTab({ id, name, children }: { id: string; name: string; chi
   return host ? createPortal(children, host) : null;
 }
 
+/**
+ * Brings one of the right panel's tabs forward (an app tab's id, or 'mobius'), opening the panel when it is shut:
+ * Photo's Adjust button shows the Adjust tab even while Mobius is in front.
+ */
+export function useShowPanelTab(): (id: string) => void {
+  const show = useContext(PanelTabsContext)?.show;
+  return useCallback((id: string) => show?.(id), [show]);
+}
+
 const LAST_KEY = 'mobius.panelTab.';
 const lastTab = (key: string): string | null => { try { return window.localStorage.getItem(LAST_KEY + key); } catch { return null; } };
 const keepTab = (key: string, id: string) => { try { window.localStorage.setItem(LAST_KEY + key, id); } catch { /* Not kept. */ } };
@@ -64,6 +80,15 @@ export function RightPanelTabs({ mobius, onClose }: { mobius: ReactNode; onClose
   const active = tabs.length === 0 ? 'mobius' : remembered === 'mobius' || tabs.some((t) => t.id === remembered) ? remembered! : tabs[0]!.id;
   const choose = (id: string) => { setChosen((all) => ({ ...all, [key]: id })); keepTab(key, id); };
   const all = [...tabs, { id: 'mobius', name: 'Mobius' }];
+  // A tab asked for by the app: brought forward once it is in the row (an app tab can register a moment later).
+  const wanted = api?.wanted;
+  const done = api?.done;
+  useEffect(() => {
+    if (!wanted || !done) return;
+    if (wanted.id !== 'mobius' && !tabs.some((t) => t.id === wanted.id)) return;
+    if (tabs.length > 0) { setChosen((all) => ({ ...all, [key]: wanted.id })); keepTab(key, wanted.id); }
+    done();
+  }, [wanted, done, tabs, key]);
   // Siblings in the dock, not a wrapper: the shell and its tests find Mobius as the dock's own `.chat`. Behind an app's
   // tab, Mobius is hidden by the head's data-showing (styles.css), not unmounted.
   return (
