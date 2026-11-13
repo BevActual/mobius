@@ -602,6 +602,24 @@ impl Bridge {
             ("changes", _) => self.changes_call(method, args),
             ("signins", _) => Ok(self.signins_call(method, args)),
             ("extensions", "connectors") => Ok(self.mcp_status()),
+            // Abilities › Add a Connector: written to mcp.json, started the next time Mobius opens.
+            ("extensions", "addConnector") => {
+                let draft = arg(0);
+                let text = |k: &str| draft.get(k).and_then(Value::as_str).unwrap_or("").to_owned();
+                let words: Vec<String> = draft.get("args").and_then(Value::as_array).map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect()).unwrap_or_default();
+                let env = draft.get("env").and_then(Value::as_object).cloned().unwrap_or_default();
+                if env.values().any(|v| !v.is_string()) {
+                    return Ok(json!({ "ok": false, "error": "Every key's value must be text." }));
+                }
+                Ok(match crate::mcp::add_server(&self.data_dir.join("mcp.json"), &text("name"), &text("command"), &words, &env) {
+                    Ok(()) => json!({ "ok": true, "status": self.mcp_status() }),
+                    Err(error) => json!({ "ok": false, "error": error }),
+                })
+            }
+            ("extensions", "removeConnector") => Ok(match crate::mcp::remove_server(&self.data_dir.join("mcp.json"), arg(0).as_str().unwrap_or("")) {
+                Ok(()) => json!({ "ok": true, "status": self.mcp_status() }),
+                Err(error) => json!({ "ok": false, "error": error }),
+            }),
             // Settings, Voice: try the server chosen for listening or speaking, as it is set now.
             ("voice", "test") => Ok(self.voice_test(arg(0).as_str().unwrap_or(""))),
             // Settings, Voice, This computer: whether a speech server answers at the saved address. Nothing is installed.
@@ -628,10 +646,27 @@ impl Bridge {
                 })
             }
             // The person looking through their own workspace: read only, and inside it.
-            ("files", "list") => Ok(match self.workspace.run("files.list", &json!({ "path": arg(0).as_str().unwrap_or("") })) {
-                Ok(text) => serde_json::from_str(&text).unwrap_or(Value::Null),
-                Err(error) => json!({ "error": error }),
-            }),
+            ("files", "list") => Ok(self.workspace.browse(arg(0).as_str().unwrap_or("")).unwrap_or_else(|error| json!({ "error": error }))),
+            // The person's own actions in Files. The agent has none of these: it only reads, writes and edits.
+            ("files", "newFolder" | "rename" | "trash" | "putBack") => {
+                let text = |i: usize| arg(i).as_str().unwrap_or("").to_owned();
+                let done = match method {
+                    "newFolder" => self.workspace.new_folder(&text(0), &text(1)),
+                    "rename" => self.workspace.rename(&text(0), &text(1)),
+                    "trash" => self.workspace.trash(&text(0)),
+                    _ => self.workspace.put_back(&text(0), &text(1)),
+                };
+                Ok(match done {
+                    Ok(path) => json!({ "ok": true, "path": path }),
+                    Err(error) => json!({ "ok": false, "error": error }),
+                })
+            }
+            ("files", "show") => {
+                if let (Ok(path), Some(d)) = (self.workspace.locate(arg(0).as_str().unwrap_or("")), self.dialogs.get()) {
+                    d.show_path(&path);
+                }
+                Ok(Value::Null)
+            }
             ("browser", _) => self.browser_call(method, args),
             ("surface", "setBounds") => {
                 if let Some(b) = self.browser.get() {
@@ -2455,6 +2490,16 @@ impl Bridge {
                 }
                 json!({ "ok": true })
             }),
+            "saveExport" => match (text(0), text(1), text(2)) {
+                (Some(p), Some(n), Some(d)) => v.save_export(p, n, d),
+                _ => Err("a project, a name and a film are needed".to_owned()),
+            },
+            "showExports" => text(0).ok_or_else(need).and_then(|p| v.exports(p)).map(|dir| {
+                if let Some(d) = self.dialogs.get() {
+                    d.open_path(&dir);
+                }
+                json!({ "ok": true })
+            }),
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
@@ -2542,11 +2587,30 @@ impl Bridge {
                 (Some(f), Some(data)) => p.export(f, data),
                 _ => Err("a photo and a picture are needed".to_owned()),
             },
+            // Photo app: managing the library (Photo thread).
+            "rename" => match (text(0), text(1)) {
+                (Some(f), Some(name)) => p.rename(f, name),
+                _ => Err("a photo and a name are needed".to_owned()),
+            },
+            "move" => match (text(0), text(1)) {
+                (Some(f), Some(album)) => p.move_to(f, album),
+                _ => Err("a photo and an album are needed".to_owned()),
+            },
+            "delete" => text(0).ok_or_else(|| "a photo is needed".to_owned()).and_then(|f| p.delete(f)),
+            "deleted" => p.deleted(),
+            "readDeleted" => text(0).ok_or_else(|| "a photo is needed".to_owned()).and_then(|f| p.read_deleted(f)),
+            "recover" => text(0).ok_or_else(|| "a photo is needed".to_owned()).and_then(|f| p.recover(f)),
+            "emptyDeleted" => p.empty_deleted(),
+            "renameAlbum" => match (text(0), text(1)) {
+                (Some(a), Some(name)) => p.rename_album(a, name),
+                _ => Err("an album and a name are needed".to_owned()),
+            },
+            "deleteAlbum" => text(0).ok_or_else(|| "an album is needed".to_owned()).and_then(|a| p.delete_album(a)),
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
             Ok(value) => {
-                if matches!(method, "createAlbum" | "saveEdits" | "add" | "export") {
+                if matches!(method, "createAlbum" | "saveEdits" | "add" | "export" | "rename" | "move" | "delete" | "recover" | "emptyDeleted" | "renameAlbum" | "deleteAlbum") {
                     (self.emit)("mobius:photos-changed", json!({ "path": value.get("path"), "by": "person" }));
                 }
                 value
@@ -2909,8 +2973,20 @@ impl Bridge {
     }
 
     /// Which MCP servers are running, which failed to start and why (for the settings page).
+    /// The servers' state, with what changed in mcp.json since Mobius opened: `waiting` start when it opens again,
+    /// `leaving` stop then.
     pub fn mcp_status(&self) -> Value {
-        self.mcp.status()
+        let mut status = self.mcp.status();
+        let listed = crate::mcp::configured(&self.data_dir.join("mcp.json"));
+        let names = |key: &str, field: Option<&str>| -> Vec<String> {
+            status[key].as_array().map(|a| a.iter().filter_map(|v| field.map_or(v.as_str(), |f| v[f].as_str()).map(str::to_owned)).collect()).unwrap_or_default()
+        };
+        let started: Vec<String> = names("running", None).into_iter().chain(names("failed", Some("server"))).collect();
+        let waiting: Vec<&String> = listed.iter().filter(|n| !started.contains(n)).collect();
+        let leaving: Vec<&String> = if status["problem"].is_null() { started.iter().filter(|n| !listed.contains(n)).collect() } else { Vec::new() };
+        status["waiting"] = json!(waiting);
+        status["leaving"] = json!(leaving);
+        status
     }
 
     /// What the last agent turn of a conversation changed in the workspace, and putting it back.

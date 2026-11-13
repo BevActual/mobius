@@ -210,6 +210,190 @@ impl Photos {
     }
 }
 
+/// Where deleted photos wait, album by album, until they are recovered or the person empties it.
+const DELETED: &str = ".deleted";
+
+/// A name not yet taken in `dir`: `name`, else `stem 2.ext`, `stem 3.ext`…
+fn free_name(dir: &Path, name: &str) -> String {
+    let (stem, ext) = name.rsplit_once('.').map_or((name, String::new()), |(s, e)| (s, format!(".{e}")));
+    let mut chosen = name.to_owned();
+    let mut n = 2;
+    while dir.join(&chosen).exists() || dir.join(format!("{chosen}{EDITS_SUFFIX}")).exists() {
+        chosen = format!("{stem} {n}{ext}");
+        n += 1;
+    }
+    chosen
+}
+
+/// Moves a photo and its edits (when it has them) to `to`.
+fn move_with_edits(from: &Path, to: &Path) -> Res<()> {
+    fs::rename(from, to).map_err(|e| e.to_string())?;
+    let edits = PathBuf::from(format!("{}{EDITS_SUFFIX}", from.display()));
+    if edits.is_file() {
+        fs::rename(&edits, format!("{}{EDITS_SUFFIX}", to.display())).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+impl Photos {
+    /// The photos in Recently Deleted, in albums as they were.
+    fn bin(&self) -> Photos {
+        Photos { root: self.root.join(DELETED) }
+    }
+
+    fn album_dir(&self, album: &str) -> Res<PathBuf> {
+        let dir = self.root.join(album);
+        if album != file_name_for(album) || album.starts_with('.') || !dir.is_dir() {
+            return Err("that album is not there".into());
+        }
+        if fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
+            return Err("that album is a link, which Photo does not follow".into());
+        }
+        Ok(dir)
+    }
+
+    /// Renames a photo in its album, keeping its kind of file and its edits.
+    pub fn rename(&self, path: &str, name: &str) -> Res<Value> {
+        let (album, old) = photo_ok(path).ok_or("that is not a photo")?;
+        let file = self.photo(path)?;
+        if !file.is_file() {
+            return Err("that photo is not there".into());
+        }
+        let ext = old.rsplit_once('.').map_or("jpg", |e| e.1);
+        let mut wanted = file_name_for(name.trim());
+        if wanted.is_empty() {
+            return Err("a name is needed".into());
+        }
+        if media_type(&wanted).is_none() {
+            wanted = format!("{wanted}.{ext}");
+        }
+        if wanted == old {
+            return Ok(json!({ "path": path }));
+        }
+        let dir = self.album_dir(album)?;
+        let chosen = free_name(&dir, &wanted);
+        move_with_edits(&file, &dir.join(&chosen))?;
+        Ok(json!({ "path": format!("{album}/{chosen}"), "from": path }))
+    }
+
+    /// Moves a photo, with its edits, into another album.
+    pub fn move_to(&self, path: &str, album: &str) -> Res<Value> {
+        let (from, name) = photo_ok(path).ok_or("that is not a photo")?;
+        let file = self.photo(path)?;
+        if !file.is_file() {
+            return Err("that photo is not there".into());
+        }
+        if from == album {
+            return Ok(json!({ "path": path }));
+        }
+        let dir = self.album_dir(album)?;
+        let chosen = free_name(&dir, name);
+        move_with_edits(&file, &dir.join(&chosen))?;
+        Ok(json!({ "path": format!("{album}/{chosen}"), "from": path }))
+    }
+
+    /// Moves a photo, with its edits, to Recently Deleted; `deleted` is where it waits there.
+    pub fn delete(&self, path: &str) -> Res<Value> {
+        let (album, name) = photo_ok(path).ok_or("that is not a photo")?;
+        let file = self.photo(path)?;
+        if !file.is_file() {
+            return Err("that photo is not there".into());
+        }
+        let dir = self.root.join(DELETED).join(album);
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let chosen = free_name(&dir, name);
+        move_with_edits(&file, &dir.join(&chosen))?;
+        Ok(json!({ "path": path, "deleted": format!("{album}/{chosen}") }))
+    }
+
+    /// The photos in Recently Deleted, each with the album it came from.
+    pub fn deleted(&self) -> Res<Value> {
+        let albums = self.bin().albums()?;
+        let mut out = Vec::new();
+        for a in albums.as_array().into_iter().flatten() {
+            for p in a["photos"].as_array().into_iter().flatten() {
+                let mut p = p.clone();
+                p["album"] = a["name"].clone();
+                out.push(p);
+            }
+        }
+        Ok(Value::Array(out))
+    }
+
+    /// A photo in Recently Deleted, read as `read` reads one in an album.
+    pub fn read_deleted(&self, path: &str) -> Res<Value> {
+        self.bin().read(path)
+    }
+
+    /// Puts a photo from Recently Deleted back in its album, making the album again if it has gone.
+    pub fn recover(&self, path: &str) -> Res<Value> {
+        let (album, name) = photo_ok(path).ok_or("that is not a photo")?;
+        let file = self.bin().photo(path)?;
+        if !file.is_file() {
+            return Err("that photo is not in Recently Deleted".into());
+        }
+        let dir = self.root.join(album);
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let dir = self.album_dir(album)?;
+        let chosen = free_name(&dir, name);
+        move_with_edits(&file, &dir.join(&chosen))?;
+        let _ = fs::remove_dir(self.root.join(DELETED).join(album));
+        Ok(json!({ "path": format!("{album}/{chosen}") }))
+    }
+
+    /// Deletes everything in Recently Deleted for good.
+    pub fn empty_deleted(&self) -> Res<Value> {
+        let bin = self.root.join(DELETED);
+        if fs::symlink_metadata(&bin).is_ok_and(|m| m.file_type().is_symlink()) {
+            return Err("Recently Deleted is a link, which Photo does not follow".into());
+        }
+        if bin.is_dir() {
+            fs::remove_dir_all(&bin).map_err(|e| e.to_string())?;
+        }
+        Ok(json!({ "emptied": true }))
+    }
+
+    pub fn rename_album(&self, album: &str, name: &str) -> Res<Value> {
+        let dir = self.album_dir(album)?;
+        let wanted = file_name_for(name.trim());
+        if wanted.is_empty() || wanted.starts_with('.') {
+            return Err("a name is needed".into());
+        }
+        if wanted == album {
+            return Ok(json!({ "name": album }));
+        }
+        let mut chosen = wanted.clone();
+        let mut n = 2;
+        while self.root.join(&chosen).exists() {
+            chosen = format!("{wanted} {n}");
+            n += 1;
+        }
+        fs::rename(&dir, self.root.join(&chosen)).map_err(|e| e.to_string())?;
+        Ok(json!({ "name": chosen, "from": album }))
+    }
+
+    /// Deletes an album: its photos go to Recently Deleted. Refused when it holds files Photo does not show.
+    pub fn delete_album(&self, album: &str) -> Res<Value> {
+        let dir = self.album_dir(album)?;
+        let mut photos = Vec::new();
+        for f in fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
+            let name = f.file_name().to_string_lossy().into_owned();
+            let is_photo = f.file_type().is_ok_and(|t| t.is_file()) && photo_ok(&format!("{album}/{name}")).is_some();
+            let is_edits = name.strip_suffix(EDITS_SUFFIX).is_some_and(|p| dir.join(p).is_file() && photo_ok(&format!("{album}/{p}")).is_some());
+            if is_photo {
+                photos.push(name);
+            } else if !is_edits {
+                return Err("that album holds other files too, so it is kept: see it in Files".into());
+            }
+        }
+        for name in &photos {
+            self.delete(&format!("{album}/{name}"))?;
+        }
+        fs::remove_dir(&dir).map_err(|e| e.to_string())?;
+        Ok(json!({ "name": album, "deleted": photos.len() }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,5 +432,47 @@ mod tests {
         for bad in ["../x.png", "Lisbon/../x.png", "Lisbon/a.txt", "x.png", "Lisbon/sub/x.png"] {
             assert!(photos.read(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn photos_are_renamed_moved_deleted_and_recovered_with_their_edits() {
+        let dir = tempfile::tempdir().unwrap();
+        let photos = Photos::new(dir.path());
+        photos.create_album("Lisbon").unwrap();
+        photos.create_album("Porto").unwrap();
+        let png = base64_encode(b"\x89PNG fake");
+        photos.add("Lisbon", "coast.png", &png).unwrap();
+        photos.add("Lisbon", "tram.png", &png).unwrap();
+        photos.save_edits("Lisbon/coast.png", "{}", None).unwrap();
+
+        assert_eq!(photos.rename("Lisbon/coast.png", "Shore").unwrap()["path"], "Lisbon/Shore.png");
+        assert_eq!(photos.rename("Lisbon/Shore.png", "tram").unwrap()["path"], "Lisbon/tram 2.png", "a name taken gets a number");
+        assert!(photos.read("Lisbon/tram 2.png").unwrap()["edits"].is_string(), "the edits go with it");
+        assert_eq!(photos.rename("Lisbon/tram 2.png", "../x").unwrap()["path"], "Lisbon/x.png", "a name never leaves its album");
+        photos.rename("Lisbon/x.png", "tram 2.png").unwrap();
+
+        assert_eq!(photos.move_to("Lisbon/tram 2.png", "Porto").unwrap()["path"], "Porto/tram 2.png");
+        assert!(photos.read("Porto/tram 2.png").unwrap()["edits"].is_string());
+        assert!(photos.move_to("Porto/tram 2.png", "Nope").is_err());
+        assert!(photos.move_to("Porto/tram 2.png", ".deleted").is_err());
+
+        assert_eq!(photos.delete("Porto/tram 2.png").unwrap()["deleted"], "Porto/tram 2.png");
+        assert!(photos.read("Porto/tram 2.png").is_err());
+        let gone = photos.deleted().unwrap();
+        assert_eq!(gone[0]["album"], "Porto");
+        assert!(photos.read_deleted("Porto/tram 2.png").unwrap()["edits"].is_string());
+        assert_eq!(photos.albums().unwrap().as_array().unwrap().len(), 2, "Recently Deleted is not an album");
+
+        assert_eq!(photos.delete_album("Porto").unwrap()["deleted"], 0);
+        assert_eq!(photos.recover("Porto/tram 2.png").unwrap()["path"], "Porto/tram 2.png", "the album is made again");
+        assert!(photos.read("Porto/tram 2.png").unwrap()["edits"].is_string());
+
+        assert_eq!(photos.rename_album("Porto", "Lisbon").unwrap()["name"], "Lisbon 2");
+        std::fs::write(dir.path().join("photos/Lisbon/notes.txt"), "x").unwrap();
+        assert!(photos.delete_album("Lisbon").is_err(), "other files keep the album");
+        assert_eq!(photos.delete_album("Lisbon 2").unwrap()["deleted"], 1);
+        assert_eq!(photos.deleted().unwrap().as_array().unwrap().len(), 1);
+        photos.empty_deleted().unwrap();
+        assert_eq!(photos.deleted().unwrap().as_array().unwrap().len(), 0);
     }
 }

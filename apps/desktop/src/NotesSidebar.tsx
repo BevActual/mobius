@@ -97,8 +97,9 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
         </button>}
         {/* Delete is in the row's menu, not on hover; choosing it asks once more, here in the row. */}
+        {/* It goes away when focus moves to something else, not when the closing menu leaves focus nowhere. */}
         {confirming === pg.path && (
-          <button type="button" autoFocus className="note-delete confirm" aria-label={`Confirm delete ${pg.title}`} onClick={() => { setConfirming(null); void notes.remove(pg.path); }} onBlur={() => setConfirming(null)} onKeyDown={(e) => { if (e.key === 'Escape') setConfirming(null); }}>Delete</button>
+          <button type="button" autoFocus className="note-delete confirm" aria-label={`Confirm delete ${pg.title}`} onClick={() => { setConfirming(null); void notes.remove(pg.path); }} onBlur={(e) => { const to = e.relatedTarget as Node | null; if (to && !e.currentTarget.parentElement?.contains(to)) setConfirming(null); }} onKeyDown={(e) => { if (e.key === 'Escape') setConfirming(null); }}>Delete</button>
         )}
       </li>
     );

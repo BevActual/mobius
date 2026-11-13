@@ -94,3 +94,19 @@ test('a rough cut from Mobius is shown dashed, and kept', async () => {
   await expect(change).toBeHidden();
   expect(saved().shots).toHaveLength(2);
 });
+
+test('the cut is exported as a film in the project’s Exports folder, never listed as footage', async () => {
+  fs.writeFileSync(cutFile(), JSON.stringify({ version: 1, shots: [{ id: 's1', clip: 'sunset.webm', in: 0, out: 1, title: 'Lisbon' }, { id: 's2', clip: 'terrace.webm', in: 1, out: 2 }] }));
+  await start();
+  await expect(timeline().getByRole('option')).toHaveCount(2);
+  await shell().getByRole('toolbar', { name: 'Edit' }).getByRole('button', { name: 'Export' }).click();
+  // It plays through once (two seconds) while it is made.
+  const done = shell().getByRole('status').filter({ hasText: 'Saved the film as Exports/Offsite recap.' });
+  await expect(done).toBeVisible({ timeout: 30_000 });
+  const exports = path.join(project(), 'Exports');
+  const films = fs.readdirSync(exports);
+  expect(films).toHaveLength(1);
+  expect(films[0]).toMatch(/^Offsite recap\.(mp4|webm)$/);
+  expect(fs.statSync(path.join(exports, films[0]!)).size).toBeGreaterThan(1000);
+  await expect(footage().getByRole('listitem')).toHaveCount(2);
+});

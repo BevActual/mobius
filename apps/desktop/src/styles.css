@@ -42,13 +42,16 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .app-button { padding: 0 9px 0 8px; font-weight: 550; }
 .app-button .chev { width: 10px; height: 10px; opacity: 0.6; }
 
-.address { position: relative; flex: 1; min-width: 120px; max-width: 720px; margin-left: 6px; }
+.address { position: relative; flex: 1; min-width: 100px; max-width: 720px; margin-left: 6px; }
 .address input { width: 100%; height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-group); background: var(--bg); outline: none; }
 .address input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .spinner { position: absolute; right: 10px; top: 9px; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin var(--dur-spin) linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-top-color: var(--line); border-right-color: var(--accent); } }
 .notice { margin-left: 10px; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* In the toolbar there may be no room beside the address, so the notice hangs just under it instead. */
+.strip-middle { position: relative; }
+.strip-middle > .notice { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; max-width: 100%; margin: 0; padding: 4px 10px; border-radius: var(--radius-group); background: var(--bg); color: var(--ink); box-shadow: var(--shadow-2); }
 
 .body { position: relative; display: grid; grid-template-columns: var(--col-left, 0px) minmax(0, 1fr) var(--col-right, 0px); min-height: 0; padding: 0 var(--pad-right, 8px) 8px var(--pad-left, 8px); }
 .stage { grid-column: 2; }
@@ -56,11 +59,11 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .dock { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .dock.left { grid-column: 1; }
 .dock.right { grid-column: 3; }
-.dock > .side, .dock > .chat { flex: 1; min-height: 0; min-width: 0; }
+.dock > .app-side, .dock > .side, .dock > .chat { flex: 1; min-height: 0; min-width: 0; }
 .dock[data-floating] { position: absolute; z-index: 30; top: 0; bottom: 8px; background: var(--shell); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: 0 14px 44px rgba(0, 0, 0, 0.3); animation: dock-in var(--dur-fast) var(--ease); }
 .dock.left[data-floating] { left: 8px; width: var(--left-w); }
 .dock.right[data-floating] { right: 8px; width: var(--right-w); }
-.dock[data-floating] > .side { padding-top: 6px; }
+.dock[data-floating] > .app-side { padding-top: 6px; }
 @keyframes dock-in { from { opacity: 0; transform: translateX(var(--from, -8px)); } to { opacity: 1; transform: none; } }
 .dock.right[data-floating] { --from: 8px; }
 @media (prefers-reduced-motion: reduce) { .dock[data-floating] { animation: none; } }
@@ -674,7 +677,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .rail-btn:hover:not(:disabled) { color: var(--ink); background: color-mix(in srgb, var(--soft) 70%, transparent); }
 .rail-btn[aria-current="page"] { color: var(--ink); }
 .rail-btn svg { position: relative; z-index: 1; width: 19px; height: 19px; }
-.rail-top { display: grid; gap: var(--sp-1); margin-bottom: var(--sp-2); padding-bottom: var(--sp-2); border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
 .rail-here { position: absolute; inset: 0; border-radius: var(--radius-group); background: var(--soft); box-shadow: inset 0 0 0 1px var(--line); }
 .rail-btn[data-working] { color: var(--accent); }
 .rail-btn[data-working]::after { content: ""; position: absolute; inset: 2px; border-radius: var(--radius-group); box-shadow: 0 0 0 1.5px var(--accent); animation: rail-pulse var(--dur-loop) var(--ease) infinite; pointer-events: none; }
@@ -780,10 +782,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .hub-icon[data-app="slides"] { background: var(--app-slides); }
 .hub-icon[data-app="mail"] { background: var(--app-mail); }
 .hub-icon[data-app="sheets"] { background: var(--app-sheets); }
-.rail[data-expanded] svg[data-app="docs"] { background: var(--app-docs); }
-.rail[data-expanded] svg[data-app="slides"] { background: var(--app-slides); }
-.rail[data-expanded] svg[data-app="mail"] { background: var(--app-mail); }
-.rail[data-expanded] svg[data-app="sheets"] { background: var(--app-sheets); }
 .sidebar-app-show svg[data-app="docs"] { background: var(--app-docs); }
 .sidebar-app-show svg[data-app="slides"] { background: var(--app-slides); }
 .sidebar-app-show svg[data-app="mail"] { background: var(--app-mail); }
@@ -813,35 +811,8 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 /* The full sidebar (Apple-style source list): apps by name with live counts, a New button that follows the app,
    and the open app's own list underneath. */
 .app { transition: grid-template-columns var(--dur-med) var(--ease); }
-.app[data-wide] { --rail: 260px; }
-.rail[data-expanded] { align-items: stretch; padding: var(--sp-1) var(--sp-2) var(--sp-3); }
-.rail[data-expanded] ul.rail-apps { gap: 1px; }
-.rail[data-expanded] .rail-btn { width: 100%; height: 30px; display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--ink); }
-.rail[data-expanded] .rail-btn svg { width: 17px; height: 17px; color: var(--accent); }
-.rail[data-expanded] .rail-here { border-radius: var(--radius-control); background: color-mix(in srgb, var(--accent) 13%, transparent); box-shadow: none; }
-.rail[data-expanded] .rail-btn[aria-current="page"] .rail-label { font-weight: var(--fw-semibold); }
-.rail[data-expanded] .rail-btn[data-working]::after { inset: 0; border-radius: var(--radius-control); }
-.rail[data-expanded] .rail-btn[data-changed]::before { position: static; order: 3; margin-left: auto; box-shadow: none; }
-.rail-label { position: relative; z-index: 1; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-size: var(--fs-md); }
-.rail-count { position: relative; z-index: 1; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
-.rail[data-expanded] .rail-badge { position: relative; right: auto; bottom: auto; }
 /* On the sidebar head the badge sits on the app tile's corner, so it never takes room from the app's name. */
-.rail[data-expanded] .rail-switch .rail-badge { position: absolute; left: 21px; top: 0; }
-.rail[data-expanded] .rail-top { grid-template-columns: 1fr; }
-.rail[data-expanded] .rail-toggle { width: 30px; justify-content: center; padding: 0; color: var(--muted); }
-.rail[data-expanded] .rail-toggle svg { color: var(--muted); }
-.rail[data-expanded] .rail-create { height: 32px; border: 1px solid var(--line); background: var(--bg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); }
-.rail[data-expanded] .rail-create:hover { background: var(--bg); border-color: var(--line-strong); }
-.rail[data-expanded] .rail-create .rail-label { font-weight: var(--fw-medium); }
-.rail-create svg { color: var(--accent); }
-.rail-app { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: var(--sp-2) calc(-1 * var(--sp-2)) 0; padding-top: var(--sp-2); border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
-.rail-app > .side { flex: 1; min-height: 0; padding: 0 var(--sp-2); overflow-y: auto; }
-.rail-app .side-head { height: 26px; margin-bottom: 2px; padding-left: var(--sp-2); }
-.rail-app .side-title { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); letter-spacing: 0.02em; }
-.rail-app .side-actions .strip-btn { min-width: 24px; height: 24px; color: var(--muted); }
-.rail-app .side-actions svg { width: 15px; height: 15px; }
-.rail[data-expanded] .rail-end { padding-top: var(--sp-2); border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); gap: 1px; }
-.rail[data-expanded] .rail-end .rail-btn svg { color: var(--muted); }
+
 @media (prefers-reduced-motion: reduce) { .app { transition: none; } }
 
 /* One toolbar for every app: where you are and a line about it, then that app's own controls, then the agent. */
@@ -854,7 +825,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .toolbar-tools { flex: none; }
 .tool-btn { height: 28px; padding: 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); font-size: var(--fs-sm); }
 .tool-btn:hover:not(:disabled) { background: var(--bg); border-color: var(--line-strong); }
-.rail-top { min-height: calc(var(--context) - var(--sp-1)); align-content: center; }
 .core-status[data-state]:not([data-state="ready"]) { margin-left: 0; }
 /* The work area reads as one sheet on the window, not a framed window inside it. */
 .stage { border-color: color-mix(in srgb, var(--line) 55%, transparent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); }
@@ -874,22 +844,8 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .rail-btn { border-radius: var(--radius-group); }
 .rail-here { border-radius: var(--radius-group); background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: none; }
 .rail-btn[aria-current="page"] { color: var(--accent); }
-.rail-top { border-bottom-color: transparent; }
-.rail[data-expanded] .rail-btn { height: 32px; border-radius: var(--radius-control); }
-.rail[data-expanded] .rail-here { border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.rail[data-expanded] .rail-apps .rail-btn svg[data-app] { width: 22px; height: 22px; padding: 4px; border-radius: 6px; color: #fff; stroke-width: 1.9; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); }
 /* Mobius's own apps: the same tiles, in Mobius's indigo. */
-.rail[data-expanded] .rail-own .rail-btn svg[data-own] { width: 22px; height: 22px; padding: 4px; border-radius: 6px; color: #fff; background: var(--app-agent); stroke-width: 1.9; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); }
-.rail-own { margin-top: var(--sp-2); }
-.rail[data-expanded] svg[data-app="agent"] { background: var(--app-agent); }
-.rail[data-expanded] svg[data-app="search"] { background: var(--app-search); }
-.rail[data-expanded] svg[data-app="browser"] { background: var(--app-browser); }
-.rail[data-expanded] svg[data-app="notes"] { background: var(--app-notes); }
-.rail[data-expanded] svg[data-app="tasks"] { background: var(--app-tasks); }
-.rail[data-expanded] svg[data-app="calendar"] { background: var(--app-calendar); }
-.rail[data-expanded] .rail-create { height: 32px; border: 0; border-radius: var(--radius-pill); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline), 0 1px 2px rgba(0, 0, 0, 0.05); }
-.rail[data-expanded] .rail-create:hover { background: var(--bg); }
-.rail[data-expanded] .rail-end, .rail-app { border-top-color: var(--hairline); }
+
 .tab, .tab-main, .note-row, .note-item, .list-row, .clist-item, .clist-main { border-radius: var(--radius-control); }
 .tab[aria-current="page"], .note-row[aria-current="page"], .list-row[aria-current="page"] { background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .clist-item[data-current] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -913,7 +869,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .body { padding: 0; }
 .stage { border: 0; border-radius: 0; box-shadow: none; }
 .dock.left:not([data-floating]) { background: var(--sidebar); border-right: 0.5px solid var(--hairline); }
-.dock.left:not([data-floating]) > .side { padding-top: var(--sp-2); }
+.dock.left:not([data-floating]) > .app-side { padding-top: var(--sp-2); }
 .dock.right:not([data-floating]) { background: var(--panel); border-left: 0.5px solid var(--hairline); }
 .dock[data-floating] { top: 8px; border: 0; border-radius: var(--radius-panel); background: var(--panel); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22), 0 0 0 0.5px var(--hairline); }
 .dock.left[data-floating] { background: var(--sidebar); }
@@ -991,7 +947,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .access-app svg[data-app="studio"] { background: var(--app-studio); }
 .access-app svg[data-app="video"] { background: var(--app-video); }
 .access-app svg[data-app="skills"] { background: var(--app-skills); }
-
 
 /* Mobius 2: sidebar fields and tab rows. */
 .side-search { border: 0; background: var(--field); border-radius: var(--radius-pill); padding: 6px 12px; }
@@ -1479,7 +1434,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .mail-cats { display: flex; gap: 2px; padding: var(--sp-2) var(--sp-2) 0; flex-wrap: wrap; }
 .mail-cats button { height: 26px; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--fs-sm); display: inline-flex; align-items: center; gap: 6px; }
 .mail-cats button[aria-selected="true"] { background: var(--wash); color: var(--accent); font-weight: 600; }
-.mail-cat-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; display: inline-grid; place-items: center; }
+.mail-cat-count { color: var(--muted); font-size: var(--fs-sm); font-weight: 400; font-variant-numeric: tabular-nums; }
+.mail-box-icon { flex: none; width: 17px; height: 17px; margin-right: 8px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.mail-box-icon[data-box="flagged"] { stroke: var(--flag, #f59e0b); }
 .mail-search { margin: var(--sp-2); }
 .mail-list { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--sp-2) var(--sp-2); display: flex; flex-direction: column; gap: 1px; }
 .mail-row { display: flex; flex-direction: column; gap: 1px; text-align: left; padding: 8px 10px 8px 16px; border-radius: var(--radius-group); position: relative; min-width: 0; }
@@ -1502,6 +1459,18 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .mail-subject { font-size: var(--fs-lg); font-weight: 600; }
 .mail-to { font-size: var(--fs-sm); color: var(--muted); }
 .mail-reader-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
+.mail-tools { gap: var(--sp-2); }
+.mail-tools-group { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: var(--glass-tint); box-shadow: var(--glass-edge); }
+.mail-tools .strip-btn { border-radius: 999px; color: var(--ink); }
+.mail-tools .strip-btn:hover { background: var(--soft); color: var(--ink); }
+.mail-tools .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.mail-tools .strip-btn[aria-pressed="true"] { background: none; color: var(--flag, #f59e0b); }
+.mail-tools .strip-btn svg [data-dot] { fill: var(--accent); stroke: none; }
+.mail-tools .strip-btn svg[data-filled="true"] path { fill: currentColor; }
+.mail-row-flag { display: inline-flex; color: var(--flag, #f59e0b); }
+.mail-row-flag svg { width: 12px; height: 12px; fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.mail-row[data-flagged]:not([data-unread])::before { content: none; }
+.btn.mail-draft-it { color: var(--accent); }
 .mail-reader-actions select { height: 30px; padding: 0 24px 0 10px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--bg) var(--chevron) no-repeat right 8px center / 12px; appearance: none; font: inherit; font-size: var(--fs-sm); color: inherit; }
 .btn.mobius { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .mail-html { width: 100%; border: 0; border-radius: var(--radius-group); background: #fff; }
@@ -1999,7 +1968,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .studio-row-cells { position: relative; height: 100%; border-bottom: 1px solid color-mix(in srgb, var(--ink) 5%, transparent); background-image: linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ink) 18%, transparent) 1px, transparent 1px); cursor: cell; }
 .studio-note { position: absolute; top: 1px; bottom: 1px; border-radius: 3px; background: var(--accent); cursor: pointer; }
 
-
 /* Earlier turns' changes, under the review strip. */
 .turn-history { margin: 4px 0 0; }
 .turn-history-toggle { color: var(--muted); }
@@ -2104,49 +2072,11 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .start-reading button { width: 100%; padding: 8px 10px; border-radius: 8px; text-align: left; color: inherit; }
 
 /* The sidebar's head is the app switcher: the open app's tile and name; pressed, the same column lists the apps. */
-.rail-head { display: flex; align-items: center; gap: 0; min-height: calc(var(--context) - var(--sp-1)); }
-.rail[data-expanded] .rail-switch { flex: 1; min-width: 0; height: 34px; gap: 7px; padding: 0 4px 0 6px; }
-.rail[data-expanded] .rail-switch .rail-label { flex: 0 1 auto; font-size: var(--fs-lg, 15px); font-weight: var(--fw-semibold); letter-spacing: -0.01em; }
-.rail[data-expanded] .rail-switch svg.rail-switch-tile { width: 24px; height: 24px; padding: 4.5px; border-radius: 7px; color: #fff; stroke-width: 1.9; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); flex: none; }
-.rail[data-expanded] .rail-switch svg.rail-switch-grid { width: 24px; height: 24px; padding: 3.5px; color: var(--muted); flex: none; }
-.rail[data-expanded] .rail-switch svg.rail-switch-caret { width: 14px; height: 14px; color: var(--muted); flex: none; transition: transform var(--dur-med) var(--ease); }
-.rail[data-expanded] .rail-switch[aria-expanded="true"] svg.rail-switch-caret { transform: rotate(180deg); }
-.rail[data-expanded] .rail-switch[data-working] { color: var(--ink); }
-.rail[data-expanded] .rail-switch[data-changed]::before { order: 0; margin-left: 0; }
-.rail-new { margin: 2px 0 var(--sp-2); }
-.rail[data-face="apps"] ul.rail-apps, .rail[data-face="app"] ul.rail-apps { margin-top: 2px; }
-.rail[data-face="apps"] .rail-end { margin-top: auto; }
-@media (prefers-reduced-motion: reduce) { .rail[data-expanded] .rail-switch svg.rail-switch-caret { transition: none; } }
 
 /* With the full sidebar nothing sits on top: the menus fold into the sidebar's head, the browser's controls sit under
    the app's name, and what is left above the page is the page's own quiet toolbar row. */
-.context-strip[data-quiet] { background: var(--bg); border-bottom-color: transparent; }
-.rail-head .menubar { margin: 0; flex: none; }
-.rail-head .menubar .menu-title { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; color: var(--muted); }
-.rail-head .menubar .menu-title svg { width: 17px; height: 17px; }
-.rail-chrome { margin: 2px 0 var(--sp-2); }
-.rail-chrome .strip-middle { flex-wrap: wrap; gap: 6px 2px; margin: 0; }
-.rail-chrome .cap-group { background: none; box-shadow: none; padding: 0; height: 30px; }
-.rail-chrome .cap-group > .strip-btn + .strip-btn::before { content: none; }
-.rail-chrome .strip-btn { min-width: 30px; height: 28px; }
-.rail-chrome .address { order: 10; flex: 1 0 100%; max-width: none; margin: 0; }
-.rail-chrome .address input { background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); padding: 0 12px; }
-.rail-chrome .notice { order: 11; flex: 1 0 100%; font-size: var(--fs-sm); }
-.rail-chrome .find-bar, .rail-chrome .findbar { order: 12; flex: 1 0 100%; }
 
 /* Mobius as the sidebar's third face: the conversation takes the column, and the column grows to hold it. */
-.app[data-wide][data-mobius-side] { --rail: 348px; }
-.rail[data-expanded] .rail-mobius { width: 30px; height: 30px; padding: 0; justify-content: center; flex: none; }
-.rail[data-expanded] .rail-mobius svg { width: 17px; height: 17px; color: var(--muted); }
-.rail[data-expanded] .rail-mobius[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.rail[data-expanded] .rail-mobius[aria-pressed="true"] svg { color: var(--accent); }
-.rail-ask { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 2px calc(-1 * var(--sp-2)) calc(-1 * var(--sp-3)); }
-.rail-ask-bar { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 var(--sp-3) 0 calc(var(--sp-2) + var(--sp-2)); }
-.rail-ask-title { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); letter-spacing: 0.02em; }
-.rail-ask-beside { height: 22px; padding: 0 8px; border-radius: var(--radius-pill); font-size: var(--fs-xs); color: var(--muted); }
-.rail-ask-beside:hover { color: var(--ink); background: color-mix(in srgb, var(--soft) 70%, transparent); }
-.rail-ask > :not(.rail-ask-bar) { flex: 1; min-height: 0; background: transparent; }
-
 
 /* Activity: the open conversation's turns, each with Rewind to here. */
 .turn-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 6px var(--sp-2); }
@@ -2196,7 +2126,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .from-mobius .note-sub { margin-left: auto; font-size: var(--fs-xs); color: var(--muted); }
 
 /* Extensions: one of Mobius's own apps, grey. Its places sit above the skills list. */
-.rail[data-expanded] .rail-own .rail-btn svg[data-own="extensions"] { background: var(--app-skills); }
+
 .ext-places { margin-bottom: var(--sp-2); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--hairline); }
 .ext-title { margin: 0; font-size: var(--fs-xl); font-weight: 600; }
 .ext-block { display: grid; gap: var(--sp-2); }
@@ -2205,14 +2135,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .ext-name { font-weight: 500; }
 .ext-state { color: var(--muted); font-size: var(--fs-sm); flex: 1; }
 
-/* Files: the workspace as a drive. What Mobius made is dashed until kept. */
-.files-row { display: flex; align-items: center; gap: var(--sp-2); width: 100%; padding: var(--sp-2) var(--sp-3); border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: var(--radius-control, 6px); }
-.files-row:hover { background: var(--wash); }
-.files-row svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; color: var(--muted); }
-.files-row[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
-.files-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; color: var(--muted); }
-.files-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 6px 6px 12px; width: fit-content; border-radius: var(--radius-panel); background: var(--wash); font: var(--fs-sm)/1.2 var(--font); }
-.files-review > span { margin-right: var(--sp-2); }
 .hub-icon[data-app="files"], .launcher-icon svg[data-app="files"], .review-filter svg[data-app="files"] { background: var(--app-files); }
 
 /* A request that came from something Mobius read, not from the person. */
@@ -2331,7 +2253,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .chat .composer .pill { height: 24px; padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 12px; }
 .chat .composer .pill:hover { color: var(--text); background: none; }
 
-
 /* Verbs above the message box: tinted capsules. */
 .chat .suggest-chip { height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: rgba(88, 86, 214, 0.08); color: #3634A3; font-size: 12px; font-weight: 500; }
 @media (prefers-color-scheme: dark) { .chat .suggest-chip { background: rgba(125, 122, 255, 0.16); color: #B9B7FF; } }
@@ -2359,21 +2280,18 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
    11px section headers that fold, quiet counts on the right, visible keyboard focus. ── */
 :root { interpolate-size: allow-keywords; --side-select: color-mix(in srgb, var(--accent) 14%, transparent); --side-hover: color-mix(in srgb, var(--ink) 5%, transparent); }
 /* The panel is drawn inside the column, so the layout and its widths stay as they were. */
-.rail[data-expanded] { position: relative; isolation: isolate; background: transparent; border-right: 0; padding: 12px 10px 14px 16px; }
-.rail[data-expanded]::before, .dock.left:not([data-floating]) > .side { border: 0.5px solid var(--hairline); border-radius: 18px; background: var(--sidebar); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06); }
-.rail[data-expanded]::before { content: ""; position: absolute; z-index: -1; inset: 8px 0 8px 8px; pointer-events: none; }
+
+.dock.left:not([data-floating]) > .app-side { border: 0.5px solid var(--hairline); border-radius: 18px; background: var(--sidebar); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06); }
 .dock.left:not([data-floating]) { background: transparent; border-right: 0; padding: 8px 0 8px 8px; }
-.dock.left:not([data-floating]) > .side { padding: 6px 6px 8px; overflow: hidden auto; }
-@media (prefers-color-scheme: dark) { .rail[data-expanded]::before, .dock.left:not([data-floating]) > .side { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35); } }
+.dock.left:not([data-floating]) > .app-side { padding: 6px 6px 8px; overflow: hidden auto; }
+@media (prefers-color-scheme: dark) { .dock.left:not([data-floating]) > .app-side { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35); } }
 .dock.left[data-floating] { border-radius: 18px; border: 0.5px solid var(--hairline); }
-.rail-app { margin-top: 4px; padding-top: 0; border-top: 0; }
-.rail[data-expanded] .rail-end { border-top: 0; }
-:is(.rail-app, .dock.left) .side { font-size: 13px; padding: 0 2px; }
+.dock.left .side { font-size: 13px; padding: 0 2px; }
 
 /* Section headers: 11px semibold grey, with a fold chevron. */
-:is(.rail-app, .dock.left) .side-head { height: 28px; margin: 8px 0 2px; padding: 0 4px 0 8px; }
-:is(.rail-app, .dock.left) .side-head:first-child { margin-top: 2px; }
-:is(.rail-app, .dock.left) :is(.side-title, .from-mobius-title), .rail-pinned-title { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.01em; color: var(--muted); }
+.dock.left .side-head { height: 28px; margin: 8px 0 2px; padding: 0 4px 0 8px; }
+.dock.left .side-head:first-child { margin-top: 2px; }
+.dock.left :is(.side-title, .from-mobius-title), .rail-pinned-title { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.01em; color: var(--muted); }
 [data-fold] { cursor: default; border-radius: 6px; user-select: none; }
 [data-fold]::after { content: ""; width: 9px; height: 9px; flex: none; background: currentColor; opacity: 0; transform: rotate(90deg); transition: transform var(--dur-med) var(--ease), opacity var(--dur-med) var(--ease);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M3.5 1.5 7 5l-3.5 3.5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
@@ -2389,25 +2307,25 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { [data-fold-body], [data-fold-body][data-folded], [data-fold]::after { transition: none; } }
 
 /* Rows: 30px, 13px, a soft tinted selection rather than a bar, a subtle hover. */
-:is(.rail-app, .dock.left) :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row) { min-height: 30px; height: auto; padding-block: 0; font-size: 13px; border-radius: 8px; }
-:is(.rail-app, .dock.left) .note-row { min-height: 30px; padding-block: 5px; font-size: 13px; border-radius: 8px; }
-:is(.rail-app, .dock.left) :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item, .side-new-row):hover:not([aria-current="page"]) { background: var(--side-hover); }
-:is(.rail-app, .dock.left) :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item)[aria-current="page"],
-:is(.rail-app, .dock.left) .clist-item:has(> [aria-current="page"]) { background: var(--side-select); color: var(--ink); font-weight: 500; }
-:is(.rail-app, .dock.left) :is(.list-count, .note-count) { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
-:is(.rail-app, .dock.left) .list-divider { height: 0.5px; margin: 6px 8px; background: var(--hairline); }
-:is(.rail-app, .dock.left) .side-new-row { gap: 8px; padding: 0 8px; }
-:is(.rail-app, .dock.left) .side-starts { padding: 2px 8px 6px 32px; }
-:is(.rail-app, .dock.left) .side-search { height: 28px; margin: 0 4px 6px; padding: 0 10px; font-size: 13px; border-radius: 8px; }
+.dock.left :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row) { min-height: 30px; height: auto; padding-block: 0; font-size: 13px; border-radius: 8px; }
+.dock.left .note-row { min-height: 30px; padding-block: 5px; font-size: 13px; border-radius: 8px; }
+.dock.left :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item, .side-new-row):hover:not([aria-current="page"]) { background: var(--side-hover); }
+.dock.left :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item)[aria-current="page"],
+.dock.left .clist-item:has(> [aria-current="page"]) { background: var(--side-select); color: var(--ink); font-weight: 500; }
+.dock.left :is(.list-count, .note-count) { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dock.left .list-divider { height: 0.5px; margin: 6px 8px; background: var(--hairline); }
+.dock.left .side-new-row { gap: 8px; padding: 0 8px; }
+.dock.left .side-starts { padding: 2px 8px 6px 32px; }
+.dock.left .side-search { height: 28px; margin: 0 4px 6px; padding: 0 10px; font-size: 13px; border-radius: 8px; }
 
 /* One icon style: 16px line icons, 1.6 stroke. */
-:is(.rail-app, .dock.left) :is(.side-new-row, .list-row, .note-row, .files-row, .side-actions) svg:not([data-app]) { width: 16px; height: 16px; stroke-width: 1.6; }
-:is(.rail-app, .dock.left) .side-actions .strip-btn { width: 26px; min-width: 26px; height: 26px; border-radius: 7px; color: var(--muted); }
-:is(.rail-app, .dock.left) .side-actions .strip-btn:hover { background: var(--side-hover); color: var(--ink); }
+.dock.left :is(.side-new-row, .list-row, .note-row, .files-row, .side-actions) svg:not([data-app]) { width: 16px; height: 16px; stroke-width: 1.6; }
+.dock.left .side-actions .strip-btn { width: 26px; min-width: 26px; height: 26px; border-radius: 7px; color: var(--muted); }
+.dock.left .side-actions .strip-btn:hover { background: var(--side-hover); color: var(--ink); }
 
 /* From Mobius, after the app's own places. */
-:is(.rail-app, .dock.left) .from-mobius { margin-top: 8px; }
-:is(.rail-app, .dock.left) .from-mobius > .from-mobius-title { height: 28px; padding: 0 8px; }
+.dock.left .from-mobius { margin-top: 8px; }
+.dock.left .from-mobius > .from-mobius-title { height: 28px; padding: 0 8px; }
 
 /* Keyboard focus that can be seen, in light and dark. */
 .rail :focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
@@ -2415,13 +2333,12 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* A new chat: a calm greeting in the middle, and three starters as plain text under it. */
 .chat .empty { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .chat .empty .greeting { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
-.chat .empty .greeting-note { margin: 0; font-size: 12px; color: var(--muted); max-width: 32ch; }
 .empty-starters:empty { display: none; }
-.starters { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 14px; }
-.starter { height: 28px; padding: 0 10px; border-radius: 8px; font-size: 13px; color: var(--accent); background: transparent; }
-.starter:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+/* Suggestions on an empty conversation: pills, as on the Home desk, in the panel and the Agent app alike. */
+.starters { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-2); margin-top: var(--sp-4); }
+.starter { height: var(--control-h); padding: 0 var(--sp-3); border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
+.starter:hover { background: var(--soft); }
 .starter:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 0; }
-
 
 /* Menus mark the current choice with a check, as macOS menus do. */
 .popmenu-item.popmenu-checkable { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 6px; }
@@ -2453,10 +2370,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 
 /* Mobius in the sidebar has one head: the app's tile (the switcher), Mobius and where, then its icons. */
 .chat-head[data-lead] { gap: 8px; }
-.chat-head[data-lead] .rail-switch { flex: none; width: 32px; height: 32px; padding: 0; justify-content: center; }
-.chat-head[data-lead] .rail-switch .rail-label, .chat-head[data-lead] .rail-switch .rail-switch-caret { display: none; }
-.chat-head[data-lead] .rail-switch svg.rail-switch-tile { width: 24px; height: 24px; padding: 4.5px; border-radius: 7px; color: #fff; }
-.rail-ask .rail-chrome { margin: 0 0 6px; }
 
 /* Beside the page, the panel starts at the top: its head level with the page's title row, as a rounded card, and
    the window's own buttons for it give way while it is open. */
@@ -2475,9 +2388,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .mail-account:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
 
 /* Selection is a soft fill, never a dashed edge; what Mobius changed and is waiting has a small indigo dot. */
-:is(.rail-app, .dock.left) .side :is(.note-row, .list-row, .clist-item, .files-row)[data-proposed] { outline: none; }
-:is(.rail-app, .dock.left) .side :is(.note-row, .list-row)[data-proposed]::after { content: ""; flex: none; width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--accent); align-self: center; }
-:is(.rail-app, .dock.left) .side :is(.note-row, .list-row, .files-row, .clist-item)[aria-current="page"] { background: var(--side-select); }
+.dock.left .side :is(.note-row, .list-row, .clist-item, .files-row)[data-proposed] { outline: none; }
+.dock.left .side :is(.note-row, .list-row)[data-proposed]::after { content: ""; flex: none; width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--accent); align-self: center; }
+.dock.left .side :is(.note-row, .list-row, .files-row, .clist-item)[aria-current="page"] { background: var(--side-select); }
 /* From Mobius: ordinary rows, with the dot, and where each is in grey. */
 .from-mobius .note-row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 8px; }
 .from-mobius .note-row::after { display: none; }
@@ -2485,11 +2398,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .from-mobius .note-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .from-mobius-where { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
 /* Order in every sidebar: the head, New, search, then the sections. */
-:is(.rail-app, .dock.left) .side > .side-search { order: -1; }
-:is(.rail-app, .dock.left) .side > .side-new { order: -2; }
-.rail[data-pointer-still] .rail-app :hover:not([aria-current="page"]) { background-color: transparent; }
-.rail[data-pointer-still] .rail-app .clist-item:hover:not(:focus-within) .clist-tools { opacity: 0; }
-.rail[data-pointer-still] .rail-app .clist-item:hover:not(:focus-within) .clist-delete { display: none; }
+.dock.left .side > .side-search { order: -1; }
+.dock.left .side > .side-new { order: -2; }
 /* Tag rows: the label's own colour, with a grey #; the accent is only for selection. */
 .notes-tag-row .note-title { color: var(--ink); }
 .notes-tag-row .note-title::first-letter { color: var(--muted); }
@@ -2523,17 +2433,13 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 @keyframes face-in-list { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
 @keyframes face-in-chat { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 @keyframes face-fade { from { opacity: 0; } to { opacity: 1; } }
-.rail[data-expanded] > .rail-app { animation: face-in-list var(--dur-med) var(--ease) both; }
-.rail[data-expanded] > .rail-ask { animation: face-in-chat var(--dur-med) var(--ease) both; }
-.rail[data-expanded] .rail-switch-tile { animation: face-fade var(--dur-med) var(--ease) both; }
-@media (prefers-reduced-motion: reduce) { .rail[data-expanded] > :is(.rail-ask, .rail-app), .rail[data-expanded] .rail-switch-tile { animation: face-fade var(--dur-fade) linear both; } }
 
 /* One Keep everywhere: dark (light in dark mode), in the panel, the review row and every app's review banner. */
 .review-btn[data-kind="keep"] { background: #1D1D1F; color: #fff; }
 .review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: #3A3A3C; }
 @media (prefers-color-scheme: dark) { .review-btn[data-kind="keep"] { background: #F5F5F7; color: #1D1D1F; } .review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: #E5E5EA; } }
 /* One dot per meaning: a row that already has its "changed by Mobius" mark does not get a second dot. */
-:is(.rail-app, .dock.left) .side :is(.note-row, .list-row)[data-proposed]:has(.changed-mark, .code-mark)::after { display: none; }
+.dock.left .side :is(.note-row, .list-row)[data-proposed]:has(.changed-mark, .code-mark)::after { display: none; }
 .changed-mark { background: var(--accent); }
 /* Comment mode's hover is a solid outline: dashed means made by Mobius and waiting. */
 .comment-ring { border: 0; outline: 1.5px solid var(--accent); outline-offset: 0; background: color-mix(in srgb, var(--accent) 6%, transparent); }
@@ -2568,8 +2474,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
   --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
 }
 @media (prefers-color-scheme: dark) { :root { --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35); } }
-.rail[data-expanded]::before, .dock.left:not([data-floating]) > .side, .dock.right:not([data-floating]) > .chat { border: var(--panel-border); border-radius: var(--panel-radius); background: var(--panel-bg); box-shadow: var(--panel-shadow); }
-.rail[data-expanded]::before { inset: var(--panel-inset) 0 var(--panel-inset) var(--panel-inset); }
+.dock.left:not([data-floating]) > .app-side, .dock.right:not([data-floating]) > .chat { border: var(--panel-border); border-radius: var(--panel-radius); background: var(--panel-bg); box-shadow: var(--panel-shadow); }
 .dock.left:not([data-floating]) { padding: var(--panel-inset) 0 var(--panel-inset) var(--panel-inset); }
 /* Mobius beside the page: the same card, inset the same from the top, the bottom and the right, its head level with
    the page's title row. The dock's column holds the inset, so the page beside it never runs under the card. */
@@ -2758,18 +2663,17 @@ html .doc-editor .doc-toolbar, html .chat.full .composer, html .dock[data-floati
 }
 .glass-clear { background: var(--glass-clear-tint); -webkit-backdrop-filter: var(--glass-clear-filter); backdrop-filter: var(--glass-clear-filter); }
 /* The floating sidebar and Mobius beside the page are regular glass, with the highlight at their edge. */
-html .rail[data-expanded]::before, html .dock.left:not([data-floating]) > .side, html .dock.right:not([data-floating]) > .chat {
+html .dock.left:not([data-floating]) > .app-side, html .dock.right:not([data-floating]) > .chat {
   background: var(--glass-tint); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
   box-shadow: var(--glass-edge), var(--panel-shadow);
 }
 html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-menu, .sheet-menu) { border: 0; box-shadow: var(--glass-edge), 0 18px 50px rgba(0, 0, 0, 0.22); }
 /* No glass on glass: what sits on the sidebar or the panel is not glass again. */
-:is(.rail-app, .dock.left, .rail[data-expanded]) :is(.settings-nav, .side) { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border: 0; }
 
 /* Concentric corners: selected rows and the search field inside a sidebar or panel card follow the card. */
-:is(.rail-app, .dock.left) :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row, .note-row, .clist-item, .from-mobius-filter) { border-radius: var(--row-radius); }
-:is(.rail-app, .dock.left) .side-search { border-radius: var(--row-radius); }
-.dock.right .chat .composer, .rail-app .chat .composer { border-radius: var(--row-radius); }
+.dock.left :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row, .note-row, .clist-item, .from-mobius-filter) { border-radius: var(--row-radius); }
+.dock.left .side-search { border-radius: var(--row-radius); }
+.dock.right .chat .composer { border-radius: var(--row-radius); }
 /* Sheets and dialogs are rounder than the controls inside them, and those follow them. */
 html .launcher, html .hub { border-radius: var(--sheet-radius); }
 .hub-search { border-radius: calc(var(--sheet-radius) - var(--sp-3)); }
@@ -2822,8 +2726,6 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
 * { scrollbar-width: thin; }
 /* "Something changed in another app" sits on the corner of the head's app icon, as a badge, so it never takes room
    from the app's name. */
-.rail[data-expanded] .rail-switch { position: relative; }
-.rail[data-expanded] .rail-switch[data-changed]::before { position: absolute; order: 0; top: 2px; left: 26px; margin: 0; box-shadow: 0 0 0 2px var(--glass-solid); }
 
 /* A search result is two lines (the page, then where and the line that matched), each cut short rather than widening the sidebar. */
 .notes-list[aria-label="Search results"] .note-row { display: grid; justify-items: start; }
@@ -2843,9 +2745,38 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
 /* One search field for every sidebar (Notes, Docs, Sheets, Mail, Code, Sessions, Settings and the rest): 28px tall,
    a magnifier at its start, the same in every app. `flex: none` keeps a column sidebar from squashing it. Specific
    enough to win over the older per-place rules above (`.dock.left .side-search`). */
-input.side-search.side-search, body :is(.rail-app, .dock.left, .settings-side) :is(input.side-search, input.settings-search) {
+input.side-search.side-search {
   flex: none; box-sizing: border-box; height: 28px; min-height: 28px; padding: 0 10px 0 28px; font-size: 13px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238e8e93' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.75'/%3E%3Cpath d='m10.5 10.5 3.25 3.25'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: 9px 50%; background-size: 13px 13px;
 }
 :is(.side-search, .settings-search)::-webkit-search-cancel-button { margin-right: -4px; }
+
+/* The five zones (docs/design/panel-layouts.md). Zone 1, the rail: icons only, one column that never moves, the
+   person's apps at the top and Mobius's own apps at the foot. Zone 2, the app sidebar: its own column, from the top
+   of the window to the bottom, flat on the frame, its head level with the toolbar. The toolbar sits over the content
+   only. */
+.rail { gap: var(--sp-1); padding-top: var(--sp-2); }
+.rail-apps { display: grid; gap: var(--sp-1); }
+.rail [data-app-library] { margin-top: var(--sp-1); }
+.rail-end .rail-btn svg { width: 18px; height: 18px; }
+.app[data-side] > .context-strip { margin-left: var(--side-col, 0px); }
+.app[data-side] .dock.left:not([data-floating]) { margin-top: calc(-1 * var(--context)); z-index: 2; padding: 0; background: var(--sidebar); border-right: 0.5px solid var(--hairline); }
+.dock.left:not([data-floating]) > .app-side { border: 0; border-radius: 0; background: transparent; box-shadow: none; padding: 0; overflow: hidden; }
+.app-side { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.app-side-head { flex: none; display: flex; align-items: center; height: var(--context); padding: 0 var(--sp-3) 0 calc(var(--sp-3) + 2px); }
+.app-side-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-lg, 15px); font-weight: var(--fw-semibold); letter-spacing: -0.01em; color: var(--ink); }
+.app-side-new { flex: none; display: flex; align-items: center; gap: var(--sp-2); height: 30px; margin: 0 var(--sp-2) var(--sp-1); padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--ink); text-align: left; }
+.app-side-new svg { width: 16px; height: 16px; color: var(--muted); }
+.app-side .rail-pinned { flex: none; margin: 0 var(--sp-1) var(--sp-1); border-top: 0; }
+.app-side-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.app-side-body > :is(.side, .settings-side) { flex: 1; min-height: 0; overflow: hidden auto; padding: 0 var(--sp-2) var(--sp-2); }
+/* The toolbar's trailing end: the menus as one ⋯ button, then Mobius, always last. */
+.strip-right .menubar { margin: 0; }
+.strip-right .menu-panel { left: auto; right: 0; }
+.strip-mobius svg { color: var(--accent); }
+/* The review strip in a narrow Mobius panel: what changed keeps its words, and Keep all moves under it when the two do
+   not fit on one line, instead of running into it. */
+.chat .review-strip .review-head { flex-wrap: wrap; row-gap: var(--sp-1); }
+.chat .review-strip .review-toggle { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.chat .review-strip .review-toggle .review-summary { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }

@@ -90,7 +90,7 @@ export function MenuBar({ menus, compact, onOpenChange }: { menus: Menu[]; compa
       {compact ? (
         <button type="button" className="strip-btn menu-title" role="menuitem" aria-haspopup="menu" aria-expanded={open !== null} aria-label="Menu" title="Menu"
           onClick={() => (open === null ? openMenu(menus[0]?.id ?? 'file') : close(true))}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12" /></svg>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.3" /><circle cx="10" cy="10" r="1.3" /><circle cx="15" cy="10" r="1.3" /></svg>
         </button>
       ) : (
         menus.map((m) => (

@@ -11,6 +11,7 @@ import { keepTurn, turnId } from './ReviewStrip';
 import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
+import { dayLabel } from './dates';
 import './tasks.css';
 
 /** A task being dragged: which list it is in and where. */
@@ -82,10 +83,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
   const deletingInfo = tasks.lists.find((l) => l.name === deleting);
   return (
     <aside className="side tasks-side" aria-label="Tasks sidebar">
-      <label className="tasks-search">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5" /><path d="m13 13 3.5 3.5" /></svg>
-        <input type="search" aria-label="Search tasks" placeholder="Search" value={tasks.query} onChange={(e) => tasks.setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') tasks.setQuery(''); }} />
-      </label>
+      <input className="side-search" type="search" aria-label="Search tasks" placeholder="Search" value={tasks.query} onChange={(e) => tasks.setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') tasks.setQuery(''); }} />
       <SideNew item="list" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
       <div className="side-head">
         <span className="side-title">Lists</span>
@@ -388,6 +386,14 @@ function useListReview(conversation: string | null, list: string | null) {
   };
 }
 
+/** A due date for the details panel: "Tomorrow, 13 Nov" near now, else "Fri 20 Nov", in the computer's format. */
+function longDue(due: string, now: Date): string {
+  const [y, m, d] = due.split('-').map(Number);
+  const date = new Date(y!, m! - 1, d!);
+  const near = dueLabel(due, now).text;
+  return ['Today', 'Tomorrow', 'Yesterday'].includes(near) ? `${near}, ${dayLabel(date, { now })}` : dayLabel(date, { now, weekday: 'short' });
+}
+
 /** Quick days for a due date: today, tomorrow, the next Monday. */
 function quickDays(now: Date): { label: string; day: string }[] {
   const plus = (n: number) => isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + n));
@@ -400,6 +406,7 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
   const [title, setTitle] = useState(task.text);
   const [notes, setNotes] = useState(task.notes ?? '');
   const [sub, setSub] = useState('');
+  const dateField = useRef<HTMLInputElement>(null);
   useEffect(() => { setTitle(task.text); }, [task.text]);
   useEffect(() => { setNotes(task.notes ?? ''); }, [task.notes, task.line]);
   useEffect(() => {
@@ -424,11 +431,17 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
         <button type="button" className="btn" onClick={() => tasks.pick(null)}>Done</button>
       </header>
       <textarea className="task-inspector-title" aria-label="Task" rows={2} value={title} maxLength={500} onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))} onBlur={keepTitle} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }} />
-      <textarea className="task-inspector-notes" aria-label="Notes" placeholder="Notes" rows={4} value={notes} maxLength={4000} onChange={(e) => setNotes(e.target.value)} onBlur={keepNotes} />
+      <textarea className="task-inspector-notes" aria-label="Notes" placeholder="Add notes" rows={2} value={notes} maxLength={4000} onChange={(e) => setNotes(e.target.value)} onBlur={keepNotes} />
       <section className="inspector-group" aria-label="When">
         <div className="inspector-row">
           <span className="inspector-label">Due</span>
-          <input type="date" className="task-date" aria-label="Due date" value={task.due ?? ''} onChange={(e) => void tasks.change(list, task, { due: e.target.value || null })} />
+          {/* A pop-up button with the date in words; the system's date picker opens from it. */}
+          <span className="inspector-date" data-tone={task.due ? dueLabel(task.due, now).tone : undefined}>
+            <button type="button" className="inspector-date-btn" aria-hidden="true" tabIndex={-1} onClick={() => { try { dateField.current?.showPicker(); } catch { dateField.current?.focus(); } }}>
+              {task.due ? longDue(task.due, now) : 'None'}
+            </button>
+            <input ref={dateField} type="date" className="inspector-date-input" aria-label="Due date" value={task.due ?? ''} onChange={(e) => void tasks.change(list, task, { due: e.target.value || null })} />
+          </span>
         </div>
         <div className="inspector-chips">
           {quickDays(now).map((q) => <button key={q.label} type="button" className="chip" aria-pressed={task.due === q.day} onClick={() => void tasks.change(list, task, { due: q.day })}>{q.label}</button>)}

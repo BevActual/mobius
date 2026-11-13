@@ -152,6 +152,129 @@ impl Workspace {
         self.checkpoints.restore_file(&root, checkpoint, path).map_err(|e| e.to_string())
     }
 
+    /// The person browsing a folder in Files: like `files.list`, with when each entry last changed (ms since 1970).
+    /// The agent's tool leaves the dates out, so its listings stay short.
+    pub fn browse(&self, relative: &str) -> Res<Value> {
+        let folder = self.inside(relative)?;
+        let mut entries: Vec<(String, bool, u64, u64)> = fs::read_dir(&folder)
+            .map_err(|_| "that folder is not there".to_owned())?
+            .filter_map(Result::ok)
+            .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
+            .filter_map(|e| {
+                e.metadata().ok().map(|m| {
+                    let modified = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_millis() as u64);
+                    (e.file_name().to_string_lossy().into_owned(), m.is_dir(), m.len(), modified)
+                })
+            })
+            .collect();
+        entries.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.to_lowercase().cmp(&b.0.to_lowercase())));
+        let truncated = entries.len() > MAX_LIST;
+        let items: Vec<Value> = entries
+            .into_iter()
+            .take(MAX_LIST)
+            .map(|(n, dir, size, modified)| if dir { json!({ "name": n, "type": "folder", "modified": modified }) } else { json!({ "name": n, "type": "file", "bytes": size, "modified": modified }) })
+            .collect();
+        Ok(json!({ "path": relative, "entries": items, "truncated": truncated }))
+    }
+
+    /// A name the person typed for a file or folder: one part, nothing hidden, nothing Windows refuses.
+    fn check_name(name: &str) -> Res<&str> {
+        let name = name.trim();
+        if name.is_empty() || name == "." || name == ".." {
+            return Err("give it a name".into());
+        }
+        if name.starts_with('.') {
+            return Err("a name cannot start with a dot".into());
+        }
+        if name.chars().any(|c| matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control()) {
+            return Err("a name cannot have / \\ : * ? \" < > or |".into());
+        }
+        if name.len() > 200 {
+            return Err("that name is too long".into());
+        }
+        Ok(name)
+    }
+
+    /// A new, empty folder `name` inside `folder`. Returns its path.
+    pub fn new_folder(&self, folder: &str, name: &str) -> Res<String> {
+        let name = Self::check_name(name)?;
+        let relative = if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") };
+        let target = self.inside(&relative)?;
+        if target.exists() {
+            return Err(format!("there is already something called {name} here"));
+        }
+        fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+        Ok(relative)
+    }
+
+    /// Renames a file or folder in place. Returns its new path.
+    pub fn rename(&self, relative: &str, name: &str) -> Res<String> {
+        let name = Self::check_name(name)?;
+        if relative.is_empty() {
+            return Err("the workspace itself cannot be renamed".into());
+        }
+        let from = self.inside(relative)?;
+        if !from.exists() {
+            return Err("that is not there any more".into());
+        }
+        let parent = relative.rsplit_once('/').map_or("", |(p, _)| p);
+        let to_relative = if parent.is_empty() { name.to_owned() } else { format!("{parent}/{name}") };
+        let to = self.inside(&to_relative)?;
+        // Only a change of case may land on what is already there (Windows sees the same file).
+        if to.exists() && !to_relative.eq_ignore_ascii_case(relative) {
+            return Err(format!("there is already something called {name} here"));
+        }
+        fs::rename(&from, &to).map_err(|e| e.to_string())?;
+        Ok(to_relative)
+    }
+
+    /// Moves a file or folder to the workspace's Trash (`.trash/`, hidden from Files and the agent), so it can be put
+    /// back. Returns where it went inside the Trash.
+    pub fn trash(&self, relative: &str) -> Res<String> {
+        if relative.is_empty() {
+            return Err("the workspace itself cannot be moved to the Trash".into());
+        }
+        let from = self.inside(relative)?;
+        if !from.exists() {
+            return Err("that is not there any more".into());
+        }
+        let name = relative.rsplit('/').next().unwrap_or(relative);
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
+        let held = format!(".trash/{stamp}-{name}");
+        let to = self.real_root()?.join(&held);
+        if let Some(parent) = to.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::rename(&from, &to).map_err(|e| e.to_string())?;
+        Ok(held)
+    }
+
+    /// Puts back what `trash` moved: `held` is what it returned, `relative` where it was.
+    pub fn put_back(&self, held: &str, relative: &str) -> Res<String> {
+        if !held.starts_with(".trash/") || held.contains("..") || held[".trash/".len()..].contains('/') {
+            return Err("that is not in the Trash".into());
+        }
+        let from = self.real_root()?.join(held);
+        if !from.exists() {
+            return Err("that is not in the Trash any more".into());
+        }
+        let to = self.inside(relative)?;
+        if to.exists() {
+            return Err("something else is there now".into());
+        }
+        if let Some(parent) = to.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::rename(&from, &to).map_err(|e| e.to_string())?;
+        Ok(relative.to_owned())
+    }
+
+    /// Where a workspace path really is on this computer, for showing it in Explorer or Finder.
+    pub fn locate(&self, relative: &str) -> Res<PathBuf> {
+        let target = self.inside(relative)?;
+        if target.exists() { Ok(target) } else { Err("that is not there any more".into()) }
+    }
+
     fn checkpoint(&self, reason: &str) -> bool {
         self.real_root().ok().is_some_and(|root| self.checkpoints.snapshot(&root, reason).is_ok())
     }
@@ -294,6 +417,38 @@ mod tests {
     }
     fn call(ws: &Workspace, name: &str, args: Value) -> Res<Value> {
         ws.run(name, &args).map(|s| serde_json::from_str(&s).unwrap())
+    }
+
+    #[test]
+    fn the_person_browses_with_dates_and_makes_renames_trashes_and_puts_back() {
+        let (_d, ws) = setup();
+        call(&ws, "files.write", json!({ "path": "notes/Work/Plan.md", "content": "the plan" })).unwrap();
+        let listed = ws.browse("notes/Work").unwrap();
+        assert_eq!(listed["entries"][0]["name"], "Plan.md");
+        assert!(listed["entries"][0]["modified"].as_u64().unwrap() > 0, "{listed}");
+        // The agent's listing stays without dates.
+        let tool = call(&ws, "files.list", json!({ "path": "notes/Work" })).unwrap();
+        assert!(tool["entries"][0].get("modified").is_none());
+
+        assert_eq!(ws.new_folder("notes", "Ideas").unwrap(), "notes/Ideas");
+        assert!(ws.new_folder("notes", "Ideas").is_err(), "not twice");
+        assert!(ws.new_folder("notes", "../out").is_err());
+        assert!(ws.new_folder("notes", ".hidden").is_err());
+        assert!(ws.new_folder("notes", "a:b").is_err());
+
+        assert_eq!(ws.rename("notes/Work/Plan.md", "Build plan.md").unwrap(), "notes/Work/Build plan.md");
+        assert!(ws.rename("notes/Work/Build plan.md", "../x.md").is_err());
+        assert!(ws.rename("notes/Work", "Ideas").is_err(), "no clobbering");
+        assert_eq!(ws.rename("notes/Ideas", "IDEAS").unwrap(), "notes/IDEAS");
+
+        let held = ws.trash("notes/Work/Build plan.md").unwrap();
+        assert!(held.starts_with(".trash/"), "{held}");
+        assert!(ws.browse("notes/Work").unwrap()["entries"].as_array().unwrap().is_empty());
+        assert!(ws.browse("").unwrap()["entries"].as_array().unwrap().iter().all(|e| e["name"] != ".trash"));
+        assert_eq!(ws.put_back(&held, "notes/Work/Build plan.md").unwrap(), "notes/Work/Build plan.md");
+        assert_eq!(fs::read_to_string(ws.locate("notes/Work/Build plan.md").unwrap()).unwrap(), "the plan");
+        assert!(ws.put_back(".trash/../notes", "x").is_err());
+        assert!(ws.trash("").is_err());
     }
 
     #[test]

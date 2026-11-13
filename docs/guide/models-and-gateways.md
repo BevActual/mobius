@@ -57,6 +57,11 @@ Mobius. If Hugging Face later stops accepting the sign-in, remove the key and si
 | **Speak** | Reads replies aloud. See [Voice](voice.md). |
 | **Effort** | How hard a reasoning model is asked to think. Also in the message box. |
 
+## What it costs
+
+**Settings › Usage** counts the tokens each model call uses and estimates what it cost, by day and by model, service or
+app, with a CSV export. See [Settings › Usage](settings.md#usage).
+
 ## Models on this computer
 
 **Settings › Models › This computer** runs models locally with [llama.cpp](https://github.com/ggml-org/llama.cpp), so

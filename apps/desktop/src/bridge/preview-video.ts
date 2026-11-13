@@ -79,4 +79,7 @@ export const PREVIEW_VIDEO: Record<string, (...args: never[]) => unknown> = {
   'video.projects': () => { patchPlayers(); return [{ name: PROJECT, clips: CLIPS.map((c) => ({ name: c.name, bytes: c.seconds * 200_000, kind: 'video' as const })), hasCut: true }]; },
   'video.readCut': ((project: string) => ({ project, text: CUT, modified: MODIFIED })) as never,
   'video.saveCut': ((project: string, text: string) => { CUT = text; MODIFIED = Date.now(); return { project, modified: MODIFIED }; }) as never,
+  // A film made from the cut is kept for as long as the preview is open, so its size can be looked at.
+  'video.saveExport': ((project: string, name: string, data: string) => { (window as unknown as { exportedFilm?: { name: string; bytes: number; data: string } }).exportedFilm = { name, bytes: Math.floor(data.length * 3 / 4), data }; return { project, file: `Exports/${name}` }; }) as never,
+  'video.showExports': () => ({ ok: true }),
 };

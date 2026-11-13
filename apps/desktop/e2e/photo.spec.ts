@@ -71,6 +71,39 @@ test('adjustments are kept beside the photo, which never changes, and Export sav
   await expect(shell().getByRole('img', { name: 'The photo with edits' })).toBeVisible();
 });
 
+test('photos are renamed, moved and deleted with their edits, and come back from Recently Deleted', async () => {
+  fs.writeFileSync(editsFile(), JSON.stringify(WARM));
+  fs.mkdirSync(path.join(userData, 'workspace', 'photos', 'Porto'), { recursive: true });
+  await start();
+  await shell().getByRole('img', { name: 'The photo with edits' }).click();
+  await shell().keyboard.press('Escape');
+  const grid = shell().getByRole('list', { name: 'Photos in Lisbon' });
+  await grid.getByRole('button', { name: 'coastline.png' }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Rename' }).click();
+  await shell().getByRole('textbox', { name: 'Photo name' }).fill('shore');
+  await shell().keyboard.press('Enter');
+  await expect(grid.getByRole('button', { name: 'shore.png' })).toBeVisible();
+  expect(fs.existsSync(path.join(album(), 'shore.png.edits.json'))).toBe(true);
+
+  await grid.getByRole('button', { name: 'shore.png' }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Move to Porto' }).click();
+  const porto = path.join(userData, 'workspace', 'photos', 'Porto');
+  await expect.poll(() => fs.existsSync(path.join(porto, 'shore.png.edits.json'))).toBe(true);
+
+  await shell().getByRole('navigation', { name: 'Albums' }).getByRole('button', { name: /Porto/ }).click();
+  const inPorto = shell().getByRole('list', { name: 'Photos in Porto' });
+  await inPorto.getByRole('button', { name: 'shore.png' }).focus();
+  await shell().keyboard.press('Delete');
+  await expect.poll(() => fs.existsSync(path.join(porto, 'shore.png'))).toBe(false);
+
+  await shell().getByRole('button', { name: /Recently Deleted/ }).click();
+  const bin = shell().getByRole('list', { name: 'Photos in Recently Deleted' });
+  await bin.getByRole('button', { name: 'shore.png from Porto' }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Recover' }).click();
+  await expect.poll(() => fs.existsSync(path.join(porto, 'shore.png.edits.json'))).toBe(true);
+  expect(fs.readFileSync(path.join(porto, 'shore.png'))).toEqual(PNG);
+});
+
 test('a filter and a turn are kept with the edits, and undo takes them back one at a time', async () => {
   await start();
   const read = () => (fs.existsSync(editsFile()) ? JSON.parse(fs.readFileSync(editsFile(), 'utf8')) : null);

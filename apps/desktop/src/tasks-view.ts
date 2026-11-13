@@ -1,4 +1,5 @@
 import type { TaskItem } from '@mobius/shared';
+import { dayLabel, formatWith, weekdayLabel } from './dates';
 
 /** The list every task lands in when no list is named (matches the Rust side). */
 export const DEFAULT_LIST_NAME = 'Inbox';
@@ -27,8 +28,6 @@ export const SMART_VIEWS: readonly { id: SmartView; name: string }[] = [
 export const smartName = (id: SmartView): string => SMART_VIEWS.find((v) => v.id === id)?.name ?? 'Today';
 export interface Located { list: string; task: TaskItem }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const dayNumber = (d: Date) => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000);
 const parse = (due: string) => { const [y, m, d] = due.split('-').map(Number); return new Date(y!, m! - 1, d!); };
@@ -39,12 +38,12 @@ export const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1
 export function dueLabel(due: string, now: Date): { text: string; tone: DueTone } {
   const date = parse(due);
   const days = dayNumber(date) - dayNumber(now);
-  const plain = `${date.getDate()} ${MONTHS[date.getMonth()]}${date.getFullYear() === now.getFullYear() ? '' : ` ${date.getFullYear()}`}`;
+  const plain = dayLabel(date, { now });
   if (days === 0) return { text: 'Today', tone: 'today' };
   if (days === 1) return { text: 'Tomorrow', tone: 'soon' };
   if (days === -1) return { text: 'Yesterday', tone: 'late' };
   if (days < 0) return { text: plain, tone: 'late' };
-  if (days < 7) return { text: DAYS[date.getDay()]!, tone: 'soon' };
+  if (days < 7) return { text: weekdayLabel(date, 'long'), tone: 'soon' };
   return { text: plain, tone: 'later' };
 }
 
@@ -149,7 +148,6 @@ export function parseWhen(text: string, now: Date): { text: string; due: string;
   return { text: rest, due: isoDay(date), phrase: m[0].trim() };
 }
 
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /**
  * Scheduled tasks under day headings, as in Reminders: Overdue, Today, Tomorrow, each weekday of the coming week, then
@@ -165,10 +163,10 @@ export function byDay(rows: readonly Located[], now: Date): { key: string; label
     if (days < 0) { key = 'overdue'; label = 'Overdue'; exact = false; }
     else if (days === 0) { key = r.task.due; label = 'Today'; }
     else if (days === 1) { key = r.task.due; label = 'Tomorrow'; }
-    else if (days < 7) { key = r.task.due; label = DAYS[date.getDay()]!; }
+    else if (days < 7) { key = r.task.due; label = weekdayLabel(date, 'long'); }
     else {
       key = `${date.getFullYear()}-${date.getMonth()}`; exact = false;
-      label = `${MONTH_NAMES[date.getMonth()]}${date.getFullYear() === now.getFullYear() ? '' : ` ${date.getFullYear()}`}`;
+      label = formatWith(date, { month: 'long', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
     }
     const group = out.find((g) => g.key === key);
     if (group) group.rows.push(r);
