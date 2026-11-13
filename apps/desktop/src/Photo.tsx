@@ -13,7 +13,13 @@ import { ASPECTS, GRID_SIZES, HANDLES, aspectRatio, dragCrop, fitAspect, flipped
 import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
-import { AppSidebar, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
+import { AppSidebar, PanelTab, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
+
+/** The toolbar's Adjust, Filters and Crop bring the right panel's Adjust tab forward if Mobius is showing there. */
+function showAdjustTab() {
+  const tab = document.getElementById('panel-tab-adjust');
+  if (tab && tab.getAttribute('aria-selected') !== 'true') tab.click();
+}
 import './photo.css';
 
 const PREVIEW_MAX = 1600;
@@ -621,7 +627,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
         <span className="photo-tools-group">
         <div className="photo-tabs" role="tablist" aria-label="Edit">
           {TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" id={`photo-tab-${t.id}`} aria-controls="photo-tabpanel" aria-selected={tab === t.id} className="photo-tab" onClick={() => setTab(t.id)}>{t.name}</button>
+            <button key={t.id} type="button" role="tab" id={`photo-tab-${t.id}`} aria-controls="photo-tabpanel" aria-selected={tab === t.id} className="photo-tab" onClick={() => { setTab(t.id); showAdjustTab(); }}>{t.name}</button>
           ))}
         </div>
         </span>
@@ -668,6 +674,10 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
             )}
           </div>
         </div>
+        {/* Adjust, Filters and Crop live in the right panel as its Adjust tab, before Mobius. The wrapper carries
+            .photo-page so the panel's styles follow it out of the page. */}
+        <PanelTab id="adjust" name="Adjust">
+        <div className="photo-page photo-dock">
         <aside className="photo-panel" id="photo-tabpanel" role="tabpanel" aria-label={tab === 'adjust' ? 'Adjustments' : tab === 'filters' ? 'Filters' : 'Crop'}>
           {/* What Mobius changed, once, at the top of the panel: dashed indigo until it is kept or discarded. */}
           {showReview && (
@@ -780,6 +790,8 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
             </div>
           )}
         </aside>
+        </div>
+        </PanelTab>
       </div>
     </section>
   );

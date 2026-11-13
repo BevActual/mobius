@@ -69,8 +69,9 @@ Your pictures, with edits you can always take back.
 - **Recently Deleted** keeps deleted photos, with their edits, until you empty it; right-click one to put it back in
   its album. Deleting an album moves its photos there.
 - **Adjust** (exposure, highlights, shadows, contrast, saturation, warmth and more), **Filters** and **Crop** (turn,
-  flip, straighten). An adjustment can apply to all of the picture or to part of it. Light, Color, Effects and Where
-  each fold away, and each has its own reset once you change it.
+  flip, straighten) sit in the right panel's **Adjust** tab, beside Mobius. An adjustment can apply to all of the
+  picture or to part of it. Light, Color, Effects and Where each fold away, and each has its own reset once you change
+  it.
 - Keys: **←** and **→** step through the album, hold **M** to see the original, **Z** zooms, **Esc** goes back. In
   Crop, **R** rotates and **Enter** is Done.
 - Edits are kept beside each photo in a small file, so every change can be put back. **Export** writes a new file next
