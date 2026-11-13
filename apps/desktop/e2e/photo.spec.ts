@@ -131,6 +131,8 @@ test('Mobius adds an adjustment to the edits, shown dashed, and it is kept or di
     callsTool('files-write', { path: 'photos/Lisbon/coastline.png.edits.json', content: JSON.stringify(WARM) }),
     says(['Added Warm the hills, below the middle; the sky is untouched.']),
   ]);
+  // The right panel opens on Photo's Adjust tab; Mobius's suggestions are in the tab beside it.
+  await shell().getByRole('tab', { name: 'Mobius', exact: true }).click();
   await shell().getByRole('button', { name: 'Warm it up' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
@@ -138,6 +140,8 @@ test('Mobius adds an adjustment to the edits, shown dashed, and it is kept or di
   // The picture itself goes too, for models that read pictures.
   const sent = (model!.requests[0]!.messages as Array<{ role: string; content: unknown }>).filter((m) => m.role === 'user').pop()!.content as Array<{ type: string }>;
   expect(sent.map((p) => p.type)).toEqual(['text', 'image_url']);
+  // The change is waiting, dashed, at the top of the Adjust tab.
+  await shell().getByRole('tab', { name: 'Adjust', exact: true }).first().click();
   const change = shell().getByRole('group', { name: "Mobius's change" });
   await expect(change).toContainText('Mobius changed Warm the hills');
   await expect(panel().getByRole('option', { name: /Warm the hills/ })).toHaveAttribute('data-proposed', 'true');
