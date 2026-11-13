@@ -182,7 +182,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
         <div className="tab-lists" onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) drag.end(); }}>
           <section className="ui-side-section" aria-label="Tabs">
             <div className="side-head">
-              <h3 className="side-title">Tabs</h3>
+              <span className="side-title">Tabs</span>
               <div className="side-actions">
                 {pin}
                 <button type="button" className="strip-btn" aria-label="New tab" title="New tab (Ctrl+T)" onClick={onNewTab}>
@@ -200,7 +200,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
           </section>
           {pinned.length > 0 && (
             <section className="ui-side-section" aria-label="Pinned">
-              <div className="side-head"><h3 className="side-title">Pinned</h3></div>
+              <div className="side-head"><span className="side-title">Pinned</span></div>
               <ul className="tabs tabs-pinned" role="list" aria-label="Pinned tabs">
                 <AnimatePresence initial={false}>{pinned.map(row)}</AnimatePresence>
               </ul>
@@ -218,7 +218,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
         {fromMobius.length > 0 && (
           // The tabs Mobius opened for its work, as one row: pressed, Tabs shows only those.
           <div className="from-mobius">
-            <h3 className="side-title from-mobius-title">From Mobius</h3>
+            <span className="side-title from-mobius-title">From Mobius</span>
             <button type="button" className="from-mobius-filter" aria-pressed={mobiusOnly} aria-label={`Opened for research: ${fromMobius.length} tabs`} title={mobiusOnly ? 'Show every tab again' : 'Show only the tabs Mobius opened'} onClick={() => setMobiusOnly((on) => !on)}>
               <span className="from-mobius-label">{mobiusOnly ? 'Showing only these' : 'Opened for research'}</span>
               <span className="from-mobius-count">{fromMobius.length}</span>
