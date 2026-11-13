@@ -2863,3 +2863,9 @@ input.side-search.side-search, body :is(.rail-app, .dock.left, .settings-side) :
   background-repeat: no-repeat; background-position: 9px 50%; background-size: 13px 13px;
 }
 :is(.side-search, .settings-search)::-webkit-search-cancel-button { margin-right: -4px; }
+
+/* The review strip in a narrow Mobius panel: what changed keeps its words, and Keep all moves under it when the two do
+   not fit on one line, instead of running into it. */
+.chat .review-strip .review-head { flex-wrap: wrap; row-gap: var(--sp-1); }
+.chat .review-strip .review-toggle { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.chat .review-strip .review-toggle .review-summary { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }

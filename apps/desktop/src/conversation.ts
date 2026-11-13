@@ -1,3 +1,4 @@
+import { attachmentApp } from './surface';
 import { splitContext, type AgentNotification, type AgentWaiting, type ContextItem, type Message, type TodoItem } from '@mobius/shared';
 
 /** Tools the agent answers itself: shown as a plan or a question, never as tool steps. */
@@ -312,6 +313,18 @@ export function appOfTool(name: string, args: unknown): string | null {
  */
 /** A tool that only reads (it brings something from an app, and changes nothing). */
 const READS = /\.(read|list|search|tabs|events|calendars|lists|query|tables)$/;
+export const isReadTool = (name: string): boolean => READS.test(name);
+
+/** Several finished reads in a row, as one line: "Read your mail and calendar". */
+export function readsSummary(calls: readonly { name: string; args?: unknown }[]): string {
+  const apps: string[] = [];
+  for (const call of calls) { const app = appOfTool(call.name, call.args) ?? 'Files'; if (!apps.includes(app)) apps.push(app); }
+  const word = (app: string) => (['Mail', 'Calendar', 'Tasks', 'Notes', 'Docs', 'Sheets', 'Files'].includes(app) ? `your ${app === 'Mail' ? 'mail' : app === 'Calendar' ? 'calendar' : app === 'Tasks' ? 'tasks' : app === 'Notes' ? 'notes' : app === 'Docs' ? 'docs' : app === 'Sheets' ? 'sheets' : 'files'}` : app);
+  const words = apps.map(word);
+  // "your mail and your calendar" says "your" once.
+  const joined = words.length === 1 ? words[0]! : `${words.slice(0, -1).join(', ')} and ${words.at(-1)!}`.replace(/(, | and )your /g, '$1');
+  return `Read ${joined}`;
+}
 
 /**
  * Where a turn's change was made from: the apps its last turn read, apart from the ones it changed. Shown on a
@@ -337,7 +350,7 @@ export function appsSeen(state: ConversationState): string[] {
   const seen: string[] = [];
   const add = (app: string | null) => { if (app && !seen.includes(app)) seen.push(app); };
   for (const item of state.items) {
-    if (item.kind === 'user') for (const a of item.attachments ?? []) add(a.kind === 'page' ? 'Browser' : a.kind === 'note' ? 'Notes' : 'Files');
+    if (item.kind === 'user') for (const a of item.attachments ?? []) add(attachmentApp(a));
     if (item.kind === 'tool' && (item.status === 'done' || item.status === 'running' || item.status === 'failed')) add(appOfTool(item.name, item.args));
   }
   return seen;

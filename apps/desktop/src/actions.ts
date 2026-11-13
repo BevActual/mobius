@@ -140,6 +140,8 @@ export function toolTarget(name: string, args: unknown): HubTarget | null {
   const s = (key: string): string => (typeof a[key] === 'string' ? (a[key] as string).trim() : '');
   if (name === 'tasks.add' || name === 'tasks.update' || name === 'tasks.list') return s('list') || name === 'tasks.add' ? { app: 'tasks', list: s('list') || 'Inbox' } : null;
   if (name === 'sheets.write' || name === 'sheets.read') return s('workbook') ? { app: 'sheets', workbook: s('workbook'), sheet: s('sheet') || 'Sheet 1' } : null;
+  // An event Mobius added or moved opens the calendar at its day.
+  if (name === 'calendar.add' || name === 'calendar.update' || name === 'calendar.suggest') { const day = /^\d{4}-\d{2}-\d{2}/.exec(s('start'))?.[0]; return day ? { app: 'calendar', date: day } : { app: 'calendar' }; }
   if (name === 'files.write' || name === 'files.edit' || name === 'files.read') {
     const path = s('path').replace(/\\/g, '/');
     const title = (path.split('/').pop() ?? path).replace(/\.md$/i, '');

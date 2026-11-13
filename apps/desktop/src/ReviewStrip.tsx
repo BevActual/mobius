@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TurnChanges, TurnRecord } from '@mobius/shared';
+import type { MailDraft, TurnChanges, TurnRecord } from '@mobius/shared';
 import { ReviewActions } from './ReviewBar';
 import { changeTarget } from './actions';
 import type { HubTarget } from './search-hub';
@@ -120,8 +120,16 @@ const isTyping = (target: EventTarget | null): boolean => {
  */
 const modKey = () => (window.mobius?.platform === 'darwin' ? 'Cmd' : 'Ctrl');
 
-export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
+/** Replies Mobius suggested in Mail since the turn began: changes too, though they live in Mail and not in a file. */
+async function suggestedSince(since: number | undefined): Promise<MailDraft[]> {
+  if (since === undefined) return [];
+  const got = await window.mobius.mail?.drafts().catch(() => null);
+  return Array.isArray(got) ? got.filter((d) => d.by === 'mobius' && d.updatedMs >= since) : [];
+}
+
+export function ReviewStrip({ conversation, busy, onOpenItem, since }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined; /** When the last turn was asked (ms): replies Mobius suggested in Mail since then are part of it. */ since?: number | undefined }) {
   const [files, setFiles] = useState<string[]>([]);
+  const [drafts, setDrafts] = useState<MailDraft[]>([]);
   const [turn, setTurn] = useState<string | null>(null);
   // Open from the start: what the turn changed is listed, each one a link to it.
   const [open, setOpen] = useState(true);
@@ -132,14 +140,15 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
   const reads = useRef(0);
   const load = useCallback(async () => {
     const n = ++reads.current;
-    const result = await window.mobius.changes?.lastTurn(conversation).catch(() => null);
+    const [result, suggested] = await Promise.all([window.mobius.changes?.lastTurn(conversation).catch(() => null), suggestedSince(since)]);
     if (n !== reads.current) return;
+    setDrafts(suggested);
     const changes = isChanges(result) ? result : null;
     const id = turnId(conversation, changes?.checkpoint ?? null);
     setTurn(id);
     // What is left of the turn: an app's own Keep takes its part away, the rest stays here.
     setFiles(changes && !(id && keptTurns().includes(id)) ? changes.files.filter((f) => !(id && fileKept(id, f))) : []);
-  }, [conversation]);
+  }, [conversation, since]);
   useEffect(() => { setOpen(true); setUndone(false); setProblem(null); }, [conversation]);
   // Kept from a note's own bar: the strip goes too.
   useEffect(() => {
@@ -160,6 +169,9 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
   // Only what this turn changed goes back, one item at a time, so edits made since in other files are kept.
   const undoAll = async (): Promise<string | null> => {
     setProblem(null);
+    // A suggested reply is discarded as Mail's own Discard does it: deleted, never sent.
+    for (const d of drafts) await window.mobius.mail?.deleteDraft(d.id).catch(() => undefined);
+    setDrafts([]);
     for (const path of files) {
       const result = await window.mobius.changes.undoFile(conversation, path).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
       if (!result.ok) { setProblem(result.error); void load(); return result.error; }
@@ -175,10 +187,16 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
 
   const keep = useCallback(() => {
     if (turn) keepTurn(turn, 'all');
+    // A suggested reply is kept as Mail's own Keep does it: it becomes the person's draft, to change and send. Never sent.
+    for (const d of drafts) void window.mobius.mail?.saveDraft({ ...d, by: 'you' }).catch(() => undefined);
     setFiles([]);
+    setDrafts([]);
     setOpen(false);
-  }, [turn]);
-  const shown = !busy && files.length > 0;
+  }, [turn, drafts]);
+  // What the strip lists: the files the turn changed, then the replies it suggested in Mail.
+  const apps = [...appsOf(files), ...(drafts.length > 0 && !appsOf(files).includes('Mail') ? ['Mail'] : [])];
+  const count = files.length + drafts.length;
+  const shown = !busy && count > 0;
   const discardNow = useRef(undoAll);
   discardNow.current = undoAll;
   useEffect(() => {
@@ -194,24 +212,24 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
   }, [shown, keep]);
 
   if (busy) return null;
-  if (undone && files.length === 0) {
+  if (undone && count === 0) {
     return <div className="review-strip" role="status" data-state="undone"><span className="review-summary">Put back as it was before that turn.</span></div>;
   }
-  if (files.length === 0) return null;
+  if (count === 0) return null;
   return (
     <section className="review-strip" aria-label="Changes from the last turn" data-open={open || undefined}>
       <div className="review-head">
         <span className="review-dot" aria-hidden="true" />
         <button type="button" className="review-toggle" aria-expanded={open} title={open ? 'Hide what changed' : 'See what changed'} onClick={() => setOpen((o) => !o)}>
           {/* Where the changes are, so a change in an app not on screen is not missed: "4 changes in Tasks, Calendar". */}
-          <span className="review-summary">{files.length === 1 ? '1 change' : `${files.length} changes`}{` in ${appsOf(files).join(', ')}`}</span>
+          <span className="review-summary">{count === 1 ? '1 change' : `${count} changes`}{` in ${apps.join(', ')}`}</span>
           <span className="review-sep" aria-hidden="true">·</span>
           <span>Review</span>
           <svg className="review-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
         </button>
         <span className="review-actions">
           {/* This one keeps everything the turn changed, so it says so, and in which apps. */}
-          <ReviewActions only="keep" onKeep={keep} onDiscard={undoAll} keepText={appsOf(files).length > 1 ? 'Keep all' : 'Keep'} keepLabel={`Keep all changes from this turn (${appsOf(files).join(', ')})`} keepTitle={`Keep all changes from this turn: ${appsOf(files).join(', ')} (${modKey()}+Enter)`} />
+          <ReviewActions only="keep" onKeep={keep} onDiscard={undoAll} keepText={apps.length > 1 ? 'Keep all' : 'Keep'} keepLabel={`Keep all changes from this turn (${apps.join(', ')})`} keepTitle={`Keep all changes from this turn: ${apps.join(', ')} (${modKey()}+Enter)`} />
         </span>
       </div>
       {open && (
@@ -226,11 +244,20 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
               </li>
             );
           })}
+          {drafts.map((d) => (
+            <li key={d.id} className="review-item">
+              <span className="review-kind">Email</span>
+              {onOpenItem && d.replyTo
+                ? <button type="button" className="review-name link-btn" title={`Open the message this answers: ${d.subject}`} onClick={() => onOpenItem({ app: 'mail', id: d.replyTo! })}>{d.subject || 'Suggested reply'}</button>
+                : <span className="review-name">{d.subject || 'Suggested email'}</span>}
+              <button type="button" className="review-btn" aria-label={`Discard the suggested email ${d.subject}`} onClick={() => void window.mobius.mail?.deleteDraft(d.id).then(() => load())}>Undo</button>
+            </li>
+          ))}
         </ul>
       )}
       {open && (
         <div className="review-more">
-          <ReviewActions only="others" onKeep={keep} onDiscard={undoAll} discardText={appsOf(files).length > 1 ? 'Discard all' : 'Discard'} discardLabel={`Discard all changes from this turn (${appsOf(files).join(', ')})`} discardTitle={`Put everything this turn changed back as it was: ${appsOf(files).join(', ')} (${modKey()}+Backspace)`} />
+          <ReviewActions only="others" onKeep={keep} onDiscard={undoAll} discardText={apps.length > 1 ? 'Discard all' : 'Discard'} discardLabel={`Discard all changes from this turn (${apps.join(', ')})`} discardTitle={`Put everything this turn changed back as it was: ${apps.join(', ')} (${modKey()}+Backspace)`} />
         </div>
       )}
       {problem && <p className="review-problem" role="alert">{problem}</p>}
