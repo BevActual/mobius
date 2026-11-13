@@ -93,13 +93,13 @@ Your whole workspace as a drive.
   arrow keys move, Backspace goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
 - **The toolbar** names the open folder with how many items it holds, and has Back, Forward and New folder. The
   **path bar** at the foot shows where the folder is; click any part to go back up.
-- **Search**, at the top of the sidebar, narrows the open folder by name. **Right-click** a row to open, rename, copy its path, show it in Explorer,
-  ask Mobius about it, or move it to the Trash.
+- **Search**, at the top of the sidebar, narrows the open folder by name. **Right-click** a row to open (Enter), rename (F2), copy its path
+  (Ctrl+Shift+C), show it in Explorer, ask Mobius about it, or move it to the Trash (Delete).
 - **New folder** (Ctrl+Shift+N) is named in place; **F2** renames; **Delete** moves to the Trash, with Undo in a toast
   at the foot of the page. The Trash is
   `workspace/.trash/`, hidden from Files' folders and from Mobius.
-- **Trash**, under Places in the sidebar, lists what you moved there, when, and where it was. **Put Back** (or a
-  double-click) returns it to that folder; **Empty Trash** and **Delete Immediately** (right-click) delete for good, and
+- **Trash**, under Places in the sidebar, lists what you moved there, when, and where it was. **Put Back** (Ctrl+Backspace, or a
+  double-click) returns it to that folder; **Empty Trash** (Ctrl+Shift+Backspace) and **Delete Immediately** (right-click, or Delete) delete for good, and
   always ask first. Mobius cannot empty the Trash. An app's own folder (notes/, docs/...) is never renamed or
   trashed from here.
 - **Date Modified** shows when each file and folder last changed. The agent's own `files.list` leaves dates out.

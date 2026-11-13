@@ -25,35 +25,14 @@
 .files-cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 .files-name { display: flex; align-items: center; gap: var(--sp-2); color: var(--ink); font-size: var(--fs-md, 14px); }
 .files-label { overflow: hidden; text-overflow: ellipsis; }
-.files-size { text-align: right; font-variant-numeric: tabular-nums; }
+.files-size, .files-date { text-align: right; font-variant-numeric: tabular-nums; }
+.files-col[data-col="modified"] { justify-self: end; margin-left: 0; margin-right: -4px; }
+.files-page .list-count { font-variant-numeric: tabular-nums; }
 .files-dot { flex: none; width: 6px; height: 6px; border-radius: 3px; background: var(--mobius, var(--accent)); }
 .files-none { padding: var(--sp-3); }
 
 /* Icons: an app's file wears that app's tile; folders are Finder blue; anything else is a plain page. */
 .files-icon { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.files-icon[data-app] { padding: 3px; border-radius: 5px; color: #fff; stroke-width: 1.8; }
-.files-icon[data-glyph="folder"] { color: #3a9bfc; fill: color-mix(in srgb, #3a9bfc 22%, transparent); }
-.files-icon[data-glyph="file"] { color: var(--muted); }
-.files-icon[data-glyph="place"], .files-icon[data-glyph="made"] { color: var(--accent); }
-.files-icon[data-size="side"] { width: 18px; height: 18px; }
-.files-icon[data-size="side"][data-app] { padding: 2.5px; border-radius: 5px; }
-.files-icon[data-size="hero"] { width: 48px; height: 48px; stroke-width: 1; }
-.files-icon[data-app="notes"] { background: var(--app-notes); }
-.files-icon[data-app="docs"] { background: var(--app-docs); }
-.files-icon[data-app="slides"] { background: var(--app-slides); }
-.files-icon[data-app="sheets"] { background: var(--app-sheets); }
-.files-icon[data-app="tasks"] { background: var(--app-tasks); }
-.files-icon[data-app="calendar"] { background: var(--app-calendar); }
-.files-icon[data-app="code"] { background: var(--app-code); }
-.files-icon[data-app="design"] { background: var(--app-design); }
-.files-icon[data-app="canvas"] { background: var(--app-canvas); }
-.files-icon[data-app="research"] { background: var(--app-research); }
-.files-icon[data-app="reader"] { background: var(--app-reader); }
-.files-icon[data-app="database"] { background: var(--app-database); }
-.files-icon[data-app="photo"] { background: var(--app-photo); }
-.files-icon[data-app="studio"] { background: var(--app-studio); }
-.files-icon[data-app="video"] { background: var(--app-video); }
-.files-icon[data-app="skills"] { background: var(--app-skills); }
 
 
 .files-empty { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-8) 0; text-align: center; }
@@ -73,7 +52,7 @@
 .files-tool svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .files-rename { flex: 1; min-width: 0; margin: -2px 0; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--radius-small, 4px); background: var(--bg); color: var(--ink); font: inherit; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 .files-notice { display: flex; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
-.files-notice { background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); }
+.files-notice { background: var(--red-wash); }
 .files-notice .review-btn { margin-left: auto; }
 
 /* A narrow page (Mobius pinned beside, a small window): the name and size stay, Date and Kind step out first. */
@@ -88,8 +67,16 @@
 }
 
 /* The Trash: asking before anything is deleted for good. */
-.files-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); font-size: var(--fs-sm); }
+.files-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--red-wash); font-size: var(--fs-sm); }
 .files-confirm p { flex: 1 1 14em; margin: 0; }
 .files-icon[data-glyph="trash"] { color: var(--muted); fill: none; stroke: currentColor; }
 .files-trash .files-col { cursor: default; }
-.files-icon[data-size="side"][data-glyph="trash"] { color: var(--accent); }
+
+/* Loading: placeholder bars in the list's place, never a spinner. */
+.files-loading { display: grid; width: var(--files-col); margin-inline: auto; }
+.files-loading span { height: var(--row-list, 40px); border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 var(--sp-3); }
+.files-loading span::before { content: ""; height: 10px; width: var(--w, 40%); border-radius: var(--radius-small, 4px); background: var(--sel, var(--wash)); }
+@media (prefers-reduced-motion: no-preference) { .files-loading span::before { animation: files-pulse var(--dur-loop) var(--ease) infinite alternate; } }
+@keyframes files-pulse { to { opacity: 0.45; } }
+/* The shared empty state fills the space between the toolbar and the path bar, not the whole page. */
+.files-page > .empty-state { flex: 1 1 auto; min-height: 0; }
