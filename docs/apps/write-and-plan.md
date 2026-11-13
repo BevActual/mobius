@@ -129,12 +129,14 @@ Spreadsheets with formulas.
 ## Database
 
 SQLite databases you can browse without writing SQL, or query with it. Make one, or import a CSV file or a sheet from
-Sheets, and each table opens with three views:
+Sheets, and each table opens with three views. The table's name is the window's title, with its database and column
+count beside it, and **Data**, **Structure** and **SQL** sit in the toolbar.
 
-- **Data** shows the rows, 100 to a page. Click a column's heading to sort by it (again for high to low, a third time
-  for no order), and type in **Filter rows** to keep the rows where any column holds those words.
+- **Data** shows the rows, 100 to a page. The line under the rows says which rows these are, with arrows to the next
+  and previous pages. Click a column's heading to sort by it (again for high to low, a third time for no order), and
+  type in **Filter rows** in the toolbar to keep the rows where any column holds those words.
   In a table you can change, double-click a cell to type a new value (Enter keeps it, Escape puts it back), and
-  **Add row** adds an empty row and opens its first cell. Right-click a cell to edit it, copy its value, set it to
+  **+** (Add row) in the toolbar adds an empty row and opens its first cell. Right-click a cell to edit it, copy its value, set it to
   NULL or delete its row. The last change shows **Undo** at the bottom. From the keyboard the grid is one Tab stop:
   the arrow keys move between cells (Home, End, Ctrl+Home and Ctrl+End jump), Enter or F2 types into a cell, Delete
   sets it to NULL, Ctrl+Delete deletes the row, Ctrl+C copies the value, Ctrl+Z undoes and Shift+F10 opens the menu. A view, or a table made WITHOUT ROWID, is
