@@ -1,6 +1,8 @@
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
+import { NotesSidebar, type SidebarWords } from './NotesSidebar';
+import { newestPage } from './useNotes';
+import { PanelLayout, ToolbarControls, type PanelSpec } from './ui';
 import { EmptyState } from './EmptyState';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { changedIds, componentOf, contrast, copyOf, detach, freshId, makeComponent, moveLayer, nextFramePlace, withOverride, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
@@ -125,6 +127,7 @@ const ICON = {
   unlocked: 'M5.5 9h9v7.5h-9zM7.5 9V6.5a2.5 2.5 0 0 1 4.9-.7',
   component: 'M10 2.5 13.5 6 10 9.5 6.5 6zM10 10.5l3.5 3.5-3.5 3.5-3.5-3.5zM2.5 10 6 6.5 9.5 10 6 13.5zM10.5 10 14 6.5l3.5 3.5-3.5 3.5z',
   instance: 'M10 3l7 7-7 7-7-7z',
+  fit: 'M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4',
   front: 'M6 3h8v6H6zM4 12h12M4 15h12', forward: 'M10 15V5M6 9l4-4 4 4', backward: 'M10 5v10M6 11l4 4 4-4', back: 'M4 5h12M4 8h12M6 11h8v6H6z',
 } as const;
 const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 20 20" aria-hidden="true"><path d={d} /></svg>;
@@ -140,6 +143,11 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const doc = parsed && 'doc' in parsed ? parsed.doc : null;
   const [selected, setSelected] = useState<string[]>([]);
   const [tool, setTool] = useState<Tool>('move');
+  // With nothing open (a first visit, or the open design deleted), the newest design opens.
+  const newest = newestPage(designs.notebooks.flatMap((n) => n.pages));
+  useEffect(() => {
+    if (!designs.page && newest) designs.openIfIdle(newest.path, newest.title);
+  }, [designs.page, newest?.path]); // eslint-disable-line react-hooks/exhaustive-deps
   const [zoom, setZoom] = useState(0.5);
   const [pan, setPan] = useState({ x: 40, y: 40 });
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -423,7 +431,9 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onUp); };
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!designs.page) return <section className="design-page empty" aria-label="Design"><EmptyState app="design" label="No design open" title={designs.notebooks.some((n) => n.pages.length) ? 'No design open' : 'No designs yet'} line="Choose one on the left, or start a new one." action={{ label: 'New design', run: () => newItemIn(designs, null, DESIGN_WORDS.defaultGroup) }} /></section>;
+  // Design opens on a design, never on an empty window: the last one (useNotes remembers it), else the newest.
+  // Only with no designs at all is there nothing to show, and New sits in the sidebar (Ctrl+N).
+  if (!designs.page) return <section className="design-page empty" aria-label="Design"><EmptyState icon={<path d={ICON.frame} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />} label="No designs yet" title="No designs yet" line="Start one with New design in the sidebar (Ctrl+N)." /></section>;
   if (!doc) {
     return (
       <section className="design-page empty" aria-label="Design">
@@ -579,125 +589,9 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     ];
   };
 
-  return (
-    <section className="design-page" aria-label="Design">
-      <div className="design-bar" role="toolbar" aria-label="Design tools">
-        <div className="design-tools">
-          <button type="button" className="design-tool" aria-pressed={tool === 'move'} aria-label="Move" title="Move (V)" onClick={() => setTool('move')}><Icon d={ICON.move} /></button>
-          <span className="design-tools-sep" aria-hidden="true" />
-          <button type="button" className="design-tool" aria-pressed={tool === 'frame'} aria-label="Frame" title="Frame (F): click to add one, or press F and drag on the canvas" onClick={() => add('frame')}><Icon d={ICON.frame} /></button>
-          <button type="button" className="design-tool" aria-pressed={tool === 'rect'} aria-label="Rectangle" title="Rectangle (R): click to add one, or press R and drag" disabled={doc.frames.length === 0} onClick={() => add('rect')}><Icon d={ICON.rect} /></button>
-          <button type="button" className="design-tool" aria-pressed={tool === 'ellipse'} aria-label="Ellipse" title="Ellipse (O): click to add one, or press O and drag" disabled={doc.frames.length === 0} onClick={() => add('ellipse')}><Icon d={ICON.ellipse} /></button>
-          <button type="button" className="design-tool" aria-pressed={tool === 'text'} aria-label="Text" title="Text (T): click to add one, or press T and drag" disabled={doc.frames.length === 0} onClick={() => add('text')}><Icon d={ICON.text} /></button>
-        </div>
-        {tool !== 'move' && <span className="design-tool-hint" role="status">Drag on {tool === 'frame' ? 'the canvas' : 'a frame'} to draw {TOOL_NAME[tool]} · Esc to stop</span>}
-        <span className="design-bar-gap" />
-        <div className="design-zoombox">
-          <button type="button" className="strip-btn" aria-label="Zoom out" title="Zoom out (Ctrl+−)" onClick={() => zoomTo(zoom * 0.8)}><Icon d="M5 10h10" /></button>
-          <button type="button" className="design-zoom" aria-label="Zoom" title="Actual size (Shift+0)" onClick={() => zoomTo(1)}>{Math.round(zoom * 100)}%</button>
-          <button type="button" className="strip-btn" aria-label="Zoom in" title="Zoom in (Ctrl+=)" onClick={() => zoomTo(zoom * 1.25)}><Icon d="M5 10h10M10 5v10" /></button>
-        </div>
-        <button type="button" className="btn" title="Fit everything (Shift+1)" onClick={fit}>Fit</button>
-      </div>
-      <div className="design-body">
-        <nav className="design-layers" aria-label="Layers">
-          <div className="design-panel-title">Layers</div>
-          <ul role="tree" aria-label="Frames and layers" aria-multiselectable>
-            {doc.frames.map((f) => (
-              <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded data-drop={moving?.target === f.id || undefined} onDragOver={(e) => { if (!moving) return; e.preventDefault(); if (moving.target !== f.id) setMoving({ id: moving.id, target: f.id, place: 'above' }); }} onDrop={(e) => { e.preventDefault(); dropLayer(); }}>
-                {renaming === f.id ? <RenameField name={f.name} onDone={(name) => { setRenaming(null); if (name && name !== f.name) change((d) => { const x = d.frames.find((y) => y.id === f.id); if (x) x.name = name; }); }} /> : (
-                  <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>
-                    <span className="design-layer-kind" aria-hidden="true" data-component={f.component || undefined}><Icon d={f.component ? ICON.component : ICON.frame} /></span>{f.name}
-                  </button>
-                )}
-                <ul role="group">
-                  {[...f.children].reverse().map((n) => (
-                    <li key={n.id} role="treeitem" aria-selected={isPicked(n.id)} data-drop={moving?.target === n.id ? moving.place : undefined}
-                      draggable={renaming !== n.id} onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', n.name); setMoving({ id: n.id }); }} onDragEnd={() => setMoving(null)}
-                      onDragOver={(e) => { if (!moving) return; e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const place = e.clientY < r.top + r.height / 2 ? 'above' : 'below'; if (moving.target !== n.id || moving.place !== place) setMoving({ id: moving.id, target: n.id, place }); }}
-                      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropLayer(); }}>
-                      {renaming === n.id ? <RenameField name={n.name} onDone={(name) => { setRenaming(null); if (name && name !== n.name) change((d) => { const x = findNode(d, n.id)?.node; if (x) x.name = name; }); }} /> : (
-                        <div className="design-layer-row" aria-current={isPicked(n.id) || undefined} data-hidden={n.hidden || undefined}>
-                          <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)} onContextMenu={(e) => openMenu(e, n.id)}>
-                            <span className="design-layer-kind" aria-hidden="true" data-component={n.type === 'instance' || undefined}><Icon d={ICON[n.type]} /></span><span className="design-layer-name">{n.name}</span>
-                          </button>
-                          <button type="button" className="design-layer-flag" data-on={n.locked || undefined} aria-label={`${n.locked ? 'Unlock' : 'Lock'} ${n.name}`} title={n.locked ? 'Unlock (Ctrl+Shift+L)' : 'Lock (Ctrl+Shift+L)'} onClick={() => toggle('locked', [n.id])}><Icon d={n.locked ? ICON.locked : ICON.unlocked} /></button>
-                          <button type="button" className="design-layer-flag" data-on={n.hidden || undefined} aria-label={`${n.hidden ? 'Show' : 'Hide'} ${n.name}`} title={n.hidden ? 'Show (Ctrl+Shift+H)' : 'Hide (Ctrl+Shift+H)'} onClick={() => toggle('hidden', [n.id])}><Icon d={n.hidden ? ICON.hidden : ICON.shown} /></button>
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div
-          className="design-view"
-          ref={view}
-          role="application"
-          aria-label="Canvas"
-          tabIndex={0}
-          data-tool={tool}
-          data-panning={space || drag?.kind === 'pan' || undefined}
-          onPointerDown={onCanvasDown}
-          onContextMenu={(e) => { const p = toWorld(e.clientX, e.clientY); openMenu(e, frameAt(doc, p.x, p.y)?.id ?? null); }}
-          onWheel={(e) => {
-            if (e.ctrlKey || e.metaKey) {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const z = Math.max(0.05, Math.min(8, zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
-              const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
-              setPan({ x: cx - ((cx - pan.x) * z) / zoom, y: cy - ((cy - pan.y) * z) / zoom });
-              setZoom(Math.round(z * 100) / 100);
-            } else setPan((p) => ({ x: p.x - (e.shiftKey ? e.deltaY : e.deltaX), y: p.y - (e.shiftKey ? 0 : e.deltaY) }));
-          }}
-        >
-          <div className="design-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, ['--z' as string]: zoom }}>
-            {doc.frames.map((f) => {
-              const p = live(f);
-              const inThis = one !== null && at?.frame.id === f.id;
-              return (
-                <div key={f.id} className="design-frame" data-selected={isPicked(f.id) || undefined} data-proposed={changed.has(f.id) || undefined} aria-label={`Frame ${f.name}`} style={{ left: p.x, top: p.y, width: p.w, height: p.h, background: resolveColor(f.fill, doc.styles), borderRadius: f.radius }}>
-                  <span className="design-frame-name" style={{ fontSize: 12 / zoom, top: -18 / zoom }} onPointerDown={(e) => startMove(e, f.id, null)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>{f.name}</span>
-                  <div className="design-clip" style={{ borderRadius: f.radius }}>
-                    {f.children.filter((n) => !n.hidden).map((n) => (
-                      <div key={n.id} className="design-node" data-type={n.type} data-locked={n.locked || undefined} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onContextMenu={(e) => openMenu(e, n.id)} onDoubleClick={() => { if (n.type === 'text' && editing !== n.id) setEditing(n.id); }}>
-                        {n.type === 'text' && editing !== n.id ? n.text : null}
-                        {n.type === 'instance' && <CopyView copy={n} main={componentOf(doc, n)} styleOf={nodeStyle} doc={doc} />}
-                      </div>
-                    ))}
-                    {editingNode?.node && editingNode.frame.id === f.id && (
-                      <TextOnCanvas key={editingNode.node.id} node={editingNode.node} style={nodeStyle(editingNode.node)} onDone={(text) => { const id = editing; setEditing(null); if (text !== null && id) change((d) => { const n = findNode(d, id)?.node; if (n) n.text = text; }); }} />
-                    )}
-                  </div>
-                  {f.strokeWidth > 0 && f.stroke !== 'transparent' && <div className="design-frame-stroke" aria-hidden="true" style={{ borderRadius: f.radius, ...strokeStyle(f, doc) }} />}
-                  {drag?.kind === 'move' && drag.frame === f.id && drag.guides.map((g, i) => <span key={i} className="design-guide" data-axis={g.axis} style={g.axis === 'x' ? { left: g.at, top: g.from, height: g.to - g.from } : { top: g.at, left: g.from, width: g.to - g.from }} />)}
-                  {selected.filter((id) => f.children.some((c) => c.id === id)).length > 1 && f.children.filter((c) => isPicked(c.id)).map((c) => <div key={c.id} className="design-handles" data-many style={handleBox(c, true)} />)}
-                  {((inThis && at?.node) || one === f.id) && (() => {
-                    const t = at!.node ?? at!.frame;
-                    const q = live(t);
-                    return (
-                      <div className="design-handles" style={handleBox(t, at!.node !== null)}>
-                        {HANDLES.filter((h) => handleShown(h, q.w * zoom, q.h * zoom)).map((h) => <span key={h} className="design-handle" data-handle={h} onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); setDrag({ kind: 'resize', id: t.id, handle: h, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0, keep: e.shiftKey }); }} aria-hidden="true" />)}
-                        {drag && (drag.kind === 'move' || drag.kind === 'resize') && <span className="design-size">{drag.kind === 'move' ? `${q.x}, ${q.y}` : `${q.w} × ${q.h}`}</span>}
-                      </div>
-                    );
-                  })()}
-                </div>
-              );
-            })}
-            {drag?.kind === 'move' && drag.frame === null && drag.guides.map((g, i) => <span key={i} className="design-guide" data-axis={g.axis} style={g.axis === 'x' ? { left: g.at, top: g.from, height: g.to - g.from } : { top: g.at, left: g.from, width: g.to - g.from }} />)}
-            {pickBox && <div className="design-pick" data-draw={drag?.kind === 'draw' ? drag.tool : undefined} style={{ left: pickBox.x, top: pickBox.y, width: pickBox.w, height: pickBox.h }} />}
-          </div>
-          {showReview && (
-            <div className="design-review" role="group" aria-label="Mobius's change" onPointerDown={(e) => e.stopPropagation()}>
-              <span className="review-dot" aria-hidden="true" />
-              <span>{changed.size === 1 ? 'Mobius changed one layer here, dashed.' : `Mobius changed ${changed.size} layers here, dashed.`}{review && <WhyThis conversation={review.conversation} />}</span>
-              <ReviewActions onKeep={keep} onDiscard={discard} />
-            </div>
-          )}
-        </div>
-        <aside className="design-inspector" aria-label="Inspector">
+  // The inspector is a panel in the right dock, beside Mobius, as in the Music mock; it hides from the Panels menu.
+  const panels: PanelSpec[] = [{ id: 'inspector', name: 'Inspector', dock: 'right', shown: true, keys: 'mod+alt+i', render: () => (
+    <div className="design-inspector">
           {selected.length === 0 && (
             <>
               <div className="design-panel-title">Colour styles</div>
@@ -817,8 +711,132 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
               <button type="button" className="btn danger" onClick={remove}>Delete layer</button>
             </>
           )}
-        </aside>
+    </div>
+  ) }];
+
+  return (
+    <section className="design-page" aria-label="Design">
+      <ToolbarControls label="Design">
+        <div className="design-tools" role="toolbar" aria-label="Design tools">
+          <span className="design-tools-group">
+            <button type="button" className="strip-btn design-tool" aria-pressed={tool === 'move'} aria-label="Move" title="Move (V)" onClick={() => setTool('move')}><Icon d={ICON.move} /></button>
+          </span>
+          <span className="design-tools-group">
+            <button type="button" className="strip-btn design-tool" aria-pressed={tool === 'frame'} aria-label="Frame" title="Frame (F): click to add one, or press F and drag on the canvas" onClick={() => add('frame')}><Icon d={ICON.frame} /></button>
+            <button type="button" className="strip-btn design-tool" aria-pressed={tool === 'rect'} aria-label="Rectangle" title="Rectangle (R): click to add one, or press R and drag" disabled={doc.frames.length === 0} onClick={() => add('rect')}><Icon d={ICON.rect} /></button>
+            <button type="button" className="strip-btn design-tool" aria-pressed={tool === 'ellipse'} aria-label="Ellipse" title="Ellipse (O): click to add one, or press O and drag" disabled={doc.frames.length === 0} onClick={() => add('ellipse')}><Icon d={ICON.ellipse} /></button>
+            <button type="button" className="strip-btn design-tool" aria-pressed={tool === 'text'} aria-label="Text" title="Text (T): click to add one, or press T and drag" disabled={doc.frames.length === 0} onClick={() => add('text')}><Icon d={ICON.text} /></button>
+          </span>
+          <span className="design-tools-group design-zoombox">
+            <button type="button" className="strip-btn" aria-label="Zoom out" title="Zoom out (Ctrl+−)" onClick={() => zoomTo(zoom * 0.8)}><Icon d="M5 10h10" /></button>
+            <button type="button" className="design-zoom" aria-label="Zoom" title="Actual size (Shift+0)" onClick={() => zoomTo(1)}>{Math.round(zoom * 100)}%</button>
+            <button type="button" className="strip-btn" aria-label="Zoom in" title="Zoom in (Ctrl+=)" onClick={() => zoomTo(zoom * 1.25)}><Icon d="M5 10h10M10 5v10" /></button>
+            <button type="button" className="strip-btn" aria-label="Fit" title="Fit everything (Shift+1)" onClick={fit}><Icon d={ICON.fit} /></button>
+          </span>
+        </div>
+      </ToolbarControls>
+      <PanelLayout app="design" panels={panels}>
+      <div className="design-body">
+        <nav className="design-layers" aria-label="Layers">
+          <div className="design-panel-title">Layers</div>
+          <ul role="tree" aria-label="Frames and layers" aria-multiselectable>
+            {doc.frames.map((f) => (
+              <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded data-drop={moving?.target === f.id || undefined} onDragOver={(e) => { if (!moving) return; e.preventDefault(); if (moving.target !== f.id) setMoving({ id: moving.id, target: f.id, place: 'above' }); }} onDrop={(e) => { e.preventDefault(); dropLayer(); }}>
+                {renaming === f.id ? <RenameField name={f.name} onDone={(name) => { setRenaming(null); if (name && name !== f.name) change((d) => { const x = d.frames.find((y) => y.id === f.id); if (x) x.name = name; }); }} /> : (
+                  <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>
+                    <span className="design-layer-kind" aria-hidden="true" data-component={f.component || undefined}><Icon d={f.component ? ICON.component : ICON.frame} /></span>{f.name}
+                  </button>
+                )}
+                <ul role="group">
+                  {[...f.children].reverse().map((n) => (
+                    <li key={n.id} role="treeitem" aria-selected={isPicked(n.id)} data-drop={moving?.target === n.id ? moving.place : undefined}
+                      draggable={renaming !== n.id} onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', n.name); setMoving({ id: n.id }); }} onDragEnd={() => setMoving(null)}
+                      onDragOver={(e) => { if (!moving) return; e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const place = e.clientY < r.top + r.height / 2 ? 'above' : 'below'; if (moving.target !== n.id || moving.place !== place) setMoving({ id: moving.id, target: n.id, place }); }}
+                      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropLayer(); }}>
+                      {renaming === n.id ? <RenameField name={n.name} onDone={(name) => { setRenaming(null); if (name && name !== n.name) change((d) => { const x = findNode(d, n.id)?.node; if (x) x.name = name; }); }} /> : (
+                        <div className="design-layer-row" aria-current={isPicked(n.id) || undefined} data-hidden={n.hidden || undefined}>
+                          <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)} onContextMenu={(e) => openMenu(e, n.id)}>
+                            <span className="design-layer-kind" aria-hidden="true" data-component={n.type === 'instance' || undefined}><Icon d={ICON[n.type]} /></span><span className="design-layer-name">{n.name}</span>
+                          </button>
+                          <button type="button" className="design-layer-flag" data-on={n.locked || undefined} aria-label={`${n.locked ? 'Unlock' : 'Lock'} ${n.name}`} title={n.locked ? 'Unlock (Ctrl+Shift+L)' : 'Lock (Ctrl+Shift+L)'} onClick={() => toggle('locked', [n.id])}><Icon d={n.locked ? ICON.locked : ICON.unlocked} /></button>
+                          <button type="button" className="design-layer-flag" data-on={n.hidden || undefined} aria-label={`${n.hidden ? 'Show' : 'Hide'} ${n.name}`} title={n.hidden ? 'Show (Ctrl+Shift+H)' : 'Hide (Ctrl+Shift+H)'} onClick={() => toggle('hidden', [n.id])}><Icon d={n.hidden ? ICON.hidden : ICON.shown} /></button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div
+          className="design-view"
+          ref={view}
+          role="application"
+          aria-label="Canvas"
+          tabIndex={0}
+          data-tool={tool}
+          data-panning={space || drag?.kind === 'pan' || undefined}
+          onPointerDown={onCanvasDown}
+          onContextMenu={(e) => { const p = toWorld(e.clientX, e.clientY); openMenu(e, frameAt(doc, p.x, p.y)?.id ?? null); }}
+          onWheel={(e) => {
+            if (e.ctrlKey || e.metaKey) {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const z = Math.max(0.05, Math.min(8, zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+              const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+              setPan({ x: cx - ((cx - pan.x) * z) / zoom, y: cy - ((cy - pan.y) * z) / zoom });
+              setZoom(Math.round(z * 100) / 100);
+            } else setPan((p) => ({ x: p.x - (e.shiftKey ? e.deltaY : e.deltaX), y: p.y - (e.shiftKey ? 0 : e.deltaY) }));
+          }}
+        >
+          {tool !== 'move' && <span className="design-tool-hint" role="status">Drag on {tool === 'frame' ? 'the canvas' : 'a frame'} to draw {TOOL_NAME[tool]} · Esc to stop</span>}
+          <div className="design-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, ['--z' as string]: zoom }}>
+            {doc.frames.map((f) => {
+              const p = live(f);
+              const inThis = one !== null && at?.frame.id === f.id;
+              return (
+                <div key={f.id} className="design-frame" data-selected={isPicked(f.id) || undefined} data-proposed={changed.has(f.id) || undefined} aria-label={`Frame ${f.name}`} style={{ left: p.x, top: p.y, width: p.w, height: p.h, background: resolveColor(f.fill, doc.styles), borderRadius: f.radius }}>
+                  <span className="design-frame-name" style={{ fontSize: 12 / zoom, top: -18 / zoom }} onPointerDown={(e) => startMove(e, f.id, null)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>{f.name}</span>
+                  <div className="design-clip" style={{ borderRadius: f.radius }}>
+                    {f.children.filter((n) => !n.hidden).map((n) => (
+                      <div key={n.id} className="design-node" data-type={n.type} data-locked={n.locked || undefined} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onContextMenu={(e) => openMenu(e, n.id)} onDoubleClick={() => { if (n.type === 'text' && editing !== n.id) setEditing(n.id); }}>
+                        {n.type === 'text' && editing !== n.id ? n.text : null}
+                        {n.type === 'instance' && <CopyView copy={n} main={componentOf(doc, n)} styleOf={nodeStyle} doc={doc} />}
+                      </div>
+                    ))}
+                    {editingNode?.node && editingNode.frame.id === f.id && (
+                      <TextOnCanvas key={editingNode.node.id} node={editingNode.node} style={nodeStyle(editingNode.node)} onDone={(text) => { const id = editing; setEditing(null); if (text !== null && id) change((d) => { const n = findNode(d, id)?.node; if (n) n.text = text; }); }} />
+                    )}
+                  </div>
+                  {f.strokeWidth > 0 && f.stroke !== 'transparent' && <div className="design-frame-stroke" aria-hidden="true" style={{ borderRadius: f.radius, ...strokeStyle(f, doc) }} />}
+                  {drag?.kind === 'move' && drag.frame === f.id && drag.guides.map((g, i) => <span key={i} className="design-guide" data-axis={g.axis} style={g.axis === 'x' ? { left: g.at, top: g.from, height: g.to - g.from } : { top: g.at, left: g.from, width: g.to - g.from }} />)}
+                  {selected.filter((id) => f.children.some((c) => c.id === id)).length > 1 && f.children.filter((c) => isPicked(c.id)).map((c) => <div key={c.id} className="design-handles" data-many style={handleBox(c, true)} />)}
+                  {((inThis && at?.node) || one === f.id) && (() => {
+                    const t = at!.node ?? at!.frame;
+                    const q = live(t);
+                    return (
+                      <div className="design-handles" style={handleBox(t, at!.node !== null)}>
+                        {HANDLES.filter((h) => handleShown(h, q.w * zoom, q.h * zoom)).map((h) => <span key={h} className="design-handle" data-handle={h} onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); setDrag({ kind: 'resize', id: t.id, handle: h, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0, keep: e.shiftKey }); }} aria-hidden="true" />)}
+                        {drag && (drag.kind === 'move' || drag.kind === 'resize') && <span className="design-size">{drag.kind === 'move' ? `${q.x}, ${q.y}` : `${q.w} × ${q.h}`}</span>}
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })}
+            {drag?.kind === 'move' && drag.frame === null && drag.guides.map((g, i) => <span key={i} className="design-guide" data-axis={g.axis} style={g.axis === 'x' ? { left: g.at, top: g.from, height: g.to - g.from } : { top: g.at, left: g.from, width: g.to - g.from }} />)}
+            {pickBox && <div className="design-pick" data-draw={drag?.kind === 'draw' ? drag.tool : undefined} style={{ left: pickBox.x, top: pickBox.y, width: pickBox.w, height: pickBox.h }} />}
+          </div>
+          {showReview && (
+            <div className="design-review" role="group" aria-label="Mobius's change" onPointerDown={(e) => e.stopPropagation()}>
+              <span className="review-dot" aria-hidden="true" />
+              <span>{changed.size === 1 ? 'Mobius changed one layer here, dashed.' : `Mobius changed ${changed.size} layers here, dashed.`}{review && <WhyThis conversation={review.conversation} />}</span>
+              <ReviewActions onKeep={keep} onDiscard={discard} />
+            </div>
+          )}
+        </div>
       </div>
+      </PanelLayout>
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={one && at ? (at.node?.name ?? at.frame.name) : selected.length ? `${selected.length} selected` : 'Canvas'} items={menuItems()} onClose={() => setMenu(null)} />, document.body)}
     </section>
   );

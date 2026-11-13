@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AppSidebar, Menu, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
+import { AppMenu, AppSidebar, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailBox, MailState } from './useMail';
 import { TryAnotherContext } from './ReviewBar';
@@ -39,7 +39,6 @@ const MAIL_ICONS = {
   flag: <path d="M5 17V3.5M5 4h9l-2 3.5 2 3.5H5" />,
   unread: <><rect x="3" y="5" width="14" height="10.5" rx="2" /><path d="m3.5 6 6.5 5 6.5-5" /><circle cx="16" cy="5" r="2.6" data-dot /></>,
   later: <><circle cx="10" cy="10.5" r="6.5" /><path d="M10 7v3.5l2.5 1.5" /></>,
-  more: <><circle cx="5" cy="10" r="1.3" /><circle cx="10" cy="10" r="1.3" /><circle cx="15" cy="10" r="1.3" /></>,
   move: <><path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" /><path d="M8.5 10.5h5M11.5 8.5l2 2-2 2" /></>,
 } as const;
 function Glyph({ name, filled = false }: { name: keyof typeof MAIL_ICONS; filled?: boolean }) {
@@ -257,12 +256,12 @@ function MessageTools({ mail, content }: { mail: MailState; content: MailContent
       <span className="mail-tools-group">
         {archived ? tool('unarchive', 'Move to Inbox', () => void mail.archive(content.id, false)) : tool('archive', 'Archive', () => void mail.archive(content.id), { keys: 'E' })}
         {tool('flag', flagged ? 'Unflag' : 'Flag', () => void mail.flag(content.id, 'flagged', !flagged), { pressed: flagged, filled: flagged })}
-        {/* The rest, used less often, in one menu, so the toolbar fits beside the Mobius panel. */}
-        <Menu label="More message actions" align="end" entries={[
+        {/* The rest, used less often, go at the top of the toolbar's one ⋯ (the shell's), which opens on them. */}
+        <AppMenu label="Message" entries={[
           { label: 'Mark as Unread', icon: <Glyph name="unread" />, run: () => { void mail.flag(content.id, 'seen', false); mail.setOpen(null); } },
           ...(!archived && row?.box !== 'sent' ? [{ label: 'Remind Me Tomorrow', icon: <Glyph name="later" />, keys: 'H', run: () => void mail.remindTomorrow(content.id) }] : []),
           ...moveItems(mail, content.id, content.category, () => void mail.read(content.id)),
-        ]} trigger={<button type="button" className="strip-btn" aria-label="More" title="More"><Glyph name="more" /></button>} />
+        ]} />
       </span>
     </div>
   );

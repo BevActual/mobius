@@ -7,7 +7,7 @@ import { PREVIEW_PROJECTS } from './preview-projects';
 import { PREVIEW_CALENDAR } from './preview-calendar';
 import { PREVIEW_DOCS } from './preview-docs';
 import { PREVIEW_READING } from './preview-reading';
-import { PREVIEW_SONGS } from './preview-songs';
+import { PREVIEW_NIGHT_BEFORE, PREVIEW_SONGS } from './preview-songs';
 import { PREVIEW_KNOWLEDGE } from './preview-knowledge';
 import { PREVIEW_BROWSER } from './preview-browser';
 import { PREVIEW_CODE } from './preview-code';
@@ -64,7 +64,7 @@ const NOTES = () => [
 /** The first line under the title, as the Rust list gives it (roughly: enough for the preview). */
 const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('# ') && !l.startsWith('|'))[0] ?? '').replace(/^#+\s*|^[-*] (\[[ x]\] )?/g, '').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_`]/g, '').slice(0, 120);
 /** One turn of Mobius's, still waiting to be kept, so the dashed proposals and Why this can be looked at. */
-const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv'] };
+const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv', 'studio/Songs/Night Drive.json'] };
 
 let previewLook = { ...DEFAULT_APPEARANCE };
 // Abilities › Connectors: two servers as Mobius started them, and what was added or removed since.
@@ -144,7 +144,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'changes.lastTurn': () => ({ checkpoint: TURN.start, files: TURN.files }),
   'changes.turns': () => ({ ok: true, turns: [TURN] }),
   // Before the turn: the supplier notes had only their title, and the P2 build list had no deposit task.
-  'changes.before': ((_conversation: string, path: string) => ({ ok: true, text: path.startsWith('tasks/') ? '# P2 build\n\n- [x] Confirm the build week with everyone\n- [ ] Hold 8 packs at Veltro\n- [ ] Book the sled for Friday\n- [x] Draft the build budget\n' : path.startsWith('sheets/') ? PREVIEW_BUDGET_BEFORE : path.startsWith('docs/') ? '# Build brief\n\nThe P2 build runs the week of the 23rd.\n' : '# Supplier notes\n' })) as never,
+  'changes.before': ((_conversation: string, path: string) => ({ ok: true, text: path.startsWith('studio/') ? PREVIEW_NIGHT_BEFORE /* Music (marked): the song before Mobius's pad */ : path.startsWith('tasks/') ? '# P2 build\n\n- [x] Confirm the build week with everyone\n- [ ] Hold 8 packs at Veltro\n- [ ] Book the sled for Friday\n- [x] Draft the build budget\n' : path.startsWith('sheets/') ? PREVIEW_BUDGET_BEFORE : path.startsWith('docs/') ? '# Build brief\n\nThe P2 build runs the week of the 23rd.\n' : '# Supplier notes\n' })) as never,
   'calendar.calendars': () => ['Kestrel P2', 'Work', 'Home'],
   // Events are kept in memory for as long as the preview is open.
   ...PREVIEW_CALENDAR,

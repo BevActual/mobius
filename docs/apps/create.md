@@ -29,7 +29,11 @@ Frames on a canvas, as in Sketch and Figma.
 
 ![The Design app in Mobius](../readme/apps/design.png)
 
-- Draw with a tool (**V** move, **F** frame, **R** rectangle, **O** oval, **T** text) or add from the toolbar.
+- Design opens on the design you had open last (or the newest one). **New design** is at the top of the sidebar
+  (Ctrl+N).
+- The tools and zoom sit in the window's toolbar. Draw with a tool (**V** move, **F** frame, **R** rectangle,
+  **O** oval, **T** text) or click one to add it.
+- The **Inspector** is a panel on the right, beside Mobius. Hide or show it from the Panels menu or with Ctrl+Alt+I.
 - Pick with a click, Shift-click or a box. Move with smart guides, size from any edge, line layers up from the
   inspector, copy and duplicate. Double-click a text layer to type on the canvas.
 - Rename layers and frames in the layer list. Each layer row has **Lock** and **Hide** buttons (or Ctrl+Shift+L and
@@ -59,11 +63,15 @@ Your pictures, with edits you can always take back.
   the toolbar (or **−** and **+**) makes the pictures bigger or smaller. Right-click a picture to open, rename (**F2**),
   export, move it to another album or delete it; you can also drag it onto an album in the sidebar. Right-click an
   album to rename or delete it.
+- The sidebar has a search for albums, **Library** (with Recently Deleted) and **Albums**. An open photo's controls sit
+  in the window's toolbar: back to the album, **Adjust**, **Filters** and **Crop**, **Show original**, **Revert** and
+  **Export**. The picture's name, size and edits show along the foot of the page.
 - **Recently Deleted** keeps deleted photos, with their edits, until you empty it; right-click one to put it back in
   its album. Deleting an album moves its photos there.
 - **Adjust** (exposure, highlights, shadows, contrast, saturation, warmth and more), **Filters** and **Crop** (turn,
-  flip, straighten). An adjustment can apply to all of the picture or to part of it. Light, Color, Effects and Where
-  each fold away, and each has its own reset once you change it.
+  flip, straighten) sit in the right panel's **Adjust** tab, beside Mobius. An adjustment can apply to all of the
+  picture or to part of it. Light, Color, Effects and Where each fold away, and each has its own reset once you change
+  it.
 - Keys: **←** and **→** step through the album, hold **M** to see the original, **Z** zooms, **Esc** goes back. In
   Crop, **R** rotates and **Enter** is Done.
 - Edits are kept beside each photo in a small file, so every change can be put back. **Export** writes a new file next
@@ -78,16 +86,25 @@ A small studio for writing songs as notes.
 
 ![The Music app in Mobius](../readme/apps/music.png)
 
-- **Tracks** laid out by bar, each with an instrument (Piano, Bass, Pad, Lead or Drums), volume, mute and solo.
-- **The piano roll** for the chosen track: draw, move and stretch notes, select with a box, snap to the grid. Drums
-  get a tall row per drum, named in full.
-- **Velocity lane** under the roll: one bar per note. Drag a bar up to make the note louder, down to make it softer;
-  picked notes move together.
-- **The divider** between the tracks and the roll: the track list fits its tracks, and dragging the divider (or
-  Up and Down on it) gives more room to either side. Home fits it to the tracks again.
-- **Transport** to play, with the song's tempo and key. Loop goes round the whole song, or drag along the top of the
-  ruler to loop some bars. Right-click the ruler (or press its top twice quickly) to loop the whole song again.
-- **Add Track** opens a menu of instruments. Right-click a track's header to duplicate, mute, solo or delete it.
+- **Songs** in the sidebar, newest first, with **Sounds** below them: pick Drums, Bass, Piano, Pad or Lead to add a
+  track of it to the open song. **From Mobius** lists songs with a part Mobius wrote that you have not kept yet. The
+  last song you had open opens when you come back.
+- **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play, Stop (twice to
+  go back to the start), the position, the tempo, the meter and Loop.
+- **Tracks** are rows: the name and instrument on the left, the notes as clips along the bars. The whole song fits
+  across the window; Ctrl and the scroll wheel zoom in. Hover a track for Mute and Solo, or right-click its header to
+  edit the notes, duplicate, mute, solo or delete it. Deleting says what went, with Undo.
+- **A part from Mobius** is drawn dashed in indigo until you keep it. Keep, Discard and Try another are in the Device
+  panel.
+- **The Device panel** sets how the chosen track sounds: its instrument and volume, then the oscillator (Shape and
+  Detune), the filter (Cutoff and Resonance) and the envelope (Attack and Release). Double-click a setting to put it
+  back. The settings are saved in the song.
+- **The notes editor** opens under the tracks when you double-click a clip: draw, move and stretch notes, select with
+  a box, snap to the grid. Drums get a tall row per drum, named in full. Under it, the **velocity lane** has one bar
+  per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
+  side; Home fits the tracks again.
+- **Loop**: drag along the top of the ruler to loop some bars. Right-click the ruler (or press its top twice quickly)
+  to loop the whole song again; its menu also turns the metronome on, adds or removes four bars, and zooms.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
 
 **Kept in:** `workspace/studio/`, each song a JSON file of notes.
@@ -101,11 +118,12 @@ Cut footage into a short film.
 - **Projects** in the sidebar, each with its footage. Add a clip to the cut or drag it into the timeline.
 - **The timeline** shows each shot as a filmstrip. Trim from either end, split, duplicate, move and remove shots.
   Right-click a shot for its menu, or a clip in Footage to add it or show its folder.
-- **The viewer** plays the shots in order, and full screen with F. The chosen shot's details sit beside it, with In
-  and Out as timecode (type `0:02.5`, or plain seconds).
+- **The viewer** plays the shots in order, and full screen with F. Undo, split, duplicate, remove, zoom and Export sit
+  in the toolbar.
+- **The Shot panel** on the right (Ctrl+Shift+I) shows the chosen shot: In and Out as timecode (type `0:02.5`, or plain
+  seconds), its title, and its place in the cut.
 - **Keys** as in other editors: Space plays, S splits, I and O set the shot's start and end at the playhead,
   Ctrl+D (⌘D on a Mac) duplicates, the arrows step a frame and Up and Down jump between edits.
-
 - **Export** saves the film, titles and sound included, as a video file in the project's `Exports` folder (MP4
   where the window can make it, otherwise WebM). It plays the cut through once while it is made, so a two-minute film
   takes two minutes; Stop ends it early.
