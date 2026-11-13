@@ -1,4 +1,4 @@
-export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
+export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
 
 export interface SettingRow {
   id: string;
@@ -122,6 +122,15 @@ const SECTIONS: readonly SettingsSection[] = [
         row('keep-history', 'Keep browsing history', 'Remember the pages you visit, on this computer only.', 'browsing history', 'remember', 'pages visited', 'privacy', 'off'),
         row('history-list', 'Pages you visited', 'Search the pages you visited, remove one, or clear them all.', 'browsing history', 'clear history', 'search history', 'delete', 'visited'),
       ] },
+    ],
+  },
+  // Mail: its accounts live here, so the Mail app's sidebar holds only mail.
+  {
+    id: 'mail',
+    label: 'Mail',
+    description: 'The accounts Mail reads and sends from.',
+    subpages: [
+      { id: 'accounts', label: 'Accounts', rows: [row('mail-accounts', 'Mail accounts', 'Add a mail account, or remove one. Its mail stays with your provider.', 'email', 'imap', 'smtp', 'icloud', 'gmail', 'fastmail', 'yahoo', 'app password', 'add account', 'remove account')] },
     ],
   },
   {
@@ -281,7 +290,7 @@ const ORDER: ReadonlyArray<[SectionId, string]> = [
   ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'],
   ['providers', 'Models'], ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
   ['safety', 'Safety'], ['memory', 'Safety'], ['privacy', 'Safety'],
-  ['browser', 'Apps'], ['sessions', 'Apps'], ['schedules', 'Apps'], ['extensions', 'Apps'],
+  ['browser', 'Apps'], ['mail', 'Apps'], ['sessions', 'Apps'], ['schedules', 'Apps'], ['extensions', 'Apps'],
   ['advanced', 'System'], ['about', 'System'],
 ];
 
