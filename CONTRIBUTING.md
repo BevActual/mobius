@@ -13,7 +13,7 @@ By contributing you agree that your work is released under the [MIT license](LIC
 
 - **Refine before adding.** Improving the apps that exist comes before new apps.
 - **One look.** Follow Apple's Human Interface Guidelines and the existing components (sidebar, menus, review bar)
-  instead of inventing new ones. See [Workspace layout](docs/design/workspace-layout.md).
+  instead of inventing new ones. See [Workspace layout](docs/design/workspace-layout.md) and [Design rules](docs/design/rules.md).
 - **The person decides.** Anything the agent changes must be reviewable and undoable. Sending, paying, deleting and
   running commands always ask.
 - **Rust for everything that isn't interface.** Permissions, tools, storage and model providers live in the core. The

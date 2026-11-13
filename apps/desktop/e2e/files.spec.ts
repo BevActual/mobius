@@ -89,8 +89,12 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   await expect(made.getByRole('option', { name: 'Work / Brief, from Mobius' })).toHaveAttribute('data-proposed');
   await side.getByRole('button', { name: 'Workspace' }).click();
   const page = shell().getByRole('region', { name: 'Files' });
-  await expect(page.getByRole('row', { name: 'notes, from Mobius' })).toContainText('1 from Mobius');
+  // A folder holding something from Mobius has an indigo dot, here and in the sidebar until it is looked in.
+  await expect(page.getByRole('row', { name: 'notes, from Mobius' }).getByRole('img', { name: '1 from Mobius' })).toBeVisible();
+  const notesSide = side.getByRole('region', { name: 'Folders' }).getByRole('button', { name: 'Notes' });
+  await expect(notesSide).toHaveAttribute('data-proposed', 'true');
   await page.getByRole('row', { name: 'notes, from Mobius' }).dblclick();
+  await expect(notesSide).not.toHaveAttribute('data-proposed', 'true');
   await page.getByRole('row', { name: 'Work, from Mobius' }).dblclick();
   await expect(page.getByRole('row', { name: 'Brief.md, from Mobius' })).toHaveAttribute('data-proposed');
   await side.getByRole('button', { name: /Made by Mobius/ }).click();
