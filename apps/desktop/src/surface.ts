@@ -248,11 +248,11 @@ export const isStarter = (s: Suggestion) => s.prompt.endsWith(' ');
 export function tasksContext(tasks: Pick<TasksState, 'view' | 'all'>): { title: string; text: string } {
   const { view, all } = tasks;
   if (view.kind === 'list') {
-    const lines = (all[view.name] ?? []).map((t) => `- [${t.done ? 'x' : ' '}] ${t.text}${t.due ? ` (due ${t.due})` : ''}`);
+    const lines = (all[view.name] ?? []).map((t) => `- [${t.done ? 'x' : ' '}] ${t.text}${t.due ? ` (due ${t.due}${t.time ? ` ${t.time}` : ''})` : ''}${t.repeat ? ` (every ${t.repeat})` : ''}`);
     return { title: view.name, text: `# ${view.name}\n${lines.join('\n')}` };
   }
   const title = smartName(view.id);
-  const lines = smartView(view.id, all, new Date()).map(({ list, task }) => `- [${task.done ? 'x' : ' '}] ${task.text} (${[task.due ? `due ${task.due}` : '', task.flagged ? 'flagged' : '', `in ${list}`].filter(Boolean).join(', ')})`);
+  const lines = smartView(view.id, all, new Date()).map(({ list, task }) => `- [${task.done ? 'x' : ' '}] ${task.text} (${[task.due ? `due ${task.due}${task.time ? ` ${task.time}` : ''}` : '', task.repeat ? `every ${task.repeat}` : '', task.flagged ? 'flagged' : '', `in ${list}`].filter(Boolean).join(', ')})`);
   return { title, text: `# ${title}\n${lines.join('\n')}` };
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type TaskAt, type TaskChange, type TaskItem, type TaskList, type TaskListInfo } from '@mobius/shared';
+import { isNotesFailure, type TaskAt, type TaskChange, type TaskItem, type TaskList, type TaskListInfo, type TaskRepeat } from '@mobius/shared';
 import { SMART_VIEWS, type SmartView } from './tasks-view';
 
 export type TasksView = { kind: 'list'; name: string } | { kind: 'smart'; id: SmartView };
@@ -121,7 +121,7 @@ export function useTasks() {
     return true;
   }, [refresh, withPending]);
 
-  const add = useCallback(async (list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt }) => {
+  const add = useCallback(async (list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt; time?: string; repeat?: TaskRepeat }) => {
     if (!(list in live.current)) await refresh();
     return settle(await api?.add(list, text, due, options));
   }, [api, settle, refresh]);

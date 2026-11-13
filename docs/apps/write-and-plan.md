@@ -51,19 +51,27 @@ Lists of things to do, as in Apple's Reminders.
 - **The sidebar** has Search, New list, the **Smart lists** (Today, Scheduled, All, Flagged and Completed), then
   **My lists** with how many are open. Hover a list to pin it or open its menu (Rename, Delete).
   **Scheduled** sorts tasks under day headings: Overdue, Today, Tomorrow, each day of the coming week, then by month.
+- **Times and repeats**: type a time after the day ("Call Sam tomorrow at 3pm", "Stand-up mon 9:30"; a time on its
+  own means today), or set a time and a repeat (every day, weekday, week, month or year) in the inspector. Ticking off
+  a repeating task moves it to its next day and leaves it open.
 - **Right-click a task** to show its details, set it due today, tomorrow or next week, flag it, move it to another
   list or delete it.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
   the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it.
+<<<<<<< HEAD
 - **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back. Completed
   tasks fold away under the list; **Clear N completed** in the toolbar removes them.
 - **Deleting** a task or a list shows **Undo** at the bottom of the page (Ctrl+Z works too).
+=======
+- **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back.
+>>>>>>> origin/app/tasks-2
 - **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
   picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
   format. Drag tasks to reorder them or move them between lists.
 - Tasks Mobius added are dashed until kept. **Discard** puts the list back as it was before that turn.
 
-**Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines.
+**Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines, such as
+`- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)`.
 
 ## Calendar
 
