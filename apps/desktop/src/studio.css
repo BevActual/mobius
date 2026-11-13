@@ -80,7 +80,7 @@
 .studio-track-act svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .studio-track:hover .studio-track-act, .studio-track[aria-current] .studio-track-act, .studio-track-act:focus-visible { opacity: 1; }
 .studio-track-act:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
-.studio-page .studio-track-head[data-proposed] { outline: 1.5px dashed var(--accent); outline-offset: -2px; }
+.studio-page .studio-track-head[data-proposed] { outline: 1.5px dashed var(--mobius); outline-offset: -2px; }
 .studio-track[data-muted] .studio-lane { opacity: 0.4; }
 .studio-none { margin: 0; padding: 18px; color: var(--muted); font-size: var(--fs-sm); }
 
@@ -88,7 +88,7 @@
 .studio-region { position: absolute; left: 0; top: 3px; bottom: 3px; border-radius: 6px; background: color-mix(in srgb, var(--tc) 18%, var(--bg)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tc) 45%, transparent); }
 .studio-page .studio-bar-line { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--ink) 12%, transparent); }
 .studio-page .studio-mini { position: absolute; height: 4px; border-radius: 2px; background: var(--tc); }
-.studio-page .studio-lane[data-proposed] { outline: 1.5px dashed var(--accent); outline-offset: -2px; background-color: transparent; }
+.studio-page .studio-lane[data-proposed] { outline: 1.5px dashed var(--mobius); outline-offset: -2px; background-color: transparent; }
 .studio-page .studio-playhead { position: absolute; top: 0; bottom: 0; width: 1.5px; margin-left: -0.75px; background: var(--danger); pointer-events: none; z-index: 3; }
 
 .studio-page .studio-review { margin: 6px var(--sp-3); }

@@ -2,6 +2,7 @@ import { Reorder } from 'motion/react';
 import { useRef, useState, type ReactNode } from 'react';
 import type { Favourite } from '@mobius/shared';
 import { APP_ICONS } from './Rail';
+import { newKeys } from './SideNew';
 
 interface Props {
   /** What the sidebar belongs to: the open app's name, or Settings. */
@@ -40,6 +41,7 @@ export function SidebarHead({ title, create, favourites = [], onOpenFavourite, o
         <button type="button" className="app-side-new" aria-label="Create" title={create.label} onClick={create.run}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
           <span>{create.label}</span>
+          <kbd className="side-keys" aria-hidden="true">{newKeys()}</kbd>
         </button>
       )}
       {favourites.length > 0 && (

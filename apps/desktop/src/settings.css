@@ -137,3 +137,29 @@
 .usage-table thead th { font-size: 11px; font-weight: 500; color: var(--muted); border-bottom: 0.5px solid var(--hairline); }
 .usage-table tbody tr + tr > * { border-top: 0.5px solid var(--hairline); }
 .usage-actions { display: inline-flex; gap: 8px; }
+
+/* The sidebar (the shared AppSidebar): the sections scroll under the search, each with its tinted icon at 20px, as in
+   System Settings. The dock's 16px rule for row icons is for line glyphs, not these tiles. */
+.settings-side { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.settings-side > .ui-side { flex: 1; min-height: 0; }
+.settings-side .settings-nav { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: auto; }
+.settings-nav-icon, .dock.left .settings-side .list-row svg.settings-nav-icon { width: 20px; height: 20px; padding: 4px; flex: none; border-radius: 5px; fill: none; stroke: #fff; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* A narrow column (the window is small, or Mobius is open beside Settings): rows stack their control under the name,
+   so help text set beside a control reads left aligned under it, and wide pieces fit rather than clip. */
+.settings-page .settings-column { container-type: inline-size; container-name: settings-column; }
+@container settings-column (max-width: 560px) {
+  .settings-page .settings-card .srow-body > .srow-text { max-width: none; text-align: left; }
+  .usage-tile { padding: 8px 10px; }
+  .usage-tile dd { font-size: 18px; }
+  .usage-tile > span { white-space: normal; }
+  .usage-table th:first-child { max-width: 140px; }
+}
+/* The breakdown scrolls sideways rather than clipping its last column. */
+.usage-table-wrap { width: 100%; overflow-x: auto; }
+
+/* Gateways: the name and its status on the left, its buttons trailing, so a long status never runs under the name. */
+.settings-page .prow { grid-template-columns: minmax(0, 1fr) auto; }
+.settings-page .prow-status { grid-column: 1; grid-row: 2; white-space: normal; }
+.settings-page .prow-actions { grid-column: 2; grid-row: 1 / span 2; flex-wrap: wrap; justify-content: flex-end; }
+.settings-page .prow-badge { white-space: nowrap; }

@@ -5,6 +5,8 @@ import { CONTEXT_SIZES, DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, parseContextSiz
 describe('appearance changes', () => {
   it('accepts any of the three settings alone or together, and drops anything else', () => {
     expect(parseAppearancePatch({ theme: 'dark' })).toEqual({ theme: 'dark' });
+    expect(parseAppearancePatch({ theme: 'mid' })).toEqual({ theme: 'mid' });
+    expect(parseAppearancePatch({ theme: 'cool' })).toEqual({ theme: 'cool' });
     expect(parseAppearancePatch({ zoom: 1.25, chatTextScale: 1.1 })).toEqual({ zoom: 1.25, chatTextScale: 1.1 });
     expect(parseAppearancePatch({ theme: 'light', evil: 1 })).toEqual({ theme: 'light' });
   });
@@ -14,7 +16,7 @@ describe('appearance changes', () => {
     }
   });
   it('has sensible defaults', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', navigation: 'sidebar', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: 248, rightWidth: 380, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: 248, rightWidth: 320, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
   });
 });
 
@@ -74,9 +76,10 @@ describe('context sizes for local models', () => {
 
 describe('where the sidebars sit', () => {
   it('start attached, and each can be set to floating or back, and nothing else', () => {
-    expect(DEFAULT_APPEARANCE).toMatchObject({ leftSidebar: 'attached', rightSidebar: 'attached', leftWidth: 248, rightWidth: 380 });
+    expect(DEFAULT_APPEARANCE).toMatchObject({ leftSidebar: 'attached', rightSidebar: 'attached', leftWidth: 248, rightWidth: 320 });
     expect(parseAppearancePatch({ leftSidebar: 'floating' })).toEqual({ leftSidebar: 'floating' });
-    expect(parseAppearancePatch({ navigation: 'rail' })).toEqual({ navigation: 'rail' });
+    // The old navigation choice (sidebar or rail) is gone: the rail is always there. A saved one is ignored.
+    expect(parseAppearance({ ...DEFAULT_APPEARANCE, navigation: 'rail' })).toEqual(DEFAULT_APPEARANCE);
     expect(parseAppearancePatch({ sidebarApps: ['notes', 'agent'] })).toEqual({ sidebarApps: ['notes', 'agent'] });
     for (const bad of [[], ['agent', 'agent'], ['code'], 'agent']) expect(parseAppearancePatch({ sidebarApps: bad }), String(bad)).toBeNull();
     const plan = { kind: 'note', id: 'Work/Plan.md', title: 'Plan' };
@@ -87,7 +90,6 @@ describe('where the sidebars sit', () => {
     expect(parseAppearancePatch({ clippingsPage: 'Work/Reading.md' })).toEqual({ clippingsPage: 'Work/Reading.md' });
     expect(parseAppearancePatch({ clippingsPage: '' })).toEqual({ clippingsPage: '' });
     for (const bad of ['Work/Reading', 'a\nb.md', 7]) expect(parseAppearancePatch({ clippingsPage: bad })).toBeNull();
-    for (const bad of ['tabs', true, null]) expect(parseAppearancePatch({ navigation: bad }), String(bad)).toBeNull();
     expect(parseAppearancePatch({ rightSidebar: 'floating', leftSidebar: 'attached' })).toEqual({ rightSidebar: 'floating', leftSidebar: 'attached' });
     for (const bad of ['hidden', 'pinned', '', 'Floating', 1, null, true]) {
       expect(parseAppearancePatch({ leftSidebar: bad }), String(bad)).toBeNull();
@@ -98,7 +100,7 @@ describe('where the sidebars sit', () => {
 
 describe('how wide the sidebars are', () => {
   it('start at the usual widths and accept only widths inside each side\'s range', () => {
-    expect(DEFAULT_APPEARANCE).toMatchObject({ leftWidth: 248, rightWidth: 380 });
+    expect(DEFAULT_APPEARANCE).toMatchObject({ leftWidth: 248, rightWidth: 320 });
     expect(parseAppearancePatch({ leftWidth: 300, rightWidth: 500 })).toEqual({ leftWidth: 300, rightWidth: 500 });
     expect(parseAppearancePatch({ leftWidth: 200 })).toEqual({ leftWidth: 200 });
     expect(parseAppearancePatch({ leftWidth: 420 })).toEqual({ leftWidth: 420 });

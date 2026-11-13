@@ -40,6 +40,12 @@ const side = (): Locator => shell().getByRole('complementary', { name: 'Notes si
 const text = (): Locator => shell().getByRole('textbox', { name: 'Note text' });
 const source = (): Locator => shell().getByRole('textbox', { name: 'Page text' });
 const format = (): Locator => shell().getByRole('toolbar', { name: 'Format' });
+/** Chooses an item in the Notes menu, under the toolbar's Menu button. */
+const notesMenu = async (item: string): Promise<void> => {
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
+  await shell().locator('.menu-names').getByRole('button', { name: 'Notes', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Notes' }).getByRole('menuitem', { name: item }).click();
+};
 const status = (): Locator => shell().locator('.note-status');
 const file = (...parts: string[]) => path.join(userData, 'workspace', 'notes', ...parts);
 const onDisk = (...parts: string[]) => fs.readFileSync(file(...parts), 'utf8');
@@ -84,7 +90,7 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   await expect(text().locator('h1')).toHaveText('Garden');
   await expect(text().locator('li')).toHaveText(['tomatoes']);
   await side().getByRole('searchbox', { name: 'Search notes' }).fill('oat');
-  const results = side().getByRole('list', { name: 'Search results' });
+  const results = side().getByRole('region', { name: 'Results' });
   await expect(results.getByRole('button')).toHaveCount(1);
   await results.getByRole('button', { name: /Groceries/ }).click();
   await expect(text().locator('h1')).toHaveText('Groceries');
@@ -161,11 +167,10 @@ test('the format bar makes a checklist you tick, and More clips a web page where
   await shell().keyboard.press('End');
   await shell().keyboard.press('Enter');
   await shell().keyboard.press('Enter');
-  // Clipping is in the bar's More menu.
-  await format().getByRole('button', { name: 'More' }).click();
-  await shell().getByRole('menu', { name: 'More' }).getByRole('menuitem', { name: 'Clip a web page…' }).click();
-  await format().getByRole('textbox', { name: 'Address to clip' }).fill(`${fixture.origin}/casa-amora`);
-  await format().getByRole('button', { name: 'Clip', exact: true }).click();
+  // Clipping is in the Notes menu (Menu in the toolbar).
+  await notesMenu('Clip a web page…');
+  await shell().getByRole('textbox', { name: 'Address to clip' }).fill(`${fixture.origin}/casa-amora`);
+  await shell().getByRole('button', { name: 'Clip', exact: true }).click();
   await expect(text().locator('blockquote')).toContainText('Nine rooms in Príncipe Real.');
   await expect(text().getByRole('link', { name: 'Casa Amora' })).toBeVisible();
   await expect(status()).toHaveText('Saved');
@@ -179,22 +184,22 @@ test('#tags in pages show under Tags, and a tag lists the pages that carry it', 
   fs.writeFileSync(file('Work', 'Motors.md'), '# Motors\n\nAxion quote #Supplier\n');
   fs.writeFileSync(file('Home', 'Garden.md'), '# Garden\n\nTomatoes, not a #2 tag.\n');
   await start();
-  const tags = side().getByRole('treeitem', { name: 'Tags' });
+  const tags = side().getByRole('region', { name: 'Tags' });
   // The section's rows (not its fold button); a tag written in two cases is one tag, with its first spelling.
-  await expect(tags.getByRole('group').getByRole('button')).toHaveText(['#kestrel/p21', /^#supplier2$/i]);
+  await expect(tags.getByRole('list').getByRole('button')).toHaveText(['#kestrel/p21', /^#supplier2$/i]);
   // Each row says how its page starts.
   await expect(side().getByRole('button', { name: 'Packs', exact: true })).toContainText('Veltro holds the price');
-  await tags.getByRole('button', { name: /^#supplier, 2 pages$/i }).click();
-  const tagged = side().getByRole('list', { name: /^Pages tagged supplier$/i });
+  await tags.getByRole('button', { name: /^#supplier/i }).click();
+  const tagged = side().getByRole('region', { name: /^#supplier$/i });
   // One row per page (each row also has its pin and delete buttons).
   await expect(tagged.getByRole('listitem')).toHaveCount(2);
   await tagged.getByRole('button', { name: 'Packs', exact: true }).click();
   // The tags are marked in the page, and listed under its title.
   await expect(text().locator('.note-tag')).toHaveText(['#supplier', '#kestrel/p2']);
   await shell().locator('.note-meta').getByRole('button', { name: '#kestrel/p2' }).click();
-  await expect(side().getByRole('list', { name: 'Pages tagged kestrel/p2' }).getByRole('listitem')).toHaveCount(1);
+  await expect(side().getByRole('region', { name: '#kestrel/p2' }).getByRole('listitem')).toHaveCount(1);
   await side().getByRole('button', { name: 'Show every page' }).click();
-  await expect(side().getByRole('treeitem', { name: 'Work' })).toBeVisible();
+  await expect(side().getByRole('region', { name: 'Work' })).toBeVisible();
 });
 
 test('the Markdown view shows the file as it is kept, and typing there is saved', async () => {
@@ -203,8 +208,7 @@ test('the Markdown view shows the file as it is kept, and typing there is saved'
   await start();
   await side().getByRole('button', { name: 'Plan', exact: true }).click();
   await expect(text().getByRole('checkbox', { name: 'Task item checkbox for Call Sam' })).not.toBeChecked();
-  await format().getByRole('button', { name: 'More' }).click();
-  await shell().getByRole('menu', { name: 'More' }).getByRole('menuitem', { name: 'Show Markdown' }).click();
+  await notesMenu('Show Markdown');
   await expect(source()).toHaveValue('# Plan\n\n- [ ] Call Sam\n');
   await source().press('Control+End');
   await source().pressSequentially('- [x] Book the sled\n');
@@ -220,13 +224,13 @@ test('a pinned page is listed first, under Pinned, as well as in its notebook', 
   fs.writeFileSync(file('Work', 'Packs.md'), '# Packs\n');
   fs.writeFileSync(file('Work', 'Motors.md'), '# Motors\n');
   await start();
-  await expect(side().getByRole('treeitem', { name: 'Pinned' })).toHaveCount(0);
+  await expect(side().getByRole('region', { name: 'Pinned' })).toHaveCount(0);
   await side().getByRole('button', { name: 'Pin Motors to the sidebar' }).click();
-  const pinned = side().getByRole('treeitem', { name: 'Pinned' });
+  const pinned = side().getByRole('region', { name: 'Pinned' });
   await expect(pinned.getByRole('button', { name: 'Motors', exact: true })).toBeVisible();
-  await expect(side().getByRole('treeitem', { name: 'Work' }).getByRole('button', { name: 'Motors', exact: true })).toBeVisible();
+  await expect(side().getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Motors', exact: true })).toBeVisible();
   await pinned.getByRole('button', { name: 'Unpin Motors' }).click();
-  await expect(side().getByRole('treeitem', { name: 'Pinned' })).toHaveCount(0);
+  await expect(side().getByRole('region', { name: 'Pinned' })).toHaveCount(0);
 });
 
 test('History shows what the page was, compared with now, and Restore puts it back (and Undo undoes that)', async () => {
@@ -239,7 +243,7 @@ test('History shows what the page was, compared with now, and Restore puts it ba
   await shell().keyboard.type(' Book the sled.');
   await expect(status()).toHaveText('Saved');
   expect(onDisk('Work', 'Plan.md')).toBe('# Plan\n\nCall Sam. Book the sled.\n');
-  await format().getByRole('button', { name: 'History' }).click();
+  await notesMenu('Version history…');
   const history = shell().getByRole('region', { name: 'History' });
   await expect(history.getByRole('navigation', { name: 'Versions' }).getByRole('button')).toHaveCount(1);
   await expect(history.getByRole('list', { name: 'What restoring changes' })).toContainText('Call Sam.');

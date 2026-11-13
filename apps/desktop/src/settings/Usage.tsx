@@ -101,6 +101,7 @@ export function UsageSection({ subpage, highlight }: SectionProps) {
             {GROUP_OPTIONS.map((o) => <button key={o.id} type="button" role="tab" className="settings-tab" aria-selected={by === o.id} onClick={() => setBy(o.id)}>{o.label}</button>)}
           </div>
           {groups.length === 0 ? <p className="srow-text">Nothing used in this period.</p> : (
+            <div className="usage-table-wrap">
             <table className="usage-table" aria-label={`Usage by ${GROUP_OPTIONS.find((o) => o.id === by)!.label.toLowerCase()}`}>
               <thead><tr><th scope="col">{GROUP_OPTIONS.find((o) => o.id === by)!.label}</th><th scope="col">Requests</th><th scope="col">Tokens in</th><th scope="col">Tokens out</th><th scope="col">Cost</th></tr></thead>
               <tbody>
@@ -115,6 +116,7 @@ export function UsageSection({ subpage, highlight }: SectionProps) {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </Row>

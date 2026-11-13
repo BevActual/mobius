@@ -8,7 +8,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
     apps: [{ id: 'agent', name: 'Agent' }, { id: 'browser', name: 'Browser' }, { id: 'notes', name: 'Notes' }, { id: 'tasks', name: 'Tasks' }],
     keys: { newTab: 'mod+t', splitView: 'mod+\\', settings: 'mod+,' },
     state: {
-      sidebarShown: true, hasSidebar: true, agentShown: true, hasAgentPanel: true, split: false, canSplit: true, miniOpen: false, zoom: 1,
+      sidebarShown: true, hasSidebar: true, agentShown: true, hasAgentPanel: true, commenting: false, split: false, canSplit: true, miniOpen: false, zoom: 1,
       browser: { hasPage: true, canBack: false, canForward: false, bookmarked: false, pinned: false },
       notes: { hasPage: false, pinned: false, changed: false },
       tasks: { inList: false, done: 0 },
@@ -18,10 +18,10 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
     },
     do: {
       create: { conversation: noop, tab: noop, note: noop, task: noop },
-      closeTab: noop, settings: noop, shortcuts: noop, learn: noop, profiles: noop, about: noop, edit: noop, find: noop, toggleSidebar: noop, toggleAgent: noop,
+      closeTab: noop, settings: noop, shortcuts: noop, learn: noop, profiles: noop, about: noop, edit: noop, find: noop, toggleSidebar: noop, toggleAgent: noop, toggleComments: noop,
       toggleSplit: noop, toggleMini: noop, zoom: noop, open: noop, allApps: noop, launcher: noop,
       browser: { back: noop, forward: noop, reload: noop, address: noop, bookmark: noop, pin: noop, reopen: noop, selection: noop, saveToReader: noop },
-      notes: { newNotebook: noop, pin: noop, changes: noop },
+      notes: { newNotebook: noop, pin: noop, changes: noop, history: noop, clip: noop, markdown: noop },
       tasks: { newList: noop, clearDone: noop, today: noop, scheduled: noop },
       docs: { newDocument: noop, newFolder: noop },
       video: { newProject: noop, showFolder: noop },
@@ -58,6 +58,9 @@ describe('menus', () => {
     expect(find(menus, 'split')).toMatchObject({ checked: true, keys: 'mod+\\' });
     expect(find(menus, 'back')?.disabled).toBe(true);
     expect(find(menus, 'go-browser')?.checked).toBe(true);
+    // Comments sits in View, with C, and shows whether comment mode is on.
+    expect(find(menus, 'comments')).toMatchObject({ checked: false, keys: 'c' });
+    expect(find(buildMenus(context('notes', { commenting: true })), 'comments')?.checked).toBe(true);
     expect(find(buildMenus(context('notes')), 'close-tab')?.disabled).toBe(true);
     expect(find(buildMenus(context('tasks', { tasks: { inList: true, done: 3 } })), 'clear-done')).toMatchObject({ label: 'Clear 3 completed', disabled: false });
   });

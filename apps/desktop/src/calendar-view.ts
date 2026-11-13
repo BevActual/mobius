@@ -329,3 +329,23 @@ export function changedSince(before: string | null, now: readonly CalendarEvent[
   }
   return out;
 }
+
+/**
+ * Events whose title, place or notes hold every word typed, each once (a repeating event by its next time from
+ * `today`, or its last before), soonest first, at most `limit`.
+ */
+export function searchEvents(events: readonly CalendarEvent[], query: string, today: Date, limit = 50): CalendarEvent[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  const from = isoDay(today);
+  const best = new Map<string, CalendarEvent>();
+  for (const e of events) {
+    const text = `${e.title} ${e.location} ${e.notes}`.toLowerCase();
+    if (!words.every((w) => text.includes(w))) continue;
+    const had = best.get(e.id);
+    // Prefer the next time from today; before today, the latest one.
+    const better = !had || (e.start >= from ? had.start < from || e.start < had.start : had.start < from && e.start > had.start);
+    if (better) best.set(e.id, e);
+  }
+  return [...best.values()].sort((a, b) => a.start.localeCompare(b.start)).slice(0, limit);
+}
