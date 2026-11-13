@@ -1,12 +1,12 @@
 import { EmptyState } from './EmptyState';
 import { newItemIn } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu, ToolbarControls, UndoToast } from './ui';
 import { settleGone, settleIn, settleKept } from './settle';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
-import { Extension } from '@tiptap/core';
+import { Extension, generateHTML } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
 import { TableKit } from '@tiptap/extension-table';
@@ -21,7 +21,9 @@ import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from '.
 import type { NotesState } from './useNotes';
 import { CHECKLIST, TABLE, clipBlock, insertBlock, recordingBlock, tidyMarkdown } from './note-insert';
 import { useDictation } from './composer/useDictation';
-import { ReviewActions, WhyThis } from './ReviewBar';
+import { ReviewActions, TryAnotherContext, WhyThis } from './ReviewBar';
+import { changeBlocks, useTallChanges, type ChangeView } from './change-blocks';
+import { acceptGroup } from './docs-view';
 import { showTag, tagRanges, tagsIn } from './note-tags';
 import { countWords } from './Docs';
 import { relativeTime } from './relative-time';
@@ -275,6 +277,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   const quotesNow = useRef<string[]>([]);
   quotesNow.current = commentState.comments.filter((c) => !c.resolved).map((c) => c.quote);
   const commentMarks = useMemo(() => noteComments(() => quotesNow.current), []);
+  // What Mobius's last turn changed, drawn in the page as dashed blocks to keep or discard one at a time (as in Docs).
+  const changesNow = useRef<ChangeView | null>(null);
+  const changeMarks = useMemo(() => changeBlocks(() => changesNow.current), []);
+  const tryAnother = useContext(TryAnotherContext);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
@@ -288,6 +295,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       NoteTags,
       image,
       commentMarks,
+      changeMarks,
     ],
     content: '',
     editorProps: {
@@ -524,9 +532,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
     if (id) keepTurn(id, 'notes');
     setDiff(null);
+    setChanges(null);
     setKept(true);
   };
-  useEffect(() => { setDiff(null); setBefore(null); setReviewProblem(null); }, [path, review?.conversation]);
+  // The turn's changes as the page shows them, read when the page opens: the page before the turn, and the lines since.
+  const [changes, setChanges] = useState<DiffLine[] | null>(null);
+  const [was, setWas] = useState<string | null>(null);
+  useEffect(() => { setDiff(null); setBefore(null); setReviewProblem(null); setChanges(null); setWas(null); }, [path, review?.conversation]);
   const compare = (was: string | null, now: string): DiffLine[] => (was === null ? now.split('\n').map((text) => ({ kind: 'added' as const, text })) : diffLines(was, now));
   const showChanges = async () => {
     if (!review || !path) return;
@@ -543,6 +555,43 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const rest = compare(before, next);
     setDiff(rest.some((line) => line.kind !== 'same') ? rest : null);
   };
+  useEffect(() => {
+    if (!review || kept || !path || changes) return undefined;
+    let live = true;
+    void window.mobius.changes.before(review.conversation, `notes/${path}`).then((got) => {
+      // A page the turn made has nothing to compare with: it keeps the bar above it.
+      if (!live || !got || !got.ok || got.text === null) return;
+      setWas(got.text);
+      const d = diffLines(got.text, notes.text);
+      if (d.some((l) => l.kind !== 'same')) setChanges(d);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [review?.conversation, kept, path]); // eslint-disable-line react-hooks/exhaustive-deps
+  // One change kept takes it into "before", so it stops showing; one discarded is put back. The last one settles the turn.
+  const lastChange = (lines: DiffLine[]) => new Set(changeGroups(lines).filter((g) => g !== null)).size <= 1;
+  const keepOne = (group: number) => {
+    if (!changes || was === null) return;
+    const next = acceptGroup(changes, changeGroups(changes), group);
+    setWas(next);
+    const rest = diffLines(next, notes.text);
+    if (lastChange(changes) || !rest.some((l) => l.kind !== 'same')) void keepChanges(); else setChanges(rest);
+  };
+  const discardOne = (group: number) => {
+    if (!changes || was === null) return;
+    const next = undoGroup(changes, group);
+    notes.edit(next);
+    const rest = diffLines(was, next);
+    if (lastChange(changes) || !rest.some((l) => l.kind !== 'same')) void keepChanges(); else setChanges(rest);
+  };
+  const showingChanges = Boolean(review && !kept && changes && was !== null && !source && diff === null);
+  const changesKey = showingChanges && changes && was !== null ? `${path}:${was.length}:${changes.length}:${changes.map((l) => l.kind[0]).join('')}` : '';
+  const tallGroups = useTallChanges(editor, scroller, changesKey, changesNow);
+  // Markdown as this editor would draw it, for the words a change took out.
+  const renderMarkdown = (markdown: string): string | null => {
+    if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
+    try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
+  };
+  changesNow.current = showingChanges && changes ? { diff: changes, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, tall: tallGroups.current } : null;
   // The Notes menu's "Show what the agent changed".
   const showLatest = useRef(showChanges);
   showLatest.current = showChanges;
@@ -558,6 +607,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const result = await window.mobius.changes.undoFile(review.conversation, `notes/${path}`).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
     if (!result.ok) setReviewProblem(result.error);
     setDiff(null);
+    setChanges(null);
   };
 
   // In Markdown, the selection bar follows the pointer, as the text box has no positions to ask for.
@@ -684,7 +734,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       )}
       {shared && !history && <div className="note-restored note-shared" role="status"><span>{shared}</span><button type="button" className="review-btn" onClick={() => setShared(null)}>OK</button></div>}
       {restored && !history && <UndoToast text={`Restored the version from ${restored.label}.`} onUndo={() => { notes.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
-      {review && !kept && !history && (
+      {review && !kept && !history && !showingChanges && (
         <div ref={reviewBar} className="note-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in Mobius's last turn`; })() : "Mobius changed this page in its last turn."}<WhyThis conversation={review.conversation} /></span>
@@ -713,7 +763,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           })()}
         </ol>
       )}
-      <div className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(false); }}>
+      <div ref={setScroller} className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(false); }}>
         <p className="note-meta">
           {edited && <span>Edited {edited.toLowerCase() === 'just now' ? 'just now' : edited}</span>}
           <span>{words === 1 ? '1 word' : `${words} words`}</span>

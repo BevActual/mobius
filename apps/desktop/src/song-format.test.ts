@@ -44,3 +44,18 @@ describe('songs', () => {
     expect(songSeconds(before)).toBeCloseTo(8.57, 1);
   });
 });
+
+describe('a track\'s sound', () => {
+  it('is kept to its ranges, written back, and left out for drums', () => {
+    const s = song(JSON.stringify({ tracks: [
+      { id: 'a', instrument: 'pad', sound: { shape: 2, cutoff: 1200, attack: 0.84 }, notes: [] },
+      { id: 'b', instrument: 'drums', sound: { shape: 0.5 }, notes: [] },
+      { id: 'c', instrument: 'bass', notes: [] },
+    ] }));
+    expect(s.tracks[0]!.sound).toMatchObject({ shape: 1, cutoff: 1200, attack: 0.84, detune: 14 });
+    expect(s.tracks[1]!.sound).toBeUndefined();
+    expect(s.tracks[2]!.sound).toBeUndefined();
+    expect(song(writeSong(s)).tracks[0]!.sound).toEqual(s.tracks[0]!.sound);
+    expect(writeSong(s)).not.toContain('"sound":{"shape":0.5');
+  });
+});

@@ -90,7 +90,7 @@ test('photos are renamed, moved and deleted with their edits, and come back from
   const porto = path.join(userData, 'workspace', 'photos', 'Porto');
   await expect.poll(() => fs.existsSync(path.join(porto, 'shore.png.edits.json'))).toBe(true);
 
-  await shell().getByRole('navigation', { name: 'Albums' }).getByRole('button', { name: /Porto/ }).click();
+  await shell().getByRole('region', { name: 'Albums' }).getByRole('button', { name: /Porto/ }).click();
   const inPorto = shell().getByRole('list', { name: 'Photos in Porto' });
   await inPorto.getByRole('button', { name: 'shore.png' }).focus();
   await shell().keyboard.press('Delete');
@@ -131,6 +131,8 @@ test('Mobius adds an adjustment to the edits, shown dashed, and it is kept or di
     callsTool('files-write', { path: 'photos/Lisbon/coastline.png.edits.json', content: JSON.stringify(WARM) }),
     says(['Added Warm the hills, below the middle; the sky is untouched.']),
   ]);
+  // The right panel opens on Photo's Adjust tab; Mobius's suggestions are in the tab beside it.
+  await shell().getByRole('tab', { name: 'Mobius', exact: true }).click();
   await shell().getByRole('button', { name: 'Warm it up' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
@@ -138,6 +140,8 @@ test('Mobius adds an adjustment to the edits, shown dashed, and it is kept or di
   // The picture itself goes too, for models that read pictures.
   const sent = (model!.requests[0]!.messages as Array<{ role: string; content: unknown }>).filter((m) => m.role === 'user').pop()!.content as Array<{ type: string }>;
   expect(sent.map((p) => p.type)).toEqual(['text', 'image_url']);
+  // The change is waiting, dashed, at the top of the Adjust tab.
+  await shell().getByRole('tab', { name: 'Adjust', exact: true }).first().click();
   const change = shell().getByRole('group', { name: "Mobius's change" });
   await expect(change).toContainText('Mobius changed Warm the hills');
   await expect(panel().getByRole('option', { name: /Warm the hills/ })).toHaveAttribute('data-proposed', 'true');

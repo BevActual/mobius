@@ -21,6 +21,7 @@ import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
 import type { NoteComment } from '@mobius/shared';
 import { ReviewActions, TryAnotherContext, WhyThis } from './ReviewBar';
+import { changeBlocks, useTallChanges, type ChangeView } from './change-blocks';
 import { tidyMarkdown } from './note-insert';
 import { fileMarkdown, noteImage, readFile } from './note-files';
 import { CommentComposer, CommentList, commentLine, useNoteComments } from './NoteComments';
@@ -29,8 +30,12 @@ import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { Menu, ToolbarControls, UndoToast } from './ui';
+import { AppMenu, Menu, PanelTab, ToolbarControls, UndoToast, type MenuEntry } from './ui';
+import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
+import { relativeTime } from './relative-time';
+import { publishOutline } from './docs-outline';
+import { DocOutlinePanel } from './DocOutlinePanel';
 import './docs.css';
 
 export const DEFAULT_FOLDER = 'Documents';
@@ -82,6 +87,47 @@ const readOutline = () => { try { return window.localStorage.getItem(OUTLINE_KEY
 const COUNT_NEXT: Record<CountShown, string> = { words: 'characters', characters: 'reading time', minutes: 'words' };
 const COUNT_KEY = 'mobius.docs.count';
 const readCount = (): CountShown => { try { const v = window.localStorage.getItem(COUNT_KEY); return COUNT_ORDER.includes(v as CountShown) ? v as CountShown : 'words'; } catch { return 'words'; } };
+
+/** The quiet line under the title ("Edited just now · 148 words"), drawn in the page after the first heading, as the
+ *  timeless mock has it. Its count is a button that shows the next count. Read from `look` when told to look again. */
+interface MetaLine { text: string; count: string; next: string; onCount: () => void }
+const metaKey = new PluginKey<DecorationSet>('doc-meta');
+function metaDecorations(doc: PmNode, look: () => MetaLine | null): DecorationSet {
+  const line = look();
+  if (!line) return DecorationSet.empty;
+  const first = doc.firstChild;
+  // After the title when the document starts with one; otherwise at the top.
+  const at = first && first.type.name === 'heading' && Number(first.attrs.level) === 1 ? first.nodeSize : 0;
+  const draw = () => {
+    const p = document.createElement('p');
+    p.className = 'doc-meta';
+    p.contentEditable = 'false';
+    if (line.text) p.append(`${line.text} · `);
+    const count = document.createElement('button');
+    count.type = 'button';
+    count.className = 'doc-meta-count';
+    count.title = `Show ${line.next} instead`;
+    count.textContent = line.count;
+    count.addEventListener('mousedown', (e) => e.preventDefault());
+    count.addEventListener('click', () => look()?.onCount());
+    p.append(count);
+    return p;
+  };
+  return DecorationSet.create(doc, [Decoration.widget(at, draw, { side: -10, key: `meta:${line.text}:${line.count}`, ignoreSelection: true, stopEvent: () => true })]);
+}
+const docMeta = (look: () => MetaLine | null) => Extension.create({
+  name: 'docMeta',
+  addProseMirrorPlugins() {
+    return [new Plugin<DecorationSet>({
+      key: metaKey,
+      state: {
+        init: (_, state) => metaDecorations(state.doc, look),
+        apply: (tr, old) => (tr.docChanged || tr.getMeta(metaKey) ? metaDecorations(tr.doc, look) : old),
+      },
+      props: { decorations: (state) => metaKey.getState(state) },
+    })];
+  },
+});
 
 /** The words open comments are about, marked in the page. `quotes` is read when the plugin is told to look again. */
 const commentKey = new PluginKey<DecorationSet>('doc-comments');
@@ -166,7 +212,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
     editor,
     selector: ({ editor: e }) => ({
       style: e.isActive('heading', { level: 1 }) ? 'h1' : e.isActive('heading', { level: 2 }) ? 'h2' : e.isActive('heading', { level: 3 }) ? 'h3' : e.isActive('codeBlock') ? 'code' : 'p',
-      bold: e.isActive('bold'), italic: e.isActive('italic'), strike: e.isActive('strike'), code: e.isActive('code'), link: e.isActive('link'),
+      bold: e.isActive('bold'), italic: e.isActive('italic'), underline: e.isActive('underline'), strike: e.isActive('strike'), code: e.isActive('code'), link: e.isActive('link'),
       bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), task: e.isActive('taskList'), quote: e.isActive('blockquote'), table: e.isActive('table'),
       empty: e.state.selection.empty,
     }),
@@ -185,6 +231,85 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
   const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
   const marked = state.bold || state.italic || state.strike || state.code || state.style !== 'p' || state.bullet || state.ordered || state.quote || state.task;
   const tableIcon = <Icon><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></Icon>;
+  const tableRows: MenuEntry[] = [
+    { label: 'Add a row above', run: run((c) => c.addRowBefore()) },
+    { label: 'Add a row below', run: run((c) => c.addRowAfter()) },
+    { label: 'Add a column before', run: run((c) => c.addColumnBefore()) },
+    { label: 'Add a column after', run: run((c) => c.addColumnAfter()) },
+    { label: 'Delete the row', run: run((c) => c.deleteRow()), separated: true },
+    { label: 'Delete the column', run: run((c) => c.deleteColumn()) },
+    { label: 'Delete the table', run: run((c) => c.deleteTable()), danger: true },
+  ];
+  if (inFrame) {
+    // The timeless toolbar (Docs on the frame): the style, B I U, then lists, table and link, then Share. What is used
+    // less often is at the top of the window's one ⋯ (AppMenu): the other lists and marks, Insert, Mobius's writing tools
+    // and the document's options.
+    const styleName = STYLES.find((s) => s.id === state.style)?.label ?? 'Body';
+    const tick = (on: boolean) => (on ? <Icon d="m5 10.5 3.2 3L15 6.5" /> : undefined);
+    const mobiusIcon = <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>;
+    const btn = (label: string, title: string, pressed: boolean | undefined, onClick: () => void, icon: ReactNode, extra: { gives?: boolean } = {}) => (
+      <button type="button" className="strip-btn doc-bar-btn" aria-label={label} title={title} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })} data-gives-way={extra.gives || undefined} onPointerDown={keep} onClick={onClick}>{icon}</button>
+    );
+    const more: MenuEntry[] = [
+      { label: 'Numbered list', checked: state.ordered, keys: `${mod}Shift+7`, run: run((c) => c.toggleOrderedList()) },
+      { label: 'Checklist', checked: state.task, keys: `${mod}Shift+9`, run: run((c) => c.toggleTaskList()) },
+      { label: 'Quote', checked: state.quote, keys: `${mod}Shift+B`, run: run((c) => c.toggleBlockquote()) },
+      { label: 'Strikethrough', checked: state.strike, keys: `${mod}Shift+S`, run: run((c) => c.toggleStrike()) },
+      { label: 'Code', checked: state.code, keys: `${mod}E`, run: run((c) => c.toggleCode()) },
+      // Also here for when the toolbar is too narrow for its own Underline, Table and Link.
+      { label: 'Underline', checked: state.underline, keys: `${mod}U`, run: run((c) => c.toggleUnderline()) },
+      { label: state.link ? 'Remove the link' : 'Add a link…', run: () => (state.link ? editor.chain().focus().extendMarkRange('link').unsetLink().run() : extras.onLink()), separated: true },
+      { label: 'Insert a table', icon: tableIcon, run: run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true })) },
+      ...(extras.onFile ? [{ label: 'Insert a picture or file…', run: extras.onFile }] : []),
+      { label: 'Insert a divider', run: run((c) => c.setHorizontalRule()) },
+      { label: 'Insert a code block', run: run((c) => c.toggleCodeBlock()) },
+      // Mobius's writing tools: on the chosen words, or the whole document when none are chosen.
+      ...(onTool ? WRITING_TOOLS.map((t, i) => ({ label: t.label, icon: mobiusIcon, disabled: busy, separated: i === 0, run: () => onTool(t.id, t.id === 'summarise' ? null : selectedText()) })) : []),
+      ...(extras.onComments ? [{ label: extras.commentsOpen ? 'Hide comments in the margin' : extras.comments ? `Show comments in the margin (${extras.comments} open)` : 'Show comments in the margin', run: extras.onComments, separated: true }] : []),
+      ...(extras.onHistory ? [{ label: 'Earlier versions…', run: extras.onHistory, separated: !extras.onComments }] : []),
+      extras.font === 'serif'
+        ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans') }
+        : { label: 'Use a serif font', run: () => extras.onFont('serif') },
+    ];
+    return (
+      <ToolbarControls label="Docs">
+        <div className="doc-toolbar doc-bar" data-frame role="toolbar" aria-label="Format">
+          <span className="doc-bar-group">
+            <Menu label="Paragraph style" entries={STYLES_SHOWN.map((s) => ({ label: s.label, icon: tick(state.style === s.id), run: () => setStyle(s.id) }))}
+              trigger={<button type="button" className="doc-bar-style" aria-label={`Paragraph style: ${styleName}`} title="The paragraph's style"><span>{styleName}</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>} />
+            {btn('Bold', `Bold (${mod}B)`, state.bold, run((c) => c.toggleBold()), <b>B</b>)}
+            {btn('Italic', `Italic (${mod}I)`, state.italic, run((c) => c.toggleItalic()), <i>I</i>)}
+            {btn('Underline', `Underline (${mod}U)`, state.underline, run((c) => c.toggleUnderline()), <u>U</u>, { gives: true })}
+          </span>
+          <span className="doc-bar-group">
+            {btn('Bulleted list', `Bulleted list (${mod}Shift+8)`, state.bullet, run((c) => c.toggleBulletList()),
+              <Icon><circle cx="5" cy="6" r="1" /><circle cx="5" cy="10" r="1" /><circle cx="5" cy="14" r="1" /><path d="M8.5 6h7M8.5 10h7M8.5 14h7" /></Icon>)}
+            {/* Table inserts one; in a table, it has the rows and columns. */}
+            {state.table
+              ? <Menu label="Table" entries={tableRows} trigger={<button type="button" className="strip-btn doc-bar-btn" aria-label="Table" aria-pressed title="Rows and columns">{tableIcon}</button>} />
+              : btn('Table', 'Insert a table', undefined, run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true })), tableIcon, { gives: true })}
+            {btn('Link', state.link ? 'Remove the link' : 'Link to a web page or another document', state.link, () => (state.link ? editor.chain().focus().extendMarkRange('link').unsetLink().run() : extras.onLink()),
+              <Icon d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" />, { gives: true })}
+          </span>
+          <span className="spacer" />
+          {extras.onShare && (() => {
+            const share = extras.onShare;
+            return (
+              <Menu label="Share" align="end" entries={[
+                { label: 'Copy', run: () => share('formatted') },
+                { label: 'Copy as Markdown', run: () => share('markdown') },
+                { label: 'Export as web page', run: () => share('html'), separated: true },
+                { label: 'Export as Markdown', run: () => share('md') },
+                { label: 'Print or save as PDF…', run: () => share('print'), separated: true },
+              ]} trigger={<button type="button" className="strip-btn doc-bar-btn" aria-label="Share" title="Copy, export or print this document"><Icon d="M10 3.5v9M6.5 7 10 3.5 13.5 7M5.5 10.5v5h9v-5" /></button>} />
+            );
+          })()}
+          {/* The rest is at the top of the toolbar's one ⋯ (the window's), which opens on it. */}
+          <AppMenu label="Docs" entries={more} />
+        </div>
+      </ToolbarControls>
+    );
+  }
   const bar = (
     <div className="doc-toolbar" data-frame={inFrame || undefined} role="toolbar" aria-label="Format">
       <Panel label="Text format" title="Styles, bold, italic and lists" marked={marked} button={<span className="doc-aa" aria-hidden="true">Aa</span>} buttonLabel="Format text">
@@ -287,126 +412,8 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
       )}
     </div>
   );
-  return inFrame ? <ToolbarControls label="Docs">{bar}</ToolbarControls> : bar;
+  return bar;
 }
-
-/** What Mobius's last turn changed, as the page shows it: each change one dashed block where it is (the blocks it
- *  added, with the words it took out struck through at the top), and under it Discard, Try another and Keep for that
- *  change alone. Read from `look` when told to look again. */
-interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number> }
-const changeKey = new PluginKey<DecorationSet>('doc-changes');
-/** The words a change took out, struck through: the top of its dashed block, or all of it when nothing was added. */
-function changeWas(group: number, removed: string[], view: ChangeView, whole: boolean): HTMLElement {
-  const old = document.createElement('div');
-  old.className = 'doc-change-old';
-  old.contentEditable = 'false';
-  old.dataset.group = String(group);
-  if (whole) old.dataset.whole = '';
-  // Drawn as the page draws it (headings, lists, bold), through the editor's own schema; as lines when it will not read.
-  const html = view.render(removed.join('\n'));
-  if (html !== null) old.innerHTML = html;
-  else for (const line of removed) { const p = document.createElement('p'); p.textContent = line || ' '; old.append(p); }
-  return old;
-}
-/** The line under a change's block: who did it, then Discard, Try another and Keep. */
-function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null, head = false): HTMLElement {
-  const note = document.createElement('div');
-  note.className = head ? 'doc-change-head' : 'doc-change';
-  note.contentEditable = 'false';
-  note.dataset.group = String(group);
-  note.setAttribute('role', 'group');
-  note.setAttribute('aria-label', !added ? 'Words Mobius took out' : removed ? 'A change Mobius made' : 'Words Mobius added');
-  const bar = document.createElement('div');
-  bar.className = 'doc-change-bar';
-  const who = document.createElement('span');
-  who.textContent = !added ? 'Mobius took this out' : removed ? 'Mobius changed this' : 'Mobius added this';
-  bar.append(who);
-  const button = (label: string, name: string, kind: string, run: () => void) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'review-btn';
-    b.dataset.kind = kind;
-    b.textContent = label;
-    b.setAttribute('aria-label', name);
-    b.addEventListener('mousedown', (e) => e.preventDefault());
-    b.addEventListener('click', run);
-    return b;
-  };
-  // Asked through `look` when pressed: the note can outlive the render it was drawn in, and its change's number holds.
-  bar.append(button('Discard', 'Discard this change', 'discard', () => look()?.discard(group)));
-  if (view.again) bar.append(button('Try another', 'Try another way for this change', 'again', () => look()?.again?.(group)));
-  bar.append(button('Keep', 'Keep this change', 'keep', () => look()?.keep(group)));
-  note.append(bar);
-  return note;
-}
-function changeDecorations(doc: PmNode, look: () => ChangeView | null): DecorationSet {
-  const view = look();
-  if (!view) return DecorationSet.empty;
-  // Each text block, and the top-level block it sits in: a change is boxed at the top level, so a list or a quote
-  // draws as one block rather than an outline round each item.
-  const tops: { from: number; to: number }[] = [];
-  doc.forEach((node, offset) => { tops.push({ from: offset, to: offset + node.nodeSize }); });
-  const blocks: { top: number; text: string }[] = [];
-  doc.descendants((node, pos) => {
-    if (!node.isTextblock) return true;
-    const $pos = doc.resolve(pos);
-    const from = $pos.depth === 0 ? pos : $pos.before(1);
-    blocks.push({ top: tops.findIndex((t) => t.from === from), text: node.textContent.replace(/\s+/g, ' ').trim() });
-    return false;
-  });
-  const groups = changeGroups(view.diff);
-  const { added, notes } = placeChanges(view.diff, groups, blocks.map((b) => b.text));
-  const marks: Decoration[] = [];
-  const removedOf = (g: number) => {
-    const removed = view.diff.filter((l, i) => groups[i] === g && l.kind === 'removed').map((l) => l.text);
-    while (removed.length && !removed[removed.length - 1]!.trim()) removed.pop();
-    while (removed.length && !removed[0]!.trim()) removed.shift();
-    return removed;
-  };
-  const topGroup = new Map<number, number>();
-  for (const [b, g] of added) if (blocks[b]!.top >= 0) topGroup.set(blocks[b]!.top, g);
-  // The added blocks of one change draw as one dashed block: its top on the first (unless struck words sit above),
-  // its bottom on the last.
-  const firstOf = new Map<number, number>();
-  for (const [t, g] of topGroup) if (!firstOf.has(g) || t < firstOf.get(g)!) firstOf.set(g, t);
-  for (const [t, g] of topGroup) {
-    const top = topGroup.get(t - 1) !== g && (t !== firstOf.get(g) || removedOf(g).length === 0);
-    const bottom = topGroup.get(t + 1) !== g;
-    marks.push(Decoration.node(tops[t]!.from, tops[t]!.to, { class: 'doc-change-new', 'data-group': String(g), ...(top ? { 'data-top': '' } : {}), ...(bottom ? { 'data-bottom': '' } : {}) }));
-  }
-  for (const [g, at] of notes) {
-    const removed = removedOf(g);
-    const own = [...topGroup].filter(([, og]) => og === g).map(([t]) => t);
-    const key = `${g}-${removed.join('\u0000').length}`;
-    const opts = (side: number, k: string) => ({ side, key: `change-${k}-${key}`, stopEvent: () => true, ignoreSelection: true });
-    if (own.length) {
-      // A change taller than the view also has its answers at its top, so they are never only out of sight.
-      if (view.tall?.has(g)) marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeNote(g, removed.length > 0, true, view, look, true), opts(-2, 'head')));
-      if (removed.length) marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeWas(g, removed, view, false), opts(-1, 'was')));
-      marks.push(Decoration.widget(tops[Math.max(...own)]!.to, () => changeNote(g, removed.length > 0, true, view, look), opts(1, 'note')));
-      continue;
-    }
-    const near = at.block < 0 ? undefined : tops[blocks[at.block]!.top];
-    const pos = !near ? 0 : at.before ? near.from : near.to;
-    const side = at.before ? -2 : 1;
-    if (removed.length) marks.push(Decoration.widget(pos, () => changeWas(g, removed, view, true), opts(side, `was-${pos}`)));
-    marks.push(Decoration.widget(pos, () => changeNote(g, removed.length > 0, false, view, look), opts(side + 1, `note-${pos}`)));
-  }
-  return DecorationSet.create(doc, marks);
-}
-const docChanges = (look: () => ChangeView | null) => Extension.create({
-  name: 'docChanges',
-  addProseMirrorPlugins() {
-    return [new Plugin<DecorationSet>({
-      key: changeKey,
-      state: {
-        init: (_, state) => changeDecorations(state.doc, look),
-        apply: (tr, old) => (tr.docChanged || tr.getMeta(changeKey) ? changeDecorations(tr.doc, look) : old),
-      },
-      props: { decorations: (state) => changeKey.getState(state) },
-    })];
-  },
-});
 
 type ShareHow = 'markdown' | 'formatted' | 'html' | 'md' | 'print';
 
@@ -446,7 +453,9 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const commentMarks = useMemo(() => docComments(() => quotesNow.current), []);
   const changesNow = useRef<ChangeView | null>(null);
   const tryAnother = useContext(TryAnotherContext);
-  const changeMarks = useMemo(() => docChanges(() => changesNow.current), []);
+  const changeMarks = useMemo(() => changeBlocks(() => changesNow.current), []);
+  const metaNow = useRef<MetaLine | null>(null);
+  const metaMarks = useMemo(() => docMeta(() => metaNow.current), []);
   useEffect(() => { onComments?.(commentState.comments); }, [commentState.comments, onComments]);
   const askAbout = onTool ? (c: NoteComment) => onTool('comment', commentLine(c, commentState.comments)) : undefined;
   // The selection bar sits just above the chosen words.
@@ -473,6 +482,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       image,
       commentMarks,
       changeMarks,
+      ...(inFrame ? [metaMarks] : []),
     ],
     content: '',
     editorProps: {
@@ -572,6 +582,30 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const nextCount = () => setCount((c) => { const next = COUNT_ORDER[(COUNT_ORDER.indexOf(c) + 1) % COUNT_ORDER.length]!; try { window.localStorage.setItem(COUNT_KEY, next); } catch { /* Not kept. */ } return next; });
   const [font, setFontState] = useState<DocFont>(readFont);
   const setFont = (f: DocFont) => { setFontState(f); try { window.localStorage.setItem(FONT_KEY, f); } catch { /* Not kept. */ } };
+  // On the frame, the outline is in the sidebar, under the document (docs-outline), and the count is in the line
+  // under the title, with when it was last edited.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(t); }, []);
+  const modified = docs.notebooks.flatMap((nb) => nb.pages).find((pg) => pg.path === path)?.modified ?? 0;
+  const edited = relativeTime(modified, Math.max(now, modified));
+  metaNow.current = inFrame && path ? { text: edited ? `Edited ${edited.charAt(0).toLowerCase()}${edited.slice(1)}` : '', count: countLabel(count, stats, chosenWords), next: COUNT_NEXT[count], onCount: nextCount } : null;
+  const metaText = metaNow.current ? `${metaNow.current.text}|${metaNow.current.count}` : '';
+  useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(metaKey, true)); }, [editor, metaText]);
+  const outlineFrom = outline.length > 0 && outline[0]!.level === 1 && outline[0]!.pos === 0 ? 1 : 0;
+  const outlineNow = useRef(outline);
+  outlineNow.current = outline;
+  const outlineKey = outline.slice(outlineFrom).map((h) => `${h.level}${h.text}`).join('\u0000');
+  useEffect(() => {
+    if (!inFrame || !path) return undefined;
+    publishOutline({
+      path,
+      items: outlineNow.current.slice(outlineFrom).map((h) => ({ level: h.level, text: h.text })),
+      current: current - outlineFrom,
+      go: (i) => { const h = outlineNow.current[i + outlineFrom]; if (h && editor && !editor.isDestroyed) editor.chain().focus().setTextSelection(h.pos + 1).scrollIntoView().run(); },
+    });
+    return undefined;
+  }, [inFrame, path, outlineKey, outlineFrom, current, editor]);
+  useEffect(() => (inFrame ? () => publishOutline(null) : undefined), [inFrame]);
   const [outlineOpen, setOutlineOpen] = useState(readOutline);
   const toggleOutline = () => setOutlineOpen((o) => { try { window.localStorage.setItem(OUTLINE_KEY, o ? '0' : '1'); } catch { /* Not kept. */ } return !o; });
   const openComments = commentState.comments.filter((c) => !c.resolved).length;
@@ -760,33 +794,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   // The page is told to mark the changes again whenever what it should show changes.
   changesNow.current = null;
   // Which changes are taller than the view, measured once they are drawn; told to the page when that changes.
-  const tallGroups = useRef<ReadonlySet<number>>(new Set());
   const changesKey = review && !kept && diff && before !== null ? `${path}:${before.length}:${diff.length}:${diff.map((l) => l.kind[0]).join('')}` : '';
-  useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(changeKey, true)); }, [editor, changesKey]);
-  useEffect(() => {
-    if (!changesKey || !editor || !scroller) { tallGroups.current = new Set(); return undefined; }
-    const measure = () => {
-      if (editor.isDestroyed) return;
-      const span = new Map<number, { top: number; bottom: number }>();
-      for (const el of editor.view.dom.querySelectorAll<HTMLElement>('.doc-change-new[data-group], .doc-change-old[data-group], .doc-change[data-group]')) {
-        const g = Number(el.dataset.group);
-        const r = el.getBoundingClientRect();
-        const was = span.get(g);
-        span.set(g, { top: Math.min(was?.top ?? r.top, r.top), bottom: Math.max(was?.bottom ?? r.bottom, r.bottom) });
-      }
-      const room = scroller.clientHeight - 48;
-      const tall = new Set([...span].filter(([, s]) => s.bottom - s.top > room).map(([g]) => g));
-      const was = tallGroups.current;
-      if (tall.size === was.size && [...tall].every((g) => was.has(g))) return;
-      tallGroups.current = tall;
-      if (changesNow.current) changesNow.current = { ...changesNow.current, tall };
-      editor.view.dispatch(editor.state.tr.setMeta(changeKey, true));
-    };
-    const frame = requestAnimationFrame(measure);
-    const resized = new ResizeObserver(() => measure());
-    resized.observe(scroller);
-    return () => { cancelAnimationFrame(frame); resized.disconnect(); };
-  }, [editor, scroller, changesKey]);
+  const tallGroups = useTallChanges(editor, scroller, changesKey, changesNow);
 
   if (!docs.page) {
     // The editor stays mounted (hidden), so it is ready the moment a document opens.
@@ -810,7 +819,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
-    <section ref={section} className="doc-editor" aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}>
+    <section ref={section} className="doc-editor" data-frame={inFrame || undefined} aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}>
       {docs.status === 'conflict' && (
         <div className="note-conflict" role="alert">
           <span>This document was changed somewhere else while you were editing it.</span>
@@ -852,9 +861,11 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
           )}
         </form>
       )}
+      {/* The outline, as the right panel's Outline tab beside Mobius. */}
+      {inFrame && <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>}
       {history && path ? <NoteHistory path={path} text={docs.text} kind="docs" onRestore={restore} onClose={() => setHistory(false)} /> : (
         <div className="doc-body">
-          {outlineOpen && (
+          {outlineOpen && !inFrame && (
             <nav className="doc-outline" aria-label="Outline">
               <span className="doc-outline-title">Outline</span>
               {outline.length === 0 && <span className="doc-outline-empty">Headings show here as you add them.</span>}
@@ -909,12 +920,15 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
         {...(onTool ? { onAsk: (quote: string, text: string) => onTool('comment', commentLine({ id: '', quote, text, by: 'you', whenMs: 0, resolved: false }, [])) } : {})} />}
       {restored && <UndoToast text={`Restored the version from ${restored.label}`} onUndo={() => { docs.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
       {note && <div className="doc-toast" role="status"><span>{note}</span><button type="button" className="review-btn" onClick={() => setNote(null)}>OK</button></div>}
-      <footer className="doc-status">
-        <button type="button" className="doc-count-btn" title={`Show ${COUNT_NEXT[count]} instead`} onClick={nextCount}>{countLabel(count, stats, chosenWords)}</button>
-        {adding > 0 && <span>Adding {adding === 1 ? 'a file' : `${adding} files`}…</span>}
-        {/* On the frame, whether it is saved shows in the window's toolbar, under the document's name. */}
-        {!inFrame && <><span className="spacer" /><span className="doc-saved" data-state={docs.status}>{saving}</span></>}
-      </footer>
+      {/* On the frame there is no status bar: the count is under the title and whether it is saved is in the toolbar.
+          It shows only while files are being added. */}
+      {(!inFrame || adding > 0) && (
+        <footer className="doc-status">
+          {!inFrame && <button type="button" className="doc-count-btn" title={`Show ${COUNT_NEXT[count]} instead`} onClick={nextCount}>{countLabel(count, stats, chosenWords)}</button>}
+          {adding > 0 && <span>Adding {adding === 1 ? 'a file' : `${adding} files`}…</span>}
+          {!inFrame && <><span className="spacer" /><span className="doc-saved" data-state={docs.status}>{saving}</span></>}
+        </footer>
+      )}
     </section>
   );
 }
