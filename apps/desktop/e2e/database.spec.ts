@@ -41,7 +41,8 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   // Importing makes a database called Data and opens the new table.
   await shell.getByRole('complementary', { name: 'Database sidebar' }).locator('input[type="file"]').setInputFiles({ name: 'hotels.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) });
   const page = shell.getByRole('region', { name: 'Database' });
-  const grid = page.getByRole('table', { name: 'Rows' });
+  // The rows are a grid in the Data view (a table that can be changed) and a plain table in SQL.
+  const grid = page.getByLabel('Rows', { exact: true });
   await expect(grid.getByRole('row')).toHaveCount(4);
   await expect(grid.getByRole('columnheader')).toHaveText(['Name', 'Rooms', 'Price', 'Area']);
   await expect(shell.getByRole('list', { name: 'Tables in Data' })).toContainText('hotels');
@@ -60,6 +61,41 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await expect(page.getByRole('status')).toHaveText('1 row matches');
   await filter.fill('');
   await expect(grid.getByRole('row')).toHaveCount(4);
+
+  // A double-click changes a cell and Undo puts it back; Add row opens a new row's first cell; a row's menu deletes it.
+  const casaRooms = () => grid.getByRole('row', { name: /Casa Amora/ }).getByRole('gridcell').nth(1);
+  await casaRooms().dblclick();
+  const cell = grid.getByRole('textbox', { name: 'Cell value' });
+  await cell.fill('12');
+  await cell.press('Enter');
+  await expect(casaRooms()).toHaveText('12');
+  await page.getByRole('status').filter({ hasText: 'Changed Rooms' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(casaRooms()).toHaveText('9');
+  await page.getByRole('button', { name: 'Add row' }).click();
+  await expect(grid.getByRole('row')).toHaveCount(5);
+  await cell.fill('Pestana');
+  await cell.press('Enter');
+  await grid.getByRole('row', { name: /Pestana/ }).getByRole('gridcell').first().click({ button: 'right' });
+  await shell.getByRole('menuitem', { name: 'Delete row' }).click();
+  await expect(grid.getByRole('row')).toHaveCount(4);
+  await expect(grid.getByRole('row', { name: /Pestana/ })).toHaveCount(0);
+
+  // The grid works from the keyboard: arrows move the active cell, Enter types into it, Delete sets it to NULL, Ctrl+Z undoes.
+  await casaRooms().click();
+  await shell.keyboard.press('ArrowRight');
+  await shell.keyboard.press('Enter');
+  await cell.fill('199');
+  await cell.press('Enter');
+  const casaPrice = () => grid.getByRole('row', { name: /Casa Amora/ }).getByRole('gridcell').nth(2);
+  await expect(casaPrice()).toContainText('199');
+  await shell.keyboard.press('Delete');
+  await expect(casaPrice()).toHaveText('NULL');
+  await shell.keyboard.press('Control+z');
+  await expect(casaPrice()).toContainText('199');
+  await shell.keyboard.press('Enter');
+  await cell.fill('180.5');
+  await cell.press('Enter');
+  await expect(casaPrice()).toContainText('180.5');
   await page.getByRole('radio', { name: 'Structure' }).click();
   await expect(page.getByRole('table', { name: 'Columns' }).getByRole('row', { name: /Rooms/ })).toContainText('INTEGER');
 
@@ -111,7 +147,7 @@ test('a sheet from Sheets becomes a table, with its worked-out values', async ()
   const side = shell.getByRole('complementary', { name: 'Database sidebar' });
   await side.getByRole('button', { name: 'Import a sheet' }).click();
   await side.getByRole('group', { name: 'Import a sheet' }).getByRole('button', { name: 'Budget › Costs' }).click();
-  const grid = shell.getByRole('region', { name: 'Database' }).getByRole('table', { name: 'Rows' });
+  const grid = shell.getByRole('region', { name: 'Database' }).getByLabel('Rows', { exact: true });
   await expect(grid.getByRole('row', { name: /Total/ })).toContainText('2000');
   await expect(shell.getByRole('list', { name: 'Tables in Data' })).toContainText('Costs');
 

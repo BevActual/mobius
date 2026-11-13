@@ -34,8 +34,9 @@ Longer documents, with an outline and comments.
 - **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
-- **Mobius's writing tools** work on the selection or the whole document. What Mobius changes comes back as
-  proposals, old text struck and new text marked, each with its own Discard.
+- **Mobius's writing tools** work on the selection or the whole document. What Mobius changes is marked in the page
+  where it is, as tracked changes are: new words tinted, and a note above them with the words taken out, struck
+  through. Each change has its own **Keep** and **Discard**; the bar above the page keeps or discards them all.
 - **History** puts an earlier version back. **Share** copies, exports as a web page or Markdown, or prints and saves as
   PDF.
 
@@ -106,6 +107,12 @@ Sheets, and each table opens with three views:
 
 - **Data** shows the rows, 100 to a page. Click a column's heading to sort by it (again for high to low, a third time
   for no order), and type in **Filter rows** to keep the rows where any column holds those words.
+  In a table you can change, double-click a cell to type a new value (Enter keeps it, Escape puts it back), and
+  **Add row** adds an empty row and opens its first cell. Right-click a cell to edit it, copy its value, set it to
+  NULL or delete its row. The last change shows **Undo** at the bottom. From the keyboard the grid is one Tab stop:
+  the arrow keys move between cells (Home, End, Ctrl+Home and Ctrl+End jump), Enter or F2 types into a cell, Delete
+  sets it to NULL, Ctrl+Delete deletes the row, Ctrl+C copies the value, Ctrl+Z undoes and Shift+F10 opens the menu. A view, or a table made WITHOUT ROWID, is
+  shown read-only: change it in SQL.
 - **Structure** lists the columns with their types, which ones need a value, defaults and the key, and the statement
   that made the table.
 - **SQL** runs any statement and shows what it gave. **History** brings back an earlier one, and **Copy as CSV** copies

@@ -5,6 +5,7 @@ import { AboutSection, AdvancedSection, AppearanceSection, BrowserSection, Keybo
 import { ProvidersSection } from './ProviderKeys';
 import { SchedulesSection } from './Schedules';
 import { PageBoundary } from './PageBoundary';
+import { UsageSection } from './Usage';
 import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection, VoiceModelRows } from './Voice';
 import '../settings.css';
 
@@ -26,6 +27,7 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   notifications: NotificationsSection,
   sessions: SessionsSection,
   keyboard: KeyboardSection,
+  usage: UsageSection,
   advanced: AdvancedSection,
   about: AboutSection,
 };
@@ -46,6 +48,7 @@ const SECTION_GLYPHS: Record<string, string> = {
   notifications: 'M3 8.5V5.5a3 3 0 0 1 6 0v3l1 1H2zM5 10.5h2',
   sessions: 'M2 3h8v5H5l-2 2V8H2z',
   keyboard: 'M1.5 3.5h9v5h-9zM3.5 5.5h1M5.5 5.5h1M7.5 5.5h1M4 7h4',
+  usage: 'M2 10V7M4.7 10V4.5M7.3 10V6M10 10V2.5',
   advanced: 'M2 3l3 3-3 3M6 9h4',
   about: 'M6 1.5a4.5 4.5 0 1 0 0.01 0M6 5.5v3M6 3.6v0.1',
 };
@@ -56,7 +59,7 @@ const SECTION_TINTS: Record<string, string> = {
   providers: '#00c7be', model: '#5856d6', voice: '#ff2d55',
   safety: '#ff9f0a', memory: '#a2845e', privacy: '#1f6feb',
   browser: '#30b0c7', sessions: '#af52de', schedules: '#34c759', extensions: '#7d7aff',
-  advanced: '#3a3a3c', about: '#636366',
+  usage: '#ff9500', advanced: '#3a3a3c', about: '#636366',
 };
 
 function SectionIcon({ id, className }: { id: string; className: string }) {
@@ -80,7 +83,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   const nav = (
     <nav className="settings-nav" aria-label="Settings sections">
       {/* As in System Settings: search at the top of the sidebar, then the sections under their headings. */}
-      <input type="search" role="searchbox" className="settings-search" aria-label="Search settings" placeholder="Search" value={query} onChange={(event) => setQuery(event.target.value)} />
+      <input type="search" role="searchbox" className="side-search settings-search" aria-label="Search settings" placeholder="Search" value={query} onChange={(event) => setQuery(event.target.value)} />
       {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (
         <div key={group} className="settings-nav-group" role="group" aria-label={group}>
           {group && <h2 className="settings-nav-heading">{group}</h2>}
