@@ -2219,14 +2219,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .ext-name { font-weight: 500; }
 .ext-state { color: var(--muted); font-size: var(--fs-sm); flex: 1; }
 
-/* Files: the workspace as a drive. What Mobius made is dashed until kept. */
-.files-row { display: flex; align-items: center; gap: var(--sp-2); width: 100%; padding: var(--sp-2) var(--sp-3); border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: var(--radius-control, 6px); }
-.files-row:hover { background: var(--wash); }
-.files-row svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; color: var(--muted); }
-.files-row[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
-.files-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; color: var(--muted); }
-.files-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 6px 6px 12px; width: fit-content; border-radius: var(--radius-panel); background: var(--wash); font: var(--fs-sm)/1.2 var(--font); }
-.files-review > span { margin-right: var(--sp-2); }
 .hub-icon[data-app="files"], .launcher-icon svg[data-app="files"], .review-filter svg[data-app="files"] { background: var(--app-files); }
 
 /* A request that came from something Mobius read, not from the person. */

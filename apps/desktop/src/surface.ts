@@ -81,9 +81,10 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'mail':
       if (state.mail) {
         return [
+          // The whole job in one ask: to-dos, a meeting, and a reply, each waiting for the person (the launch demo).
+          { label: 'Take care of this', prompt: `Take care of the attached email. Add any to-dos it asks of me to my Tasks with tasks.add, with their due dates. If it asks for a meeting, read my calendar with calendar.list, pick a time that clashes with nothing, and suggest it with calendar.suggest. Then suggest a short reply in my voice with mail.draft (replyTo: ${state.mail.id}) that says what I will do and when. Do not send anything. End with one line for each thing you did.`, attach: 'mail' },
           { label: 'Draft a reply', prompt: `Suggest a short reply to the attached email with mail.draft (replyTo: ${state.mail.id}), in my voice, answering what it asks. Check my calendar first if it is about a time.`, attach: 'mail' },
           { label: 'Add a reminder', prompt: 'If the attached email asks me to do something by a time, suggest a calendar event for it with calendar.suggest, a little before it is due. Say what you suggested.', attach: 'mail' },
-          { label: 'Save to Notes', prompt: 'Write the parts of the attached email worth keeping as a short note in my Notes, with who sent it and when.', attach: 'mail' },
         ];
       }
       return [

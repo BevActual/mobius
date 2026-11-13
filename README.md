@@ -96,7 +96,7 @@ Mobius's own apps, always there.
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/readme/apps/settings.png" alt="The Settings app in Mobius"><br><b>Settings</b> · Gateways, models, voice, approvals, privacy and more.<br><sub>Choose which AI does which job and how far Mobius may go on its own.</sub></td>
-<td width="50%"></td>
+<td width="50%" valign="top"><img src="docs/readme/apps/activity.png" alt="The Activity app in Mobius"><br><b>Activity</b> · What Mobius did across your apps, a day at a time, and what needs you.<br><sub>Filter by who did it, by app, or to what can't be undone. Rewind a conversation from here.</sub></td>
 </tr>
 </table>
 

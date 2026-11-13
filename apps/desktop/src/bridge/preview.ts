@@ -1,6 +1,7 @@
 import { tagsIn } from '../note-tags';
 import { linksIn } from '../note-links';
 import { PREVIEW_TASKS } from './preview-tasks';
+import { PREVIEW_FILES } from './preview-files';
 import { PREVIEW_DATABASES } from './preview-databases';
 import { PREVIEW_PROJECTS } from './preview-projects';
 import { PREVIEW_CALENDAR } from './preview-calendar';
@@ -16,6 +17,7 @@ import { PREVIEW_SLIDES } from './preview-slides';
 import { PREVIEW_PHOTOS } from './preview-photos';
 import { PREVIEW_VIDEO } from './preview-video';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
+import { PREVIEW_ACTIVITY } from './preview-activity';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge, type UsageRow } from '@mobius/shared';
 
 /**
@@ -71,7 +73,6 @@ const previewConnectors = () => ({ running: ['github'], failed: [{ server: 'line
 /** Answers for the calls that must return more than an empty list. Keyed by the call's path. */
 const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'core.getStatus': () => 'ready',
-  'files.list': (path: string) => ({ path, truncated: false, entries: path === '' ? [{ name: 'docs', type: 'folder' }, { name: 'notes', type: 'folder' }, { name: 'sheets', type: 'folder' }, { name: 'tasks', type: 'folder' }, { name: 'README.md', type: 'file', bytes: 2048 }] : path === 'notes' ? [{ name: 'P2 build', type: 'folder' }, { name: 'Home', type: 'folder' }] : path === 'notes/P2 build' ? [{ name: 'Build plan.md', type: 'file', bytes: 620 }, { name: 'Supplier notes.md', type: 'file', bytes: 410 }] : [] }),
   'extensions.connectors': () => previewConnectors(),
   'extensions.addConnector': (draft: { name: string }) => {
     if (['github', 'linear', ...previewWaiting].includes(draft.name)) return { ok: false, error: `There is already a connector called ${draft.name}.` };
@@ -92,6 +93,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_SLIDES,
   ...PREVIEW_PHOTOS,
   ...PREVIEW_VIDEO,
+  ...PREVIEW_ACTIVITY,
   'bots.get': () => ({ bots: [
     { id: 'main', name: 'Mobius', instructions: '', model: '', createdMs: 0 },
     { id: 'rcpt01', name: 'File receipts', instructions: 'When a receipt arrives in Mail, add a row to the Expenses sheet.', model: '', createdMs: now - 6 * 86_400_000 },
@@ -102,6 +104,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'mini.isOpen': () => false,
   // Tasks are kept in memory for as long as the preview is open.
   ...PREVIEW_TASKS,
+  ...PREVIEW_FILES,
   // Documents are kept in memory for as long as the preview is open.
   ...PREVIEW_DOCS,
   // Reader's articles are kept in memory for as long as the preview is open.

@@ -282,7 +282,9 @@ test('Mobius’s own apps sit in the switcher: Bots and Activity open their view
   // Only Bots is where you are: not Agent too.
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
   await own.getByRole('button', { name: 'Activity', exact: true }).click();
-  await expect(side.getByRole('tab', { name: 'Activity' })).toHaveAttribute('aria-selected', 'true');
+  // Activity has its own sidebar and page in the Agent app's place.
+  await expect(shell().getByRole('complementary', { name: 'Activity sidebar' })).toBeVisible();
+  await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
   // Agent itself opens on the conversations.
   await showApps();
   await railButton('Agent').click();

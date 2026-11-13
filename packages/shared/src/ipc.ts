@@ -561,6 +561,14 @@ export interface MobiusBridge {
   /** Only the desktop app: the workspace folder as a drive, for the person to look through. */
   files?: {
     list(path: string): Promise<{ path: string; entries: FileEntry[]; truncated: boolean } | { error: string }>;
+    /** The person's own actions in Files; the agent has none of these. Each answers with the item's new path. */
+    newFolder?(folder: string, name: string): Promise<FilesActionResult>;
+    rename?(path: string, name: string): Promise<FilesActionResult>;
+    /** Moves to the workspace's Trash; `path` in the answer is where it is held, for putBack. */
+    trash?(path: string): Promise<FilesActionResult>;
+    putBack?(held: string, path: string): Promise<FilesActionResult>;
+    /** Shows the item in Explorer or Finder. */
+    show?(path: string): Promise<void>;
   };
   /** Only the desktop app: what extends Mobius. */
   extensions?: {
@@ -1200,7 +1208,8 @@ export interface ModelGroup {
 export interface ModelCatalog { current: string; groups: ModelGroup[] }
 
 /** Settings > Advanced > Other apps. */
-export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number }
+export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number; /** When it last changed, ms since 1970 (Files only). */ modified?: number }
+export type FilesActionResult = { ok: true; path: string } | { ok: false; error: string };
 export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null; /** In mcp.json, not started yet: starts when Mobius opens again. */ waiting?: string[]; /** Started, but no longer in mcp.json: stops when Mobius opens again. */ leaving?: string[] }
 /** A connector to add: a short name, the command that runs the MCP server, its arguments and its keys. */
 export interface ConnectorDraft { name: string; command: string; args: string[]; env: Record<string, string> }
