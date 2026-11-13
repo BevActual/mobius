@@ -94,6 +94,8 @@
 /* In a narrow window the slide keeps its room: the navigator narrows. */
 .stage .slides-page { container-type: inline-size; }
 .slides-page .slides-body > .ui-panels { flex: 1; min-width: 260px; }
+/* The thumbnails and the slide share the content; the notes panel runs under both. */
+.slides-page .slides-work { display: flex; min-height: 0; }
 @container (max-width: 640px) {
   .slides-page .slides-nav { flex-basis: 132px; }
   /* Until Format is a tab beside Mobius, it steps aside in a narrow window so the slide keeps its room. */

@@ -522,6 +522,8 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
         </div>
       )}
       <div className="slides-body">
+        <PanelLayout app="slides" panels={NOTES_PANEL}>
+        <div className="slides-work">
         <nav ref={navRef} className="slides-nav" aria-label="Slides" onKeyDown={onNavKey} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropAt(null); }}>
           {slides.map((s, i) => (
             <button key={i} type="button" className="slides-thumb" data-i={i} tabIndex={i === at ? 0 : -1}
@@ -545,7 +547,6 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
             </button>
           ))}
         </nav>
-        <PanelLayout app="slides" panels={NOTES_PANEL}>
         <main className="slides-main">
           <div className="slides-stage">
             <div className="slides-canvas" data-proposed={proposing && changed.has(at) ? true : undefined}
@@ -567,6 +568,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
             </div>
           </div>
         </main>
+        </div>
         </PanelLayout>
         <SlidesFormat slides={slides} at={at} current={current} change={change} toggleSkip={toggleSkip} adding={adding} onReplace={() => picker.current?.click()} onPlay={setPlaying} onTool={onTool} busy={busy} />
       </div>
