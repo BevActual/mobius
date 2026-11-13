@@ -36,7 +36,7 @@ import { TasksPage, TasksSidebar } from './Tasks';
 import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { SheetGrid, SheetsSidebar } from './Sheets';
-import { MailPage, MailSidebar } from './Mail';
+import { BOX_NAMES, MailPage, MailSidebar, MailToolbar } from './Mail';
 import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
 import { useSheets } from './useSheets';
@@ -73,6 +73,7 @@ import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { Desk } from './Desk';
+import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail } from './Rail';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
@@ -491,7 +492,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : mail.view.box === 'sent' ? 'Sent' : 'Inbox') : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : BOX_NAMES[mail.view.box]) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -1332,7 +1333,7 @@ export function App() {
         if (wikiPlace.kind === 'shared') return <SharedQueue incoming={wikiIncoming} />;
         return <div className="wiki-doc"><WikiVersions wiki={wiki} /><DocEditor docs={wiki} autoFocus={app === 'wiki'} busy={conversation.state.busy} /></div>;
       case 'reader':
-        return <ReaderPage reading={reading} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && turnMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <ReaderPage reading={reading} onAsk={startWithMobius} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && turnMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'research':
         return <ResearchPage research={research} busy={conversation.state.busy} asking={askingResearch} onAskDone={() => setAskingResearch(false)} onAsk={onResearch} review={research.page && turnMarks.research.has(research.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'views':
@@ -1387,12 +1388,8 @@ export function App() {
             desk={(starters) => (
               <Desk
                 starters={starters}
-                rows={[
-                  ...(browser.tabs.length > 0 ? [{ app: 'browser' as const, text: plural(browser.tabs.length, 'tab') + ' open' }] : []),
-                  ...(mail.counts.all > 0 ? [{ app: 'mail' as const, text: `${mail.counts.all} unread` }] : []),
-                  ...(dueToday > 0 ? [{ app: 'tasks' as const, text: `${dueToday} due today` }] : []),
-                  ...(eventsToday > 0 ? [{ app: 'calendar' as const, text: `${plural(eventsToday, 'event')} today` }] : []),
-                ]}
+                rows={deskAppRows({ tabs: browser.tabs, mail: mail.messages, unread: mail.counts.all, dueToday: smartView('today', tasks.all, new Date()), events: calendar.events, notes: notes.notebooks, docs: docs.notebooks }, new Date())}
+                onOpenTarget={openTarget}
                 changed={changed}
                 activity={activity}
                 conversations={conversation.list}
@@ -1581,6 +1578,7 @@ export function App() {
             <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
           </div>
         )}
+        {inMail && <MailToolbar mail={mail} />}
         {inBrowser && !showWide && browserChrome}
         <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
         {/* Words and icons never share a capsule: the update notice stands on its own, before the icons. */}

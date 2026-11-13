@@ -46,6 +46,7 @@ import {
 import { APP_ICONS } from '../Rail';
 import { appName } from '../apps';
 import { relativeTime } from '../relative-time';
+import { dateTimeLabel } from '../dates';
 import { describeActivity } from './activity';
 import { privacyReport, whereItRuns } from './privacy';
 import { ProfilesPane } from './Profiles';
@@ -324,7 +325,7 @@ function ActivityList() {
                 <span>{line.text}</span>
                 {line.who && <span className="slist-sub">{line.who}</span>}
               </div>
-              <time className="slist-time" dateTime={new Date(entry.tsMs).toISOString()} title={new Date(entry.tsMs).toLocaleString()}>{relativeTime(entry.tsMs, Date.now())}</time>
+              <time className="slist-time" dateTime={new Date(entry.tsMs).toISOString()} title={dateTimeLabel(entry.tsMs, { year: true })}>{relativeTime(entry.tsMs, Date.now())}</time>
             </li>
           );
         })}

@@ -44,9 +44,13 @@ describe('Learn', () => {
     for (const l of LESSONS) { expect(l.title, l.source).not.toBe(''); expect(l.summary, l.source).not.toBe(''); }
   });
 
-  it('lists the apps whose docs section is missing (a warning, so app threads are not blocked)', () => {
-    const missing = appsWithoutLesson(LESSONS);
-    if (missing.length) console.warn(`Learn: no docs/apps section yet for ${missing.join(', ')}`);
+  it('finds the apps whose docs section is missing', () => {
     expect(appsWithoutLesson(lessons, ['notes', 'tasks', 'mail'])).toEqual(['mail']);
+  });
+
+  // Every app people can open has a lesson in Learn. A new or renamed app needs its "## <App name>" section in a
+  // docs/apps page (see docs/writing-docs.md) in the same pull request.
+  it('has a docs/apps section for every app', () => {
+    expect(appsWithoutLesson(LESSONS), 'apps with no "## <App name>" section in docs/apps/*.md').toEqual([]);
   });
 });

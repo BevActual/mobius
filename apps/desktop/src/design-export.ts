@@ -1,5 +1,5 @@
 import { isNotesFailure } from '@mobius/shared';
-import { resolveColor, type DesignDoc, type DesignFrame, type DesignNode } from './design-format';
+import { componentOf, resolveColor, withOverride, type DesignDoc, type DesignFrame, type DesignNode } from './design-format';
 
 /** The album in Photo that a design's exported frames go to. */
 export const EXPORT_ALBUM = 'Design exports';
@@ -49,21 +49,25 @@ function border(ctx: CanvasRenderingContext2D, t: { type?: DesignNode['type']; x
   ctx.stroke();
 }
 
-/** Draws one frame, at `scale` times its size, as it shows on the canvas: its fill, its layers in order, and borders. */
-export function drawFrame(doc: DesignDoc, frame: DesignFrame, scale: number, font: string): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(frame.w * scale));
-  canvas.height = Math.max(1, Math.round(frame.h * scale));
-  const ctx = canvas.getContext('2d')!;
-  ctx.scale(scale, scale);
-  const box = { x: 0, y: 0, w: frame.w, h: frame.h, radius: frame.radius };
-  shape(ctx, box);
-  ctx.clip();
-  if (frame.fill !== 'transparent') { ctx.fillStyle = resolveColor(frame.fill, doc.styles); ctx.fill(); }
-  for (const n of frame.children) {
+/** Draws layers in order; a copy of a component draws the component's layers in its box, with its own text and colours. */
+function drawLayers(ctx: CanvasRenderingContext2D, doc: DesignDoc, layers: readonly DesignNode[], font: string, depth: number) {
+  for (const n of layers) {
     if (n.hidden) continue;
     ctx.save();
-    ctx.globalAlpha = n.opacity;
+    ctx.globalAlpha *= n.opacity;
+    if (n.type === 'instance') {
+      const main = componentOf(doc, n);
+      if (main && depth < 4) {
+        ctx.translate(n.x, n.y);
+        ctx.scale(n.w / (main.w || 1), n.h / (main.h || 1));
+        shape(ctx, { x: 0, y: 0, w: main.w, h: main.h, radius: main.radius });
+        ctx.clip();
+        if (main.fill !== 'transparent') { ctx.fillStyle = resolveColor(main.fill, doc.styles); ctx.fill(); }
+        drawLayers(ctx, doc, main.children.map((c) => withOverride(c, n)), font, depth + 1);
+      }
+      ctx.restore();
+      continue;
+    }
     if (n.fill !== 'transparent') { ctx.fillStyle = resolveColor(n.fill, doc.styles); shape(ctx, n); ctx.fill(); }
     if (n.type === 'text') {
       ctx.font = `${n.weight} ${n.size}px ${font}`;
@@ -78,6 +82,20 @@ export function drawFrame(doc: DesignDoc, frame: DesignFrame, scale: number, fon
     } else border(ctx, n, doc);
     ctx.restore();
   }
+}
+
+/** Draws one frame, at `scale` times its size, as it shows on the canvas: its fill, its layers in order, and borders. */
+export function drawFrame(doc: DesignDoc, frame: DesignFrame, scale: number, font: string): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(frame.w * scale));
+  canvas.height = Math.max(1, Math.round(frame.h * scale));
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(scale, scale);
+  const box = { x: 0, y: 0, w: frame.w, h: frame.h, radius: frame.radius };
+  shape(ctx, box);
+  ctx.clip();
+  if (frame.fill !== 'transparent') { ctx.fillStyle = resolveColor(frame.fill, doc.styles); ctx.fill(); }
+  drawLayers(ctx, doc, frame.children, font, 0);
   border(ctx, { ...box, stroke: frame.stroke, strokeWidth: frame.strokeWidth }, doc);
   return canvas;
 }

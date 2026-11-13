@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { changedIds, contrast, freshId, moveLayer, nextFramePlace, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
+import { changedIds, componentOf, contrast, copyOf, detach, freshId, makeComponent, moveLayer, nextFramePlace, withOverride, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
 import type { NotesState } from './useNotes';
 import { onCommand } from './commands';
 import { useUndo } from './useUndo';
@@ -123,10 +123,12 @@ const ICON = {
   hidden: 'M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5zM3.5 3.5l13 13',
   locked: 'M5.5 9h9v7.5h-9zM7.5 9V6.5a2.5 2.5 0 0 1 5 0V9',
   unlocked: 'M5.5 9h9v7.5h-9zM7.5 9V6.5a2.5 2.5 0 0 1 4.9-.7',
+  component: 'M10 2.5 13.5 6 10 9.5 6.5 6zM10 10.5l3.5 3.5-3.5 3.5-3.5-3.5zM2.5 10 6 6.5 9.5 10 6 13.5zM10.5 10 14 6.5l3.5 3.5-3.5 3.5z',
+  instance: 'M10 3l7 7-7 7-7-7z',
   front: 'M6 3h8v6H6zM4 12h12M4 15h12', forward: 'M10 15V5M6 9l4-4 4 4', backward: 'M10 5v10M6 11l4 4 4-4', back: 'M4 5h12M4 8h12M6 11h8v6H6z',
 } as const;
 const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 20 20" aria-hidden="true"><path d={d} /></svg>;
-const KIND: Record<NodeType, string> = { text: 'Text', ellipse: 'Ellipse', rect: 'Rectangle' };
+const KIND: Record<NodeType, string> = { text: 'Text', ellipse: 'Ellipse', rect: 'Rectangle', instance: 'Copy' };
 
 /**
  * One design, as Sketch and Figma work: frames on a canvas, layers drawn with a tool (V, F, R, O, T) or added from the
@@ -304,6 +306,8 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     setSelected([id]);
   });
   const remove = useCallback(() => change((d) => {
+    // Copies of a component being deleted stay as they look, as plain layers.
+    for (const f of d.frames) if (f.component && selected.includes(f.id)) for (const g of d.frames) for (const c of [...g.children]) if (c.type === 'instance' && c.of === f.id && !selected.includes(c.id)) detach(d, c.id);
     d.frames = d.frames.filter((f) => !selected.includes(f.id));
     for (const f of d.frames) f.children = f.children.filter((c) => !selected.includes(c.id));
     setSelected([]);
@@ -389,6 +393,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       const key = e.key.toLowerCase();
       if (mod && (key === 'z' || key === 'y')) { e.preventDefault(); if (key === 'y' || e.shiftKey) history.redo(); else history.undo(); return; }
       if (mod && key === 'a' && doc) { e.preventDefault(); const f = findNode(doc, selected[0] ?? null)?.frame ?? doc.frames[0]; setSelected(f ? f.children.filter(canPick).map((c) => c.id) : []); return; }
+      if (mod && e.altKey && key === 'k') { e.preventDefault(); createComponent(); return; }
       if (mod && e.shiftKey && (key === 'h' || key === 'l')) { e.preventDefault(); toggle(key === 'h' ? 'hidden' : 'locked'); return; }
       if (mod && key === 'd') { e.preventDefault(); duplicate(); return; }
       if (mod && key === 'c') { if (copyPicked()) e.preventDefault(); return; }
@@ -506,6 +511,41 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     const done = await exportFrame(doc, f, exportScale).catch((e: unknown) => ({ error: e instanceof Error ? e.message : 'The picture could not be saved.' }));
     setExported('error' in done ? { frame: id, text: done.error, bad: true } : { frame: id, text: `Saved to Photo › ${EXPORT_ALBUM} as ${done.path.slice(EXPORT_ALBUM.length + 1)}` });
   };
+  /** Ctrl+Alt+K: the picked layers become a component, with a copy left where they were. */
+  const createComponent = () => {
+    const nodes = picked.filter((a) => a.node.type !== 'instance');
+    if (nodes.length === 0) return;
+    // Named after its biggest layer: a button's background, a card's panel.
+    const name = [...nodes].sort((x, y) => y.node.w * y.node.h - x.node.w * x.node.h)[0]!.node.name;
+    let made: { component: string; copy: string } | null = null;
+    change((d) => { made = makeComponent(d, nodes[0]!.frame.id, nodes.filter((a) => a.frame.id === nodes[0]!.frame.id).map((a) => a.node.id), name); });
+    if (made) setSelected([(made as { copy: string }).copy]);
+  };
+  /** A new copy of a component in the middle of the first frame that is not a component. */
+  const insertCopy = (componentId: string) => {
+    let id: string | null = null;
+    change((d) => {
+      const main = d.frames.find((f) => f.id === componentId);
+      const into = d.frames.find((f) => !f.component);
+      if (!main || !into) return;
+      const copy = copyOf(d, main, (into.w - main.w) / 2, (into.h - main.h) / 2);
+      into.children.push(copy);
+      id = copy.id;
+    });
+    if (id) setSelected([id]);
+  };
+  const goToComponent = (copyId: string) => {
+    const n = findNode(doc, copyId)?.node;
+    const main = n && componentOf(doc, n);
+    if (!main) return;
+    setSelected([main.id]);
+    showBox(main, 2);
+  };
+  const detachCopy = (copyId: string) => {
+    let ids: string[] = [];
+    change((d) => { ids = detach(d, copyId); });
+    setSelected(ids);
+  };
   const menuItems = (): ContextMenuItem[] => {
     const paste: ContextMenuItem = { action: 'paste', keys: 'Ctrl+V', disabled: !copied.current, run: () => { if (copied.current) pasteNodes(copied.current, 16); } };
     if (selected.length === 0) return [paste, { label: 'Zoom to fit', keys: 'Shift+1', separated: true, run: fit }];
@@ -513,7 +553,11 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     const rename: ContextMenuItem = { action: 'rename', label: 'Rename…', disabled: !one, run: () => { if (one) setRenaming(one); } };
     if (picked.length === 0) {
       const exportOne: ContextMenuItem = { label: 'Export as PNG', separated: true, disabled: !one, run: () => { if (one) void exportPng(one); } };
-      return [paste, { action: 'duplicate', keys: 'Ctrl+D', run: duplicate }, rename, exportOne, zoomIn, { action: 'delete', label: selected.length > 1 ? 'Delete frames' : 'Delete frame', keys: 'Delete', danger: true, separated: true, run: remove }];
+      const frame = one ? doc.frames.find((f) => f.id === one) : null;
+      const asComponent: ContextMenuItem = frame?.component
+        ? { label: 'Insert a copy', separated: true, disabled: !doc.frames.some((f) => !f.component), run: () => insertCopy(frame.id) }
+        : { label: 'Make into component', separated: true, disabled: !frame, run: () => { if (frame) setFrame((f) => { f.component = true; }); } };
+      return [paste, { action: 'duplicate', keys: 'Ctrl+D', run: duplicate }, rename, asComponent, exportOne, zoomIn, { action: 'delete', label: selected.length > 1 ? 'Delete frames' : 'Delete frame', keys: 'Delete', danger: true, separated: true, run: remove }];
     }
     const allHidden = picked.every((a) => a.node.hidden), allLocked = picked.every((a) => a.node.locked);
     return [
@@ -524,6 +568,10 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       rename,
       { label: 'Bring to front', keys: 'Ctrl+Alt+]', separated: true, run: () => arrange('front') },
       { label: 'Send to back', keys: 'Ctrl+Alt+[', run: () => arrange('back') },
+      one && at?.node?.type === 'instance'
+        ? { label: 'Go to main component', separated: true, disabled: !componentOf(doc, at.node), run: () => goToComponent(one) }
+        : { label: 'Create component', keys: 'Ctrl+Alt+K', separated: true, disabled: !picked.some((a) => a.node.type !== 'instance'), run: createComponent },
+      ...(one && at?.node?.type === 'instance' ? [{ label: 'Detach', disabled: !componentOf(doc, at.node), run: () => detachCopy(one) }] : []),
       { label: allHidden ? 'Show' : 'Hide', keys: 'Ctrl+Shift+H', separated: true, run: () => toggle('hidden') },
       { label: allLocked ? 'Unlock' : 'Lock', keys: 'Ctrl+Shift+L', run: () => toggle('locked') },
       zoomIn,
@@ -559,7 +607,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
               <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded data-drop={moving?.target === f.id || undefined} onDragOver={(e) => { if (!moving) return; e.preventDefault(); if (moving.target !== f.id) setMoving({ id: moving.id, target: f.id, place: 'above' }); }} onDrop={(e) => { e.preventDefault(); dropLayer(); }}>
                 {renaming === f.id ? <RenameField name={f.name} onDone={(name) => { setRenaming(null); if (name && name !== f.name) change((d) => { const x = d.frames.find((y) => y.id === f.id); if (x) x.name = name; }); }} /> : (
                   <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>
-                    <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON.frame} /></span>{f.name}
+                    <span className="design-layer-kind" aria-hidden="true" data-component={f.component || undefined}><Icon d={f.component ? ICON.component : ICON.frame} /></span>{f.name}
                   </button>
                 )}
                 <ul role="group">
@@ -571,7 +619,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                       {renaming === n.id ? <RenameField name={n.name} onDone={(name) => { setRenaming(null); if (name && name !== n.name) change((d) => { const x = findNode(d, n.id)?.node; if (x) x.name = name; }); }} /> : (
                         <div className="design-layer-row" aria-current={isPicked(n.id) || undefined} data-hidden={n.hidden || undefined}>
                           <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)} onContextMenu={(e) => openMenu(e, n.id)}>
-                            <span className="design-layer-kind" aria-hidden="true"><Icon d={ICON[n.type]} /></span><span className="design-layer-name">{n.name}</span>
+                            <span className="design-layer-kind" aria-hidden="true" data-component={n.type === 'instance' || undefined}><Icon d={ICON[n.type]} /></span><span className="design-layer-name">{n.name}</span>
                           </button>
                           <button type="button" className="design-layer-flag" data-on={n.locked || undefined} aria-label={`${n.locked ? 'Unlock' : 'Lock'} ${n.name}`} title={n.locked ? 'Unlock (Ctrl+Shift+L)' : 'Lock (Ctrl+Shift+L)'} onClick={() => toggle('locked', [n.id])}><Icon d={n.locked ? ICON.locked : ICON.unlocked} /></button>
                           <button type="button" className="design-layer-flag" data-on={n.hidden || undefined} aria-label={`${n.hidden ? 'Show' : 'Hide'} ${n.name}`} title={n.hidden ? 'Show (Ctrl+Shift+H)' : 'Hide (Ctrl+Shift+H)'} onClick={() => toggle('hidden', [n.id])}><Icon d={n.hidden ? ICON.hidden : ICON.shown} /></button>
@@ -615,6 +663,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                     {f.children.filter((n) => !n.hidden).map((n) => (
                       <div key={n.id} className="design-node" data-type={n.type} data-locked={n.locked || undefined} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onContextMenu={(e) => openMenu(e, n.id)} onDoubleClick={() => { if (n.type === 'text' && editing !== n.id) setEditing(n.id); }}>
                         {n.type === 'text' && editing !== n.id ? n.text : null}
+                        {n.type === 'instance' && <CopyView copy={n} main={componentOf(doc, n)} styleOf={nodeStyle} doc={doc} />}
                       </div>
                     ))}
                     {editingNode?.node && editingNode.frame.id === f.id && (
@@ -669,6 +718,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
             <>
               <div className="design-panel-title">{picked.length > 0 ? `${picked.length} layers` : `${selected.length} frames`}</div>
               {picked.length > 1 && <AlignBar onAlign={line} onSpread={picked.length > 2 ? spread : undefined} />}
+              {picked.some((a) => a.node.type !== 'instance') && <button type="button" className="btn" title="Create component (Ctrl+Alt+K)" onClick={createComponent}>Create component</button>}
               <button type="button" className="btn danger" onClick={remove}>{picked.length > 0 ? 'Delete layers' : 'Delete frames'}</button>
             </>
           )}
@@ -692,6 +742,17 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
               </Section>
               <Section title="Fill"><ColorField label="Fill" bare value={at.frame.fill} doc={doc} onChange={(c) => setFrame((f) => { f.fill = c; })} /></Section>
               <BorderSection item={at.frame} doc={doc} onChange={(stroke, width) => setFrame((f) => { f.stroke = stroke; f.strokeWidth = width; })} />
+              <Section title="Component">
+                {at.frame.component ? (
+                  <>
+                    <p className="design-hint">{(() => { const n = doc.frames.reduce((k, f) => k + f.children.filter((c) => c.type === 'instance' && c.of === at.frame.id).length, 0); return n === 0 ? 'No copies yet. Changes here show in every copy.' : n === 1 ? 'One copy. Changes here show in it too.' : `${n} copies. Changes here show in all of them.`; })()}</p>
+                    <div className="design-row">
+                      <button type="button" className="btn" disabled={!doc.frames.some((f) => !f.component)} onClick={() => insertCopy(at.frame.id)}>Insert a copy</button>
+                      <button type="button" className="btn" onClick={() => setFrame((f) => { delete f.component; })}>Not a component</button>
+                    </div>
+                  </>
+                ) : <button type="button" className="btn" onClick={() => setFrame((f) => { f.component = true; })}>Make into component</button>}
+              </Section>
               <Section title="Export">
                 <div className="design-export">
                   <div className="design-segment" role="radiogroup" aria-label="Export size">
@@ -706,7 +767,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
           )}
           {one && at?.node && (
             <>
-              <div className="design-panel-title">{KIND[at.node.type]}</div>
+              <div className="design-panel-title">{at.node.type === 'instance' ? `Copy of ${componentOf(doc, at.node)?.name ?? 'a missing component'}` : KIND[at.node.type]}</div>
               <AlignBar onAlign={line} />
               <label className="design-text"><span>Name</span><input aria-label="Name" value={at.node.name} maxLength={80} onChange={(e) => setNode((n) => { n.name = e.target.value; })} /></label>
               <Section title="Position">
@@ -719,6 +780,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   <Field label="Opacity" value={Math.round(at.node.opacity * 100)} min={0} onChange={(v) => setNode((n) => { n.opacity = Math.min(100, v) / 100; })} />
                 </div>
               </Section>
+              {at.node.type === 'instance' && <CopySection copy={at.node} main={componentOf(doc, at.node)} doc={doc} onOverride={(id, o) => setNode((n) => { const next = { ...(n.overrides ?? {}) }; if (o) next[id] = { ...next[id], ...o }; else delete next[id]; n.overrides = next; })} onReset={() => setNode((n) => { n.overrides = {}; })} onGo={() => goToComponent(at.node!.id)} onDetach={() => detachCopy(at.node!.id)} />}
               {at.node.type === 'text' && (
                 <Section title="Text">
                   <label className="design-text"><span>Text</span><textarea aria-label="Text" value={at.node.text} rows={3} maxLength={2000} onChange={(e) => setNode((n) => { n.text = e.target.value; })} /></label>
@@ -742,8 +804,8 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   {textContrast !== null && <p className="design-hint" data-bad={textContrast < 4.5 || undefined}>Contrast with the frame {textContrast}:1 · {textContrast >= 4.5 ? 'passes AA' : 'below AA (4.5:1)'}</p>}
                 </Section>
               )}
-              <Section title="Fill"><ColorField label="Fill" bare value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} /></Section>
-              {at.node.type !== 'text' && <BorderSection item={at.node} doc={doc} onChange={(stroke, width) => setNode((n) => { n.stroke = stroke; n.strokeWidth = width; })} />}
+              {at.node.type !== 'instance' && <Section title="Fill"><ColorField label="Fill" bare value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} /></Section>}
+              {at.node.type !== 'text' && at.node.type !== 'instance' && <BorderSection item={at.node} doc={doc} onChange={(stroke, width) => setNode((n) => { n.stroke = stroke; n.strokeWidth = width; })} />}
               <Section title="Arrange">
                 <div className="design-align design-arrange" role="group" aria-label="Arrange">
                   {([['front', 'Bring to front (Ctrl+Alt+])', ICON.front], [1, 'Bring forward (Ctrl+])', ICON.forward], [-1, 'Send backward (Ctrl+[)', ICON.backward], ['back', 'Send to back (Ctrl+Alt+[)', ICON.back]] as const).map(([by, label, d]) => (
@@ -751,6 +813,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   ))}
                 </div>
               </Section>
+              {at.node.type !== 'instance' && <button type="button" className="btn" title="Create component (Ctrl+Alt+K)" onClick={createComponent}>Create component</button>}
               <button type="button" className="btn danger" onClick={remove}>Delete layer</button>
             </>
           )}
@@ -783,6 +846,43 @@ function BorderSection({ item, doc, onChange }: { item: { stroke: string; stroke
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * A copy of a component on the canvas: the component's layers as they are now, scaled to the copy's box, with the
+ * copy's own text and colours. A copy whose component was removed says so.
+ */
+function CopyView({ copy, main, styleOf, doc }: { copy: DesignNode; main: DesignFrame | null; styleOf: (n: DesignNode) => CSSProperties; doc: DesignDoc }) {
+  if (!main) return <span className="design-copy-missing">Missing component</span>;
+  return (
+    <div className="design-copy" aria-hidden="true" style={{ width: main.w, height: main.h, transform: `scale(${copy.w / (main.w || 1)}, ${copy.h / (main.h || 1)})`, background: main.fill === 'transparent' ? undefined : resolveColor(main.fill, doc.styles), borderRadius: main.radius }}>
+      {main.children.filter((c) => !c.hidden && c.type !== 'instance').map((c) => {
+        const shown = withOverride(c, copy);
+        return <div key={c.id} className="design-node" data-type={c.type} style={{ ...styleOf(shown), left: c.x, top: c.y, width: c.w, height: c.h }}>{c.type === 'text' ? shown.text : null}</div>;
+      })}
+    </div>
+  );
+}
+
+/** A copy's own text and colours, layer by layer, and the way back to its component. */
+function CopySection({ copy, main, doc, onOverride, onReset, onGo, onDetach }: { copy: DesignNode; main: DesignFrame | null; doc: DesignDoc; onOverride: (id: string, o: { text?: string; fill?: string; color?: string } | null) => void; onReset: () => void; onGo: () => void; onDetach: () => void }) {
+  if (!main) return <Section title="Component"><p className="design-hint" data-bad>Its component is gone.</p></Section>;
+  const changedHere = Object.keys(copy.overrides ?? {}).length > 0;
+  return (
+    <Section title="Content">
+      {main.children.filter((c) => c.type === 'text').map((c) => (
+        <label key={c.id} className="design-text"><span>{c.name}</span><textarea aria-label={`${c.name} text`} rows={1} maxLength={2000} value={withOverride(c, copy).text} onChange={(e) => onOverride(c.id, e.target.value === c.text ? null : { text: e.target.value })} /></label>
+      ))}
+      {main.children.filter((c) => c.type === 'rect' || c.type === 'ellipse').map((c) => (
+        <ColorField key={c.id} label={c.name} value={withOverride(c, copy).fill} doc={doc} onChange={(col) => onOverride(c.id, { fill: col })} />
+      ))}
+      <div className="design-row">
+        <button type="button" className="btn" title="Select the component this is a copy of" onClick={onGo}>Go to main</button>
+        <button type="button" className="btn" onClick={onDetach}>Detach</button>
+      </div>
+      {changedHere && <button type="button" className="btn" onClick={onReset}>Reset to component</button>}
+    </Section>
   );
 }
 
