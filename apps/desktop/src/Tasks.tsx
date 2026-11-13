@@ -12,7 +12,7 @@ import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { dayLabel } from './dates';
-import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
+import { AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, UndoToast } from './ui';
 import './tasks.css';
 
 /** A task being dragged: which list it is in and where. */
@@ -46,8 +46,9 @@ function SmartIcon({ id }: { id: SmartView }) {
   return <span className="smart-icon" data-view={id} aria-hidden="true"><svg viewBox="0 0 20 20">{glyph[id]}</svg></span>;
 }
 
+/** A list's mark in the sidebar: a small dot in its colour, as Calendar marks its calendars. */
 function ListIcon({ name }: { name: string }) {
-  return <span className="list-icon" data-color={listColor(name)} aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M7.5 7h6M7.5 10h6M7.5 13h6" /><circle cx="5.3" cy="7" r=".6" /><circle cx="5.3" cy="10" r=".6" /><circle cx="5.3" cy="13" r=".6" /></svg></span>;
+  return <span className="list-dot" data-color={listColor(name)} aria-hidden="true" />;
 }
 
 /** The lists: a search field, the views across every list as tiles, then each list with how many tasks are open. */
@@ -496,7 +497,7 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
             </ul>
           )}
           <form className="inspector-add" onSubmit={(e) => void addSub(e)}>
-            <span className="task-check ghost" aria-hidden="true" />
+            <svg className="task-plus" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
             <input aria-label="New subtask" placeholder="Add a subtask" value={sub} maxLength={500} onChange={(e) => setSub(e.target.value)} />
           </form>
         </section>
@@ -545,7 +546,7 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
   };
   return (
     <form className="task-new" data-typing={text !== '' || due !== '' || undefined} onSubmit={(e) => void submit(e)}>
-      <span className="task-check ghost" aria-hidden="true" />
+      <svg className="task-plus" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
       <input ref={input} aria-label="New task" placeholder={placeholder} value={text} maxLength={500} onChange={(e) => { setText(e.target.value); if (!e.target.value) setLiteral(false); }}
         onKeyDown={(e) => { if (e.key === 'ArrowDown') { const first = e.currentTarget.closest('.tasks-main')?.querySelector<HTMLElement>('.task-line[tabindex]'); if (first) { e.preventDefault(); first.focus(); } } }} />
       {said && (
@@ -594,7 +595,6 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
 
   let body: ReactNode;
   let empty = '';
-  let doneHere = 0;
   if (query) {
     const found = searchTasks(query, tasks.all);
     body = byList(found).map((g) => (
@@ -608,7 +608,6 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
     const list = tasks.all[view.name] ?? [];
     const { open, done } = splitDone(nest(list).map((n) => n.task));
     const subsOf = (t: TaskItem) => list.filter((s) => s.parent === t.line && s !== t);
-    doneHere = done.length;
     body = (
       <>
         <ul className="task-items" role="list" aria-label="To do">
@@ -624,6 +623,8 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
                 <svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
                 <span>Completed · {done.length}</span>
               </button>
+              <Menu label="Completed" align="end" entries={[{ label: `Clear ${done.length} Completed`, run: () => void tasks.clearDone(view.name) }]}
+                trigger={<button type="button" className="strip-btn tasks-done-more" aria-label="More for Completed" title="More"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg></button>} />
             </div>
             {showDone && (
               <ul className="task-items" role="list" aria-label="Completed">
@@ -661,12 +662,6 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
   const title = view.kind === 'list' ? view.name : smartName(view.id);
   return (
     <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
-      {/* The list's own control sits in the toolbar's middle (ui/AppFrame), not in a row of its own here. */}
-      {view.kind === 'list' && !query && doneHere > 0 && (
-        <ToolbarControls label="Tasks">
-          <button type="button" className="tool-btn" onClick={() => void tasks.clearDone(view.name)}>Clear {doneHere} completed</button>
-        </ToolbarControls>
-      )}
       <div className="tasks-main">
         {review && view.kind === 'list' && (
           <div className="note-review" role="status">
