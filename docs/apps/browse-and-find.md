@@ -24,14 +24,14 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 
 ![The Mail app in Mobius](../readme/apps/mail.png)
 
-- **Accounts** sign in with an app password. Ready-made settings for iCloud, Fastmail, Gmail and Yahoo, or any provider by its IMAP and SMTP servers.
-- **The sidebar** holds New message, Search, your mailboxes (Inbox, Drafts, Flagged, Sent and Archive) and your accounts. Flagged and Archive gather your flagged and archived mail.
-- **Categories:** Primary, Transactions, Updates and All. Move a message to another from **More** (…) in its toolbar or from its right-click menu.
+- **Accounts** are in **Settings › Mail**, and sign in with an app password. Ready-made settings for iCloud, Fastmail, Gmail and Yahoo, or any provider by its IMAP and SMTP servers.
+- **The sidebar** holds New message, Search, your mailboxes (Inbox, Drafts, Flagged, Sent and Archive), Labels, and From Mobius. Flagged and Archive gather your flagged and archived mail.
+- **Labels:** Mobius sorts the Inbox into Primary, Transactions and Updates; the Inbox shows them all. Move a message to another from **More** (…) in its toolbar or from its right-click menu.
 - **The message toolbar** in the window's top row, as in Apple Mail: Reply, Reply All and Forward; Archive and Flag; and **More** for Mark as Unread, Remind Me Tomorrow and moving it to another category. Archive and Remind Me Tomorrow can be undone from the note that appears at the bottom. Right-click a message in the list for the same actions without opening it.
 - **Replies quote the message** under where you write, and forwards carry who it was from and to. Attachments are not forwarded yet.
 - **Keys:** the up and down arrows move through the list; E archives, R replies and H brings the message back tomorrow at 8:00.
 - **Email is shown safely:** no scripts, and nothing loaded from the web, so tracking pixels don't fire.
-- **Suggested replies** are dashed until you keep one (it opens as your draft), discard it or ask for another. A reply you kept, here or with Keep all, waits under the message it answers with **Send** and **Edit**.
+- **Suggested replies** sit under the message as one dashed block, marked Draft from Mobius, until you choose **Keep and edit** (it opens as your draft), **Discard** or **Try another**. **From Mobius › Suggested replies** in the sidebar lists the ones waiting. A reply you kept, here or with Keep all, waits under the message it answers with **Send** and **Edit**.
 - **Take care of this** (in the Mobius panel with an email open) does the whole job in one ask: to-dos go to Tasks with their due dates, a meeting it asks for goes in Calendar (at the time the email names if you are free, otherwise at a free time it picks), and a reply is suggested. Each waits for you.
 - **Get to zero** (in the Mobius panel while no email is open) proposes a plan for the whole inbox, dashed until kept.
 - **Ask about your mail** in the Mobius composer: the answer lists the messages it came from, and each one opens.

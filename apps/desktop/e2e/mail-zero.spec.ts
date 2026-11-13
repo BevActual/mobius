@@ -51,7 +51,6 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await dialog.getByLabel('App password').fill('app-pass');
   await dialog.getByRole('button', { name: 'Connect' }).click();
   await expect(dialog).toHaveCount(0);
-  await page().getByRole('tab', { name: /^All/ }).click();
   await expect(inbox().getByRole('option')).toHaveCount(2);
 }
 
