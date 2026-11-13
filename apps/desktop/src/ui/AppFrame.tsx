@@ -17,6 +17,8 @@ export interface ToolbarParts {
   title?: ReactNode;
   /** One grey line under the title: how many unread, the save state. */
   sub?: ReactNode;
+  /** False while something covers the app (Settings): the app's own controls stay mounted but are not shown. */
+  appControls?: boolean;
   /** Controls the shell places in the middle, before the app's own (`ToolbarControls`). */
   middle?: ReactNode;
   /** Status that stands on its own between the middle and the end (the core's state, an update). */
@@ -58,7 +60,7 @@ export function AppFrame({ rail, toolbar, children, style, data }: FrameProps) {
             {toolbar.sub && <span className="toolbar-sub">{toolbar.sub}</span>}
           </div>
           {toolbar.middle}
-          <div ref={setSlot} className="ui-toolbar-slot" />
+          <div ref={setSlot} className="ui-toolbar-slot" hidden={toolbar.appControls === false} />
           {toolbar.panels?.(panels)}
           {toolbar.status}
           <div className="strip-right" role="group" aria-label="Applications">{toolbar.trail}</div>

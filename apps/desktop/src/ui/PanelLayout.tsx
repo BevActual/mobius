@@ -26,7 +26,7 @@ export interface PanelSpec {
 
 /** Each dock's size: the default, and the range a drag keeps to. The bottom dock is at most 70% of the content. */
 export const DOCK_SIZE = {
-  right: { min: 280, max: 560, initial: 340 },
+  right: { min: 280, max: 560, initial: 320 },
   bottom: { min: 120, maxShare: 0.7, initial: 260 },
 } as const;
 
