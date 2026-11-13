@@ -13,7 +13,7 @@ Quick pages, saved as you type.
   bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Table, Link,
   Record, Picture and Share, so nothing sits between you and the page. The **Notes** menu (**⋯** in the toolbar)
   opens Version history, clips a web page into the note and shows the Markdown file itself.
-- **Version history** (in the Notes menu) lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
+- **History** (Notes menu › Version history…) lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).
 - **Share** copies the page, exports it as a web page or Markdown, or prints it.
 - Select text for Mobius's actions right where it is. A page Mobius changed shows its edits to keep or discard, line by
