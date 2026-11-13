@@ -4,7 +4,7 @@ import { isNotesFailure, type MailAccount, type MailCategory, type MailContent, 
 
 /** Inbox and Sent are mirrored mailboxes; Flagged and Archive are the person's flagged and archived mail from both. */
 export type MailBox = 'inbox' | 'sent' | 'flagged' | 'archive';
-export type MailView = { kind: 'box'; box: MailBox; category: MailCategory | 'all' } | { kind: 'drafts' };
+export type MailView = { kind: 'box'; box: MailBox; category: MailCategory | 'all' } | { kind: 'drafts'; only?: 'mobius' };
 
 /** What the list shows for a mailbox: Flagged and Archive are read from all mail and picked here. */
 export function inBox(box: MailBox, all: readonly MailMessage[]): MailMessage[] {
@@ -46,7 +46,7 @@ const NO_COUNTS: MailCounts = { primary: 0, transactions: 0, updates: 0, all: 0,
 export function useMail() {
   const api = window.mobius.mail;
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
-  const [view, setView] = useState<MailView>({ kind: 'box', box: 'inbox', category: 'primary' });
+  const [view, setView] = useState<MailView>({ kind: 'box', box: 'inbox', category: 'all' });
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<MailMessage[]>([]);
   const [counts, setCounts] = useState<MailCounts>(NO_COUNTS);

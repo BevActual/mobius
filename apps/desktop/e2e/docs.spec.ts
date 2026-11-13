@@ -83,10 +83,12 @@ test('a writing tool asks Mobius, and its changes are marked in the page, each k
   await expect(log.locator('.msg.assistant')).toHaveText('Made it shorter.');
   expect(JSON.stringify(model!.requests[0])).toContain('docs/Work/Offsite brief.md');
 
-  // Each change is marked in the page where it is: what was added tinted, a note before it with the words taken out.
+  // Each change is one dashed block where it is: the words taken out struck through at its top, what was added under
+  // them, and the change's own Discard and Keep below it. No bar above the page while the changes show.
   const notes = page().locator('.doc-change');
   await expect(notes).toHaveCount(2);
-  await expect(notes.first().locator('.doc-change-old')).toContainText('We have been talking');
+  await expect(page().locator('.doc-change-old').first()).toContainText('We have been talking');
+  await expect(editor().locator('.doc-review')).toHaveCount(0);
   await expect(page().locator('.doc-change-new').first()).toContainText('We need a few days away');
   await notes.nth(1).getByRole('button', { name: 'Discard this change' }).click();
   await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8')).toContain('- Plan on the 13th');

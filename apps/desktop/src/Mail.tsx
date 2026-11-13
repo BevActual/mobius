@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AppSidebar, Menu, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailBox, MailState } from './useMail';
-import { ReviewActions } from './ReviewBar';
+import { TryAnotherContext } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { EmptyState } from './EmptyState';
 import './mail.css';
+import { AccountDialog } from './MailAccounts';
 import { dayLabel, formatWith, timeLabel, weekdayLabel } from './dates';
 
 const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
@@ -16,14 +17,6 @@ const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
   { id: 'all', label: 'All' },
 ];
 
-const PRESETS = [
-  { id: 'icloud', name: 'iCloud', help: 'Use an app-specific password, made at account.apple.com under Sign-In and Security.' },
-  { id: 'fastmail', name: 'Fastmail', help: 'Use an app password from Settings › Privacy & Security › Manage app passwords, with access to mail.' },
-  { id: 'gmail', name: 'Gmail', help: 'Turn on 2-Step Verification, then make an app password at myaccount.google.com/apppasswords.' },
-  { id: 'yahoo', name: 'Yahoo', help: 'Make an app password in Yahoo Account Security.' },
-  { id: 'other', name: 'Another provider', help: 'Your provider lists its IMAP and SMTP servers; most need an app password.' },
-] as const;
-
 /** "9:02" today, "Thu" this week, "3 Nov" before. */
 export function when(ms: number, now = new Date()): string {
   if (!ms) return '';
@@ -32,6 +25,7 @@ export function when(ms: number, now = new Date()): string {
   if (now.getTime() - ms < 6 * 86_400_000 && ms <= now.getTime()) return weekdayLabel(d);
   return dayLabel(d, { now });
 }
+
 /** Mail's own toolbar glyphs, drawn like the standard action icons (20 units, stroked). */
 const MAIL_ICONS = {
   inbox: <><path d="M3 11.5 5 4.5h10l2 7v3.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15z" /><path d="M3 11.5h4l1 2h4l1-2h4" /></>,
@@ -52,11 +46,6 @@ function Glyph({ name, filled = false }: { name: keyof typeof MAIL_ICONS; filled
   return <svg viewBox="0 0 20 20" aria-hidden="true" data-filled={filled || undefined}>{MAIL_ICONS[name]}</svg>;
 }
 
-/** A mailbox's glyph in the sidebar, tinted like Apple Mail's. */
-const BOX_GLYPH = { inbox: 'inbox', drafts: 'drafts', flagged: 'flag', sent: 'sent', archive: 'archive' } as const;
-function BoxGlyph({ name }: { name: keyof typeof BOX_GLYPH }) {
-  return <svg className="mail-box-icon" data-box={name} viewBox="0 0 20 20" aria-hidden="true">{MAIL_ICONS[BOX_GLYPH[name]]}</svg>;
-}
 
 /** Where a mailbox's list comes from, as the sidebar names it. */
 export const BOX_NAMES: Record<MailBox, string> = { inbox: 'Inbox', sent: 'Sent', flagged: 'Flagged', archive: 'Archive' };
@@ -64,65 +53,20 @@ export const BOX_NAMES: Record<MailBox, string> = { inbox: 'Inbox', sent: 'Sent'
 const initials = (name: string, email: string) => (name || email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('');
 const shownName = (p: { name: string; email: string }) => p.name || p.email;
 
-function AccountDialog({ mail, onClose }: { mail: MailState; onClose: () => void }) {
-  const [preset, setPreset] = useState<(typeof PRESETS)[number]['id']>('icloud');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [imap, setImap] = useState('');
-  const [smtp, setSmtp] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-  const p = PRESETS.find((x) => x.id === preset)!;
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setProblem(null);
-    const host = (t: string, port: number) => { const [h, n] = t.trim().split(':'); return { host: h ?? '', port: Number(n) || port }; };
-    const i = host(imap, 993);
-    const s = host(smtp, 465);
-    const failed = await mail.connect({ preset, email: email.trim(), password, ...(preset === 'other' ? { imapHost: i.host, imapPort: i.port, smtpHost: s.host, smtpPort: s.port } : {}) });
-    setBusy(false);
-    if (failed) setProblem(failed); else onClose();
-  };
-  return createPortal(
-    <div className="cal-modal-layer">
-      <div className="cal-editor-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <form className="cal-editor" role="dialog" aria-modal="true" aria-label="Add a mail account" onSubmit={(e) => void submit(e)} onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
-          <h2 className="cal-editor-heading">Add a mail account</h2>
-          <label className="cal-editor-row"><span>Provider</span>
-            <select aria-label="Provider" value={preset} onChange={(e) => setPreset(e.target.value as typeof preset)}>{PRESETS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-          </label>
-          <input aria-label="Email address" placeholder="Email address" type="email" autoComplete="username" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input aria-label="App password" placeholder="App password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-          {preset === 'other' && (
-            <>
-              <input aria-label="Incoming server (IMAP)" placeholder="imap.example.com:993" required value={imap} onChange={(e) => setImap(e.target.value)} />
-              <input aria-label="Outgoing server (SMTP)" placeholder="smtp.example.com:465" required value={smtp} onChange={(e) => setSmtp(e.target.value)} />
-            </>
-          )}
-          <p className="cal-editor-note">{p.help} The password is kept in this computer's secret store. Mail from the last 45 days is kept here; Mobius never sends mail itself.</p>
-          {problem && <p className="tasks-message" role="alert">{problem}</p>}
-          <div className="cal-editor-actions">
-            <span className="spacer" />
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn primary" disabled={busy}>{busy ? 'Connecting…' : 'Connect'}</button>
-          </div>
-        </form>
-      </div>
-    </div>,
-    document.body,
-  );
+
+/** The window title's place: the mailbox, the label, or the drafts shown. */
+export function mailPlace(v: MailState['view']): string {
+  if (v.kind === 'drafts') return v.only === 'mobius' ? 'Suggested replies' : 'Drafts';
+  if (v.box === 'inbox' && v.category !== 'all') return CATEGORIES.find((c) => c.id === v.category)?.label ?? 'Inbox';
+  return BOX_NAMES[v.box];
 }
 
-/** Mailboxes, drafts and accounts. */
+/** Mailboxes, labels and what Mobius wrote, as plain rows. Accounts are in Settings › Mail. */
 export function MailSidebar({ mail, pin }: { mail: MailState; pin?: ReactNode; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
-  const [adding, setAdding] = useState(false);
-  const [accountMenu, setAccountMenu] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [removing, setRemoving] = useState<string | null>(null);
   const v = mail.view;
-  const here = (kind: MailBox | 'drafts') => (kind === 'drafts' ? v.kind === 'drafts' : v.kind === 'box' && v.box === kind);
-  const box = (b: 'sent' | 'flagged' | 'archive') => <SidebarRow icon={<BoxGlyph name={b} />} label={BOX_NAMES[b]} current={here(b)} onSelect={() => mail.setView({ kind: 'box', box: b, category: 'all' })} />;
-  const account = mail.accounts.find((a) => a.id === accountMenu?.id);
+  const inBox = (b: MailBox, category: MailCategory | 'all' = 'all') => v.kind === 'box' && v.box === b && (b !== 'inbox' || v.category === category);
+  const box = (b: MailBox, count?: number) => <SidebarRow label={BOX_NAMES[b]} {...(count ? { count } : {})} current={inBox(b)} onSelect={() => mail.setView({ kind: 'box', box: b, category: 'all' })} />;
+  const suggested = mail.drafts.filter((d) => d.by === 'mobius').length;
   return (
     <AppSidebar label="Mail sidebar">
       <SideNew item="message" onNew={mail.compose} disabled={mail.accounts.length === 0} title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} />
@@ -133,37 +77,22 @@ export function MailSidebar({ mail, pin }: { mail: MailState; pin?: ReactNode; s
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
         </button>
       </>}>
-        <SidebarRow icon={<BoxGlyph name="inbox" />} label="Inbox" count={mail.counts.all} current={here('inbox')} onSelect={() => mail.setView({ kind: 'box', box: 'inbox', category: v.kind === 'box' && v.box === 'inbox' ? v.category : 'primary' })} />
-        <SidebarRow icon={<BoxGlyph name="drafts" />} label="Drafts" count={mail.counts.drafts + mail.counts.suggested} current={here('drafts')} onSelect={() => mail.setView({ kind: 'drafts' })} />
+        {box('inbox', mail.counts.all)}
+        <SidebarRow label="Drafts" {...(mail.counts.drafts ? { count: mail.counts.drafts } : {})} current={v.kind === 'drafts' && !v.only} onSelect={() => mail.setView({ kind: 'drafts' })} />
         {box('flagged')}
         {box('sent')}
         {box('archive')}
       </SidebarSection>
-      <SidebarSection title="Accounts">
-        {mail.accounts.map((a) => (
-          <li key={a.id} className="mail-account" tabIndex={0} title={`${a.email}: right-click for more`}
-            onContextMenu={(e) => { e.preventDefault(); setAccountMenu({ id: a.id, x: e.clientX, y: e.clientY }); }}
-            onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setAccountMenu({ id: a.id, x: r.left + 12, y: r.bottom }); } }}>
-            <span className="list-name">{a.email}</span>
-            {removing === a.id && (
-              <div className="list-confirm" role="alertdialog" aria-label={`Remove ${a.email}?`}>
-                <p>Remove {a.email} from Mobius? Its mail stays with your provider.</p>
-                <div className="list-confirm-actions">
-                  <button type="button" className="btn" autoFocus onClick={() => setRemoving(null)}>Cancel</button>
-                  <button type="button" className="btn danger" onClick={() => { setRemoving(null); void mail.removeAccount(a.id); }}>Remove</button>
-                </div>
-              </div>
-            )}
-            {a.problem && <p className="calendar-account-problem" role="alert">{a.problem}</p>}
-          </li>
+      {/* Mobius sorts the Inbox into these; a message moves to another from its toolbar or right-click menu. */}
+      <SidebarSection title="Labels">
+        {CATEGORIES.filter((c) => c.id !== 'all').map((c) => (
+          <SidebarRow key={c.id} label={c.label} {...(mail.counts[c.id as MailCategory] ? { count: mail.counts[c.id as MailCategory] } : {})} current={inBox('inbox', c.id)} onSelect={() => mail.setView({ kind: 'box', box: 'inbox', category: c.id })} />
         ))}
-        <li><button type="button" className="calendar-add-account" onClick={() => setAdding(true)}>Add a mail account…</button></li>
       </SidebarSection>
-      {/* Removing an account is in a menu of its own (right-click), so it is not hit by mistake. */}
-      {accountMenu && account && <PointMenu x={accountMenu.x} y={accountMenu.y} label={`${account.email} menu`} onClose={() => setAccountMenu(null)} entries={[
-        { label: 'Remove account…', danger: true, run: () => setRemoving(account.id) },
-      ]} />}
-      {adding && <AccountDialog mail={mail} onClose={() => setAdding(false)} />}
+      <SidebarSection title="From Mobius">
+        <SidebarRow label="Suggested replies" current={v.kind === 'drafts' && v.only === 'mobius'} onSelect={() => mail.setView({ kind: 'drafts', only: 'mobius' })}
+          trail={suggested > 0 ? <span className="mail-to-review">{suggested} to review</span> : undefined} />
+      </SidebarSection>
     </AppSidebar>
   );
 }
@@ -253,18 +182,22 @@ function DraftEditor({ mail, draft }: { mail: MailState; draft: MailDraft }) {
   );
 }
 
-/** A reply Mobius suggested: dashed until the person keeps it (it opens as their draft), discards it or asks for another. */
+/**
+ * A reply Mobius suggested, under the message: one dashed block until the person keeps it (it opens as their draft to
+ * change and send), discards it or asks for another. Mobius never sends.
+ */
 function Suggested({ mail, draft }: { mail: MailState; draft: MailDraft }) {
+  const tryAnother = useContext(TryAnotherContext);
   return (
-    <div className="mail-suggested" aria-label="Suggested reply">
-      <span className="mail-suggested-head">Suggested reply</span>
-      {draft.why && <span className="review-why">Why this: {draft.why}</span>}
+    <section className="mail-suggested" aria-label="Suggested reply">
       <p className="mail-suggested-body">{draft.body}</p>
       <div className="mail-suggested-actions">
-        <ReviewActions onKeep={() => mail.setEditing({ ...draft, by: 'you' })} onDiscard={() => mail.deleteDraft(draft.id)} keepTitle="Keep it: it opens as your draft, to change and send" discardTitle="Delete this suggestion" />
-        <span>Mobius never sends. You press Send.</span>
+        <span className="mail-suggested-head" title={draft.why ? `Why this: ${draft.why}. Mobius never sends; you press Send.` : 'Mobius never sends; you press Send.'}>Draft from Mobius</span>
+        <button type="button" className="btn" title="Delete this suggestion" onClick={() => void mail.deleteDraft(draft.id)}>Discard</button>
+        {tryAnother && <button type="button" className="btn" title="Put it back and ask Mobius for another" onClick={() => void mail.deleteDraft(draft.id).then(tryAnother)}>Try another</button>}
+        <button type="button" className="btn mail-keep" title="Keep it: it opens as your draft, to change and send" onClick={() => mail.setEditing({ ...draft, by: 'you' })}>Keep and edit</button>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -345,24 +278,23 @@ function Reader({ mail, content, onDraftReply }: { mail: MailState; content: Mai
   useEffect(() => { reader.current?.focus({ preventScroll: true }); }, [content]);
   return (
     <article ref={reader} tabIndex={-1} className="mail-reader" aria-label={content.subject || 'Message'} data-comment-id={content.id} data-comment-label={content.subject || 'Message'}>
+      <h1 className="mail-subject">{content.subject || '(no subject)'}</h1>
       <header className="mail-reader-head">
         <span className="mail-avatar" aria-hidden="true">{initials(content.from.name, content.from.email)}</span>
         <div className="mail-reader-who">
-          <div><b>{shownName(content.from)}</b> <span className="mail-when">{content.dateMs ? sendTime(content.dateMs) : ''}</span></div>
-          <div className="mail-subject">{content.subject || '(no subject)'}</div>
-          <div className="mail-to">To: {content.to.map(shownName).join(', ') || 'you'}{content.cc.length > 0 && <> · Cc: {content.cc.map(shownName).join(', ')}</>}</div>
+          <div><b title={content.from.email}>{shownName(content.from)}</b> <span className="mail-to">to {content.to.map(shownName).join(', ') || 'you'}{content.cc.length > 0 && <>, cc {content.cc.map(shownName).join(', ')}</>}</span></div>
+          <div className="mail-when">{content.dateMs ? sendTime(content.dateMs) : ''}</div>
         </div>
+        {content.html && <button type="button" className="btn mail-format" aria-pressed={!showHtml} onClick={() => setShowHtml((s) => !s)}>{showHtml ? 'Plain text' : 'Formatted'}</button>}
       </header>
-      {((onDraftReply && suggestions.length === 0 && kept.length === 0) || content.html) && (
-        <div className="mail-reader-actions">
-          {onDraftReply && suggestions.length === 0 && kept.length === 0 && <button type="button" className="btn mail-draft-it" onClick={() => onDraftReply(content)}>Draft a reply with Mobius</button>}
-          {content.html && <button type="button" className="btn" aria-pressed={!showHtml} onClick={() => setShowHtml((s) => !s)}>{showHtml ? 'Plain text' : 'Formatted'}</button>}
-        </div>
-      )}
-      {suggestions.map((d) => <Suggested key={d.id} mail={mail} draft={d} />)}
-      {kept.map((d) => <KeptReply key={d.id} mail={mail} draft={d} />)}
       {content.html && showHtml ? <HtmlBody html={content.html} /> : <pre className="mail-text">{content.text}</pre>}
       {content.attachments.length > 0 && <p className="mail-attachments">Attached: {content.attachments.join(', ')}</p>}
+      {/* What Mobius wrote, and what the person kept, come after the message, where a reply goes. */}
+      {suggestions.map((d) => <Suggested key={d.id} mail={mail} draft={d} />)}
+      {kept.map((d) => <KeptReply key={d.id} mail={mail} draft={d} />)}
+      {onDraftReply && suggestions.length === 0 && kept.length === 0 && (
+        <div className="mail-reader-actions"><button type="button" className="btn mail-draft-it" onClick={() => onDraftReply(content)}>Draft a reply with Mobius</button></div>
+      )}
     </article>
   );
 }
@@ -398,6 +330,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
   const v = mail.view;
   const [adding, setAdding] = useState(false);
   const [rowMenu, setRowMenu] = useState<{ m: MailMessage; x: number; y: number } | null>(null);
+  const drafts = v.kind === 'drafts' && v.only ? mail.drafts.filter((d) => d.by === v.only) : mail.drafts;
   // E archives, R replies, H puts the open message off until tomorrow at 8:00. Not while typing, and not with Ctrl or Alt.
   const keys = useRef(mail);
   keys.current = mail;
@@ -423,32 +356,23 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  if (!mail.available) return <section className="mail-page empty" aria-label="Mail"><EmptyState app="mail" title="Mail is not available here" /></section>;
+  if (!mail.available) return <section className="mail-page empty" aria-label="Mail"><EmptyState icon={MAIL_ICONS.inbox} title="Mail is not available here" /></section>;
   // With no account and no drafts there is nothing to show; a draft Mobius kept before any account was added is shown.
   if (mail.accounts.length === 0 && mail.drafts.length === 0) {
     return (
       <section className="mail-page empty" aria-label="Mail">
-        <EmptyState app="mail" title="No mail account yet" line="Add one to see your mail here. Mobius reads and drafts; only you send." action={{ label: 'Add an account', run: () => setAdding(true) }} />
-        {adding && <AccountDialog mail={mail} onClose={() => setAdding(false)} />}
+        <EmptyState icon={MAIL_ICONS.inbox} title="No mail account yet" line="Add one to see your mail here. Mobius reads and drafts; only you send." action={{ label: 'Add a mail account…', run: () => setAdding(true) }} />
+        {adding && <AccountDialog connect={mail.connect} onClose={() => setAdding(false)} />}
       </section>
     );
   }
   return (
     <section className="mail-page" aria-label="Mail">
       <div className="mail-list-pane">
-        {v.kind === 'box' && v.box === 'inbox' && (
-          <div className="mail-cats" role="tablist" aria-label="Categories">
-            {CATEGORIES.map((c) => (
-              <button key={c.id} type="button" role="tab" aria-selected={v.category === c.id} onClick={() => mail.setView({ kind: 'box', box: 'inbox', category: c.id })}>
-                {c.label}{c.id !== 'all' && mail.counts[c.id] ? <span className="mail-cat-count">{mail.counts[c.id]}</span> : null}
-              </button>
-            ))}
-          </div>
-        )}
         {v.kind === 'drafts' ? (
-          <div role="listbox" aria-label="Drafts" className="mail-list">
-            {mail.drafts.length === 0 && <p className="side-empty">No drafts.</p>}
-            {mail.drafts.map((d) => (
+          <div role="listbox" aria-label={mailPlace(v)} className="mail-list">
+            {drafts.length === 0 && <p className="side-empty">{v.kind === 'drafts' && v.only ? 'No suggested replies to review.' : 'No drafts.'}</p>}
+            {drafts.map((d) => (
               <button key={d.id} type="button" role="option" aria-selected={mail.editing?.id === d.id} className="mail-row" data-suggested={d.by === 'mobius' || undefined} onClick={() => { mail.setOpen(null); mail.setEditing(d); }}>
                 <span className="mail-row-top"><b>{d.to || 'No one yet'}</b><span className="mail-when">{d.by === 'mobius' ? 'Suggested' : when(d.updatedMs)}</span></span>
                 <span className="mail-row-subject">{d.subject || '(no subject)'}</span>
@@ -468,9 +392,9 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
         {mail.editing ? <DraftEditor key={mail.editing.id || 'new'} mail={mail} draft={mail.editing} />
           : mail.open ? <Reader mail={mail} content={mail.open} {...(onDraftReply ? { onDraftReply } : {})} />
             : mail.accounts.length === 0
-              ? <EmptyState app="mail" label="No mail account yet" title="No mail account yet" line="Drafts are kept here on this computer. Add an account to send them." action={{ label: 'Add an account', run: () => setAdding(true) }} />
-              : <EmptyState app="mail" label="No message open" title="No message open" line="Choose one in the list." />}
-        {adding && mail.accounts.length === 0 && <AccountDialog mail={mail} onClose={() => setAdding(false)} />}
+              ? <EmptyState icon={MAIL_ICONS.inbox} label="No mail account yet" title="No mail account yet" line="Drafts are kept here on this computer. Add an account to send them." action={{ label: 'Add a mail account…', run: () => setAdding(true) }} />
+              : <EmptyState icon={MAIL_ICONS.inbox} label="No message open" title="No message open" line="Choose one in the list." />}
+        {adding && mail.accounts.length === 0 && <AccountDialog connect={mail.connect} onClose={() => setAdding(false)} />}
       </div>
       {rowMenu && <PointMenu x={rowMenu.x} y={rowMenu.y} label={`${rowMenu.m.subject || 'Message'} menu`} onClose={() => setRowMenu(null)} entries={rowItems(mail, rowMenu.m)} />}
       {mail.undo && <UndoToast text={mail.undo.text} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} />}
