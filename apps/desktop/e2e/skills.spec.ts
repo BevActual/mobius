@@ -108,8 +108,8 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors in on
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   const rail = shell().getByRole('navigation', { name: 'Apps' });
-  if ((await rail.getAttribute('data-face')) !== 'apps') await rail.locator('[data-app-switcher]').click();
-  await rail.getByRole('region', { name: 'Mobius’s apps' }).getByRole('button', { name: 'Abilities', exact: true }).click();
+  await rail.locator('[data-app-library]').click();
+  await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Abilities', exact: true }).click();
   const places = shell().getByRole('navigation', { name: 'Abilities' });
   await expect(places.getByRole('button')).toHaveText([/^Apps\d+$/, /^Skills\d*$/, /^Connectors\d*$/]);
   await expect(places.getByRole('button', { name: /^Apps/ })).toHaveAttribute('aria-current', 'page');
@@ -132,7 +132,7 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors in on
   await shell().getByRole('searchbox', { name: 'Search abilities' }).fill('');
   // An added app opens from its row.
   await library.getByRole('button', { name: 'Open Sheets' }).click();
-  await expect(rail.locator('[data-app-switcher]')).toHaveAttribute('aria-label', 'Switch app. Current: Sheets');
+  await expect(rail.getByRole('button', { name: 'Sheets', exact: true })).toHaveAttribute('aria-current', 'page');
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Extensions');
   await shell().keyboard.press('Enter');

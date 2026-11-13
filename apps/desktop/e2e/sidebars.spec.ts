@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { launch, startFixture, views, type Fixture, type Launched, openSettings } from './harness';
+import { launch, startFixture, views, type Fixture, type Launched, openSettings, resizeWindow } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -7,12 +7,8 @@ test.beforeEach(async () => {
   fixture = await startFixture();
   mobius = await launch(fixture.origin + '/');
   await expect(shell().getByText('Core ready')).toBeVisible();
-  // These tests are about the app's own list beside the page, which the narrow rail keeps separate.
-  // Set once the window has read its own settings, which can land after this on a slow start: try until it holds.
-  await expect(async () => {
-    await shell().evaluate(() => window.mobius.appearance.set({ navigation: 'rail' }));
-    await expect(shell().locator('.dock.left')).toHaveCount(1, { timeout: 1500 });
-  }).toPass({ timeout: 15_000 });
+  // These tests are about the app's own list beside the page (zone 2), next to the rail.
+  await expect(shell().locator('.dock.left')).toHaveCount(1, { timeout: 15_000 });
   // The sidebar folds with a short animation: measure only once it has settled.
   await expect.poll(async () => Math.round((await shell().locator('.rail').boundingBox())!.width)).toBe(52);
 });
@@ -24,13 +20,14 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 const tabs = (): Locator => shell().getByRole('complementary', { name: 'Browser sidebar' });
-const agentPanel = (): Locator => shell().getByRole('complementary', { name: 'Agent' });
+const agentPanel = (): Locator => shell().getByRole('complementary', { name: 'Agent', exact: true });
 const left = (): Locator => shell().locator('.dock.left');
 const right = (): Locator => shell().locator('.dock.right');
 const appearance = () => shell().evaluate(() => window.mobius.appearance.get());
 const setAppearance = (change: object) => shell().evaluate((c) => window.mobius.appearance.set(c), change);
 const pageVisible = async () => (await views(mobius!.app)).some((v) => v.visible);
-// Where the page starts, measured from the app rail (which is always there).
+// Where the page starts, measured from the app rail (which is always there). An attached list keeps at least 180px,
+// even on a narrow window, and a floating one none.
 const leftEdge = async () => (await shell().locator('.stage').boundingBox())!.x - (await shell().locator('.rail').boundingBox())!.width;
 const toggleTabs = () => shell().getByRole('button', { name: 'Show tabs' });
 
@@ -39,7 +36,7 @@ test('attached is how it starts: both sidebars are part of the layout', async ()
   await expect(agentPanel()).toBeVisible();
   await expect(left()).not.toHaveAttribute('data-floating', /.*/);
   await expect(shell().getByTestId('hotzone-left')).toHaveCount(0);
-  expect(await leftEdge()).toBeGreaterThan(200);
+  expect(await leftEdge()).toBeGreaterThanOrEqual(180);
 });
 
 test('a floating list is out of the way until the pointer reaches the edge, covers the page while shown, and hides when left', async () => {
@@ -91,7 +88,7 @@ test('the pin button switches between floating and attached, and the choice is k
   await tabs().getByRole('button', { name: 'Attach the list' }).click();
   await expect.poll(async () => (await appearance()).leftSidebar).toBe('attached');
   await expect(left()).not.toHaveAttribute('data-floating', /.*/);
-  expect(await leftEdge()).toBeGreaterThan(200);
+  expect(await leftEdge()).toBeGreaterThanOrEqual(180);
 
   // Floating is in the All chats menu, so the head keeps three icons.
   await agentPanel().getByRole('button', { name: 'All chats' }).click();
@@ -121,16 +118,18 @@ test('the conversation list in the Agent app floats and resizes the same way', a
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
   await shell().keyboard.press('Enter');
-  await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toBeVisible();
-  await shell().getByRole('complementary', { name: 'Conversation list' }).getByRole('button', { name: 'Float the list' }).click();
+  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toBeVisible();
+  await shell().getByRole('complementary', { name: 'Agent sidebar' }).getByRole('button', { name: 'Float the list' }).click();
   await shell().keyboard.press('Escape');
   await shell().locator('.context-strip').click({ position: { x: 4, y: 4 } });
-  await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toHaveCount(0);
+  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toHaveCount(0);
   await shell().getByRole('button', { name: 'Show conversations' }).click();
-  await expect(shell().getByRole('complementary', { name: 'Conversation list' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toBeVisible();
 });
 
 test('a sidebar can be dragged wider and narrower, within limits, and the width is kept', async () => {
+  // On a narrow window the docks are drawn narrower than saved (dock-fit.ts); this is about the saved width.
+  await resizeWindow(mobius!.app, 1600, 900);
   const handle = shell().getByRole('separator', { name: 'Resize the list' });
   await expect(handle).toHaveAttribute('aria-valuenow', '248');
   const box = (await handle.boundingBox())!;
@@ -161,30 +160,32 @@ test('a sidebar can be dragged wider and narrower, within limits, and the width 
 });
 
 test('the agent panel grows when its edge is dragged left, the keys work, and a double-click puts the usual width back', async () => {
+  await resizeWindow(mobius!.app, 1600, 900);
   const handle = shell().getByRole('separator', { name: 'Resize the agent panel' });
-  await expect(handle).toHaveAttribute('aria-valuenow', '380');
+  await expect(handle).toHaveAttribute('aria-valuenow', '320');
   const box = (await handle.boundingBox())!;
   await shell().mouse.move(box.x + 3, box.y + 200);
   await shell().mouse.down();
   await shell().mouse.move(box.x + 3 - 80, box.y + 200, { steps: 6 });
   await shell().mouse.up();
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(460);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(400);
 
   await handle.focus();
   await shell().keyboard.press('ArrowRight');
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(444);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(384);
   await shell().keyboard.press('Shift+ArrowLeft');
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(508);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(448);
   await shell().keyboard.press('Home');
   await expect.poll(async () => (await appearance()).rightWidth).toBe(300);
   await handle.dblclick();
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(380);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(320);
 });
 
 test('widths and modes survive a restart, and the settings page shows and resets them', async () => {
   await setAppearance({ leftWidth: 300, rightWidth: 500, leftSidebar: 'floating' });
   await mobius!.close({ keepUserData: true });
   mobius = await launch(fixture.origin + '/', { userData: mobius!.userData });
+  await resizeWindow(mobius.app, 1600, 900);
   await expect.poll(async () => (await appearance()).leftWidth).toBe(300);
   await expect(left()).toHaveCount(0);
   await expect(shell().locator('.dock.right')).toBeVisible();
@@ -199,7 +200,7 @@ test('widths and modes survive a restart, and the settings page shows and resets
   await expect(page.getByText('list 300 px, agent panel 500 px')).toBeVisible();
   await page.getByRole('button', { name: 'Reset sizes' }).click();
   await expect.poll(async () => (await appearance()).leftWidth).toBe(248);
-  expect((await appearance()).rightWidth).toBe(380);
+  expect((await appearance()).rightWidth).toBe(320);
 });
 
 test('a width the window sends that is out of range is refused', async () => {

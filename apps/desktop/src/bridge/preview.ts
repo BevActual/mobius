@@ -1,6 +1,7 @@
 import { tagsIn } from '../note-tags';
 import { linksIn } from '../note-links';
 import { PREVIEW_TASKS } from './preview-tasks';
+import { PREVIEW_FILES } from './preview-files';
 import { PREVIEW_DATABASES } from './preview-databases';
 import { PREVIEW_PROJECTS } from './preview-projects';
 import { PREVIEW_CALENDAR } from './preview-calendar';
@@ -16,6 +17,7 @@ import { PREVIEW_SLIDES } from './preview-slides';
 import { PREVIEW_PHOTOS } from './preview-photos';
 import { PREVIEW_VIDEO } from './preview-video';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
+import { PREVIEW_ACTIVITY } from './preview-activity';
 import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge, type UsageRow } from '@mobius/shared';
 
 /**
@@ -34,6 +36,8 @@ const now = Date.now();
 const hour = 3_600_000;
 
 const person = (name: string, email: string) => ({ name, email });
+/** Mail's drafts in the preview: Mobius's suggested reply to Priya. */
+const MAIL_DRAFTS = [{ id: 'd1', account: 'a1', to: 'priya@northway.example', cc: '', subject: 'Re: P2 build dates', body: 'Hi Priya,\n\nThe build week is the 23rd. I will send the plan to the team today.\n\nThanks', replyTo: 'm1' as string | null, by: 'mobius' as 'mobius' | 'you', why: 'you asked me to confirm the build week', updatedMs: Date.now() }];
 const MAIL = [
   { id: 'm1', account: 'a1', box: 'inbox', uid: 1, from: person('Priya Nair', 'priya@northway.example'), to: [person('You', 'you@northway.example')], cc: [person('Sam Okafor', 'sam@northway.example')], subject: 'P2 build dates', dateMs: now - 2 * hour, seen: false, flagged: false, preview: 'Can you confirm the build week and send the plan to the team?', category: 'primary' },
   { id: 'm2', account: 'a1', box: 'inbox', uid: 2, from: person('Veltro Cells', 'sales@veltro.example'), to: [person('You', 'you@northway.example')], cc: [], subject: 'Quote: 8 × 60 kWh packs', dateMs: now - 26 * hour, seen: true, flagged: true, preview: 'Six weeks from order to your dock. The hold lasts until Friday.', category: 'primary' },
@@ -71,7 +75,6 @@ const previewConnectors = () => ({ running: ['github'], failed: [{ server: 'line
 /** Answers for the calls that must return more than an empty list. Keyed by the call's path. */
 const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'core.getStatus': () => 'ready',
-  'files.list': (path: string) => ({ path, truncated: false, entries: path === '' ? [{ name: 'docs', type: 'folder' }, { name: 'notes', type: 'folder' }, { name: 'sheets', type: 'folder' }, { name: 'tasks', type: 'folder' }, { name: 'README.md', type: 'file', bytes: 2048 }] : path === 'notes' ? [{ name: 'P2 build', type: 'folder' }, { name: 'Home', type: 'folder' }] : path === 'notes/P2 build' ? [{ name: 'Build plan.md', type: 'file', bytes: 620 }, { name: 'Supplier notes.md', type: 'file', bytes: 410 }] : [] }),
   'extensions.connectors': () => previewConnectors(),
   'extensions.addConnector': (draft: { name: string }) => {
     if (['github', 'linear', ...previewWaiting].includes(draft.name)) return { ok: false, error: `There is already a connector called ${draft.name}.` };
@@ -85,6 +88,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'preferences.get': () => DEFAULT_PREFERENCES,
   'agent.getSettings': () => ({ baseUrl: 'https://portal.example/v1', model: 'Balanced', system: '', configured: true, hasKey: true, maxSteps: 24, keyStorage: 'session', fallbackBaseUrl: '', fallbackModel: '' }),
   'agent.question': () => null,
+  // Settings › Approvals and Browser list these: none are kept in the preview.
+  'agent.grants': () => [],
   ...PREVIEW_BROWSER,
   ...PREVIEW_CODE,
   ...PREVIEW_DESIGNS,
@@ -92,6 +97,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_SLIDES,
   ...PREVIEW_PHOTOS,
   ...PREVIEW_VIDEO,
+  ...PREVIEW_ACTIVITY,
   'bots.get': () => ({ bots: [
     { id: 'main', name: 'Mobius', instructions: '', model: '', createdMs: 0 },
     { id: 'rcpt01', name: 'File receipts', instructions: 'When a receipt arrives in Mail, add a row to the Expenses sheet.', model: '', createdMs: now - 6 * 86_400_000 },
@@ -102,6 +108,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'mini.isOpen': () => false,
   // Tasks are kept in memory for as long as the preview is open.
   ...PREVIEW_TASKS,
+  ...PREVIEW_FILES,
   // Documents are kept in memory for as long as the preview is open.
   ...PREVIEW_DOCS,
   // Reader's articles are kept in memory for as long as the preview is open.
@@ -170,7 +177,15 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'mail.flag': ((id: string, which: 'seen' | 'flagged', on: boolean) => { const m = MAIL.find((x) => x.id === id); if (m) m[which] = on; return { ok: true }; }) as never,
   'mail.archive': ((id: string, on: boolean) => { const m = MAIL.find((x) => x.id === id); if (m) (m as { archived?: boolean }).archived = on; return { ok: true }; }) as never,
   // A reply Mobius suggested to Priya, waiting to be kept.
-  'mail.drafts': () => [{ id: 'd1', account: 'a1', to: 'priya@northway.example', cc: '', subject: 'Re: P2 build dates', body: 'Hi Priya,\n\nThe build week is the 23rd. I will send the plan to the team today.\n\nThanks', replyTo: 'm1', by: 'mobius', why: 'you asked me to confirm the build week', updatedMs: now }],
+  'mail.drafts': () => MAIL_DRAFTS.map((d) => ({ ...d })),
+  // Mail: drafts are kept in memory, so Keep and Close show the reply as yours under the message.
+  'mail.saveDraft': ((draft: Partial<(typeof MAIL_DRAFTS)[number]>) => {
+    const at = MAIL_DRAFTS.findIndex((d) => d.id === draft.id);
+    const saved = { ...(at >= 0 ? MAIL_DRAFTS[at]! : MAIL_DRAFTS[0]!), ...draft, id: draft.id || `d${Date.now()}`, updatedMs: Date.now() };
+    if (at >= 0) MAIL_DRAFTS[at] = saved; else MAIL_DRAFTS.unshift(saved);
+    return { ...saved };
+  }) as never,
+  'mail.deleteDraft': ((id: string) => { const at = MAIL_DRAFTS.findIndex((d) => d.id === id); if (at >= 0) MAIL_DRAFTS.splice(at, 1); return { ok: true }; }) as never,
   'mail.counts': () => ({ primary: 1, transactions: 0, updates: 0, all: 1, drafts: 0, suggested: 1 }),
   'mail.read': ((id: string) => { const m = MAIL.find((x) => x.id === id) ?? MAIL[0]!; return { id: m.id, from: m.from, to: m.to, cc: m.cc, subject: m.subject, dateMs: m.dateMs, text: MAIL_TEXT[m.id] ?? '', html: null, attachments: [], category: 'primary' }; }) as never,
 };

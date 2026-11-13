@@ -21,7 +21,7 @@
 
 .view-tile { position: relative; display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; min-height: 168px; padding: 12px 12px 10px; border-radius: var(--radius-sheet); background: var(--panel); box-shadow: inset 0 0 0 0.5px var(--hairline), var(--shadow-1); transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), opacity var(--dur-fade) var(--ease); }
 .view-tile[data-size="wide"] { grid-column: span 2; }
-.view-tile[data-proposed] { box-shadow: none; outline: 1.5px dashed var(--accent); outline-offset: -1.5px; }
+.view-tile[data-proposed] { box-shadow: none; outline: 1.5px dashed var(--mobius); outline-offset: -1.5px; }
 .view-tile[data-dragging] { opacity: 0.4; }
 .views-page[data-editing] .view-tile { cursor: grab; }
 .views-page[data-editing] .view-tile:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 0.5px var(--hairline), var(--shadow-2); }

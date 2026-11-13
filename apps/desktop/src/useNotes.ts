@@ -37,9 +37,13 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   live.current = { page, text, status };
   const timer = useRef<number | undefined>(undefined);
 
+  // Lists overlap (a change on disk, a delete, a new page each list again); only the newest is shown, so an older
+  // answer arriving late cannot bring back a page that was just deleted.
+  const listed = useRef(0);
   const refresh = useCallback(async () => {
+    const read = ++listed.current;
     const list = await api?.list();
-    if (list && !isNotesFailure(list)) setNotebooks(list);
+    if (read === listed.current && list && !isNotesFailure(list)) setNotebooks(list);
     return list && !isNotesFailure(list) ? list : null;
   }, [api]);
 
@@ -123,9 +127,17 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   }, [api, refresh, save, remember]);
 
   const remove = useCallback(async (path: string) => {
+    // The open page is closed first, so nothing of it is still in use while it goes: no save of it lands after the
+    // delete, and its pictures are no longer shown (on Windows a picture being shown can keep its folder from going).
+    // A caller that has just opened another page (Reader's Done reading opens the archived copy, then removes the
+    // original) has its new page rendered first, so only the page really still open is closed.
+    await new Promise((settle) => setTimeout(settle, 0));
+    if (live.current.page?.path === path) {
+      setPage(null); setText(''); setStatus('saved');
+      await new Promise((settle) => setTimeout(settle, 0));
+    }
     const done = await api?.remove(path);
-    if (done && isNotesFailure(done)) { setMessage(done.message); return; }
-    if (live.current.page?.path === path) { setPage(null); setText(''); setStatus('saved'); }
+    if (done && isNotesFailure(done)) { setMessage(done.message); await refresh(); return; }
     if (remembered() === path) remember(null);
     await refresh();
   }, [api, refresh, remembered, remember]);

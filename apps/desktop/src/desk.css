@@ -37,6 +37,6 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .desk-act:hover:not(:disabled) { background: var(--soft); }
 .desk-act[data-primary] { color: var(--on-accent); background: var(--accent); box-shadow: none; }
 .desk-act[data-primary]:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); }
-.desk-row[data-changed] { box-shadow: none; border: 1px dashed var(--accent); }
-.desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--accent); }
+.desk-row[data-changed] { box-shadow: none; border: 1px dashed var(--mobius); }
+.desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--mobius); }
 @container (max-width: 520px) { .desk-rows[data-columns] { grid-template-columns: 1fr; } }

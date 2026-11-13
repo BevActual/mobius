@@ -1,3 +1,8 @@
+import { describeCombo } from '@mobius/shared';
+
+/** New's shortcut, as this computer writes it: shown beside every sidebar's New. */
+export const newKeys = (): string => describeCombo('mod+n', window.mobius?.platform ?? '');
+
 /** A way to start with Mobius: words put in the message box for the person to finish and send. */
 export interface Start {
   label: string;
@@ -26,6 +31,7 @@ export function SideNew({ item, onNew, disabled = false, title }: Props) {
       <button type="button" className="side-new-row" aria-label={`New ${item}`} title={title ?? `New ${item}`} disabled={disabled} onClick={onNew}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
         <span>New {item}</span>
+        <kbd className="side-keys" aria-hidden="true">{newKeys()}</kbd>
       </button>
     </div>
   );

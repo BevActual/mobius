@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TurnChanges, TurnRecord } from '@mobius/shared';
+import type { CalendarSuggestion, MailDraft, TurnChanges, TurnRecord } from '@mobius/shared';
 import { ReviewActions } from './ReviewBar';
 import { changeTarget } from './actions';
 import type { HubTarget } from './search-hub';
@@ -21,6 +21,7 @@ export function describeChange(path: string): ReturnType<typeof describeFile> {
   // A page's comments are kept beside it (docs/.comments/Documents/Plan.json): they read as the page's comments.
   const comments = /^(notes|docs|slides|research|reading)\/\.comments\/(.+)\.json$/i.exec(p);
   if (comments) { const page = describeChange(`${comments[1]}/${comments[2]}.md`); return { kind: page.kind, name: `Comments on ${page.name}` }; }
+  if (p === 'calendar/.suggestions.json') return { kind: 'Calendar', name: 'Suggested events' };
   const title = knownTitles.get(p);
   const described = describeFile(p);
   const folder = p.split('/')[1];
@@ -120,8 +121,76 @@ const isTyping = (target: EventTarget | null): boolean => {
  */
 const modKey = () => (window.mobius?.platform === 'darwin' ? 'Cmd' : 'Ctrl');
 
-export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
+/** Replies Mobius suggested in Mail since the turn began: changes too, though they live in Mail and not in a file. */
+async function suggestedSince(since: number | undefined): Promise<MailDraft[]> {
+  if (since === undefined) return [];
+  const got = await window.mobius.mail?.drafts().catch(() => null);
+  return Array.isArray(got) ? got.filter((d) => d.by === 'mobius' && d.updatedMs >= since) : [];
+}
+
+/** Where Calendar keeps the events Mobius suggests, waiting to be added. */
+export const SUGGESTIONS_FILE = 'calendar/.suggestions.json';
+const suggestionIds = (text: string | null): Set<string> => {
+  try {
+    const v: unknown = JSON.parse(text ?? '[]');
+    const list = Array.isArray(v) ? v : v && typeof v === 'object' && Array.isArray((v as { suggestions?: unknown }).suggestions) ? (v as { suggestions: unknown[] }).suggestions : [];
+    return new Set(list.flatMap((x) => (x && typeof x === 'object' && typeof (x as { id?: unknown }).id === 'string' ? [(x as { id: string }).id] : [])));
+  } catch { return new Set(); }
+};
+/** The events this turn suggested in Calendar: waiting now, and not before the turn. */
+/** The events in a calendar file, by id: its title and start (YYYYMMDD…), from the file's iCalendar text. */
+export function icsEvents(text: string): Map<string, { title: string; start: string }> {
+  const out = new Map<string, { title: string; start: string }>();
+  const lines = text.replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
+  let at: { uid?: string; title?: string; start?: string } | null = null;
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') at = {};
+    else if (line === 'END:VEVENT') { if (at?.uid) out.set(at.uid, { title: at.title ?? '', start: at.start ?? '' }); at = null; }
+    else if (at) {
+      const colon = line.indexOf(':');
+      const name = line.slice(0, colon).split(';')[0]!.toUpperCase();
+      const value = line.slice(colon + 1);
+      if (name === 'UID') at.uid = value.trim();
+      else if (name === 'SUMMARY') at.title = value.replace(/\\([,;\\])/g, '$1').replace(/\\n/gi, ' ');
+      else if (name === 'DTSTART') at.start = value.trim();
+    }
+  }
+  return out;
+}
+
+/** What a turn did to one calendar file, by event: the titles it added or changed, and the day of the first one. */
+async function calendarChangesInTurn(conversation: string, path: string): Promise<{ names: string[]; date: string | null }> {
+  const calendar = path.replace(/\\/g, '/').replace(/^calendar\//, '').replace(/\.ics$/i, '');
+  const today = new Date();
+  const day = (offset: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset).toLocaleDateString('en-CA');
+  const [was, now] = await Promise.all([
+    window.mobius.changes.before(conversation, path).catch(() => null),
+    window.mobius.calendar?.events(day(-366), day(366)).catch(() => null),
+  ]);
+  if (!Array.isArray(now)) return { names: [], date: null };
+  const before = was && was.ok && was.text ? icsEvents(was.text) : new Map<string, { title: string; start: string }>();
+  const changed = now.filter((e) => e.calendar === calendar).filter((e) => {
+    const old = before.get(e.id);
+    return !old || old.title !== e.title || old.start.slice(0, 8) !== e.start.replace(/-/g, '').slice(0, 8);
+  });
+  const nowIds = new Set(now.filter((e) => e.calendar === calendar).map((e) => e.id));
+  const removed = [...before.entries()].filter(([id]) => !nowIds.has(id)).map(([, e]) => `Removed: ${e.title || 'an event'}`);
+  return { names: [...changed.map((e) => e.title), ...removed], date: changed[0]?.start.slice(0, 10) ?? null };
+}
+
+async function suggestedInTurn(conversation: string): Promise<CalendarSuggestion[]> {
+  const [was, now] = await Promise.all([window.mobius.changes.before(conversation, SUGGESTIONS_FILE).catch(() => null), window.mobius.calendar?.suggestions().catch(() => null)]);
+  if (!Array.isArray(now)) return [];
+  const before = was && was.ok ? suggestionIds(was.text) : new Set<string>();
+  return now.filter((x) => !before.has(x.id));
+}
+
+export function ReviewStrip({ conversation, busy, onOpenItem, since }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined; /** When the last turn was asked (ms): replies Mobius suggested in Mail since then are part of it. */ since?: number | undefined }) {
   const [files, setFiles] = useState<string[]>([]);
+  const [drafts, setDrafts] = useState<MailDraft[]>([]);
+  const [suggested, setSuggested] = useState<CalendarSuggestion[]>([]);
+  // A calendar file is listed by the events the turn added or changed in it, not by the file's name.
+  const [events, setEvents] = useState<Record<string, { names: string[]; date: string | null }>>({});
   const [turn, setTurn] = useState<string | null>(null);
   // Open from the start: what the turn changed is listed, each one a link to it.
   const [open, setOpen] = useState(true);
@@ -132,14 +201,23 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
   const reads = useRef(0);
   const load = useCallback(async () => {
     const n = ++reads.current;
-    const result = await window.mobius.changes?.lastTurn(conversation).catch(() => null);
+    const [result, suggested] = await Promise.all([window.mobius.changes?.lastTurn(conversation).catch(() => null), suggestedSince(since)]);
     if (n !== reads.current) return;
+    setDrafts(suggested);
     const changes = isChanges(result) ? result : null;
     const id = turnId(conversation, changes?.checkpoint ?? null);
     setTurn(id);
     // What is left of the turn: an app's own Keep takes its part away, the rest stays here.
-    setFiles(changes && !(id && keptTurns().includes(id)) ? changes.files.filter((f) => !(id && fileKept(id, f))) : []);
-  }, [conversation]);
+    const waiting = changes && !(id && keptTurns().includes(id)) ? changes.files.filter((f) => !(id && fileKept(id, f))) : [];
+    // Suggested events are listed by their titles, not as the file Calendar keeps them in.
+    const events = waiting.some((f) => f.replace(/\\/g, '/') === SUGGESTIONS_FILE) ? await suggestedInTurn(conversation) : [];
+    const calendars = waiting.filter((f) => /^calendar\/[^/]+\.ics$/i.test(f.replace(/\\/g, '/')));
+    const named = Object.fromEntries(await Promise.all(calendars.map(async (f) => [f, await calendarChangesInTurn(conversation, f)] as const)));
+    if (n !== reads.current) return;
+    setSuggested(events);
+    setEvents(named);
+    setFiles(waiting);
+  }, [conversation, since]);
   useEffect(() => { setOpen(true); setUndone(false); setProblem(null); }, [conversation]);
   // Kept from a note's own bar: the strip goes too.
   useEffect(() => {
@@ -160,6 +238,9 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
   // Only what this turn changed goes back, one item at a time, so edits made since in other files are kept.
   const undoAll = async (): Promise<string | null> => {
     setProblem(null);
+    // A suggested reply is discarded as Mail's own Discard does it: deleted, never sent.
+    for (const d of drafts) await window.mobius.mail?.deleteDraft(d.id).catch(() => undefined);
+    setDrafts([]);
     for (const path of files) {
       const result = await window.mobius.changes.undoFile(conversation, path).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
       if (!result.ok) { setProblem(result.error); void load(); return result.error; }
@@ -173,12 +254,25 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
     return null;
   };
 
-  const keep = useCallback(() => {
-    if (turn) keepTurn(turn, 'all');
+  const keep = useCallback(async () => {
     setFiles([]);
+    setDrafts([]);
+    setSuggested([]);
     setOpen(false);
-  }, [turn]);
-  const shown = !busy && files.length > 0;
+    // A suggested reply is kept as Mail's own Keep does it: it becomes the person's draft, to change and send. Never sent.
+    // A suggested event is kept as Calendar's own Keep does it: added to the calendar. Both are settled before the
+    // turn is marked kept, so reading the turn again does not find them still waiting.
+    await Promise.all([
+      ...drafts.map((d) => window.mobius.mail?.saveDraft({ ...d, by: 'you' }).catch(() => undefined)),
+      ...suggested.map((x) => window.mobius.calendar?.accept(x.id).catch(() => undefined)),
+    ]);
+    if (turn) keepTurn(turn, 'all');
+  }, [turn, drafts, suggested]);
+  // What the strip lists: the files the turn changed, then the replies it suggested in Mail.
+  const listed = suggested.length > 0 ? files.filter((f) => f.replace(/\\/g, '/') !== SUGGESTIONS_FILE) : files;
+  const apps = [...appsOf(files), ...(drafts.length > 0 && !appsOf(files).includes('Mail') ? ['Mail'] : [])];
+  const count = listed.length + suggested.length + drafts.length;
+  const shown = !busy && count > 0;
   const discardNow = useRef(undoAll);
   discardNow.current = undoAll;
   useEffect(() => {
@@ -187,50 +281,71 @@ export function ReviewStrip({ conversation, busy, onOpenItem }: { conversation: 
       const what = reviewShortcut(event, isTyping(event.target));
       if (!what) return;
       event.preventDefault();
-      if (what === 'keep') keep(); else void discardNow.current();
+      if (what === 'keep') void keep(); else void discardNow.current();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [shown, keep]);
 
   if (busy) return null;
-  if (undone && files.length === 0) {
+  if (undone && count === 0) {
     return <div className="review-strip" role="status" data-state="undone"><span className="review-summary">Put back as it was before that turn.</span></div>;
   }
-  if (files.length === 0) return null;
+  if (count === 0) return null;
   return (
     <section className="review-strip" aria-label="Changes from the last turn" data-open={open || undefined}>
       <div className="review-head">
         <span className="review-dot" aria-hidden="true" />
         <button type="button" className="review-toggle" aria-expanded={open} title={open ? 'Hide what changed' : 'See what changed'} onClick={() => setOpen((o) => !o)}>
           {/* Where the changes are, so a change in an app not on screen is not missed: "4 changes in Tasks, Calendar". */}
-          <span className="review-summary">{files.length === 1 ? '1 change' : `${files.length} changes`}{` in ${appsOf(files).join(', ')}`}</span>
+          <span className="review-summary">{count === 1 ? '1 change' : `${count} changes`}{` in ${apps.join(', ')}`}</span>
           <span className="review-sep" aria-hidden="true">·</span>
           <span>Review</span>
           <svg className="review-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
         </button>
         <span className="review-actions">
           {/* This one keeps everything the turn changed, so it says so, and in which apps. */}
-          <ReviewActions only="keep" onKeep={keep} onDiscard={undoAll} keepText={appsOf(files).length > 1 ? 'Keep all' : 'Keep'} keepLabel={`Keep all changes from this turn (${appsOf(files).join(', ')})`} keepTitle={`Keep all changes from this turn: ${appsOf(files).join(', ')} (${modKey()}+Enter)`} />
+          <ReviewActions only="keep" onKeep={keep} onDiscard={undoAll} keepText={apps.length > 1 ? 'Keep all' : 'Keep'} keepLabel={`Keep all changes from this turn (${apps.join(', ')})`} keepTitle={`Keep all changes from this turn: ${apps.join(', ')} (${modKey()}+Enter)`} />
         </span>
       </div>
       {open && (
         <ul className="review-list">
-          {files.map((path) => {
-            const { kind, name } = describeChange(path);
+          {listed.map((path) => {
+            const described = describeChange(path);
+            const inCalendar = events[path];
+            const kind = inCalendar && inCalendar.names.length > 0 ? (inCalendar.names.length === 1 ? 'Event' : 'Events') : described.kind;
+            const name = inCalendar && inCalendar.names.length > 0 ? (inCalendar.names.length > 2 ? `${inCalendar.names.slice(0, 2).join(', ')} and ${inCalendar.names.length - 2} more` : inCalendar.names.join(', ')) : described.name;
             return (
               <li key={path} className="review-item">
                 <span className="review-kind">{kind}</span>
-                {(() => { const target = onOpenItem ? changeTarget(path) : null; return target ? <button type="button" className="review-name link-btn" title={`Open ${name} (${path})`} onClick={() => onOpenItem?.(target)}>{name}</button> : <span className="review-name" title={path}>{name}</span>; })()}
+                {(() => { const target = onOpenItem ? (inCalendar?.date ? { app: 'calendar' as const, date: inCalendar.date } : changeTarget(path)) : null; return target ? <button type="button" className="review-name link-btn" title={`Open ${name} (${path})`} onClick={() => onOpenItem?.(target)}>{name}</button> : <span className="review-name" title={path}>{name}</span>; })()}
                 <button type="button" className="review-btn" aria-label={`Undo the change to ${name}`} onClick={() => void run(() => window.mobius.changes.undoFile(conversation, path))}>Undo</button>
               </li>
             );
           })}
+          {suggested.map((x) => (
+            <li key={x.id} className="review-item">
+              <span className="review-kind">Event</span>
+              {onOpenItem
+                ? <button type="button" className="review-name link-btn" title={`Open ${x.title} in Calendar`} onClick={() => onOpenItem({ app: 'calendar', date: x.start.slice(0, 10) })}>{x.title}</button>
+                : <span className="review-name">{x.title}</span>}
+              <button type="button" className="review-btn" aria-label={`Decline the suggested event ${x.title}`} onClick={() => void window.mobius.calendar?.decline(x.id).then(() => load())}>Undo</button>
+            </li>
+          ))}
+          {drafts.map((d) => (
+            <li key={d.id} className="review-item">
+              <span className="review-kind">Email</span>
+              {onOpenItem && d.replyTo
+                ? <button type="button" className="review-name link-btn" title={`Open the message this answers: ${d.subject}`} onClick={() => onOpenItem({ app: 'mail', id: d.replyTo! })}>{d.subject || 'Suggested reply'}</button>
+                : <span className="review-name">{d.subject || 'Suggested email'}</span>}
+              <button type="button" className="review-btn" aria-label={`Discard the suggested email ${d.subject}`} onClick={() => void window.mobius.mail?.deleteDraft(d.id).then(() => load())}>Undo</button>
+            </li>
+          ))}
         </ul>
       )}
       {open && (
         <div className="review-more">
-          <ReviewActions only="others" onKeep={keep} onDiscard={undoAll} discardText={appsOf(files).length > 1 ? 'Discard all' : 'Discard'} discardLabel={`Discard all changes from this turn (${appsOf(files).join(', ')})`} discardTitle={`Put everything this turn changed back as it was: ${appsOf(files).join(', ')} (${modKey()}+Backspace)`} />
+          <ReviewActions only="others" onKeep={keep} onDiscard={undoAll} discardText={apps.length > 1 ? 'Discard all' : 'Discard'} discardLabel={`Discard all changes from this turn (${apps.join(', ')})`} discardTitle={`Put everything this turn changed back as it was: ${apps.join(', ')} (${modKey()}+Backspace)`} />
         </div>
       )}
       {problem && <p className="review-problem" role="alert">{problem}</p>}

@@ -22,6 +22,7 @@ export interface MenuContext {
     hasSidebar: boolean;
     agentShown: boolean;
     hasAgentPanel: boolean;
+    commenting: boolean;
     split: boolean;
     canSplit: boolean;
     miniOpen: boolean;
@@ -44,6 +45,7 @@ export interface MenuContext {
     find: () => void;
     toggleSidebar: () => void;
     toggleAgent: () => void;
+    toggleComments: () => void;
     toggleSplit: () => void;
     toggleMini: () => void;
     zoom: (zoom: number) => void;
@@ -51,7 +53,7 @@ export interface MenuContext {
     allApps: () => void;
     launcher: () => void;
     browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; selection: () => void; saveToReader: () => void };
-    notes: { newNotebook: () => void; pin: () => void; changes: () => void };
+    notes: { newNotebook: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void };
     video: { newProject: () => void; showFolder: () => void };
@@ -108,6 +110,7 @@ export function buildMenus(c: MenuContext): Menu[] {
   const view: Menu = { id: 'view', label: 'View', items: [
     item('sidebar', 'Sidebar', d.toggleSidebar, { checked: s.sidebarShown, disabled: !s.hasSidebar }),
     item('agent-panel', 'Agent panel', d.toggleAgent, { checked: s.agentShown, disabled: !s.hasAgentPanel }),
+    item('comments', 'Comments', d.toggleComments, { keys: 'c', checked: s.commenting }),
     separator,
     item('zoom-in', 'Zoom in', () => d.zoom(nextZoom(s.zoom, 1)), { disabled: s.zoom >= ZOOM_STEPS.at(-1)! }),
     item('zoom-out', 'Zoom out', () => d.zoom(nextZoom(s.zoom, -1)), { disabled: s.zoom <= ZOOM_STEPS[0] }),
@@ -157,6 +160,10 @@ function appMenu(c: MenuContext): Menu | null {
         separator,
         item('changes', 'Show what the agent changed', d.notes.changes, { disabled: !s.notes.changed }),
         item('pin-note', s.notes.pinned ? 'Unpin from the sidebar' : 'Pin to the sidebar', d.notes.pin, { disabled: !s.notes.hasPage }),
+        separator,
+        item('history', 'Version history…', d.notes.history, { disabled: !s.notes.hasPage }),
+        item('clip-page', 'Clip a web page…', d.notes.clip, { disabled: !s.notes.hasPage }),
+        item('show-markdown', 'Show Markdown', d.notes.markdown, { disabled: !s.notes.hasPage }),
       ] };
     case 'tasks':
       return { id: 'app', label: 'Tasks', items: [

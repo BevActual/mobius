@@ -3,7 +3,7 @@ import { newItemIn } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ContextMenu } from './ContextMenu';
+import { Menu, ToolbarControls, UndoToast } from './ui';
 import { settleGone, settleIn, settleKept } from './settle';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
 import { Extension } from '@tiptap/core';
@@ -143,11 +143,19 @@ function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void 
       bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), task: e.isActive('taskList'), quote: e.isActive('blockquote'), table: e.isActive('table'),
     }),
   });
-  const [panel, setPanel] = useState(false);
+  // Where the panel opens: under the Aa button. It is drawn over the page (in body), not inside the toolbar, so its
+  // glass blurs the page behind it.
+  const [panel, setPanel] = useState<{ top: number; left: number } | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
+  const toggle = () => setPanel((o) => {
+    if (o) return null;
+    const at = wrap.current?.getBoundingClientRect();
+    return at ? { top: at.bottom + 8, left: at.left } : null;
+  });
   useEffect(() => {
     if (!panel) return;
-    const away = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node | null)) setPanel(false); };
+    const away = (e: PointerEvent) => { const t = e.target as Node | null; if (!wrap.current?.contains(t) && !sheet.current?.contains(t)) setPanel(null); };
     window.addEventListener('pointerdown', away);
     return () => window.removeEventListener('pointerdown', away);
   }, [panel]);
@@ -162,11 +170,11 @@ function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void 
   return (
     <>
       <div className="note-aa" ref={wrap}>
-        <button type="button" className="doc-tool note-aa-btn" aria-label="Format text" title="Styles, bold, italic and lists" aria-haspopup="dialog" aria-expanded={panel} data-marked={marked || undefined} onPointerDown={keep} onClick={() => setPanel((o) => !o)}>
+        <button type="button" className="doc-tool note-aa-btn" aria-label="Format text" title="Styles, bold, italic and lists" aria-haspopup="dialog" aria-expanded={panel !== null} data-marked={marked || undefined} onPointerDown={keep} onClick={toggle}>
           <span aria-hidden="true">Aa</span>
         </button>
-        {panel && (
-          <div className="note-aa-panel glass" role="dialog" aria-label="Text format" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setPanel(false); editor.commands.focus(); } }}>
+        {panel && createPortal(
+          <div ref={sheet} className="note-aa-panel glass" style={{ top: panel.top, left: panel.left }} role="dialog" aria-label="Text format" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setPanel(null); editor.commands.focus(); } }}>
             <div className="note-aa-styles" role="group" aria-label="Paragraph style">
               {STYLES_SHOWN.map((s) => (
                 <button key={s.id} type="button" className="note-aa-style" data-style={s.id} aria-pressed={state.style === s.id} onPointerDown={keep} onClick={() => setStyle(s.id)}>{s.label}</button>
@@ -193,7 +201,8 @@ function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void 
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
       <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title="Checklist (Ctrl+Shift+9)" onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
@@ -362,19 +371,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     editor.chain().focus().setTextSelection(found).scrollIntoView().run();
   };
   // Share: copy the page, save a copy in Exports, or print it (and so save it as a PDF).
-  const [sharing, setSharing] = useState(false);
   const [shared, setShared] = useState<string | null>(null);
-  useEffect(() => { setSharing(false); setShared(null); }, [path]);
-  useEffect(() => {
-    if (!sharing) return;
-    const away = (e: PointerEvent) => { if (!(e.target as HTMLElement | null)?.closest('.note-share')) setSharing(false); };
-    window.addEventListener('pointerdown', away);
-    return () => window.removeEventListener('pointerdown', away);
-  }, [sharing]);
+  useEffect(() => { setShared(null); }, [path]);
   useEffect(() => { if (!shared) return; const t = window.setTimeout(() => setShared(null), 6000); return () => window.clearTimeout(t); }, [shared]);
   const pageTitle = () => liveTitle(notes.text, notes.page?.title || 'Note');
   const share = async (how: 'markdown' | 'formatted' | 'html' | 'md' | 'print') => {
-    setSharing(false);
     const page = pathNow.current;
     if (!page) return;
     if (how === 'markdown') { setShared((await copyText(notes.text)) ? 'Copied as Markdown.' : 'The page could not be copied.'); return; }
@@ -402,7 +403,6 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   const caret = useRef<number | null>(null);
   useEffect(() => { caret.current = null; }, [path]);
   const [clipping, setClipping] = useState<string | null>(null);
-  const [more, setMore] = useState<{ x: number; y: number } | null>(null);
   const [linking, setLinking] = useState<string | null>(null);
   const [insertProblem, setInsertProblem] = useState<string | null>(null);
   const recordedFor = useRef(0);
@@ -541,6 +541,12 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   const showLatest = useRef(showChanges);
   showLatest.current = showChanges;
   useEffect(() => onCommand('show-changes', () => void showLatest.current()), []);
+  // The Notes menu (⋯ in the toolbar): Clip a web page, and Show Markdown or the formatted page.
+  const toggleLatest = useRef(toggleSource);
+  toggleLatest.current = toggleSource;
+  useEffect(() => onCommand('clip-page', () => setClipping('')), []);
+  useEffect(() => onCommand('show-history', () => { if (window.mobius.notes?.versions) setHistory(true); }), []);
+  useEffect(() => onCommand('show-markdown', () => toggleLatest.current()), []);
   const undoChanges = async () => {
     if (!review || !path) return;
     const result = await window.mobius.changes.undoFile(review.conversation, `notes/${path}`).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
@@ -594,7 +600,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       )}
       {history && path && <NoteHistory path={path} text={notes.text} onRestore={restore} onClose={() => setHistory(false)} />}
       {diff === null && !history && (
-        <div className="doc-toolbar note-format" role="toolbar" aria-label="Format">
+        // The page's controls sit in the window's toolbar (ui/AppFrame), not in a row of their own above the page.
+        <ToolbarControls label="Notes">
+        <div className="note-format" role="toolbar" aria-label="Format">
           {editor && !source && <FormatButtons editor={editor} onLink={() => setLinking('')} />}
           {source && (
             <>
@@ -622,44 +630,25 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
               </>
             )}
           </div>
-          <span className="spacer" />
-          <div className="note-share">
-            <button type="button" className="doc-tool" aria-label="Share" title="Copy, export or print this page" aria-haspopup="menu" aria-expanded={sharing} onClick={() => setSharing((o) => !o)}>
+          <Menu label="Share" align="end" entries={[
+            { label: 'Copy', run: () => void share('formatted') },
+            { label: 'Copy as Markdown', run: () => void share('markdown') },
+            ...(window.mobius.notes?.export ? [
+              { label: 'Export as web page', run: () => void share('html'), separated: true },
+              { label: 'Export as Markdown', run: () => void share('md') },
+            ] : []),
+            { label: 'Print or save as PDF…', run: () => void share('print'), separated: true },
+          ]} trigger={
+            <button type="button" className="doc-tool" aria-label="Share" title="Copy, export or print this page">
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 12.5V3.5M6.8 6.5 10 3.3l3.2 3.2M6.5 9H5.5A1.5 1.5 0 0 0 4 10.5v5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 14.5 9h-1" /></svg>
             </button>
-            {sharing && (
-              <div className="note-share-menu" role="menu" aria-label="Share" onKeyDown={(e) => { if (e.key === 'Escape') setSharing(false); }}>
-                <button type="button" role="menuitem" autoFocus onClick={() => void share('formatted')}>Copy</button>
-                <button type="button" role="menuitem" onClick={() => void share('markdown')}>Copy as Markdown</button>
-                {window.mobius.notes?.export && (
-                  <>
-                    <hr />
-                    <button type="button" role="menuitem" onClick={() => void share('html')}>Export as web page</button>
-                    <button type="button" role="menuitem" onClick={() => void share('md')}>Export as Markdown</button>
-                  </>
-                )}
-                <hr />
-                <button type="button" role="menuitem" onClick={() => void share('print')}>Print or save as PDF…</button>
-              </div>
-            )}
-          </div>
-          {window.mobius.notes?.versions && (
-            <button type="button" className="doc-tool" aria-label="History" title="Earlier versions of this page" onClick={() => setHistory(true)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.8 10a6.2 6.2 0 1 0 1.9-4.5M3.5 3.5v3h3M10 6.5V10l2.5 1.6" /></svg>
-            </button>
-          )}
+          } />
           {source && <button type="button" className="doc-tool text note-source" aria-pressed title="Show the page formatted" onClick={toggleSource}>Markdown</button>}
-          <button type="button" className="doc-tool" aria-label="More" title="More for this page" aria-haspopup="menu" aria-expanded={more !== null}
-            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMore((m) => (m ? null : { x: r.right - 220, y: r.bottom + 6 })); }}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.1" /><circle cx="10" cy="10" r="1.1" /><circle cx="15" cy="10" r="1.1" /></svg>
-          </button>
-          {more && createPortal(
-            <ContextMenu x={more.x} y={more.y} label="More" onClose={() => setMore(null)} items={[
-              { label: 'Clip a web page…', run: () => setClipping('') },
-              { label: source ? 'Show formatted' : 'Show Markdown', run: toggleSource, separated: true },
-            ]} />,
-            document.body,
-          )}
+        </div>
+        </ToolbarControls>
+      )}
+      {diff === null && !history && (clipping !== null || linking !== null || (insertProblem ?? recording.problem)) && (
+        <div className="note-forms">
           {clipping !== null && (
             <form className="note-clip" onSubmit={(e) => { e.preventDefault(); if (clipping.trim()) void clip(clipping); }}>
               <input autoFocus aria-label="Address to clip" placeholder="Paste a link" value={clipping} onChange={(e) => setClipping(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setClipping(null); }} />
@@ -691,13 +680,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
         </div>
       )}
       {shared && !history && <div className="note-restored note-shared" role="status"><span>{shared}</span><button type="button" className="review-btn" onClick={() => setShared(null)}>OK</button></div>}
-      {restored && !history && (
-        <div className="note-restored" role="status">
-          <span>Restored the version from {restored.label}.</span>
-          <button type="button" className="review-btn" onClick={() => { notes.edit(restored.was); setRestored(null); }}>Undo</button>
-          <button type="button" className="review-btn" aria-label="Dismiss" onClick={() => setRestored(null)}>OK</button>
-        </div>
-      )}
+      {restored && !history && <UndoToast text={`Restored the version from ${restored.label}.`} onUndo={() => { notes.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
       {review && !kept && !history && (
         <div ref={reviewBar} className="note-review" role="status">
           <span className="review-dot" aria-hidden="true" />

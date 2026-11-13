@@ -101,7 +101,7 @@ function useLoaded<T>(load: () => Promise<T>, empty: T): { value: T; reload: () 
 
 // ---- Appearance ----------------------------------------------------------------------------------------------
 
-const THEMES: Array<{ id: ThemeChoice; label: string }> = [{ id: 'system', label: 'System' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }];
+const THEMES: Array<{ id: ThemeChoice; label: string }> = [{ id: 'system', label: 'System' }, { id: 'light', label: 'Light' }, { id: 'mid', label: 'Mid grey' }, { id: 'dark', label: 'Dark' }, { id: 'cool', label: 'Cool dark' }];
 
 function Slider({ label, value, range, step, onCommit, format }: { label: string; value: number; range: { min: number; max: number }; step: number; onCommit: (value: number) => void; format: (value: number) => string }) {
   const [local, setLocal] = useState(value);
@@ -155,7 +155,6 @@ const DENSITIES: Array<{ id: Density; label: string }> = [{ id: 'comfortable', l
 const APPROVAL_MODES = MODES.map((m) => ({ id: m.id, label: m.name }));
 const SIDEBAR_MODES: Array<{ id: SidebarMode; label: string }> = [{ id: 'attached', label: 'Attached' }, { id: 'floating', label: 'Floating' }];
 const EFFORT_OPTIONS: Array<{ id: EffortChoice; label: string }> = [{ id: '', label: 'Default' }, { id: 'none', label: 'Off' }, { id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }];
-const AGENT_PLACES: Array<{ id: 'sidebar' | 'beside'; label: string }> = [{ id: 'sidebar', label: 'In the sidebar' }, { id: 'beside', label: 'Beside the page' }];
 const TOOL_STEPS: Array<{ id: ToolSteps; label: string }> = [{ id: 'show', label: 'Show all' }, { id: 'hide-finished', label: 'Hide finished' }];
 
 export function AppearanceSection({ subpage, highlight, appearance, onAppearance }: SectionProps) {
@@ -203,9 +202,6 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
           <p className="srow-text">Now: list {appearance.leftWidth} px, agent panel {appearance.rightWidth} px.</p>
           <button type="button" className="btn" disabled={appearance.leftWidth === SIDEBAR_WIDTH.left.default && appearance.rightWidth === SIDEBAR_WIDTH.right.default} onClick={() => set({ leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default })}>Reset sizes</button>
         </Row>
-        <Row path={path('agent-place')} title="Where Mobius opens" description="In the sidebar, which turns into Mobius, or pinned beside the page." highlight={highlight === 'agent-place'}>
-          <Choice label="Where Mobius opens" name="agent-place" value={appearance.agentPlace} options={AGENT_PLACES} onChange={(agentPlace) => set({ agentPlace })} />
-        </Row>
         <Row path={path('density')} title="List density" description="How tightly tabs and conversations are packed." highlight={highlight === 'density'}>
           <Choice label="List density" name="density" value={appearance.density} options={DENSITIES} onChange={(density) => set({ density })} />
         </Row>
@@ -225,7 +221,7 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
     );
   }
   return (
-    <Row path={path('theme')} title="Theme" description="Follow the system, or always use light or dark." highlight={highlight === 'theme'}>
+    <Row path={path('theme')} title="Theme" description="Follow the system (light by day, dark by night), or always use Light, Mid grey, Dark or Cool dark." highlight={highlight === 'theme'}>
       <Choice label="Theme" name="theme" value={appearance.theme} options={THEMES} onChange={(theme) => set({ theme })} />
     </Row>
   );

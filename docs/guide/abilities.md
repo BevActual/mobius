@@ -1,7 +1,7 @@
 # Abilities
 
-**Abilities** is the one place to add things to Mobius: apps, skills, connectors and plugins. Open it from the app
-switcher, the launcher (Ctrl+K, then type "Abilities"), or **Settings › Abilities**.
+**Abilities** is the one place to add things to Mobius: apps, skills, connectors and plugins. Open it from its button at
+the foot of the rail, the launcher (Ctrl+K, then type "Abilities"), or **Settings › Abilities**.
 
 (Browser add-ons are a separate thing and are still called *extensions*.)
 
@@ -15,7 +15,7 @@ A new install starts with the everyday apps, **Notes, Tasks, Calendar, Mail, Doc
 apps, which are always there: **Agent, Abilities, Projects, Files and Review**.
 
 **Abilities › Apps** lists every other app by what it is for, each with one line on what it does and a switch. Turning
-the switch on adds the app to the switcher, the launcher and the sidebar. Turning it off takes it away but **keeps its
+the switch on adds the app to the rail, the launcher and the app hub. Turning it off takes it away but **keeps its
 files**, so adding it again brings them back. Click an added app's row to open it.
 
 Apps load the first time you open them, not when Mobius starts, so adding more apps does not slow down startup.

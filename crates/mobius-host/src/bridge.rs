@@ -646,10 +646,33 @@ impl Bridge {
                 })
             }
             // The person looking through their own workspace: read only, and inside it.
-            ("files", "list") => Ok(match self.workspace.run("files.list", &json!({ "path": arg(0).as_str().unwrap_or("") })) {
-                Ok(text) => serde_json::from_str(&text).unwrap_or(Value::Null),
-                Err(error) => json!({ "error": error }),
+            ("files", "list") => Ok(self.workspace.browse(arg(0).as_str().unwrap_or("")).unwrap_or_else(|error| json!({ "error": error }))),
+            // The person's own actions in Files. The agent has none of these: it only reads, writes and edits.
+            ("files", "newFolder" | "rename" | "trash" | "putBack") => {
+                let text = |i: usize| arg(i).as_str().unwrap_or("").to_owned();
+                let done = match method {
+                    "newFolder" => self.workspace.new_folder(&text(0), &text(1)),
+                    "rename" => self.workspace.rename(&text(0), &text(1)),
+                    "trash" => self.workspace.trash(&text(0)),
+                    _ => self.workspace.put_back(&text(0), &text(1)),
+                };
+                Ok(match done {
+                    Ok(path) => json!({ "ok": true, "path": path }),
+                    Err(error) => json!({ "ok": false, "error": error }),
+                })
+            }
+            ("files", "trashList") => Ok(self.workspace.trash_list().unwrap_or_else(|error| json!({ "error": error }))),
+            // Deleting for good: only ever from the person's own Empty Trash or Delete Immediately, after they confirm.
+            ("files", "emptyTrash") => Ok(match self.workspace.empty_trash(arg(0).as_str().unwrap_or("")) {
+                Ok(gone) => json!({ "ok": true, "gone": gone }),
+                Err(error) => json!({ "ok": false, "error": error }),
             }),
+            ("files", "show") => {
+                if let (Ok(path), Some(d)) = (self.workspace.locate(arg(0).as_str().unwrap_or("")), self.dialogs.get()) {
+                    d.show_path(&path);
+                }
+                Ok(Value::Null)
+            }
             ("browser", _) => self.browser_call(method, args),
             ("surface", "setBounds") => {
                 if let Some(b) = self.browser.get() {
@@ -1033,7 +1056,7 @@ impl Bridge {
         lock(&self.history).visit(url, title);
     }
 
-    /// The theme chosen in settings: `system`, `light` or `dark`.
+    /// The theme chosen in settings: `system`, `light`, `mid`, `dark` or `cool`.
     pub fn theme(&self) -> String {
         lock(&self.appearance).get().get("theme").and_then(Value::as_str).unwrap_or("system").to_owned()
     }
@@ -2570,11 +2593,30 @@ impl Bridge {
                 (Some(f), Some(data)) => p.export(f, data),
                 _ => Err("a photo and a picture are needed".to_owned()),
             },
+            // Photo app: managing the library (Photo thread).
+            "rename" => match (text(0), text(1)) {
+                (Some(f), Some(name)) => p.rename(f, name),
+                _ => Err("a photo and a name are needed".to_owned()),
+            },
+            "move" => match (text(0), text(1)) {
+                (Some(f), Some(album)) => p.move_to(f, album),
+                _ => Err("a photo and an album are needed".to_owned()),
+            },
+            "delete" => text(0).ok_or_else(|| "a photo is needed".to_owned()).and_then(|f| p.delete(f)),
+            "deleted" => p.deleted(),
+            "readDeleted" => text(0).ok_or_else(|| "a photo is needed".to_owned()).and_then(|f| p.read_deleted(f)),
+            "recover" => text(0).ok_or_else(|| "a photo is needed".to_owned()).and_then(|f| p.recover(f)),
+            "emptyDeleted" => p.empty_deleted(),
+            "renameAlbum" => match (text(0), text(1)) {
+                (Some(a), Some(name)) => p.rename_album(a, name),
+                _ => Err("an album and a name are needed".to_owned()),
+            },
+            "deleteAlbum" => text(0).ok_or_else(|| "an album is needed".to_owned()).and_then(|a| p.delete_album(a)),
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
             Ok(value) => {
-                if matches!(method, "createAlbum" | "saveEdits" | "add" | "export") {
+                if matches!(method, "createAlbum" | "saveEdits" | "add" | "export" | "rename" | "move" | "delete" | "recover" | "emptyDeleted" | "renameAlbum" | "deleteAlbum") {
                     (self.emit)("mobius:photos-changed", json!({ "path": value.get("path"), "by": "person" }));
                 }
                 value
@@ -2674,7 +2716,10 @@ impl Bridge {
                         let at = u.get("line").and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok())?;
                         Some((at, u.get("expect").and_then(Value::as_str)?))
                     });
-                    tasks.add_with(list, words, text(2).filter(|d| !d.is_empty()), flagged, under)
+                    // A time on the due date and a repeat ride with the options too.
+                    let opt = |k: &str| opts.and_then(|o| o.get(k)).and_then(Value::as_str).filter(|v| !v.is_empty());
+                    let when = mobius_workspace::tasks::When { due: text(2).filter(|d| !d.is_empty()), time: opt("time"), repeat: opt("repeat") };
+                    tasks.add_task(list, words, when, flagged, under)
                 }
                 _ => Err("a list and some words are needed".to_owned()),
             },
@@ -2687,10 +2732,22 @@ impl Bridge {
                         Some(Value::String(d)) => Some(Some(d.clone())),
                         Some(_) => return json!({ "ok": false, "message": "a due date is written YYYY-MM-DD" }),
                     };
+                    // Tasks: a time on the due date and a repeat, cleared the same way as the date.
+                    let cleared = |k: &str| match change.get(k) {
+                        None => Ok(None),
+                        Some(Value::Null) => Ok(Some(None)),
+                        Some(Value::String(v)) => Ok(Some((!v.is_empty()).then(|| v.clone()))),
+                        Some(_) => Err(()),
+                    };
+                    let (Ok(time), Ok(repeat)) = (cleared("time"), cleared("repeat")) else {
+                        return json!({ "ok": false, "message": "a time is written HH:MM and a repeat is a word" });
+                    };
                     let change = Change {
                         text: change.get("text").and_then(Value::as_str).map(str::to_owned),
                         done: change.get("done").and_then(Value::as_bool),
                         due,
+                        time,
+                        repeat,
                         flagged: change.get("flagged").and_then(Value::as_bool),
                         notes: change.get("notes").and_then(Value::as_str).map(str::to_owned),
                     };
