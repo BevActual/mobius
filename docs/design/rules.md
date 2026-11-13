@@ -104,6 +104,9 @@ Complex apps are made of views and panels that people can show, hide, resize, re
 - Each app has one **Panels** menu that lists every panel with a tick, where it sits, and its key.
 - Each app ships a sensible default layout. Simple apps (Mail, Notes) have two or three panels and use the same system.
 - A docked panel changes between wide and tall to fit its side, where that makes sense.
+- In the right panel, an app's own panels (Inspector, Adjust, Device, Outline, Format) are tabs **before** Mobius, and
+  Mobius is always the last tab, in the same place in every app. The panel reopens on the tab used last.
+- Inspectors and outlines always live in the right panel or the bottom area, never as a column inside the content.
 - The content zone has a bottom dock for editors, timelines, filmstrips and terminals. Complex apps have a one-line info
   bar at the foot.
 - Use a segmented control only to switch views, centred above what it switches.
