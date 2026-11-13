@@ -472,6 +472,43 @@ mod browser {
     }
 
     #[test]
+    fn a_connector_is_added_to_mcp_json_and_removed_from_it_keeping_the_rest_of_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mcp.json"), json!({ "note": "mine", "servers": { "notes": { "command": "notes-server" } } }).to_string()).unwrap();
+        let file = dir.path().join("mcp.json");
+        let (b, _core, _e, _d) = bridge_in(dir);
+        let added = b.call("extensions", "addConnector", &[json!({ "name": "github", "command": "npx", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } })]).unwrap();
+        assert_eq!(added["ok"], json!(true), "{added}");
+        let saved: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(saved["note"], "mine");
+        assert_eq!(saved["servers"]["github"], json!({ "command": "npx", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } }));
+        assert_eq!(saved["servers"]["notes"]["command"], "notes-server");
+        // Nothing has started yet: both wait for Mobius to open again.
+        let waiting = b.mcp_status()["waiting"].clone();
+        assert!(waiting.as_array().unwrap().contains(&json!("github")), "{waiting}");
+        // A bad name, a missing command or a name already taken changes nothing.
+        for bad in [json!({ "name": "Git Hub", "command": "x" }), json!({ "name": "gh", "command": " " }), json!({ "name": "github", "command": "y" })] {
+            assert_eq!(b.call("extensions", "addConnector", &[bad]).unwrap()["ok"], json!(false));
+        }
+        assert_eq!(b.call("extensions", "removeConnector", &[json!("github")]).unwrap()["ok"], json!(true));
+        let saved: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert!(saved["servers"].get("github").is_none());
+        assert_eq!(saved["note"], "mine");
+        assert_eq!(b.call("extensions", "removeConnector", &[json!("github")]).unwrap()["ok"], json!(false));
+    }
+
+    #[test]
+    fn a_connector_is_not_written_into_an_mcp_file_that_is_not_json() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
+        let file = dir.path().join("mcp.json");
+        let (b, _core, _e, _d) = bridge_in(dir);
+        let added = b.call("extensions", "addConnector", &[json!({ "name": "github", "command": "npx" })]).unwrap();
+        assert_eq!(added["ok"], json!(false));
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "{ nope");
+    }
+
+    #[test]
     fn a_bad_mcp_file_changes_nothing_and_is_reported() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();

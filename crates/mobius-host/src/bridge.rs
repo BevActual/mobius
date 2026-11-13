@@ -602,6 +602,24 @@ impl Bridge {
             ("changes", _) => self.changes_call(method, args),
             ("signins", _) => Ok(self.signins_call(method, args)),
             ("extensions", "connectors") => Ok(self.mcp_status()),
+            // Abilities › Add a Connector: written to mcp.json, started the next time Mobius opens.
+            ("extensions", "addConnector") => {
+                let draft = arg(0);
+                let text = |k: &str| draft.get(k).and_then(Value::as_str).unwrap_or("").to_owned();
+                let words: Vec<String> = draft.get("args").and_then(Value::as_array).map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect()).unwrap_or_default();
+                let env = draft.get("env").and_then(Value::as_object).cloned().unwrap_or_default();
+                if env.values().any(|v| !v.is_string()) {
+                    return Ok(json!({ "ok": false, "error": "Every key's value must be text." }));
+                }
+                Ok(match crate::mcp::add_server(&self.data_dir.join("mcp.json"), &text("name"), &text("command"), &words, &env) {
+                    Ok(()) => json!({ "ok": true, "status": self.mcp_status() }),
+                    Err(error) => json!({ "ok": false, "error": error }),
+                })
+            }
+            ("extensions", "removeConnector") => Ok(match crate::mcp::remove_server(&self.data_dir.join("mcp.json"), arg(0).as_str().unwrap_or("")) {
+                Ok(()) => json!({ "ok": true, "status": self.mcp_status() }),
+                Err(error) => json!({ "ok": false, "error": error }),
+            }),
             // Settings, Voice: try the server chosen for listening or speaking, as it is set now.
             ("voice", "test") => Ok(self.voice_test(arg(0).as_str().unwrap_or(""))),
             // Settings, Voice, This computer: whether a speech server answers at the saved address. Nothing is installed.
@@ -2926,8 +2944,20 @@ impl Bridge {
     }
 
     /// Which MCP servers are running, which failed to start and why (for the settings page).
+    /// The servers' state, with what changed in mcp.json since Mobius opened: `waiting` start when it opens again,
+    /// `leaving` stop then.
     pub fn mcp_status(&self) -> Value {
-        self.mcp.status()
+        let mut status = self.mcp.status();
+        let listed = crate::mcp::configured(&self.data_dir.join("mcp.json"));
+        let names = |key: &str, field: Option<&str>| -> Vec<String> {
+            status[key].as_array().map(|a| a.iter().filter_map(|v| field.map_or(v.as_str(), |f| v[f].as_str()).map(str::to_owned)).collect()).unwrap_or_default()
+        };
+        let started: Vec<String> = names("running", None).into_iter().chain(names("failed", Some("server"))).collect();
+        let waiting: Vec<&String> = listed.iter().filter(|n| !started.contains(n)).collect();
+        let leaving: Vec<&String> = if status["problem"].is_null() { started.iter().filter(|n| !listed.contains(n)).collect() } else { Vec::new() };
+        status["waiting"] = json!(waiting);
+        status["leaving"] = json!(leaving);
+        status
     }
 
     /// What the last agent turn of a conversation changed in the workspace, and putting it back.

@@ -1,4 +1,5 @@
 import { RowMark } from './RowMark';
+import { dateTimeLabel } from './dates';
 import { FromMobius } from './FromMobius';
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -166,7 +167,7 @@ export function SkillEditor({ skills, review, onRun }: { skills: SkillsState; re
             {[...skills.open.versions].reverse().map((v) => (
               <li key={v.version} className="skill-version">
                 <span>v{v.version}</span>
-                <span className="photo-meta">{new Date(v.modified).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                <span className="photo-meta">{dateTimeLabel(v.modified)}</span>
                 <button type="button" className="btn" aria-label={`Restore version ${v.version}`} onClick={() => void skills.restore(v.version)}>Restore</button>
               </li>
             ))}

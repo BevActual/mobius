@@ -11,6 +11,8 @@
  *
  * The line under the title says where it came from; everything after the rule is the article.
  */
+import { dayLabel, daysFrom, nearDayLabel, weekdayLabel } from './dates';
+
 export const READING_LIST = 'Reading list';
 export const ARCHIVE = 'Archive';
 
@@ -78,20 +80,23 @@ export function stepSize(size: ReadingSize, by: 1 | -1): ReadingSize {
   return READING_SIZES[Math.min(READING_SIZES.length - 1, Math.max(0, at + by))]!;
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-/** When an article was saved, as a person says it: today, yesterday, a weekday this week, else the date. */
+/** When an article was saved, as a person says it: today, yesterday, a weekday this week, else the date, written the
+ * way this computer writes dates. */
 export function savedWhen(day: string, now: Date = new Date()): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
   if (!m) return day;
   const saved = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const ago = Math.round((today.getTime() - saved.getTime()) / 86_400_000);
-  if (ago === 0) return 'today';
-  if (ago === 1) return 'yesterday';
-  if (ago > 1 && ago < 7) return DAYS[saved.getDay()]!;
-  const date = `${MONTHS[saved.getMonth()]} ${saved.getDate()}`;
-  return saved.getFullYear() === now.getFullYear() ? date : `${date}, ${saved.getFullYear()}`;
+  const ago = -daysFrom(saved, now);
+  if (ago === 0 || ago === 1) return nearDayLabel(saved, now)!.toLowerCase();
+  if (ago > 1 && ago < 7) return weekdayLabel(saved, 'long');
+  return dayLabel(saved, { now });
+}
+
+/** The article `by` places after (1) or before (-1) this one in its list, newest first as the sidebar shows them. */
+export function neighbour<T extends { path: string; modified: number }>(pages: readonly T[], path: string, by: 1 | -1): T | undefined {
+  const order = [...pages].sort((x, y) => y.modified - x.modified);
+  const at = order.findIndex((pg) => pg.path === path);
+  return at < 0 ? undefined : order[at + by];
 }
 
 /** What is left of an article: its length before you start, the minutes left while reading, and the end. */
