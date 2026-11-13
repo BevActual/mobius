@@ -79,6 +79,7 @@ import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail, type OwnApp } from './Rail';
 import { SidebarHead } from './SidebarHead';
 import { AppFrame, PanelsMenu } from './ui';
+import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
@@ -831,6 +832,11 @@ export function App() {
       else if (action === 'find' && app === 'browser') { claim(); openFind(); }
       else if (action === 'splitView') { claim(); toggleSplit(); }
       else if (action === 'littleMobius') { claim(); toggleMini(); }
+      // New (Cmd-N, Ctrl-N elsewhere) is fixed too: it presses the open sidebar's New, whatever that makes there.
+      else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'KeyN') {
+        const create = document.querySelector<HTMLButtonElement>('.dock.left .side-new > .side-new-row, .dock.left .app-side-new');
+        if (create && !create.disabled) { claim(); create.click(); }
+      }
       // Stop is fixed (Cmd-period, Ctrl-period elsewhere) unless that press was given to something else.
       else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'Period' && conversation.state.busy) { claim(); void conversation.stop(); }
     };
@@ -1659,6 +1665,7 @@ export function App() {
         )}
         {hasRight && rightFloating && !chatOpen && <div className="hotzone right" data-testid="hotzone-right" onPointerEnter={() => { rightFromEdge.current = true; setPeeked(true); setChatOpen(true); }} />}
       </div>
+      <SideHeadMenu />
       <AppHub
         open={hubOpen}
         onClose={closeHub}

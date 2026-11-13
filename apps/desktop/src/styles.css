@@ -2738,3 +2738,21 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .composer-tools .pill .chev { display: none; }
 .composer-tools .pill-compact::before { content: "·"; margin-right: 6px; color: var(--faint); }
 .empty-quiet .starters { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; margin: 0; }
+/* Sidebar pieces as in the timeless mocks. */
+/* Quiet section headers: their tools (float, refresh, +) stay out of sight until the header is hovered or focused. */
+.dock.left .side-head .side-actions { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.dock.left .side-head:is(:hover, :focus-within) .side-actions { opacity: 1; }
+/* Except what is live or open: Downloads (its progress and its popover) and any tool whose menu is showing. */
+.dock.left .side-head .side-actions:has(.dl-wrap, [aria-expanded="true"]) { opacity: 1; }
+.dock.left .side-head .side-actions .strip-btn[aria-pressed="true"] { background: none; }
+/* Search: a white field with a hairline. */
+.dock.left .side-search { background-color: var(--paper); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); }
+/* New, with its shortcut at the end of the row. */
+.side-keys { margin-left: auto; padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-xs); color: var(--muted); }
+.side-new-row > span:not(.side-keys), .app-side-new > span { flex: 0 1 auto; }
+.app-side-new { width: calc(100% - 2 * var(--sp-2)); }
+/* From Mobius: a quiet heading, then one row with how many are left to review. */
+.dock.left .from-mobius > .from-mobius-title { display: flex; height: 28px; padding: 0 8px; }
+.from-mobius-filter { color: var(--ink); font-weight: var(--fw-regular); }
+.from-mobius-filter .from-mobius-count { flex: none; font-size: var(--fs-sm); color: var(--mobius); }
+.dock.left .from-mobius { border-top: 0; padding-top: 0; }
