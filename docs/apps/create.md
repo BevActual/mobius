@@ -114,7 +114,8 @@ A code editor for projects in your workspace.
 
 ![The Code app in Mobius](../readme/apps/code.png)
 
-- **Projects** with their files as a tree. Files Mobius changed in its last turn have the same dot as in every app.
+- **The sidebar** lists your **Projects** as rows, then **Changes** (the branch, each changed file, and quiet **Commit…** and **Push**), then the open project's **Files** as a tree.
+- **Projects** keep their files as a tree. Files Mobius changed in its last turn have the same dot as in every app.
 - **The editor** types like a text field and reads like code, as in Xcode: the current line is lit, brackets and quotes
   close themselves, Tab and Shift+Tab indent, Ctrl+/ comments lines, Ctrl+F finds and Ctrl+G goes to a line. Every
   change can be undone with Ctrl+Z.
