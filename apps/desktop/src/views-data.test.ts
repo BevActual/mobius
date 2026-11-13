@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ConversationInfo, MailMessage } from '@mobius/shared';
 import { setLocaleForTests } from './dates';
+import { calendarColor } from './calendar-view';
 import { tileContent, tileSummary, type ViewSources } from './views-data';
 
 const now = new Date(2026, 10, 12, 10, 30);
@@ -22,6 +23,7 @@ const src: ViewSources = {
     { id: 'e2', calendar: 'Home', title: 'Lunch with Ana', start: '2026-11-12T12:30', end: '2026-11-12T13:30', allDay: false, location: '', notes: '', repeats: false },
     { id: 'e3', calendar: 'Home', title: 'Offsite', start: '2026-11-14', end: '2026-11-15', allDay: true, location: '', notes: '', repeats: false },
   ],
+  calendars: ['Work', 'Home'],
   mail: { messages: [message('m1', 'Old', false, 1), message('m2', 'New', false, 5), message('m3', 'Read', true, 9)], unread: 9, accounts: 1 },
   notes: [{ name: 'Home', pages: [{ path: 'Home/Garden.md', title: 'Garden', modified: now.getTime() - 120_000 }] }, { name: 'Work', pages: [{ path: 'Work/Plan.md', title: 'Plan', modified: now.getTime() - 60_000 }] }],
   conversations: [convo('c1', 'Trip', 'working'), convo('c2', 'Invoice', 'idle', 1), convo('c3', 'Old', 'idle')],
@@ -42,6 +44,8 @@ describe('tiles', () => {
     const today = tileContent({ id: 'c', kind: 'calendar', size: 'small', show: 'today' }, src, now);
     expect(today.rows.map((r) => `${r.text} ${r.detail}`)).toEqual(['Lunch with Ana 12:30']);
     expect(today.count?.label).toBe('event left today');
+    // Each event shows its calendar's colour, as the Calendar app draws it.
+    expect(today.rows[0]!.color).toBe(calendarColor(['Work', 'Home'], 'Home'));
     const week = tileContent({ id: 'c', kind: 'calendar', size: 'wide', show: 'week' }, src, now);
     expect(week.rows.map((r) => `${r.text} ${r.detail}`)).toEqual(['Lunch with Ana 12:30', 'Offsite Sat All day']);
   });

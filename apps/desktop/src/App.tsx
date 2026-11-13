@@ -1362,7 +1362,7 @@ export function App() {
         return (
           <ViewPage
             views={views}
-            apps={{ tasks: tasks.all, events: calendar.events, mail: { messages: mail.messages, unread: mail.counts.all, accounts: mail.accounts.length }, notes: notes.notebooks, conversations: conversation.list }}
+            apps={{ tasks: tasks.all, events: calendar.events, calendars: calendar.calendars, mail: { messages: mail.messages, unread: mail.counts.all, accounts: mail.accounts.length }, notes: notes.notebooks, conversations: conversation.list }}
             review={views.page && viewMarks.has(views.page.path) ? { conversation: conversation.state.conversation } : null}
             onOpen={(t) => {
               if (t.kind === 'app') openApp(t.app);
