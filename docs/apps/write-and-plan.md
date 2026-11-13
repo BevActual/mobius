@@ -26,18 +26,22 @@ Longer documents, with an outline and comments.
 
 ![The Docs app in Mobius](../readme/apps/docs.png)
 
+- **The sidebar** lists **Recent** documents, then each folder with its documents. Right-click a document to open or
+  delete it (Delete asks once more). **New folder** is at the foot of the folders.
 - **A page to write on**: headings, lists, checklists, tables, pictures and links to other documents, kept as Markdown.
-  **Aa** in the bar holds the styles, bold, italic and lists, as in Notes; checklist, table, link and insert sit beside it.
-  **More** (⋯) switches the page between the sans-serif font and a serif one.
+  The format bar is the window's toolbar, beside the document's name and whether it is saved. **Aa** holds the styles,
+  bold, italic and lists, as in Notes; checklist, link and **Insert** (table, picture, divider, code) sit beside it,
+  and **Table** appears while you are in one, for its rows and columns. **Document options** shows the outline, opens
+  earlier versions and switches the page between the sans-serif font and a serif one.
 - **The outline** of headings sits beside the page and marks the part you are looking at as you scroll. It folds away
-  when the window is narrow; hide it if you prefer. A document opens at its top.
+  when the window is narrow; hide it in Document options if you prefer. A document opens at its top.
 - **The count** at the foot shows words; click it for characters or reading time. Select some text to see its words.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
 - **Mobius's writing tools** work on the selection or the whole document. What Mobius changes is marked in the page
   where it is, as tracked changes are: new words tinted, and a note above them with the words taken out, struck
   through. Each change has its own **Keep** and **Discard**; the bar above the page keeps or discards them all.
-- **History** puts an earlier version back. **Share** copies, exports as a web page or Markdown, or prints and saves as
+- **Earlier versions** (in Document options) puts one back, and **Undo** in the note at the foot takes it back again. **Share** copies, exports as a web page or Markdown, or prints and saves as
   PDF.
 
 **Kept in:** `workspace/docs/`, each document a Markdown file.
