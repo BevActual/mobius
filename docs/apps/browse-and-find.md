@@ -32,7 +32,8 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 - **Keys:** the up and down arrows move through the list; E archives, R replies and H brings the message back tomorrow at 8:00.
 - **Email is shown safely:** no scripts, and nothing loaded from the web, so tracking pixels don't fire.
 - **Suggested replies** are dashed until you keep one (it opens as your draft), discard it or ask for another.
-- **Get to zero** (in the Mobius panel while Mail is open) proposes a plan for the whole inbox, dashed until kept.
+- **Take care of this** (in the Mobius panel with an email open) does the whole job in one ask: to-dos go to Tasks with their due dates, a meeting it asks for is suggested at a free time in Calendar, and a reply is suggested. Each waits for you.
+- **Get to zero** (in the Mobius panel while no email is open) proposes a plan for the whole inbox, dashed until kept.
 - **Ask about your mail** in the Mobius composer: the answer lists the messages it came from, and each one opens.
 - **Send later:** tomorrow at 8:00, Monday at 9:00, or when the person is usually on mail.
 
