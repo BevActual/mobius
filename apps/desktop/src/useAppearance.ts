@@ -24,11 +24,12 @@ export function useAppearance(): { value: AppearanceSettings; loaded: boolean; s
   // The choices that are only about how things look are applied as attributes the stylesheet reads.
   useEffect(() => {
     const root = document.documentElement.dataset;
+    root.theme = value.theme;
     root.chatFont = value.chatFont;
     root.textDir = value.textDirection;
     root.density = value.density;
     root.toolSteps = value.toolSteps;
-  }, [value.chatFont, value.textDirection, value.density, value.toolSteps]);
+  }, [value.theme, value.chatFont, value.textDirection, value.density, value.toolSteps]);
   const set = useCallback(async (change: Partial<AppearanceSettings>) => {
     setValue((current) => ({ ...current, ...change }));
     // Only a reply that is the look replaces it: a failed save keeps what is shown.

@@ -981,7 +981,8 @@ export interface DownloadEntry {
   risky: boolean;
 }
 
-export type ThemeChoice = 'system' | 'light' | 'dark';
+/** Mid grey runs the window light and Cool dark runs it dark; the stylesheet does the rest (tokens.css). */
+export type ThemeChoice = 'system' | 'light' | 'mid' | 'dark' | 'cool';
 export type ChatFont = 'system' | 'serif' | 'mono';
 export type TextDirection = 'auto' | 'ltr' | 'rtl';
 export type Density = 'comfortable' | 'compact';
@@ -1316,7 +1317,7 @@ const oneOf = <T extends string>(...choices: T[]) => (v: unknown): v is T => typ
 
 /** How each appearance setting is checked. Adding a setting means adding it here, to the type, and to the defaults. */
 export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) => v is AppearanceSettings[K] } = {
-  theme: oneOf<ThemeChoice>('system', 'light', 'dark'),
+  theme: oneOf<ThemeChoice>('system', 'light', 'mid', 'dark', 'cool'),
   zoom: (v): v is number => inRange(v, ZOOM_RANGE),
   chatTextScale: (v): v is number => inRange(v, CHAT_TEXT_RANGE),
   chatFont: oneOf<ChatFont>('system', 'serif', 'mono'),
