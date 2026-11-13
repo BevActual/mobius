@@ -41,10 +41,13 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   // Lists overlap (a change on disk, a delete, a new page each list again); only the newest is shown, so an older
   // answer arriving late cannot bring back a page that was just deleted.
   const listed = useRef(0);
+  // Docs: whether the first list has come back, so a sidebar shows placeholder rows until then, not "No documents yet".
+  const [ready, setReady] = useState(false);
   const refresh = useCallback(async () => {
     const read = ++listed.current;
     const list = await api?.list();
     if (read === listed.current && list && !isNotesFailure(list)) setNotebooks(list);
+    setReady(true);
     return list && !isNotesFailure(list) ? list : null;
   }, [api]);
 
@@ -186,7 +189,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     void load(path, title);
   }, [load]);
 
-  return { kind, openIfIdle, available: api !== undefined, notebooks, page, text, status, message, open, edit, resolve, createNotebook, createPage, remove, search };
+  return { kind, openIfIdle, available: api !== undefined, ready: ready || api === undefined, notebooks, page, text, status, message, open, edit, resolve, createNotebook, createPage, remove, search };
 }
 
 export type NotesState = ReturnType<typeof useNotes>;

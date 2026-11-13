@@ -34,7 +34,7 @@ Longer documents, with an outline and comments.
 - **A page to write on**, straight on the window's white: headings, lists, checklists, tables, pictures and links to
   other documents, kept as Markdown. Under the title a quiet line says when it was edited and how many words it has;
   click the count for characters or reading time, or select some text to count just that.
-- **The toolbar** has the paragraph style (**Body ⌄**), **B**, **I** and **U**, then a bulleted list, a table and a
+- **The toolbar** has the paragraph style (**Body ⌄**, or Ctrl+Alt+0 to 3 from the keyboard), **B**, **I** and **U**, then a bulleted list, a table and a
   link, then **Share**. While you are in a table, its button has the rows and columns. The window's **⋯** opens on
   the **Docs** menu with the rest: numbered lists, checklists, quotes, strikethrough and code; Insert (table, picture,
   divider, code block); Mobius's writing tools; the margin's comments; earlier versions; and a serif font.
