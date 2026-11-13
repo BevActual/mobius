@@ -1,7 +1,7 @@
 /*
  * Database, in the manner of Apple's own data apps: a table's name and Data / Structure / SQL, the filter and Add row
  * in the window's toolbar, the page of rows under it, and the rows themselves as a quiet grid. Everything comes from the tokens,
- * so light and dark both follow. Database is a compact app (Instrument): its page and sidebar carry data-density="compact",
+ * so light and dark both follow. Database is a compact app (Instrument): the frame marks it compact (COMPACT_APPS),
  * so the tokens give 13px text and 32px rows. The older rules for the list, editor and grid are in styles.css.
  */
 

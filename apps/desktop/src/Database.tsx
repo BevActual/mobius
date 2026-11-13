@@ -102,7 +102,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
   const shownDbs = db.list.filter((d) => hit(d.name) || d.tables.some((t) => hit(t.name)));
   const rowsIn = (d: string) => db.list.find((x) => x.name === d)?.tables.reduce((n, t) => n + Math.max(0, t.rows), 0) ?? 0;
   return (
-    <aside className="side db-side" aria-label="Database sidebar" data-density="compact">
+    <aside className="side db-side" aria-label="Database sidebar">
       {db.list.length > 0 && <input className="side-search" type="search" aria-label="Search databases and tables" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} />}
       <div className="side-head">
         <span className="side-title">Databases</span>
@@ -543,7 +543,7 @@ export function DatabasePage({ db, review }: { db: DatabasesState; review?: { co
   const { show, keep, discard } = useDbReview(review, db.open);
   if (!db.open) {
     return (
-      <section className="db-page empty" aria-label="Database" data-density="compact">
+      <section className="db-page empty" aria-label="Database">
         <EmptyState app="database" label="No database open" title={db.list.length ? 'No database open' : 'No databases yet'}
           line={db.list.length ? 'Choose one on the left, or import a CSV file to make a new one.' : 'Import a CSV file to make a table, then query it in SQL, or ask Mobius in words.'}
           action={{ label: 'Import a CSV file', run: () => window.dispatchEvent(new Event(IMPORT_CSV)) }} />
@@ -554,7 +554,7 @@ export function DatabasePage({ db, review }: { db: DatabasesState; review?: { co
   const table = info?.tables.find((t) => t.name === db.table);
   const view: DbView = table ? db.view : 'sql';
   return (
-    <section className="db-page" aria-label="Database" data-density="compact">
+    <section className="db-page" aria-label="Database">
       {show && (
         <div className="note-review db-review" role="status">
           <span className="review-dot" aria-hidden="true" />

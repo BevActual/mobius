@@ -251,8 +251,7 @@
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2397a1ae' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
-/* A pro app's own page and sidebar can be compact while the rest stays comfortable (Database marks its own). */
-html[data-density='compact'], [data-density='compact'] {
+html[data-density='compact'] {
   --fs-xs: 11px;
   --fs-sm: 12px;
   --fs-md: 13px;
