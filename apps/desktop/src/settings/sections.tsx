@@ -52,7 +52,7 @@ import { privacyReport, whereItRuns } from './privacy';
 import { ProfilesPane } from './Profiles';
 import { LocalModelsSection } from './LocalModels';
 import { SettingsForm } from './ModelForm';
-import { Empty, Row } from './primitives';
+import { Empty, Placeholder, Row } from './primitives';
 import { settingPath, type SectionId } from './manifest';
 import { MODES, modeOf } from '../approval-modes';
 
@@ -244,7 +244,7 @@ export function DictationModelField({ value, onSave }: { value: string; onSave: 
 
 export function ModelSection({ subpage, highlight, settings, onSaveSettings, preferences, onPreferences }: SectionProps) {
   if (subpage === 'local') return <LocalModelsSection subpage={subpage} highlight={highlight} />;
-  if (!settings) return <Empty>Loading…</Empty>;
+  if (!settings) return <Placeholder />;
   return (
     <>
       <Row path={rowPath('model', subpage, 'chat-model')} title="Chat model" description="The model Mobius talks to. The services it comes from are in Gateways." highlight={highlight === 'chat-model'}>
@@ -955,7 +955,7 @@ export function RemoveDataRow({ subpage, highlight }: { subpage: string; highlig
 function RemoveData() {
   const [asking, setAsking] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  if (!asking) return <><button type="button" className="btn danger" onClick={() => setAsking(true)}>Remove my data…</button>{problem && <span className="field-error" role="alert">{problem}</span>}</>;
+  if (!asking) return <><button type="button" className="btn" onClick={() => setAsking(true)}>Remove my data…</button>{problem && <span className="field-error" role="alert">{problem}</span>}</>;
   return (
     <span className="clist-confirm" role="group" aria-label="Confirm removing all data">
       <button type="button" className="btn danger" onClick={() => void window.mobius.app.removeData?.().then((r) => { if (!r.ok) { setProblem(r.error); setAsking(false); } })}>Yes, remove everything</button>
