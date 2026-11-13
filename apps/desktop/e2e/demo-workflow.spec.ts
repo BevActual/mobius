@@ -129,14 +129,13 @@ test.afterEach(async () => {
 test('workflow: an email becomes a task, a meeting and a reply, kept and sent from one request', async () => {
   test.setTimeout(5 * 60_000);
   // What a capable model would do with "handle this": find and read the email, check the day, then the three changes.
+  // What a capable model does with Mail's "Take care of this" (the email is attached): check the day, then the three changes.
   model = await startModel([
-    callsTool('mail-search', { query: 'brake kit' }),
-    callsTool('mail-read', { id: '{{request:([0-9a-f]{8}/inbox/7)}}' }),
     callsTool('calendar-list', { from: MEET, to: MEET }),
     callsTool('tasks-add', { list: 'Kestrel P2', text: 'Send Priya the updated P2 parts list', due: DUE, flagged: true }),
-    callsTool('calendar-add', { calendar: 'Calendar', title: 'P2 brake kit review with Priya', start: `${MEET}T10:00`, end: `${MEET}T10:30` }),
+    callsTool('calendar-suggest', { calendar: 'Calendar', title: 'P2 brake kit review with Priya', start: `${MEET}T10:00`, end: `${MEET}T10:30`, why: 'Priya asked for 10:00; it is free, right after your stand-up.' }),
     callsTool('mail-draft', { replyTo: '{{request:([0-9a-f]{8}/inbox/7)}}', body: `Hi Priya,\n\n${weekday(MEET_IN)} at 10 works. I've put it in for half an hour. You'll have the updated parts list by ${weekday(DUE_IN)}.\n\nAndrew`, why: 'Confirms the time and when the parts list will reach her.' }),
-    says(['Done. I added “Send Priya the updated P2 parts list” to Kestrel P2, due ', weekday(DUE_IN), '; put the brake kit review in your calendar for ', weekday(MEET_IN), ' at 10:00, after your stand-up; and drafted a reply for you to check. Nothing is sent.']),
+    says(['Added the parts list to Kestrel P2, due ', weekday(DUE_IN), '.\nSuggested the brake kit review for ', weekday(MEET_IN), ' at 10:00, after your stand-up.\nDrafted a reply for you to check. Nothing is sent.']),
   ]);
   report = { test: 'main', started: new Date().toISOString(), steps: [], approvalsAsked: [] };
   mobius = await launch(fixture.origin + '/', { newPerson: true, mobiusInSidebar: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
@@ -180,8 +179,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
   });
 
   await step('asked-mobius', async (note) => {
-    await composer().fill('Handle this one: add the parts list to my P2 tasks, book the review, and draft a reply.');
-    await composer().press('Enter');
+    await shell().getByRole('group', { name: 'Suggestions' }).getByRole('button', { name: 'Take care of this' }).click();
     await allowAsked(log().locator('.msg.assistant').filter({ hasText: 'Nothing is sent.' }), 60_000);
     await expect(log().locator('.msg.assistant').last()).toContainText('Nothing is sent.', { timeout: 30_000 });
     await expect(shell().getByRole('button', { name: 'Stop' })).toHaveCount(0);
@@ -189,6 +187,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     report.attachedEmail = first.includes('updated parts list');
     report.requests = model!.requests.length;
     note(`the open email was attached to the request: ${report.attachedEmail}`);
+    note(`conversation: ${(await log().innerText()).replace(/\s+/g, ' ').slice(0, 900)}`);
     note(`approvals asked: ${report.approvalsAsked.join(', ') || 'none'}`);
     note(`tools the model was offered: ${((model!.requests[0]?.tools as Array<{ function: { name: string } }> | undefined) ?? []).map((t) => t.function.name).filter((n) => /mail|task|calendar/.test(n)).join(', ')}`);
   });
@@ -201,7 +200,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
     note(`expanded: ${(await strip.innerText()).replace(/\s+/g, ' ')}`);
     note(`tasks file now: ${read('tasks/Kestrel P2.md').split('\n').filter((l) => l.includes('Priya')).join(' / ') || '(no Priya task)'}`);
-    note(`calendar file has the review: ${read('calendar/Calendar.ics').includes('P2 brake kit review')}`);
+    note(`calendar file has the review (a suggestion should not be there yet): ${read('calendar/Calendar.ics').includes('P2 brake kit review')}`);
   });
 
   await step('suggested-reply-in-mail', async (note) => {
@@ -222,7 +221,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
   });
 
   await step('event-in-calendar', async (note) => {
-    const link = log().getByRole('button', { name: /^Added “P2 brake kit review with Priya”/ });
+    const link = log().getByRole('button', { name: /P2 brake kit review with Priya/ });
     note(`the calendar change in the conversation is a link: ${await link.count() > 0}`);
     if (await link.count()) await link.click();
     else {
@@ -232,11 +231,11 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     }
     const page = shell().locator('.app[data-app="calendar"]');
     await expect(page).toBeVisible();
-    let event = page.getByRole('button', { name: /^P2 brake kit review with Priya/ });
+    let event = page.getByRole('button', { name: /P2 brake kit review with Priya, / });
     if (!(await event.count())) {
       note('not in the first view; trying the next week');
       await page.getByRole('button', { name: 'Forward' }).click().catch(() => undefined);
-      event = page.getByRole('button', { name: /^P2 brake kit review with Priya/ });
+      event = page.getByRole('button', { name: /P2 brake kit review with Priya, / });
     }
     await expect(event.first()).toBeVisible({ timeout: 5000 });
     note(`event: ${await event.first().getAttribute('aria-label')}`);
@@ -249,6 +248,14 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     await strip.getByRole('button', { name: /^Keep all changes/ }).click();
     await expect(strip).toHaveCount(0, { timeout: 5000 });
     note(`after Keep all, calendar file has the review: ${read('calendar/Calendar.ics').includes('P2 brake kit review')}`);
+    // A suggested event is answered in Calendar if Keep all did not cover it: one more Keep for the demo to lose.
+    const ghost = shell().locator('.app[data-app="calendar"]').getByRole('button', { name: /^Suggested: P2 brake kit review/ });
+    if (await ghost.count()) {
+      note('Keep all left the suggested meeting waiting; kept it from Calendar');
+      await ghost.first().click();
+      await shell().getByRole('dialog', { name: /^Suggested: P2 brake kit review/ }).getByRole('button', { name: 'Keep' }).click();
+      await expect.poll(() => read('calendar/Calendar.ics')).toContain('P2 brake kit review');
+    }
   });
 
   await step('reply-sent', async (note) => {
@@ -257,9 +264,16 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     await shell().keyboard.press('Enter');
     const page = shell().locator('.mail-page');
     const suggested = page.getByLabel('Suggested reply');
-    await expect(suggested).toBeVisible({ timeout: 5000 });
-    await suggested.getByRole('button', { name: 'Keep' }).click();
     const form = page.getByRole('form', { name: 'Reply' });
+    if (await suggested.count()) {
+      note('the reply was still a suggestion after Keep all: one more Keep in Mail');
+      await suggested.getByRole('button', { name: 'Keep' }).click();
+    } else if (!(await form.count())) {
+      // Kept as the person's draft: it waits in Drafts.
+      note('after Keep all the reply waited in Drafts');
+      await page.getByRole('button', { name: /^Drafts/ }).first().click();
+      await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
+    } else note('after Keep all the reply was open, ready to send');
     await expect(form.getByRole('textbox', { name: 'Message' })).toHaveValue(/parts list/);
     await picture(`workflow-${report.test}-${pad(report.steps.length + 1)}-reply-before-send`);
     await form.getByRole('button', { name: 'Send', exact: true }).click();
