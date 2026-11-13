@@ -90,7 +90,7 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   await expect(text().locator('h1')).toHaveText('Garden');
   await expect(text().locator('li')).toHaveText(['tomatoes']);
   await side().getByRole('searchbox', { name: 'Search notes' }).fill('oat');
-  const results = side().getByRole('list', { name: 'Search results' });
+  const results = side().getByRole('region', { name: 'Results' });
   await expect(results.getByRole('button')).toHaveCount(1);
   await results.getByRole('button', { name: /Groceries/ }).click();
   await expect(text().locator('h1')).toHaveText('Groceries');
@@ -184,22 +184,22 @@ test('#tags in pages show under Tags, and a tag lists the pages that carry it', 
   fs.writeFileSync(file('Work', 'Motors.md'), '# Motors\n\nAxion quote #Supplier\n');
   fs.writeFileSync(file('Home', 'Garden.md'), '# Garden\n\nTomatoes, not a #2 tag.\n');
   await start();
-  const tags = side().getByRole('treeitem', { name: 'Tags' });
+  const tags = side().getByRole('region', { name: 'Tags' });
   // The section's rows (not its fold button); a tag written in two cases is one tag, with its first spelling.
-  await expect(tags.getByRole('group').getByRole('button')).toHaveText(['#kestrel/p21', /^#supplier2$/i]);
+  await expect(tags.getByRole('list').getByRole('button')).toHaveText(['#kestrel/p21', /^#supplier2$/i]);
   // Each row says how its page starts.
   await expect(side().getByRole('button', { name: 'Packs', exact: true })).toContainText('Veltro holds the price');
-  await tags.getByRole('button', { name: /^#supplier, 2 pages$/i }).click();
-  const tagged = side().getByRole('list', { name: /^Pages tagged supplier$/i });
+  await tags.getByRole('button', { name: /^#supplier/i }).click();
+  const tagged = side().getByRole('region', { name: /^#supplier$/i });
   // One row per page (each row also has its pin and delete buttons).
   await expect(tagged.getByRole('listitem')).toHaveCount(2);
   await tagged.getByRole('button', { name: 'Packs', exact: true }).click();
   // The tags are marked in the page, and listed under its title.
   await expect(text().locator('.note-tag')).toHaveText(['#supplier', '#kestrel/p2']);
   await shell().locator('.note-meta').getByRole('button', { name: '#kestrel/p2' }).click();
-  await expect(side().getByRole('list', { name: 'Pages tagged kestrel/p2' }).getByRole('listitem')).toHaveCount(1);
+  await expect(side().getByRole('region', { name: '#kestrel/p2' }).getByRole('listitem')).toHaveCount(1);
   await side().getByRole('button', { name: 'Show every page' }).click();
-  await expect(side().getByRole('treeitem', { name: 'Work' })).toBeVisible();
+  await expect(side().getByRole('region', { name: 'Work' })).toBeVisible();
 });
 
 test('the Markdown view shows the file as it is kept, and typing there is saved', async () => {
@@ -224,13 +224,13 @@ test('a pinned page is listed first, under Pinned, as well as in its notebook', 
   fs.writeFileSync(file('Work', 'Packs.md'), '# Packs\n');
   fs.writeFileSync(file('Work', 'Motors.md'), '# Motors\n');
   await start();
-  await expect(side().getByRole('treeitem', { name: 'Pinned' })).toHaveCount(0);
+  await expect(side().getByRole('region', { name: 'Pinned' })).toHaveCount(0);
   await side().getByRole('button', { name: 'Pin Motors to the sidebar' }).click();
-  const pinned = side().getByRole('treeitem', { name: 'Pinned' });
+  const pinned = side().getByRole('region', { name: 'Pinned' });
   await expect(pinned.getByRole('button', { name: 'Motors', exact: true })).toBeVisible();
-  await expect(side().getByRole('treeitem', { name: 'Work' }).getByRole('button', { name: 'Motors', exact: true })).toBeVisible();
+  await expect(side().getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Motors', exact: true })).toBeVisible();
   await pinned.getByRole('button', { name: 'Unpin Motors' }).click();
-  await expect(side().getByRole('treeitem', { name: 'Pinned' })).toHaveCount(0);
+  await expect(side().getByRole('region', { name: 'Pinned' })).toHaveCount(0);
 });
 
 test('History shows what the page was, compared with now, and Restore puts it back (and Undo undoes that)', async () => {
