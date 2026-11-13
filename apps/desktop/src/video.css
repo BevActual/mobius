@@ -37,7 +37,8 @@
 .video-field input, .video-text { width: 100%; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; box-shadow: inset 0 0 0 0.5px var(--line); }
 .video-field input:focus-visible, .video-text:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent), inset 0 0 0 1px var(--accent); }
 .video-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
-.video-pair .btn { justify-content: center; }
+.video-pair .btn { justify-content: center; height: 28px; padding: 0 10px; border: var(--hairline-w) solid var(--line); background: transparent; box-shadow: none; font-size: var(--fs-md); font-weight: var(--fw-regular, 400); }
+.video-pair .btn:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .video-note { margin: 0; color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 .video-remove { align-self: flex-start; padding-left: 0 !important; height: 28px; padding: 0 12px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--danger); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
 .video-remove:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
@@ -69,15 +70,15 @@
 .video-shot-title { position: absolute; left: 0; right: 0; bottom: calc(100% + 3px); height: 14px; padding: 0 6px; overflow: hidden; border-radius: 4px; background: var(--c-violet); color: var(--on-content); font-size: 10px; line-height: 14px; font-weight: var(--fw-semibold, 600); white-space: nowrap; text-overflow: ellipsis; text-align: left; }
 .video-shot[data-playing]::after { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
 .video-shot[aria-selected="true"] { z-index: 2; }
-.video-shot[aria-selected="true"]::after { box-shadow: 0 0 0 2.5px #ffcc00; }
+.video-shot[aria-selected="true"]::after { box-shadow: 0 0 0 2px var(--ink); }
 .video-shot[data-proposed]::after { box-shadow: none; outline: 2px dashed var(--mobius); outline-offset: -2px; }
 .video-shot:focus-visible { outline: none; }
 .video-shot:focus-visible::after { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent); }
 .video-shot[draggable="true"]:active { cursor: grabbing; }
-.video-trim { position: absolute; top: -2.5px; bottom: -2.5px; width: 10px; background: #ffcc00; cursor: ew-resize; touch-action: none; }
-.video-trim[data-edge="in"] { left: -2.5px; border-radius: 6px 2px 2px 6px; }
-.video-trim[data-edge="out"] { right: -2.5px; border-radius: 2px 6px 6px 2px; }
-.video-trim::after { content: ""; position: absolute; top: 50%; left: 50%; width: 2px; height: 14px; margin: -7px 0 0 -1px; border-radius: 1px; background: rgba(0, 0, 0, 0.55); }
+.video-trim { position: absolute; top: -2px; bottom: -2px; width: 10px; background: var(--ink); cursor: ew-resize; touch-action: none; }
+.video-trim[data-edge="in"] { left: -2px; border-radius: 6px 2px 2px 6px; }
+.video-trim[data-edge="out"] { right: -2px; border-radius: 2px 6px 6px 2px; }
+.video-trim::after { content: ""; position: absolute; top: 50%; left: 50%; width: 2px; height: 14px; margin: -7px 0 0 -1px; border-radius: 1px; background: var(--bg); }
 .video-drop { position: absolute; z-index: 3; top: 12px; bottom: -4px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--accent); pointer-events: none; }
 .video-playhead { position: absolute; z-index: 4; top: 4px; bottom: 0; width: 2px; margin-left: -1px; background: #ff3b30; cursor: ew-resize; touch-action: none; }
 .video-playhead::before { content: ""; position: absolute; top: 0; left: 50%; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 3px 3px 6px 6px; background: #ff3b30; }
