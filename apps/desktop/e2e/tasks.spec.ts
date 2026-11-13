@@ -56,8 +56,8 @@ test('a task typed into a list is a line in a real file, and ticking it off fold
   await expect(todo().getByRole('checkbox')).toHaveCount(0);
   await expect(page().getByText('Completed · 1')).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Inbox'), 'utf8')).toBe('# Inbox\n\n- [x] Call the plumber\n');
-  await page().getByRole('button', { name: 'Completed · 1' }).click();
-  await page().getByRole('button', { name: 'Clear', exact: true }).click();
+  // Clearing them is the list's control in the toolbar, not a button inside the list.
+  await shell().locator('.context-strip').getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Clear 1 completed' }).click();
   await expect(page().getByText('Completed · 1')).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Inbox'), 'utf8')).toBe('# Inbox\n\n');
 });

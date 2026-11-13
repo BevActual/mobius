@@ -1,3 +1,4 @@
+import { formatWith, timeLabel as timeOf } from './dates';
 import type { CalendarEvent } from '@mobius/shared';
 
 /** What the Calendar app shows: one day, a week (Monday first), or a month as whole weeks. */
@@ -43,20 +44,27 @@ export function step(mode: CalendarMode, anchor: Date, by: 1 | -1): Date {
 
 /** The heading: "November 2026", or the day itself in Day view. A week across two months names both. */
 export function heading(mode: CalendarMode, anchor: Date, locale?: string): string {
-  if (mode === 'day') return anchor.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const month = (d: Date) => d.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+  // Written as this computer writes dates, unless a test names a locale.
+  const say = (d: Date, o: Intl.DateTimeFormatOptions) => (locale ? d.toLocaleDateString(locale, o) : formatWith(d, o));
+  if (mode === 'day') return say(anchor, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const month = (d: Date) => say(d, { month: 'long', year: 'numeric' });
   if (mode === 'week') {
     const days = daysFor('week', anchor);
     const [a, b] = [days[0]!, days[6]!];
     if (a.getMonth() === b.getMonth()) return month(a);
-    if (a.getFullYear() === b.getFullYear()) return `${a.toLocaleDateString(locale, { month: 'short' })} – ${b.toLocaleDateString(locale, { month: 'short', year: 'numeric' })}`;
-    return `${a.toLocaleDateString(locale, { month: 'short', year: 'numeric' })} – ${b.toLocaleDateString(locale, { month: 'short', year: 'numeric' })}`;
+    if (a.getFullYear() === b.getFullYear()) return `${say(a, { month: 'short' })} – ${say(b, { month: 'short', year: 'numeric' })}`;
+    return `${say(a, { month: 'short', year: 'numeric' })} – ${say(b, { month: 'short', year: 'numeric' })}`;
   }
   return month(anchor);
 }
 
 /** "9:00", "13:30": the 24-hour clock, as on the design. */
-export const clock = (text: string) => { const d = localDate(text); return `${d.getHours()}:${pad(d.getMinutes())}`; };
+/** A time of an event, as this computer keeps its clock: "13:30" or "1:30 PM". */
+export const clock = (text: string) => timeOf(localDate(text));
+/** Whether this computer's clock is the 12-hour one, with AM and PM. */
+export const twelveHour = () => !timeOf(new Date(2000, 0, 1, 13)).includes('13');
+/** An hour in the day's margin: "13:00", or "1 PM" on the 12-hour clock, as Calendar writes it. */
+export const hourLabel = (h: number) => (twelveHour() ? formatWith(new Date(2000, 0, 1, h), { hour: 'numeric' }) : timeOf(new Date(2000, 0, 1, h)));
 
 /** The events that cover a day without a time on it: all-day ones, and timed ones that run through the whole day. */
 export function allDayOn(events: readonly CalendarEvent[], day: Date): CalendarEvent[] {
@@ -274,6 +282,50 @@ export function parseDayText(text: string, now: Date, words: (text: string, now:
 }
 
 /** A day as the sheet shows it, in the person's own way of writing dates: "Thu, 12 Nov 2026". */
-export const dayLabel = (iso: string): string => localDate(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+export const dayLabel = (iso: string): string => formatWith(localDate(iso), { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 /** A time as the sheet shows it, 24-hour or with AM and PM as the person's locale writes it. */
-export const timeLabel = (hhmm: string): string => new Date(2000, 0, 1, Number(hhmm.slice(0, 2)), Number(hhmm.slice(3, 5))).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+export const timeLabel = (hhmm: string): string => timeOf(new Date(2000, 0, 1, Number(hhmm.slice(0, 2)), Number(hhmm.slice(3, 5))));
+
+/** An event as a calendar file had it: what the person would notice change. */
+interface Was { title: string; start: string }
+/** The events in an .ics file's text, by UID: lines unfolded, SUMMARY unescaped, DTSTART as its digits. */
+export function eventsInFile(text: string): Map<string, Was> {
+  const found = new Map<string, Was>();
+  let uid = '';
+  let title = '';
+  let start = '';
+  let inside = false;
+  let depth = 0;
+  for (const line of text.replace(/\r?\n[ \t]/g, '').split(/\r?\n/)) {
+    const [head = '', ...rest] = line.split(':');
+    const value = rest.join(':');
+    const name = head.split(';')[0]!.toUpperCase();
+    if (name === 'BEGIN' && value === 'VEVENT') { inside = true; depth = 0; uid = ''; title = ''; start = ''; continue; }
+    if (!inside) continue;
+    if (name === 'BEGIN') depth += 1;
+    else if (name === 'END' && value !== 'VEVENT') depth -= 1;
+    else if (name === 'END') { inside = false; if (uid && !found.has(uid)) found.set(uid, { title, start }); }
+    else if (depth === 0 && name === 'UID') uid = value.trim();
+    else if (depth === 0 && name === 'SUMMARY') title = value.replace(/\\([\;,])/g, '$1').replace(/\\n/gi, ' ').trim();
+    else if (depth === 0 && name === 'DTSTART') start = value.replace(/\D/g, '');
+  }
+  return found;
+}
+
+/**
+ * The events Mobius added or moved or renamed since the calendar file read `before` (null when its turn made the file),
+ * each once, soonest first. A repeating event counts once, by its first occurrence shown.
+ */
+export function changedSince(before: string | null, now: readonly CalendarEvent[]): CalendarEvent[] {
+  const was = eventsInFile(before ?? '');
+  const seen = new Set<string>();
+  const out: CalendarEvent[] = [];
+  for (const e of [...now].sort((a, b) => a.start.localeCompare(b.start))) {
+    if (seen.has(e.id)) continue;
+    seen.add(e.id);
+    const old = was.get(e.id);
+    const digits = e.start.replace(/\D/g, '');
+    if (!old || old.title !== e.title.trim() || (!e.repeats && old.start !== '' && old.start.slice(0, digits.length) !== digits)) out.push(e);
+  }
+  return out;
+}

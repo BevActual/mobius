@@ -59,7 +59,7 @@ import { StudioEditor, StudioSidebar } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
 import { SkillEditor } from './Skills';
 import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
-import { FilesPage, FilesSidebar, useFiles } from './Files';
+import { FilesPage, FilesSidebar, filesSub, filesTitle, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
 import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
 import { HowIWork, SharedQueue, WikiPage, WikiSidebar, useWikiIncoming, type WikiPlace } from './Wiki';
@@ -67,15 +67,18 @@ import { useSkills } from './useSkills';
 import { expandSlash } from './skill-format';
 import { useVideo } from './useVideo';
 import { writeCut } from './cut-format';
-import { usePhotos } from './usePhotos';
+import { RECENTLY_DELETED, usePhotos } from './usePhotos';
 import { editsPathFor } from './photo-edit';
 import { sheetContext } from './sheets-view';
 import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
 import { heading as calendarHeading, eventsOn } from './calendar-view';
 import { Desk } from './Desk';
+import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { APP_ICONS, Rail } from './Rail';
+import { SidebarHead } from './SidebarHead';
+import { AppFrame } from './ui';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
@@ -113,6 +116,17 @@ function useNarrowWindow(width: number): boolean {
     return () => list.removeEventListener('change', on);
   }, [query]);
   return narrow;
+}
+
+/** The window's width, kept current as it is resized. */
+function useWindowWidth(): number {
+  const [width, setWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const on = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return width;
 }
 
 /** A button's tooltip with its shortcut after it, when it has one. */
@@ -497,7 +511,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : BOX_NAMES[mail.view.box]) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databases.open : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? (mail.view.kind === 'drafts' ? 'Drafts' : BOX_NAMES[mail.view.box]) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -535,15 +549,6 @@ export function App() {
     search: 'Find anything',
   };
   const [panelOpen, setPanelOpen] = useState(true);
-  // The left panel: a narrow rail, or the full sidebar with the apps by name and the open app's own list under them.
-  // Apple: do not hide the sidebar by default. A narrow window folds it to the rail on its own, as Mail does.
-  const [narrowOpen, setNarrowOpen] = useState(false);
-  useEffect(() => { if (!narrow) setNarrowOpen(false); }, [narrow]);
-  const wide = narrow ? narrowOpen : appearance.value.navigation !== 'rail';
-  const toggleWide = useCallback(() => {
-    if (narrow) setNarrowOpen((o) => !o);
-    else void appearance.set({ navigation: wide ? 'rail' : 'sidebar' });
-  }, [narrow, wide, appearance]);
   const startedUp = useRef(false);
   // Mobius sits in the right panel, beside the work, in every app (docs/design: five zones). The sidebar is always the
   // app's own; it no longer turns into Mobius.
@@ -552,7 +557,6 @@ export function App() {
   const [learnOpen, setLearnOpen] = useState(false);
   const learnFrom = useRef<HTMLElement | null>(null);
   const [focusToken, setFocusToken] = useState(0);
-  const [switcherToken, setSwitcherToken] = useState(0);
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -569,17 +573,20 @@ export function App() {
   const [agentListOpen, setAgentListOpen] = useState(true);
   const leftOpen = inAgent ? agentListOpen : panelOpen;
   const setLeftOpen = inAgent ? setAgentListOpen : setPanelOpen;
-  const showWide = wide;
-  // In the full sidebar the app's list lives inside it, so there is no separate one beside the page.
-  const hasLeft = hasAppList && !showWide;
+  // The five zones (docs/design/panel-layouts.md): a slim rail, then the app sidebar as its own column beside the page.
+  const hasLeft = hasAppList || settingsOpen;
   const rightOpen = hasRight && chatOpen && !learnOpen;
   useEffect(() => { if (rightOpen && miniOpen) void window.mobius.mini.close(); }, [rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   // Learn (shell/learn-view): Mobius opening beside the page takes the slot back from Learn.
   useEffect(() => { if (learnOpen && chatOpen && hasRight) setLearnOpen(false); }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDrag] = useState<{ side: Side; width: number } | null>(null);
   const [hovering, setHovering] = useState(false);
-  const leftWidth = drag?.side === 'left' ? drag.width : appearance.value.leftWidth;
-  const rightWidth = drag?.side === 'right' ? drag.width : appearance.value.rightWidth;
+  // A narrow window draws the docks narrower than saved, so the content keeps room for its toolbar (dock-fit.ts).
+  const windowWidth = useWindowWidth();
+  const fitted = fitDocks(windowWidth, appearance.value.leftWidth, appearance.value.rightWidth,
+    hasLeft && !leftFloating && leftOpen, (!rightFloating && rightOpen) || learnOpen);
+  const leftWidth = drag?.side === 'left' ? drag.width : fitted.left;
+  const rightWidth = drag?.side === 'right' ? drag.width : fitted.right;
   const leftDock = useRef<HTMLDivElement>(null);
   const rightDock = useRef<HTMLDivElement>(null);
   const hideLeft = useCallback(() => setLeftOpen(false), [setLeftOpen]);
@@ -870,6 +877,8 @@ export function App() {
   // The open app's New, or none: an app with nothing to make from here (Projects, Photo, Files, Review...) shows no Create,
   // rather than one that starts a conversation.
   const createFor = (id: AppId): HubAction | undefined => createActions.find((a) => a.app === id);
+  // These apps' own sidebar lists start with their New row, so the head's New is left out.
+  const createInList: readonly AppId[] = ['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'];
   const appSidebar = (pinNode: ReactNode) => settingsOpen ? <div ref={setSettingsSlot} className="settings-side" /> : (
           <>
             {inActivity ? (
@@ -1015,7 +1024,7 @@ export function App() {
     keys: bindings,
     state: {
       // The sidebar is the app list with the open app's own list under it; with a separate list panel (hasLeft), that panel.
-      sidebarShown: hasLeft ? leftOpen : wide, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, split, canSplit: !narrow, miniOpen,
+      sidebarShown: hasLeft && leftOpen, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
@@ -1033,7 +1042,7 @@ export function App() {
       about: () => openSettingsAt('about'),
       edit,
       find: openFind,
-      toggleSidebar: () => (hasLeft ? setLeftOpen((open) => !open) : toggleWide()),
+      toggleSidebar: () => setLeftOpen((open) => !open),
       toggleAgent: () => setChatOpen((open) => !open),
       toggleSplit,
       toggleMini,
@@ -1281,7 +1290,7 @@ export function App() {
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && turnMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} />;
       case 'docs':
-        return <DocEditor docs={docs} autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
+        return <DocEditor docs={docs} inFrame autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
       case 'slides':
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':
@@ -1347,7 +1356,7 @@ export function App() {
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && turnMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} />;
       case 'calendar':
-        return <CalendarPage calendar={calendar} newToken={eventToken} />;
+        return <CalendarPage calendar={calendar} newToken={eventToken} review={turnMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...turnMarks.calendars] } : null} />; // Calendar app: what Mobius's last turn changed
       case 'search':
         return (
           <SearchPage
@@ -1361,7 +1370,7 @@ export function App() {
             focusToken={searchFocus}
             filter={searchFilter}
             onFilter={setSearchFilter}
-            chips={!(showWide || (hasLeft && leftOpen))}
+            chips={!(hasLeft && leftOpen)}
             canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
             onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}
             onOpen={openTarget}
@@ -1460,15 +1469,14 @@ export function App() {
               onModelChanged={() => void reloadSettings()}
             pin={pinned}
             place={appName(app)}
-            onPlace={() => { if (showWide) setSwitcherToken((n) => n + 1); else openHub(); }}
+            onPlace={openHub}
             menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
             onOpenVoice={() => openSettingsAt('voice')}
             {...(askHint ? { hint: askHint } : {})}
           />
   );
-  // The browser's own controls. With the full sidebar they live in it, under the app's name, and nothing but the
-  // page's title sits above the page; with the narrow rail they stay in the toolbar.
+  // The browser's own controls: back, forward, reload and the address, in the toolbar's middle (five zones).
   const browserChrome = (
     <BrowserChrome
       active={active}
@@ -1493,8 +1501,7 @@ export function App() {
       onCloseFind={() => setFindOpen(false)}
     />
   );
-  // The menus live in the sidebar, as one Menu button: in its head when it is full, at the top of the folded rail.
-  // Nothing sits on top of the page but its title row.
+  // The menus, as one ⋯ button at the toolbar's trailing end, just before Mobius.
   const menuBar = nativeMenus ? null : <MenuBar menus={menus} compact onOpenChange={setMenuOpen} />;
   // Try another, from any review bar: Mobius is told its change was put back and asked to do it differently.
   const tryAnother = settings?.configured && !conversation.state.busy
@@ -1503,88 +1510,83 @@ export function App() {
 
   return (
     <TryAnotherContext.Provider value={tryAnother}>
-    <div className="app" data-keys-ready={keysReady || undefined} style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px' } as React.CSSProperties} data-wide={showWide || undefined} data-app={app} data-settings={settingsOpen || undefined} data-panel={leftOpen ? 'open' : 'closed'} data-chat={rightOpen ? 'open' : 'closed'}>
-      <Rail
-        {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
-        app={app}
-        expanded={showWide}
-        onToggle={toggleWide}
-        onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); if (id === 'agent') setSideMode('sessions'); openApp(id); }}
-        ownApps={[
-          { id: 'bots', name: 'Agents', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
-          { id: 'activity', name: 'Activity', current: !settingsOpen && app === 'agent' && sideMode === 'activity', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } },
-          { id: 'extensions', name: 'Abilities', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
-          { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
-        ]}
-        activity={activity}
-        changed={changed}
-        needsYou={needsYou}
-        counts={{ browser: browser.tabs.length, tasks: dueToday }}
-        create={inActivity ? undefined : createFor(app)}
-        createInList={(['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'calendar', 'sheets'] as AppId[]).includes(app)}
-        menus={menuBar}
-        chrome={showWide && inBrowser && !settingsOpen ? browserChrome : null}
-        mobius={hasRight && !settingsOpen ? {
-          // The Mobius button shows and hides the right panel.
-          shown: rightOpen,
-          onToggle: () => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } },
-        } : null}
-        onLauncher={openHub}
-        {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
-        switcherToken={switcherToken}
-        onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
-        settingsOpen={settingsOpen}
-        apps={appearance.value.sidebarApps}
-        onApps={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
-        onEditApps={() => { setSettingsSection('layout'); openSettings(); }}
-        favourites={favourites}
-        onOpenFavourite={openFavourite}
-        onUnpin={togglePin}
-        onReorderFavourites={(next) => void appearance.set({ favourites: next })}
-        currentFavourite={settingsOpen ? null : currentFavourite}
-      >
-        {showWide && (hasAppList || settingsOpen) && appSidebar(null)}
-      </Rail>
-      <header className="context-strip" data-quiet={showWide || undefined}>
-        <div className="strip-left" role="group" aria-label="Window">
-          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : inSearch ? 'Show scopes' : 'Show tabs'} title={inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
+    <AppFrame
+      style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px', '--side-col': leftAttached ? `${leftWidth}px` : '0px' } as React.CSSProperties}
+      data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
+      rail={
+        <Rail
+          {...(profileName ? { profile: profileName, onProfiles: () => openSettingsAt('profiles') } : {})}
+          app={app}
+          onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); if (id === 'agent') setSideMode('sessions'); openApp(id); }}
+          ownApps={[
+            { id: 'bots', name: 'Agents', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
+            { id: 'activity', name: 'Activity', current: !settingsOpen && app === 'agent' && sideMode === 'activity', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } },
+            { id: 'extensions', name: 'Abilities', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
+            { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
+          ]}
+          activity={activity}
+          changed={changed}
+          needsYou={needsYou}
+          onLauncher={openHub}
+          {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
+          settingsOpen={settingsOpen}
+          apps={appearance.value.sidebarApps}
+          onApps={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
+          onEditApps={() => { setSettingsSection('layout'); openSettings(); }}
+        />
+      }
+      toolbar={{
+        // Settings: over the Browser, Settings shows its page title, not the hidden address bar.
+        wideMiddle: inBrowser && !settingsOpen,
+        lead: <>
+          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={settingsOpen ? 'Show sections' : inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : inSearch ? 'Show scopes' : 'Show tabs'} title={settingsOpen ? 'Show or hide the sections' : inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
-        </div>
-        <div className="toolbar-place" data-browser={(inBrowser && !showWide) || undefined}>
-          {/* The open document's name, or the app's when nothing is open, so the title bar is never blank. */}
-          {(place || (!settingsOpen && appName(app))) && <h1 className="strip-title">{place || appName(app)}</h1>}
-          {inAgent && !inActivity && <span className="toolbar-sub">{settings?.configured ? `Talking to ${settings.model}` : 'No model connected'}</span>}
-          {inNotes && notes.page && <span className="toolbar-sub">{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></span>}
-          {inMail && <span className="toolbar-sub">{mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`}</span>}
-          {inSheets && sheets.data && <span className="toolbar-sub">{sheets.data.sheet}</span>}
-          {inCalendar && <span className="toolbar-sub">{eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`}</span>}
-          {inTasks && <span className="toolbar-sub">{tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`}</span>}
-        </div>
-        {inTasks && tasks.view.kind === 'list' && tasksDone > 0 && (
-          <div className="strip-middle toolbar-tools" role="group" aria-label="Tasks">
-            <button type="button" className="tool-btn" onClick={() => { if (tasks.view.kind === 'list') void tasks.clearDone(tasks.view.name); }}>Clear {tasksDone} completed</button>
-          </div>
-        )}
+        </>,
+        // The open document's name, or the app's when nothing is open, so the title bar is never blank.
+        title: place || (!settingsOpen && appName(app)) || undefined,
+        sub: inAgent && !inActivity ? (settings?.configured ? `Talking to ${settings.model}` : 'No model connected')
+          : inNotes && notes.page ? <>{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></>
+          // Docs (marked, Docs' own line): the document's folder and whether it is saved, as Notes has it.
+          : inDocs && docs.page ? <>{docs.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={docs.status}>{statusText(docs.status)}</span></>
+          : inMail ? (mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`)
+          : inSheets && sheets.data ? sheets.data.sheet
+          : inCalendar ? (eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
+          : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
+          : inFiles ? filesSub(files) // Files: how many items
+          : undefined,
+        middle: <>
         {inMail && <MailToolbar mail={mail} />}
-        {inBrowser && !showWide && browserChrome}
-        <span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span>
-        {/* Words and icons never share a capsule: the update notice stands on its own, before the icons. */}
-        <div className="strip-texts"><UpdateNotice /></div>
-        <div className="strip-right" role="group" aria-label="Applications">
-          <button type="button" className="strip-btn" data-mini-toggle aria-pressed={miniOpen} aria-label={miniOpen ? 'Close Little Mobius' : 'Open Little Mobius'} title={withKeys(miniOpen ? 'Close the small agent window' : 'Little Mobius: the agent in a small window above your other apps', bindings.littleMobius)} onClick={toggleMini}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3.5" width="14" height="13" rx="3" /><rect x="9.5" y="9.5" width="5.5" height="5" rx="1.5" /></svg>
-          </button>
-          {!narrow && <button type="button" className="strip-btn" data-split-toggle aria-pressed={split} aria-label={split ? 'Close split view' : 'Split view'} title={withKeys(split ? 'Show one app' : 'Show two apps side by side', bindings.splitView)} onClick={toggleSplit}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="6.5" height="11" rx="2" /><rect x="11" y="4.5" width="6.5" height="11" rx="2" /></svg>
-          </button>}
+        {inBrowser && !settingsOpen && browserChrome}
+        </>,
+        // Words and icons never share a capsule: the update notice stands on its own, before the icons.
+        status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
+        trail: <>
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
-        </div>
-      </header>
+          {menuBar}
+          {hasRight && !settingsOpen && (
+            <button type="button" className="strip-btn strip-mobius" data-mobius-face aria-pressed={rightOpen} aria-label={rightOpen ? 'Hide Mobius' : 'Show Mobius'} title={rightOpen ? 'Hide Mobius' : 'Ask Mobius, beside the work'}
+              onClick={() => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } }}>
+              <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
+            </button>
+          )}
+        </>,
+      }}
+    >
       <div className="body" style={layout}>
         {hasLeft && leftOpen && (
           <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
-            {appSidebar(pin('left'))}
+            <SidebarHead
+              title={settingsOpen ? 'Settings' : inActivity ? 'Activity' : appName(app)}
+              create={settingsOpen || inActivity || createInList.includes(app) ? undefined : createFor(app)}
+              favourites={settingsOpen ? [] : favourites}
+              onOpenFavourite={openFavourite}
+              onUnpin={togglePin}
+              onReorderFavourites={(next) => void appearance.set({ favourites: next })}
+              currentFavourite={settingsOpen ? null : currentFavourite}
+            >
+              {appSidebar(pin('left'))}
+            </SidebarHead>
             {resizer('left', 'Resize the list')}
           </div>
         )}
@@ -1668,7 +1670,7 @@ export function App() {
       <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp}
         onAsk={settings?.configured ? (question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined}
         commands={launcherCommands} />
-    </div>
+    </AppFrame>
     </TryAnotherContext.Provider>
   );
 }

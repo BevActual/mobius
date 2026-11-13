@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import type { FileEntry, FilesActionResult } from '@mobius/shared';
 import { describeChange, KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { ReviewActions, WhyThis } from './ReviewBar';
-import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { AppSidebar, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry } from './ui';
 import { APP_ICONS } from './Rail';
 import { appOf } from './review-view';
 import { appName, type AppId } from './apps';
@@ -105,7 +104,8 @@ const GLYPH = {
   folder: <path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" />,
   file: <><path d="M6 3.5h5.5l3 3v10H6z" /><path d="M11.5 3.5v3h3" /></>,
   workspace: <><rect x="3.5" y="4.5" width="13" height="11" rx="2" /><path d="M3.5 11.5h13M7 13.5h.01" /></>,
-  made: <><path d="M10 3.5 11.6 8.4 16.5 10l-4.9 1.6L10 16.5l-1.6-4.9L3.5 10l4.9-1.6z" strokeDasharray="2 1.6" /></>,
+  // What Mobius made wears Mobius's own mark, never a sparkle.
+  made: APP_ICONS.agent,
   back: <path d="M12 4.5 6.5 10l5.5 5.5" />,
   newFolder: <><path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" /><path d="M10 8.5v5M7.5 11h5" /></>,
   forward: <path d="m8 4.5 5.5 5.5L8 15.5" />,
@@ -121,40 +121,45 @@ function FileIcon({ path, type, size = 'row' }: { path: string; type: FileEntry[
   return <svg className="files-icon" data-size={size} data-glyph="file" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.file}</svg>;
 }
 
-/** Files' sidebar: the drive, Made by Mobius with how many things wait, and the workspace's folders. */
+const placeIcon = (glyph: 'workspace' | 'made') => <svg className="files-icon" data-size="side" data-glyph={glyph === 'workspace' ? 'place' : 'made'} viewBox="0 0 20 20" aria-hidden="true">{GLYPH[glyph]}</svg>;
+/** A top-level folder by the app it holds ("Notes" for notes/), otherwise by its own name. */
+const folderName = (name: string) => { const app = appOf(name); return app && !name.includes('/') ? appName(app) : name; };
+
+/** What the toolbar's title says in Files: the open folder's name, Workspace at the top, or Made by Mobius. */
+export function filesTitle(files: FilesState): string {
+  if (files.place.kind === 'made') return 'Made by Mobius';
+  const parts = files.place.path ? files.place.path.split('/') : [];
+  return parts.length === 0 ? 'Workspace' : parts.length === 1 ? folderName(parts[0]!) : parts[parts.length - 1]!;
+}
+/** The grey line under the title: how many things are here, as Finder's status bar says. */
+export function filesSub(files: FilesState): string | undefined {
+  if (!files.available || (files.place.kind === 'folder' && files.problem)) return undefined;
+  const n = files.place.kind === 'made' ? files.made.files.length : files.entries.length;
+  return n === 0 ? 'Empty' : n === 1 ? '1 item' : `${n} items`;
+}
+
+/** Files' sidebar: search, the drive, the workspace's folders, and Made by Mobius with how many things wait. */
 export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNode }) {
   const here = files.place.kind === 'folder' ? files.place.path : null;
-  const row = (label: string, icon: ReactNode, current: boolean, count: number | null, onClick: () => void) => (
-    <li key={label}>
-      <button type="button" className="list-row files-place" aria-current={current ? 'page' : undefined} onClick={onClick}>
-        {icon}
-        <span className="list-name">{label}</span>
-        {count !== null && count > 0 && <span className="list-count">{count}</span>}
-      </button>
-    </li>
-  );
-  const folderName = (name: string) => { const app = appOf(name); return app && !name.includes('/') ? appName(app) : name; };
+  const held = new Set(files.made.files.map((f) => f.split('/')[0]));
   return (
-    <aside className="side files-side" aria-label="Files sidebar">
-      <div className="side-head">
-        <span className="side-title">Files</span>
-        <span className="side-actions">{pin}</span>
-      </div>
-      <nav className="task-lists" aria-label="Files">
-        <ul role="list">
-          {row('Workspace', <svg className="files-icon" data-size="side" data-glyph="place" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.workspace}</svg>, here === '', null, () => files.setPlace({ kind: 'folder', path: '' }))}
-          {row('Made by Mobius', <svg className="files-icon" data-size="side" data-glyph="made" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.made}</svg>, files.place.kind === 'made', files.made.files.length, () => files.setPlace({ kind: 'made' }))}
-        </ul>
-        {files.roots.length > 0 && (
-          <>
-            <h2 className="files-side-heading">Folders</h2>
-            <ul role="list" aria-label="Folders">
-              {files.roots.map((r) => row(folderName(r.name), <FileIcon path={r.name} type="folder" size="side" />, here !== null && (here === r.name || here.startsWith(`${r.name}/`)), null, () => files.setPlace({ kind: 'folder', path: r.name })))}
-            </ul>
-          </>
-        )}
-      </nav>
-    </aside>
+    <AppSidebar label="Files sidebar">
+      <SidebarSearch label={files.place.kind === 'made' ? 'Search Made by Mobius' : 'Search this folder'} value={files.query} onChange={files.setQuery} />
+      <SidebarSection title="Places" {...(pin ? { action: pin } : {})}>
+        <SidebarRow icon={placeIcon('workspace')} label="Workspace" current={here === ''} onSelect={() => files.setPlace({ kind: 'folder', path: '' })} />
+      </SidebarSection>
+      {files.roots.length > 0 && (
+        <SidebarSection title="Folders">
+          {files.roots.map((r) => (
+            <SidebarRow key={r.name} icon={<FileIcon path={r.name} type="folder" size="side" />} label={folderName(r.name)} proposed={held.has(r.name)}
+              current={here !== null && (here === r.name || here.startsWith(`${r.name}/`))} onSelect={() => files.setPlace({ kind: 'folder', path: r.name })} />
+          ))}
+        </SidebarSection>
+      )}
+      <SidebarSection title="From Mobius">
+        <SidebarRow icon={placeIcon('made')} label="Made by Mobius" count={files.made.files.length} current={files.place.kind === 'made'} onSelect={() => files.setPlace({ kind: 'made' })} />
+      </SidebarSection>
+    </AppSidebar>
   );
 }
 
@@ -163,21 +168,14 @@ const SHOW_IN = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platfo
 
 const size = (bytes: number | undefined) => (bytes === undefined ? '' : bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
 
-/** Back and Forward, the place's name, and (in a folder) the filter: the bar at the top of Files. */
-function FilesBar({ files, title, filter, onNewFolder }: { files: FilesState; title: string; filter: boolean; onNewFolder?: (() => void) | undefined }) {
+/** Back, Forward and (in a folder) New folder, in the toolbar: Files has no bar of its own above the list. */
+function FilesTools({ files, onNewFolder }: { files: FilesState; onNewFolder?: (() => void) | undefined }) {
   return (
-    <header className="files-bar">
-      <div className="files-nav" role="group" aria-label="Go">
-        <button type="button" className="strip-btn" aria-label="Back" title="Back (Alt+Left)" disabled={!files.canBack} onClick={files.back}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.back}</svg></button>
-        <button type="button" className="strip-btn" aria-label="Forward" title="Forward (Alt+Right)" disabled={!files.canForward} onClick={files.forward}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.forward}</svg></button>
-      </div>
-      <h1 className="files-title">{title}</h1>
+    <ToolbarControls label="Files">
+      <button type="button" className="strip-btn files-tool" aria-label="Back" title="Back (Alt+Left)" disabled={!files.canBack} onClick={files.back}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.back}</svg></button>
+      <button type="button" className="strip-btn files-tool" aria-label="Forward" title="Forward (Alt+Right)" disabled={!files.canForward} onClick={files.forward}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.forward}</svg></button>
       {onNewFolder && <button type="button" className="strip-btn files-tool" aria-label="New folder" title="New folder (Ctrl+Shift+N)" onClick={onNewFolder}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.newFolder}</svg></button>}
-      {filter && (
-        <input className="side-search files-filter" type="search" aria-label="Filter this folder" placeholder="Filter" value={files.query}
-          onChange={(e) => files.setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') files.setQuery(''); }} />
-      )}
-    </header>
+    </ToolbarControls>
   );
 }
 
@@ -215,13 +213,13 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   const fixed = (path: string) => !path.includes('/') && appOf(path) !== null;
   const changeable = (path: string) => files.can.change && !fixed(path);
   const trash = (path: string) => { setSelected(null); void files.trash(path); };
-  const menuItems = (path: string, type: FileEntry['type']): ContextMenuItem[] => [
-    { action: 'open', run: () => open(path, type) },
-    ...(changeable(path) ? [{ action: 'rename' as const, keys: 'F2', run: () => setRenaming(path) }] : []),
-    { action: 'copy', label: 'Copy path', run: () => void navigator.clipboard?.writeText(path).catch(() => undefined) },
-    ...(files.can.show ? [{ action: 'reveal' as const, label: SHOW_IN, run: () => files.show(path) }] : []),
+  const menuItems = (path: string, type: FileEntry['type']): MenuEntry[] => [
+    { label: 'Open', run: () => open(path, type) },
+    ...(changeable(path) ? [{ label: 'Rename', keys: 'F2', run: () => setRenaming(path) }] : []),
+    { label: 'Copy path', run: () => void navigator.clipboard?.writeText(path).catch(() => undefined) },
+    ...(files.can.show ? [{ label: SHOW_IN, run: () => files.show(path) }] : []),
     ...(onAsk ? [{ label: 'Ask Mobius about this', separated: true, run: () => onAsk(type === 'folder' ? `What is in the folder ${path}/?` : `Tell me about ${path}.`) }] : []),
-    ...(changeable(path) ? [{ action: 'delete' as const, label: 'Move to Trash', keys: 'Del', danger: true, separated: true, run: () => trash(path) }] : []),
+    ...(changeable(path) ? [{ label: 'Move to Trash', keys: 'Del', danger: true, separated: true, run: () => trash(path) }] : []),
   ];
   const startNewFolder = async () => {
     const path = await files.newFolder();
@@ -243,25 +241,15 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   const bars = (
     <>
       {files.notice && <p className="field-error files-notice" role="alert">{files.notice} <button type="button" className="review-btn" onClick={files.dismissNotice}>OK</button></p>}
-      {files.trashed && (
-        <div className="files-trashed" role="status">
-          <span>Moved “{files.trashed.path.split('/').pop()}” to the Trash.</span>
-          <button type="button" className="review-btn" onClick={() => void files.putBack()}>Undo</button>
-          <button type="button" className="review-btn" aria-label="Dismiss" onClick={files.dismissTrashed}>✕</button>
-        </div>
-      )}
+      {files.trashed && <UndoToast text={`Moved “${files.trashed.path.split('/').pop()}” to the Trash`} onUndo={() => void files.putBack()} onDismiss={files.dismissTrashed} />}
     </>
   );
-  // Portalled to the page body: the stage's column rule would otherwise stretch the menu to the list's width.
-  const fileMenu = menu && createPortal(
-    <ContextMenu x={menu.x} y={menu.y} label={menu.path.split('/').pop() ?? menu.path} items={menuItems(menu.path, menu.type)} onClose={() => setMenu(null)} />,
-    document.body,
-  );
+  const fileMenu = menu && <PointMenu x={menu.x} y={menu.y} label={menu.path.split('/').pop() ?? menu.path} entries={menuItems(menu.path, menu.type)} onClose={() => setMenu(null)} />;
 
   if (files.place.kind === 'made') {
     return (
       <section className="skills-page files-page" aria-label="Made by Mobius">
-        <FilesBar files={files} title="Made by Mobius" filter={false} />
+        <FilesTools files={files} />
         {bars}
         {files.made.files.length === 0 ? (
           <div className="files-empty"><svg className="files-icon" data-size="hero" data-glyph="made" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.made}</svg><p className="note-empty">Nothing is waiting. What Mobius makes shows here until you keep it.</p></div>
@@ -272,7 +260,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
               <ReviewActions onKeep={files.keep} onDiscard={files.discard} />
             </div>
             <div className="files-table" role="listbox" aria-label="Made by Mobius">
-              {files.made.files.map((path) => {
+              {files.made.files.filter((path) => !files.query.trim() || path.toLowerCase().includes(files.query.trim().toLowerCase())).map((path) => {
                 const what = describeChange(path);
                 return (
                   <div key={path} role="option" tabIndex={-1} aria-selected={selected === path} className="files-row" data-proposed aria-label={`${what.name}, from Mobius`}
@@ -293,7 +281,6 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   }
 
   const parts = here ? here.split('/') : [];
-  const title = parts.length === 0 ? 'Workspace' : (parts.length === 1 && appOf(parts[0]!) ? appName(appOf(parts[0]!)!) : parts[parts.length - 1]!);
   const sortBy = (by: FilesSort['by']) => files.setSort(files.sort.by === by ? { by, down: !files.sort.down } : { by, down: false });
   const head = (by: FilesSort['by'], label: string) => (
     <button type="button" role="columnheader" className="files-col" data-col={by} aria-sort={files.sort.by === by ? (files.sort.down ? 'descending' : 'ascending') : 'none'} onClick={() => sortBy(by)}>
@@ -319,17 +306,8 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   };
   return (
     <section className="skills-page files-page" aria-label="Files">
-      <FilesBar files={files} title={title} filter onNewFolder={files.can.change ? () => void startNewFolder() : undefined} />
+      <FilesTools files={files} onNewFolder={files.can.change ? () => void startNewFolder() : undefined} />
       {bars}
-      {parts.length > 0 && <nav className="files-crumbs" aria-label="Folder">
-        <button type="button" className="review-btn" aria-current={parts.length === 0 ? 'page' : undefined} onClick={() => files.setPlace({ kind: 'folder', path: '' })}>Workspace</button>
-        {parts.map((p, i) => (
-          <span key={i}>
-            <span aria-hidden="true"> › </span>
-            <button type="button" className="review-btn" aria-current={i === parts.length - 1 ? 'page' : undefined} onClick={() => files.setPlace({ kind: 'folder', path: parts.slice(0, i + 1).join('/') })}>{p}</button>
-          </span>
-        ))}
-      </nav>}
       {files.problem && <p className="field-error" role="alert">{files.problem}</p>}
       {!files.problem && files.entries.length === 0 && (
         <div className="files-empty"><svg className="files-icon" data-size="hero" data-glyph="folder" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.folder}</svg><p className="note-empty">This folder is empty.</p></div>
@@ -359,6 +337,15 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
           </div>
         </div>
       )}
+      {parts.length > 0 && <nav className="files-crumbs files-path" aria-label="Folder">
+        <button type="button" className="review-btn" aria-current={parts.length === 0 ? 'page' : undefined} onClick={() => files.setPlace({ kind: 'folder', path: '' })}>Workspace</button>
+        {parts.map((p, i) => (
+          <span key={i}>
+            <span aria-hidden="true"> › </span>
+            <button type="button" className="review-btn" aria-current={i === parts.length - 1 ? 'page' : undefined} onClick={() => files.setPlace({ kind: 'folder', path: parts.slice(0, i + 1).join('/') })}>{p}</button>
+          </span>
+        ))}
+      </nav>}
       {fileMenu}
     </section>
   );

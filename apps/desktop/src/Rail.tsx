@@ -1,9 +1,8 @@
 import { Reorder, motion } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Activity } from './activity';
-import { useSideFolds } from './side-fold';
 import { appName, isInstalled, type AppId } from './apps';
-import { describeCombo, type Favourite } from '@mobius/shared';
+import { describeCombo } from '@mobius/shared';
 import { PointMenu } from './ui';
 
 /** One icon per app, shared by the rail and the app hub. */
@@ -51,7 +50,7 @@ export const RAIL_APPS: { id: AppId; name: string }[] = [
   { id: 'calendar', name: 'Calendar' },
 ];
 
-/** One of Mobius's own apps, listed in the switcher under the person's apps. */
+/** One of Mobius's own apps, at the foot of the rail. */
 export interface OwnApp {
   id: 'bots' | 'activity' | 'extensions' | 'settings';
   name: string;
@@ -69,35 +68,12 @@ export const OWN_ICONS: Record<OwnApp['id'], ReactNode> = {
 };
 
 interface Props {
-  /** Bots, Activity and Settings: Mobius's own apps, in the switcher. */
+  /** Agents, Activity, Abilities and Settings: Mobius's own apps, at the foot of the rail. */
   ownApps?: readonly OwnApp[];
-  /** The app's own sidebar list starts with its New row, so the sidebar's New button is left out. */
-  createInList?: boolean;
   /** The open profile's name, when it is not Personal. */
   profile?: string;
   onProfiles?: () => void;
   app: AppId;
-  /**
-   * The full sidebar belongs to the open app: its name in the head, New, then its own list. The head is the app
-   * switcher: press it and the same column lists the apps instead. Otherwise a narrow rail of icons.
-   */
-  expanded: boolean;
-  onToggle: () => void;
-  /** The New button: what is worth starting in the app you are in. */
-  /** The open app's New; none where there is nothing to make (Search). */
-  create?: { label: string; run: () => void } | undefined;
-  /** Small numbers beside an app's name in the full sidebar (open tabs, tasks due today). */
-  counts: Partial<Record<AppId, number>>;
-  /** The menus, as one button in the head of the full sidebar. */
-  menus?: ReactNode;
-  /** The open app's own controls (the browser's address and buttons), under its name in the full sidebar. */
-  chrome?: ReactNode;
-  /** Mobius as the sidebar's third face: the conversation takes the column, the app's name stays in the head. */
-  /** The Mobius button: shows and hides Mobius in the right panel, beside the work. */
-  mobius?: { shown: boolean; onToggle: () => void } | null;
-  children?: ReactNode;
-  /** Changes when something outside asks for the app switcher. */
-  switcherToken?: number;
   onOpen: (id: AppId) => void;
   /** What the agent is doing now: the app it is working in shows it, live. */
   activity: Activity | null;
@@ -105,7 +81,6 @@ interface Props {
   changed: ReadonlySet<AppId>;
   needsYou: number;
   onLauncher: () => void;
-  onSettings: () => void;
   /** The person's shortcuts for All apps and Settings, shown in the tooltips; nothing until they are known. */
   launcherKeys?: string;
   settingsKeys?: string;
@@ -116,48 +91,27 @@ interface Props {
   onApps?: (apps: AppId[]) => void;
   /** Open the settings where the list is chosen. */
   onEditApps?: () => void;
-  /** Notes and task lists pinned under the apps, in the full sidebar. */
-  favourites?: readonly Favourite[];
-  onOpenFavourite?: (favourite: Favourite) => void;
-  onUnpin?: (favourite: Favourite) => void;
-  /** Pinned items in a new order, after a drag or Alt+Up/Down. */
-  onReorderFavourites?: (next: Favourite[]) => void;
-  /** The pinned item showing now, as `kind:id`. */
-  currentFavourite?: string | null;
 }
 
 /**
- * The sidebar: one column that belongs to the app you are in, and turns into the list of apps from its head. The highlight slides to the app you are in, the app the agent
+ * Zone 1 of the frame (docs/design/panel-layouts.md): a slim rail of icons that never moves. The person's apps at the
+ * top, then All apps; Mobius's own apps and Settings at the foot. The name of each shows on hover. The app the agent
  * is working in glows while it works, and an app it changed while you were elsewhere carries a dot until you look.
  */
-export function Rail({ app, expanded, onToggle, create, createInList = false, ownApps, counts, menus, chrome, mobius, children, onOpen, activity, changed, needsYou, onLauncher, onSettings, launcherKeys = '', settingsKeys = '', settingsOpen, apps, onApps, onEditApps, favourites = [], onOpenFavourite, onUnpin, onReorderFavourites, currentFavourite, profile, onProfiles, switcherToken = 0 }: Props) {
+export function Rail({ app, ownApps = [], onOpen, activity, changed, needsYou, onLauncher, launcherKeys = '', settingsKeys = '', settingsOpen, apps, onApps, onEditApps, profile, onProfiles }: Props) {
   // While an app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
   const dragged = useRef(false);
   const latestDrag = useRef<AppId[] | null>(null);
   latestDrag.current = dragOrder;
   const chosen = dragOrder ?? apps;
-  // Pinned items being dragged: shown in their new order, saved when the drag ends.
-  const [pinDrag, setPinDrag] = useState<Favourite[] | null>(null);
-  const pinDragged = useRef(false);
-  const latestPinDrag = useRef<Favourite[] | null>(null);
-  latestPinDrag.current = pinDrag;
-  const pinOrder: Favourite[] = pinDrag ?? [...favourites];
   // Only the apps added from Abilities (and Home) are listed.
   const listed = (chosen ? RAIL_APPS.filter((a) => chosen.includes(a.id)).sort((a, b) => chosen.indexOf(a.id) - chosen.indexOf(b.id)) : RAIL_APPS).filter((a) => isInstalled(a.id));
   const order = listed.map((a) => a.id);
-  // Right-click an app (or Shift+F10) to move or hide it: HIG asks that people can shape the sidebar.
+  // Right-click an app (or Shift+F10) to move or hide it.
   const [menu, setMenu] = useState<{ id: AppId; x: number; y: number } | null>(null);
-  // Whether an app's menu is open, for Escape: it closes the menu first, then the app switcher.
-  const menuOpen = useRef(false);
-  menuOpen.current = menu !== null;
-  const railRef = useRef<HTMLElement>(null);
-  useSideFolds(railRef, expanded);
-  // After the app changes under a pointer that has not moved, the row now under it is not "hovered": the browser
-  // keeps the old hover until the pointer moves, which drew a grey bar on whatever landed there.
+  // After the app changes under a pointer that has not moved, the button now under it is not "hovered".
   const [still, setStill] = useState(false);
-  // Something outside (the Mobius head beside the page) asks for the app switcher.
-  useEffect(() => { if (switcherToken) setFace('apps'); }, [switcherToken]);
   useEffect(() => { setStill(true); }, [app]);
   const move = (id: AppId, by: -1 | 1) => {
     const at = order.indexOf(id);
@@ -167,92 +121,14 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
     [next[at], next[to]] = [next[to]!, next[at]!];
     onApps?.(next);
   };
-  // The full sidebar has two faces: the open app's own (New, pinned, its list) and the apps. An app with no list
-  // of its own shows the apps under New, so the column is never empty.
-  const [face, setFace] = useState<'app' | 'apps'>('app');
-  const switching = expanded && face === 'apps';
-  // Settings is an app too: its sections take the sidebar while it is open.
-  const showOwn = expanded && !switching;
-  const showApps = !showOwn || !children;
-  useEffect(() => { setFace('app'); }, [app, settingsOpen, expanded]);
-  useEffect(() => {
-    if (!switching) return undefined;
-    const key = (event: KeyboardEvent) => { if (event.key === 'Escape' && !menuOpen.current) setFace('app'); };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [switching]);
-  // Bots and Activity are views of the Agent app, but they are apps of their own in the switcher: the head says so.
-  const ownHere = settingsOpen ? undefined : ownApps?.find((o) => o.current && o.id !== 'settings');
-  const title = settingsOpen ? 'Settings' : ownHere?.name ?? appName(app);
-  // Seen from inside one app: is anything happening in another?
-  const elsewhereWorking = activity !== null && activity.app !== null && activity.app !== app;
-  const elsewhereChanged = [...changed].some((id) => id !== app);
-  const toggle = (
-    <button type="button" className="rail-btn rail-toggle" aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'} aria-expanded={expanded} title={expanded ? 'Collapse sidebar' : 'Expand sidebar'} onClick={onToggle}>
-      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2" /><path d="M8 4v12" /></svg>
-    </button>
-  );
-  const allApps = (
-    <button type="button" className="rail-btn" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${RAIL_APPS.find((a) => a.id === app)?.name ?? app}`} title={withKeys('All apps and commands', launcherKeys)} onClick={() => { setFace('app'); onLauncher(); }}>
-      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
-      {expanded && <span className="rail-label" aria-hidden="true">All apps</span>}
-    </button>
-  );
-  const createButton = create && (
-    <button type="button" className="rail-btn rail-create" aria-label="Create" title={create.label} onClick={create.run}>
-      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
-      {expanded && <span className="rail-label" aria-hidden="true">{create.label}</span>}
-    </button>
-  );
-  const switcher = (
-        <button type="button" className="rail-btn rail-switch" data-app-switcher aria-label={switching ? `Back to ${title}` : `Switch app. Current: ${title}`} aria-expanded={switching} title={switching ? undefined : 'Switch app'}
-          data-working={(!switching && elsewhereWorking) || undefined} data-changed={(!switching && elsewhereChanged) || undefined}
-          onClick={() => setFace(switching ? 'app' : 'apps')}>
-          {switching
-            ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><circle cx="6" cy="6" r="1.4" /><circle cx="14" cy="6" r="1.4" /><circle cx="6" cy="14" r="1.4" /><circle cx="14" cy="14" r="1.4" /></svg>
-            : settingsOpen
-              ? <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-grid"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
-              : <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-tile" style={{ background: `var(--app-${app})` }}>{ownHere ? OWN_ICONS[ownHere.id] : APP_ICONS[app]}</svg>}
-          <span className="rail-label" aria-hidden="true">{switching ? 'Apps' : title}</span>
-          {needsYou > 0 && !showApps && <span className="rail-badge" role="status" aria-label={`${needsYou} waiting for you`}>{needsYou}</span>}
-          <svg viewBox="0 0 20 20" aria-hidden="true" className="rail-switch-caret"><path d="m7 8.5 3 3 3-3" /></svg>
-        </button>
-  );
+  const ownCurrent = ownApps.some((o) => o.current);
+  const here = (o: { current: boolean }) => o.current && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />;
   return (
-    <nav ref={railRef} className="rail" aria-label="Apps" data-pointer-still={still || undefined} onPointerMove={still ? () => setStill(false) : undefined} data-expanded={expanded || undefined} data-face={expanded ? (switching ? 'apps' : 'app') : undefined}>
-      {expanded ? (
-        <>
-          <div className="rail-head">
-            {switcher}
-            {mobius && !switching && (
-              <button type="button" className="rail-btn rail-mobius" data-mobius-face aria-pressed={mobius.shown} aria-label={mobius.shown ? 'Hide Mobius' : 'Show Mobius'} title={mobius.shown ? 'Hide Mobius' : 'Ask Mobius, beside the work'} onClick={mobius.onToggle}>
-                <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
-              </button>
-            )}
-            {menus}
-            {toggle}
-          </div>
-          {/* The page's controls stay where they were, above Mobius, so the address does not jump when Mobius opens. */}
-          {showOwn && chrome && <div className="rail-chrome">{chrome}</div>}
-          {showOwn && !createInList && !settingsOpen && <div className="rail-new">{createButton}</div>}
-        </>
-      ) : (
-        <div className="rail-top">
-          {toggle}
-          {/* Mobius opens from here too: the folded rail grows into its column. */}
-          {mobius && (
-            <button type="button" className="rail-btn rail-mobius" data-mobius-face aria-pressed={mobius.shown} aria-label="Mobius in the sidebar" title="Ask Mobius here, in the sidebar" onClick={mobius.onToggle}>
-              <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
-            </button>
-          )}
-          {menus}
-          {createButton}
-        </div>
-      )}
-      {showApps && <Reorder.Group as="ul" axis="y" role="list" className="rail-apps" values={order} onReorder={(next: AppId[]) => { if (onApps) setDragOrder(next); }}>
+    <nav className="rail" aria-label="Apps" data-pointer-still={still || undefined} onPointerMove={still ? () => setStill(false) : undefined}>
+      <Reorder.Group as="ul" axis="y" role="list" className="rail-apps" values={order} onReorder={(next: AppId[]) => { if (onApps) setDragOrder(next); }}>
         {listed.map(({ id, name }) => {
-          // The Agent app showing Bots or Activity is that app, not Agent.
-          const here = app === id && !settingsOpen && !(id === 'agent' && (ownApps ?? []).some((o) => o.current));
+          // The Agent app showing Agents or Activity is that app, not Agent.
+          const current = app === id && !settingsOpen && !(id === 'agent' && ownCurrent);
           const working = activity !== null && (activity.app === id || (id === 'agent' && activity.app === null && app !== 'agent'));
           const waiting = id === 'agent' ? needsYou : 0;
           return (
@@ -263,11 +139,11 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
                 type="button"
                 className="rail-btn"
                 aria-label={name}
-                aria-current={here ? 'page' : undefined}
+                aria-current={current ? 'page' : undefined}
                 data-working={working || undefined}
-                data-changed={(changed.has(id) && !here) || undefined}
+                data-changed={(changed.has(id) && !current) || undefined}
                 title={name}
-                onClick={() => { if (!dragged.current) { setFace('app'); onOpen(id); } }}
+                onClick={() => { if (!dragged.current) onOpen(id); }}
                 onKeyDown={onApps ? (event) => {
                   // Alt+Up and Alt+Down move the focused app; focus stays with it.
                   if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
@@ -279,92 +155,37 @@ export function Rail({ app, expanded, onToggle, create, createInList = false, ow
                 aria-keyshortcuts={onApps ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
                 onContextMenu={onApps ? (event) => { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); setMenu({ id, x: event.clientX || r.right, y: event.clientY || r.top }); } : undefined}
               >
-                {here && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
+                {here({ current })}
                 <svg viewBox="0 0 20 20" aria-hidden="true" data-app={id}>{APP_ICONS[id]}</svg>
-                {expanded && <span className="rail-label" aria-hidden="true">{name}</span>}
                 {waiting > 0 && <span className="rail-badge" role="status" aria-label={`${waiting} waiting for you`}>{waiting}</span>}
-                {expanded && waiting === 0 && (counts[id] ?? 0) > 0 && <span className="rail-count" aria-hidden="true">{counts[id]}</span>}
               </button>
             </Reorder.Item>
           );
         })}
-      </Reorder.Group>}
+      </Reorder.Group>
+      <button type="button" className="rail-btn" data-app-library aria-haspopup="dialog" aria-label={`Applications. Current: ${RAIL_APPS.find((a) => a.id === app)?.name ?? appName(app)}`} title={withKeys('All apps and commands', launcherKeys)} onClick={onLauncher}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="4" width="4.5" height="4.5" rx="1" /><rect x="11.5" y="4" width="4.5" height="4.5" rx="1" /><rect x="4" y="11.5" width="4.5" height="4.5" rx="1" /><rect x="11.5" y="11.5" width="4.5" height="4.5" rx="1" /></svg>
+      </button>
       {menu && (
-        <PointMenu x={menu.x} y={menu.y} label={`${RAIL_APPS.find((a) => a.id === menu.id)?.name ?? ''} in the sidebar`} onClose={() => setMenu(null)} entries={[
+        <PointMenu x={menu.x} y={menu.y} label={`${RAIL_APPS.find((a) => a.id === menu.id)?.name ?? ''} in the rail`} onClose={() => setMenu(null)} entries={[
           { label: 'Move up', disabled: order.indexOf(menu.id) === 0, run: () => move(menu.id, -1) },
           { label: 'Move down', disabled: order.indexOf(menu.id) === order.length - 1, run: () => move(menu.id, 1) },
-          { label: 'Hide from sidebar', disabled: order.length === 1, run: () => onApps?.(order.filter((id) => id !== menu.id)) },
-          ...(onEditApps ? [{ label: 'Edit sidebar…', run: onEditApps }] : []),
+          { label: 'Hide from the rail', disabled: order.length === 1, run: () => onApps?.(order.filter((id) => id !== menu.id)) },
+          ...(onEditApps ? [{ label: 'Edit the rail…', run: onEditApps }] : []),
         ]} />
-      )}
-      {showOwn && favourites.length > 0 && (
-        <section className="rail-pinned" aria-label="Pinned">
-          <h2 className="rail-pinned-title">Pinned</h2>
-          <Reorder.Group as="ul" axis="y" role="list" values={pinOrder} onReorder={(next: Favourite[]) => { if (onReorderFavourites) setPinDrag(next); }}>
-            {pinOrder.map((fav, at) => {
-              const app = fav.kind === 'note' ? 'notes' : fav.kind === 'list' ? 'tasks' : 'browser';
-              return (
-                <Reorder.Item as="li" key={`${fav.kind}:${fav.id}`} value={fav} className="rail-pin" drag={onReorderFavourites ? 'y' : false} dragListener={Boolean(onReorderFavourites)}
-                  onDragStart={() => { pinDragged.current = true; }}
-                  onDragEnd={() => { const next = latestPinDrag.current; if (next) onReorderFavourites?.(next); setPinDrag(null); window.setTimeout(() => { pinDragged.current = false; }, 0); }}>
-                  <button type="button" className="rail-pin-open" aria-current={currentFavourite === `${fav.kind}:${fav.id}` ? 'page' : undefined} title={fav.kind === 'page' ? `${fav.title}\n${fav.id}` : fav.title}
-                    aria-keyshortcuts={onReorderFavourites ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
-                    onClick={() => { if (!pinDragged.current) onOpenFavourite?.(fav); }}
-                    onKeyDown={onReorderFavourites ? (event) => {
-                      if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
-                      event.preventDefault();
-                      const to = at + (event.key === 'ArrowUp' ? -1 : 1);
-                      if (to < 0 || to >= favourites.length) return;
-                      const next = [...favourites];
-                      next.splice(to, 0, next.splice(at, 1)[0]!);
-                      onReorderFavourites(next);
-                      const button = event.currentTarget;
-                      requestAnimationFrame(() => button.focus());
-                    } : undefined}>
-                    <svg viewBox="0 0 20 20" aria-hidden="true" data-app={app}>{APP_ICONS[app]}</svg>
-                    <span className="rail-pin-name">{fav.title}</span>
-                  </button>
-                  {onUnpin && <button type="button" className="rail-pin-remove" aria-label={`Unpin ${fav.title}`} title="Unpin" onClick={() => onUnpin(fav)}>
-                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
-                  </button>}
-                </Reorder.Item>
-              );
-            })}
-          </Reorder.Group>
-        </section>
-      )}
-      {showOwn && children && <div className="rail-app">{children}</div>}
-      {switching && ownApps && ownApps.length > 0 && (
-        <section className="rail-own" aria-label="Mobius’s apps">
-          <h2 className="rail-pinned-title">Mobius</h2>
-          <ul role="list" className="rail-apps">
-            {ownApps.map((o) => (
-              <li key={o.id}>
-                <button type="button" className="rail-btn" aria-label={o.name} aria-current={o.current ? 'page' : undefined} title={o.name} onClick={() => { setFace('app'); o.run(); }}>
-                  {o.current && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
-                  <svg viewBox="0 0 20 20" aria-hidden="true" data-own={o.id}>{OWN_ICONS[o.id]}</svg>
-                  <span className="rail-label" aria-hidden="true">{o.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {allApps}
-        </section>
       )}
       <div className="rail-end">
         {profile && onProfiles && (
           <button type="button" className="rail-btn rail-profile" aria-label={`Profile: ${profile}. Change profile`} title={`Profile: ${profile}`} onClick={onProfiles}>
             <span className="rail-profile-badge" aria-hidden="true">{profile.slice(0, 1).toUpperCase()}</span>
-            {expanded && <span className="rail-label" aria-hidden="true">{profile}</span>}
           </button>
         )}
-        {/* The full sidebar's foot holds only the profile: All apps is at the end of the switcher, Settings among Mobius's
-            apps. The folded rail has no switcher, so it keeps both. */}
-        {!expanded && allApps}
-        {!expanded && <button type="button" className="rail-btn" aria-label="Settings" aria-current={settingsOpen ? 'page' : undefined} title={withKeys('Settings', settingsKeys)} onClick={onSettings}>
-          {settingsOpen && <motion.span className="rail-here" layoutId="rail-here" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
-        </button>}
+        {ownApps.map((o) => (
+          <button key={o.id} type="button" className="rail-btn" data-own={o.id} aria-label={o.name} aria-current={o.current ? 'page' : undefined} title={o.id === 'settings' ? withKeys(o.name, settingsKeys) : o.name} onClick={o.run}>
+            {here(o)}
+            <svg viewBox="0 0 20 20" aria-hidden="true">{OWN_ICONS[o.id]}</svg>
+          </button>
+        ))}
       </div>
     </nav>
   );

@@ -72,7 +72,7 @@ test('a field shows one soft focus ring: never a ring inside a ring', async () =
   // Settings' search field, reached from the keyboard.
   await openSettings(shell);
   await shell.keyboard.press('Shift');
-  await shell.locator('.settings-search').focus();
-  expect(await rings('.settings-search')).toBe(1);
+  await shell.getByRole('searchbox', { name: 'Search settings' }).focus();
+  expect(await rings('input[aria-label="Search settings"]')).toBe(1);
   await openSettings(shell);
 });

@@ -198,8 +198,8 @@
 .calendar-page .cal-month-cell .cal-event[data-compact][data-selected]:not([data-all-day])::before { background: #fff; }
 
 /* The current time: faint across the week, strong across today, and written in red in the hour column. */
-.calendar-page .cal-now-across { position: absolute; left: 52px; right: 0; height: 1px; background: color-mix(in srgb, var(--danger) 40%, transparent); pointer-events: none; z-index: 1; }
-.calendar-page .cal-now-time { position: absolute; right: 4px; z-index: 2; transform: translateY(-50%); padding: 1px 4px; border-radius: 4px; background: var(--bg); color: var(--danger); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.calendar-page .cal-now-across { position: absolute; right: 0; height: 1px; background: color-mix(in srgb, var(--danger) 40%, transparent); pointer-events: none; z-index: 1; }
+.calendar-page .cal-now-time { position: absolute; right: 4px; z-index: 2; transform: translateY(-50%); padding: 1px 3px; white-space: nowrap; border-radius: 4px; background: var(--bg); color: var(--danger); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
 /* In the popover the row names take less room, so a whole date fits beside its time. */
 .cal-editor[data-pop] .cal-editor-group > .cal-editor-row > span { width: 56px; }
 .cal-editor[data-pop] .cal-field-time { width: 84px; }
@@ -216,3 +216,6 @@
 .cal-pop-delete { align-self: center; padding: 4px 10px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--danger); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer; }
 .cal-pop-delete:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .cal-pop-delete:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* What Mobius's last turn added or changed waits dashed, as a proposed task does, until it is kept. */
+.calendar-page .cal-event[data-proposed] { outline: 1.5px dashed color-mix(in srgb, var(--event) 75%, var(--bg)); outline-offset: -1.5px; }
+.calendar-page > .cal-review { width: auto; max-width: none; margin: 0 var(--sp-3) var(--sp-2); }

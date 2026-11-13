@@ -1,19 +1,23 @@
-import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CalendarDraft, CalendarEvent, CalendarSuggestion } from '@mobius/shared';
 import { isNotesFailure } from '@mobius/shared';
 import { onCommand } from './commands';
 import { useMorphIn } from './motion';
+import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
-import { addDays, dayLabel, parseDayText, parseTimeText, timeLabel, weekStart, allDayOn, atMinutes, calendarColor, clock, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { addDays, dayLabel, parseDayText, parseTimeText, timeLabel, weekStart, allDayOn, atMinutes, calendarColor, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
-import { ReviewActions } from './ReviewBar';
+import { ReviewActions, WhyThis } from './ReviewBar';
+import { useCalendarReview, type CalendarReview } from './useCalendarReview';
 import type { Start } from './SideNew';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 
 const HOUR_PX = 48;
+/** The hours' margin: wide enough for "10:20 AM" on the 12-hour clock. */
+const GUTTER = 60;
 /** How many events and tasks a month cell lists before "more". */
 const CELL_ROWS = 4;
 const MODES: { id: CalendarMode; name: string }[] = [{ id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }];
@@ -119,18 +123,18 @@ function MiniMonth({ calendar }: { calendar: CalendarState }) {
   return (
     <div className="cal-mini" role="group" aria-label="Go to a day">
       <div className="cal-mini-head">
-        <span className="cal-mini-title">{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+        <span className="cal-mini-title">{formatWith(month, { month: 'long', year: 'numeric' })}</span>
         <button type="button" className="strip-btn" aria-label="Previous month" onClick={() => go(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
         <button type="button" className="strip-btn" aria-label="Next month" onClick={() => go(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
       </div>
       <div className="cal-mini-grid">
-        {days.slice(0, 7).map((d) => <span key={`h${d.getDay()}`} className="cal-mini-dow" aria-hidden="true">{d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span>)}
+        {days.slice(0, 7).map((d) => <span key={`h${d.getDay()}`} className="cal-mini-dow" aria-hidden="true">{formatWith(d, { weekday: 'narrow' })}</span>)}
         {days.map((d) => (
           <button
             key={isoDay(d)}
             type="button"
             className="cal-mini-day"
-            aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            aria-label={formatWith(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             aria-current={sameDay(d, today) ? 'date' : undefined}
             data-outside={d.getMonth() !== month.getMonth() || undefined}
             data-shown={(calendar.mode !== 'month' && onScreen.has(isoDay(d))) || undefined}
@@ -246,7 +250,7 @@ export type MoveEvent = (event: Shown, to: { start: string; end: string }) => Pr
 let carrying: { event: Shown; from: Date } | null = null;
 
 /** What the grids share with the page: the event picked out, and its right-click menu. */
-type Picking = { selected: string | null; onMenu: (e: Shown, x: number, y: number) => void };
+type Picking = { selected: string | null; onMenu: (e: Shown, x: number, y: number) => void; /** Ids of events Mobius's last turn added or changed, drawn dashed until kept. */ proposed: ReadonlySet<string> };
 
 function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDown, onResize, dragging, span, picking }: {
   calendar: CalendarState; event: Shown; style?: React.CSSProperties; onOpen: (e: Shown, at?: DOMRect) => void; compact?: boolean; picking: Picking;
@@ -270,6 +274,7 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       data-suggestion={event.suggestion?.id}
       data-all-day={event.allDay || undefined}
       data-fresh={calendar.fresh.has(event.id) || undefined}
+      data-proposed={picking.proposed.has(event.id) || undefined}
       data-compact={compact || undefined}
       data-span={span ? true : undefined}
       data-joins-before={(span && !span.from) || undefined}
@@ -282,7 +287,7 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setTip(false); picking.onMenu(event, e.clientX, e.clientY); }}
       data-movable={(carry || onPointerDown !== undefined) || undefined}
       style={{ ...style, ['--event' as string]: color }}
-      aria-label={`${event.suggestion ? 'Suggested: ' : ''}${event.title}, ${when}${event.location ? `, ${event.location}` : ''}, ${event.calendar}${task ? `, also a task in ${task.list}` : ''}`}
+      aria-label={`${event.suggestion ? 'Suggested: ' : picking.proposed.has(event.id) ? 'Added by Mobius: ' : ''}${event.title}, ${when}${event.location ? `, ${event.location}` : ''}, ${event.calendar}${task ? `, also a task in ${task.list}` : ''}`}
       title={tip ? `${event.title}\n${when}${event.location ? `\n${event.location}` : ''}${event.repeats ? '\nRepeats' : ''}${task ? `\nAlso a task in ${task.list}` : ''}` : undefined}
       onPointerEnter={() => setTip(true)}
       draggable={carry || undefined}
@@ -455,7 +460,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
   };
   const open = (event: Shown, at?: DOMRect) => { if (!dragged_.current) onOpen(event, at); };
 
-  const columns = { gridTemplateColumns: `52px repeat(${days.length}, minmax(0, 1fr))` };
+  const columns = { gridTemplateColumns: `${GUTTER}px repeat(${days.length}, minmax(0, 1fr))` };
   const allDay = days.map((d) => allDayOn(shown, d));
   const due = days.map((d) => tasksOn(calendar.due, d));
   const slotAt = (day: Date, y: number) => {
@@ -468,7 +473,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
         <span />
         {days.map((d) => (
           <button key={isoDay(d)} type="button" className="cal-day-head" data-today={sameDay(d, now) || undefined} data-weekend={[0, 6].includes(d.getDay()) || undefined} title="Open this day" onClick={() => { calendar.setAnchor(d); calendar.setMode('day'); }} disabled={days.length === 1}>
-            <span>{d.toLocaleDateString(undefined, { weekday: 'short' })}</span> <b>{d.getDate()}</b>
+            <span>{formatWith(d, { weekday: 'short' })}</span> <b>{d.getDate()}</b>
           </button>
         ))}
       </div>
@@ -487,17 +492,17 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
         <div className="cal-grid" ref={grid} style={{ ...columns, height: 24 * HOUR_PX }} data-dragging={drag?.moved || sweep?.moved || undefined}>
           <div className="cal-hours">
             {/* The hour the current time sits on gives its place to the time itself, in red, as in Calendar. */}
-            {Array.from({ length: 24 }, (_, h) => <span key={h} className="cal-hour" style={{ top: h * HOUR_PX, visibility: todayShown && Math.abs(nowMinutes - h * 60) < 14 ? 'hidden' : undefined }}>{h === 0 ? '' : `${h}:00`}</span>)}
+            {Array.from({ length: 24 }, (_, h) => <span key={h} className="cal-hour" style={{ top: h * HOUR_PX, visibility: todayShown && Math.abs(nowMinutes - h * 60) < 14 ? 'hidden' : undefined }}>{h === 0 ? '' : hourLabel(h)}</span>)}
             {todayShown && <span className="cal-now-time" style={{ top: nowMinutes / 60 * HOUR_PX }} aria-hidden="true">{clock(isoTime(now))}</span>}
           </div>
           {/* The current time runs faintly across every day on screen, and strongly across today. */}
-          {todayShown && days.length > 1 && <span className="cal-now-across" style={{ top: nowMinutes / 60 * HOUR_PX }} aria-hidden="true" />}
+          {todayShown && days.length > 1 && <span className="cal-now-across" style={{ left: GUTTER, top: nowMinutes / 60 * HOUR_PX }} aria-hidden="true" />}
           {days.map((d, i) => (
             <div
               key={isoDay(d)}
               className="cal-column"
               role="group"
-              aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+              aria-label={formatWith(d, { weekday: 'long', day: 'numeric', month: 'long' })}
               data-today={sameDay(d, now) || undefined}
               data-weekend={[0, 6].includes(d.getDay()) || undefined}
               style={{ backgroundSize: `100% ${HOUR_PX}px` }}
@@ -579,7 +584,7 @@ function MonthGrid({ calendar, days, onNew, onOpen, onMove, picking, onSlotMenu,
   return (
     <div className="cal-month">
       <div className="cal-month-head">
-        {days.slice(0, 7).map((d) => <span key={isoDay(d)}>{d.toLocaleDateString(undefined, { weekday: 'short' })}</span>)}
+        {days.slice(0, 7).map((d) => <span key={isoDay(d)}>{formatWith(d, { weekday: 'short' })}</span>)}
       </div>
       <div className="cal-month-grid" style={{ gridTemplateRows: `repeat(${days.length / 7}, minmax(0, 1fr))` }}>
         {days.map((d, i) => {
@@ -592,8 +597,8 @@ function MonthGrid({ calendar, days, onNew, onOpen, onMove, picking, onSlotMenu,
           const shownTasks = tasks.slice(0, CELL_ROWS - shownEvents.length);
           const hidden = on.length + tasks.length - shownEvents.length - shownTasks.length;
           return (
-            <div key={isoDay(d)} className="cal-month-cell" role="group" aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} data-outside={d.getMonth() !== month || undefined} data-today={sameDay(d, today) || undefined} data-weekend={[0, 6].includes(d.getDay()) || undefined} onDoubleClick={(e) => { if (e.target === e.currentTarget) onNew({ start: `${isoDay(d)}T09:00`, allDay: false, at: e.currentTarget.getBoundingClientRect() }); }} onPointerDown={(e) => { if (e.target === e.currentTarget) onEmpty(); }} onContextMenu={(e) => { if (e.target !== e.currentTarget) return; e.preventDefault(); onSlotMenu({ day: d, minutes: null, rect: e.currentTarget.getBoundingClientRect() }, e.clientX, e.clientY); }} {...drop(d)}>
-              <button type="button" className="cal-month-day" title="Open this day" onClick={() => { calendar.setAnchor(d); calendar.setMode('day'); }}>{d.getDate() === 1 ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : d.getDate()}</button>
+            <div key={isoDay(d)} className="cal-month-cell" role="group" aria-label={formatWith(d, { weekday: 'long', day: 'numeric', month: 'long' })} data-outside={d.getMonth() !== month || undefined} data-today={sameDay(d, today) || undefined} data-weekend={[0, 6].includes(d.getDay()) || undefined} onDoubleClick={(e) => { if (e.target === e.currentTarget) onNew({ start: `${isoDay(d)}T09:00`, allDay: false, at: e.currentTarget.getBoundingClientRect() }); }} onPointerDown={(e) => { if (e.target === e.currentTarget) onEmpty(); }} onContextMenu={(e) => { if (e.target !== e.currentTarget) return; e.preventDefault(); onSlotMenu({ day: d, minutes: null, rect: e.currentTarget.getBoundingClientRect() }, e.clientX, e.clientY); }} {...drop(d)}>
+              <button type="button" className="cal-month-day" title="Open this day" onClick={() => { calendar.setAnchor(d); calendar.setMode('day'); }}>{d.getDate() === 1 ? formatWith(d, { day: 'numeric', month: 'short' }) : d.getDate()}</button>
               {shownEvents.map((e) => <EventBlock key={keyOf(e)} calendar={calendar} event={e} onOpen={onOpen} picking={picking} compact from={d} span={spanOn(e, d, i % 7 === 0, true)} />)}
               {shownTasks.map((t) => <TaskChip key={`${t.list}:${t.task.line}`} calendar={calendar} item={t} />)}
               {hidden > 0 && <button type="button" className="cal-more" onClick={() => { calendar.setAnchor(d); calendar.setMode('day'); }}>{hidden} more</button>}
@@ -650,14 +655,14 @@ function DayField({ label, value, onChange }: { label: string; value: string; on
       {picking && (
         <div className="cal-field-month" role="dialog" aria-label={label}>
           <div className="cal-field-month-head">
-            <b>{view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b>
+            <b>{formatWith(view, { month: 'long', year: 'numeric' })}</b>
             <button type="button" className="strip-btn" aria-label="Previous month" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
             <button type="button" className="strip-btn" aria-label="Next month" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
           </div>
           <div className="cal-field-days">
-            {cells.slice(0, 7).map((d) => <span key={`h${d.getDay()}`}>{d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span>)}
+            {cells.slice(0, 7).map((d) => <span key={`h${d.getDay()}`}>{formatWith(d, { weekday: 'narrow' })}</span>)}
             {cells.map((d) => (
-              <button key={isoDay(d)} type="button" aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} aria-pressed={isoDay(d) === value} data-out={d.getMonth() !== view.getMonth() || undefined} data-today={sameDay(d, new Date()) || undefined} onClick={() => { onChange(isoDay(d)); setPicking(false); }}>{d.getDate()}</button>
+              <button key={isoDay(d)} type="button" aria-label={formatWith(d, { weekday: 'long', day: 'numeric', month: 'long' })} aria-pressed={isoDay(d) === value} data-out={d.getMonth() !== view.getMonth() || undefined} data-today={sameDay(d, new Date()) || undefined} onClick={() => { onChange(isoDay(d)); setPicking(false); }}>{d.getDate()}</button>
             ))}
           </div>
         </div>
@@ -776,13 +781,13 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
     if (!at) return undefined;
     const away = (e: PointerEvent) => {
       const t = e.target as Element | null;
-      if (sheet.current?.contains(t) || t?.closest?.('.context-menu')) return;
+      if (sheet.current?.contains(t) || t?.closest?.('.ui-menu')) return;
       const l = live.current;
       if (l.busy) return;
       if (l.changed()) void l.save(); else onClose();
     };
     // Escape closes it wherever the keys are, as the popover has no backdrop to hold them.
-    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !(e.target as Element | null)?.closest?.('.context-menu')) { e.preventDefault(); onClose(); } };
+    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !(e.target as Element | null)?.closest?.('.ui-menu')) { e.preventDefault(); onClose(); } };
     window.addEventListener('pointerdown', away, true);
     window.addEventListener('keydown', escape);
     return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape); };
@@ -856,7 +861,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
 
 /** "Prep slides · Thu 12 Nov, 10:00" for a suggestion card. */
 function suggestedWhen(s: CalendarSuggestion): string {
-  const day = (text: string) => localDate(text).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  const day = (text: string) => formatWith(localDate(text), { weekday: 'short', day: 'numeric', month: 'short' });
   if (s.allDay) return s.end && s.end !== s.start ? `${day(s.start)} – ${day(s.end)}` : day(s.start);
   return `${day(s.start)}, ${clock(s.start)}–${clock(s.end)}`;
 }
@@ -905,7 +910,7 @@ function SuggestionPopover({ calendar, id, at, onClose }: { calendar: CalendarSt
 
 /** "Fri 13 Nov, 13:00–14:00", or "Fri 13 Nov, all day", for the quick add's preview. */
 function whenSaid(p: { start: string; end: string; allDay: boolean }): string {
-  const day = localDate(p.start).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  const day = formatWith(localDate(p.start), { weekday: 'short', day: 'numeric', month: 'short' });
   return p.allDay ? `${day}, all day` : `${day}, ${clock(p.start)}–${clock(p.end)}`;
 }
 
@@ -961,7 +966,15 @@ function useGridSlide(page: { current: HTMLElement | null }, mode: CalendarMode,
   }, [mode, first]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarState; newToken?: number }) {
+/** The review bar's line: the one event Mobius changed and its day, or how many and from when. */
+function changeSaid(changed: readonly CalendarEvent[], first: CalendarEvent): string {
+  const when = formatWith(localDate(first.start), { weekday: 'short', day: 'numeric', month: 'short' });
+  return changed.length === 1
+    ? `Mobius changed your calendar in its last turn: “${first.title}”, ${when}${first.allDay ? '' : ` at ${clock(first.start)}`}.`
+    : `Mobius changed ${changed.length} events in its last turn, from ${when}.`;
+}
+
+export function CalendarPage({ calendar, newToken = 0, review = null }: { calendar: CalendarState; newToken?: number; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [undoable, setUndoable] = useState<Undoable | null>(null);
   useEffect(() => { if (!undoable) return undefined; const t = window.setTimeout(() => setUndoable(null), 10_000); return () => window.clearTimeout(t); }, [undoable]);
@@ -973,7 +986,7 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
   const move: MoveEvent = async (event, to) => {
     const ok = await calendar.update(event, { ...to, ...(event.repeats ? { occurrence: event.start } : {}) });
     if (ok) {
-      const day = (t: string) => localDate(t).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+      const day = (t: string) => formatWith(localDate(t), { weekday: 'short', day: 'numeric', month: 'short' });
       const said = event.allDay ? day(to.start) : sameDay(localDate(to.start), localDate(event.start)) ? clock(to.start) : `${day(to.start)}, ${clock(to.start)}`;
       setUndoable({ text: `Moved “${event.title}” to ${said}.`, undo: () => calendar.update(event, { start: event.start, end: draftEnd(event), ...(event.repeats ? { occurrence: to.start } : {}) }) });
     }
@@ -1045,7 +1058,7 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
   };
   const slotMenu = ({ day, minutes, rect }: { day: Date; minutes: number | null; rect: DOMRect }, x: number, y: number) => {
     setSelected(null);
-    const dayName = day.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    const dayName = formatWith(day, { weekday: 'short', day: 'numeric', month: 'short' });
     const items: ContextMenuItem[] = [
       minutes === null
         ? { label: `New event on ${dayName}`, run: () => setEditing({ start: `${isoDay(day)}T09:00`, allDay: false, at: rect }) }
@@ -1054,7 +1067,20 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
     ];
     setMenu({ x, y, label: dayName, items });
   };
-  const picking: Picking = { selected, onMenu: eventMenu };
+  // What Mobius's last turn changed: drawn dashed until kept, and the calendar opens where the first of it is.
+  const proposal = useCalendarReview(review, calendar.events);
+  const proposed = useMemo(() => new Set(proposal.changed.map((e) => e.id)), [proposal.changed]);
+  const firstChange = proposal.changed.find((e) => e.start >= isoDay(new Date())) ?? proposal.changed[0];
+  const showChange = () => { if (firstChange) calendar.setAnchor(localDate(firstChange.start)); };
+  const shownChange = useRef('');
+  useEffect(() => {
+    if (!firstChange || !review) return;
+    const mark = `${review.conversation}|${firstChange.id}|${firstChange.start}`;
+    if (shownChange.current === mark) return;
+    shownChange.current = mark;
+    if (!days.some((d) => sameDay(d, localDate(firstChange.start)))) calendar.setAnchor(localDate(firstChange.start));
+  }, [firstChange, review]); // eslint-disable-line react-hooks/exhaustive-deps
+  const picking: Picking = { selected, onMenu: eventMenu, proposed };
 
   // Keys as in other calendars: T for today, arrows back and forward, D, W and M for the view, N for a new event.
   const page = useRef<HTMLElement>(null);
@@ -1066,7 +1092,7 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
       const { calendar: c, editing: ed, create: make, selected: key, find: lookUp, open: show, rectOf: where, removeEvent: drop, duplicate: copy, menu: m } = keys.current;
       if (e.defaultPrevented || e.altKey || ed || m || !page.current?.isConnected) return;
       const t = e.target as HTMLElement | null;
-      if (t?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"], [role="radiogroup"], [aria-modal="true"], [role="menu"]') || document.querySelector('[aria-modal="true"]')) return;
+      if (t?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"], [role="radiogroup"], [aria-modal="true"], .ui-menu') || document.querySelector('[aria-modal="true"]')) return;
       const k = e.key.toLowerCase();
       const picked = lookUp(key);
       if ((e.ctrlKey || e.metaKey) && k === 'd' && picked) { e.preventDefault(); void copy(picked); return; }
@@ -1112,6 +1138,15 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
           </button>
         </div>
       </header>
+      {review && firstChange && (
+        <div className="note-review cal-review" role="status">
+          <span className="review-dot" aria-hidden="true" />
+          <span className="note-review-text">{changeSaid(proposal.changed, firstChange)}<WhyThis conversation={review.conversation} /></span>
+          <button type="button" className="btn" title="Go to the day of the change" onClick={showChange}>Show</button>
+          <ReviewActions onKeep={proposal.keep} onDiscard={proposal.discard} keepTitle="Keep what Mobius changed in your calendar in that turn" discardTitle="Put your calendar back as it was before that turn" />
+          {proposal.problem && <span className="review-problem" role="alert">{proposal.problem}</span>}
+        </div>
+      )}
       {calendar.message && !editing && <p className="tasks-message" role="alert">{calendar.message}</p>}
       {calendar.mode === 'month'
         ? <MonthGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} picking={picking} onSlotMenu={slotMenu} onEmpty={() => setSelected(null)} />

@@ -52,7 +52,7 @@ test('Settings opens as an app: its sections in the sidebar, the page name in th
   await openSettings();
   await expect(shell().locator('.strip-title')).toHaveText('General');
   // One sidebar: Settings' search and sections, not the last app's list beside them.
-  await expect(shell().getByRole('navigation', { name: 'Apps' }).getByRole('navigation', { name: 'Settings sections' })).toBeVisible();
+  await expect(shell().locator('.app-side').getByRole('navigation', { name: 'Settings sections' })).toBeVisible();
   await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toHaveCount(0);
   await expect(page().getByRole('button', { name: 'Close settings' })).toHaveCount(0);
   expect(await visibleViews()).toHaveLength(0);
@@ -83,9 +83,9 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   await openSettings();
   const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
-  await expect(nav.getByRole('group').locator('.settings-nav-heading')).toHaveText(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
+  await expect(nav.locator('.side-title')).toHaveText(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
   await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Conversations', 'Schedules', 'Abilities', 'Advanced', 'About']);
-  await expect(nav.getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Settings sidebar' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
   await expect(page().getByRole('tab')).toHaveText(['Approvals', 'Activity']);
@@ -353,7 +353,7 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
 test('search at the top of the sidebar finds settings by their old names too, and Abilities opens its app', async () => {
   await start([]);
   await openSettings();
-  const search = shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('searchbox', { name: 'Search settings' });
+  const search = shell().getByRole('searchbox', { name: 'Search settings' });
   await search.fill('providers');
   await expect(page().getByRole('list', { name: 'Search results' })).toContainText('Gateways');
   await search.fill('kokoro');

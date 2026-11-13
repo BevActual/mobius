@@ -45,3 +45,25 @@
 .ui-undo-x svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 @keyframes ui-undo-in { from { opacity: 0; transform: translate(-50%, var(--sp-2)); } }
 @media (prefers-reduced-motion: reduce) { .ui-undo { animation: none; } }
+
+/* The frame (AppFrame): the toolbar's middle, where an app's own controls go. */
+/* The app's controls keep their own width; the title beside them gives way (ellipsizes) first. */
+.ui-toolbar-slot { display: flex; align-items: center; gap: var(--sp-2); flex: 0 0 auto; justify-content: center; }
+.ui-toolbar-slot:empty { display: none; }
+.ui-toolbar-group { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; }
+
+/* The view switch: segmented, the current view ink-inverted. */
+.ui-views { display: inline-flex; align-items: center; gap: 0; padding: calc(var(--sp-1) / 2); border-radius: var(--radius-control); background: var(--soft); }
+.ui-view { height: calc(var(--control-h) - var(--sp-1)); padding: 0 var(--sp-3); border-radius: var(--radius-small); color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.ui-view:hover:not([aria-checked="true"]) { color: var(--ink); background: transparent; }
+.ui-view[aria-checked="true"] { background: var(--ink); color: var(--bg); }
+
+/* The app sidebar's pieces (AppSidebar). Rows reuse the shell's list-row look. */
+.ui-side-section { display: block; }
+.ui-side-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--hairline-w); }
+.ui-side-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-side-text { flex: 1; min-width: 0; display: grid; }
+.ui-side-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
+.ui-side-fold { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 0; border: 0; background: none; color: inherit; font: inherit; }
+.ui-side-fold svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform var(--dur-fast) var(--ease); }
+.ui-side-fold[aria-expanded="true"] svg { transform: rotate(90deg); }
