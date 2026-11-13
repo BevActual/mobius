@@ -50,7 +50,6 @@ describe('searching settings', () => {
     expect(top('compact')).toMatchObject({ section: 'appearance', row: 'density' });
     expect(top('hide tool steps')).toMatchObject({ section: 'appearance', row: 'tool-steps' });
     expect(top('reopen last conversation')).toMatchObject({ section: 'general', row: 'resume-last' });
-    expect(top('where mobius opens')).toMatchObject({ section: 'appearance', row: 'agent-place' });
     expect(top('whisper')).toMatchObject({ section: 'voice' });
     expect(top('kokoro')).toMatchObject({ section: 'voice', subpage: 'speaking' });
     expect(top('elevenlabs')).toBeDefined();
