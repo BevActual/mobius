@@ -1,6 +1,6 @@
 /*
- * Database, in the manner of Apple's own data apps: a table's name and a Data / Structure / SQL switch at the top, a
- * filter and the page of rows under it, and the rows themselves as a quiet grid. Everything comes from the tokens,
+ * Database, in the manner of Apple's own data apps: a table's name and Data / Structure / SQL, the filter and Add row
+ * in the window's toolbar, the page of rows under it, and the rows themselves as a quiet grid. Everything comes from the tokens,
  * so light and dark both follow. The older rules for the list, editor and grid are in styles.css.
  */
 
@@ -27,27 +27,18 @@
 .db-confirm-actions { display: flex; justify-content: flex-end; gap: 6px; }
 @keyframes db-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
-/* The head: the table's name and where it is at the start, the view switch centred above what it switches. */
-/* Title and an empty end share the room equally, so the switch stays centred; in a narrow page it wraps under the title. */
-.db-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-4); padding: 12px var(--sp-4) 10px; }
-.db-head::after { content: ""; flex: 1 1 0; }
-.db-head > .db-title { flex: 1 1 0; min-width: 140px; }
-.db-title { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
-.db-title h2 { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-semibold); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db-sub { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
-.db-head .segmented { border-radius: var(--radius-pill); }
-.db-head .segmented button { min-width: 76px; padding: 3px 13px; border-radius: var(--radius-pill); color: inherit; font: inherit; font-size: var(--fs-sm); }
-.db-head .segmented button[aria-checked="true"] { background: var(--bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16); font-weight: var(--fw-semibold); }
-
-/* The Data view's bar: filter at the start, which rows and the pager at the end. */
-.db-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-4) 10px; }
-.db-filter { width: min(280px, 50%); margin: 0; }
+/* The toolbar's middle: the Data view's filter and Add row, a hairline, then the view switch. */
+.db-tools-sep { width: var(--hairline-w, 1px); height: 18px; margin: 0 var(--sp-2); background: var(--line); }
+.db-filter { width: 160px; height: 28px; margin: 0; }
 .db-side > .side-search { margin: 0 var(--sp-2) var(--sp-2); }
-.db-bar .db-status { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.db-pager { display: inline-flex; padding: 2px; border-radius: var(--radius-pill); background: var(--soft); }
-.db-pager .strip-btn { width: 26px; min-width: 26px; height: 26px; padding: 0; }
+
+/* Under the rows, one quiet line: which rows these are, and the pager when there is more than one page. */
+.db-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 32px; padding: 0 var(--sp-2) 0 var(--sp-4); border-top: var(--hairline-w, 1px) solid var(--line); color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.db-foot-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-pager { display: inline-flex; gap: 2px; }
+.db-pager .strip-btn { width: 24px; min-width: 24px; height: 24px; padding: 0; }
 .db-pager .strip-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.db-pager .strip-btn:disabled { color: var(--muted); opacity: 0.45; cursor: default; }
+.db-pager .strip-btn:disabled { opacity: 0.4; cursor: default; }
 
 /* A column's heading sorts by it: the arrows show which way. */
 .db-grid th:has(> .db-sort) { padding: 0; }
@@ -80,22 +71,15 @@
 
 /* Changing rows: a double-click types into a cell; Add row in the bar; the last change can be undone, as in Tasks. */
 .db-grid[data-editable] tbody td { cursor: default; }
-/* Room under the last row, so the Undo pill never covers it. */
+/* Room under the last row, so the Undo toast never covers it. */
 .db-grid-wrap:has(> .db-grid[data-editable]) { padding-bottom: 64px; }
 .db-grid td[data-editing] { padding: 0; overflow: visible; }
 /* The active cell: marked while the grid has focus, as the keys move it. */
 .db-grid td[tabindex] { outline: none; }
 .db-grid:focus-within td[data-active]:not([data-editing]) { box-shadow: inset 0 0 0 2px var(--accent); }
-.db-undo .btn:focus:not(:focus-visible) { outline: none; box-shadow: none; }
 .db-cell-input { width: 100%; min-width: 80px; height: 28px; padding: 0 9px; border: 0; outline: 2px solid var(--accent); outline-offset: -2px; background: var(--bg); color: var(--ink); font: inherit; }
-.db-add { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--radius-pill); font-size: var(--fs-sm); }
-.db-add svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-.db-undo { position: absolute; z-index: 30; left: 50%; bottom: var(--sp-6); transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border: 0.5px solid var(--line); border-radius: var(--radius-pill); background: var(--bg); box-shadow: var(--shadow-2); font-size: var(--fs-md); white-space: nowrap; animation: db-up var(--dur-med) var(--ease); }
-.db-undo .btn { height: 26px; border-radius: var(--radius-pill); color: var(--accent); font-weight: var(--fw-semibold); }
-.db-undo-x { width: 24px; height: 24px; padding: 0; border-radius: 50%; color: var(--muted); }
-.db-undo-x:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
-@keyframes db-up { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.db-add svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 
 @media (prefers-reduced-motion: reduce) {
-  .db-confirm, .db-undo { animation: none; }
+  .db-confirm { animation: none; }
 }
