@@ -95,6 +95,7 @@ describe('how they are shown and handed to the system', () => {
   it('reads as Ctrl on Windows and Linux and Cmd on a Mac', () => {
     expect(describeCombo('mod+shift+k', 'win32')).toBe('Ctrl+Shift+K');
     expect(describeCombo('mod+alt+space', 'darwin')).toBe('Cmd+Option+Space');
+    expect(describeCombo('H', 'win32')).toBe('H');
     expect(describeCombo('mod+,', 'linux')).toBe('Ctrl+,');
     expect(describeCombo('f5', 'win32')).toBe('F5');
     expect(describeCombo('nonsense', 'win32')).toBe('');
