@@ -150,6 +150,30 @@ test('the agent adds an event from the panel beside the calendar, after asking, 
   expect(written).toContain('LOCATION:Main St');
 });
 
+test('an event the agent adds next week opens Calendar on that week, dashed, with Keep and Discard', async () => {
+  const ahead = new Date();
+  ahead.setDate(ahead.getDate() + 8);
+  await start([callsTool('calendar-add', { calendar: 'Calendar', title: 'Kickoff', start: `${day(ahead)}T10:00` }), says(['Kickoff is in for next week.'])]);
+  await page().getByRole('radio', { name: 'Week' }).click();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Put the kickoff in for next week');
+  await composer.press('Enter');
+  const card = shell().getByRole('log', { name: 'Conversation' }).getByRole('group', { name: 'Approval needed: calendar.add' });
+  await card.getByRole('button', { name: 'Allow once' }).click();
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Kickoff is in for next week.');
+
+  // The week moves to the new event, drawn dashed, and the bar says what changed.
+  const kickoff = page().getByRole('button', { name: /^Added by Mobius: Kickoff/ });
+  await expect(kickoff).toBeVisible();
+  await expect(kickoff).toHaveAttribute('data-proposed', 'true');
+  const bar = page().locator('.cal-review');
+  await expect(bar).toContainText('“Kickoff”');
+  await bar.getByRole('button', { name: 'Keep' }).click();
+  await expect(bar).toHaveCount(0);
+  await expect(page().getByRole('button', { name: /^Kickoff/ })).toBeVisible();
+  expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('SUMMARY:Kickoff');
+});
+
 test('a subscribed calendar link shows beside the person\'s own, and its events can be read but not changed', async () => {
   await start();
   await page().getByRole('radio', { name: 'Week' }).click();

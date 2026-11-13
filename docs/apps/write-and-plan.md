@@ -78,6 +78,8 @@ Your calendars by day, week or month.
   each change can be undone. Right-click an event for Open, Duplicate, Move to another calendar and Delete.
 - **The current time** is a red line across the week, with the time written in the hour column. Times follow your
   computer's clock, 24-hour or with AM and PM.
+- **What Mobius adds or changes** in a turn is drawn dashed, and Calendar opens on the week of the first change with a
+  bar to **Keep** or **Discard** it, as Tasks does for a list. **Show** goes back to it.
 - **Suggestions from Mobius** are drawn dashed. Open one to see why, then **Keep** (add it), **Discard** (decline it) or
   **Try another**.
 

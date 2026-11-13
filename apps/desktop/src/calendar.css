@@ -216,3 +216,6 @@
 .cal-pop-delete { align-self: center; padding: 4px 10px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--danger); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer; }
 .cal-pop-delete:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .cal-pop-delete:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* What Mobius's last turn added or changed waits dashed, as a proposed task does, until it is kept. */
+.calendar-page .cal-event[data-proposed] { outline: 1.5px dashed color-mix(in srgb, var(--event) 75%, var(--bg)); outline-offset: -1.5px; }
+.calendar-page > .cal-review { width: auto; max-width: none; margin: 0 var(--sp-3) var(--sp-2); }

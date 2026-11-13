@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
 import { setLocaleForTests } from './dates';
-import { dayLabel, parseDayText, parseTimeText, allDayOn, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsOn, heading, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -140,5 +140,27 @@ describe('the event sheet day and time fields', () => {
     expect(parseDayText('fri', now, parseWhen)).toBe('2026-11-13');
     expect(parseDayText(dayLabel('2026-12-03'), now, parseWhen)).toBe('2026-12-03');
     expect(parseDayText('whenever', now, parseWhen)).toBeNull();
+  });
+});
+
+describe('what Mobius changed in a calendar file', () => {
+  const file = (body: string) => `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${body}END:VCALENDAR\r\n`;
+  const event = (uid: string, title: string, start: string) => `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTART:${start}\r\nSUMMARY:${title}\r\nBEGIN:VALARM\r\nSUMMARY:Alarm\r\nEND:VALARM\r\nEND:VEVENT\r\n`;
+  const at = (id: string, title: string, start: string, repeats = false): CalendarEvent => ({ ...ev(title, start, start), id, repeats });
+  it('finds events added, moved or renamed, soonest first, and leaves the rest', () => {
+    const before = file(event('a', 'Standup', '20261112T090000') + event('b', 'Lunch\\, with Sam', '20261113T120000') + event('c', 'Gym', '20261114T180000'));
+    const now = [at('c', 'Gym', '2026-11-14T18:00'), at('a', 'Standup', '2026-11-12T10:00'), at('b', 'Lunch, with Sam', '2026-11-13T12:00'), at('d', 'Kickoff', '2026-11-19T09:00')];
+    expect(changedSince(before, now).map((e) => e.id)).toEqual(['a', 'd']);
+    expect(changedSince(before, [at('c', 'Gym class', '2026-11-14T18:00')]).map((e) => e.id)).toEqual(['c']);
+  });
+  it('counts every event in a file the turn made, and a repeating one once', () => {
+    expect(changedSince(null, [at('r', 'Run', '2026-11-12T07:00', true), at('r', 'Run', '2026-11-13T07:00', true)]).map((e) => e.start)).toEqual(['2026-11-12T07:00']);
+    const before = file(event('r', 'Run', '20261101T070000'));
+    expect(changedSince(before, [at('r', 'Run', '2026-11-12T07:00', true)])).toEqual([]);
+  });
+  it('reads folded lines and all-day dates', () => {
+    const before = file('BEGIN:VEVENT\r\nUID:t\r\nDTSTART;VALUE=DATE:20261112\r\nSUMMARY:A long\r\n  trip\r\nEND:VEVENT\r\n');
+    expect(eventsInFile(before).get('t')).toEqual({ title: 'A long trip', start: '20261112' });
+    expect(changedSince(before, [{ ...at('t', 'A long trip', '2026-11-12'), allDay: true }])).toEqual([]);
   });
 });

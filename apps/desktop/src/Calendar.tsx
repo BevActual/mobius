@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CalendarDraft, CalendarEvent, CalendarSuggestion } from '@mobius/shared';
 import { isNotesFailure } from '@mobius/shared';
@@ -10,7 +10,8 @@ import { addDays, dayLabel, parseDayText, parseTimeText, timeLabel, weekStart, a
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
-import { ReviewActions } from './ReviewBar';
+import { ReviewActions, WhyThis } from './ReviewBar';
+import { useCalendarReview, type CalendarReview } from './useCalendarReview';
 import type { Start } from './SideNew';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 
@@ -249,7 +250,7 @@ export type MoveEvent = (event: Shown, to: { start: string; end: string }) => Pr
 let carrying: { event: Shown; from: Date } | null = null;
 
 /** What the grids share with the page: the event picked out, and its right-click menu. */
-type Picking = { selected: string | null; onMenu: (e: Shown, x: number, y: number) => void };
+type Picking = { selected: string | null; onMenu: (e: Shown, x: number, y: number) => void; /** Ids of events Mobius's last turn added or changed, drawn dashed until kept. */ proposed: ReadonlySet<string> };
 
 function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDown, onResize, dragging, span, picking }: {
   calendar: CalendarState; event: Shown; style?: React.CSSProperties; onOpen: (e: Shown, at?: DOMRect) => void; compact?: boolean; picking: Picking;
@@ -273,6 +274,7 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       data-suggestion={event.suggestion?.id}
       data-all-day={event.allDay || undefined}
       data-fresh={calendar.fresh.has(event.id) || undefined}
+      data-proposed={picking.proposed.has(event.id) || undefined}
       data-compact={compact || undefined}
       data-span={span ? true : undefined}
       data-joins-before={(span && !span.from) || undefined}
@@ -285,7 +287,7 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setTip(false); picking.onMenu(event, e.clientX, e.clientY); }}
       data-movable={(carry || onPointerDown !== undefined) || undefined}
       style={{ ...style, ['--event' as string]: color }}
-      aria-label={`${event.suggestion ? 'Suggested: ' : ''}${event.title}, ${when}${event.location ? `, ${event.location}` : ''}, ${event.calendar}${task ? `, also a task in ${task.list}` : ''}`}
+      aria-label={`${event.suggestion ? 'Suggested: ' : picking.proposed.has(event.id) ? 'Added by Mobius: ' : ''}${event.title}, ${when}${event.location ? `, ${event.location}` : ''}, ${event.calendar}${task ? `, also a task in ${task.list}` : ''}`}
       title={tip ? `${event.title}\n${when}${event.location ? `\n${event.location}` : ''}${event.repeats ? '\nRepeats' : ''}${task ? `\nAlso a task in ${task.list}` : ''}` : undefined}
       onPointerEnter={() => setTip(true)}
       draggable={carry || undefined}
@@ -964,7 +966,15 @@ function useGridSlide(page: { current: HTMLElement | null }, mode: CalendarMode,
   }, [mode, first]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarState; newToken?: number }) {
+/** The review bar's line: the one event Mobius changed and its day, or how many and from when. */
+function changeSaid(changed: readonly CalendarEvent[], first: CalendarEvent): string {
+  const when = formatWith(localDate(first.start), { weekday: 'short', day: 'numeric', month: 'short' });
+  return changed.length === 1
+    ? `Mobius changed your calendar in its last turn: “${first.title}”, ${when}${first.allDay ? '' : ` at ${clock(first.start)}`}.`
+    : `Mobius changed ${changed.length} events in its last turn, from ${when}.`;
+}
+
+export function CalendarPage({ calendar, newToken = 0, review = null }: { calendar: CalendarState; newToken?: number; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [undoable, setUndoable] = useState<Undoable | null>(null);
   useEffect(() => { if (!undoable) return undefined; const t = window.setTimeout(() => setUndoable(null), 10_000); return () => window.clearTimeout(t); }, [undoable]);
@@ -1057,7 +1067,20 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
     ];
     setMenu({ x, y, label: dayName, items });
   };
-  const picking: Picking = { selected, onMenu: eventMenu };
+  // What Mobius's last turn changed: drawn dashed until kept, and the calendar opens where the first of it is.
+  const proposal = useCalendarReview(review, calendar.events);
+  const proposed = useMemo(() => new Set(proposal.changed.map((e) => e.id)), [proposal.changed]);
+  const firstChange = proposal.changed.find((e) => e.start >= isoDay(new Date())) ?? proposal.changed[0];
+  const showChange = () => { if (firstChange) calendar.setAnchor(localDate(firstChange.start)); };
+  const shownChange = useRef('');
+  useEffect(() => {
+    if (!firstChange || !review) return;
+    const mark = `${review.conversation}|${firstChange.id}|${firstChange.start}`;
+    if (shownChange.current === mark) return;
+    shownChange.current = mark;
+    if (!days.some((d) => sameDay(d, localDate(firstChange.start)))) calendar.setAnchor(localDate(firstChange.start));
+  }, [firstChange, review]); // eslint-disable-line react-hooks/exhaustive-deps
+  const picking: Picking = { selected, onMenu: eventMenu, proposed };
 
   // Keys as in other calendars: T for today, arrows back and forward, D, W and M for the view, N for a new event.
   const page = useRef<HTMLElement>(null);
@@ -1115,6 +1138,15 @@ export function CalendarPage({ calendar, newToken = 0 }: { calendar: CalendarSta
           </button>
         </div>
       </header>
+      {review && firstChange && (
+        <div className="note-review cal-review" role="status">
+          <span className="review-dot" aria-hidden="true" />
+          <span className="note-review-text">{changeSaid(proposal.changed, firstChange)}<WhyThis conversation={review.conversation} /></span>
+          <button type="button" className="btn" title="Go to the day of the change" onClick={showChange}>Show</button>
+          <ReviewActions onKeep={proposal.keep} onDiscard={proposal.discard} keepTitle="Keep what Mobius changed in your calendar in that turn" discardTitle="Put your calendar back as it was before that turn" />
+          {proposal.problem && <span className="review-problem" role="alert">{proposal.problem}</span>}
+        </div>
+      )}
       {calendar.message && !editing && <p className="tasks-message" role="alert">{calendar.message}</p>}
       {calendar.mode === 'month'
         ? <MonthGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} picking={picking} onSlotMenu={slotMenu} onEmpty={() => setSelected(null)} />

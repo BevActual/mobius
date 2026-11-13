@@ -1358,7 +1358,7 @@ export function App() {
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && turnMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} />;
       case 'calendar':
-        return <CalendarPage calendar={calendar} newToken={eventToken} />;
+        return <CalendarPage calendar={calendar} newToken={eventToken} review={turnMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...turnMarks.calendars] } : null} />; // Calendar app: what Mobius's last turn changed
       case 'search':
         return (
           <SearchPage

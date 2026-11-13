@@ -285,3 +285,47 @@ export function parseDayText(text: string, now: Date, words: (text: string, now:
 export const dayLabel = (iso: string): string => formatWith(localDate(iso), { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 /** A time as the sheet shows it, 24-hour or with AM and PM as the person's locale writes it. */
 export const timeLabel = (hhmm: string): string => timeOf(new Date(2000, 0, 1, Number(hhmm.slice(0, 2)), Number(hhmm.slice(3, 5))));
+
+/** An event as a calendar file had it: what the person would notice change. */
+interface Was { title: string; start: string }
+/** The events in an .ics file's text, by UID: lines unfolded, SUMMARY unescaped, DTSTART as its digits. */
+export function eventsInFile(text: string): Map<string, Was> {
+  const found = new Map<string, Was>();
+  let uid = '';
+  let title = '';
+  let start = '';
+  let inside = false;
+  let depth = 0;
+  for (const line of text.replace(/\r?\n[ \t]/g, '').split(/\r?\n/)) {
+    const [head = '', ...rest] = line.split(':');
+    const value = rest.join(':');
+    const name = head.split(';')[0]!.toUpperCase();
+    if (name === 'BEGIN' && value === 'VEVENT') { inside = true; depth = 0; uid = ''; title = ''; start = ''; continue; }
+    if (!inside) continue;
+    if (name === 'BEGIN') depth += 1;
+    else if (name === 'END' && value !== 'VEVENT') depth -= 1;
+    else if (name === 'END') { inside = false; if (uid && !found.has(uid)) found.set(uid, { title, start }); }
+    else if (depth === 0 && name === 'UID') uid = value.trim();
+    else if (depth === 0 && name === 'SUMMARY') title = value.replace(/\\([\;,])/g, '$1').replace(/\\n/gi, ' ').trim();
+    else if (depth === 0 && name === 'DTSTART') start = value.replace(/\D/g, '');
+  }
+  return found;
+}
+
+/**
+ * The events Mobius added or moved or renamed since the calendar file read `before` (null when its turn made the file),
+ * each once, soonest first. A repeating event counts once, by its first occurrence shown.
+ */
+export function changedSince(before: string | null, now: readonly CalendarEvent[]): CalendarEvent[] {
+  const was = eventsInFile(before ?? '');
+  const seen = new Set<string>();
+  const out: CalendarEvent[] = [];
+  for (const e of [...now].sort((a, b) => a.start.localeCompare(b.start))) {
+    if (seen.has(e.id)) continue;
+    seen.add(e.id);
+    const old = was.get(e.id);
+    const digits = e.start.replace(/\D/g, '');
+    if (!old || old.title !== e.title.trim() || (!e.repeats && old.start !== '' && old.start.slice(0, digits.length) !== digits)) out.push(e);
+  }
+  return out;
+}
