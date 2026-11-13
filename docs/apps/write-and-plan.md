@@ -93,7 +93,8 @@ Your calendars by day, week or month.
 - **Search** at the top of the sidebar finds events from a month back to a year ahead, by title, place or notes. Pick
   one to go to its day.
 - **The toolbar** holds Back, Today and Forward, and Day, Week and Month; the title says the week's number. When Mobius
-  is open beside a small window, Today's word, then the views give way; T, N, Q, D, W, M and the arrow keys still work.
+  is open beside a small window, Today's word, then the views give way; T, N, Q, D, W, M and the arrow keys still work. An hour is taller in the comfortable density, so a working day
+  shows whole, and shorter in the compact one.
 - **Events** are one quiet fill with their calendar's colour on the left edge. The all-day row shows two items a day;
   **+N more** shows the rest, and **Fewer** folds them away again.
 - **Open an event** with a click: it edits in a popover beside it. Changes are kept when you click elsewhere or press

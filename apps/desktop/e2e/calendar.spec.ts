@@ -36,6 +36,8 @@ const at = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number) as [number, number];
   return `(?:0?${h}:${pad(m)}|${((h + 11) % 12) + 1}:${pad(m)}\\s?${h < 12 ? 'AM' : 'PM'})`;
 };
+/** An hour's height on the grid, which follows the density. */
+const hourPx = async () => (await page().locator('.cal-grid').evaluate((g) => g.getBoundingClientRect().height)) / 24;
 /** From one time to another, as an event's name says it. */
 const span = (from: string, to: string) => `${at(from)}–${at(to)}`;
 
@@ -124,12 +126,13 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
   await expect(editor).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
 
-  // Dragged down an hour (48 pixels), the whole series moves, and Undo is offered.
+  // Dragged down an hour, the whole series moves, and Undo is offered.
+  const hour = await hourPx();
   const box = (await walk(span('10:00', '10:30')).boundingBox())!;
   await shell().mouse.move(box.x + box.width / 2, box.y + 8);
   await shell().mouse.down();
-  await shell().mouse.move(box.x + box.width / 2, box.y + 30, { steps: 4 });
-  await shell().mouse.move(box.x + box.width / 2, box.y + 56, { steps: 4 });
+  await shell().mouse.move(box.x + box.width / 2, box.y + 8 + hour / 2, { steps: 4 });
+  await shell().mouse.move(box.x + box.width / 2, box.y + 8 + hour, { steps: 4 });
   await shell().mouse.up();
   await expect(walk(span('11:00', '11:30'))).toBeVisible();
   await expect(page().getByRole('status').filter({ hasText: 'Moved “Site walk”' })).toBeVisible();
@@ -322,7 +325,7 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   expect(fs.readFileSync(file('Work'), 'utf8')).not.toContain('Budget review Q4');
 
   // Empty time has a menu too: a new event there, edited beside it.
-  await page().locator('.cal-column').first().click({ button: 'right', position: { x: 20, y: 14 * 48 + 10 } });
+  await page().locator('.cal-column').first().click({ button: 'right', position: { x: 20, y: 14 * (await hourPx()) + 10 } });
   await shell().getByRole('menu').getByRole('menuitem', { name: new RegExp(`^New event at ${at('14:00')}$`) }).click();
   const made = shell().getByRole('dialog', { name: 'New event' });
   await expect(made).toHaveAttribute('data-pop', 'true');

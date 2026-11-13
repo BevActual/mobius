@@ -16,7 +16,18 @@ import type { Start } from './SideNew';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, ViewSwitch } from './ui';
 
-const HOUR_PX = 48;
+/** An hour's height: 64 in the comfortable density (a working day shows whole), 48 in the compact one. */
+const hourPx = () => (document.documentElement.dataset.density === 'compact' ? 48 : 64);
+/** The hour's height, drawn again when the density changes in Settings › Appearance. */
+function useHourPx(): number {
+  const [px, setPx] = useState(hourPx);
+  useEffect(() => {
+    const watch = new MutationObserver(() => setPx(hourPx()));
+    watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-density'] });
+    return () => watch.disconnect();
+  }, []);
+  return px;
+}
 /** The hours' margin: wide enough for "10:20 AM" on the 12-hour clock. */
 const GUTTER = 60;
 /** How many events and tasks a month cell lists before "more". */
@@ -258,7 +269,8 @@ type Sweep = { day: number; column: HTMLElement; y: number; from: number; to: nu
 /** The box on screen of a stretch of time in a day's column, for an editor or menu to open beside. */
 const slotRect = (column: HTMLElement, minutes: number, length: number) => {
   const r = column.getBoundingClientRect();
-  return new DOMRect(r.left, r.top + minutes / 60 * HOUR_PX, r.width, length / 60 * HOUR_PX);
+  const hour = hourPx();
+  return new DOMRect(r.left, r.top + minutes / 60 * hour, r.width, length / 60 * hour);
 };
 /** Minutes into its day of a local time; an end on the next day (midnight) counts as the end of this one. */
 const minutesIn = (text: string, from?: string) => {
@@ -277,6 +289,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
   onEmpty: () => void;
 }) {
   const all = onScreen(calendar);
+  const HOUR_PX = useHourPx();
   const scroller = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => new Date());
@@ -422,7 +435,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
               aria-label={formatWith(d, { weekday: 'long', day: 'numeric', month: 'long' })}
               data-today={sameDay(d, now) || undefined}
               data-weekend={[0, 6].includes(d.getDay()) || undefined}
-              style={{ backgroundSize: `100% ${HOUR_PX}px` }}
+              style={{ ['--hour' as string]: `${HOUR_PX}px` }}
               onPointerDown={(e) => {
                 if (e.button !== 0 || e.target !== e.currentTarget) return;
                 onEmpty();

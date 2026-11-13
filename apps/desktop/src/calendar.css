@@ -44,7 +44,7 @@
 .calendar-page .cal-day-head[data-today] b, .calendar-page .cal-day-head[data-today]:not(:disabled):hover b { background: var(--ink); color: var(--on-ink); border-radius: var(--radius-control); font-weight: 600; }
 
 /* The grid: hour lines, a fainter half-hour line, weekends a shade back, today a breath of accent. */
-.calendar-page .cal-column { background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px); background-position: 0 0, 0 calc(48px / 2); background-size: 100% 48px; touch-action: none; }
+.calendar-page .cal-column { background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px); background-position: 0 0, 0 calc(var(--hour, 64px) / 2); background-size: 100% var(--hour, 64px); touch-action: none; }
 .calendar-page .cal-column[data-weekend], .calendar-page .cal-month-cell[data-weekend]:not([data-outside]) { background-color: color-mix(in srgb, var(--panel) 70%, var(--bg)); }
 .calendar-page .cal-grid[data-dragging] { cursor: grabbing; user-select: none; }
 .calendar-page .cal-hour { font-size: 11px; }
