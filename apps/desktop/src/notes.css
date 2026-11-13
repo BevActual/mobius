@@ -88,7 +88,7 @@
 .note-editor .note-page ul[data-type="taskList"] > li > label input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; }
 .note-editor .note-page ul[data-type="taskList"] > li > div > p { transition: color var(--dur-med) var(--ease); }
 
-/* The selection bar floats as glass above the page. */
+/* The selection bar floats above the page. */
 .note-editor .selection-bar { border: 0.5px solid var(--hairline); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08); }
 
 /* Tags are soft capsules; a link to a note reads as a link. */
