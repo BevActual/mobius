@@ -10,6 +10,7 @@ import { startKeepingEarlyKeys } from './early-keys';
 import { preloadPreferences } from './usePreferences';
 // Inter, bundled so every platform draws the same letters; its optical sizes give the display cut at large sizes.
 import '@fontsource-variable/inter/opsz.css';
+import '@fontsource-variable/jetbrains-mono/wght.css';
 import './tokens.css';
 import './styles.css';
 

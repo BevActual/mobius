@@ -16,6 +16,10 @@ describe('what each app suggests', () => {
     expect(none.map((s) => s.attach)).toEqual([undefined]);
     expect(isStarter(none[0]!)).toBe(true);
   });
+  it('suggests nothing from the app underneath while Settings is open', () => {
+    expect(suggestionsFor({ app: 'mail', hasPage: false, note: null }).length).toBeGreaterThan(0);
+    expect(suggestionsFor({ app: 'mail', hasPage: false, note: null, settings: true })).toEqual([]);
+  });
   it('never asks the agent app to attach anything', () => {
     expect(suggestionsFor({ app: 'agent', hasPage: true, note: null }).every((s) => s.attach === undefined)).toBe(true);
   });

@@ -1,20 +1,30 @@
-/* Sheets: a Numbers-like grid. Quiet hairlines, a header row that reads as one, the selection as a tinted block with an
-   accent edge, a fill handle, and the formula bar as a field in the toolbar. Light and dark come from the theme tokens. */
+/* Sheets: a Numbers-like grid. Quiet hairlines, a header row that reads as one, the selection as a light grey block with an
+   ink edge, a fill handle, and the formula bar as a slim row on the grid. Light and dark come from the theme tokens. */
 
 .stage .sheet-page { background: var(--bg); }
 
-/* ---------- Toolbar ---------- */
-.sheet-page .sheet-toolbar { gap: 8px; padding: 8px var(--sp-3); border-bottom: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--bg)); }
+/* ---------- Toolbar and formula row ---------- */
+/* Undo, quick formula, number format, Table and Sort sit in the shell toolbar like Mail's tools. The cell reference and
+   the formula field are one slim row fastened to the grid, as in Numbers and Excel. */
+.sheet-tools { display: flex; align-items: center; gap: var(--sp-2); }
+.sheet-tools-group { display: inline-flex; align-items: center; gap: 2px; }
+.sheet-tools-group + .sheet-tools-group { padding-left: var(--sp-2); border-left: 1px solid var(--line); }
+.sheet-tools .strip-btn { border-radius: var(--radius-control); color: var(--body, var(--ink)); }
+.sheet-tools .strip-btn:hover:not(:disabled), .sheet-tools .strip-btn[aria-expanded="true"] { background: var(--soft); color: var(--ink); }
+.sheet-tools .strip-btn:disabled { opacity: 0.35; }
+.sheet-tools .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.sheet-formula-row { flex-shrink: 0; display: flex; align-items: stretch; height: 30px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.sheet-page .sheet-address { flex: none; min-width: 72px; height: auto; display: inline-grid; place-items: center start; padding: 0 10px; border-radius: 0; border-right: 1px solid var(--line); background: transparent; box-shadow: none; color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium, 500); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sheet-fx { flex: none; align-self: center; padding: 0 4px 0 10px; color: var(--muted); font-style: italic; font-family: Georgia, "Times New Roman", serif; font-size: 14px; }
+.sheet-page .sheet-formula { flex: 1; min-width: 120px; height: auto; padding: 0 10px 0 4px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink); font-family: var(--font-mono); font-size: 12.5px; }
+.sheet-page .sheet-formula:focus { outline: none; border: 0; background: transparent; box-shadow: inset 0 -2px 0 var(--ink); }
+/* The find bar's small buttons. */
 .sheet-tool-group { display: inline-flex; align-items: center; gap: 2px; flex: none; }
 .sheet-tool { height: 28px; min-width: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); cursor: default; }
 .sheet-tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.sheet-tool:hover:not(:disabled), .sheet-tool[aria-expanded="true"] { background: var(--soft); }
+.sheet-tool:hover:not(:disabled) { background: var(--soft); }
 .sheet-tool:disabled { opacity: 0.35; }
 .sheet-tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.sheet-page .sheet-address { min-width: 64px; height: 28px; padding: 0 10px; border-radius: 7px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--line); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-semibold, 600); white-space: nowrap; }
-.sheet-fx { flex: none; color: var(--muted); font-style: italic; font-family: Georgia, "Times New Roman", serif; font-size: 14px; margin: 0 -2px 0 2px; }
-.sheet-page .sheet-formula { height: 28px; border: 0; border-radius: 7px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--line); font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
-.sheet-page .sheet-formula:focus { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 
 /* ---------- Grid ---------- */
 .sheet-page .sheet-scroll { background: var(--bg); scroll-padding: 22px 0 0 44px; }
@@ -24,46 +34,47 @@
 .sheet-page .sheet-table thead th { min-width: 0; height: 22px; position: sticky; top: 0; z-index: 3; cursor: default; }
 .sheet-page .sheet-table thead th:first-child { z-index: 4; }
 .sheet-page .sheet-table tbody th { z-index: 2; cursor: default; }
-.sheet-page .sheet-table th[data-on] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--accent); font-weight: 600; }
+.sheet-page .sheet-table th[data-on] { background: color-mix(in srgb, var(--ink) 9%, var(--bg)); color: var(--ink); font-weight: 600; }
 .sheet-corner { cursor: default; }
 .sheet-col-more { position: absolute; top: 3px; right: 6px; width: 16px; height: 16px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; opacity: 0; cursor: default; transition: opacity var(--dur-fast) var(--ease); }
 .sheet-col-more svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .sheet-page .sheet-table thead th:hover .sheet-col-more, .sheet-col-more:focus-visible, .sheet-page .sheet-table thead th[data-menu] .sheet-col-more { opacity: 1; }
 .sheet-col-more:hover, .sheet-page .sheet-table thead th[data-menu] .sheet-col-more { background: color-mix(in srgb, currentColor 16%, transparent); }
 .sheet-col-resize { position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
-.sheet-col-resize:hover { background: linear-gradient(to right, transparent 3px, var(--accent) 3px, var(--accent) 4px, transparent 4px); }
+.sheet-col-resize:hover { background: linear-gradient(to right, transparent 3px, var(--ink) 3px, var(--ink) 4px, transparent 4px); }
 .sheet-page .sheet-table td { max-width: none; height: 24px; padding: 0 7px; border-right: 0.5px solid color-mix(in srgb, var(--line) 75%, transparent); border-bottom: 0.5px solid color-mix(in srgb, var(--line) 75%, transparent); outline: none; overflow: visible; text-overflow: clip; }
 .sheet-page .sheet-table td { overflow: hidden; text-overflow: ellipsis; }
 .sheet-page .sheet-table td[aria-selected="true"] { outline: none; }
 /* Picking cells selects cells, not the words in them: dragging or Shift-clicking never paints page text. */
 .sheet-page .sheet-table td { user-select: none; -webkit-user-select: none; }
 .sheet-page .sheet-cell-input { user-select: text; -webkit-user-select: text; }
-.sheet-page .sheet-table td[data-in] { background: color-mix(in srgb, var(--accent) 11%, var(--bg)); }
+.sheet-page .sheet-table td[data-in] { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); }
 .sheet-page .sheet-table td[data-focus] { z-index: 1; }
 .sheet-page .sheet-table td[data-formula]:not([data-error]) { color: var(--ink); }
-.sheet-page .sheet-table td[data-changed] { box-shadow: none; }
+/* What Mobius changed in its last turn: the shared dashed indigo edge, as in Docs and Tasks, until you keep it. */
+.sheet-page .sheet-table td[data-changed] { outline: 1px dashed var(--mobius); outline-offset: -2px; }
 .sheet-page .sheet-table td[data-ref="0"] { background: color-mix(in srgb, #0a84ff 10%, var(--bg)); }
 .sheet-page .sheet-table td[data-ref="1"] { background: color-mix(in srgb, #ff9f0a 12%, var(--bg)); }
 .sheet-page .sheet-table td[data-ref="2"] { background: color-mix(in srgb, #30d158 12%, var(--bg)); }
 .sheet-page .sheet-table td[data-ref="3"] { background: color-mix(in srgb, #bf5af2 11%, var(--bg)); }
 .sheet-page .sheet-table td[data-ref="4"] { background: color-mix(in srgb, #ff375f 10%, var(--bg)); }
 .sheet-page .sheet-table td[data-ref="5"] { background: color-mix(in srgb, #64d2ff 14%, var(--bg)); }
-.sheet-page .sheet-cell-input { right: auto; max-width: 640px; outline: none; padding: 0 7px; box-shadow: inset 0 0 0 2px var(--accent), 0 2px 10px rgba(0, 0, 0, 0.12); border-radius: 1px; font-family: inherit; }
+.sheet-page .sheet-cell-input { right: auto; max-width: 640px; outline: none; padding: 0 7px; box-shadow: inset 0 0 0 2px var(--ink), 0 2px 10px rgba(0, 0, 0, 0.12); border-radius: 1px; font-family: inherit; }
 
 /* The fill handle: a small dot on the selection's corner, as in Numbers. */
-.sheet-fill { position: absolute; right: -4px; bottom: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1.5px var(--bg); cursor: crosshair; z-index: 2; }
+.sheet-fill { position: absolute; right: -4px; bottom: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 1.5px var(--bg); cursor: crosshair; z-index: 2; }
 .sheet-page .sheet-table td:has(.sheet-fill), .sheet-page .sheet-table td:has(.sheet-cell-input) { overflow: visible; }
 .sheet-page .sheet-table td:has(.sheet-cell-input) { z-index: 4; }
 
 /* A header row: bold, tinted, and kept in view while the rows scroll under it. */
 .sheet-page .sheet-table .sheet-header-row td, .sheet-page .sheet-table .sheet-header-row th { position: sticky; top: 22px; z-index: 2; }
 .sheet-page .sheet-header-row td { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); font-weight: 600; border-bottom: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); }
-.sheet-page .sheet-header-row td[data-in] { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); }
+.sheet-page .sheet-header-row td[data-in] { background: color-mix(in srgb, var(--ink) 7%, var(--bg)); }
 .sheet-page .sheet-table .sheet-header-row th { z-index: 3; }
 
 /* A total row: bold, with a rule above it, as Numbers sets a footer row apart. */
-.sheet-page .sheet-footer-row td { font-weight: 600; border-top: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); background: color-mix(in srgb, var(--ink) 2.5%, var(--bg)); }
-.sheet-page .sheet-footer-row td[data-in] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
+.sheet-page .sheet-footer-row td { font-weight: 600; border-top: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); }
+.sheet-page .sheet-footer-row td[data-in] { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); }
 
 /* ---------- Find ---------- */
 .sheet-find { display: flex; align-items: center; gap: 8px; padding: 6px var(--sp-3); border-bottom: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--bg)); }
@@ -81,19 +92,20 @@
 .sheet-suggest { position: fixed; z-index: 902; width: 300px; max-height: 260px; overflow: auto; padding: 4px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 28px rgba(0, 0, 0, 0.16); }
 .sheet-suggest ul { margin: 0; padding: 0; list-style: none; }
 .sheet-suggest li { display: grid; gap: 1px; padding: 5px 8px; border-radius: 6px; cursor: default; }
-.sheet-suggest li b { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; font-weight: 600; }
+.sheet-suggest li b { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
 .sheet-suggest li span { font-size: 11.5px; color: var(--muted); }
 .sheet-suggest li[aria-selected="true"] { background: var(--accent); color: var(--on-accent, #fff); }
 .sheet-suggest li[aria-selected="true"] span { color: inherit; opacity: 0.85; }
-.sheet-hint { margin: 0; padding: 4px 6px; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; }
+.sheet-hint { margin: 0; padding: 4px 6px; font-family: var(--font-mono); font-size: 12px; }
 .sheet-hint span { display: block; margin-top: 2px; font-family: -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; font-size: 11.5px; color: var(--muted); }
 
 /* ---------- Sheet tabs and the status line ---------- */
-.sheet-foot { flex-shrink: 0; display: flex; align-items: center; gap: var(--sp-3); min-height: 36px; padding: 4px var(--sp-3); border-top: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2.5%, var(--bg)); container-type: inline-size; }
+.sheet-foot { flex-shrink: 0; display: flex; align-items: center; gap: var(--sp-3); min-height: 36px; padding: 4px var(--sp-3); border-top: 1px solid var(--line); background: var(--bg); container-type: inline-size; }
 .sheet-page .sheet-tabs { flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 0; border: 0; background: transparent; gap: 2px; }
 .sheet-page .sheet-tab { height: 26px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: var(--fs-sm); white-space: nowrap; }
 .sheet-page .sheet-tab:hover { background: var(--soft); color: var(--ink); }
-.sheet-page .sheet-tab[aria-selected="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 0.5px var(--line), 0 1px 2px rgba(0, 0, 0, 0.08); font-weight: 600; }
+.sheet-page .sheet-tab[aria-selected="true"] { background: transparent; color: var(--ink); box-shadow: none; font-weight: 600; }
+.sheet-page .sheet-tab[aria-selected="true"]:hover { background: var(--soft); }
 .sheet-tab-add { width: 26px; height: 26px; flex: none; display: inline-grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--muted); }
 .sheet-tab-add:hover { background: var(--soft); color: var(--ink); }
 .sheet-tab-add svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
@@ -110,6 +122,6 @@
 .sheet-empty-icon svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 
 @media print {
-  .sheet-toolbar, .sheet-find, .sheet-foot, .sheet-fill { display: none; }
+  .sheet-formula-row, .sheet-find, .sheet-foot, .sheet-fill { display: none; }
   .sheet-page .sheet-scroll { overflow: visible; }
 }

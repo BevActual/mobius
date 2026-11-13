@@ -47,6 +47,11 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   // A known size, so the toolbar has room for Calendar's controls beside Mobius whatever the runner's screen is.
   await resizeWindow(mobius.app, 1440, 900);
+  await openCalendar();
+}
+
+/** Goes to Calendar, as a person does from anywhere: Ctrl+K and its name. */
+async function openCalendar(): Promise<void> {
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Calendar');
   await shell().keyboard.press('Enter');
@@ -108,7 +113,8 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
   await start();
   await tools().getByRole('radio', { name: 'Day' }).click();
   const tomorrow = day(new Date(Date.now() + 86_400_000));
-  // Q opens a field under the toolbar to say the event in words.
+  // Q opens a field under the toolbar to say the event in words (from the page, not from inside the view switch).
+  await shell().evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await shell().keyboard.press('q');
   const quick = tools().getByRole('textbox', { name: 'Quick add an event' });
   await quick.fill('Site walk tomorrow 10am for 30m');
@@ -218,8 +224,7 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await dialog.getByRole('button', { name: 'Subscribe' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(shell().getByRole('list', { name: 'Calendar accounts' })).toContainText('Holidays');
-  await shell().keyboard.press('Escape');
-  await expect(page()).toBeVisible();
+  await openCalendar();
 
   const group = shell().getByRole('region', { name: 'Holidays' });
   await expect(group.getByRole('button', { name: 'Holidays', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -245,8 +250,7 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await shell().getByRole('button', { name: 'Remove Holidays' }).click();
   await shell().getByRole('list', { name: 'Calendar accounts' }).getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(shell().getByRole('list', { name: 'Calendar accounts' })).toHaveCount(0);
-  await shell().keyboard.press('Escape');
-  await expect(page()).toBeVisible();
+  await openCalendar();
   await expect(event).toHaveCount(0);
 });
 
