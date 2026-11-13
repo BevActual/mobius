@@ -1536,7 +1536,8 @@ export function App() {
         />
       }
       toolbar={{
-        wideMiddle: inBrowser,
+        // Settings: over the Browser, Settings shows its page title, not the hidden address bar.
+        wideMiddle: inBrowser && !settingsOpen,
         lead: <>
           {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={settingsOpen ? 'Show sections' : inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : inSearch ? 'Show scopes' : 'Show tabs'} title={settingsOpen ? 'Show or hide the sections' : inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>

@@ -7,6 +7,7 @@ import { SchedulesSection } from './Schedules';
 import { PageBoundary } from './PageBoundary';
 import { UsageSection } from './Usage';
 import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection, VoiceModelRows } from './Voice';
+import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection } from '../ui';
 import '../settings.css';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
@@ -80,27 +81,24 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   const hits = useMemo(() => searchSettings(query), [query]);
   const View = VIEWS[section];
   useEffect(() => { onTitle?.(query.trim() ? 'Search' : current?.label ?? 'Settings'); }, [onTitle, query, current?.label]);
+  // The app sidebar (zone 2), from the shared pieces: search, then the sections under their headings, as in System Settings.
   const nav = (
-    <nav className="settings-nav" aria-label="Settings sections">
-      {/* As in System Settings: search at the top of the sidebar, then the sections under their headings. */}
-      <input type="search" role="searchbox" className="side-search settings-search" aria-label="Search settings" placeholder="Search" value={query} onChange={(event) => setQuery(event.target.value)} />
-      {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (
-        <div key={group} className="settings-nav-group" role="group" aria-label={group}>
-          {group && <h2 className="settings-nav-heading">{group}</h2>}
-          {SETTINGS.filter((item) => (item.group ?? '') === group).map((item) => (
-            <button key={item.id} type="button" className="settings-nav-item" data-section={item.id} aria-current={item.id === section && !query.trim() ? 'page' : undefined} onClick={() => openSection(item.id)}>
-              {/* A coloured glyph per section, as in System Settings and the Settings board. */}
-              <SectionIcon id={item.id} className="settings-nav-icon" />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      ))}
-    </nav>
+    <AppSidebar label="Settings sidebar">
+      <SidebarSearch label="Search settings" value={query} onChange={setQuery} />
+      <nav className="settings-nav" aria-label="Settings sections">
+        {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (
+          <SidebarSection key={group} title={group}>
+            {SETTINGS.filter((item) => (item.group ?? '') === group).map((item) => (
+              <SidebarRow key={item.id} icon={<SectionIcon id={item.id} className="settings-nav-icon" />} label={item.label} current={item.id === section && !query.trim()} onSelect={() => openSection(item.id)} />
+            ))}
+          </SidebarSection>
+        ))}
+      </nav>
+    </AppSidebar>
   );
 
   useEffect(() => {
-    (sidebar ?? root.current)?.querySelector<HTMLElement>('[role="searchbox"], input[type="search"]')?.focus();
+    (sidebar ?? root.current)?.querySelector<HTMLElement>('input[type="search"]')?.focus();
   }, [sidebar]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

@@ -58,13 +58,9 @@ Lists of things to do, as in Apple's Reminders.
   list or delete it.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
   the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it.
-<<<<<<< HEAD
 - **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back. Completed
   tasks fold away under the list; **Clear N completed** in the toolbar removes them.
 - **Deleting** a task or a list shows **Undo** at the bottom of the page (Ctrl+Z works too).
-=======
-- **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back.
->>>>>>> origin/app/tasks-2
 - **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
   picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
   format. Drag tasks to reorder them or move them between lists.
