@@ -28,7 +28,7 @@
 .kn-head h1 { margin: 0; font-size: var(--fs-2xl); font-weight: var(--fw-semibold); letter-spacing: -0.01em; }
 .kn-group { display: grid; gap: 6px; }
 .kn-group-head { display: flex; align-items: baseline; gap: var(--sp-2); margin: 0; padding: 0 2px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); letter-spacing: 0.02em; }
-.kn-badge { min-width: 18px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.kn-badge { color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-regular, 400); font-variant-numeric: tabular-nums; }
 
 /* Plain rows with a hairline under each, as Mail's list is: no grey cards. */
 .wiki-page .wiki-lines { gap: 0; }
