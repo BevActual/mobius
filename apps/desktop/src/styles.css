@@ -2675,6 +2675,25 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .btn.primary, .btn.mobius { box-shadow: none; }
 .dock.right:not([data-floating]) .chat .composer { border-radius: var(--radius-panel); margin: 0 var(--sp-3) var(--sp-3); background: var(--paper); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
 
+/* Timeless: the frame draws line icons, never coloured tiles. Colour is for what people make (a list's colour shows
+   as its icon's line, not a filled disc); an app is known by its shape. These win over each app's own sheet. */
+:is(.launcher-icon svg, .hub-icon, .access-app svg, .search-scope-icon, .search-icon, .files-icon[data-app],
+  .sidebar-app-show svg, .rail-pin-open svg, .settings-nav-icon, .review-filter svg, .review-file > svg,
+  .empty-state-icon, .ability-icon, .act-row-icon[data-tile], .act-tile, .proj-tile, .view-tile-icon, .desk svg[style],
+  .settings-hero-icon) {
+  background: none !important;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  filter: none !important;
+}
+.files-icon[data-glyph="folder"] { color: var(--muted) !important; fill: none !important; }
+.files-icon[data-glyph="place"], .files-icon[data-glyph="made"] { color: var(--muted) !important; }
+.list-icon { background: none !important; }
+.tasks-nav .list-icon svg { fill: var(--lc) !important; stroke: var(--lc) !important; }
+.hub-icon { width: 32px; height: 32px; }
+.hub-icon svg { width: 22px; height: 22px; }
 /* Timeless Mobius panel: the head is its name and close; the name opens every chat. Empty, it shows a few quiet
    things to ask, left-aligned under the context line, with no logo or greeting. */
 .chat-title-btn { padding: 0 6px; margin-left: -6px; height: 28px; border: 0; border-radius: var(--radius-control); background: none; color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
