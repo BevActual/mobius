@@ -380,7 +380,7 @@ test('design review: the title bar names the app, nothing claims a page it canno
   await open('Tasks');
   const filter = shell().getByRole('button', { name: /From Mobius/ });
   await expect(filter).toContainText('1');
-  const lists = shell().locator('.dock.left, .rail');
+  const lists = shell().locator('.dock.left');
   await expect(lists.getByRole('button', { name: /^Home/ }).first()).toBeVisible();
   await filter.click();
   await expect(filter).toHaveAttribute('aria-pressed', 'true');
