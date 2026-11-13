@@ -271,7 +271,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
       // Kept as the person's draft: it waits in Drafts.
       note('after Keep all the reply waited in Drafts');
       await shell().getByRole('button', { name: /^Drafts/ }).first().click();
-      await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
+      await page.getByRole('listbox', { name: 'Drafts' }).getByRole('option').first().click();
     } else note('after Keep all the reply was open, ready to send');
     await expect(form.getByRole('textbox', { name: 'Message' })).toHaveValue(/parts list/);
     await picture(`workflow-${report.test}-${pad(report.steps.length + 1)}-reply-before-send`);
