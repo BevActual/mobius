@@ -346,13 +346,15 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
   const conversations = everything.filter((c) => !archived.includes(c.id));
   const putAway = everything.filter((c) => archived.includes(c.id));
   const [showArchived, setShowArchived] = useState(false);
+  const searchable = mode !== 'bots' && everything.length > 0;
   const sessionsOf = (id: string) => conversations.filter((c) => botOfConversation(c.id, known) === id);
   return (
     <AppSidebar label="Agent sidebar">
       {/* Agents and Activity open from the rail; the sidebar shows the list of the one you are in. */}
-      {(pin || (mode !== 'bots' && everything.length > 0)) && (
+      {/* The pin sits beside the search; with no search it goes on the first section's heading, as in the other apps. */}
+      {(searchable || (mode === 'activity' && pin)) && (
         <div className="agent-side-top">
-          {mode !== 'bots' && everything.length > 0 && <SidebarSearch label="Search sessions" placeholder="Search sessions" value={query} onChange={setQuery} />}
+          {searchable && <SidebarSearch label="Search sessions" placeholder="Search sessions" value={query} onChange={setQuery} />}
           {pin}
         </div>
       )}
@@ -363,7 +365,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
           {(adding || fromConversation) && (
             <BotForm key={fromConversation ? `from:${fromConversation.name}` : 'new'} initial={fromConversation ?? { name: '', instructions: '', model: '' }} submitLabel="Create" onCancel={() => { setAdding(false); setFromConversation(null); }} onSubmit={async (draft) => { const r = await onCreateBot(draft); if (!r.ok) return r.error; setAdding(false); setFromConversation(null); onNewWithBot(r.bot.id); onMode('sessions'); return null; }} />
           )}
-          <SidebarSection title="Agents" action={<button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => setAdding(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>}>
+          <SidebarSection title="Agents" action={<>{pin}<button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => setAdding(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button></>}>
             {bots.map((bot, index) => (
               <BotRow key={bot.id} bot={bot} first={index <= 1} last={index === bots.length - 1} onMove={onMoveBot} sessions={sessionsOf(bot.id).length} current={bot.id === activeBot} onOpen={() => { onOpenBot(bot.id); onMode('sessions'); }} onNew={() => { onNewWithBot(bot.id); onMode('sessions'); }} onUpdate={onUpdateBot} onRemove={onRemoveBot} />
             ))}
@@ -371,7 +373,9 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
           <p className="srow-empty side-empty">An agent is Mobius with its own instructions, and optionally its own model. Each keeps its own sessions.</p>
         </>
       ) : everything.length === 0 ? (
-        <p className="srow-empty side-empty">Nothing saved yet. Conversations appear here once you send a message.</p>
+        <SidebarSection title="Conversations" action={pin}>
+          <li className="srow-empty side-empty">Nothing saved yet. Conversations appear here once you send a message.</li>
+        </SidebarSection>
       ) : (
         <>
           {bots.map((bot) => {
