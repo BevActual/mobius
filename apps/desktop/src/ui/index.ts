@@ -6,3 +6,4 @@
 import './ui.css';
 
 export { Menu, PointMenu, type MenuEntry } from './Menu';
+export { UndoToast } from './UndoToast';

@@ -673,7 +673,6 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                 <div className="empty">
                   <MobiusMark size={44} turning={!configured} className="empty-mark" />
                   <h2 className="greeting">{configured ? 'What can I help with?' : coreReady ? 'Connecting…' : 'Starting up…'}</h2>
-                  {configured && <p className="greeting-note">{modeOf(preferences.value.approvalMode).greeting} You can change that below.</p>}
                   {configured && <div ref={setStarterSlot} className="empty-starters" />}
                 </div>
               )
