@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from 'react';
-import { dayLabel, timeLabel } from '../dates';
+import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select,
-  Slider, StatusLetter, StatusText, Switch, TextField, CONTENT_COLORS,
+  Slider, StatusLetter, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
 } from '../ui';
 
 /**
@@ -19,6 +19,71 @@ const SHARE = 'M12 3v12M7 8l5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5';
 const LIST = 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01';
 const BOARD = 'M4 4h6v16H4zM14 4h6v10h-6z';
 const CAL = 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4';
+
+const when = (d: number, h?: number, m = 0) => (h === undefined ? dayLabel(new Date(2026, 10, d)) : timeLabel(new Date(2026, 10, d, h, m)));
+const day = (d: number) => weekdayLabel(new Date(2026, 10, d));
+
+/** Sample objects, in the shapes apps pass. Dates come through dates.ts, as in the apps. */
+const THINGS: { kind: string; rows: Thing[] }[] = [
+  { kind: 'Task', rows: [
+    { kind: 'task', title: 'Book the sled for Friday', note: 'Dana has the yard contact', list: { name: 'P2 build', color: 'teal' }, steps: { done: 1, total: 2 }, due: day(15) },
+    { kind: 'task', title: 'Pay the Veltro deposit', list: { name: 'P2 build', color: 'teal' }, flagged: true, due: 'Yesterday', overdue: true, from: 'Mail · Veltro Cells' },
+    { kind: 'task', title: 'Bring the torque wrench', done: true, list: { name: 'Workshop', color: 'amber' } },
+  ] },
+  { kind: 'Event', rows: [
+    { kind: 'event', title: 'Packs arrive', color: 'violet', place: 'Dock 2', day: day(19), time: when(19, 8, 40), range: `${when(19, 8, 40)} to ${when(19, 9, 30)}` },
+    { kind: 'event', title: 'Design review', color: 'blue', place: 'Room 4', people: '5 people', day: day(19), time: when(19, 13), range: `${when(19, 13)} to ${when(19, 14, 30)}` },
+    { kind: 'event', title: 'Prep the build week', color: 'violet', day: day(20), time: when(20, 14), byMobius: true },
+  ] },
+  { kind: 'Email', rows: [
+    { kind: 'mail', from: 'Priya Nair', subject: 'P2 build dates', preview: 'Can you confirm the build week and send the plan to the team?', unread: true, when: when(13, 21, 32), whenLong: `today ${when(13, 21, 32)}` },
+    { kind: 'mail', from: 'Veltro Cells', subject: 'Quote: 8 × 60 kWh packs', preview: 'Six weeks from order, with the deposit up front', when: day(12) },
+    { kind: 'mail', from: 'Sam Okafor', subject: 'Motor call', preview: 'Axion can do Wednesday afternoon', when: day(12) },
+  ] },
+  { kind: 'File', rows: [
+    { kind: 'file', name: 'Build brief', type: 'doc', app: 'Docs', folder: 'P2 build', extra: '179 words', changed: '1 hr ago' },
+    { kind: 'file', name: 'P2 budget', type: 'sheet', app: 'Sheets', folder: 'P2 build', extra: '2 sheets', changed: '3 hr ago', byMobius: true, change: '2 cells in Sheet 1' },
+    { kind: 'file', name: 'Alfama at dusk.jpg', type: 'image', app: 'Photo', folder: 'Lisbon', changed: when(3) },
+  ] },
+  { kind: 'Person', rows: [
+    { kind: 'person', name: 'Priya Nair', role: 'Programme lead · Northway Motors', address: 'priya@northway.example', count: '3 emails', knows: 'Reads on her phone, keep mail short' },
+    { kind: 'person', name: 'Sam Okafor', role: 'Owns the motor', address: 'sam@northway.example', count: '1 event' },
+    { kind: 'person', name: 'Veltro Cells', address: 'sales@veltro.example', count: 'Supplier' },
+  ] },
+];
+
+function Objects() {
+  const [done, setDone] = useState<Record<string, boolean>>({});
+  const tick = (t: Thing): Thing => (t.kind === 'task' && done[t.title] !== undefined ? { ...t, done: done[t.title] } : t);
+  const toggle = (t: Thing) => (t.kind === 'task' ? () => setDone({ ...done, [t.title]: !(done[t.title] ?? t.done) }) : undefined);
+  return (
+    <div className="sheet-objects">
+      {THINGS.map(({ kind, rows }) => (
+        <div key={kind} className="sheet-object">
+          <h3>{kind}</h3>
+          <ul role="list" className="ui-list sheet-list">{rows.map((t, i) => <ObjectRow key={i} thing={tick(t)} current={i === 1} onOpen={() => {}} onToggle={toggle(t)} />)}</ul>
+          <ul role="list" className="ui-list sheet-list">{rows.slice(0, 2).map((t, i) => <ObjectRow key={i} lines={2} thing={tick(t)} current={i === 1} onOpen={() => {}} onToggle={toggle(t)} />)}</ul>
+          <ObjectCard thing={rows.find((r) => r.byMobius) ?? rows[kind === 'Person' ? 0 : 1]!} onOpen={() => {}} />
+          <p className="sheet-chips">In text, {rows.slice(0, 2).map((t, i) => <span key={i}><ObjectChip thing={tick(t)} onOpen={() => {}} />{i === 0 ? ' and ' : ''}</span>)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Pads() {
+  const start = { x: 0.38, y: 0.42 };
+  const [feel, setFeel] = useState<PadPoint>(start);
+  const [moved, setMoved] = useState<PadPoint>({ x: 0.71, y: 0.73 });
+  const axes = { x: { name: 'Bright', ends: ['Dark', 'Bright'] as const }, y: { name: 'Busy', ends: ['Calm', 'Busy'] as const } };
+  return (
+    <div className="sheet-grid sheet-pads">
+      <div className="sheet-col"><span className="sheet-note">At rest (drag, click, arrows, Shift+arrows, Home)</span><XYPad label="Feel" {...axes} value={feel} start={start} onChange={setFeel} /></div>
+      <div className="sheet-col"><span className="sheet-note">Moved from its start</span><XYPad label="Feel" {...axes} value={moved} start={start} onChange={setMoved} /></div>
+      <div className="sheet-col"><span className="sheet-note">Disabled</span><XYPad label="Feel" {...axes} value={start} onChange={() => {}} disabled hideReadout /></div>
+    </div>
+  );
+}
 
 function Card({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) {
   return <section className="sheet-card" data-wide={wide || undefined}><h2>{title}</h2>{children}</section>;
@@ -161,6 +226,14 @@ export function Sheet() {
             <StatusText>Key saved</StatusText>
             <StatusText problem>Couldn’t reach the server. Check the address and try again.</StatusText>
           </div>
+        </Card>
+
+        <Card title="Shared objects: one-line row, two-line row, card, chip" wide>
+          <Objects />
+        </Card>
+
+        <Card title="Two-axis pad" wide>
+          <Pads />
         </Card>
 
         <Card title="List rows" wide>
