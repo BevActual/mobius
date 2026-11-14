@@ -114,8 +114,9 @@ test('what the last turn changed can be reviewed and undone', async () => {
   expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(true);
   const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
   await expect(strip).toContainText('1 change in Notes');
-  // Listed from the start, each change a link to it.
-  await expect(strip.getByRole('button', { name: 'Work / Ideas', exact: true })).toBeVisible();
+  // Listed from the start, a row per app saying what changed, with Show to go to it.
+  await expect(strip.getByRole('listitem').filter({ hasText: 'Notes' })).toContainText('1 page');
+  await expect(strip.getByRole('button', { name: 'Show in Notes' })).toBeVisible();
   await strip.getByRole('button', { name: 'Discard' }).click();
   await expect(shell().getByText('Put back as it was before that turn.')).toBeVisible();
   expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(false);

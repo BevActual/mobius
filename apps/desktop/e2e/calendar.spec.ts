@@ -107,6 +107,15 @@ test('a calendar file from another app shows in the week, and events are added, 
   await expect(workRow).toHaveAttribute('aria-pressed', 'true');
   await tools().getByRole('radio', { name: 'Month' }).click();
   await expect(page().locator('.cal-month-cell[data-today]').getByRole('button', { name: /^Team standup/ })).toBeVisible();
+
+  // Year view shows the twelve months; today says what it holds, and pressing it opens the day.
+  await tools().getByRole('radio', { name: 'Year' }).click();
+  await expect(page().locator('.cal-year').getByRole('listitem')).toHaveCount(12);
+  const todayInYear = page().locator('.cal-year-day[data-today]');
+  await expect(todayInYear).toHaveAttribute('aria-label', /\d+ events?/);
+  await todayInYear.click();
+  await expect(tools().getByRole('radio', { name: 'Day' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page().getByRole('button', { name: /^Team standup/ })).toBeVisible();
 });
 
 test('an event typed in words is set to repeat, then dragged an hour later, and every time it happens moves', async () => {
