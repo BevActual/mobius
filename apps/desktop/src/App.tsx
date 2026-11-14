@@ -1483,7 +1483,8 @@ export function App() {
             activeConversation={conversation.id}
             onNewConversation={() => conversation.newConversation()}
             onSelectConversation={conversation.select}
-            onOpenSettings={openSettings}
+            onOpenSettings={(section) => (section ? openSettingsAt(section) : openSettings())}
+            onOpenAbilities={() => { closeSettings(); openApp('skills'); }}
             onRetry={conversation.retry}
             onEdit={conversation.edit}
             onDetails={conversation.toolDetails}
@@ -1527,7 +1528,8 @@ export function App() {
             activeConversation={conversation.id}
             onNewConversation={() => conversation.newConversation()}
             onSelectConversation={conversation.select}
-            onOpenSettings={openSettings}
+            onOpenSettings={(section) => (section ? openSettingsAt(section) : openSettings())}
+            onOpenAbilities={() => { closeSettings(); openApp('skills'); }}
             onRetry={conversation.retry}
             onEdit={conversation.edit}
             onDetails={conversation.toolDetails}
