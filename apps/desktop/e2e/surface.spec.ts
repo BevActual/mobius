@@ -112,6 +112,22 @@ test('a suggestion that starts a sentence puts it in the box for you to finish',
   expect(model!.requests).toHaveLength(0);
 });
 
+test('Find a time with… puts only those words in the box: who you name finishes them, and the steps go behind Details', async () => {
+  await start([says(['Here are the times.'])]);
+  await openApp('Calendar');
+  await suggestions().getByRole('button', { name: 'Find a time with…' }).click();
+  await expect(composer()).toHaveValue('Find a time with ');
+  await composer().pressSequentially('Sam');
+  await composer().press('Enter');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Here are the times.');
+  await expect(log().locator('.msg.user').last()).toContainText('Find a time with Sam');
+  // The steps are there, folded behind Details.
+  await expect(log().locator('.msg.user').last().locator('.msg-steps p')).toBeHidden();
+  await expect(log().locator('.msg.user').last().locator('.msg-steps p')).toContainText('calendar.free');
+  expect(sent()).toContain('check with calendar.free');
+  expect(sent()).toContain('I want to meet with Sam');
+});
+
 test('in the browser, a page suggestion attaches the page you see, as a chip', async () => {
   await start([says(['A short summary.'])]);
   const address = shell().getByRole('textbox', { name: 'Address or question' });
