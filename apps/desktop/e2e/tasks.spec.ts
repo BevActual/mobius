@@ -79,6 +79,8 @@ test('rewording, dates in plain words, new lists, and Today gathering from every
   await expect(todo().locator('.task').first().locator('.task-due')).toHaveAttribute('data-tone', 'late');
   await expect(todo().locator('.task').nth(1)).toContainText('Today');
   await expect(todo().locator('.task').nth(1)).toContainText('Home');
+  // The Mobius panel's Glance counts the day across every list: one late, one due today, none flagged.
+  await expect(shell().getByRole('region', { name: 'Your day' }).locator('.glance-fact')).toHaveText([/Overdue\s*1/, /Due today\s*1/, /Flagged\s*0/]);
 
   await lists().getByRole('button', { name: /^Home/ }).click();
   await page().getByRole('button', { name: 'Someday', exact: true }).click();
