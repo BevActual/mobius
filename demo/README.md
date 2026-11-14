@@ -35,7 +35,8 @@ Suppliers: **Veltro Cells** (battery packs), **Ardent Cells** (the cheaper, slow
 - In any text file there (`.md`, `.json`, `.csv`, `.ics`, `.txt`, `.html`, `.yaml`, `.sql`), `{{date:+N}}` and
   `{{date:-N}}` become the date N days from the day the demo is opened, as `YYYY-MM-DD` (as `YYYYMMDD` in an `.ics`
   file, so `DTSTART:{{date:+1}}T090000` works). Use them for due dates and events, so "overdue", "today" and "this
-  week" stay true.
+  week" stay true. `{{workday:+N}}` and `{{workday:-N}}` count working days instead (Monday to Friday, starting from
+  the Monday after when the demo is opened on a weekend), so meetings and due dates never land on a Saturday.
 - `mail/` is one mail account kept on this computer, with no sign-in: `account.json` (`{"name", "email"}`), then
   `inbox/*.eml` and `sent/*.eml`, taken in file-name order. The messages are moved in time together, so the newest
   arrived ten minutes before opening and the rest keep their spacing; avoid naming weekdays in them, which do not
