@@ -16,7 +16,22 @@ without asking. Both stay as you left them.
 | **Ask** | Answers and explains, and changes nothing. |
 | **Plan** | Writes a plan and waits for you before doing any of it. |
 
-Shift+Tab in the message box steps through the modes. Some apps add a mode of their own.
+Shift+Tab in the message box steps through the modes.
+
+#### App modes
+
+Some apps add a mode of their own after the shared three, shown only while you are in that app.
+Leave the app and the mode counts as Agent; come back and it is on again.
+
+| Mode | In | What it does |
+| --- | --- | --- |
+| **Triage** | Mail | Sorts the inbox into Reply, Later and Archive, and drafts the replies. It never sends. |
+| **Review** | Docs, Notes | Comments and suggests, and never edits the text. |
+| **Analyse** | Sheets, Database | Answers with charts and tables, and never changes a cell. |
+| **Debug** | Code | Reproduces the bug, then proposes the fix. |
+
+An app's own buttons can turn its mode on for you: Mail's **Triage** action in the Mobius panel sends its turn in
+Triage whatever the message box says.
 
 ### Permission
 
@@ -46,6 +61,30 @@ Mobius never sends mail itself: it writes a draft and you press Send. Whatever y
 **Follow the permission**, **Always ask** or **Off**. Paying, sending, deleting and running commands ask whatever you
 pick. A
 [project](../apps/write-and-plan.md#projects) can set its own levels.
+
+## The Mobius panel
+
+The Mobius button at the top right of every app opens the Mobius panel beside your work. It holds the
+conversation, the message box, and a few places an app fills in for what is open, and nothing else: an app's own
+panels, such as the outline in Docs, sit in the [inspector](../getting-started/tour.md#the-inspector). Each changes with what Mobius is
+doing.
+
+- **Resting.** At the top, a **Glance** card: up to three live facts about what is open or selected. Tasks shows
+  *Your day* (overdue, due today, flagged), Calendar the *Rest of today* (still to come, the next start, free time
+  until 6 pm), and Sheets the sum, average and count of the cells you selected. Then **Waiting for you**: conversations
+  with a question or approval for you, and the changes from your last conversation, with **Keep all**, **Discard all**
+  and **Try another**. Then the **Actions** list: the app's own actions first (Mail's **Get to zero** and **Triage**),
+  then Mobius's ideas for what is open, four at most. Press 1 to 4 to pick one while the panel has the focus. Last,
+  **Earlier chats** to pick up again.
+- **Working.** Mobius's plan as a checklist and each tool it uses as a plain sentence, with **Stop**.
+- **Asking.** A question is a card of numbered choices, the first outlined as the suggestion; press its number, or
+  type your own answer in the message box. An approval is a dashed card that says what will happen. **Allow once**
+  is on the right (it names the action, such as **Send** or **Delete**, for what can't be undone); **Decline** and
+  **Always allow** sit quietly on the left. What can't be undone never offers Always allow.
+- **Done.** A card naming each app the turn changed, and, where the app has one, its own **Result** view of what was
+  made. Both end in **Discard**, **Try another** and **Keep**.
+- **Failed.** A turn that failed is marked in red until the next one. In [Activity](../apps/assistant.md#activity)
+  it is listed with what needs you, with **Try again**, which sends the same request once more.
 
 ## Keep, Discard, Try another
 

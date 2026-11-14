@@ -39,13 +39,15 @@ Longer documents, with an outline and comments.
   link, then **Share**. While you are in a table, its button has the rows and columns. The window's **⋯** opens on
   the **Docs** menu with the rest: numbered lists, checklists, quotes, strikethrough and code; Insert (table, picture,
   divider, code block); Mobius's writing tools; the margin's comments; earlier versions; and a serif font.
-- **Outline** is a tab in the right panel, beside **Mobius**: the document's headings, the one you are reading marked.
+- **Outline** is a panel in the [inspector](../getting-started/tour.md#the-inspector) (show it from the Panels menu): the document's headings, the one you are reading marked.
   Click one to go there.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
 - **Mobius's writing tools** work on the selection or the whole document. Each change Mobius makes is one dashed block
   in the page where it is, with the words it took out struck through, and its own **Discard**, **Try another** and
   **Keep**.
+- **Review** mode (in the composer's Mode menu while you are in Docs or Notes) has Mobius comment and suggest without
+  editing the text.
 - **Earlier versions** (in ⋯) puts one back, and **Undo** in the note at the foot takes it back again. **Share** copies,
   exports as a web page or Markdown, or prints and saves as PDF.
 
@@ -76,6 +78,7 @@ right edge its subtask count, its list (in views across lists), a flag and when 
   picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
   format. Drag tasks to reorder them or move them between lists.
 - Tasks Mobius added are dashed until kept. **Discard** puts the list back as it was before that turn.
+- **Your day** at the top of the Mobius panel counts what is overdue, due today and flagged, across every list.
 
 **Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines, such as
 `- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)`.
@@ -122,6 +125,8 @@ Your calendars by day, week or month.
   bar to **Keep** or **Discard** it, as Tasks does for a list. **Show** goes back to it.
 - **Suggestions from Mobius** are drawn dashed. Open one to see why, then **Keep** (add it), **Discard** (decline it) or
   **Try another**.
+- **Rest of today** at the top of the Mobius panel says how many events are still to come, when the next one starts,
+  and how much free time is left before 6 pm.
 
 **Kept in:** `workspace/calendar/`, as `.ics` files that other calendar apps can open.
 
@@ -144,6 +149,9 @@ Spreadsheets with formulas.
   column's menu. Currency and grouping follow the computer's region. The CSV keeps the plain number.
 - **Find** with Ctrl+F: matching cells are tinted, and Enter (or Shift+Enter) moves from one to the next.
 - Sheets are tabs below the grid. Insert and remove rows and columns; Ctrl+Z undoes any step.
+- **Select cells** and the top of the Mobius panel shows their sum, average and count.
+- **Analyse** mode (in the composer's Mode menu while you are in Sheets) answers with charts and tables and never
+  changes a cell.
 
 **Kept in:** `workspace/sheets/`, each workbook a folder and each sheet a CSV file that any spreadsheet app can open.
 
@@ -174,7 +182,8 @@ Deleting asks first, as it can't be undone. Database is compact, like the other 
 
 ![The Database app in Mobius](../readme/apps/database.png)
 
-Mobius reads databases through a read-only connection, so a query it writes cannot change anything. Changing data is a
+Mobius reads databases through a read-only connection, so a query it writes cannot change anything. **Analyse** mode
+(in the composer's Mode menu while you are in Database) answers with charts and tables. Changing data is a
 separate tool that asks like any change, and **Keep** or **Discard** applies to the whole file.
 
 **Kept in:** `workspace/databases/`, as SQLite files.

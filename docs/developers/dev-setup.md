@@ -41,6 +41,8 @@ The first CEF build downloads Chromium and takes a while. Later builds are incre
 | `npm run gen:types` | Regenerates the TypeScript types in `packages/shared/src/generated` from the Rust types |
 | `npm run check:types` | Fails if the generated types are stale |
 | `npm run e2e` | Builds the interface and the shell, then drives the real app with Playwright (hidden window) |
+| `npm run readme-shots -w @mobius/desktop` | Retakes the README's picture of every app, light and dark, from the preview ([Screenshots](../writing-docs.md#screenshots)) |
+| `npm run ui-shots -w @mobius/desktop` | Retakes the pictures on the [shared controls](shared-controls.md) pages |
 
 See [Testing and CI](testing.md) for running a single end-to-end spec and what runs on GitHub.
 

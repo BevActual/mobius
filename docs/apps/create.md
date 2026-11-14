@@ -8,7 +8,7 @@ Presentations, played as Keynote plays them.
 
 - **Slides** down the side, the chosen one at 16:9 to edit, and its presenter notes in the panel under it (Ctrl+J
   shows and hides them). Add slide, Duplicate, Delete, Insert picture and Play sit in the toolbar; the arrow beside
-  Add slide starts a new slide from a layout. The **Format** tab, beside Mobius in the right panel, has two panes: **Slide** (its style and layout)
+  Add slide starts a new slide from a layout. The **Format** panel, open in the [inspector](../getting-started/tour.md#the-inspector) from the start, has two panes: **Slide** (its style and layout)
   and **Deck** (how long it runs, Play from the start, and Ask Mobius). Bullets keep their dots while you type them.
 - **Pictures:** add one with the toolbar's **Insert picture** button, or paste or drop it on the slide. It sits beside the words, or
   fills a slide that has none, and is kept in a `<deck> files` folder beside the deck.
@@ -70,7 +70,8 @@ Your pictures, with edits you can always take back.
 - **Recently Deleted** keeps deleted photos, with their edits, until you empty it; right-click one to put it back in
   its album. Deleting an album moves its photos there.
 - **Adjust** (exposure, highlights, shadows, contrast, saturation, warmth and more), **Filters** and **Crop** (turn,
-  flip, straighten) sit in the right panel's **Adjust** tab, beside Mobius. An adjustment can apply to all of the
+  flip, straighten) sit in the **Adjust** panel in the
+  [inspector](../getting-started/tour.md#the-inspector), open from the start. An adjustment can apply to all of the
   picture or to part of it. Light, Color, Effects and Where each fold away, and each has its own reset once you change
   it.
 - Keys: **←** and **→** step through the album, hold **M** to see the original, **Z** zooms, **Esc** goes back. In
@@ -99,7 +100,7 @@ A small studio for writing songs as notes.
   went, with Undo. **Add track** after the last track adds one from the same sounds.
 - **A part from Mobius** is drawn dashed in indigo and unfilled until you keep it. Keep, Discard and Try another are in
   the Device panel.
-- **The Device panel** sets how the chosen track sounds. It shows the track's instrument and colour, then its level
+- **The Device panel** (in the [inspector](../getting-started/tour.md#the-inspector); show it from the Panels menu) sets how the chosen track sounds. It shows the track's instrument and colour, then its level
   (Volume and Pan), and then its sound in four groups:
   - Oscillator: Shape (sine to saw), Detune, Sub (a sine an octave down) and Drive.
   - Filter: a curve with one point to drag, across for Cutoff and up for Resonance. Sweep, in the row of values under
@@ -143,7 +144,7 @@ Cut footage into a short film.
   Right-click a shot for its menu, or a clip in Footage to add it or show its folder.
 - **The viewer** plays the shots in order, and full screen with F. Undo, split, duplicate, remove, zoom and Export sit
   in the toolbar.
-- **The Shot tab** in the right panel, before Mobius, shows the chosen shot: In and Out as timecode (type `0:02.5`, or
+- **The Shot panel** in the [inspector](../getting-started/tour.md#the-inspector), open from the start, shows the chosen shot: In and Out as timecode (type `0:02.5`, or
   plain seconds), its title, and its place in the cut.
 - **Keys** as in other editors: Space plays, S splits, I and O set the shot's start and end at the playhead,
   Ctrl+D (⌘D on a Mac) duplicates, the arrows step a frame and Up and Down jump between edits.
@@ -166,6 +167,8 @@ A code editor for projects in your workspace.
   close themselves, Tab and Shift+Tab indent, Ctrl+/ comments lines, Ctrl+F finds and Ctrl+G goes to a line. Every
   change can be undone with Ctrl+Z.
 - **Review Mobius's change** as removed and added lines, keeping or putting back each one.
+- **Debug** mode (in the composer's Mode menu while you are in Code) has Mobius reproduce the bug first, then propose
+  the fix.
 - **Source control**: the branch, each file changed since the last commit with git's mark (M modified, A added,
   D deleted, R renamed, ? not tracked yet, C in conflict) in the list and in the file tree, **Commit** and **Push**.
   Mobius asks before either.

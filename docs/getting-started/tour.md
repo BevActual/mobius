@@ -4,8 +4,11 @@ Every app in Mobius has the same frame, so once you know one you know them all.
 
 ## The rail and the sidebar
 
-The **rail** on the far left is a slim column of icons that never moves: your apps at the top, then **All apps**, and
-at the foot Mobius's own apps (Agents, Activity, Abilities) and **Settings**. Hover an icon for its name.
+The **rail** on the far left is a slim column of icons that never moves: **Home** and **Search** at the top, a hairline,
+your apps, then **All apps**. At the foot are the **Mobius** button and **Settings**. Hover an icon for its name.
+
+- **All apps** opens the app hub. Mobius's own apps (Agents, Activity and Abilities) open from there, and show in the
+  rail while they are open.
 
 - Right-click an app in the rail to move or hide it.
 - An app Mobius is working in glows while it works. An app it changed while you were elsewhere carries a dot until you
@@ -28,20 +31,28 @@ are in the **Window** menu.
 Mobius sits in the panel on the right, beside your work, in every app. The **Mobius** button at the end of the
 toolbar shows and hides it.
 Mobius sees the app you have open (the note, the page, the selected text) and can work across all your apps from there.
+When nothing is running, the panel shows a glance at what is open, what is waiting for you and a few numbered things
+Mobius can do; see [The Mobius panel](../guide/working-with-mobius.md#the-mobius-panel).
 
 - **Little Mobius** (Ctrl+Shift+M) is the conversation in a small window that stays above your other apps.
 - The message box says what Mobius would ask about where you are ("Ask about this note"), and what is open goes
   with your message.
 
+## The inspector
+
+An app's own panels (Docs' Outline, Slides' Format, Photo's Adjust, Video's Shot, Reader's Highlights, Music's Device)
+sit in the **inspector**, a column between your work and Mobius. Several panels are tabs among themselves. Show or hide
+each from the **Panels** menu in the toolbar, and drag the inspector's edge to resize it. In a narrower window the
+inspector and Mobius take turns: the one you brought forward last shows.
+
 ## The desk
 
-The Agent app opens on the **desk**. It greets you with the date and what is in flight, with a few suggestions to
+**Home** opens on the **desk**. It greets you with the date and what is in flight, with a few suggestions to
 start from. Below that comes what waits for you (questions and approvals you can answer in place) and what Mobius is
 doing, then your recent conversations, the one thing in each app worth a look (your next event, the first task due, the
 page you edited last), and what is scheduled next. The sidebar here lists your
-conversations, with a search at the top. **Agents** and **Activity** open from the foot of the rail. **Activity** is
-an app of its own: what Mobius
-did, a day at a time, and what needs you.
+conversations, with a search at the top. **Agents** and **Activity** open from **All apps**. **Activity** is an app of
+its own: what Mobius did, a day at a time, and what needs you.
 
 ## Finding things
 

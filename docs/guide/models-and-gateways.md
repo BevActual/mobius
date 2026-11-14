@@ -51,11 +51,17 @@ Mobius. If Hugging Face later stops accepting the sign-in, remove the key and si
 | --- | --- |
 | **Chat model** | The model Mobius talks to. Also switchable from the message box. |
 | **Second model** | Asked when the first is busy, down or cannot be reached. |
-| **Quick model** | Quick jobs, such as checking a step under the Auto permission before it runs. |
+| **Quick model** | Quick jobs, such as checking a step under the Auto permission before it runs, and short questions under **Best fit**. |
 | **Images** | Makes pictures for Photo, Design and Slides when you ask. Pictures are saved to Photo. |
 | **Listen** | Turns your speech into text when you dictate. See [Voice](voice.md). |
 | **Speak** | Reads replies aloud. See [Voice](voice.md). |
 | **Effort** | How hard a reasoning model is asked to think. Also in the message box. |
+
+### Best fit
+
+The model menu in the message box starts with **Best fit**: short questions go to your quick model, and everything
+else to the chat model. It needs a quick model, so it is off until you choose one; the menu links to the setting.
+App modes such as Triage always use the chat model. Each reply names the model that wrote it, under the reply.
 
 ## What it costs
 

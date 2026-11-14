@@ -28,7 +28,7 @@ was typed or read. The [Activity app](../apps/assistant.md#activity) shows the s
 ## Safety rules
 
 The rules that decide what Mobius may do are enforced by its core, not by the window, so a bug or a hostile page in the
-interface cannot get around them. See [Working with Mobius](working-with-mobius.md) for the modes, and these settings:
+interface cannot get around them. See [Working with Mobius](working-with-mobius.md) for Mode and Permission, and these settings:
 
 - **Settings › Browser › Sites**: sites the agent may open without asking.
 - **Settings › Browser › Network › Local addresses**: off by default, so a web page cannot steer Mobius at your router

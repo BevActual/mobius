@@ -2,7 +2,7 @@
 
 ## Agent
 
-The Agent app is Mobius's home. It opens on the **desk** and holds your conversations.
+The Agent app is Mobius's home, named **Home** in the rail. It opens on the **desk** and holds your conversations.
 
 ![The Agent app in Mobius](../readme/apps/agent.png)
 
@@ -14,8 +14,8 @@ The Agent app is Mobius's home. It opens on the **desk** and holds your conversa
   look) and **Next**
   (what is scheduled).
 - **The sidebar** starts with a search, then your conversations (grouped by agent once you have more than one),
-  what is scheduled, and the ones you archived. **Create** at its head starts a new conversation. **Agents** and
-  [Activity](#activity) open from the foot of the rail.
+  what is scheduled, and the ones you archived. **New conversation** (Ctrl+N) at its head starts one. **Agents** and
+  [Activity](#activity) open from **All apps** in the rail.
 - **The message box** takes text, pictures and files, dictation (hold Ctrl+Space), `/skill` names, the mode
   (Shift+Tab), the model and the effort.
 - **In a turn**, Mobius shows its plan as a checklist, each tool it uses as a plain sentence ("Added 6 tasks to P2
@@ -26,15 +26,15 @@ The same conversation is available in every app in the right panel beside your w
 
 ## Agents
 
-Agents are named helpers for jobs you repeat. Open them from **Agents** at the foot of the rail, or type "Agents" in
-Ctrl+K. The sidebar lists your agents, then **From Mobius**: the runs of your agents waiting for you to review.
+Agents are named helpers for jobs you repeat. Open them from **All apps** in the rail, or type "Agents" in Ctrl+K. The sidebar lists your agents, then **From Mobius**: the runs of your agents waiting for you to review.
 
 ![An agent's page in Mobius](../readme/apps/agents.png)
 
 - Choosing an agent opens **its page**. The toolbar shows its name, when it runs, and **Run now**, which starts a new
   session with it and sends its instructions. The page has four parts: **What it does** (its instructions and model,
-  with **Edit**), **When it runs**, **What it can use** (from Settings › Safety) and **Recent runs**, its sessions,
-  each opening with one press.
+  with **Edit**), **When it runs**, **What it can use** (from Settings › Approvals and safety) and **Recent runs**, its sessions,
+  each opening with one press. Each run says where it stands: a question for you, Working…, Finished, or **Failed**
+  in red.
 - **+** beside the list makes a new agent, on the same page.
 - Each agent has a name, its instructions, a model (type one, or pick from the models you have), and how it starts:
   **When you ask**, or **On a schedule** (weekdays or every day, at a time; it still starts when you ask, too). A
@@ -50,15 +50,16 @@ Ctrl+K. The sidebar lists your agents, then **From Mobius**: the runs of your ag
 
 ## Activity
 
-Activity is the history of what Mobius did, and what is waiting for you. Open it from **Mobius** in the app switcher,
-or type "Activity" in the launcher (Ctrl+K).
+Activity is the history of what Mobius did, and what is waiting for you. Open it from **All apps** in the rail, or type
+"Activity" in the launcher (Ctrl+K).
 
 ![The Activity app in Mobius](../readme/apps/activity.png)
 
 - **The list** is laid out like Mail's inbox. In **Today** it leads with what **needs you**, what is **running**, the
   **changes to review** (Keep or Discard), what finished today and what is scheduled, then what happened. Each line is
   the app's icon, one sentence ("Sent an email to Sam Okafor") and the time. An indigo dot marks a change Mobius made;
-  something that failed is shown in red. A changed file is listed under the app it belongs to (a sheet under
+  something that failed is shown in red, and a run that failed is listed with what needs you, with **Try again** to
+  send the same request once more. A changed file is listed under the app it belongs to (a sheet under
   Sheets). **Open** on a line takes you to its app.
 - **The right side** shows what you chose: a line's app, who did it and when, with **Rewind to here** to undo a
   change Mobius made, or a conversation with its turns and
