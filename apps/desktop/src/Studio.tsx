@@ -1162,8 +1162,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                   <Clips track={t} bars={song.bars} proposed={changed.has(t.id)} bw={bw} onOpen={(from) => openNotes(t.id, from)} />
                 </div>
                 {showAuto && <>
-                  <div className="studio-auto-head" aria-hidden="true" />
-                  <AutomationLane className="studio-auto" label="Volume" points={t.volumeAuto ?? []} beats={total} pxPerBeat={bw} empty={t.volume}
+                  <div className="studio-auto-head" aria-hidden="true"><span className="studio-auto-name">Volume</span></div>
+                  <AutomationLane className="studio-auto" label="Volume" head={false} color={t.color} points={t.volumeAuto ?? []} beats={total} pxPerBeat={bw} empty={t.volume}
                     onChange={(next) => setTrack(t.id, (x) => { if (next.length) x.volumeAuto = next; else delete x.volumeAuto; }, `auto:${t.id}`)} />
                 </>}
               </div>

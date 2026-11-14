@@ -249,5 +249,6 @@
 
 
 /* Automation: a line under each track, as wide as its clips, under a blank head. */
-.studio-page .studio-auto-head { position: sticky; left: 0; z-index: 2; background: var(--paper); border-right: var(--hairline-w) solid var(--line); border-top: var(--hairline-w) solid var(--line-soft); }
+.studio-page .studio-auto-head { position: sticky; left: 0; z-index: 2; display: flex; align-items: flex-start; padding: var(--sp-1) var(--sp-2); box-sizing: border-box; background: var(--paper); border-right: var(--hairline-w) solid var(--line); border-top: var(--hairline-w) solid var(--line-soft); }
+.studio-page .studio-auto-name { font-size: var(--fs-xs); color: var(--muted); }
 .studio-page .ui-lane.studio-auto { border-top: var(--hairline-w) solid var(--line-soft); }
