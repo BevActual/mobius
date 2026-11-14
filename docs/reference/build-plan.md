@@ -8,6 +8,9 @@ this one disagree about order or ownership, this page wins and the other page ge
 ## Direction
 
 - **Refine before adding.** No new apps for now. The apps that exist get good first.
+- **Connect to what people already run.** Each app works with the services and the infrastructure a person or a team
+  already has, their own servers included, through open standards first. Mobius never requires a Mobius account or a
+  Mobius server. See [Connections](#connections).
 - **One look.** [Instrument](../design/instrument.md) and the [design rules](../design/rules.md) decide how everything
   looks. Apps never hand-build the panel, the composer, slots, cards, drawings or controls.
 - **The Mobius panel is just Mobius.** It has no tabs and holds only Mobius: the chat, its cards and slots, and the
@@ -134,6 +137,25 @@ What has to be true before Mobius is shared widely. The Launch lead keeps the ch
 | v0.1.0 published | Builder | Andrew: Publish on the draft release |
 | Google and Microsoft calendar sign-in | Builder | Andrew: registering Mobius with each ([what it needs](calendar-sign-in.md)) |
 
+## Connections
+
+Mobius is the apps and the agent. The data can stay where it already lives: a mail provider, a company server, a
+Nextcloud, a home machine. Open standards come before one-off integrations, so one piece of work reaches many services.
+
+| App | Connects today | Next, in this order | Owner |
+| --- | --- | --- | --- |
+| Mail | Any provider over IMAP and SMTP, with ready-made settings for the common ones | Sign-in for Google and Microsoft accounts | Builder |
+| Calendar | CalDAV (iCloud, Fastmail, Nextcloud, any server), subscribed links, its own files | Google and Microsoft sign-in | Builder, waiting on Andrew registering Mobius with each |
+| Files | The workspace folder on this computer | WebDAV, which covers Nextcloud and most self-hosted drives; then S3-style storage and network shares | Builder for the connection, Apps lead for Files |
+| Tasks | Its own files | Task lists over CalDAV, so tasks sync with the same servers as Calendar | Builder, Apps lead |
+| Models | A dozen services, sign-in with ChatGPT or Claude, OpenRouter, local models, and any server that speaks the common chat format | Nothing scheduled | Builder |
+| The agent | Connectors (MCP), started and stopped live | Connectors over HTTP with sign-in, so a team's own tools and data are one address away | Builder |
+| People | Nothing: there is no address book | Contacts over CardDAV, shared by Mail and Calendar | Needs a decision: it is close to a new app |
+| Notes, Docs, Sheets and the rest | Plain files in the workspace | They follow Files: once the workspace can live on WebDAV, so do they | |
+
+This work starts after the first group of the [demo plan](demo-plan.md). WebDAV for Files is first because it opens the
+most with one piece: every app that keeps plain files gains a server.
+
 ## Later
 
 Not scheduled. Each needs a decision before it starts.
@@ -143,4 +165,5 @@ Not scheduled. Each needs a decision before it starts.
 - The Chromium engine in the installer.
 - Plugins in Abilities.
 - Subagents.
+- Sync between devices and a self-hosted Mobius server, the step from working with a Nextcloud to standing in for one.
 - A first Instrument round for Search, Research, Review, Terminal and Canvas.
