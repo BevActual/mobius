@@ -7,6 +7,7 @@ describe('review strip names', () => {
     expect(describeChange('notes/Design/Split view.md')).toEqual({ kind: 'Note', name: 'Design / Split view' });
     expect(describeChange('tasks/This week.md')).toEqual({ kind: 'Tasks', name: 'This week' });
     expect(describeChange('calendar/Work.ics')).toEqual({ kind: 'Calendar', name: 'Work' });
+    expect(describeChange('sheets/Trip/.charts.json')).toEqual({ kind: 'Sheet', name: 'Charts in Trip' });
     expect(describeChange('drafts/plan.txt')).toEqual({ kind: 'File', name: 'drafts/plan.txt' });
     expect(describeChange('calendar/.suggestions.json')).toEqual({ kind: 'Calendar', name: 'Suggested events' });
   });
