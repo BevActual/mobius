@@ -17,7 +17,9 @@
 .ui-pads .ui-pad-cell[data-lit], .ui-pads .ui-pad-cell[data-lit]:hover:not(:disabled) { background: var(--ink); color: var(--paper); transition: none; }
 .ui-pads .ui-pad-cell[data-empty] { background: transparent; color: var(--faint); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
 .ui-pads .ui-pad-cell[data-empty][data-chosen] { box-shadow: inset 0 0 0 var(--focus-w) var(--ink); }
-.ui-pads .ui-pad-cell[data-proposed] { outline: var(--hairline-w) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -3); }
+/* Mobius changed it: the dashed indigo edge replaces the pad's own edge; the colour strip stays on top. */
+.ui-pads .ui-pad-cell[data-proposed] { box-shadow: inset 0 calc(var(--edge-w)) 0 var(--swatch); outline: var(--hairline-w) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -1); }
+.ui-pads .ui-pad-cell[data-proposed][data-chosen] { box-shadow: inset 0 calc(var(--edge-w)) 0 var(--swatch), inset 0 0 0 var(--focus-w) var(--ink); }
 .ui-pad-cell:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); }
 /* Two lines before an ellipsis, so "Closed hat" fits a pad. */
 .ui-pad-name {
