@@ -30,6 +30,8 @@ describe('what each app suggests', () => {
     for (const app of ['agent', 'tasks'] as const) expect(suggestionsFor({ app, hasPage: false, note: null })[0]).toMatchObject({ label: 'Plan my day', prompt: PLAN_MY_DAY });
     for (const tool of ['tasks.list', 'calendar.list', 'tasks.update', 'calendar.suggest', 'mail.draft']) expect(PLAN_MY_DAY).toContain(tool);
     expect(PLAN_MY_DAY).toContain('Do not send anything');
+    // What the third demo run showed: a task due tomorrow was planned for today, and two replies were drafted.
+    for (const words of ['not for today', 'draft no others', 'one line of a few words']) expect(PLAN_MY_DAY).toContain(words);
   });
   it('never asks the agent app to attach anything', () => {
     expect(suggestionsFor({ app: 'agent', hasPage: true, note: null }).every((s) => s.attach === undefined)).toBe(true);

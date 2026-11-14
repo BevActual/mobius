@@ -339,6 +339,10 @@ fn an_apps_own_mode_adds_its_instructions_held_by_the_host_and_a_read_only_one_a
     let system = sends[0]["system"].as_str().unwrap();
     assert!(system.starts_with("Triage mode (Mail).") && system.ends_with("Remembered: likes tea."), "{system}");
     assert!(sends[0].get("ask").is_none(), "Triage drafts replies, so it may change things");
+    // What the third demo run showed: one search for the unread, messages named by sender and subject, no duplicate tasks.
+    for words in ["unread: true", "never by an id", "look at tasks.list first"] {
+        assert!(system.contains(words), "{words}");
+    }
     assert!(sends[1]["system"].as_str().unwrap().starts_with("Analyse mode."));
     assert_eq!(sends[1]["ask"], json!(true), "Analyse never changes a cell");
 }
