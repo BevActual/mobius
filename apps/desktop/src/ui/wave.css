@@ -1,0 +1,42 @@
+/*
+ * Waveform view (Waveform.tsx): the file's shape in ink, a loop strip along the top, trimmed ends greyed out, and
+ * full-height edges with a tab to hold. Values come only from tokens.css.
+ */
+.ui-wave { display: grid; gap: var(--sp-2); min-width: 0; }
+.ui-wave[data-disabled] { opacity: 0.45; pointer-events: none; }
+.ui-wave-surface {
+  position: relative; display: grid; grid-template-rows: var(--wave-strip) var(--wave-h); border: var(--hairline-w) solid var(--line);
+  border-radius: var(--radius-control); background: var(--paper); overflow: hidden; touch-action: none; user-select: none;
+}
+.ui-wave-strip { position: relative; border-bottom: var(--hairline-w) solid var(--line-soft); background: var(--frame); cursor: copy; }
+.ui-wave-loop { position: absolute; top: 0; bottom: 0; background: var(--ink); opacity: 0.85; cursor: default; }
+.ui-wave-body { position: relative; }
+.ui-wave-body svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ui-wave-shape { fill: var(--ink); stroke: none; }
+.ui-wave-axis { stroke: var(--line); stroke-width: var(--hairline-w); vector-effect: non-scaling-stroke; }
+.ui-wave-loop-band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--ink) 7%, transparent); pointer-events: none; }
+/* What is trimmed off greys out: paper laid over the shape. */
+.ui-wave-trim { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--paper) 72%, transparent); pointer-events: none; }
+.ui-wave-trim[data-side="start"] { left: 0; }
+.ui-wave-trim[data-side="end"] { right: 0; }
+.ui-wave-playhead { position: absolute; top: 0; bottom: 0; width: var(--focus-w); margin-left: calc(var(--focus-w) / -2); background: var(--ink); pointer-events: none; }
+/* Edges: a hairline the full height, a wider invisible hit area, and a tab where it is held. */
+.ui-wave-edge {
+  position: absolute; top: 0; bottom: 0; width: var(--hit-min); margin-left: calc(var(--hit-min) / -2); cursor: ew-resize; outline: 0;
+  background: linear-gradient(var(--ink), var(--ink)) center / var(--focus-w) 100% no-repeat;
+}
+.ui-wave-edge[data-edge^="loop"] { bottom: auto; height: var(--wave-strip); background: none; }
+.ui-wave-edge::after {
+  content: ''; position: absolute; left: 50%; width: var(--wave-tab); height: var(--wave-strip); translate: -50% 0; background: var(--ink);
+  border-radius: var(--radius-small);
+}
+.ui-wave-edge[data-edge="start"]::after, .ui-wave-edge[data-edge="end"]::after { bottom: 0; }
+.ui-wave-edge[data-edge^="loop"]::after { top: 0; width: var(--focus-w); background: var(--paper); border-radius: 0; }
+.ui-wave-edge:hover::after, .ui-wave-edge[data-held]::after { width: calc(var(--wave-tab) * 1.5); }
+.ui-wave-edge[data-edge^="loop"]:hover::after, .ui-wave-edge[data-edge^="loop"][data-held]::after { width: var(--wave-tab); background: var(--ink); box-shadow: 0 0 0 var(--hairline-w) var(--paper); }
+.ui-wave-edge:focus-visible::before {
+  content: ''; position: absolute; inset: 0 calc(var(--hit-min) / 2 - var(--focus-w) * 2); border: var(--focus-w) solid var(--ink); border-radius: var(--radius-small);
+}
+.ui-wave-readout { display: grid; grid-template-columns: repeat(4, minmax(0, auto)); justify-content: start; gap: var(--sp-4); margin: 0; }
+.ui-wave-readout dt { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); }
+.ui-wave-readout dd { margin: 0; font: var(--fw-regular) var(--fs-md) / 1.4 var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }

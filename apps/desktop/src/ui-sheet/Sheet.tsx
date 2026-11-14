@@ -3,6 +3,7 @@ import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
+  WaveformView, peaksOf, type WaveRange,
 } from '../ui';
 
 /**
@@ -83,6 +84,27 @@ function Pads() {
       <div className="sheet-col"><span className="sheet-note">At rest (drag, click, arrows, Shift+arrows, Home)</span><XYPad label="Feel" {...axes} value={feel} start={start} onChange={setFeel} /></div>
       <div className="sheet-col"><span className="sheet-note">Moved from its start</span><XYPad label="Feel" {...axes} value={moved} start={start} onChange={setMoved} /></div>
       <div className="sheet-col"><span className="sheet-note">Disabled</span><XYPad label="Feel" {...axes} value={start} onChange={() => {}} disabled hideReadout /></div>
+    </div>
+  );
+}
+
+function Wave() {
+  // A made-up two-bar loop: kicks and a decaying tail, so the shape has hits to trim around.
+  const peaks = (() => {
+    const samples = Array.from({ length: 4000 }, (_, i) => {
+      const beat = (i % 500) / 500;
+      return Math.sin(i * 0.9) * Math.exp(-beat * 6) * (i % 1000 < 500 ? 1 : 0.6) + Math.sin(i * 7.1) * 0.06;
+    });
+    return peaksOf(samples, 400);
+  })();
+  const [range, setRange] = useState<WaveRange>({ start: 0.12, end: 3.6, loop: { start: 1, end: 2 } });
+  const [plain, setPlain] = useState<WaveRange>({ start: 0, end: 4, loop: null });
+  return (
+    <div className="sheet-waves">
+      <div className="sheet-col"><span className="sheet-note">Trimmed, with a loop (drag an edge or its tab; arrows 10 ms, Shift 100 ms, Home and End). Playing at 1.4 s.</span>
+        <WaveformView label="Sample" peaks={peaks} duration={4} value={range} onChange={setRange} playhead={1.4} /></div>
+      <div className="sheet-col"><span className="sheet-note">Untrimmed, no loop: press the strip along the top to add one</span>
+        <WaveformView label="Sample, no loop" peaks={peaks} duration={4} value={plain} onChange={setPlain} /></div>
     </div>
   );
 }
@@ -321,6 +343,9 @@ export function Sheet() {
           <Pads />
         </Card>
 
+        <Card title="Waveform (Music's sampler)" wide>
+          <Wave />
+        </Card>
         <Card title="List rows" wide>
           <div className="sheet-grid">
             <ul role="list" className="ui-list sheet-list">
