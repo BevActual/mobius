@@ -37,6 +37,7 @@ import { relativeTime } from './relative-time';
 import { publishOutline } from './docs-outline';
 import { DocOutlinePanel } from './DocOutlinePanel';
 import './docs.css';
+import { afterPaint } from './ui/frame';
 
 export const DEFAULT_FOLDER = 'Documents';
 
@@ -718,7 +719,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     if (!page) return;
     if (how === 'markdown') { setNote((await copyText(docs.text)) ? 'Copied as Markdown.' : 'The document could not be copied.'); return; }
     if (how === 'formatted') { setNote((await copyFormatted(editor?.getHTML() ?? docs.text, docs.text)) ? 'Copied. It pastes with its formatting.' : 'The document could not be copied.'); return; }
-    if (how === 'print') { window.requestAnimationFrame(() => window.print()); return; }
+    if (how === 'print') { afterPaint(() => window.print()); return; }
     const exportIt = own?.export;
     if (!exportIt) return;
     if (docs.status !== 'saved') await new Promise((r) => window.setTimeout(r, 900));

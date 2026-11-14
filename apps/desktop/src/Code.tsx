@@ -13,6 +13,7 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, KeyCaps, SidebarRow, SidebarSection } from './ui';
 import './code.css';
+import { afterPaint } from './ui/frame';
 
 /** Projects, and the open project's files as a tree, with the ones the agent changed in its last turn marked. */
 export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: CodeState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
@@ -251,7 +252,7 @@ function put(el: HTMLTextAreaElement, edit: Edit, setDraft: (text: string) => vo
   }
   // Typed edits change the field at once, so the cursor is placed now, before the next key; a set text waits for React.
   if (typed) el.setSelectionRange(edit.select[0], edit.select[1]);
-  else requestAnimationFrame(() => el.setSelectionRange(edit.select[0], edit.select[1]));
+  else afterPaint(() => el.setSelectionRange(edit.select[0], edit.select[1]));
 }
 
 const LINE = 20;
@@ -345,7 +346,7 @@ function Editor({ code, lang, bar, setBar }: { code: CodeState; lang: Lang; bar:
   const closeBar = () => {
     setBar(null);
     setFound({ marks: [], at: 0 });
-    requestAnimationFrame(() => { area.current?.focus(); track(); });
+    afterPaint(() => { area.current?.focus(); track(); });
   };
   const goLine = (line: number) => {
     const el = area.current;
