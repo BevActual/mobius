@@ -25,3 +25,8 @@ body { overflow: auto; background: var(--frame); }
 .sheet-spacer { flex: 1; }
 .sheet-stack { display: flex; flex-direction: column; gap: 16px; max-width: 320px; }
 .sheet-month { width: 248px; }
+.sheet-pro { display: flex; flex-direction: column; gap: 20px; }
+.sheet-row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.sheet-tracks { align-items: stretch; gap: 32px; }
+.sheet-track { display: flex; align-items: center; gap: 6px; }
+.sheet-track-name { width: 48px; font-size: 13px; }

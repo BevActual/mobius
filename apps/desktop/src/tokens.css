@@ -207,6 +207,10 @@
   --tab-h: 36px;
   --day-cell: 32px;
   --time-list-h: 240px;
+  --pro-h: 28px;
+  --letter-size: 20px;
+  --level-w: 4px;
+  --level-h: 120px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -282,6 +286,7 @@
 }
 
 html[data-density='compact'] {
+  --pro-h: 24px;
   --tab-h: 32px;
   --button-h: 28px;
   --icon-button: 28px;
