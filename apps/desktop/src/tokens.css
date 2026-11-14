@@ -204,6 +204,11 @@
   --pad-min: 120px;
   --pad-point: 14px;
   --pad-start: 8px;
+  --wave-h: 120px;
+  --wave-strip: 14px;
+  --wave-tab: 6px;
+  --wave-loop-h: 4px;
+  --wave-loop-tab: 8px;
   --knob-size: 36px;
   --graph-h: 96px;
   --handle-size: 10px;
@@ -324,6 +329,7 @@ html[data-density='compact'], .app[data-density='compact'] {
   --sidebar-w: 220px;
   --panel-w: 320px;
   --dock-h: 240px;
+  --wave-h: 96px;
   --knob-size: 32px;
   --graph-h: 80px;
   --step-size: 18px;

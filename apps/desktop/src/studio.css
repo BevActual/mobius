@@ -166,3 +166,11 @@
   .studio-pos { display: none; }
   .studio-tempo span { display: none; }
 }
+
+/* ---------- Effects: each a block in the chain, its head a row of on/off, name and moves ---------- */
+.studio-fx { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3) var(--sp-3); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); }
+.studio-fx[data-off] .ui-param-grid, .studio-fx[data-off] .ui-segmented { opacity: 0.45; }
+.studio-fx-head { display: flex; align-items: center; gap: var(--sp-1); }
+.studio-fx-name { flex: 1; margin: 0 0 0 var(--sp-1); font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+.studio-fx-chain { display: grid; }
+.studio-fx-chain > .ui-button { justify-self: start; margin-top: var(--sp-2); }
