@@ -190,24 +190,19 @@
 .photo-page .photo-group-reset:hover { color: var(--ink); background: var(--sel); }
 .photo-page .photo-group-body { display: flex; flex-direction: column; padding-bottom: var(--sp-2); }
 
-/* A slider row: the name in ink, a thin grey track with an ink fill from zero to the value, and the value in tabular
-   figures, grey until it moves. Double-click puts it back to zero. */
-.photo-page .photo-slider { display: grid; grid-template-columns: 96px minmax(0, 1fr) 44px; align-items: center; gap: var(--sp-2); height: var(--row-h); font-size: var(--fs-md); color: var(--ink); }
-.photo-page .photo-slider-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.photo-page .photo-slider output { text-align: right; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-.photo-page .photo-slider[data-changed] output { color: var(--ink); }
-.photo-page .photo-slider input, .context-strip .photo-zoom input { -webkit-appearance: none; appearance: none; width: 100%; height: 24px; margin: 0; background: transparent; cursor: default; }
-.photo-page .photo-slider input::-webkit-slider-runnable-track { height: 6px; border-radius: var(--radius-pill); background: linear-gradient(to right, var(--line) var(--from), var(--ink) var(--from), var(--ink) var(--to), var(--line) var(--to)); }
+/* The Adjust sliders are the shared Slider (ui/Slider.tsx), held to one row. The toolbar's zoom keeps the same tick on a
+   plain track, since it has no origin to fill from. */
+.photo-page .photo-slider { height: var(--row-h); min-height: 0; }
+.context-strip .photo-zoom input { -webkit-appearance: none; appearance: none; width: 100%; height: 24px; margin: 0; background: transparent; cursor: default; }
 .context-strip .photo-zoom input::-webkit-slider-runnable-track { height: 6px; border-radius: var(--radius-pill); background: var(--line); }
 /* The thumb is a slim ink tick, like a fader, inside a 24px square that takes the pointer (a transparent border); keyboard
    focus rings that square. */
-.photo-page .photo-slider input::-webkit-slider-thumb, .context-strip .photo-zoom input::-webkit-slider-thumb { -webkit-appearance: none; box-sizing: border-box; width: 24px; height: 24px; margin-top: -9px; border: solid transparent; border-width: 4px 10px; border-radius: var(--radius-control); background: var(--ink); background-clip: content-box; }
-.photo-page .photo-slider input:focus-visible::-webkit-slider-thumb, .context-strip .photo-zoom input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--ink); }
-.photo-page .photo-slider input:focus-visible, .context-strip .photo-zoom input:focus-visible { outline: none; }
-.photo-page .photo-slider input::-moz-range-track, .context-strip .photo-zoom input::-moz-range-track { height: 6px; border-radius: var(--radius-pill); background: var(--line); }
-.photo-page .photo-slider input::-moz-range-progress { height: 6px; border-radius: var(--radius-pill); background: var(--ink); }
-.photo-page .photo-slider input::-moz-range-thumb, .context-strip .photo-zoom input::-moz-range-thumb { box-sizing: border-box; width: 24px; height: 24px; border: solid transparent; border-width: 4px 10px; border-radius: var(--radius-control); background: var(--ink); background-clip: content-box; }
-.photo-page .photo-slider input:focus-visible::-moz-range-thumb, .context-strip .photo-zoom input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--ink); }
+.context-strip .photo-zoom input::-webkit-slider-thumb { -webkit-appearance: none; box-sizing: border-box; width: 24px; height: 24px; margin-top: -9px; border: solid transparent; border-width: 4px 10px; border-radius: var(--radius-control); background: var(--ink); background-clip: content-box; }
+.context-strip .photo-zoom input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--ink); }
+.context-strip .photo-zoom input:focus-visible { outline: none; }
+.context-strip .photo-zoom input::-moz-range-track { height: 6px; border-radius: var(--radius-pill); background: var(--line); }
+.context-strip .photo-zoom input::-moz-range-thumb { box-sizing: border-box; width: 24px; height: 24px; border: solid transparent; border-width: 4px 10px; border-radius: var(--radius-control); background: var(--ink); background-clip: content-box; }
+.context-strip .photo-zoom input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--ink); }
 
 /* Buttons in the panel: Auto, the aspect choices, Rotate left, Flip and Reset are secondary buttons; a chosen one has
    the grey fill with ink text. Done is the panel's one primary button. */

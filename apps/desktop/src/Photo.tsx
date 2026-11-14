@@ -13,7 +13,7 @@ import { ASPECTS, GRID_SIZES, HANDLES, aspectRatio, dragCrop, fitAspect, flipped
 import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
-import { AppSidebar, PanelTab, SidebarSearch, SidebarSection, ToolbarControls, useShowPanelTab } from './ui';
+import { AppSidebar, PanelTab, SidebarSearch, SidebarSection, Slider as UiSlider, ToolbarControls, useShowPanelTab } from './ui';
 
 import './photo.css';
 
@@ -322,21 +322,10 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
   );
 }
 
+/** Photo's sliders are the shared one; a range that does not cross zero is unchanged at its middle (Line, Across, Down). */
 function Slider({ label, value, min = -100, max = 100, step = 1, onChange }: { label: string; value: number; min?: number; max?: number; step?: number; onChange: (v: number) => void }) {
   const zero = min < 0 ? 0 : Math.round((min + max) / 2);
-  const fill = ((value - min) / (max - min)) * 100, from = ((zero - min) / (max - min)) * 100;
-  return (
-    <label className="photo-slider" data-changed={value !== zero || undefined}>
-      <span className="photo-slider-name">{label}</span>
-      <input
-        type="range" aria-label={label} min={min} max={max} step={step} value={value}
-        style={{ ['--from' as string]: `${Math.min(fill, from)}%`, ['--to' as string]: `${Math.max(fill, from)}%` }}
-        onChange={(e) => onChange(Number(e.target.value))}
-        onDoubleClick={() => onChange(zero)}
-      />
-      <output>{value > 0 && min < 0 ? `+${value}` : value}</output>
-    </label>
-  );
+  return <UiSlider className="photo-slider" label={label} value={value} min={min} max={max} step={step} origin={zero} onChange={onChange} />;
 }
 
 /** One part of the Adjust panel, as Photos shows them: a heading that folds it away, and a reset once it is changed. */

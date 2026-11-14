@@ -1694,7 +1694,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .design-row .btn { flex: 1; }
 @media (max-width: 1100px) { .design-body { grid-template-columns: 140px 1fr 210px; } }
 
-/* Photo: its rules live in photo.css. */
+/* Photo: its rules live in photo.css. Skills and Code borrow its grey meta line, so that one stays here. */
+.photo-meta { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Studio: transport, tracks laid out by bar, and the chosen track's notes as a piano roll. */
 .stage .studio-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
