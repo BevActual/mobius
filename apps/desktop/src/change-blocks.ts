@@ -102,7 +102,8 @@ function changeDecorations(doc: PmNode, look: () => ChangeView | null): Decorati
   for (const [g, at] of notes) {
     const removed = removedOf(g);
     const own = [...topGroup].filter(([, og]) => og === g).map(([t]) => t);
-    const key = `${g}-${removed.join('\u0000').length}`;
+    // The same change drawn while Mobius is at work has no answers: a new key, so they come when it is done.
+    const key = `${g}-${removed.join('\u0000').length}${view.waiting ? '-w' : ''}`;
     const opts = (side: number, k: string) => ({ side, key: `change-${k}-${key}`, stopEvent: () => true, ignoreSelection: true });
     if (own.length) {
       // A change taller than the view also has its answers at its top, so they are never only out of sight.
