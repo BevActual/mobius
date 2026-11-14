@@ -2437,6 +2437,8 @@ main.stage:focus { outline: none; }
 @media (min-width: 1280px) and (max-width: 1439px) {
   .body:has(> .dock.inspector:not([hidden])):has(> .dock.right:not([data-floating])) { grid-template-columns: var(--col-left, 0px) minmax(0, 1fr) auto 0px; }
   .body:has(> .dock.inspector:not([hidden])) > .dock.right:not([data-floating]) { position: absolute; top: 0; right: 0; bottom: 0; width: var(--right-w); z-index: 30; background: var(--frame); box-shadow: var(--shadow-3); }
+  /* They take turns: with the inspector brought forward last, Mobius steps aside until it is asked again. */
+  .body:has(> .dock.inspector[data-front]:not([hidden])) > .dock.right:not([data-floating]) { display: none; }
 }
 @media (max-width: 1279px) {
   .body > .dock.inspector { position: absolute; top: 0; right: var(--col-right, 0px); bottom: 8px; z-index: 29; box-shadow: var(--shadow-3); }
