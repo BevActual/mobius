@@ -40,6 +40,10 @@
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": ""
+    },
+    "resources": {
+      "../../demo/workspace/": "demo/workspace/",
+      "../../demo/mail/": "demo/mail/"
     }
   },
   "plugins": {

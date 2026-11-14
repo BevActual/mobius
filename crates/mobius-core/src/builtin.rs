@@ -21,12 +21,27 @@ pub fn iso_utc(unix_seconds: u64) -> String {
     format!("{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z", in_day / 3_600, in_day % 3_600 / 60, in_day % 60)
 }
 
+/// What clock.now says: the person's local time first, as the model plans their day by it (it once took UTC for
+/// local and planned a Pacific morning as the afternoon).
+fn now_json(unix_seconds: u64, local: chrono::DateTime<chrono::FixedOffset>) -> serde_json::Value {
+    json!({
+        "local": local.format("%Y-%m-%dT%H:%M:%S%:z").to_string(),
+        "weekday": local.format("%A").to_string(),
+        "offset": local.format("%:z").to_string(),
+        "utc": iso_utc(unix_seconds),
+    })
+}
+
 pub fn register_builtin_tools(core: &mut Core) -> Result<(), CoreError> {
     core.register_tool(
-        ToolSpec::new("clock.now", "Returns the current date and time in UTC.", "clock.read")?,
+        ToolSpec::new(
+            "clock.now",
+            "Returns the current date and time where the person is: local (their wall-clock time, with its offset from UTC), the weekday, and UTC. Plan the person's day by local, never by UTC.",
+            "clock.read",
+        )?,
         Box::new(|_| {
             let seconds = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "the system clock is set before 1970".to_owned())?.as_secs();
-            Ok(json!({ "utc": iso_utc(seconds) }))
+            Ok(now_json(seconds, chrono::Local::now().fixed_offset()))
         }),
     )
 }
@@ -34,6 +49,18 @@ pub fn register_builtin_tools(core: &mut Core) -> Result<(), CoreError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_time_is_given_where_the_person_is_with_its_weekday() {
+        // 16:29 UTC on Saturday 14 November 2026 is 08:29 in the morning on the US west coast.
+        let pacific = chrono::FixedOffset::west_opt(8 * 3600).unwrap();
+        let at = chrono::DateTime::from_timestamp(1_794_673_740, 0).unwrap().with_timezone(&pacific);
+        let said = now_json(1_794_673_740, at);
+        assert_eq!(said["local"], "2026-11-14T08:29:00-08:00");
+        assert_eq!(said["weekday"], "Saturday");
+        assert_eq!(said["offset"], "-08:00");
+        assert_eq!(said["utc"], "2026-11-14T16:29:00Z");
+    }
 
     #[test]
     fn known_instants_format_correctly() {

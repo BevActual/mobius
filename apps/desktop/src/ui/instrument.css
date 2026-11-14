@@ -202,3 +202,12 @@
 /* StepGrid fill: the steps share the width up to --step-max each, a little taller than square-small so they stay easy to hit. */
 .ui-steps[data-fill] .ui-steps-row { grid-template-columns: var(--step-name-w) repeat(var(--steps), minmax(var(--step-size), var(--step-max))); }
 .ui-steps[data-fill] .ui-step { width: 100%; height: var(--step-fill-h); }
+
+/* A value Mobius set that nobody has kept yet (Knob, ParamCell, Slider `proposed`): the Mobius mark, a dashed indigo
+   edge, with the value in indigo. The knob's arc itself turns indigo and dashed. Keep or Discard clears it. */
+.ui-knob[data-proposed] .ui-knob-fill { stroke: var(--mobius); stroke-dasharray: 2.4 1.6; stroke-linecap: butt; }
+.ui-knob[data-proposed] .ui-knob-tick { stroke: var(--mobius); }
+:is(.ui-knob, .ui-param, .ui-slider)[data-proposed] :is(.ui-knob-value, .ui-param-value, .ui-slider-value) { color: var(--mobius); }
+:is(.ui-param, .ui-slider)[data-proposed] {
+  outline: calc(var(--hairline-w) * 1.5) dashed var(--mobius); outline-offset: var(--sp-1); border-radius: var(--radius-control);
+}

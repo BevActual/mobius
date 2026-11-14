@@ -7,6 +7,7 @@ import { KeyCaps } from './Tooltip';
 import {
   DAY_MINUTES, addDays, addMonths, atTime, lengthLabel, minutesOf, monthGrid, nextWeek, parseDate, parseTime, sameDay, startOfDay,
 } from './dateText';
+import { afterPaint } from './frame';
 
 /**
  * Date and time fields (Instrument, "Controls"). The date field shows its day in words ("Thu 20 Nov") and opens a
@@ -292,11 +293,11 @@ export function TimeField({ label, hideLabel, value, onChange, from = null, boxL
   useEffect(() => {
     if (!open) return;
     const target = highlight ?? value ?? choices.find((m) => m % DAY_MINUTES >= nowMinutes) ?? choices[0];
-    const frame = requestAnimationFrame(() => {
+    const cancel = afterPaint(() => {
       const row = list.current?.querySelector<HTMLElement>(`[data-minutes="${target}"]`);
       if (row && list.current) list.current.scrollTop = row.offsetTop - list.current.clientHeight / 2 + row.offsetHeight / 2;
     });
-    return () => cancelAnimationFrame(frame);
+    return cancel;
     // Only on opening, and when the highlight moves by key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, highlight]);

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { readBefore } from './readBefore';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { SLIDE_STYLES, TRANSITIONS, blankSlide, type Transition, changedSlides, parseDeck, writeDeck, type Slide, type SlideStyle } from './slides-format';
@@ -387,13 +388,8 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
     // Checked again when the page changes: a new turn's change is not kept yet.
   }, [review?.conversation, path, deck.page?.base]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    let live = true;
     if (!review || kept || !path) { setChanged(new Set()); return; }
-    void window.mobius.changes.before(review.conversation, `slides/${path}`).then((was) => {
-      if (!live || !was || !was.ok) return;
-      setChanged(changedSlides(was.text === null ? [] : parseDeck(was.text), slides));
-    }).catch(() => {});
-    return () => { live = false; };
+    return readBefore(review.conversation, `slides/${path}`, (text) => setChanged(changedSlides(text === null ? [] : parseDeck(text), slides)));
   }, [review?.conversation, kept, path, deck.text]); // eslint-disable-line react-hooks/exhaustive-deps
   const keepAll = async () => {
     if (!review) return;

@@ -82,8 +82,7 @@ test('a rough cut from Mobius is shown dashed, and kept', async () => {
     callsTool('files-write', { path: 'video/Offsite recap/cut.json', content: JSON.stringify(ROUGH) }),
     says(['A 4-second rough cut: the sunset with a title, then the terrace.']),
   ]);
-  // Video's Shot tab comes first in the right panel; Mobius is the last tab.
-  await shell().getByRole('tablist', { name: 'Panel' }).getByRole('tab', { name: 'Mobius' }).click();
+  // Video's Shot panel is in the inspector; Mobius is its own panel beside it, never a tab.
   await shell().getByRole('button', { name: 'Make a rough cut' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type TaskAt, type TaskChange, type TaskItem, type TaskList, type TaskListInfo, type TaskRepeat } from '@mobius/shared';
+import { isNotesFailure, type NotesFailure, type TaskAt, type TaskChange, type TaskItem, type TaskList, type TaskListInfo, type TaskRepeat } from '@mobius/shared';
 import { SMART_VIEWS, type SmartView } from './tasks-view';
 
 export type TasksView = { kind: 'list'; name: string } | { kind: 'smart'; id: SmartView };
 const FRESH_MS = 4000;
 const UNDO_MS = 8000;
+const RETRY_MS = 1000;
 const key = (list: string, text: string) => `${list}\u0000${text}`;
 
 /** The view last open, so Tasks opens on it again (after a restart too). Per device; Today when there is none. */
@@ -62,20 +63,36 @@ export function useTasks() {
 
   const setView = useCallback((next: TasksView) => { setViewState(next); setQuery(''); setPicked(null); }, []);
 
+  // Reads can overlap (start-up, a view opening, a change notice): only the newest one paints.
+  const reads = useRef(0);
+  const retried = useRef(false);
+  const refreshRef = useRef<() => Promise<Record<string, TaskItem[]>>>(async () => ({}));
   const refresh = useCallback(async (): Promise<Record<string, TaskItem[]>> => {
-    const got = await api?.lists();
-    if (!got || isNotesFailure(got)) { setLoaded(true); return live.current; }
+    const mine = ++reads.current;
+    const got = await api?.lists().catch((e: unknown) => ({ ok: false, message: String(e) }) as NotesFailure);
+    if (got && isNotesFailure(got)) console.warn(`[mobius] tasks: the lists could not be read: ${got.message}`);
+    if (mine !== reads.current) return live.current;
+    if (!got || isNotesFailure(got)) {
+      // Read again once, in case it failed while Mobius was still starting; nothing else may ask again soon.
+      if (got && !retried.current) { retried.current = true; window.setTimeout(() => void refreshRef.current(), RETRY_MS); }
+      setLoaded(true);
+      return live.current;
+    }
+    retried.current = false;
     const next: Record<string, TaskItem[]> = {};
     await Promise.all(got.map(async (l) => {
-      const one = await api!.read(l.name);
+      const one = await api!.read(l.name).catch((e: unknown) => ({ ok: false, message: String(e) }) as NotesFailure);
+      if (isNotesFailure(one)) console.warn(`[mobius] tasks: ${l.name} could not be read: ${one.message}`);
       next[l.name] = isNotesFailure(one) ? [] : one.tasks;
     }));
     for (const l of Object.keys(next)) next[l] = withPending(l, next[l]!);
+    if (mine !== reads.current) return next;
     setLists(got);
     setAll(next);
     setLoaded(true);
     return next;
   }, [api, withPending]);
+  refreshRef.current = refresh;
 
   useEffect(() => {
     // A remembered list that is gone (deleted, renamed) opens Today instead.

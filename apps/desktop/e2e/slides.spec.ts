@@ -113,8 +113,8 @@ test('slides Mobius adds are dashed in the navigator until kept', async () => {
     callsTool('files-edit', { path: 'slides/Presentations/Offsite kickoff.md', old: '- No laptops on day two\n', new: '- No laptops on day two\n\n---\n\n### Agenda\n## Three days\n- 12: arrive\n- 13: plan on the terrace\n- 14: wrap up\n' }),
     says(['I added an agenda slide.']),
   ]);
-  // The right panel opens on Slides' Format tab; Mobius is the tab after it.
-  await shell().getByRole('tablist', { name: 'Panel' }).getByRole('tab', { name: 'Mobius' }).click();
+  // Slides' Format is in the inspector; Mobius stays in its own panel beside it.
+  await expect(shell().getByRole('complementary', { name: 'Inspector' })).toContainText('Format');
   const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
   await composer.fill('Add an agenda slide');
   await composer.press('Enter');

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { APP_GROUPS, APPS, isInstalled, recentApps, type AppId, type AppInfo } from './apps';
 import { APP_ICONS, OWN_ICONS, type OwnApp } from './Rail';
 import { morphOut, useMorphIn } from './motion';
+import { afterPaint } from './ui/frame';
 
 export interface HubAction { id: string; label: string; app: AppId; run: () => void }
 
@@ -85,7 +86,7 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
   // its focus ring and read as lit beside the app that is really open.
   const go = (run: () => void) => {
     dialog.current?.close(); onClose(false); run();
-    requestAnimationFrame(() => {
+    afterPaint(() => {
       const at = document.activeElement;
       if (at === document.body || at?.closest('.rail')) document.querySelector<HTMLElement>('main.stage')?.focus({ preventScroll: true });
     });

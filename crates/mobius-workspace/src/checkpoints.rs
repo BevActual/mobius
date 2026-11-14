@@ -88,8 +88,12 @@ impl Checkpoints {
 
     fn git(&self, folder: &Path, id: &str, args: &[&str]) -> Result<String, Error> {
         let index = self.store.join("indexes").join(id);
+        let started = std::time::Instant::now();
         let output = quiet(Command::new("git"))
             .args(["-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.quotepath=false", "-c", "core.hooksPath=NUL", "-c", "gc.auto=0"])
+            // Finding what changed is most of a checkpoint: keep what was learnt about the folder's files between runs
+            // (untracked cache), and on Windows read each folder's file details at once rather than file by file.
+            .args(["-c", "core.untrackedCache=true", "-c", "core.fscache=true", "-c", "core.preloadIndex=true"])
             .args(args)
             .env("GIT_DIR", &self.store)
             .env("GIT_WORK_TREE", folder)
@@ -103,6 +107,7 @@ impl Checkpoints {
             .stdin(Stdio::null())
             .output()
             .map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { Error::NoGit } else { Error::Git(e.to_string()) })?;
+        slow(&format!("git {}", args.first().copied().unwrap_or("")), started);
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).into_owned())
         } else {
@@ -145,6 +150,14 @@ impl Checkpoints {
     }
 
     fn tip(&self, folder: &Path, id: &str) -> Option<String> {
+        // The branch's ref is a small file of its own until git packs it (it never does here: gc is off). Read as a
+        // file it costs nothing; a git run costs a process start, which is slow on Windows.
+        if let Ok(text) = std::fs::read_to_string(self.store.join("refs").join("mobius").join(id))
+            && is_checkpoint_id(text.trim())
+            && text.trim().len() == 40
+        {
+            return Some(text.trim().to_owned());
+        }
         self.git(folder, id, &["rev-parse", "--verify", "--quiet", &format!("refs/mobius/{id}^{{commit}}")]).ok().map(|s| s.trim().to_owned()).filter(|s| !s.is_empty())
     }
 
@@ -152,12 +165,45 @@ impl Checkpoints {
     pub fn snapshot(&self, folder: &Path, reason: &str) -> Result<Option<Checkpoint>, Error> {
         let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
+        self.snapshot_locked(&folder, &id, reason)
+    }
+
+    /// Saves the folder as it is now even when nothing changed since the last checkpoint, so that what happens next
+    /// has a checkpoint of its own to be counted from (moves of files checkpoints leave out change nothing they keep).
+    pub fn snapshot_always(&self, folder: &Path, reason: &str) -> Result<Checkpoint, Error> {
+        let _one = one_at_a_time();
+        let (folder, id) = self.prepare(folder)?;
+        self.commit_locked(&folder, &id, reason, true)?.ok_or_else(|| Error::Git("no checkpoint was made".into()))
+    }
+
+    /// Brings the folder's index up to date without saving a checkpoint, so the next one (the first turn's, at the
+    /// start of a session) only has to save. The first look at a folder hashes every file and writes its objects,
+    /// which took over 4 s on a Windows runner, while the person waited on the turn.
+    pub fn warm(&self, folder: &Path) -> Result<(), Error> {
+        let _one = one_at_a_time();
+        let (folder, id) = self.prepare(folder)?;
+        self.git(&folder, &id, &["add", "-A", "--", "."])?;
+        self.git(&folder, &id, &["write-tree"])?;
+        Ok(())
+    }
+
+    /// [`Checkpoints::snapshot`], with the lock already held and the folder prepared.
+    fn snapshot_locked(&self, folder: &Path, id: &str, reason: &str) -> Result<Option<Checkpoint>, Error> {
+        self.commit_locked(folder, id, reason, false)
+    }
+
+    fn commit_locked(&self, folder: &Path, id: &str, reason: &str, always: bool) -> Result<Option<Checkpoint>, Error> {
+        let (folder, id) = (folder.to_path_buf(), id.to_owned());
         self.git(&folder, &id, &["add", "-A", "--", "."])?;
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
         let parent = self.tip(&folder, &id);
-        if let Some(parent) = &parent {
-            let before = self.git(&folder, &id, &["rev-parse", &format!("{parent}^{{tree}}")])?;
-            if before.trim() == tree {
+        if let Some(parent) = parent.as_ref().filter(|_| !always) {
+            let memo = format!("{}|{parent}", self.store.display());
+            let before = match memo_get(&TREE_OF, &memo) {
+                Some(tree) => tree,
+                None => self.git(&folder, &id, &["rev-parse", &format!("{parent}^{{tree}}")])?.trim().to_owned(),
+            };
+            if before == tree {
                 return Ok(None);
             }
         }
@@ -168,6 +214,7 @@ impl Checkpoints {
         }
         let commit = self.git(&folder, &id, &args)?.trim().to_owned();
         self.git(&folder, &id, &["update-ref", &format!("refs/mobius/{id}"), &commit])?;
+        memo_put(&TREE_OF, format!("{}|{commit}", self.store.display()), tree);
         Ok(Some(Checkpoint { id: commit, when: now(), reason: message }))
     }
 
@@ -210,41 +257,139 @@ impl Checkpoints {
     }
 
     /// Puts the whole folder back as it was at `checkpoint`. What is there now is saved first, so this can be undone too.
+    /// Only the files that differ are written. Moves noted with [`Checkpoints::note_moves`] since then are turned back
+    /// too, for the files checkpoints leave out (archives, videos), and folders left empty are taken away.
     pub fn restore(&self, folder: &Path, checkpoint: &str) -> Result<(), Error> {
         let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
-        let before = self.snapshot(&folder, "before restoring an earlier checkpoint")?;
+        let before = self.snapshot_locked(&folder, &id, "before restoring an earlier checkpoint")?;
         let head = before.map(|c| c.id).or_else(|| self.tip(&folder, &id)).ok_or_else(|| Error::Git("nothing to compare with".into()))?;
-        let now_files = self.git(&folder, &id, &["ls-tree", "-r", "--name-only", "-z", &head])?;
-        let then_files: std::collections::HashSet<String> = self.git(&folder, &id, &["ls-tree", "-r", "--name-only", "-z", &target])?.split('\0').map(str::to_owned).collect();
-        for path in now_files.split('\0').filter(|p| !p.is_empty() && !then_files.contains(*p)) {
-            if is_inner_path(path) {
-                let _ = std::fs::remove_file(folder.join(path));
+        let list = |tree: &str| self.git(&folder, &id, &["ls-tree", "-r", "--name-only", "-z", tree]);
+        let now_files: Vec<String> = list(&head)?.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
+        let then_files: std::collections::HashSet<String> = list(&target)?.split('\0').map(str::to_owned).collect();
+        let mut emptied: Vec<PathBuf> = Vec::new();
+        for path in now_files.iter().filter(|p| !then_files.contains(*p)) {
+            if is_inner_path(path) && std::fs::remove_file(folder.join(path)).is_ok() {
+                emptied.extend(folder.join(path).parent().map(Path::to_path_buf));
             }
         }
         self.git(&folder, &id, &["read-tree", &target])?;
-        self.git(&folder, &id, &["checkout-index", "-a", "-f"])?;
+        // Only what differs is written again: on a big folder, writing every file took most of a minute.
+        let differ = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "--no-renames", "-z", &head, &target])?;
+        let changed: Vec<&str> = differ.split('\0').filter(|p| !p.is_empty() && then_files.contains(*p)).collect();
+        for chunk in changed.chunks(200) {
+            let mut args = vec!["checkout-index", "-f", "--"];
+            args.extend(chunk.iter().copied());
+            self.git(&folder, &id, &args)?;
+        }
+        emptied.extend(self.undo_moves(&folder, &id, &target, None));
+        prune_empty(&folder, emptied);
         Ok(())
+    }
+
+    /// Notes moves made in `folder` after `checkpoint`, so restoring to it or before also moves back the files that
+    /// checkpoints leave out. Paths are relative to `folder`.
+    pub fn note_moves(&self, folder: &Path, checkpoint: &str, moves: &[(String, String)]) -> Result<(), Error> {
+        let _one = one_at_a_time();
+        let (_, id) = self.prepare(folder)?;
+        let dir = self.store.join("moves");
+        std::fs::create_dir_all(&dir).map_err(|e| Error::Git(e.to_string()))?;
+        let line = serde_json::json!({ "after": checkpoint, "moves": moves }).to_string();
+        let mut file = std::fs::OpenOptions::new().create(true).append(true).open(dir.join(format!("{id}.jsonl"))).map_err(|e| Error::Git(e.to_string()))?;
+        std::io::Write::write_all(&mut file, format!("{line}\n").as_bytes()).map_err(|e| Error::Git(e.to_string()))
+    }
+
+    /// Moves back, newest first, what moves noted since `target` (and up to `until`, when given) left where they went:
+    /// the files the checkpoint did not keep. Those moves are then forgotten. Returns the folders they were moved out of.
+    fn undo_moves(&self, folder: &Path, id: &str, target: &str, until: Option<&str>) -> Vec<PathBuf> {
+        let file = self.store.join("moves").join(format!("{id}.jsonl"));
+        let Ok(text) = std::fs::read_to_string(&file) else { return Vec::new() };
+        let mut keep = Vec::new();
+        let mut undo = Vec::new();
+        for line in text.lines().filter(|l| !l.trim().is_empty()) {
+            let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) else { continue };
+            let after = entry["after"].as_str().unwrap_or_default();
+            // Made at or after the checkpoint being restored: `target` is that move's checkpoint or older.
+            let since = self.git(folder, id, &["merge-base", "--is-ancestor", target, after]).is_ok()
+                && until.is_none_or(|until| self.git(folder, id, &["merge-base", "--is-ancestor", after, until]).is_ok());
+            if since { undo.push(entry) } else { keep.push(line.to_owned()) }
+        }
+        let mut left = Vec::new();
+        for entry in undo.iter().rev() {
+            let moves = entry["moves"].as_array().cloned().unwrap_or_default();
+            for pair in moves.iter().rev() {
+                let (Some(from), Some(to)) = (pair[0].as_str(), pair[1].as_str()) else { continue };
+                if !is_inner_path(from) || !is_inner_path(to) {
+                    continue;
+                }
+                let (from, to) = (folder.join(from), folder.join(to));
+                for (rest, at) in files_under(&to) {
+                    let back = if rest.as_os_str().is_empty() { from.clone() } else { from.join(&rest) };
+                    if back.exists() {
+                        continue;
+                    }
+                    let moved = back.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::rename(&at, &back));
+                    if moved.is_ok() {
+                        left.extend(at.parent().map(Path::to_path_buf));
+                    }
+                }
+                left.push(to);
+            }
+        }
+        let rest = if keep.is_empty() { String::new() } else { keep.join("\n") + "\n" };
+        let _ = if rest.is_empty() { std::fs::remove_file(&file) } else { std::fs::write(&file, rest) };
+        left
     }
 
     /// Puts one file back as it was at `checkpoint`: recreated if it was deleted since, removed if it was made since.
     pub fn restore_file(&self, folder: &Path, checkpoint: &str, path: &str) -> Result<(), Error> {
+        self.restore_files(folder, checkpoint, &[path.to_owned()], None)
+    }
+
+    /// Puts each of `paths` back as it was at `checkpoint`, with one checkpoint of what is there now first. With
+    /// `moves_until`, what moves noted from then until that checkpoint (a turn's end) left behind, the files
+    /// checkpoints do not keep, is moved back too. Folders left empty are taken away.
+    pub fn restore_files(&self, folder: &Path, checkpoint: &str, paths: &[String], moves_until: Option<&str>) -> Result<(), Error> {
         let _one = one_at_a_time();
-        if !is_inner_path(path) {
-            return Err(Error::BadInput("That path is not inside the folder.".into()));
+        if let Some(bad) = paths.iter().find(|p| !is_inner_path(p)) {
+            return Err(Error::BadInput(format!("{bad} is not inside the folder.")));
         }
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
-        self.snapshot(&folder, &format!("before restoring {path}"))?;
-        if self.git(&folder, &id, &["cat-file", "-e", &format!("{target}:{path}")]).is_err() {
-            let file = folder.join(path);
-            if file.is_file() {
-                std::fs::remove_file(&file).map_err(|e| Error::Git(e.to_string()))?;
+        let reason = match paths {
+            [one] => format!("before restoring {one}"),
+            _ => format!("before restoring {} files", paths.len()),
+        };
+        self.snapshot_locked(&folder, &id, &reason)?;
+        let then: std::collections::HashSet<String> = if paths.is_empty() {
+            std::collections::HashSet::new()
+        } else {
+            self.git(&folder, &id, &["ls-tree", "-r", "--name-only", "-z", &target])?.split('\0').map(str::to_owned).collect()
+        };
+        let mut emptied = Vec::new();
+        let mut back = Vec::new();
+        for path in paths {
+            if then.contains(path) {
+                back.push(path.as_str());
+            } else {
+                let file = folder.join(path);
+                if file.is_file() {
+                    std::fs::remove_file(&file).map_err(|e| Error::Git(e.to_string()))?;
+                    emptied.extend(file.parent().map(Path::to_path_buf));
+                }
             }
-            return Ok(());
         }
-        self.git(&folder, &id, &["checkout", &target, "--", path])?;
+        for chunk in back.chunks(200) {
+            let mut args = vec!["checkout", target.as_str(), "--"];
+            args.extend(chunk.iter().copied());
+            self.git(&folder, &id, &args)?;
+        }
+        if let Some(until) = moves_until {
+            let until = self.known(&folder, &id, until)?;
+            emptied.extend(self.undo_moves(&folder, &id, &target, Some(&until)));
+        }
+        prune_empty(&folder, emptied);
         Ok(())
     }
 
@@ -264,23 +409,32 @@ impl Checkpoints {
 
     /// Files that differ between two checkpoints.
     pub fn changed_between(&self, folder: &Path, from: &str, to: &str) -> Result<Vec<String>, Error> {
+        self.diff_between(folder, from, to).map(|d| d.files)
+    }
+
+    /// What differs between two checkpoints, with the files that were moved paired up.
+    pub fn diff_between(&self, folder: &Path, from: &str, to: &str) -> Result<Diff, Error> {
         let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         let a = self.known(&folder, &id, from)?;
         let b = self.known(&folder, &id, to)?;
         // Two saved states never change, so neither does what differs between them.
         let memo = format!("{}|{a}|{b}", self.store.display());
-        if let Some(files) = memo_get(&BETWEEN, &memo) {
-            return Ok(files);
+        if let Some(diff) = memo_get(&BETWEEN, &memo) {
+            return Ok(diff);
         }
-        let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &a, &b])?;
-        let files: Vec<String> = out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
-        memo_put(&BETWEEN, memo, files.clone());
-        Ok(files)
+        let diff = Diff::parse(&self.git(&folder, &id, &DIFF_ARGS.iter().copied().chain([a.as_str(), b.as_str()]).collect::<Vec<_>>())?);
+        memo_put(&BETWEEN, memo, diff.clone());
+        Ok(diff)
     }
 
     /// Files that differ between `checkpoint` and the folder now: added, changed or removed since.
     pub fn changed_since(&self, folder: &Path, checkpoint: &str) -> Result<Vec<String>, Error> {
+        self.diff_since(folder, checkpoint).map(|d| d.files)
+    }
+
+    /// What differs between `checkpoint` and the folder now, with the files that were moved paired up.
+    pub fn diff_since(&self, folder: &Path, checkpoint: &str) -> Result<Diff, Error> {
         // Several parts of the window ask this at once after a change (the strip, each app's bar, Activity, Review),
         // and each answer takes a few git commands, one at a time. An answer worked out after this call arrived saw
         // the folder as it is for this call too, so it is shared; an older one is not.
@@ -289,18 +443,51 @@ impl Checkpoints {
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
         let memo = format!("{}|{id}|{target}", self.store.display());
-        if let Some((worked_out, files)) = memo_get(&SINCE, &memo) {
+        if let Some((worked_out, diff)) = memo_get(&SINCE, &memo) {
             if worked_out >= asked {
-                return Ok(files);
+                return Ok(diff);
             }
         }
         let started = std::time::Instant::now();
         self.git(&folder, &id, &["add", "-A", "--", "."])?;
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
-        let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &target, &tree])?;
-        let files: Vec<String> = out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
-        memo_put(&SINCE, memo, (started, files.clone()));
-        Ok(files)
+        let diff = Diff::parse(&self.git(&folder, &id, &DIFF_ARGS.iter().copied().chain([target.as_str(), tree.as_str()]).collect::<Vec<_>>())?);
+        memo_put(&SINCE, memo, (started, diff.clone()));
+        Ok(diff)
+    }
+}
+
+/// What differs between two states: every path added, changed or removed, and of those, the files moved (or renamed),
+/// each as its old path and its new one. A moved file's two paths are both in `files`, so putting the turn back still
+/// puts both back; `moves` lets the window show and undo each move as one change.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Diff {
+    pub files: Vec<String>,
+    pub moves: Vec<(String, String)>,
+}
+
+/// Git's own rename finding pairs a removed file with an added one that has the same (or nearly the same) contents.
+const DIFF_ARGS: [&str; 5] = ["diff-tree", "-r", "-M", "--name-status", "-z"];
+
+impl Diff {
+    /// Reads `diff-tree --name-status -z`: a status, then one path, or two for a move (`R<score>`, old then new).
+    fn parse(out: &str) -> Diff {
+        let mut diff = Diff::default();
+        let mut parts = out.split('\0').filter(|p| !p.is_empty());
+        while let Some(status) = parts.next() {
+            let Some(path) = parts.next() else { break };
+            if status.starts_with('R') || status.starts_with('C') {
+                let Some(to) = parts.next() else { break };
+                if status.starts_with('R') {
+                    diff.files.push(path.to_owned());
+                    diff.moves.push((path.to_owned(), to.to_owned()));
+                }
+                diff.files.push(to.to_owned());
+            } else {
+                diff.files.push(path.to_owned());
+            }
+        }
+        diff
     }
 }
 
@@ -308,8 +495,18 @@ impl Checkpoints {
 /// and the latest answer to what changed since a checkpoint, with when it was worked out.
 type Memo<T> = std::sync::Mutex<Option<std::collections::HashMap<String, T>>>;
 static KNOWN: Memo<String> = std::sync::Mutex::new(None);
-static BETWEEN: Memo<Vec<String>> = std::sync::Mutex::new(None);
-static SINCE: Memo<(std::time::Instant, Vec<String>)> = std::sync::Mutex::new(None);
+static BETWEEN: Memo<Diff> = std::sync::Mutex::new(None);
+static SINCE: Memo<(std::time::Instant, Diff)> = std::sync::Mutex::new(None);
+/// The tree of each checkpoint made here, so the next one can tell whether anything changed without asking git.
+static TREE_OF: Memo<String> = std::sync::Mutex::new(None);
+
+/// Said on stderr when a step took long (the e2e logs keep it), as the host says its own slow steps.
+fn slow(what: &str, started: std::time::Instant) {
+    let ms = started.elapsed().as_millis();
+    if ms >= 300 {
+        eprintln!("[slow] checkpoints {what}: {ms} ms");
+    }
+}
 
 fn memo_get<T: Clone>(memo: &'static Memo<T>, key: &str) -> Option<T> {
     memo.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().and_then(|m| m.get(key).cloned())
@@ -340,11 +537,55 @@ fn quiet(mut command: Command) -> Command {
 
 struct OneAtATime(Option<std::sync::MutexGuard<'static, ()>>);
 
+/// Every file at `path` (itself, when it is a file), with its path relative to `path`.
+fn files_under(path: &Path) -> Vec<(PathBuf, PathBuf)> {
+    let mut out = Vec::new();
+    if path.is_file() {
+        out.push((PathBuf::new(), path.to_path_buf()));
+        return out;
+    }
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for entry in entries.flatten() {
+            let at = entry.path();
+            if at.is_dir() {
+                stack.push(at);
+            } else if let Ok(rest) = at.strip_prefix(path) {
+                out.push((rest.to_path_buf(), at.clone()));
+            }
+        }
+        if out.len() > 10_000 {
+            break;
+        }
+    }
+    out
+}
+
+/// Takes away each of `dirs`, and the folders above it inside `folder`, while they are empty.
+fn prune_empty(folder: &Path, dirs: Vec<PathBuf>) {
+    let mut dirs = dirs;
+    // Deepest first, so a folder emptied by taking away the one inside it goes too.
+    dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
+    dirs.dedup();
+    for dir in dirs {
+        let mut at = Some(dir.as_path());
+        while let Some(d) = at {
+            if d == folder || !d.starts_with(folder) || std::fs::remove_dir(d).is_err() {
+                break;
+            }
+            at = d.parent();
+        }
+    }
+}
+
 fn one_at_a_time() -> OneAtATime {
     if HELD.with(std::cell::Cell::get) {
         return OneAtATime(None);
     }
+    let waited = std::time::Instant::now();
     let guard = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    slow("waiting for another checkpoint step", waited);
     HELD.with(|h| h.set(true));
     OneAtATime(Some(guard))
 }

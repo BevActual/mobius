@@ -100,7 +100,7 @@ test('Try another puts the change back and asks Mobius to do it another way', as
   await strip.getByRole('button', { name: 'Try another' }).click();
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(false);
   await expect(log().locator('.msg.assistant').last()).toHaveText('Here is another way.');
-  expect(sent()).toContain('Try another way.');
+  expect(sent()).toContain('I discarded that change. Try another way: a clearly different approach');
 });
 
 test('a suggestion that starts a sentence puts it in the box for you to finish', async () => {
