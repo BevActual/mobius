@@ -6,3 +6,4 @@
 /* What a conversation is doing is a quiet word, not a coloured pill: Mobius is the only indigo, and nothing here shouts. */
 .ui-side.agent-side .badge, .ui-side.agent-side .badge[data-tone] { margin-left: 0; padding: 0; border-radius: 0; background: none; font-size: var(--fs-xs); color: var(--muted); }
 .ui-side.agent-side .badge[data-tone="warn"] { font-weight: var(--fw-medium); }
+.ui-side.agent-side .badge[data-tone="bad"] { color: var(--red); }

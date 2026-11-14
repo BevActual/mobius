@@ -50,7 +50,8 @@ function readCollapsed(): string[] {
   }
 }
 
-const ACTIVITY_TEXT = { working: 'Working…', needs_you: 'Needs you' } as const;
+const ACTIVITY_TEXT = { working: 'Working…', needs_you: 'Needs you', failed: 'Failed' } as const;
+const ACTIVITY_TONE = { working: 'good', needs_you: 'warn', failed: 'bad' } as const;
 
 function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived, onMakeBot }: { conversation: ConversationInfo; current: boolean; onSelect: () => void; onDelete: () => Promise<string | null>; onArchive?: (archived: boolean) => void; isArchived?: boolean; onMakeBot?: () => void }) {
   const [confirming, setConfirming] = useState(false);
@@ -60,7 +61,7 @@ function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived,
       <button type="button" className="clist-main" aria-current={current ? 'true' : undefined} onClick={onSelect}>
         <span className="clist-title">{conversation.title}</span>
         <span className="clist-sub">
-          {conversation.activity !== 'idle' && <span className="badge" data-tone={conversation.activity === 'needs_you' ? 'warn' : 'good'}>{ACTIVITY_TEXT[conversation.activity]}</span>}
+          {conversation.activity !== 'idle' && <span className="badge" data-tone={ACTIVITY_TONE[conversation.activity]}>{ACTIVITY_TEXT[conversation.activity]}</span>}
           {relativeTime(conversation.updated_ms, Date.now())}
         </span>
       </button>
