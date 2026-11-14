@@ -2737,6 +2737,7 @@ dependencies = [
  "mobius-mcp",
  "mobius-store",
  "mobius-workspace",
+ "percent-encoding",
  "rusqlite",
  "rustls",
  "serde",

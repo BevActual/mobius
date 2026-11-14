@@ -106,6 +106,26 @@ test('a writing tool asks Mobius, and its changes are marked in the page, each k
   await expect(page()).toContainText('We need a few days away, together, to plan next year.');
 });
 
+test('a change Mobius makes to the open document is marked as it lands, and its Keep comes when the turn ends', async () => {
+  fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
+  fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
+  // The answer comes slowly, so the turn is still running when the document has changed.
+  await start([callsTool('files-edit', { path: 'docs/Work/Offsite brief.md', old: '- Plan on the 13th', new: '- Plan on the terrace on the 13th' }), says(['Moved ', 'it.'], 3000)]);
+  await shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await expect(page()).toContainText('We have been talking');
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('plan on the terrace');
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  const notes = page().locator('.doc-change');
+  await expect(notes).toHaveCount(1);
+  await expect(page().locator('.doc-change-new')).toContainText('terrace');
+  await expect(log.locator('.msg.assistant').last()).not.toHaveText('Moved it.');
+  await expect(notes.getByRole('button', { name: 'Keep this change' })).toHaveCount(0);
+  await expect(log.locator('.msg.assistant').last()).toHaveText('Moved it.', { timeout: 15_000 });
+  await expect(page().locator('.doc-change').getByRole('button', { name: 'Keep this change' })).toBeVisible();
+});
+
 test('a comment on chosen words, a link to another document, and Share all work in a document', async () => {
   fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
   fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);

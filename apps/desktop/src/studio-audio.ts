@@ -1,5 +1,5 @@
-import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
-import { songBeat, type Cycle } from './studio-view';
+import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, autoValueAt, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
+import { clipHits, nextBar, songBeat, type Cycle } from './studio-view';
 
 /**
  * A small synthesiser for playing a song in the window: a few simple voices made with Web Audio, scheduled ahead of
@@ -7,7 +7,7 @@ import { songBeat, type Cycle } from './studio-view';
  */
 const freq = (pitch: number) => 440 * 2 ** ((pitch - 69) / 12);
 
-function noise(ctx: AudioContext): AudioBuffer {
+function noise(ctx: BaseAudioContext): AudioBuffer {
   const buf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -15,7 +15,7 @@ function noise(ctx: AudioContext): AudioBuffer {
 }
 
 /** One drum hit through the kit: tuned up or down in semitones, its ring stretched by `decay`, brighter or darker by `tone`. */
-function drum(ctx: AudioContext, out: AudioNode, pitch: number, at: number, velocity: number, noiseBuf: AudioBuffer, kitIn: KitSound = KIT_DEFAULTS, pad: DrumPad = PAD_DEFAULTS) {
+function drum(ctx: BaseAudioContext, out: AudioNode, pitch: number, at: number, velocity: number, noiseBuf: AudioBuffer, kitIn: KitSound = KIT_DEFAULTS, pad: DrumPad = PAD_DEFAULTS) {
   const kit = drumKit(kitIn, pad);
   velocity *= pad.level;
   const gain = ctx.createGain();
@@ -70,7 +70,7 @@ function driveCurve(amount: number): Float32Array {
  * octave down, through drive, a low-pass filter the envelope can sweep open, and an attack, decay, sustain and release
  * envelope. Vibrato wobbles every voice's pitch.
  */
-function shaped(ctx: AudioContext, out: AudioNode, instrument: Instrument, sound: Sound, pitch: number, at: number, seconds: number, velocity: number) {
+function shaped(ctx: BaseAudioContext, out: AudioNode, instrument: Instrument, sound: Sound, pitch: number, at: number, seconds: number, velocity: number) {
   const gain = ctx.createGain();
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
@@ -134,7 +134,7 @@ function shaped(ctx: AudioContext, out: AudioNode, instrument: Instrument, sound
   if (sound.sub > 0.001) voice('sine', freq(pitch) / 2, 0, sound.sub * 0.8);
 }
 
-function tone(ctx: AudioContext, out: AudioNode, instrument: Instrument, pitch: number, at: number, seconds: number, velocity: number, sound?: Sound) {
+function tone(ctx: BaseAudioContext, out: AudioNode, instrument: Instrument, pitch: number, at: number, seconds: number, velocity: number, sound?: Sound) {
   if (sound) { shaped(ctx, out, instrument, sound, pitch, at, seconds, velocity); return; }
   const gain = ctx.createGain();
   const filter = ctx.createBiquadFilter();
@@ -163,7 +163,7 @@ function tone(ctx: AudioContext, out: AudioNode, instrument: Instrument, pitch: 
   });
 }
 
-function tick(ctx: AudioContext, out: AudioNode, at: number, accent: boolean) {
+function tick(ctx: BaseAudioContext, out: AudioNode, at: number, accent: boolean) {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.frequency.value = accent ? 1760 : 1320;
@@ -176,7 +176,7 @@ function tick(ctx: AudioContext, out: AudioNode, at: number, accent: boolean) {
 }
 
 /** A room's ring: noise fading over `size` seconds, its highs fading faster as `damp` goes up. Made once per size. */
-function impulse(ctx: AudioContext, size: number, damp: number): AudioBuffer {
+function impulse(ctx: BaseAudioContext, size: number, damp: number): AudioBuffer {
   const length = Math.max(1, Math.round(ctx.sampleRate * size));
   const buf = ctx.createBuffer(2, length, ctx.sampleRate);
   for (let ch = 0; ch < 2; ch++) {
@@ -223,7 +223,7 @@ export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonl
         const back = ctx.createGain(); back.gain.value = e.feedback;
         at.connect(delay); delay.connect(back); back.connect(delay); delay.connect(wet);
       } else {
-        const room = ctx.createConvolver(); room.buffer = impulse(ctx as AudioContext, e.size, e.damp);
+        const room = ctx.createConvolver(); room.buffer = impulse(ctx, e.size, e.damp);
         at.connect(room); room.connect(wet);
       }
       wet.connect(out);
@@ -234,7 +234,7 @@ export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonl
 }
 
 /** A track's way into the mix: its volume, then its effects, then its place left to right. Notes connect to `input`. */
-function trackStrip(ctx: AudioContext, t: Track, master: AudioNode, secondsPerBeat: number): AudioNode {
+function trackStrip(ctx: BaseAudioContext, t: Track, master: AudioNode, secondsPerBeat: number): AudioNode {
   const input = ctx.createGain();
   input.gain.value = t.volume;
   let out = effectChain(ctx, input, t.fx ?? [], secondsPerBeat);
@@ -260,13 +260,19 @@ export function previewNote(instrument: Instrument, pitch: number, velocity = 0.
   } catch { /* No sound here (a test browser); the note is still put in. */ }
 }
 
-export interface Player { stop(): void; beat(): number }
+export interface Player {
+  stop(): void;
+  beat(): number;
+  /** The song as it is now (same tempo and length): a new part, a changed sound or effect is heard from the next beat or two, with no restart. */
+  update?(song: Song): void;
+}
 
 /**
  * Plays the song from `fromBeat`. With a `loop` it goes round those bars (a whole-song loop is { from: 0, to: the end });
  * without one it stops at the end. `beat()` says where it is now.
  */
-export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click = false): Player {
+export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, click = false): Player {
+  let song = songIn;
   const ctx = new AudioContext();
   void ctx.resume().catch(() => {});
   const master = ctx.createGain();
@@ -277,9 +283,9 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
   const total = song.bars * BEATS_PER_BAR;
   const cycle = loop && loop.to > loop.from ? { from: Math.max(0, loop.from), to: Math.min(total, loop.to) } : null;
   const start = ctx.currentTime + 0.08;
-  const tracks = audible(song);
-  // Each track's volume, effects and pan are made once, so a delay's echoes and a reverb's tail carry on across beats.
-  const strips = new Map(tracks.map((t) => [t.id, trackStrip(ctx, t, master, spb)]));
+  // Each track's volume, effects and pan are made once, so a delay's echoes and a reverb's tail carry on across beats. A
+  // change to them (or a new track) makes a new strip; the old one lets what it is playing ring out.
+  const stripOf = stripsFor(ctx, master, spb);
   // Time is counted in beats played since Play; songBeat() turns that into where in the song it is.
   let scheduled = 0;
   let stopped = false;
@@ -301,9 +307,16 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
           tick(ctx, master, at(b), b % BEATS_PER_BAR === 0);
         }
       }
-      for (const t of tracks) {
-        const out = strips.get(t.id)!;
-        for (const n of t.notes) {
+      for (const t of audible(song)) {
+        const out = stripOf(t);
+        // Volume automation: the line from here to the end of this stretch, as ramps on the track's own gain.
+        if (t.volumeAuto && t.volumeAuto.length > 0 && out instanceof GainNode) {
+          const g = out.gain;
+          g.setValueAtTime(autoValueAt(t.volumeAuto, s, t.volume), Math.max(ctx.currentTime, at(s)));
+          for (const p of t.volumeAuto) if (p.beat > s + 1e-9 && p.beat < s + span - 1e-9) g.linearRampToValueAtTime(p.value, at(p.beat));
+          g.linearRampToValueAtTime(autoValueAt(t.volumeAuto, s + span - 1e-6, t.volume), at(s + span) - 1e-4);
+        }
+        for (const n of t.instrumentOn === false ? [] : t.notes) {
           if (n.start < s - 1e-9 || n.start >= s + span - 1e-9) continue;
           // A note that runs past the loop's end is cut there, so it does not ring over the next time round.
           const length = cycle ? Math.min(n.length, cycle.to - n.start) : n.length;
@@ -319,5 +332,142 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
   return {
     stop() { stopped = true; window.clearInterval(timer); void ctx.close(); },
     beat() { return songBeat(Math.max(0, (ctx.currentTime - start) / spb), fromBeat, cycle); },
+    update(next) { song = next; },
   };
+}
+
+/** What a track's strip is built from: its pan and effects. Its volume is set on it as it changes. */
+export const stripKey = (t: Track) => JSON.stringify([t.pan, t.fx ?? []]);
+
+/**
+ * Each track's strip, made the first time it plays and kept, so echoes and reverb tails carry on. A change to its pan
+ * or effects makes a new one (the old one lets what it is playing ring out); a change of volume moves its fader.
+ */
+function stripsFor(ctx: BaseAudioContext, master: AudioNode, spb: number): (t: Track) => AudioNode {
+  const strips = new Map<string, { key: string; volume: number; out: AudioNode }>();
+  return (t) => {
+    const key = stripKey(t);
+    let s = strips.get(t.id);
+    if (!s || s.key !== key) { s = { key, volume: t.volume, out: trackStrip(ctx, t, master, spb) }; strips.set(t.id, s); }
+    if (s.volume !== t.volume && s.out instanceof GainNode && !t.volumeAuto?.length) s.out.gain.setTargetAtTime(t.volume, ctx.currentTime, 0.02);
+    s.volume = t.volume;
+    return s.out;
+  };
+}
+
+/** What each track of the Session view is playing: the clip in that slot, since `start` (in beats played). */
+export type SessionPlaying = Record<string, { slot: number; start: number }>;
+/** A launch waiting for the next bar: a slot to start, or null to stop the track. */
+export type SessionQueued = Record<string, number | null>;
+export interface SessionPlayer extends Player {
+  /** Start a track's clip (or stop the track, with null) at the next bar. */
+  launch(trackId: string, slot: number | null): void;
+  /** The song as it is now, so a change to a clip is heard the next time round. */
+  update(song: Song): void;
+  playing(): SessionPlaying;
+  queued(): SessionQueued;
+}
+
+/**
+ * Plays the Session view: each track loops the clip launched on it, every launch landing on the next bar line. Nothing
+ * plays until a clip is launched; the clock runs from Play, counting bars as the metronome does.
+ */
+export function playSession(songIn: Song, click = false, launches: SessionQueued = {}): SessionPlayer {
+  let song = songIn;
+  const ctx = new AudioContext();
+  void ctx.resume().catch(() => {});
+  const master = ctx.createGain();
+  master.gain.value = 0.8;
+  master.connect(ctx.destination);
+  const noiseBuf = noise(ctx);
+  const spb = 60 / song.tempo;
+  const start = ctx.currentTime + 0.08;
+  const strip = stripsFor(ctx, master, spb);
+  const playing: SessionPlaying = {};
+  const queued: SessionQueued = { ...launches };
+  let scheduled = 0;
+  let stopped = false;
+  // Launches asked for before Play land on the first beat.
+  const land = (at: number) => {
+    for (const [id, slot] of Object.entries(queued)) {
+      if (slot === null) delete playing[id]; else playing[id] = { slot, start: at };
+      delete queued[id];
+    }
+  };
+  land(0);
+  const schedule = () => {
+    if (stopped) return;
+    const until = (ctx.currentTime - start) / spb + 2;
+    while (scheduled < until - 1e-9) {
+      // Up to the next bar line, where any waiting launch lands.
+      const bar = nextBar(scheduled + 1e-6);
+      const to = Math.min(until, bar);
+      const at = (b: number) => start + b * spb;
+      if (click) for (let b = Math.ceil(scheduled - 1e-6); b < to - 1e-9; b++) if (at(b) >= ctx.currentTime) tick(ctx, master, at(b), b % BEATS_PER_BAR === 0);
+      const heard = new Set(audible(song).map((t) => t.id));
+      for (const t of song.tracks) {
+        const now = playing[t.id];
+        const clip = now ? t.slots?.[now.slot] : null;
+        if (!now || !clip || !heard.has(t.id) || t.instrumentOn === false) continue;
+        const length = clip.bars * BEATS_PER_BAR;
+        const out = strip(t);
+        for (const { note: n, at: b } of clipHits(clip.notes, length, now.start, scheduled, to)) {
+          if (at(b) < ctx.currentTime) continue;
+          // A note is cut at the clip's end, so it does not ring over the next time round.
+          const lengthIn = Math.min(n.length, length - n.start);
+          if (t.instrument === 'drums') drum(ctx, out, n.pitch, at(b), n.velocity, noiseBuf, t.kit, t.pads?.[n.pitch]);
+          else tone(ctx, out, t.instrument, n.pitch, at(b), lengthIn * spb, n.velocity, t.sound);
+        }
+      }
+      scheduled = to;
+      if (Math.abs(scheduled - bar) < 1e-6) land(bar);
+    }
+  };
+  schedule();
+  const timer = window.setInterval(schedule, 250);
+  return {
+    stop() { stopped = true; window.clearInterval(timer); void ctx.close(); },
+    beat() { return Math.max(0, (ctx.currentTime - start) / spb); },
+    launch(trackId, slot) { queued[trackId] = slot; },
+    update(next) { song = next; },
+    playing() { return { ...playing }; },
+    queued() { return { ...queued }; },
+  };
+}
+
+/** Seconds of tail after the song's last bar, so a reverb or delay rings out in an export. */
+export const RENDER_TAIL = 2;
+
+/**
+ * The whole song played into a buffer rather than the speakers, for Export: every audible track, its sound, effects,
+ * pan and volume line, from the start to the last bar plus a short tail. 44.1 kHz stereo.
+ */
+export async function renderSong(song: Song, sampleRate = 44100, onProgress?: (done: number) => void): Promise<AudioBuffer> {
+  const spb = 60 / song.tempo;
+  const total = song.bars * BEATS_PER_BAR;
+  const seconds = Math.max(0, total * spb) + RENDER_TAIL;
+  const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate);
+  // Rendering takes a while on a long song: stop every few seconds of sound to say how far it has got.
+  if (onProgress) {
+    for (let at = 4; at < seconds; at += 4) {
+      void ctx.suspend(at).then(() => { onProgress(at / seconds); return ctx.resume(); });
+    }
+  }
+  const master = ctx.createGain();
+  master.gain.value = 0.8;
+  master.connect(ctx.destination);
+  const noiseBuf = noise(ctx);
+  for (const t of audible(song)) {
+    const out = trackStrip(ctx, t, master, spb);
+    if (t.volumeAuto && t.volumeAuto.length > 0 && out instanceof GainNode) {
+      out.gain.setValueAtTime(autoValueAt(t.volumeAuto, 0, t.volume), 0);
+      for (const p of t.volumeAuto) out.gain.linearRampToValueAtTime(p.value, p.beat * spb);
+    }
+    if (t.instrumentOn === false) continue;
+    for (const n of t.notes) {
+      if (t.instrument === 'drums') drum(ctx, out, n.pitch, n.start * spb, n.velocity, noiseBuf, t.kit, t.pads?.[n.pitch]);
+      else tone(ctx, out, t.instrument, n.pitch, n.start * spb, n.length * spb, n.velocity, t.sound);
+    }
+  }
+  return ctx.startRendering();
 }

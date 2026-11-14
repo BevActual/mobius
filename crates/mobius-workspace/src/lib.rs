@@ -6,6 +6,7 @@ pub mod batch;
 pub mod calendar;
 pub mod checkpoints;
 pub mod comments;
+pub mod design;
 pub mod code;
 pub mod files;
 pub mod formula;

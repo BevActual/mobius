@@ -1035,7 +1035,7 @@ export function App() {
             ) : inSheets ? (
               <SheetsSidebar sheets={sheets} pin={pinNode} changed={liveMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
             ) : inDocs ? (
-              <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
+              <DocsSidebar docs={docs} pin={pinNode} changed={liveMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
               <CalendarSidebar calendar={calendar} pin={pinNode} changed={liveMarks.calendars} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inSearch ? (
@@ -1186,7 +1186,7 @@ export function App() {
       },
       studio: {
         newSong: () => createActions.find((a) => a.id === 'song')!.run(),
-        play: () => (document.querySelector<HTMLButtonElement>('.studio-play'))?.click(), // Music (marked): the toolbar's Play
+        play: () => (document.querySelector<HTMLButtonElement>('.ui-transport > button'))?.click(), // Music (marked): the toolbar Transport's Play
       },
       photo: {
         newAlbum: () => void photos.createAlbum('Album'),
@@ -1384,7 +1384,7 @@ export function App() {
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && liveMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'docs':
-        return <DocEditor docs={docs} inFrame autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
+        return <DocEditor docs={docs} inFrame autoFocus={app === 'docs'} review={docs.page && liveMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
       case 'slides':
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':

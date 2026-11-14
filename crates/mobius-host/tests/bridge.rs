@@ -546,7 +546,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 48, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 50, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -591,7 +591,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "files.move", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.free", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve", "images.generate", "video.clips"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "files.move", "tasks.list", "tasks.add", "tasks.update", "photos.edit", "design.edit", "calendar.list", "calendar.add", "calendar.suggest", "calendar.free", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve", "images.generate", "video.clips"]);
     }
 
     #[derive(Default)]
@@ -1798,4 +1798,20 @@ fn a_model_calls_tokens_are_counted_for_settings_usage_and_the_window_is_told() 
     assert_eq!(call(&b, "usage", "query", json!([{ "from": "yesterday", "to": "today" }]))["ok"], false);
     call(&b, "usage", "clear", json!([]));
     assert_eq!(call(&b, "usage", "query", json!([{ "from": "2000-01-01", "to": "2999-12-31" }])), json!([]));
+}
+
+#[test]
+fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
+    let (b, _c) = bridge();
+    assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = format!("http://{}", listener.local_addr().unwrap());
+    drop(listener);
+    let added = call(&b, "drives", "add", json!([{ "name": "Cloud", "server": address, "username": "ana", "password": "p" }]));
+    assert_eq!(added["ok"], false);
+    assert!(added["message"].as_str().unwrap().starts_with("Could not reach"), "{added}");
+    let missing = call(&b, "drives", "browse", json!(["nope", ""]));
+    assert_eq!((missing["ok"].clone(), missing["message"].clone(), missing["conflict"].clone()), (json!(false), json!("That drive is gone."), json!(false)));
+    assert_eq!(call(&b, "drives", "browse", json!([]))["message"], "A drive is needed.");
+    assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
 }

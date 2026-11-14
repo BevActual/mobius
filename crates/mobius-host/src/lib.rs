@@ -23,6 +23,7 @@ pub mod workspace_guide;
 pub mod turn_history;
 pub mod schedules;
 pub mod calendar_accounts;
+pub mod drives;
 pub mod demo;
 pub mod mail;
 pub mod chatgpt;
