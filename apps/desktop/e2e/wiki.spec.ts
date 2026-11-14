@@ -127,7 +127,7 @@ test('in How I work a line can be added with its kind, changed and forgotten, in
   await expect(lines.getByRole('listitem', { name: 'Likes boutique hotels' })).toContainText('From Browser, June');
   await page.getByRole('textbox', { name: 'Add a line' }).fill('Ana and Ken fly from London');
   await page.getByRole('combobox', { name: 'Kind of line' }).selectOption('people');
-  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect.poll(() => fs.readFileSync(memory(), 'utf8')).toContain('- Ana and Ken fly from London <!-- people · you added it -->');
   await lines.getByRole('listitem', { name: 'Rui runs the terrace venue' }).getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('textbox', { name: 'Line', exact: true }).fill('Rui runs the terrace venue; prefers email');

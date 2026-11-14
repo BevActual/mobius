@@ -315,7 +315,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
 
   return (
     <form ref={formRef} className="composer" onSubmit={submit} onKeyDown={onFormKeyDown} data-listening={listening || undefined} data-working={activity ? (activity.needsYou ? 'you' : 'agent') : undefined}>
-      {activity && (
+      {/* What Mobius is doing shows in the conversation (the working indicator); here only what waits for you. */}
+      {activity?.needsYou && (
         <div className="working" role="status" aria-label="Agent activity" aria-live="polite">
           <MobiusMark size={16} turning={!activity.needsYou} className="working-mark" />
           <span className="working-label" key={activity.label}>{activity.label}</span>

@@ -5,18 +5,20 @@ the foot of the rail, the launcher (Ctrl+K, then type "Abilities"), or **Setting
 
 (Browser add-ons are a separate thing and are still called *extensions*.)
 
-The sidebar has three places, **Apps**, **Skills** and **Connectors**, each with a count. Above them,
-**Add** is one menu for everything you can add (an app, a new skill, a skill from a file, a connector), and **Search**
-narrows the apps, skills and connectors as you type.
+The sidebar has four places, each with a count: **Installed** and **Available** under *Apps*, then **Skills** and
+**Connectors** under *Tools*. **New skill** sits at the top as New does in every app, and **Search** narrows the apps,
+skills and connectors as you type. Everything is a plain row: its icon, its name, one grey line, and **Add** or a **⋯**
+menu on the right.
 
 ## Apps
 
 A new install starts with the everyday apps, **Notes, Tasks, Calendar, Mail, Docs and Browser**, plus Mobius's own
 apps, which are always there: **Agent, Abilities, Projects, Files and Review**.
 
-**Abilities › Apps** lists every other app by what it is for, each with one line on what it does and a switch. Turning
-the switch on adds the app to the rail, the launcher and the app hub. Turning it off takes it away but **keeps its
-files**, so adding it again brings them back. Click an added app's row to open it.
+**Abilities › Installed** lists the apps you have, grouped by what they are for, each with one line on what it does.
+Click a row to open the app. **Remove** in its **⋯** menu (or a right-click) takes it off the rail, the launcher and the
+app hub but **keeps its files**; **Undo** puts it straight back. **Abilities › Available** lists the rest, each with
+**Add**.
 
 Apps load the first time you open them, not when Mobius starts, so adding more apps does not slow down startup.
 
@@ -29,11 +31,11 @@ See [Apps](../apps/README.md) for what each app does.
 A skill is a short, named set of steps Mobius follows when you ask for it, kept as a `SKILL.md` file.
 
 - **Abilities › Skills** lists your skills. Open one to edit when it is used, change its steps one by one, see its
-  versions, or **Run** it.
+  versions, or **Run** it (in the toolbar, beside the trash button that deletes it).
 - Type `/` and a skill's name in the message box to run it.
-- **Add › New skill** writes one from scratch. Mobius can also propose a skill, which waits dashed for you to keep like any
+- **New skill** writes one from scratch. Mobius can also propose a skill, which waits dashed for you to keep like any
   other change.
-- **Add › Install a skill…** adds a `SKILL.md` someone shared. Before it is added you see what it is
+- **Install a skill…** in the toolbar adds a `SKILL.md` someone shared. Before it is added you see what it is
   for, its steps and what it says it will use. Nothing in it runs until you ask for it, and each tool still asks as your
   settings say.
 
@@ -54,15 +56,16 @@ Each server's tools appear to Mobius as `mcp.<server>.<tool>`. Each server has i
 as your mode says. Servers start with a minimal environment: only the variables you list under `env` are passed.
 Everything a server returns is treated as untrusted text.
 
-**Abilities › Connectors** shows each server Mobius started with a green dot, and each one that could not start with a
-red dot; **Show details** says why.
+**Abilities › Connectors** shows each server with a dot on its icon: green when Mobius started it, red with the reason
+when it could not start, and a ring while it waits for Mobius to reopen.
 
-**Add a connector…** (on the page, or in **Add**) writes the server into `mcp.json` for you: give the **Command** and its
+**Add a connector…** in the toolbar writes the server into `mcp.json` for you: give the **Command** and its
 **Arguments** from the server's own instructions (for example `npx` and `-y @modelcontextprotocol/server-github`),
 check the suggested **Name**, and add any **Keys** it needs, such as `GITHUB_TOKEN`. Keys are kept in `mcp.json` on this
-computer. The new connector shows *Added. It starts when Mobius reopens.* until you reopen Mobius.
+computer. The new connector shows *Starts when Mobius reopens* until you reopen Mobius.
 
-**Remove…** in a connector's menu (**⋯**, a right-click, or Shift+F10) takes it out of `mcp.json` after you confirm. A running one stops the next time Mobius opens.
+**Remove** in a connector's menu (**⋯**, a right-click, or Shift+F10) takes it out of `mcp.json`; **Undo** writes the
+same entry back. A running one stops the next time Mobius opens.
 **Edit mcp.json yourself…** in the sheet opens the data folder, for anything the form does not cover.
 
 ### Mobius for other apps

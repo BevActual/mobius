@@ -67,6 +67,13 @@
 .ui-side-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
 .ui-side-row-trail { display: flex; align-items: center; gap: var(--hairline-w); }
 .ui-side-row-trail > .list-row { flex: 1; min-width: 0; }
+/* With a trail, the row's fill (hover and current) is on the whole row, so the selection reaches past the trail's
+   buttons and dates to the row's end instead of stopping short of them. */
+.ui-side-row-trail { border-radius: var(--row-radius, var(--radius-control)); }
+.ui-side-row-trail:hover:not(:has(> .list-row[aria-current="page"])) { background: var(--side-hover, color-mix(in srgb, var(--sel) 50%, transparent)); }
+.ui-side-row-trail:has(> .list-row[aria-current="page"]) { background: var(--side-select, var(--sel)); }
+.dock.left .side .ui-side-row-trail.ui-side-row-trail > .list-row,
+.dock.left .side .ui-side-row-trail.ui-side-row-trail > .list-row:hover { background: transparent; }
 .ui-side-fold { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 0; border: 0; background: none; color: inherit; font: inherit; }
 .ui-side-fold svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform var(--dur-fast) var(--ease); }
 .ui-side-fold[aria-expanded="true"] svg { transform: rotate(90deg); }
@@ -112,3 +119,12 @@
   background: var(--paper, var(--bg)); color: var(--muted); font: var(--fw-medium) var(--fs-xs)/1 var(--font); font-variant-numeric: tabular-nums;
 }
 .ui-tooltip .ui-keycap { border-color: color-mix(in srgb, var(--on-ink) 35%, transparent); background: transparent; color: color-mix(in srgb, var(--on-ink) 85%, transparent); }
+
+/* The key-hint bar (KeyHintBar.tsx): floats at the bottom of a list with its most useful keys. */
+.ui-key-hints {
+  position: sticky; bottom: var(--sp-3); z-index: 1; display: flex; align-items: center; gap: var(--sp-4); width: fit-content;
+  height: var(--control-h-lg); margin: auto auto var(--sp-3); flex-shrink: 0; padding: 0 var(--sp-3); box-sizing: border-box;
+  border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-2);
+  color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; pointer-events: none;
+}
+.ui-key-hint { display: inline-flex; align-items: center; gap: var(--sp-1); }

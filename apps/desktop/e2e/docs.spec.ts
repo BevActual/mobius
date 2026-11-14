@@ -47,7 +47,7 @@ test('a new document is written on the page with formatting and kept as Markdown
   await shell().keyboard.press('Control+End');
   // The paragraph's style is the first thing in the window's toolbar ("Body ⌄"); the keys still go to the page after.
   await shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: /^Paragraph style/ }).click();
-  await shell().getByRole('menu', { name: 'Paragraph style' }).getByRole('menuitem', { name: 'Heading', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Paragraph style' }).getByRole('menuitemcheckbox', { name: /^Heading\b/ }).click();
   // The choice applies once the menu has closed, and the keys go back to the page then.
   await expect(shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Paragraph style: Heading' })).toBeVisible();
   await expect(shell().getByRole('menu', { name: 'Paragraph style' })).toHaveCount(0);

@@ -349,3 +349,15 @@ export function searchEvents(events: readonly CalendarEvent[], query: string, to
   }
   return [...best.values()].sort((a, b) => a.start.localeCompare(b.start)).slice(0, limit);
 }
+
+/** The ISO week number of a day (weeks start on Monday; week 1 holds the year's first Thursday). */
+export function isoWeek(day: Date): number {
+  const d = new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate()));
+  const thursday = d.getUTCDate() + 3 - ((d.getUTCDay() + 6) % 7);
+  d.setUTCDate(thursday);
+  const yearStart = Date.UTC(d.getUTCFullYear(), 0, 1);
+  return Math.floor((d.getTime() - yearStart) / 86_400_000 / 7) + 1;
+}
+
+/** Sent when a calendar account is added, removed or refreshed in Settings, so Calendar reads its calendars again. */
+export const CALENDAR_ACCOUNTS_EVENT = 'mobius:calendar-accounts';

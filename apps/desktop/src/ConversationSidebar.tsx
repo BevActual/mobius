@@ -251,8 +251,15 @@ function ScheduledSection({ onOpen }: { onOpen: () => void }) {
  * Changes not yet kept or discarded, from today's conversations, one row per conversation: the design's Activity
  * history with Undo, for each conversation's last turn. Keep and Discard do what they do in the strip.
  */
-export function ChangesWaiting({ conversations, onSelect }: { conversations: ConversationInfo[]; onSelect: (id: string) => void }) {
+export function ChangesWaiting({ conversations, onSelect, onRows }: {
+  conversations: ConversationInfo[];
+  onSelect: (id: string) => void;
+  /** Activity (marked, Activity only): which conversations are listed, so it doesn't list them twice. */
+  onRows?: (ids: string[]) => void;
+}) {
   const [rows, setRows] = useState<{ conversation: ConversationInfo; turn: string | null; files: string[] }[]>([]);
+  const listed = rows.map((r) => r.conversation.id).join(',');
+  useEffect(() => { onRows?.(listed ? listed.split(',') : []); }, [listed]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tick, setTick] = useState(0);
   const ids = conversations.map((c) => c.id).join(',');
   useEffect(() => {
