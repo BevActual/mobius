@@ -572,7 +572,7 @@ fn the_chosen_effort_goes_to_the_model_but_never_to_the_reviewer() {
 #[test]
 fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_model() {
     let mut w = smart_world();
-    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None };
+    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![] };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
     assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", with_rule("You are the research bot.").as_str()));
@@ -587,10 +587,10 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
 #[test]
 fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![] });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", with_rule("You are a test.").as_str()));
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![] });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", with_rule("S").as_str()));
 }
@@ -839,4 +839,46 @@ fn nothing_runs_early_in_ask_mode_unless_it_only_reads() {
     let (mut turn, _) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { read_only: true, ..TurnSetup::default() });
     assert_eq!(w.engine.on_early_call(&mut turn, &mut w.core, call("c1", "demo.echo", json!({}))), Step::Idle);
     assert_eq!(w.runs.load(Ordering::SeqCst), 0);
+}
+
+fn reading_world() -> World {
+    let mut w = world(10);
+    w.core.register_tool(ToolSpec::new("demo.list", "Lists things.", "demo.read").unwrap(), Box::new(|args| Ok(json!({ "items": ["a", "b"], "asked": args.clone() })))).unwrap();
+    w.core.register_external_tool(ToolSpec::new("demo.search", "Searches, in the application.", "demo.search").unwrap()).unwrap();
+    w
+}
+
+#[test]
+fn a_turns_first_reads_are_done_before_the_model_is_asked_and_go_with_the_message() {
+    let mut w = reading_world();
+    allow_always(&mut w, "demo.list");
+    allow_always(&mut w, "demo.search");
+    let setup = TurnSetup { reads: vec![("demo.list".into(), json!({ "list": "Work" })), ("demo.search".into(), json!({ "unread": true }))], ..TurnSetup::default() };
+    let (mut turn, step) = w.engine.start_with(&w.core, vec![], "plan my day", 1, setup);
+    assert_eq!(step, Step::Idle, "nothing is asked of the model yet");
+    assert!(turn.has_reads());
+    let (call_id, name, _) = expect_run(w.engine.read_first(&mut turn, &mut w.core));
+    assert_eq!(name, "demo.search", "the core's own read ran at once; the application's is handed out");
+    let step = w.engine.on_tool_result(&mut turn, &mut w.core, &call_id, Ok("{\"messages\":[]}".to_owned()));
+    let request = request_of(&step);
+    assert_eq!(request.messages.len(), 1, "no call or result of their own: the model starts from the message");
+    let Message::User { text, .. } = &request.messages[0] else { panic!() };
+    assert!(text.starts_with("plan my day\n\n<reads>\n"), "{text}");
+    assert!(text.contains("demo.list {\"list\":\"Work\"}") && text.contains("\"items\"") && text.contains("{\"messages\":[]}"), "{text}");
+    assert!(text.contains(&untrusted::wrap("demo.search", &json!({ "unread": true }), "{\"messages\":[]}")), "each result is in the envelope that says it is data");
+    assert!(text.ends_with("\n</reads>"));
+    assert_eq!(tool_events(&mut turn), ["call read-1-0", "result read-1-0", "call read-1-1", "result read-1-1"], "the person sees what was read");
+}
+
+#[test]
+fn a_first_read_that_would_ask_or_does_not_only_read_is_left_for_the_model() {
+    let mut w = reading_world();
+    allow_always(&mut w, "demo.echo");
+    let setup = TurnSetup { reads: vec![("demo.list".into(), json!({})), ("demo.echo".into(), json!({ "text": "x" }))], ..TurnSetup::default() };
+    let (mut turn, _) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
+    let step = w.engine.read_first(&mut turn, &mut w.core);
+    let request = request_of(&step);
+    assert!(matches!(&request.messages[0], Message::User { text, .. } if text == "go"), "nothing was read: one needed asking, the other changes things");
+    assert_eq!(w.runs.load(Ordering::SeqCst), 0);
+    assert!(w.core.pending().is_empty(), "and nobody was asked");
 }
