@@ -36,7 +36,7 @@ on 13 November 2026.
 
 **Stays the same**
 
-- The five zones, and Mobius on the right as the last tab.
+- The five zones, and Mobius alone at the right edge, never a tab.
 - The neutral frame, three flat surfaces, hairlines, and no glass or blur.
 - Ink for state, indigo with a dashed edge for Mobius, and colour for the user's content.
 - The four themes, Inter, single-weight line icons, and two densities.
@@ -788,7 +788,7 @@ size token.**
 
 | Part | How it's built | Size |
 | --- | --- | --- |
-| Head | "Mobius" as the last tab, then New chat, History, Pop out and Close as icon buttons | 52px / 44px tall, 32px buttons |
+| Head | "Mobius" as a plain title (never a tab), then New chat, History, Pop out and Close as icon buttons | 52px / 44px tall, 32px buttons |
 | Glance (slot) | One paper card: up to three facts as a grey label over a value (tabular figures), and at most one quiet button. Hidden when the app gives none. | 8px corners, 12px inside |
 | Section heading | "Waiting for you", "For this email", "Earlier chats": grey semibold, sentence case, a count at the right, a hairline under it | 12.5px, 20px above |
 | Waiting card | One per pending change. Dashed indigo edge (1.5px). Line 1: app icon and what changed, one line, ending in an ellipsis. Line 2: grey app name and time. Then Show and Discard as quiet text buttons and one small ink Keep at the right. Three at most, then a "2 more" row. | 8px corners, 26px buttons |
