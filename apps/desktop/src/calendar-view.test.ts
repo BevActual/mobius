@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
 import { setLocaleForTests } from './dates';
-import { dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, searchEvents, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -17,6 +17,14 @@ describe('the days on screen', () => {
     expect(isoDay(month[0]!)).toBe('2026-10-26');
     expect(isoDay(month[month.length - 1]!)).toBe('2026-12-06');
     expect(daysFor('day', day('2026-11-20')).map(isoDay)).toEqual(['2026-11-20']);
+  });
+
+  it('numbers weeks as ISO does, Monday to Sunday', () => {
+    expect(isoWeek(new Date(2026, 10, 12))).toBe(46);
+    expect(isoWeek(new Date(2026, 10, 15))).toBe(46);
+    expect(isoWeek(new Date(2026, 10, 16))).toBe(47);
+    expect(isoWeek(new Date(2027, 0, 1))).toBe(53);
+    expect(isoWeek(new Date(2026, 0, 1))).toBe(1);
   });
 
   it('steps by a day, a week or a month, keeping to real dates', () => {

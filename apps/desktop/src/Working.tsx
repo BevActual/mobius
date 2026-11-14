@@ -66,7 +66,8 @@ export function WorkingIndicator({ state, onStop }: { state: ConversationState; 
         <DotMatrix />
         <span className="work-now-word">Working</span>
         <span className="work-now-count" aria-label={w.of ? `Step ${w.at} of ${w.of}` : `Step ${w.at}`}>{stepCount(w)}</span>
-        <button type="button" className="btn work-now-stop" onClick={onStop}>Stop</button>
+        {/* The same Stop as the composer's, for the pointer: hidden from the keyboard and screen readers, which have that one. */}
+        <button type="button" className="btn work-now-stop" aria-hidden="true" tabIndex={-1} onClick={onStop}>Stop</button>
       </div>
       {w.steps.length > 0 && (
         <ol className="work-now-steps">

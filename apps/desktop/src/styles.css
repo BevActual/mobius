@@ -837,7 +837,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
    macOS 27 era: the sidebar runs edge to edge and full height, one toolbar spans the work area, the work area is flush
    with both, controls are capsules, and indigo is the one accent. Glass stays on the top layer only (hub, launcher,
    menus), so the window reads the same on every platform and with Reduce Transparency. */
-.app { background: var(--bg); --context: var(--toolbar-h); }
+.app { background: var(--bg); --context: var(--toolbar-h); font-size: var(--fs-md); }
 
 /* Sidebar */
 .rail { background: var(--sidebar); border-right: 0.5px solid var(--hairline); }
@@ -1230,7 +1230,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .cal-days, .cal-all-day { display: grid; border-bottom: 1px solid var(--line); }
 .cal-day-head { padding: 6px 10px; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; }
 .cal-day-head b { font-size: var(--fs-xl); color: var(--ink); font-weight: 600; }
-.cal-day-head[data-today] b { display: inline-grid; place-items: center; min-width: 28px; height: 28px; border-radius: 14px; background: var(--accent); color: var(--on-accent); }
+.cal-day-head[data-today] b { display: inline-grid; place-items: center; min-width: var(--control-h); height: var(--control-h); border-radius: var(--radius-control); background: var(--ink); color: var(--on-ink); }
 .cal-all-day-cell { display: flex; flex-direction: column; gap: 2px; padding: 3px 2px; border-left: 1px solid var(--line); min-width: 0; }
 .cal-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .cal-grid { position: relative; display: grid; }
@@ -1239,7 +1239,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .cal-all-day > .cal-hour { position: static; transform: none; align-self: center; text-align: right; padding-right: 6px; }
 .cal-column { position: relative; border-left: 1px solid var(--line); background-image: linear-gradient(var(--line) 1px, transparent 1px); }
 .cal-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--danger); pointer-events: none; z-index: 2; }
-.cal-now::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 4px; background: var(--danger); }
+.cal-now::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 .cal-event { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; padding: 3px 7px; text-align: left; font-size: var(--fs-xs); line-height: 1.3; border-radius: 6px; overflow: hidden;
   background: color-mix(in srgb, var(--event) 16%, var(--bg)); border-left: 3px solid var(--event); color: var(--ink); }
 .cal-column > .cal-event { position: absolute; z-index: 1; }
@@ -1263,15 +1263,10 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .cal-more { align-self: flex-start; padding: 0 6px; font-size: var(--fs-xs); color: var(--muted); }
 .cal-more:hover { color: var(--ink); }
 .calendar-list { list-style: none; margin: 0; padding: 0 var(--sp-2); }
-.calendar-row { display: flex; align-items: center; gap: var(--sp-2); height: 30px; padding: 0 var(--sp-1); border-radius: var(--radius-control); cursor: pointer; }
+.calendar-row { display: flex; align-items: center; gap: var(--sp-2); height: var(--row-side); padding: 0 var(--sp-1); border-radius: var(--radius-control); cursor: pointer; }
 .calendar-row:hover { background: var(--soft); }
-.calendar-row input { appearance: none; width: 14px; height: 14px; margin: 0; border-radius: 4px; border: 2px solid var(--swatch); background: var(--swatch); cursor: pointer; }
-.calendar-row input:not(:checked) { background: transparent; }
-/* A white tick on the colour, so a shown calendar never reads as an empty box. */
-.calendar-row input:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.5 7.2 6 9.6l4.6-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-size: 100% 100%; }
-.calendar-row input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .calendar-side-note { margin: auto var(--sp-3) var(--sp-3); font-size: var(--fs-xs); color: var(--muted); }
-.cal-editor-backdrop { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(0, 0, 0, 0.18); }
+.cal-editor-backdrop { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: color-mix(in srgb, var(--ink) 18%, transparent); }
 .cal-editor { width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4); border-radius: var(--radius-panel); background: var(--bg); box-shadow: var(--shadow-3); }
 .cal-editor input:not([type="checkbox"]), .cal-editor select, .cal-editor textarea { min-height: var(--control-h); padding: 4px 8px; border-radius: var(--radius-control); background: var(--field); border: 1px solid transparent; font: inherit; color: inherit; }
 .cal-editor textarea { resize: vertical; }
@@ -1292,9 +1287,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .calendar-account-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
 .calendar-account-problem { margin: 2px var(--sp-3); font-size: var(--fs-xs); color: var(--danger); }
 .cal-lock { width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.5; flex-shrink: 0; }
-.calendar-add-account { align-self: flex-start; margin: var(--sp-1) var(--sp-3); padding: 4px 6px; font-size: var(--fs-sm); color: var(--accent); border-radius: var(--radius-control); }
-.calendar-add-account:hover { background: var(--wash); }
-.calendar-row .list-name { flex: 1; }
 .cal-modal-layer { position: fixed; inset: 0; z-index: 50; }
 .cal-event[data-suggested] { background: color-mix(in srgb, var(--mobius) 7%, var(--bg)); border: 1.5px dashed color-mix(in srgb, var(--mobius) 70%, var(--bg)); color: var(--mobius); }
 .cal-event[data-suggested] span { color: color-mix(in srgb, var(--mobius) 70%, var(--muted)); }
@@ -2281,6 +2273,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .empty-state-title { margin: 0; font-size: var(--fs-lg, 15px); font-weight: 600; color: var(--ink); }
 .empty-state-line { margin: 0; font-size: var(--fs-sm); color: var(--muted); line-height: 1.45; }
 .empty-state-action { margin-top: var(--sp-2); }
+.empty-state-keys { margin-top: var(--sp-1); color: var(--muted); font-size: var(--fs-xs); }
 
 /* From Mobius is a filter (FromMobius.tsx): pressed, a sidebar shows only the rows Mobius made or changed. */
 .from-mobius-filter { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 30px; padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--mobius); font-size: var(--fs-sm); font-weight: var(--fw-medium); text-align: left; }
