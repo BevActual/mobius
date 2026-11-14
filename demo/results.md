@@ -14,8 +14,8 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
 | Slides: Make this a deck (local, from Docs) | 14 Nov, 75dc9eb, chip on the brief | Sonnet 5.5 | 17.6 s to the deck | Nearly | Two slides with five bullets |
 | Browser: Compare these (#296) | 14 Nov, 75dc9eb, Files › Open then chip | Sonnet 5.5 | 28.7 s to the note, 41 s to end | Nearly: correct, no cards, too slow | Links tied to the session's port |
-| Files: Tidy this folder (local, after #288) | 14 Nov, 62b8354, typed (no suggestion) | Sonnet 5.5 | 36 s to done | No | Moves not shown before; two approvals to list; Undo leaves 6 files and 12 folders |
-| Sheets: What stands out? (local; chart to follow) | 14 Nov, 65bb3a5, chip | Sonnet 5.5 | 22.7 s to cells and chart | Content yes, time no | Unformatted average; chart below the grid |
+| Files: Tidy this folder (#305) | 14 Nov, db616da, chip | Sonnet 5.5 | 24.2 / 24.2 / 32.1 s | Content yes, time no | Listing asks first; moves not shown before; muddled counts |
+| Sheets: What stands out? (#338) | 14 Nov, db616da, chip | Sonnet 5.5 | 14.1 / 22.7 / 22.4 s | Content yes, time no | Chart below the grid at 1440 wide |
 | Code: a failing test in Glance (local) | 14 Nov, a99e095, Glance card | Sonnet 5.5 | 14.7 s to passing | Yes | Explanation twice; raw prompt shown as the person's turn |
 
 ## Home and Tasks: Plan my day (#293)
@@ -290,6 +290,16 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 
 ## Files: Tidy this folder (local, after #288)
 
+### Round 11 (db616da, #305, from the chip)
+
+- **Time:** one approval card for files.list at 6.2 s; the files moved at 24.2 s (one files.move, 517 ms); Keep 32.1 s;
+  end 30.8 s. Turn timings: three rounds 29.8 s (start-up 2.9 s), app tools 0.5 s; round 2 writes the move in 17.3 s.
+- **What appeared:** 60 files into five flat folders (Archives 6, Documents 26, Drawings 7, Images 14, Spreadsheets 7),
+  names unchanged, nothing deleted, none loose.
+- **Weak:** listing still asks; the moves show only after they're made; the reply corrects its own counts twice (55,
+  then 26 Documents), the step says "Move 50 files and folders" and the bar "108 changes"; Documents mixes invoices with
+  drafts.
+
 - **Run on:** 14 November 2026, 62b8354 (main with #288, #289, #290, plus the seed). The suggestion read "Tidy a
   folder…", not "Tidy this folder", so the ask was typed with Downloads open.
 - **Model:** Sonnet 5.5 through Claude Code.
@@ -305,6 +315,15 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 - **Screenshot:** Andrew's PC, `mobius-moments-shots\round2\`.
 
 ## Sheets: What stands out? (local; chart to follow)
+
+### Round 11 (db616da, #338, from the chip)
+
+- **Time:** cells written at 14.1 s; cells and chart dashed with Keep at about 22.4 s; last 22.7 s; end 21.2 s; no cards.
+  Turn timings: three rounds 20.8 s (start-up 2.7 s), app tools 0.4 s.
+- **What appeared:** totals as SUM, averages as `=ROUND(AVERAGE(...),1)` (150.3), "low: 41 units" (April) and "high: 260
+  units" (September) in plain words, rows unchanged, bar "1 chart, 1 sheet". The reply also spots that January and
+  February are identical.
+- **Weak:** the chart is still below the grid at 1440 by 900; the reply names the C and D cells but not B5 and B10.
 
 - **Run on:** 14 November 2026, 65bb3a5 (#320). Sheets › Sales 2025, first chip, no approval cards.
 - **Model:** Sonnet 5.5 through Claude Code.
