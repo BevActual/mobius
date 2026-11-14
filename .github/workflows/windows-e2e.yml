@@ -57,18 +57,8 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     steps:
-      # CI only, on GitHub's throwaway runners (Andrew's yes, 2026-11-14): Defender scanning every file the tests write
-      # starved the disk, so a checkpoint took up to 4.7 s and tests timed out. Nothing in the app, the installer or any
-      # script that runs on a person's computer does this.
-      - name: Keep Defender out of the test folders (CI runner only)
-        shell: pwsh
-        run: |
-          foreach ($dir in @($env:RUNNER_TEMP, $env:TEMP)) {
-            Add-MpPreference -ExclusionPath $dir -ErrorAction Continue
-            Write-Host "Defender exclusion: $dir"
-          }
-      # The tests make their data folders in the system temp folder, which is on C:, the runner's slow OS disk. D: is
-      # its fast local disk, so temp goes there for the rest of the job.
+      # CI runner only. The tests make their data folders in the system temp folder, which is on C:, the runner's slow OS
+      # disk: checkpoints took up to 6 s there and tests timed out. D: is its fast local disk, so temp goes there.
       - name: Put temp files on the runner's fast disk (CI runner only)
         shell: pwsh
         run: |
