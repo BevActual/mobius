@@ -151,7 +151,7 @@
 
 /* The velocity lane: one bar per note, taller for louder, under the roll and scrolled with it. */
 .studio-page .studio-vel { flex: none; position: relative; overflow: hidden; border-top: var(--hairline-w) solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--paper)); }
-.studio-vel-label { position: absolute; left: 0; top: 0; bottom: 0; z-index: 2; width: var(--keys, 64px); box-sizing: border-box; padding: var(--sp-2) var(--sp-2) 0 0; text-align: right; font-size: var(--fs-floor); font-weight: var(--fw-semibold); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--ink) 3%, var(--paper)); border-right: var(--hairline-w) solid var(--line); }
+.studio-vel-label { position: absolute; left: 0; top: 0; bottom: 0; z-index: 2; width: var(--keys, 64px); box-sizing: border-box; padding: var(--sp-2) var(--sp-2) 0 0; text-align: right; font-size: var(--fs-floor); font-weight: var(--fw-regular); color: var(--muted); background: color-mix(in srgb, var(--ink) 3%, var(--paper)); border-right: var(--hairline-w) solid var(--line); }
 .studio-vel-inner { position: absolute; top: 0; bottom: 0; left: var(--keys, 64px); background-image: linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 1px); }
 .studio-page .studio-vel-bar { position: absolute; bottom: 0; width: 3px; margin-left: 1px; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--tc) 70%, var(--paper)); cursor: ns-resize; touch-action: none; outline: none; }
 /* A round head on each bar; a wider invisible grab area around the thin line. */
@@ -196,19 +196,27 @@
 .studio-slot-empty { flex: 1; border: 0; border-radius: var(--radius-small); background: none; cursor: default; }
 .studio-slot-empty:hover, .studio-slot-empty:focus-visible { background: color-mix(in srgb, var(--tc) 14%, transparent); outline: none; }
 .studio-slot-empty:hover::after, .studio-slot-empty:focus-visible::after { content: "+"; color: var(--muted); }
-/* A clip: its colour, a launch button at its start, and how far round it is while it plays. */
-.studio-slot > .studio-clip-launch { flex: none; width: var(--row-list); height: auto; border-radius: var(--radius-small) 0 0 var(--radius-small); background: color-mix(in srgb, var(--tc) 70%, var(--paper)); color: var(--on-content); }
+/* A clip: on paper, with the track's colour as a bar at its leading edge and its name in ink; a launch square first.
+   Playing, the square turns ink and a line in the track's colour shows how far round it is. */
+.studio-slot:has(.studio-clip-body) { padding: 2px; }
+.studio-slot > .studio-clip-launch { flex: none; width: var(--row-list); height: auto; border: var(--hairline-w) solid var(--line); border-right: 0; border-radius: var(--radius-small) 0 0 var(--radius-small); background: var(--paper); color: var(--tc); box-shadow: inset 3px 0 0 var(--tc); }
 .studio-slot > .studio-clip-launch svg { width: var(--sp-3); height: var(--sp-3); fill: currentColor; stroke: none; }
-.studio-slot[data-playing] > .studio-clip-launch { background: var(--ink); color: var(--paper); }
-.studio-clip-body { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; padding: 0 var(--sp-2); border: 0; border-radius: 0 var(--radius-small) var(--radius-small) 0; background: var(--tc); color: var(--on-content); font: inherit; text-align: left; overflow: hidden; cursor: default; }
+.studio-slot[data-playing] > .studio-clip-launch { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.studio-clip-body { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-left: 0; border-radius: 0 var(--radius-small) var(--radius-small) 0; background: var(--paper); color: var(--ink); font: inherit; text-align: left; overflow: hidden; cursor: default; }
 .studio-clip-body:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
-.studio-slot[aria-selected="true"] .studio-clip-body { box-shadow: inset 0 0 0 calc(var(--hairline-w) * 2) var(--ink); }
+/* The chosen clip: the current fill and a hairline ink edge, as a current list row has. */
+.studio-slot[aria-selected="true"] > .studio-clip-launch:not([aria-pressed="true"]), .studio-slot[aria-selected="true"] > .studio-clip-body { background: var(--sel); }
+.studio-slot[aria-selected="true"] > .studio-clip-launch, .studio-slot[aria-selected="true"] > .studio-clip-body { border-color: var(--ink); }
 .studio-slot[data-queued] .studio-clip-body { outline: calc(var(--hairline-w) * 1.5) dashed var(--ink); outline-offset: -3px; }
-.studio-clip-round { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--p) * 100%); background: var(--on-content); }
+.studio-clip-round { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--p) * 100%); background: var(--tc); }
+/* The stop squares: muted at icon size, faded only while their track is stopped. */
 .studio-slot > .studio-clip-stop { flex: 1; width: auto; height: auto; color: var(--muted); }
-.studio-slot > .studio-clip-stop svg, .studio-scene-launch svg { width: var(--sp-3); height: var(--sp-3); fill: currentColor; stroke: none; }
+.studio-slot > .studio-clip-stop:disabled { opacity: 0.4; }
+.studio-clip-stop svg, .studio-stop-all svg { fill: currentColor; stroke: none; }
+.studio-scene-launch svg { width: var(--sp-3); height: var(--sp-3); fill: currentColor; stroke: none; }
+.studio-session-add .studio-slot { border-right-color: transparent; }
 .studio-scene { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; height: var(--row-list); padding: 0 var(--sp-1); }
-.studio-scene-name { flex: 1; min-width: 0; height: calc(var(--row-list) - 6px); padding: 0 var(--sp-1); border: var(--hairline-w) solid transparent; border-radius: var(--radius-small); background: none; color: var(--ink); font: inherit; }
+.studio-scene-name { flex: 1; min-width: 0; color: var(--ink); height: calc(var(--row-list) - 6px); padding: 0 var(--sp-1); border: var(--hairline-w) solid transparent; border-radius: var(--radius-small); background: none; color: var(--ink); font: inherit; }
 .studio-scene-name:hover { border-color: var(--line); }
 .studio-scene-name:focus { border-color: var(--ink); outline: none; }
 .studio-session-stops .studio-slot { border-right-color: transparent; }
@@ -216,3 +224,4 @@
 .studio-clip-title:hover { border-color: var(--line); }
 .studio-clip-title:focus { border-color: var(--ink); outline: none; }
 .studio-pick-clip { margin: var(--sp-4) var(--sp-3); }
+.studio-scene-name::placeholder { color: var(--muted); }

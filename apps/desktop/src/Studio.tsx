@@ -607,7 +607,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const keysW = drums ? DRUM_KEYS_W : KEYS_W;
   const rows = drums ? DRUMS.map((d) => ({ pitch: d.pitch, label: d.name, shade: false, black: false, c: true })) : Array.from({ length: MELODY_TOP - MELODY_BOTTOM + 1 }, (_, i) => MELODY_TOP - i).map((p) => ({ pitch: p, label: noteName(p), shade: !inKey.has(p % 12), black: isBlack(p), c: p % 12 === 0 }));
   const rowOf = (pitch: number) => rows.findIndex((r) => r.pitch === pitch);
-  const rbw = ROLL_BEAT_W * zoom;
+  // A clip's notes fill the editor's width, so a one-bar clip is not a strip at the left; the song's notes keep their scale.
+  const rbw = clip ? Math.max(ROLL_BEAT_W * zoom, (laneW + HEAD_W - keysW) / span) : ROLL_BEAT_W * zoom;
   // The arrangement fits the whole song across the window, then zooms in from there.
   const bw = Math.max(BEAT_MIN, laneW / total) * zoom;
   const notes = clip ? clip.notes : (track?.notes ?? []);
@@ -957,7 +958,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       </ToolbarControls>
       <div className="studio-main">
         {proposal}
-        <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px`, ...(editing && !(fitDevices) ? { height: listH, flex: 'none' } : {}) }}
+        <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px`, ...(editing && !fitDevices ? (view === 'session' && arrangeH === null ? { flex: '0 1 auto' } : { height: listH, flex: 'none' }) : {}) }}
           onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
           {view === 'session' ? (
             <SessionGrid song={song} selected={track?.id ?? null} chosen={clipAt} playing={sessionNow.playing} queued={sessionNow.queued} beat={beat}

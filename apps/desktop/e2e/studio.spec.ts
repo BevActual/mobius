@@ -245,7 +245,7 @@ test('the Session view has clips to launch in scenes, each with its own notes, k
   await expect.poll(() => (saved() as { scenes?: string[] }).scenes).toEqual(['Verse']);
   await grid.getByRole('button', { name: 'Launch scene Verse' }).click();
   await expect(grid.getByRole('button', { name: 'Launch Keys 1, scene Verse' })).toHaveAttribute('aria-pressed', 'true');
-  await grid.getByRole('button', { name: 'Stop all clips' }).click();
+  await grid.getByRole('button', { name: 'Stop all' }).click();
   await expect(grid.getByRole('button', { name: 'Launch Keys 1, scene Verse' })).toHaveAttribute('aria-pressed', 'false', { timeout: 6000 });
   await shell().getByRole('button', { name: 'Stop', exact: true }).click();
   // A clip's menu duplicates it into the slot below.

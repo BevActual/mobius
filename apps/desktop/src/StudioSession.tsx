@@ -10,6 +10,7 @@ import type { SessionPlaying, SessionQueued } from './studio-audio';
  * other before they are laid out.
  */
 const PLAY = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5l8 5-8 5z" /></svg>;
+const ADD = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>;
 const STOP = <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1" /></svg>;
 
 export function SessionGrid({ song, selected, chosen, playing, queued, beat, onSelect, onChoose, onCreate, onLaunch, onLaunchScene, onStopAll, onSceneName, onAddScene, onClipMenu }: {
@@ -77,10 +78,16 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
           })}
           <div role="rowheader" className="studio-scene">
             <IconButton className="studio-scene-launch" label={`Launch scene ${sceneName(song, i)}`} title="Launch this row of clips on the next bar" icon={PLAY} onClick={() => onLaunchScene(i)} />
-            <input className="studio-scene-name" aria-label={`Scene ${i + 1} name`} placeholder={String(i + 1)} value={song.scenes?.[i] ?? ''} maxLength={40} onChange={(e) => onSceneName(i, e.target.value)} />
+            <input className="studio-scene-name" aria-label={`Scene ${i + 1} name`} placeholder={`Scene ${i + 1}`} value={song.scenes?.[i] ?? ''} maxLength={40} onChange={(e) => onSceneName(i, e.target.value)} />
           </div>
         </div>
       ))}
+      <div className="studio-session-row studio-session-add" role="row">
+        {song.tracks.map((t) => <div key={t.id} role="gridcell" className="studio-slot" />)}
+        <div role="rowheader" className="studio-scene">
+          <Button kind="quiet" className="studio-add-scene" icon={ADD} onClick={onAddScene}>Add scene</Button>
+        </div>
+      </div>
       <div className="studio-session-row studio-session-stops" role="row">
         {song.tracks.map((t) => (
           <div key={t.id} role="gridcell" className="studio-slot">
@@ -88,8 +95,7 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
           </div>
         ))}
         <div role="rowheader" className="studio-scene">
-          <IconButton className="studio-scene-launch" label="Stop all clips" title="Stop every clip at the next bar" icon={STOP} onClick={onStopAll} />
-          <Button kind="quiet" className="studio-add-scene" onClick={onAddScene}>Add scene</Button>
+          <Button kind="quiet" className="studio-stop-all" icon={STOP} title="Stop every clip at the next bar" onClick={onStopAll}>Stop all</Button>
         </div>
       </div>
     </div>
