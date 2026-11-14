@@ -59,4 +59,15 @@ describe('automation lane', () => {
     const pads = [{ id: 'a', name: 'Kick' }, { id: 'b', name: 'Snare' }];
     expect(renderToStaticMarkup(<PadGrid label="Kit" pads={pads} chosen={0} onChoose={noop} fill columns={2} />)).toContain('data-fill="true"');
   });
+
+  it('keeps its head in its own band, and can leave it out and take a track colour', () => {
+    const withHead = renderToStaticMarkup(<AutomationLane label="Volume" points={pts} beats={8} pxPerBeat={20} onChange={noop} />);
+    expect(withHead).toContain('class="ui-lane-head"');
+    expect(withHead).not.toContain('data-headless');
+    const bare = renderToStaticMarkup(<AutomationLane label="Volume" points={pts} beats={8} pxPerBeat={20} color="violet" head={false} onChange={noop} />);
+    expect(bare).not.toContain('ui-lane-head');
+    expect(bare).toContain('data-headless="true"');
+    expect(bare).toContain('data-color="violet"');
+    expect(bare).toContain('aria-label="Volume automation"');
+  });
 });
