@@ -174,6 +174,13 @@ impl Workspace {
         self.checkpoints.restore_file(&root, checkpoint, path).map_err(|e| e.to_string())
     }
 
+    /// Puts some of a turn's files back as they were at `checkpoint`, all at once, with one checkpoint first. Moves of
+    /// files checkpoints leave out stay where they are: that is only for the whole turn ([`Workspace::restore_turn`]).
+    pub fn restore_paths(&self, checkpoint: &str, paths: &[String]) -> Res<()> {
+        let root = self.real_root()?;
+        self.checkpoints.restore_files(&root, checkpoint, paths, None).map_err(|e| e.to_string())
+    }
+
     /// Puts a turn's files back as they were at `checkpoint`, all at once, and moves back what its moves (up to `end`)
     /// left where they went (archives and videos, which checkpoints leave out). Folders left empty are taken away.
     pub fn restore_turn(&self, checkpoint: &str, end: &str, paths: &[String]) -> Res<()> {

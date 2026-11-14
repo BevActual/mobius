@@ -373,6 +373,22 @@ fn a_modes_and_a_suggestions_first_reads_go_to_the_core_and_bad_ones_are_refused
 }
 
 #[test]
+fn a_mode_or_suggestion_offers_only_its_apps_tools_and_a_plain_message_offers_all() {
+    let s = service(true);
+    s.service.configure(&cfg("http://a/v1", "am"));
+    let sent = |request: Value| {
+        s.service.send(&parse_send(&request).unwrap(), None);
+        calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap()["params"].clone()
+    };
+    assert_eq!(sent(json!({ "conversation": "c-1", "text": "sort my inbox", "mode": "triage" }))["tools"], json!(["mail", "tasks", "calendar"]));
+    assert_eq!(sent(json!({ "conversation": "c-2", "text": "plan my day", "tools": ["tasks", "calendar", "mail"] }))["tools"], json!(["tasks", "calendar", "mail"]));
+    assert_eq!(sent(json!({ "conversation": "c-3", "text": "sort", "mode": "triage", "tools": ["files", "mail"] }))["tools"], json!(["mail", "tasks", "calendar", "files"]), "both, once each");
+    assert!(sent(json!({ "conversation": "c-4", "text": "hi" })).get("tools").is_none());
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": ["tasks.list"] })).is_none(), "a kind, not a tool");
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": vec!["a"; 13] })).is_none(), "at most twelve");
+}
+
+#[test]
 fn what_mobius_remembers_joins_the_instructions_after_a_bots() {
     let s = service(true);
     s.service.configure(&Configure { system: Some("Be brief.".into()), ..cfg("http://a/v1", "am") });

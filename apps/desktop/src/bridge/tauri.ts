@@ -106,6 +106,7 @@ export function createTauriBridge(): MobiusBridge {
       lastTurn: (conversation) => call('changes', 'lastTurn', [conversation], () => ({ checkpoint: null, files: [] })),
       undo: (conversation) => call('changes', 'undo', [conversation], () => refused),
       undoFile: (conversation, path) => call('changes', 'undoFile', [conversation, path], () => refused),
+      undoFiles: (conversation, paths) => call('changes', 'undoFiles', [conversation, paths], () => refused),
       before: (conversation, path) => call('changes', 'before', [conversation, path], () => refused),
       turns: (conversation) => call('changes', 'turns', [conversation], () => ({ ok: true as const, turns: [] })),
       turnBefore: (conversation, start, path) => call('changes', 'turnBefore', [conversation, start, path], () => refused),
@@ -170,7 +171,7 @@ export function createTauriBridge(): MobiusBridge {
       onStatus: (listener) => on<CoreStatus>('mobius:core-status', listener, () => call<CoreStatus>('core', 'getStatus', [], () => 'failed')),
     },
     agent: {
-      send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || options.ask || options.quick || options.mode || options.app || (options.images && options.images.length > 0) || (options.reads && options.reads.length > 0) || options.finish) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
+      send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || options.ask || options.quick || options.mode || options.app || (options.images && options.images.length > 0) || (options.reads && options.reads.length > 0) || options.finish || (options.tools && options.tools.length > 0)) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
       models: () => call('agent', 'models', [], () => refused),
       setModel: (model) => call('agent', 'setModel', [model], () => refused),
       transcribe: (audio, mime) => call('agent', 'transcribe', [toBase64(audio), mime], () => refused),

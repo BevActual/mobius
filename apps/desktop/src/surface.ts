@@ -22,6 +22,8 @@ export interface Suggestion {
   reads?: (now: Date) => SuggestedRead[];
   /** It ends in changes: the turn is done once they are all made, and the summary of what changed is its answer. */
   finishes?: true;
+  /** The apps whose tools it works with (tasks, calendar): only theirs are offered, so the request is much shorter. */
+  tools?: readonly string[];
 }
 
 /** A read done before the model is asked: a tool that only reads, and its arguments. */
@@ -76,6 +78,9 @@ export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List
  * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
  * Calendar, mail that needs an answer today gets a draft, and a free hour is held. Nothing is sent and no event moves.
  */
+/** The apps Plan my day works in: it reads and changes tasks and the calendar, and reads and drafts mail. */
+export const PLAN_MY_DAY_TOOLS = ['tasks', 'calendar', 'mail'] as const;
+
 export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search, calling those three tools together in one step. Then, between now and 6 pm and around my events: give each of those tasks a time with one tasks.update per list (due today, the time as HH:MM; never one due later; the others in more) and suggest a block for each with one calendar.suggest (the others in more), both in one step, with the task as the title and why in a few words; most important first, each 30 or 60 minutes, back to back where they fit so the longest free stretch stays whole. Then hold one hour of that stretch for focused work with calendar.suggest (title Focus time): if an hour is free anywhere, there is one. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
 
 /**
@@ -113,7 +118,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         : [{ label: 'Find in my notes', prompt: 'Search my notes and tell me what I have written about ' }];
     case 'tasks':
       return [
-        { label: 'Plan my day', prompt: PLAN_MY_DAY, attach: 'tasks', reads: planMyDayReads, finishes: true },
+        { label: 'Plan my day', prompt: PLAN_MY_DAY, attach: 'tasks', reads: planMyDayReads, finishes: true, tools: PLAN_MY_DAY_TOOLS },
         { label: 'Break down a task', prompt: 'Take the biggest task here and break it into a few small steps. Add the steps as tasks in the same list and tell me what you added.', attach: 'tasks' },
         { label: 'Find tasks in my notes', prompt: 'Read my notes and add the actions you find as tasks in my Inbox. Tell me what you added.' },
       ];
@@ -282,7 +287,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
       ];
     case 'agent':
       return [
-        { label: 'Plan my day', prompt: PLAN_MY_DAY, reads: planMyDayReads, finishes: true },
+        { label: 'Plan my day', prompt: PLAN_MY_DAY, reads: planMyDayReads, finishes: true, tools: PLAN_MY_DAY_TOOLS },
         { label: 'What is in my notes?', prompt: 'Look through my notes and give me a short overview of what is there.' },
         { label: 'Draft something', prompt: 'Help me draft ' },
       ];

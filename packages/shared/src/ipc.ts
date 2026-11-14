@@ -305,6 +305,8 @@ export interface MobiusBridge {
     lastTurn(conversation: string): Promise<TurnChanges | AgentFailure>;
     undo(conversation: string): Promise<{ ok: true } | AgentFailure>;
     undoFile(conversation: string, path: string): Promise<{ ok: true } | AgentFailure>;
+    /** Several of the last turn's files back at once; all of them also moves back what its moves left behind. */
+    undoFiles?(conversation: string, paths: readonly string[]): Promise<{ ok: true; kept?: string[] } | AgentFailure>;
     /** A file as it was before the last turn: `text` is null when the turn made it. */
     before(conversation: string, path: string): Promise<{ ok: true; text: string | null } | AgentFailure>;
     /** Every turn of the conversation, newest first, with what each changed between its start and its end. */
@@ -401,7 +403,7 @@ export interface MobiusBridge {
   agent: {
     /** `plan` asks the agent for a plan only: it proposes the steps and does nothing until the person starts it. */
     /** `options.images` attaches pictures, as `data:` URLs, for models that read them. `options.app` is the app it was sent from (Settings, Usage). */
-    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; images?: string[]; app?: string; /** Reads to do before the model is asked: a suggestion's own. */ reads?: readonly { tool: string; arguments: Record<string, unknown> }[]; /** The turn is done once its changes are made, with no closing answer. */ finish?: boolean }): Promise<AgentResult<{ turn: number }>>;
+    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; images?: string[]; app?: string; /** Reads to do before the model is asked: a suggestion's own. */ reads?: readonly { tool: string; arguments: Record<string, unknown> }[]; /** The turn is done once its changes are made, with no closing answer. */ finish?: boolean; /** Only the tools of these apps are offered (tasks, calendar): the part of a tool's name before the dot. */ tools?: readonly string[] }): Promise<AgentResult<{ turn: number }>>;
     /** The models the server offers, for the switcher. */
     models(): Promise<AgentResult<{ models: string[] }>>;
     /** Use another model on the same server, with everything else as it was. */
