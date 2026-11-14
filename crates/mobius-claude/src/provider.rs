@@ -114,11 +114,18 @@ struct Run {
     events: Receiver<Option<Result<Value, String>>>,
     stderr: Arc<Mutex<VecDeque<String>>>,
     timeout: Duration,
+    spawned: Instant,
+    /// When Claude Code first said anything, in ms after it was started: how long it took to be ready.
+    ready_ms: std::cell::Cell<Option<u64>>,
 }
 
 impl Run {
     fn next(&self) -> Result<Option<Value>, ProviderError> {
-        match self.events.recv_timeout(self.timeout) {
+        let got = self.events.recv_timeout(self.timeout);
+        if self.ready_ms.get().is_none() && matches!(got, Ok(Some(_))) {
+            self.ready_ms.set(Some(u64::try_from(self.spawned.elapsed().as_millis()).unwrap_or(u64::MAX)));
+        }
+        match got {
             Ok(Some(Ok(v))) => Ok(Some(v)),
             Ok(Some(Err(line))) => Err(protocol(format!("Claude Code wrote something that is not stream-json: {}{}", line.chars().take(200).collect::<String>(), self.tail()))),
             Ok(None) | Err(RecvTimeoutError::Disconnected) => Ok(None),
@@ -173,6 +180,7 @@ impl Provider for ClaudeCodeProvider {
         }
         args.extend(["--session-id".to_owned(), frames::session_id(&prepared.system, &prepared.frames)]);
 
+        let spawned = Instant::now();
         let mut command = Command::new(&self.program);
         command.args(&args).current_dir(&self.workdir).env_clear().envs(&env).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
         #[cfg(windows)]
@@ -204,7 +212,7 @@ impl Provider for ClaudeCodeProvider {
             }
             let _ = tx.send(None);
         });
-        let run = Run { child, events: rx, stderr: err_lines, timeout: self.timeout };
+        let run = Run { child, events: rx, stderr: err_lines, timeout: self.timeout, spawned, ready_ms: std::cell::Cell::new(None) };
 
         // History first: every earlier user turn is replayed without asking the model, and acknowledged with no turn.
         let last = prepared.frames.len() - 1;
@@ -271,7 +279,11 @@ impl Provider for ClaudeCodeProvider {
             });
         };
         drop(outcome);
-        let completion = frames::completion(&message, &prepared.names);
+        let mut completion = frames::completion(&message, &prepared.names);
+        // How long Claude Code took to start before its first word (its init, or the history's first acknowledgement).
+        if let Some(ready) = run.ready_ms.get() {
+            completion.usage.get_or_insert_with(Default::default).startup_ms = Some(ready);
+        }
         // The relay's copy is the truth; say whatever the stream did not.
         if let Some(rest) = completion.text.strip_prefix(emitted.as_str())
             && !rest.is_empty()
