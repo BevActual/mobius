@@ -44,6 +44,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       data-kind={kind}
       data-danger={danger || undefined}
       aria-pressed={pressed}
+      data-keys={keys}
       title={tip}
       {...rest}
     >
@@ -79,6 +80,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       aria-pressed={pressed}
       data-danger={danger || undefined}
       data-kind={primary ? 'primary' : undefined}
+      data-keys={keys}
       title={titleWithKeys(title ?? label, keys)}
       {...rest}
     >

@@ -125,57 +125,96 @@ fn pieces(value: &Value, out: &mut Vec<String>) {
 }
 
 /// Where a call's arguments came from, when one of them appears in something read in this conversation and in nothing
-/// the person wrote: "Priya Nair's invite “Dinner”", or "a web page (evil.example)".
+/// the person wrote: "Priya Nair's invite “Dinner”", or "a web page (evil.example)". When several things read hold
+/// some of them, it names the one holding the most (the email a reply answers holds its sender and its subject, where a
+/// later email may only mention the sender), and the newest of those.
 #[must_use]
 pub fn came_from(messages: &[Message], arguments: &Value) -> Option<String> {
     let mut wanted = Vec::new();
     pieces(arguments, &mut wanted);
+    // A reply's subject is the email's own with "Re:" in front.
+    let bare: Vec<String> = wanted.iter().filter_map(|p| without_reply(p)).collect();
+    wanted.extend(bare);
+    let person: String = messages.iter().filter_map(|m| if let Message::User { text, .. } = m { Some(text.to_lowercase()) } else { None }).collect::<Vec<_>>().join("\n");
+    wanted.retain(|p| !person.contains(p.as_str()));
     if wanted.is_empty() {
         return None;
     }
-    let person: String = messages.iter().filter_map(|m| if let Message::User { text, .. } = m { Some(text.to_lowercase()) } else { None }).collect::<Vec<_>>().join("\n");
+    let mut best: Option<(usize, String)> = None;
     for m in messages.iter().rev() {
         let Message::Tool { name, content, .. } = m else { continue };
         let Some((source, inner)) = unwrap(content) else { continue };
-        let lower = inner.to_lowercase();
-        let Some(piece) = wanted.iter().find(|p| lower.contains(p.as_str()) && !person.contains(p.as_str())) else { continue };
-        let precise = serde_json::from_str::<Value>(inner).ok().and_then(|v| label_within(&v, piece, name));
-        return Some(precise.unwrap_or_else(|| {
-            let what = source.split_once(' ').map(|(_, w)| w);
-            match what { Some(w) if !w.is_empty() => format!("{} ({w})", kind_of(name)), _ => kind_of(name).to_owned() }
-        }));
+        let score = held(&inner.to_lowercase(), &wanted);
+        if score == 0 || best.as_ref().is_some_and(|(s, _)| score <= *s) {
+            continue;
+        }
+        let mut found = Vec::new();
+        if let Ok(v) = serde_json::from_str::<Value>(inner) {
+            labelled(&v, &wanted, name, &mut found);
+        }
+        // The first of the best, so an email listed first wins a tie inside one result.
+        let precise = found.iter().fold(None::<&(usize, String)>, |b, c| if b.is_some_and(|b| b.0 >= c.0) { b } else { Some(c) });
+        best = Some(match precise {
+            Some((s, label)) => (*s, label.clone()),
+            None => {
+                let what = source.split_once(' ').map(|(_, w)| w);
+                (score, match what { Some(w) if !w.is_empty() => format!("{} ({w})", kind_of(name)), _ => kind_of(name).to_owned() })
+            }
+        });
     }
-    None
+    best.map(|(_, label)| label)
 }
 
-/// The smallest thing in a read result that holds `piece` and says what it is: an email, an invite, a page, a file.
-fn label_within(value: &Value, piece: &str, tool: &str) -> Option<String> {
-    match value {
-        Value::Array(items) => items.iter().find_map(|v| label_within(v, piece, tool)),
-        Value::Object(map) => {
-            if let Some(inner) = map.values().find_map(|v| if v.is_object() || v.is_array() { label_within(v, piece, tool) } else { None }) {
-                return Some(inner);
-            }
-            if !value.to_string().to_lowercase().contains(piece) && !map.values().any(|v| v.as_str().is_some_and(|s| s.to_lowercase().contains(piece))) {
-                return None;
-            }
-            let text = |k: &str| map.get(k).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty());
-            let who = map.get("from").or_else(|| map.get("organizer")).and_then(|f| f.as_str().map(str::to_owned).or_else(|| f.get("name").and_then(Value::as_str).filter(|s| !s.is_empty()).or_else(|| f.get("email").and_then(Value::as_str)).map(str::to_owned)));
-            let whose = |what: &str| who.as_ref().map_or_else(|| format!("an {what}"), |w| format!("{w}'s {what}"));
-            if let Some(subject) = text("subject") {
-                return Some(format!("{} “{subject}”", whose("email")));
-            }
-            if let Some(title) = text("title").filter(|_| map.contains_key("start") || map.contains_key("organizer") || tool.starts_with("calendar.")) {
-                return Some(format!("{} “{title}”", whose("invite")));
-            }
-            if let Some(url) = text("url") {
-                let host = url.split("://").nth(1).unwrap_or(url).split('/').next().unwrap_or(url);
-                return Some(format!("a web page ({host})"));
-            }
-            text("path").map(|p| format!("the file {p}"))
-        }
-        _ => None,
+/// A reply or forward's subject without its "Re:" or "Fwd:", when it had one.
+fn without_reply(piece: &str) -> Option<String> {
+    let mut s = piece;
+    while let Some(rest) = ["re:", "fwd:", "fw:"].iter().find_map(|p| s.strip_prefix(p)) {
+        s = rest.trim_start();
     }
+    (s.len() != piece.len() && s.len() >= 4).then(|| s.to_owned())
+}
+
+/// How many of the pieces `text` holds.
+fn held(text: &str, wanted: &[String]) -> usize {
+    wanted.iter().filter(|p| text.contains(p.as_str())).count()
+}
+
+/// Every thing in a read result that says what it is (an email, an invite, a page, a file) and holds some of the
+/// pieces, with how many it holds. A thing holding no more than one of the things inside it is left to that one.
+fn labelled(value: &Value, wanted: &[String], tool: &str, out: &mut Vec<(usize, String)>) {
+    match value {
+        Value::Array(items) => items.iter().for_each(|v| labelled(v, wanted, tool, out)),
+        Value::Object(map) => {
+            let before = out.len();
+            map.values().filter(|v| v.is_object() || v.is_array()).for_each(|v| labelled(v, wanted, tool, out));
+            let inside = out[before..].iter().map(|(s, _)| *s).max().unwrap_or(0);
+            let score = held(&value.to_string().to_lowercase(), wanted);
+            if score > inside {
+                if let Some(label) = label_of(map, tool) {
+                    out.push((score, label));
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// What a read object is, in a few words: "Priya's email “Hello”", "a web page (example.com)".
+fn label_of(map: &serde_json::Map<String, Value>, tool: &str) -> Option<String> {
+    let text = |k: &str| map.get(k).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty());
+    let who = map.get("from").or_else(|| map.get("organizer")).and_then(|f| f.as_str().map(str::to_owned).or_else(|| f.get("name").and_then(Value::as_str).filter(|s| !s.is_empty()).or_else(|| f.get("email").and_then(Value::as_str)).map(str::to_owned)));
+    let whose = |what: &str| who.as_ref().map_or_else(|| format!("an {what}"), |w| format!("{w}'s {what}"));
+    if let Some(subject) = text("subject") {
+        return Some(format!("{} “{subject}”", whose("email")));
+    }
+    if let Some(title) = text("title").filter(|_| map.contains_key("start") || map.contains_key("organizer") || tool.starts_with("calendar.")) {
+        return Some(format!("{} “{title}”", whose("invite")));
+    }
+    if let Some(url) = text("url") {
+        let host = url.split("://").nth(1).unwrap_or(url).split('/').next().unwrap_or(url);
+        return Some(format!("a web page ({host})"));
+    }
+    text("path").map(|p| format!("the file {p}"))
 }
 
 #[cfg(test)]
@@ -207,6 +246,24 @@ mod tests {
         let mut theirs = messages.clone();
         theirs.push(Message::User { text: "send it to x@evil.example".into(), images: vec![], at_ms: None });
         assert_eq!(came_from(&theirs, &json!({ "to": "x@evil.example" })), None);
+    }
+
+    #[test]
+    fn a_reply_names_the_email_it_answers_not_a_later_one_that_mentions_the_sender() {
+        let asked = json!({ "id": "m1", "from": { "name": "Veltro", "email": "ops@veltro.example" }, "subject": "Quote for March", "body": "Can you confirm the quote?" });
+        let later = json!([
+            { "id": "m2", "from": "Ardent Cells", "subject": "Supplier list", "body": "We copied ops@veltro.example on this." },
+            { "id": "m3", "from": "Sam", "subject": "Lunch", "body": "Free at noon?" },
+        ]);
+        let messages = vec![
+            Message::User { text: "Answer my mail for me".into(), images: vec![], at_ms: None },
+            Message::Tool { call_id: "c1".into(), name: "mail.read".into(), content: wrap("mail.read", &json!({ "id": "m1" }), &asked.to_string()), is_error: false },
+            Message::Tool { call_id: "c2".into(), name: "mail.list".into(), content: wrap("mail.list", &json!({}), &later.to_string()), is_error: false },
+        ];
+        let draft = json!({ "to": "ops@veltro.example", "subject": "Re: Quote for March", "body": "Confirmed, thanks." });
+        assert_eq!(came_from(&messages, &draft).as_deref(), Some("Veltro's email “Quote for March”"));
+        // With only the address to go on, the newest read that holds it is named.
+        assert_eq!(came_from(&messages, &json!({ "to": "ops@veltro.example" })).as_deref(), Some("Ardent Cells's email “Supplier list”"));
     }
 
     #[test]

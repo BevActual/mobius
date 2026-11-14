@@ -37,5 +37,12 @@ export const PREVIEW_SONGS: Record<string, (...args: never[]) => unknown> = {
     MODIFIED[path] = Date.now();
     return { path, content: TEXT[path], modified: MODIFIED[path] };
   }) as never,
+  // The preview has no disk: the saved sound is kept on the window for tests to read.
+  'songs.saveExport': ((path: string, name: string, data: string) => {
+    const file = /\.wav$/i.test(name) ? name : `${name}.wav`;
+    (window as unknown as { exportedSong?: { name: string; bytes: number } }).exportedSong = { name: file, bytes: Math.floor(data.length * 3 / 4) };
+    return { path, saved: `Exports/${file}`, name: file };
+  }) as never,
+  'songs.showExports': () => ({ ok: true }),
   'songs.remove': ((path: string) => { delete TEXT[path]; return { path }; }) as never,
 };

@@ -12,4 +12,9 @@ describe('the activity board', () => {
     expect(b.running.map((x) => x.id)).toEqual(['a']);
     expect(b.doneToday.map((x) => x.id)).toEqual(['b', 'f']);
   });
+  it('lists a failed run with what needs you, not with what finished', () => {
+    const b = activityBoard([c('ok', 'idle', 1), c('broke', 'failed', 1)], now);
+    expect(b.needsYou.map((x) => x.id)).toEqual(['broke']);
+    expect(b.doneToday.map((x) => x.id)).toEqual(['ok']);
+  });
 });

@@ -184,7 +184,7 @@ test('a schedule is made in Settings, kept, and Run now starts it as a conversat
   await form.getByRole('button', { name: 'Save' }).click();
   const list = page.getByRole('list', { name: 'Schedules' });
   await expect(list).toContainText('Morning brief');
-  await expect(list).toContainText('Mon, Tue, Wed, Thu, Fri, Sat at 08:00');
+  await expect(list).toContainText(/Mon, Tue, Wed, Thu, Fri, Sat at (?:0?8:00|8:00\s?AM)/);
   const saved = JSON.parse(fs.readFileSync(path.join(userData, 'schedules.json'), 'utf8')) as Array<{ title: string; days: number[] }>;
   expect(saved[0]).toMatchObject({ title: 'Morning brief', days: [1, 2, 3, 4, 5, 6] });
   await list.getByRole('button', { name: 'Run now' }).click();
@@ -206,7 +206,7 @@ test('the Agent app’s Activity tab shows what finished today, and what is sche
   await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Activity', exact: true }).click();
   const activity = shell().getByRole('region', { name: 'Activity', exact: true });
   await expect(activity.getByRole('list', { name: 'Done today' })).toContainText('tidy my inbox');
-  await expect(activity.getByRole('list', { name: 'Scheduled requests' })).toContainText('Weekdays at 08:00');
+  await expect(activity.getByRole('list', { name: 'Scheduled requests' })).toContainText(/Weekdays at (?:0?8:00|8:00\s?AM)/);
 });
 
 test('profiles: Personal is there, a new one can be made in Settings, and the open one is marked', async () => {

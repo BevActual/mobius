@@ -137,3 +137,14 @@ test('A question about the mail, asked in the composer, answers with the message
   await sources.getByRole('button').click();
   await expect(page().locator('.mail-reader')).toContainText('I can hold the terrace');
 });
+
+test('Triage in the panel sends a turn in Mail\'s Triage mode, for the unread in the list', async () => {
+  await start([says(['Both can wait.'])]);
+  // In the resting panel it follows Get to zero.
+  await shell().getByRole('button', { name: 'Triage the unread' }).click();
+  await expect(shell().locator('.msg.assistant').last()).toHaveText('Both can wait.');
+  expect(JSON.stringify(model!.requests.at(-1))).toContain('Triage mode (Mail)');
+  expect(JSON.stringify(model!.requests.at(-1))).toContain('Triage my unread message.');
+  // The composer is in Triage now too, so a follow-up stays in it.
+  await expect(shell().getByRole('button', { name: 'Mode', exact: true })).toContainText('Triage');
+});

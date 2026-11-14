@@ -67,6 +67,19 @@ export function smartView(view: SmartView, lists: Record<string, TaskItem[]>, no
   return dated.sort((a, b) => a.task.due!.localeCompare(b.task.due!) || (a.task.time ?? '99').localeCompare(b.task.time ?? '99'));
 }
 
+/** What the Mobius panel's Glance says about the day, across every list: open tasks past their date, open tasks due
+ * today, and open flagged tasks. */
+export function tasksGlance(lists: Record<string, TaskItem[]>, now: Date): { label: string; value: string }[] {
+  const today = isoDay(now);
+  const open = Object.values(lists).flat().filter((t) => !t.done);
+  const count = (keep: (t: TaskItem) => boolean) => String(open.filter(keep).length);
+  return [
+    { label: 'Overdue', value: count((t) => t.due !== null && t.due < today) },
+    { label: 'Due today', value: count((t) => t.due === today) },
+    { label: 'Flagged', value: count((t) => !!t.flagged) },
+  ];
+}
+
 /** Tasks whose words or notes have every word of `query` in them, from every list. */
 export function searchTasks(query: string, lists: Record<string, TaskItem[]>): Located[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);

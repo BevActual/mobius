@@ -36,3 +36,23 @@ export function suggestName(command: string, args: readonly string[]): string {
   const name = plain.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^[^a-z]+/, '').replace(/_+$/, '').slice(0, 24);
   return isConnectorName(name) ? name : '';
 }
+
+/** Names people know a connector by, for ids that are well-known services; any other id is shown as it is. */
+const KNOWN_NAMES: Record<string, string> = {
+  github: 'GitHub', gitlab: 'GitLab', linear: 'Linear', slack: 'Slack', notion: 'Notion', jira: 'Jira', figma: 'Figma',
+  sentry: 'Sentry', stripe: 'Stripe', postgres: 'Postgres', sqlite: 'SQLite', filesystem: 'Filesystem', fetch: 'Fetch',
+  puppeteer: 'Puppeteer', playwright: 'Playwright', google_drive: 'Google Drive', gdrive: 'Google Drive', brave_search: 'Brave Search',
+};
+export const connectorDisplayName = (id: string): string => KNOWN_NAMES[id] ?? id;
+
+/**
+ * Why a connector could not start, as the end of one sentence after "Couldn’t start: ". The host's "could not start
+ * <command>: " is dropped (the row says that already), a missing program says so plainly with where to fix it, and
+ * the first letter is lower case.
+ */
+export function connectorProblem(error: string | undefined): string {
+  let text = (error ?? '').trim().replace(/^could not start [^:]*:\s*/i, '');
+  if (/not found|no such file|cannot find the file|os error 2\b/i.test(text)) return 'the command wasn’t found. Check it in mcp.json';
+  if (text === '') text = 'unknown problem';
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}

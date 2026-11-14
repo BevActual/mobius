@@ -264,8 +264,17 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-time-list .ui-time-option:hover, .ui-time-list .ui-time-option[data-highlighted] { background: color-mix(in srgb, var(--sel) 50%, transparent); }
 .ui-time-length { margin-left: auto; padding-left: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
 .ui-time-field .ui-field-box { min-width: calc(var(--card-w) / 2.5); }
-.ui-time-range { display: flex; align-items: center; gap: var(--sp-2); }
+/* The time itself never clips: an end time's length ("1 hr 30 min") widens the box instead of covering "2:30 PM". */
+.ui-time-field .ui-field-input { min-width: 8ch; }
+.ui-time-field .ui-field-unit { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ui-time-range { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+/* The range's length reads after both times, grey, and drops under them when the row is too narrow. */
+.ui-time-span { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ui-time-to { color: var(--muted); }
+/* In a range each box keeps to its time, so the two times and their length fit one row in a panel. */
+.ui-time-range > .ui-field { flex: none; }
+.ui-time-range .ui-field-box { min-width: 0; }
+.ui-time-range .ui-field-input { flex: none; width: 8ch; }
 
 /* Pro controls. Number field: the field's box at the pro height and one shared least width, the value right-aligned in
    mono tabular figures with the unit grey after it, so a column of fields lines up on the digits; dragging shows the

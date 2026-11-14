@@ -477,15 +477,17 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), json!({ "note": "mine", "servers": { "notes": { "command": "notes-server" } } }).to_string()).unwrap();
         let file = dir.path().join("mcp.json");
         let (b, _core, _e, _d) = bridge_in(dir);
-        let added = b.call("extensions", "addConnector", &[json!({ "name": "github", "command": "npx", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } })]).unwrap();
+        let added = b.call("extensions", "addConnector", &[json!({ "name": "github", "command": "not-a-github-server-xyz", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } })]).unwrap();
         assert_eq!(added["ok"], json!(true), "{added}");
         let saved: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
         assert_eq!(saved["note"], "mine");
-        assert_eq!(saved["servers"]["github"], json!({ "command": "npx", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } }));
+        assert_eq!(saved["servers"]["github"], json!({ "command": "not-a-github-server-xyz", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } }));
         assert_eq!(saved["servers"]["notes"]["command"], "notes-server");
-        // Nothing has started yet: both wait for Mobius to open again.
+        // It is tried at once: saved even though it could not start, and listed with why. The other still waits.
+        assert_eq!(added["started"], json!(false));
+        assert_eq!(added["status"]["failed"][0]["server"], "github");
         let waiting = b.mcp_status()["waiting"].clone();
-        assert!(waiting.as_array().unwrap().contains(&json!("github")), "{waiting}");
+        assert_eq!(waiting, json!(["notes"]));
         // A bad name, a missing command or a name already taken changes nothing.
         for bad in [json!({ "name": "Git Hub", "command": "x" }), json!({ "name": "gh", "command": " " }), json!({ "name": "github", "command": "y" })] {
             assert_eq!(b.call("extensions", "addConnector", &[bad]).unwrap()["ok"], json!(false));
@@ -493,11 +495,38 @@ mod browser {
         let removed = b.call("extensions", "removeConnector", &[json!("github")]).unwrap();
         assert_eq!(removed["ok"], json!(true));
         // What was removed comes back, so Undo can put it back as it was.
-        assert_eq!(removed["removed"], json!({ "command": "npx", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } }));
+        assert_eq!(removed["removed"], json!({ "command": "not-a-github-server-xyz", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } }));
         let saved: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
         assert!(saved["servers"].get("github").is_none());
         assert_eq!(saved["note"], "mine");
+        assert_eq!(b.mcp_status()["failed"], json!([]), "a removed connector is no longer listed as failing");
         assert_eq!(b.call("extensions", "removeConnector", &[json!("github")]).unwrap()["ok"], json!(false));
+    }
+
+    #[test]
+    fn a_connector_starts_and_stops_live_without_reopening_mobius() {
+        let dir = tempfile::tempdir().unwrap();
+        let (b, core, _e, _d) = bridge_in(dir);
+        let added = b.call("extensions", "addConnector", &[json!({ "name": "fake", "command": fake_bin("mobius-mcp", "fake-mcp-server") })]).unwrap();
+        assert_eq!(added["started"], json!(true), "{added}");
+        assert_eq!(added["status"]["running"], json!(["fake"]));
+        assert_eq!(added["status"]["waiting"], json!([]));
+        assert!(registered_names(&core).contains(&"mcp.fake.echo".to_owned()), "its tools reach the core at once");
+        let said = b.host_request("host.tool", &json!({ "tool": "mcp.fake.echo", "arguments": { "text": "live" } })).unwrap();
+        assert!(said.as_str().unwrap().starts_with("live"));
+        // Start again restarts a running one.
+        let again = b.call("extensions", "startConnector", &[json!("fake")]).unwrap();
+        assert_eq!(again["ok"], json!(true), "{again}");
+        assert_eq!(again["status"]["running"], json!(["fake"]));
+        // Removing stops it: its tools leave the core and no longer run.
+        let removed = b.call("extensions", "removeConnector", &[json!("fake")]).unwrap();
+        assert_eq!(removed["status"]["running"], json!([]));
+        assert_eq!(removed["status"]["leaving"], json!([]));
+        let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
+        assert!(log.as_array().unwrap().iter().any(|c| c["method"] == "tools.unregister_external" && c["params"]["name"] == "mcp.fake.echo"));
+        assert_eq!(b.host_request("host.tool", &json!({ "tool": "mcp.fake.echo", "arguments": {} })).unwrap_err(), "unknown tool");
+        // Only a connector in mcp.json can be started.
+        assert_eq!(b.call("extensions", "startConnector", &[json!("fake")]).unwrap()["ok"], json!(false));
     }
 
     #[test]
@@ -517,7 +546,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 45, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), 47, "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -562,7 +591,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve", "images.generate"]);
+        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "files.move", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.free", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve", "images.generate"]);
     }
 
     #[derive(Default)]
@@ -1602,6 +1631,22 @@ fn changes_after_a_turn_ends_do_not_join_it() {
     assert_eq!(undone["ok"], true, "{undone}");
     assert!(!ws.join("notes/Turn.md").exists(), "the turn's note is put back");
     assert_eq!(std::fs::read_to_string(ws.join("docs/Mine.md")).unwrap(), "# Mine\n", "the person's doc stays");
+}
+
+/// Each step of a turn is kept with when it happened, so a slow turn can be taken apart afterwards.
+#[test]
+fn a_turns_steps_are_kept_with_their_times() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "plan my day"]))["ok"], true);
+    b.on_core_notification("agent.timing", &json!({ "conversation": "c-1", "turn": 1, "step": "model", "model": "m", "startup_ms": 2400, "first_text_ms": 3100, "ms": 5200, "input": 9000, "cached": 0, "output": 80, "tools_offered": 47, "tool_calls": 3, "ok": true }));
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "tool_call", "call_id": "a", "name": "tasks.list", "arguments": {} } }));
+    let kept = std::fs::read_to_string(dir.path().join("turn-timings.jsonl")).unwrap();
+    let steps: Vec<serde_json::Value> = kept.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(steps[0]["step"], "sent");
+    let model = steps.iter().find(|s| s["step"] == "model").unwrap();
+    assert_eq!((model["startup_ms"].as_u64(), model["tools_offered"].as_u64()), (Some(2400), Some(47)));
+    assert!(steps.iter().any(|s| s["step"] == "event" && s["name"] == "tasks.list"));
+    assert!(steps.iter().all(|s| s["at"].is_u64()));
 }
 
 /// Mobius reads the comments on a document, answers one under it and resolves it; Docs is told so it shows them.

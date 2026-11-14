@@ -36,7 +36,7 @@ reviewer can apply to a screenshot.
 | 3 | **One obvious way.** | Each action has one home. Mobius has one button. No second toolbar, no duplicate New. | Can you find two controls that do the same thing? |
 | 4 | **Familiar first. Spend the novelty on Mobius.** | Each app works the way its best rival does: the address bar is on top, mail is three panes. New ideas go into what only Mobius does. | Could a Gmail or Safari user work here in the first minute? |
 | 5 | **The app shapes the tools. The frame holds.** | Apps differ in the toolbar middle, their places, their views and their panels. Nothing else. | Is the difference inside a zone, or did the app redraw the zone? |
-| 6 | **Mobius is beside you, never in the way.** | Three sizes only: full (Home and the Agent app), beside (the right panel), and in place (verbs on a selection). Every app works fully with Mobius closed. | With Mobius open, can you still see and use everything you could before? |
+| 6 | **Mobius is beside you, never in the way.** | Three sizes only: full (Home and the Agent app), beside (the Mobius panel at the right edge), and in place (verbs on a selection). Every app works fully with Mobius closed. | With Mobius open, can you still see and use everything you could before? |
 | 7 | **You are the pilot.** | What Mobius is doing is always visible. What it changed is dashed until you Keep it. Why it did it is one click away. Undo always works. | Can you tell what Mobius did, why, and how to put it back? |
 | 8 | **Plain and honest.** | The interface shows what is really there and what Mobius really did, drawn as simply as it can be. Nothing is decoration. | Can you remove it without losing meaning? If yes, remove it. |
 
@@ -53,7 +53,7 @@ Every app has the same five zones. An app fills a zone; it never moves or redraw
 | 2. Sidebar | Move around inside the app | One order: New, Search, the app's places in sections, From Mobius, then More (trash, archive). Same width, row styles and fold key. | The places: mailboxes, notebooks, folders, lists |
 | 3. Toolbar (one row, top of the content) | Act on what is open | Leading: sidebar toggle, the title of what is open, one grey line. Trailing: Comments, Share where it applies, the ⋯ menu, the Mobius button. | The middle: the app's own controls |
 | 4. Content | The work | A solid surface, the shared empty state, the shared review bar | Everything inside, as one or more views |
-| 5. Right panel | Details and Mobius | One column, same width and card. Mobius docks here by default; other panels dock here as tabs. | Whether the app has an inspector |
+| 5. Right side | Details, then Mobius | Two columns at most: the app's inspector (if it has one), then Mobius alone at the far right edge. Mobius is never a tab. | Whether the app has an inspector, and what is in it |
 
 - One window. Little Mobius is the Mobius panel popped out. Split view and Little Mobius live in the Window menu and
   their keys, not in the top right. Comments are the one exception: see the toolbar.
@@ -114,9 +114,11 @@ Complex apps are made of views and panels that people can show, hide, resize, re
 - Each app has one **Panels** menu that lists every panel with a tick, where it sits, and its key.
 - Each app ships a sensible default layout. Simple apps (Mail, Notes) have two or three panels and use the same system.
 - A docked panel changes between wide and tall to fit its side, where that makes sense.
-- In the right panel, an app's own panels (Inspector, Adjust, Device, Outline, Format) are tabs **before** Mobius, and
-  Mobius is always the last tab, in the same place in every app. The panel reopens on the tab used last.
-- Inspectors and outlines always live in the right panel or the bottom area, never as a column inside the content.
+- **The Mobius panel is just Mobius.** It holds the chat, its cards and the composer, and never has tabs. An app's own
+  panels (Inspector, Adjust, Outline, Format, Details) go in the **inspector**, its own column between the content and
+  Mobius, as tabs among themselves. The inspector reopens on the tab used last.
+- Wide or long panels (devices, timelines, filmstrips, terminals, speaker notes) go in the **bottom area** instead.
+- Inspectors and outlines always live in the inspector or the bottom area, never as a column inside the content.
 - The content zone has a bottom dock for editors, timelines, filmstrips and terminals. Complex apps have a one-line info
   bar at the foot.
 - Use a segmented control only to switch views, centred above what it switches.
@@ -181,10 +183,10 @@ Complex apps are made of views and panels that people can show, hide, resize, re
 
 ## Mobius in every app
 
-- Mobius has three sizes: **full** (Home and the Agent app), **beside** (the right panel) and **in place** (verbs on a
+- Mobius has three sizes: **full** (Home and the Agent app), **beside** (the Mobius panel at the right edge) and **in place** (verbs on a
   selection, with the result dashed where it lands). There is no fourth.
-- It opens in the right panel from the Mobius button at the trailing end of the toolbar, or from the rail. The sidebar
-  never changes face. In the Agent app the right panel stays closed, and the Mobius button opens the conversation list.
+- It opens in the Mobius panel at the right edge from the Mobius button at the trailing end of the toolbar, or from the rail. The sidebar
+  never changes face. In the Agent app the Mobius panel stays closed, and the Mobius button opens the conversation list.
 - The message box says what Mobius would look at ("Ask about your mail"). With nothing in particular, it says "Message
   Mobius". The panel is the same Mobius in every app; only what it sees and what the app puts in its slots changes.
 - The panel has four states, the same in every app: Resting, Working, Done and Asking. It is never empty: resting, it

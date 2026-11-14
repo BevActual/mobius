@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react';
 import type { ApprovalModeChoice } from '@mobius/shared';
 
 /**
@@ -49,6 +50,36 @@ export function loadChatMode(): ChatMode {
 export function saveChatMode(mode: ChatMode): void {
   try { window.localStorage.setItem(MODE_KEY, mode); window.localStorage.removeItem(PLAN_FIRST_KEY); } catch { /* Not kept. */ }
 }
+
+/**
+ * The composer's mode, shared: the composer and the open app read and set the same one, so an app's action can switch
+ * the composer (Mail's Triage button turns on Triage) and an app's slots can follow the mode (Instrument slot rule 5).
+ */
+let current: ChatMode | null = null;
+const listeners = new Set<() => void>();
+const currentMode = (): ChatMode => (current ??= loadChatMode());
+const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
+
+/** Sets the composer's mode everywhere it is shown, and keeps it. */
+export function setChatMode(mode: ChatMode): void {
+  if (!IDS.includes(mode)) return;
+  saveChatMode(mode);
+  if (current === mode) return;
+  current = mode;
+  listeners.forEach((l) => l());
+}
+
+/**
+ * The composer's mode and a way to set it. With an app, the mode in force there: another app's own mode reads as
+ * Agent (see `modeIn`), so Mail sees 'triage' only while Triage is on.
+ */
+export function useChatMode(app?: string): [ChatMode, (mode: ChatMode) => void] {
+  const mode = useSyncExternalStore(subscribe, currentMode, currentMode);
+  return [app === undefined ? mode : modeIn(mode, app), setChatMode];
+}
+
+/** For tests: forget the mode held in memory, so the next read comes from what is kept. */
+export const resetChatModeForTests = (): void => { current = null; };
 
 /** Shift+Tab goes through the modes on offer: Agent, Ask, Plan and the app's own. */
 export const nextChatMode = (mode: ChatMode, app?: string): ChatMode => {

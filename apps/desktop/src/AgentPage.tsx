@@ -6,9 +6,16 @@ import { dateTimeLabel } from './dates';
 import { APP_ICONS } from './Rail';
 import './activity.css';
 import { agentSchedules, mayTouch, modelChoices } from './bot-view';
-import { modeOf } from './approval-modes';
+import { loadApply, permissionOf } from './chat-mode';
+import { Segmented, TimeField } from './ui';
 import { usePreferences } from './usePreferences';
 import './agents.css';
+
+const STARTS = [{ value: 'ask', label: 'When you ask' }, { value: 'schedule', label: 'On a schedule' }] as const;
+const DAYS = [{ value: 'weekdays', label: 'Weekdays' }, { value: 'daily', label: 'Every day' }] as const;
+/** A schedule's "HH:MM" as minutes since midnight, and back. */
+const minutesOfClock = (clock: string): number | null => { const m = /^(\d{1,2}):(\d{2})$/.exec(clock); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const clockOfMinutes = (minutes: number): string => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
 /** What the Agents page shows: one agent (and whether it is being changed), or a new one being made. */
 export type AgentView = { kind: 'show'; id: string; editing?: boolean } | { kind: 'new'; draft: BotDraft };
@@ -79,21 +86,17 @@ export function BotForm({ initial, submitLabel, onSubmit, onSaved, onCancel, onO
       {canSchedule && (
         <div className="botform-starts" role="group" aria-label="How it starts">
           <span className="botform-label">How it starts</span>
-          <span className="seg botform-seg" role="radiogroup" aria-label="How it starts">
-            {([['ask', 'When you ask'], ['schedule', 'On a schedule']] as const).map(([value, label]) => (
-              <button key={value} type="button" role="radio" aria-checked={starts === value} className="seg-btn" onClick={() => setStarts(value)}>{label}</button>
-            ))}
-          </span>
+          <Segmented label="How it starts" value={starts} choices={STARTS} onChange={setStarts} />
           {starts === 'schedule' && <span className="botform-hint">It still starts whenever you ask, too.</span>}
           {starts === 'schedule' && (
             <span className="botform-when">
-              <select aria-label="Which days" value={days} onChange={(e) => setDays(e.target.value as typeof days)}><option value="weekdays">Weekdays</option><option value="daily">Every day</option></select>
-              <input type="time" aria-label="At" value={time} required onChange={(e) => setTime(e.target.value)} />
+              <Segmented label="Which days" value={days} choices={DAYS} onChange={setDays} />
+              <TimeField label="At" hideLabel placeholder="Time" value={minutesOfClock(time)} onChange={(m) => setTime(m === null ? '08:00' : clockOfMinutes(m))} />
             </span>
           )}
         </div>
       )}
-      <p className="botform-touch"><b>What it may touch</b> {mayTouch(preferences.value.appAccess, modeOf(preferences.value.approvalMode).name)}{' '}
+      <p className="botform-touch"><b>What it may touch</b> {mayTouch(preferences.value.appAccess, permissionOf(preferences.value.approvalMode, loadApply()).name)}{' '}
         {onOpenSafety ? <button type="button" className="link-btn" onClick={onOpenSafety}>Change in Safety settings</button> : 'Change it in Settings › Safety.'}
       </p>
       {problem && <span className="field-error" role="alert">{problem}</span>}
@@ -134,7 +137,7 @@ export function agentWhen(bot: { id: string; name: string }, schedules: readonly
  */
 function RunRow({ c, onOpen }: { c: ConversationInfo; onOpen: (id: string) => void }) {
   const waiting = c.activity === 'needs_you' || c.waiting > 0;
-  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : 'Finished';
+  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : c.activity === 'failed' ? 'Failed' : 'Finished';
   return (
     <li className="act-row">
       <button type="button" className="act-main" onClick={() => onOpen(c.id)}>
@@ -142,7 +145,7 @@ function RunRow({ c, onOpen }: { c: ConversationInfo; onOpen: (id: string) => vo
         <svg viewBox="0 0 20 20" aria-hidden="true" className="act-icon">{APP_ICONS.agent}</svg>
         <span className="act-text">
           <span className="act-what">{c.title || 'A session'}</span>
-          <span className="act-sub">{state}</span>
+          <span className="act-sub" data-failed={(!waiting && c.activity === 'failed') || undefined}>{state}</span>
         </span>
         <time className="act-time" dateTime={new Date(c.updated_ms).toISOString()} title={dateTimeLabel(c.updated_ms)}>{relativeTime(c.updated_ms, Date.now())}</time>
       </button>
@@ -208,7 +211,7 @@ export function AgentPage({ view, bots, loading = false, conversations, onShow, 
         <p className="agent-text agent-when">{agentWhen(bot, schedules)}</p>
       </Part>
       <Part title="What it can use" action={onOpenSafety && <button type="button" className="link-btn" onClick={onOpenSafety}>Safety settings</button>}>
-        <p className="agent-text">{mayTouch(preferences.value.appAccess, modeOf(preferences.value.approvalMode).name)}</p>
+        <p className="agent-text">{mayTouch(preferences.value.appAccess, permissionOf(preferences.value.approvalMode, loadApply()).name)}</p>
       </Part>
       <Part title="Recent runs" label="Recent runs" action={sessions.length > 0 && <button type="button" className="link-btn" onClick={() => onNewSession(bot.id)}>New session</button>}>
         {sessions.length === 0 ? (

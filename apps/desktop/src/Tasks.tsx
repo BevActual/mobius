@@ -2,16 +2,24 @@ import { RowMark } from './RowMark';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
-import { byDay, byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, timeWords, type Located, type SmartView } from './tasks-view';
+import { byDay, byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, tasksGlance, timeWords, type Located, type SmartView } from './tasks-view';
 import type { TasksState } from './useTasks';
 import { ChangeBar, ReviewActions, WhyThis } from './ReviewBar';
 import { keepTurn, turnId } from './ReviewStrip';
+import { useTurnFileChanged } from './liveMarks';
 import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
-import { dayLabel } from './dates';
-import { AppSidebar, Menu, PointMenu, SidebarRow, SidebarSearch, SidebarSection, UndoToast } from './ui';
+import { AppSidebar, DateField, Menu, PointMenu, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, UndoToast } from './ui';
 import './tasks.css';
+import { AppGlance, useGlanceSlot } from './PanelSlots';
+
+/** Tasks' Glance (Instrument, "The Mobius panel: slots"): across every list, what is overdue, due today and flagged. */
+export function TasksGlance({ tasks }: { tasks: TasksState }) {
+  const slot = useGlanceSlot();
+  if (!slot) return null;
+  return <AppGlance slot={slot} title="Your day" facts={tasksGlance(tasks.all, new Date())} />;
+}
 
 /** A task being dragged: which list it is in and where. */
 const DRAG = 'application/x-mobius-task';
@@ -357,6 +365,9 @@ function useListReview(conversation: string | null, list: string | null) {
   const [before, setBefore] = useState<ReadonlySet<string> | null>(null);
   const [turn, setTurn] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // Read again as the running turn changes the list, so a later turn never reads the earlier one's before.
+  const [asked, setAsked] = useState(0);
+  useTurnFileChanged(conversation, list ? `tasks/${list}.md` : null, () => setAsked((n) => n + 1));
   useEffect(() => {
     setProblem(null);
     if (!conversation || !list) { setBefore(null); setTurn(null); return undefined; }
@@ -369,7 +380,7 @@ function useListReview(conversation: string | null, list: string | null) {
       setBefore(before && before.ok ? tasksIn(before.text ?? '') : null);
     })();
     return () => { live = false; };
-  }, [conversation, list]);
+  }, [conversation, list, asked]);
   return {
     /** A task Mobius added in that turn. */
     isNew: (text: string) => before !== null && !before.has(text),
@@ -385,16 +396,10 @@ function useListReview(conversation: string | null, list: string | null) {
   };
 }
 
-/** A due date for the details panel: "Tomorrow, 13 Nov" near now, else "Fri 20 Nov", in the computer's format. */
-function longDue(due: string, now: Date, time?: string | null): string {
-  return time ? `${dayOnly(due, now)}, ${timeWords(time, now)}` : dayOnly(due, now);
-}
-function dayOnly(due: string, now: Date): string {
-  const [y, m, d] = due.split('-').map(Number);
-  const date = new Date(y!, m! - 1, d!);
-  const near = dueLabel(due, now).text;
-  return ['Today', 'Tomorrow', 'Yesterday'].includes(near) ? `${near}, ${dayLabel(date, { now })}` : dayLabel(date, { now, weekday: 'short' });
-}
+/** A due "YYYY-MM-DD" as a day, and "HH:MM" to and from minutes, for the shared date and time fields. */
+const dayOf = (due: string): Date => { const [y, m, d] = due.split('-').map(Number); return new Date(y!, m! - 1, d!); };
+const minutesOf = (clock: string): number => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
+const clockOf = (minutes: number): string => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
 /** Quick days for a due date: today, tomorrow, the next Monday. */
 function quickDays(now: Date): { label: string; day: string }[] {
@@ -408,11 +413,10 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
   const [title, setTitle] = useState(task.text);
   const [notes, setNotes] = useState(task.notes ?? '');
   const [sub, setSub] = useState('');
-  const dateField = useRef<HTMLInputElement>(null);
   useEffect(() => { setTitle(task.text); }, [task.text]);
   useEffect(() => { setNotes(task.notes ?? ''); }, [task.notes, task.line]);
   useEffect(() => {
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !(e.target as HTMLElement).closest('input, textarea')) tasks.pick(null); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !(e.target as HTMLElement).closest('input, textarea, .ui-popover, .ui-menu')) tasks.pick(null); };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [tasks]);
@@ -437,30 +441,26 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
       <section className="inspector-group" aria-label="When">
         <div className="inspector-row">
           <span className="inspector-label">Due</span>
-          {/* A pop-up button with the date in words; the system's date picker opens from it. */}
+          {/* The shared date field: words, a month and quick picks; typing "fri 3pm" sets the time too. */}
           <span className="inspector-date" data-tone={task.due ? dueLabel(task.due, now).tone : undefined}>
-            <button type="button" className="inspector-date-btn" aria-hidden="true" tabIndex={-1} onClick={() => { try { dateField.current?.showPicker(); } catch { dateField.current?.focus(); } }}>
-              {task.due ? longDue(task.due, now, task.time) : 'None'}
-            </button>
-            <input ref={dateField} type="date" className="inspector-date-input" aria-label="Due date" value={task.due ?? ''} onChange={(e) => void tasks.change(list, task, { due: e.target.value || null })} />
+            <DateField label="Due date" hideLabel placeholder="None" value={task.due ? dayOf(task.due) : null}
+              onChange={(day, time) => void tasks.change(list, task, day ? { due: isoDay(day), ...(time !== null ? { time: clockOf(time) } : {}) } : { due: null, time: null })} />
           </span>
         </div>
         {task.due && (
           <div className="inspector-row">
             <span className="inspector-label">Time</span>
             <span className="inspector-time">
-              <input type="time" className="task-time" aria-label="Time" value={task.time ?? ''} onChange={(e) => void tasks.change(list, task, { time: e.target.value || null })} />
+              <TimeField label="Time" hideLabel placeholder="None" value={task.time ? minutesOf(task.time) : null} onChange={(m) => void tasks.change(list, task, { time: m === null ? null : clockOf(m) })} />
               {task.time && <button type="button" className="strip-btn" aria-label="Clear the time" title="Clear the time" onClick={() => void tasks.change(list, task, { time: null })}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg></button>}
             </span>
           </div>
         )}
-        <label className="inspector-row">
+        <div className="inspector-row">
           <span className="inspector-label"><span className="task-repeat"><RepeatGlyph /></span>Repeat</span>
-          <select aria-label="Repeat" value={task.repeat ?? ''} onChange={(e) => void tasks.change(list, task, { repeat: (e.target.value || null) as TaskRepeat | null })}>
-            <option value="">Never</option>
-            {REPEATS.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-        </label>
+          <Select label="Repeat" hideLabel value={task.repeat ?? ''} onChange={(v) => void tasks.change(list, task, { repeat: (v || null) as TaskRepeat | null })}
+            choices={[{ value: '', label: 'Never' }, ...REPEATS.map((r) => ({ value: r.id as string, label: r.name }))]} />
+        </div>
         {task.repeat && <p className="inspector-hint">Ticking it off moves it to its next day.</p>}
         <div className="inspector-chips">
           {quickDays(now).map((q) => <button key={q.label} type="button" className="chip" aria-pressed={task.due === q.day} onClick={() => void tasks.change(list, task, { due: q.day })}>{q.label}</button>)}
@@ -468,16 +468,14 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
         </div>
       </section>
       <section className="inspector-group">
-        <label className="inspector-row inspector-switch">
+        <div className="inspector-row inspector-switch">
           <span className="inspector-label"><span className="task-flagged"><FlagGlyph /></span>Flagged</span>
-          <input type="checkbox" role="switch" aria-label="Flagged" checked={task.flagged ?? false} onChange={(e) => void tasks.change(list, task, { flagged: e.target.checked })} />
-        </label>
-        <label className="inspector-row">
+          <Switch label="Flagged" hideLabel checked={task.flagged ?? false} onChange={(on) => void tasks.change(list, task, { flagged: on })} />
+        </div>
+        <div className="inspector-row">
           <span className="inspector-label">List</span>
-          <select aria-label="List" value={list} onChange={(e) => void tasks.move(list, task, e.target.value)}>
-            {tasks.lists.map((l) => <option key={l.name} value={l.name}>{l.name}</option>)}
-          </select>
-        </label>
+          <Select label="List" hideLabel value={list} onChange={(to) => void tasks.move(list, task, to)} choices={tasks.lists.map((l) => ({ value: l.name, label: l.name }))} />
+        </div>
       </section>
       {task.parent == null && (
         <section className="inspector-group" aria-label="Subtasks">
@@ -566,7 +564,7 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
 }
 
 /** The open list or view: a field to add to it at the top, the open tasks, and the completed ones folded away. */
-export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tasks: TasksState; focusToken?: number; /** Mobius's last turn changed the open list, and it waits to be kept. */ review?: { conversation: string } | null; onAsk?: (prompt: string) => void }) {
+export function TasksPage({ tasks, focusToken = 0, review = null, working = false, onAsk }: { tasks: TasksState; focusToken?: number; /** Mobius's last turn changed the open list, and it waits to be kept. */ review?: { conversation: string } | null; /** Mobius's turn is still running: its changes are marked as they come, and Keep waits for the end. */ working?: boolean; onAsk?: (prompt: string) => void }) {
   const [showDone, setShowDone] = useState(false);
   const [dropEnd, setDropEnd] = useState(false);
   const now = new Date();
@@ -615,7 +613,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
         <ul className="task-items" role="list" aria-label="To do">
           {open.map((task) => [
             row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }),
-            task === lastNew && review && (
+            task === lastNew && review && !working && (
               <li key="mobius-change" className="task-change">
                 <ChangeBar who="Mobius changed this list" onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
                   discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
@@ -682,7 +680,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
   return (
     <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
       <div className="tasks-main">
-        {review && view.kind === 'list' && !changeShown && (
+        {review && !working && view.kind === 'list' && !changeShown && (
           <div className="note-review" role="status">
             <span className="review-dot" aria-hidden="true" />
             <span className="note-review-text">Mobius changed this list in its last turn.<WhyThis conversation={review.conversation} /></span>

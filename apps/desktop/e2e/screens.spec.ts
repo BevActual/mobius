@@ -86,8 +86,7 @@ test('screens: every app, Home, Settings and the Mobius panel, light and dark', 
     await openSettings(shell);
     // The Mobius panel beside a page, on the right.
     await open('Docs', 'docs');
-    // Docs reopens its document, so the right panel has Docs' Outline tab before Mobius; this shot is of Mobius.
-    await shell.getByRole('tablist', { name: 'Panel' }).getByRole('tab', { name: 'Mobius' }).click();
+    // Mobius alone at the right edge; Docs' Outline starts hidden in the inspector.
     await expect(shell.locator('.dock.right > .chat')).toBeVisible();
     await both(shell, 'mobius-beside');
   } finally {

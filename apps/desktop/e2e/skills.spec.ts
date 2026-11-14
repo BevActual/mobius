@@ -147,10 +147,11 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors as pl
   await side.getByRole('button', { name: /^Connectors/ }).click();
   const page = shell().getByRole('region', { name: 'Connectors', exact: true });
   await expect(page).toContainText('No connectors yet');
-  // Add a connector (in the toolbar, and beside the empty list) writes the server into mcp.json; it waits for Mobius to open again.
+  // Add a connector (in the toolbar, and beside the empty list) writes the server into mcp.json and starts it at once.
+  // This command does not exist, so it is saved and its row says why it could not start (nothing is downloaded).
   await page.getByRole('button', { name: 'Add a connector…' }).click();
   const sheet = shell().getByRole('dialog', { name: 'Add a connector' });
-  await sheet.getByRole('textbox', { name: 'Command' }).fill('npx');
+  await sheet.getByRole('textbox', { name: 'Command' }).fill('mobius-test-no-such-server');
   await sheet.getByRole('textbox', { name: 'Arguments' }).fill('-y @modelcontextprotocol/server-github');
   await expect(sheet.getByRole('textbox', { name: 'Name' })).toHaveValue('github');
   await sheet.getByRole('button', { name: 'Add a key' }).click();
@@ -159,10 +160,14 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors as pl
   await sheet.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(sheet).toBeHidden();
   const mcp = path.join(userData, 'mcp.json');
-  const entry = { command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_TOKEN: 't0ken' } };
+  const entry = { command: 'mobius-test-no-such-server', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_TOKEN: 't0ken' } };
   await expect.poll(() => fs.existsSync(mcp) && JSON.parse(fs.readFileSync(mcp, 'utf8')).servers?.github).toEqual(entry);
   const row = page.getByRole('listitem', { name: 'github' });
-  await expect(row).toContainText(/starts when Mobius reopens/i);
+  await expect(row).toContainText(/Couldn’t start/);
+  // Start again is in the row's ⋯ menu; it tries once more and says why again.
+  await row.getByRole('button', { name: 'More for github' }).click();
+  await shell().getByRole('menuitem', { name: 'Start again' }).click();
+  await expect(row).toContainText(/Couldn’t start/);
   // Remove is in the row's ⋯ menu, never a button at rest; Undo writes the same entry back.
   await row.getByRole('button', { name: 'More for github' }).click();
   await shell().getByRole('menuitem', { name: 'Remove' }).click();

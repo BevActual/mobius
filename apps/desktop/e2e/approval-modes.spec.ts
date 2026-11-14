@@ -68,9 +68,9 @@ test('the settings page shows Ask each time, explains Review changes, and the ch
   await openSettings(shell());
   await expect(page()).toBeVisible();
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Approvals and safety', exact: true }).click();
-  await expect(page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Ask each time' })).toBeChecked();
+  await expect(page().getByRole('radiogroup', { name: 'Permission' }).getByRole('radio', { name: 'Ask each time' })).toBeChecked();
   await expect(page().getByTestId('approval-mode-help')).toContainText('asked about every time');
-  await page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Review changes' }).check();
+  await page().getByRole('radiogroup', { name: 'Permission' }).getByRole('radio', { name: 'Review changes' }).check();
   await expect(page().getByTestId('approval-mode-help')).toContainText('Keep it, Discard it or ask it to Try another way');
   await expect.poll(coreMode).toBe('propose');
   await mobius!.close({ keepUserData: true });

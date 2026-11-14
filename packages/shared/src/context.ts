@@ -73,6 +73,16 @@ export function splitContext(message: string): { text: string; items: ContextIte
   return items.length === 0 ? { text: message, items } : { text: message.slice(0, first), items };
 }
 
+const READS_OPEN = '\n\n<reads>\n';
+const READS_CLOSE = '\n</reads>';
+
+/** What was read for a message before the model was asked (the core adds it at the end of the message, as the engine's
+ *  READS_OPEN): the message without it, for showing; the reads themselves showed as rows when they were done. */
+export function splitReads(text: string): string {
+  const at = text.lastIndexOf(READS_OPEN);
+  return at >= 0 && text.endsWith(READS_CLOSE) ? text.slice(0, at) : text;
+}
+
 const STEPS_OPEN = '\n\n<steps>\n';
 const STEPS_CLOSE = '\n</steps>';
 

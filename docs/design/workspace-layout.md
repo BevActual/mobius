@@ -2,7 +2,7 @@
 
 Owner direction (adopted 2026-11-13, "One Mobius layout for every app"): every app has the same five-zone window. Only
 what is inside the zones changes per app, so moving between apps never feels like moving between products. Mobius sits
-beside the work in a right panel, opened from the same place in every app. The theme is timeless: flat surfaces, type,
+beside the work in its own panel at the right edge, opened from the same place in every app. The theme is timeless: flat surfaces, type,
 spacing and restraint, not this year's materials. [Design rules](rules.md) says how each part must look and behave.
 
 ## The five zones
@@ -10,10 +10,10 @@ spacing and restraint, not this year's materials. [Design rules](rules.md) says 
 ```
 ┌──────┬────────────┬──────────────────────────────────────────┬──────────────┐
 │ Rail │  Sidebar   │ Toolbar: ☰ Title · line │ app controls │ Share ⋯ ✦ │
-│      │            ├──────────────────────────────────────────┤  Right panel │
-│ Home │ New        │                                          │  (Mobius, or │
-│ Find │ Search     │                 Content                  │  inspector,  │
-│ Apps │ Places     │            (one or more views)           │  as tabs)    │
+│      │            ├──────────────────────────────────────────┤ Inspector │ Mobius │
+│ Home │ New        │                                          │ (the app's│ (just  │
+│ Find │ Search     │                 Content                  │  panels,  │ Mobius,│
+│ Apps │ Places     │            (one or more views)           │  if any)  │ no tabs│
 │  …   │ From Mobius│                                          │              │
 │ ⚙ 👤 │ More       ├──────────────── bottom dock ─────────────┤              │
 └──────┴────────────┴──────────────────────────────────────────┴──────────────┘
@@ -25,11 +25,11 @@ spacing and restraint, not this year's materials. [Design rules](rules.md) says 
 | 2. Sidebar | Move around inside the app | New, Search, the app's places in sections, From Mobius, More (trash, archive). Same width, row styles and fold key. | The places: mailboxes, notebooks, folders, lists |
 | 3. Toolbar (one row) | Act on what is open | Leading: sidebar toggle, the title of what is open, one grey line. Trailing: Comments, Share, the ⋯ menu, the Mobius button. | The middle: the app's own controls |
 | 4. Content | The work | A solid surface, the shared empty state, the shared review bar | One or more views, and a bottom dock |
-| 5. Right panel | Details and Mobius | One column, same width and card. Mobius docks here by default; other panels dock here as tabs. | Whether the app has an inspector |
+| 5. Right side | Details, then Mobius | The app's inspector (if it has one), then the Mobius panel alone at the far right edge. Mobius is never a tab. | Whether the app has an inspector, and what is in it |
 
 Little Mobius and split view are in the Window menu and their keys, where the launcher also finds them. Comments keep a
 toolbar button before Share, because it shows the count of open threads and whether comment mode is on; it is also in
-View › Comments. Below 980px the sidebar folds and the right panel closes; each comes back over the content from its toggle.
+View › Comments. Below 980px the sidebar folds and the inspector and Mobius panel close; each comes back over the content from its toggle.
 
 ## What changes per app
 
@@ -44,7 +44,7 @@ have. Five kinds cover every app.
 | Data | Sheets, Database, Views | Open | Formula or query bar, then filter and sort | Optional (cell or column details) |
 | Make | Slides, Design, Canvas, Photo, Video, Music, Code, Terminal | Folded, to give the canvas room | Tools and play or run (Add slide, Play, transport, crop) | Yes: Slides style, Design layers, Photo adjust, Music device |
 
-The Agent app is the one special case. Its content is the conversation, so the right panel stays closed there and the
+The Agent app is the one special case. Its content is the conversation, so the Mobius panel stays closed there and the
 Mobius button opens the conversation list instead.
 
 ## Views and panels
@@ -65,7 +65,7 @@ stages: show, hide and resize; then move between docks; then pop out into a wind
 ## Mobius's three sizes
 
 - **Full**: Home and the Agent app, where the conversation is the content.
-- **Beside**: the right panel in every other app, opened from the Mobius button or the rail. The sidebar never changes
+- **Beside**: the Mobius panel at the right edge in every other app, opened from the Mobius button or the rail. The sidebar never changes
   face, so you keep your lists while you talk.
 - **In place**: verbs on a selection (Ask, Rewrite, Summarise, Make a task), with the result dashed where it lands.
 

@@ -3,4 +3,4 @@
 /**
  * What a conversation is doing right now.
  */
-export type Activity = "idle" | "working" | "needs_you";
+export type Activity = "idle" | "working" | "needs_you" | "failed";

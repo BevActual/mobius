@@ -70,22 +70,22 @@ const SONG_TURN = { start: 'abc1233', end: 'abc1234', when: now - 40 * 60_000, a
 
 let previewLook = { ...DEFAULT_APPEARANCE };
 let previewPrefs = { ...DEFAULT_PREFERENCES };
-// Abilities › Connectors: two servers as Mobius started them, and what was added or removed since.
-const previewWaiting = new Set<string>();
-const previewLeaving = new Set<string>();
-const previewConnectors = () => ({ running: ['github'], failed: [{ server: 'linear', error: 'The command was not found' }], problem: null, waiting: [...previewWaiting], leaving: [...previewLeaving] });
+// Abilities › Connectors: one that runs and one that could not start. Added ones start at once; Start again on linear
+// still fails, so both states can be looked at.
+const previewRunning = new Set<string>(['github']);
+const previewConnectors = () => ({ running: [...previewRunning], failed: [{ server: 'linear', error: 'The command was not found' }], problem: null, waiting: [], leaving: [] });
 
 /** Answers for the calls that must return more than an empty list. Keyed by the call's path. */
 const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'core.getStatus': () => 'ready',
   'extensions.connectors': () => previewConnectors(),
   'extensions.addConnector': (draft: { name: string }) => {
-    if (previewLeaving.delete(draft.name)) return { ok: true, status: previewConnectors() };
-    if (['github', 'linear', ...previewWaiting].includes(draft.name)) return { ok: false, error: `There is already a connector called ${draft.name}.` };
-    previewWaiting.add(draft.name);
-    return { ok: true, status: previewConnectors() };
+    if (['linear', ...previewRunning].includes(draft.name)) return { ok: false, error: `There is already a connector called ${draft.name}.` };
+    previewRunning.add(draft.name);
+    return { ok: true, started: true, status: previewConnectors() };
   },
-  'extensions.removeConnector': (name: string) => { if (!previewWaiting.delete(name)) previewLeaving.add(name); return { ok: true, status: previewConnectors(), removed: { command: 'npx', args: ['-y', name] } }; },
+  'extensions.startConnector': (name: string) => (previewRunning.has(name) ? { ok: true, status: previewConnectors() } : { ok: false, error: 'The command was not found', status: previewConnectors() }),
+  'extensions.removeConnector': (name: string) => { previewRunning.delete(name); return { ok: true, status: previewConnectors(), removed: { command: 'npx', args: ['-y', name] } }; },
   // The look is kept for the session, so choices in the preview stick and a change never answers with a failure.
   'appearance.get': () => ({ ...previewLook }),
   'appearance.set': ((change: Partial<typeof DEFAULT_APPEARANCE>) => { previewLook = { ...previewLook, ...change }; return { ...previewLook }; }) as never,
@@ -111,6 +111,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   // Agents app (marked): the weekly agent runs on Fridays, so its page and the toolbar show when.
   'schedules.list': () => [{ id: 'sch-wkly', title: 'Weekly P2 summary', prompt: 'Summarise the week on the Kestrel P2 build.', time: '16:00', days: [5], enabled: true, bot: 'wkly01', lastRunMs: now - 7 * 86_400_000 }],
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
+  // The preview cannot start again on another profile; it says so.
+  'profiles.openDemo': () => ({ ok: false, error: 'The demo workspace opens in the Mobius app, not the preview.' }),
   'window.quickEntryActive': () => false,
   'mini.isOpen': () => false,
   // Tasks are kept in memory for as long as the preview is open.

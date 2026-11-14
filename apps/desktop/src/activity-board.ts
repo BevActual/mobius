@@ -4,11 +4,11 @@ export interface Board { needsYou: ConversationInfo[]; running: ConversationInfo
 
 /**
  * The design's Activity board for conversations: what is waiting for you, what is working, and what finished today
- * (newest first, a few). Scheduled requests are listed beside it from the schedules themselves.
+ * (newest first, a few). A run that failed waits for you too: it shows in red until it is tried again. Scheduled requests are listed beside it from the schedules themselves.
  */
 export function activityBoard(list: readonly ConversationInfo[], now: Date, doneLimit = 8): Board {
   const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const needsYou = list.filter((c) => c.activity === 'needs_you' || c.waiting > 0);
+  const needsYou = list.filter((c) => c.activity === 'needs_you' || c.activity === 'failed' || c.waiting > 0);
   const running = list.filter((c) => c.activity === 'working' && !needsYou.includes(c));
   const doneToday = list
     .filter((c) => c.activity === 'idle' && c.waiting === 0 && c.updated_ms >= midnight && c.messages > 0)

@@ -20,13 +20,13 @@ export function deskTitle(now: Date, counts: { waiting: number; working: number;
   ].filter(Boolean);
 }
 
-/** When a conversation was last active, in words: "Just now", "25 min ago", "3 h ago", "Yesterday", "Monday", "2 Nov" (in the system's order). */
+/** When a conversation was last active, in words: "Just now", "25 min ago", "3 hr ago" (as relative-time.ts says it), "Yesterday", "Monday", "2 Nov" (in the system's order). */
 export function agoLabel(ms: number, now: Date): string {
   const minutes = Math.floor((now.getTime() - ms) / 60_000);
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes} min ago`;
   const days = -daysFrom(ms, now);
-  if (days <= 0) return `${Math.floor(minutes / 60)} h ago`;
+  if (days <= 0) return `${Math.floor(minutes / 60)} hr ago`;
   if (days === 1) return 'Yesterday';
   if (days < 7) return weekdayLabel(ms, 'long');
   return dayLabel(ms, { now });
@@ -61,4 +61,13 @@ export function upcoming(schedules: readonly ScheduleInfo[], now: Date, limit = 
     .flatMap((schedule) => { const at = nextRun(schedule, now); return at ? [{ schedule, at }] : []; })
     .sort((a, b) => a.at.getTime() - b.at.getTime())
     .slice(0, limit);
+}
+
+/**
+ * What the Desk's title says when Mobius has nothing waiting: what the apps hold for the person (unread mail, tasks
+ * due today), or that nothing is waiting when they hold nothing. Never "nothing waiting" over a full inbox.
+ */
+export function deskQuiet(rows: readonly { app: string; text: string }[]): string {
+  const needs = rows.filter((r) => r.app === 'mail' || r.app === 'tasks').map((r) => r.text);
+  return needs.length > 0 ? needs.join(' · ') : 'Nothing waiting for you';
 }

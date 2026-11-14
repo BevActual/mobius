@@ -1,7 +1,7 @@
 # Code signing policy
 
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/).
+Windows installers are signed with [Azure Artifact Signing](https://azure.microsoft.com/products/artifact-signing/),
+under a certificate issued to the publisher by Microsoft.
 
 ## What is signed
 
@@ -10,7 +10,8 @@ by the [Release workflow](../.github/workflows/release.yml) on GitHub Actions in
 ([BevActual/mobius](https://github.com/BevActual/mobius)) from a version tag (`v1.2.3`). Builds made anywhere else
 (on a developer's computer, in a fork, or from an unreviewed branch) are never signed.
 
-Every signing request is submitted by that workflow to SignPath and has to be approved before the certificate is used.
+The workflow signs in to Azure through OpenID Connect from this repository's `release` environment, so no signing
+password is stored anywhere. The signing key never leaves Microsoft's hardware security modules.
 The source of each signed release is the tagged commit in this repository, under the [MIT license](../LICENSE).
 
 ## Team roles
@@ -21,8 +22,8 @@ The source of each signed release is the tagged commit in this repository, under
 | Reviewer  | Andrew Bevington ([@BevActual](https://github.com/BevActual)) |
 | Approver  | Andrew Bevington ([@BevActual](https://github.com/BevActual)) |
 
-Authors may change the source. Reviewers review changes from anyone else before they are merged. Approvers approve
-each signing request. Everyone in these roles uses multi-factor authentication for GitHub and SignPath.
+Authors may change the source. Reviewers review changes from anyone else before they are merged. Approvers decide
+when a version is tagged and published. Everyone in these roles uses multi-factor authentication for GitHub and Azure.
 
 ## Privacy
 

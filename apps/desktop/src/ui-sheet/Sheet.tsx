@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Menu, Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
-  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, type Envelope, type FilterValue,
+  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, hertzLabel, type Envelope, type FilterValue,
   DeviceChain, DeviceFrame, EqGraph, type EqBand,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   WaveformView, peaksOf, type WaveRange,
@@ -10,6 +10,7 @@ import {
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
+  Chart, Sparkline,
 } from '../ui';
 
 /**
@@ -115,6 +116,24 @@ function Wave() {
   );
 }
 
+function WarmerDemo() {
+  const cool = { cutoff: 6400, drive: 0.1, width: 0.3 };
+  const warm = { cutoff: 1400, drive: 0.45, width: 0.3 };
+  const [v, setV] = useState(cool);
+  const [proposed, setProposed] = useState(false);
+  const pctText = (x: number) => `${Math.round(x * 100)}%`;
+  return (
+    <div className="sheet-row">
+      <Knob label="Cutoff" value={v.cutoff} min={80} max={12000} step={1} scale="log" format={hertzLabel} proposed={proposed && v.cutoff !== cool.cutoff} onChange={(cutoff) => setV({ ...v, cutoff })} />
+      <Knob label="Drive" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={proposed && v.drive !== cool.drive} onChange={(drive) => setV({ ...v, drive })} />
+      <Knob label="Width" value={v.width} min={0} max={1} step={0.01} format={pctText} onChange={(width) => setV({ ...v, width })} />
+      <ParamGrid columns={1}><ParamCell label="Drive" size="compact" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={proposed && v.drive !== cool.drive} onChange={(drive) => setV({ ...v, drive })} /></ParamGrid>
+      <Button onClick={() => { setV(proposed ? cool : warm); setProposed(!proposed); }}>{proposed ? 'Discard' : 'Make it warmer'}</Button>
+      {proposed && <Button kind="primary" onClick={() => setProposed(false)}>Keep</Button>}
+    </div>
+  );
+}
+
 function Instruments() {
   // Music's values: a pad's envelope and filter, its pan and drive, and the drum kit's first bar.
   const base: Envelope = { attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.5 };
@@ -146,6 +165,8 @@ function Instruments() {
           <Knob label="Decay" value={kitDecay} min={0.5} max={2} step={0.01} scale="log" origin={1} format={(v) => `${v.toFixed(2)}×`} onChange={setKitDecay} />
           <Knob label="Tone" value={0.5} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} disabled />
         </div></div>
+      <div className="sheet-col"><span className="sheet-note">Mobius proposes "warmer": the changed settings glide to their new values and stay indigo and dashed until kept</span>
+        <WarmerDemo /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: an on-step is ink to its velocity, an accent full height; click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
         <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps with fill: the same grid stretched across the width, each step up to a wide cell</span>
@@ -153,6 +174,31 @@ function Instruments() {
       <div className="sheet-col sheet-wide"><span className="sheet-note">Automation lanes, 4 bars at 32 per beat: click adds a point and drags it, double-click or Delete removes, arrows nudge (Alt drags off the grid, Ctrl+arrows move between points, Enter adds one a step later). The second is empty, at the setting's own level.</span>
         <AutomationLane label="Volume" points={lane} beats={16} pxPerBeat={32} grid={0.25} onChange={setLane} />
         <AutomationLane label="Filter cutoff" points={cutLane} beats={16} pxPerBeat={32} grid={0.25} empty={0.6} onChange={setCutLane} /></div>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">In a track's colour, with no head (the app names it in its track head): a dragged or focused point shows its place and value beside it.</span>
+        <AutomationLane label="Lead volume" points={lane} beats={16} pxPerBeat={32} grid={0.25} color="violet" head={false} onChange={setLane} /></div>
+    </div>
+  );
+}
+
+function Charts() {
+  const months = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+  const money = (v: number) => `$${v.toLocaleString('en-US')}`;
+  return (
+    <div className="sheet-grid">
+      <div className="sheet-col"><span className="sheet-note">Columns, two series: legend above, value tooltip on hover or arrow keys</span>
+        <Chart label="P2 build spend by month" categories={months} format={money}
+          series={[{ name: 'Parts', values: [4200, 5100, 4800, 6900, 7400, 6100] }, { name: 'Labour', values: [2600, 2900, 3100, 3600, 3900, 3300] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Line, three series in the people's own colours; a gap where a value is missing</span>
+        <Chart label="Cells tested per week" kind="line" categories={['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8']}
+          series={[{ name: 'Veltro', color: 'teal', values: [12, 18, 22, 21, 30, 34, 33, 41] }, { name: 'Axion', color: 'violet', values: [8, 9, 14, null, 19, 23, 27, 26] }, { name: 'Northway', color: 'amber', values: [3, 6, 6, 10, 12, 12, 15, 20] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Area, one series (no legend: the label names it); Mobius made it, so dashed until kept</span>
+        <Chart label="Range at 20 °C, km" kind="area" proposed height={200} categories={['0%', '20%', '40%', '60%', '80%', '100%']}
+          series={[{ name: 'Range', color: 'blue', values: [0, 64, 131, 199, 262, 318] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Sparklines for a Views tile: no axes, the last value marked</span>
+        <div className="sheet-sparks">
+          <span>Inbox</span><Sparkline label="Unread mail, last 14 days" values={[14, 12, 15, 9, 11, 8, 7, 9, 6, 5, 7, 4, 3, 2]} />
+          <span>Tasks done</span><Sparkline label="Tasks done, last 14 days" color="green" area values={[1, 3, 2, 4, 3, 5, 4, 6, 5, 7, 6, 8, 7, 9]} />
+        </div></div>
     </div>
   );
 }
@@ -290,8 +336,12 @@ function Floating() {
   );
 }
 
-function Card({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) {
-  return <section className="sheet-card" data-wide={wide || undefined}><h2>{title}</h2>{children}</section>;
+/**
+ * One group of controls. `shot` names its picture in docs/developers/ui/img/ (made by `npm run ui-shots`); every card
+ * needs one, and a test checks the picture exists and a library page shows it.
+ */
+function Card({ title, shot, wide, children }: { title: string; shot: string; wide?: boolean; children: ReactNode }) {
+  return <section className="sheet-card" data-wide={wide || undefined} data-shot={shot}><h2>{title}</h2>{children}</section>;
 }
 
 export function Sheet() {
@@ -325,7 +375,7 @@ export function Sheet() {
         <p>Every control in src/ui, in its states. Instrument, docs/design/instrument.md.</p>
       </header>
       <div className="sheet-grid">
-        <Card title="Buttons">
+        <Card title="Buttons" shot="buttons">
           <div className="sheet-row">
             <Button kind="primary" keys="Ctrl+Enter">Keep</Button>
             <Button>Export</Button>
@@ -346,7 +396,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Fields and pop-ups">
+        <Card title="Fields and pop-ups" shot="fields">
           <div className="sheet-col">
             <TextField label="Name" value={name} onChange={setName} />
             <TextField label="Width" value={width} onChange={setWidth} unit="px" inputMode="numeric" />
@@ -366,7 +416,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Segmented">
+        <Card title="Segmented" shot="segmented">
           <div className="sheet-row">
             <Segmented label="View" value={view} onChange={setView} choices={[{ value: 'list', label: 'List' }, { value: 'board', label: 'Board' }, { value: 'calendar', label: 'Calendar' }]} />
             <Segmented label="View" iconOnly value={view} onChange={setView} choices={[{ value: 'list', label: 'List', icon: <Icon d={LIST} /> }, { value: 'board', label: 'Board', icon: <Icon d={BOARD} /> }, { value: 'calendar', label: 'Calendar', icon: <Icon d={CAL} /> }]} />
@@ -379,7 +429,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Switches and checkboxes">
+        <Card title="Switches and checkboxes" shot="switches">
           <div className="sheet-col">
             <Switch label="Show key hints" checked={on} onChange={setOn} />
             <Switch label="Keep my wording" detail="Mobius changes only what you ask" checked={off} onChange={setOff} />
@@ -393,7 +443,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Sliders (Adjust)">
+        <Card title="Sliders (Adjust)" shot="sliders">
           <div className="sheet-panel">
             <Slider label="Exposure" min={-100} max={100} value={exposure} onChange={setExposure} />
             <Slider label="Contrast" min={-100} max={100} value={contrast} onChange={setContrast} />
@@ -403,7 +453,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Parameter cells (pro apps)">
+        <Card title="Parameter cells (pro apps)" shot="param-cells">
           <div className="sheet-panel">
             <ParamGrid label="Device">
               <ParamCell label="Tempo" unit="BPM" min={40} max={240} value={tempo} onChange={setTempo} keyHint="T" />
@@ -428,7 +478,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Meters and progress">
+        <Card title="Meters and progress" shot="meters">
           <div className="sheet-col">
             <Meter label="Storage" value={0.62} />
             <Meter label="Level" value={0.94} threshold={0.85} format={() => '−0.4 dB'} />
@@ -436,7 +486,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Chips, counts, dots and people">
+        <Card title="Chips, counts, dots and people" shot="chips">
           <div className="sheet-row">
             {tags.map((t, i) => <Chip key={t} color={CONTENT_COLORS[i * 3]} onRemove={() => setTags(tags.filter((x) => x !== t))}>{t}</Chip>)}
             <Chip color="violet">Design</Chip>
@@ -462,43 +512,46 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Shared objects: one-line row, two-line row, card, chip" wide>
+        <Card title="Shared objects: one-line row, two-line row, card, chip" shot="objects" wide>
           <Objects />
         </Card>
 
-        <Card title="Popover and choice menus (composer: plus, Mode, Permission, model open upward)" wide>
+        <Card title="Popover and choice menus (composer: plus, Mode, Permission, model open upward)" shot="menus" wide>
           <Composer />
         </Card>
 
-        <Card title="Content tabs and dialogs" wide>
+        <Card title="Content tabs and dialogs" shot="dialogs" wide>
           <Floating />
         </Card>
 
-        <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" wide>
+        <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" shot="pro" wide>
           <ProControls />
         </Card>
 
-        <Card title="Date and time fields (open downward)" wide>
+        <Card title="Date and time fields (open downward)" shot="dates" wide>
           <Dates />
         </Card>
 
-        <Card title="Two-axis pad" wide>
+        <Card title="Two-axis pad" shot="xy-pad" wide>
           <Pads />
         </Card>
 
-        <Card title="Waveform (Music's sampler)" wide>
+        <Card title="Waveform (Music's sampler)" shot="waveform" wide>
           <Wave />
         </Card>
-        <Card title="Instrument controls (Music's Device panel and drum kit)" wide>
+        <Card title="Instrument controls (Music's Device panel and drum kit)" shot="instruments" wide>
           <Instruments />
         </Card>
-        <Card title="Devices: chain, frame and EQ" wide>
+        <Card title="Devices: chain, frame and EQ" shot="devices" wide>
           <Devices />
         </Card>
-        <Card title="Pad grid (Music's drum kit)">
+        <Card title="Pad grid (Music's drum kit)" shot="pads">
           <DrumPads />
         </Card>
-        <Card title="List rows" wide>
+        <Card title="Charts (Sheets, Views tiles)" shot="charts" wide>
+          <Charts />
+        </Card>
+        <Card title="List rows" shot="list-rows" wide>
           <div className="sheet-grid">
             <ul role="list" className="ui-list sheet-list">
               {[

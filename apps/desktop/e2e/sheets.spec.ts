@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -35,6 +35,8 @@ const file = (sheet: string) => path.join(userData, 'workspace', 'sheets', 'Offs
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  // Room for the whole toolbar: in a narrow window its controls move into the ⋯ menu.
+  await resizeWindow(mobius.app, 1440, 900);
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Sheets');
@@ -110,6 +112,25 @@ test('the agent adds a column of formulas, its cells are marked, and Discard put
   expect(fs.readFileSync(file('Budget'), 'utf8')).not.toContain('Per person');
 });
 
+test('cells Mobius writes are marked as the call lands, and Keep comes when the turn ends', async () => {
+  // The answer comes slowly, so the turn is still running when the cells are on the sheet.
+  await start([
+    callsTool('sheets-write', { workbook: 'Offsite budget', sheet: 'Budget', cells: { E1: 'Per person', E5: '=ROUND(D5/People!B1,2)' } }),
+    says(['Each person ', 'costs $677.50 (E5).'], 3000),
+  ]);
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('What does each person cost?');
+  await composer.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: sheets.write' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(grid().locator('td[data-changed]')).toHaveCount(2);
+  await expect(log.locator('.msg.assistant')).not.toHaveText('Each person costs $677.50 (E5).');
+  await expect(shell().getByRole('status').filter({ hasText: 'Mobius changed 2 cells here' })).toHaveCount(0);
+  await expect(log.locator('.msg.assistant')).toHaveText('Each person costs $677.50 (E5).', { timeout: 15_000 });
+  await expect(shell().getByRole('status').filter({ hasText: 'Mobius changed 2 cells here' })).toBeVisible();
+  await expect(grid().locator('td[data-changed]')).toHaveCount(2);
+});
+
 test('pick a block, fill it down, undo, sort from the menu, and build a formula by clicking cells', async () => {
   await start();
   // A dragged block shows its sum in the status line.
@@ -121,6 +142,9 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await shell().mouse.up();
   await expect(shell().getByLabel('Selected cell')).toHaveText('B2:B3');
   await expect(shell().getByRole('status', { name: 'Selection' })).toContainText('Sum 15');
+  // The Mobius panel's Glance says the same: sum, average and count of what is selected.
+  const glance = shell().getByRole('region', { name: 'Selected B2:B3' });
+  await expect(glance.locator('.glance-fact')).toHaveText([/Sum\s*15/, /Average\s*7\.5/, /Count\s*2/]);
 
   // A formula from the function list, with a reference put in by clicking a cell.
   await cell('E2').click();

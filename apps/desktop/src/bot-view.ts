@@ -7,10 +7,10 @@ const APP_NAMES: Record<string, string> = {
 };
 
 /**
- * What a bot may touch, in words, from Settings › Safety: a bot works under the same per-app settings and mode as
- * Mobius. "Off: Mail. Always asks: Browser. Everything else follows your mode, Propose."
+ * What a bot may touch, in words, from Settings › Safety: a bot works under the same per-app settings and Permission
+ * as Mobius. "Off: Mail. Always asks: Browser. Everything else follows your permission, Review changes."
  */
-export function mayTouch(access: AppAccess, mode: string): string {
+export function mayTouch(access: AppAccess, permission: string): string {
   const level = (app: string) => (access as Record<string, string | undefined>)[app] ?? 'follow';
   const named = (wanted: string) => Object.keys(APP_NAMES).filter((app) => level(app) === wanted).map((app) => APP_NAMES[app]!);
   const off = named('off');
@@ -18,7 +18,7 @@ export function mayTouch(access: AppAccess, mode: string): string {
   const parts = [
     off.length > 0 ? `Off: ${off.join(', ')}.` : '',
     always.length > 0 ? `Always asks: ${always.join(', ')}.` : '',
-    off.length + always.length > 0 ? `Everything else follows your mode, ${mode}.` : `Every app follows your mode, ${mode}.`,
+    off.length + always.length > 0 ? `Everything else follows your permission, ${permission}.` : `Every app follows your permission, ${permission}.`,
   ];
   return parts.filter(Boolean).join(' ');
 }

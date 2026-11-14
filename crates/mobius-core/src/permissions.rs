@@ -207,11 +207,11 @@ impl Policy {
 /// What Propose lets the agent do without asking: read the workspace and change it in ways a turn's checkpoint puts
 /// back, read the person's mail and suggest a reply (reading changes nothing, and a suggested draft waits for the
 /// person to keep, change and send it; what always asks is paying, sending, deleting and running commands), and read
-/// what only says something about this computer (the time, the schedules). Deleting files is a
-/// floor, and sending, browsing and running commands are not here, so they still ask.
-const REVERSIBLE: [&str; 16] = [
+/// what only says something about this computer (the time, the schedules, which browser tabs are open). Deleting files
+/// is a floor, and sending, browsing and running commands are not here, so they still ask.
+const REVERSIBLE: [&str; 17] = [
     "clock.read", "schedules.read", "files.read", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
-    "calendar.read", "calendar.write", "skills.read", "document.write", "mail.read", "mail.draft",
+    "calendar.read", "calendar.write", "skills.read", "document.write", "mail.read", "mail.draft", "browser.list",
 ];
 
 #[must_use]
@@ -453,6 +453,9 @@ mod tests {
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.read"), None), Verdict::Allow { consume: None });
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.draft"), None), Verdict::Allow { consume: None });
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.send"), None), Verdict::Ask);
+        // Which tabs are open is said without asking; reading a page still asks (the person's own pages are files).
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.list"), None), Verdict::Allow { consume: None });
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.read"), None), Verdict::Ask);
         // Not reversible, or a floor: asked as in manual.
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.navigate"), None), Verdict::Ask);
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("fs.delete"), Some("notes/Plan.md")), Verdict::Ask);

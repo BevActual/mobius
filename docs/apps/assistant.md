@@ -43,8 +43,8 @@ Ctrl+K. The sidebar lists your agents, then **From Mobius**: the runs of your ag
   itself is built in, so its menu only starts a session.
 - **Make an agent from a conversation**: its name comes from the conversation's title and its instructions from what
   you first asked.
-- An agent works under the same mode and per-app settings as Mobius. Its card says what it may touch ("Off: Mail.
-  Always asks: Browser. Everything else follows your mode, Propose.").
+- An agent works under the same permission and per-app settings as Mobius. Its card says what it may touch ("Off: Mail.
+  Always asks: Browser. Everything else follows your permission, Review changes.").
 - In a [project](write-and-plan.md#projects), **Ask a bot** sends an agent off to do something on the side, and what
   it reports comes back into the thread.
 

@@ -45,7 +45,7 @@ Outside the sections:
 | `reference/` | Working notes and research (Hermes comparisons, provider requirements). Not user docs. |
 | `templates/` | Starting points for new pages. |
 | `readme/` | Images used by the README and the docs (see [Screenshots](#screenshots)). |
-| `CODE_SIGNING_POLICY.md` | Required by SignPath; keep its path. |
+| `CODE_SIGNING_POLICY.md` | What is signed and how; keep its path. |
 
 Repository-level files stay at the root where GitHub looks for them: `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
 `CODE_OF_CONDUCT.md`, `LICENSE`, `THIRD_PARTY_NOTICES.md`.

@@ -15,13 +15,34 @@ What makes it Mobius's own:
 Status: **Have** (on main), **Building** (in a pull request), **Next**, **Later**, and **Not for Mobius**, with a
 reason.
 
+## How it works: habits from desktop studios
+
+People who make music already know how a studio app behaves. Music takes on those habits, so the hands of someone who
+knows Ableton Live already know what to do. It keeps Mobius's own look, controls and names. These are ways of working,
+not designs to copy.
+
+| Habit | In Music | Status |
+| --- | --- | --- |
+| One detail area for the chosen track | The bottom area shows the chosen track: its notes, or its devices in a row in signal order (instrument first, then effects). Shift+Tab switches between them, and double-clicking a track or clip opens it. | Asking (today the devices sit in the right panel) |
+| The computer keyboard is an instrument | A S D F… play the white keys and W E T Y… the black ones. Z and X move an octave, and C and V change velocity. You hear the chosen track's own sound. | Next |
+| Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Later, after the keyboard |
+| Draw mode | B switches the notes editor between drawing notes and picking them, so a click never does the wrong one. | Next |
+| Devices fold and switch off | Each device folds to its title bar and has its own on switch. Double-click the title to fold it. | Next (switches Have) |
+| Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Next (Ctrl+D, Delete and undo Have) |
+| Drag sounds in | Drag a sound from the sidebar onto empty space for a new track, or onto a track to swap its instrument and keep the notes. Clicking a sound plays a short preview. | Next |
+| Track header controls | Every track header has a number, a name, on, solo, and (with recording) arm. Track rows fold and resize. | Partly (number, name, mute, solo Have) |
+| Follow | The view keeps the playhead in sight while playing, and scrolling by hand stops following until Play is pressed again. | Next |
+| Info on hover | A line at the foot names what the pointer is over and its key, so the app teaches itself. It's the key-hint bar every app shares. | Next (shell) |
+| Tap tempo and nudge | Tap the tempo field in time to set it, and drag or arrow it like any number. | Next (library NumberField Have) |
+| Everything is a value Mobius can set | Every knob, switch and note is in the song file, so asking Mobius for "a darker pad" or "double-time hats" changes the same settings you would, dashed until you keep it. | Have, kept with each change |
+
 ## Instruments
 
 | Instrument | What it is | Status |
 | --- | --- | --- |
 | Drums | A kit of synthesised drums, with Tune, Decay and Tone for the whole kit. | Have |
 | Bass, Piano, Pad, Lead | One synth voice with four starting points: Oscillator (Shape, Detune, Sub, Drive), Filter (Cutoff, Resonance, Sweep), Envelope (ADSR) and Motion (Vibrato, Rate). | Have |
-| Drum pads | A pad for each drum, each with its own pitch, decay, tone, level and pan, played or stepped in a step grid. | Next |
+| Drum pads | A pad for each drum, each with its own pitch, decay, level and pan, played or stepped in a step grid. | Building |
 | Morph synth | A synth that blends between waves with an XY pad, for sounds that move. | Next |
 | Sampler | Plays your own audio files from your workspace across the keys, with start, loop and envelope. One-shot mode for drum hits. | Next |
 | Two-operator synth | One wave bending another's pitch, for bells, keys and metallic basses. | Later |
@@ -41,7 +62,7 @@ and Mobius can set them like anything else in the song (`fx`).
 | Compressor | Threshold, Ratio, Attack, Release and Makeup. | Have |
 | Delay | Echoes in step with the tempo, with Feedback and Mix. | Have |
 | Reverb | A room from short to long, with Damp and Mix. | Have |
-| Drawn EQ | Bands you drag on a curve: frequency, level and width. | Building |
+| Drawn EQ | Bands you drag on a curve: frequency, level and width. | Have |
 | Saturation and lo-fi | Warmth, clipping, fewer bits and a lower sample rate. | Next |
 | Moving filter | A filter that sweeps with the tempo or follows the level. | Next |
 | Chorus, phaser and flanger | Thickening and swirling. | Next |
@@ -64,7 +85,7 @@ notes for good, so the file always shows what you hear.
 | Keep to key | Moves stray notes into the song's key. | Next |
 | Chords | Plays a chord from each note, by degree in the key. | Next |
 | Arpeggio | Plays held chords as patterns in time. | Next |
-| Step grid | Sixteen steps per drum, for patterns. | Next (library `StepGrid`) |
+| Step grid | Sixteen steps per drum, for patterns. | Building |
 | Strum and humanise | Small timing and loudness changes so parts feel played. | Later |
 | Chance | Each note plays some of the time, for variation. | Later |
 | Echo notes | Repeats each note, softer, in time. | Later |

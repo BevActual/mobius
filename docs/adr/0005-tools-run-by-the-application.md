@@ -18,7 +18,8 @@ is matched to the request id and fed back into the same turn. Arguments and resu
 
 **The application registers its tools.** On every start of the core, the main process calls `tools.register_external`. The
 core forgets them when it restarts, so they are registered again each time it becomes ready. A tool cannot take the name of
-one the core runs itself.
+one the core runs itself. A connector started or stopped while Mobius runs registers its tools then, or takes them
+back with `tools.unregister_external`, which only ever removes a tool the application registered.
 
 **Approve a site, not a page.** A tool can say its resource is the *origin* (scheme, host, port) of an address argument.
 `browser.open` asks about `https://example.com`, so "Always allow" covers that site and nothing else. Only plain

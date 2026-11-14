@@ -389,6 +389,18 @@ fn recording_a_result_for_something_that_is_not_an_application_tool_is_refused()
 }
 
 #[test]
+fn an_application_tool_can_be_taken_back_but_the_cores_own_tools_cannot() {
+    let mut f = fixture();
+    f.core.register_external_tool(ToolSpec::new("mcp.github.issues", "Issues", "mcp.github").unwrap()).unwrap();
+    f.core.unregister_external_tool("mcp.github.issues").unwrap();
+    assert!(f.core.tools().iter().all(|t| t.name != "mcp.github.issues"));
+    assert!(matches!(f.core.unregister_external_tool("mcp.github.issues"), Err(CoreError::UnknownTool(_))));
+    assert!(matches!(f.core.unregister_external_tool("demo.echo"), Err(CoreError::UnknownTool(_))), "a tool the core runs itself stays");
+    assert!(f.core.tools().iter().any(|t| t.name == "demo.echo"));
+    f.core.register_external_tool(ToolSpec::new("mcp.github.issues", "Issues", "mcp.github").unwrap()).unwrap();
+}
+
+#[test]
 fn an_application_tool_cannot_take_the_name_of_another() {
     let mut f = fixture();
     assert!(matches!(f.core.register_external_tool(ToolSpec::new("demo.echo", "x", "demo.echo").unwrap()), Err(CoreError::DuplicateTool(_))));

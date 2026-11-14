@@ -185,8 +185,8 @@ A place for one piece of work.
 
 ![The Projects app in Mobius](../readme/apps/projects.png)
 
-- **Rules**: how much Mobius may do in each app inside the project (Ask first, Propose or Act). Paying, sending,
-  deleting and running commands always ask, whatever a project says.
+- **Rules**: how much Mobius may do in each app inside the project (Ask each time, Review changes or Auto). Paying,
+  sending, deleting and running commands always ask, whatever a project says.
 - **Threads**: the project's conversations. Move an existing conversation in and the project's rules apply to it.
   Right-click a thread and choose **Remove from project** to take it out again: the conversation is kept, and the
   project's rules no longer count in it.
@@ -196,9 +196,11 @@ A place for one piece of work.
 - **Ask a bot** sends one of your [Agents](assistant.md#agents) off to do something on the side.
 
 The page opens with one line about the project (its threads, what they made, what waits on you and when it last
-moved), **New thread**, and **More** (⋯): Rename, Show the folder in Files, Open memory in Knowledge and Delete
-project. Right-click a project in the sidebar for the same Rename and Delete, or double-click it to rename. Each part is a grouped list: a thread
-shows how many messages it has and when it last moved, and something made shows its app's icon.
+moved). **New thread** is in the toolbar, and the toolbar's ⋯ has the project's own commands first: Rename (F2), Show
+the folder in Files, Open memory in Knowledge and Delete project (Delete). Right-click a project in the sidebar for the
+same Rename and Delete, double-click it to rename, or select it and press F2 or Delete. The sidebar's search narrows the
+list by name. Each part is a grouped list: a thread shows how many messages it has and when it last moved, and
+something made shows its app's glyph.
 
 Renaming a project renames its folder and its memory page too. Deleting a project asks first, and keeps its threads,
 its folder and its memory page: only the project and its rules go. **Rules** lists the apps you have added from

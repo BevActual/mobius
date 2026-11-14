@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type SetStateAction } from 'react';
 import { formatWith } from './dates';
 import { isNotesFailure, type MailAccount, type MailCategory, type MailContent, type MailCounts, type MailDraft, type MailMessage } from '@mobius/shared';
 
@@ -51,7 +51,11 @@ export function useMail() {
   const [messages, setMessages] = useState<MailMessage[]>([]);
   const [counts, setCounts] = useState<MailCounts>(NO_COUNTS);
   const [drafts, setDrafts] = useState<MailDraft[]>([]);
-  const [open, setOpen] = useState<MailContent | null>(null);
+  const [open, setShown] = useState<MailContent | null>(null);
+  // The newest open or close wins: a message that comes back from the host after the person closed it (Mark as
+  // Unread closes it) or opened another stays closed.
+  const opens = useRef(0);
+  const setOpen = useCallback((next: SetStateAction<MailContent | null>) => { opens.current += 1; setShown(next); }, []);
   const [editing, setEditing] = useState<MailDraft | null>(null);
   const [syncing, setSyncing] = useState(false);
   /** False until the first list has come back: the list shows placeholder bars until then. */
@@ -88,13 +92,19 @@ export function useMail() {
   useEffect(() => { void refresh(); }, [view, query, refresh]);
   useEffect(() => api?.onChanged(() => void refresh()), [api, refresh]);
 
+  // Counts Flag and Mark as Unread / Read. A message opening shows as read only if neither came while it opened:
+  // Mark as Unread pressed then is the person's last word, and the open must not paint it read again.
+  const marking = useRef(0);
   const read = useCallback(async (id: string) => {
+    const before = marking.current;
+    const mine = ++opens.current;
     const got = await api?.read(id);
     if (!got) return;
     if (isNotesFailure(got)) { setMessage(got.message); return; }
-    setOpen(got);
+    if (mine !== opens.current) return;
+    setShown(got);
     setEditing(null);
-    setMessages((cur) => cur.map((m) => (m.id === id ? { ...m, seen: true } : m)));
+    if (marking.current === before) setMessages((cur) => cur.map((m) => (m.id === id ? { ...m, seen: true } : m)));
     void api?.counts().then((c) => { if (!isNotesFailure(c)) setCounts(c); });
   }, [api]);
 
@@ -116,6 +126,10 @@ export function useMail() {
   const sort = useCallback(async (id: string, category: MailCategory) => { await api?.sort(id, category); await refresh(); }, [api, refresh]);
   /** Flag, or Mark as Unread / Read: shown at once, then kept. */
   const flag = useCallback(async (id: string, which: 'flagged' | 'seen', on: boolean) => {
+    marking.current += 1;
+    // A read of the list already under way began before this mark: dropped, so it cannot paint the old state back
+    // over the one shown here. The read after the host has kept the mark is the one shown.
+    reading.current += 1;
     setMessages((cur) => cur.map((m) => (m.id === id ? { ...m, [which]: on } : m)));
     const done = await api?.flag(id, which, on);
     if (done && isNotesFailure(done)) setMessage(done.message);

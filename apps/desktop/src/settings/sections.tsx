@@ -54,7 +54,7 @@ import { LocalModelsSection } from './LocalModels';
 import { SettingsForm } from './ModelForm';
 import { Empty, Placeholder, Row } from './primitives';
 import { settingPath, type SectionId } from './manifest';
-import { MODES, modeOf } from '../approval-modes';
+import { APPLY_EVENT, PERMISSIONS, loadApply, permissionOf, saveApply, type Permission, type PermissionInfo } from '../chat-mode';
 
 export interface SectionProps {
   subpage: string;
@@ -152,7 +152,25 @@ export function Toggle({ label, checked, onChange }: { label: string; checked: b
 const FONTS: Array<{ id: ChatFont; label: string }> = [{ id: 'system', label: 'System' }, { id: 'serif', label: 'Serif' }, { id: 'mono', label: 'Monospace' }];
 const DIRECTIONS: Array<{ id: TextDirection; label: string }> = [{ id: 'auto', label: 'Automatic' }, { id: 'ltr', label: 'Left to right' }, { id: 'rtl', label: 'Right to left' }];
 const DENSITIES: Array<{ id: Density; label: string }> = [{ id: 'comfortable', label: 'Comfortable' }, { id: 'compact', label: 'Compact' }];
-const APPROVAL_MODES = MODES.map((m) => ({ id: m.id, label: m.name }));
+const PERMISSION_CHOICES = PERMISSIONS.map((p) => ({ id: p.id, label: p.name }));
+/** The longer account of each permission, for Approvals and safety (Instrument, "Control 2: Permission"). */
+const PERMISSION_HELP: Record<Permission, string> = {
+  each: 'Mobius only reads without asking. It asks before every change, and you can choose to always allow a tool. Running commands, deleting files, reading secrets and clicking or typing on a web page are asked about every time.',
+  review: 'Mobius changes things in the app you are in without asking. What it changed shows dashed until you Keep it, Discard it or ask it to Try another way. Anything in another app, browsing, mail, running commands and deleting files still ask.',
+  apply: 'Mobius changes things in the app you are in without asking, and its changes are kept at once. Undo and Rewind still take them back. Anything in another app, browsing, mail, running commands and deleting files still ask.',
+  auto: 'Mobius does the work in any app you switched on, and your model checks each step first, approving what is clearly safe for that one time. A risky or unclear step stops as Needs you. Paying, sending, deleting for good and running commands still ask.',
+};
+
+/** Apply changes is kept on this computer beside the approval mode; read it again when the composer changes it. */
+function useApply(): [boolean, (on: boolean) => void] {
+  const [apply, setApply] = useState(loadApply);
+  useEffect(() => {
+    const read = () => setApply(loadApply());
+    window.addEventListener(APPLY_EVENT, read);
+    return () => window.removeEventListener(APPLY_EVENT, read);
+  }, []);
+  return [apply, (on) => { setApply(on); saveApply(on); }];
+}
 const SIDEBAR_MODES: Array<{ id: SidebarMode; label: string }> = [{ id: 'attached', label: 'Attached' }, { id: 'floating', label: 'Floating' }];
 const EFFORT_OPTIONS: Array<{ id: EffortChoice; label: string }> = [{ id: '', label: 'Default' }, { id: 'none', label: 'Off' }, { id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }];
 const TOOL_STEPS: Array<{ id: ToolSteps; label: string }> = [{ id: 'show', label: 'Show all' }, { id: 'hide-finished', label: 'Hide finished' }];
@@ -256,7 +274,7 @@ export function ModelSection({ subpage, highlight, settings, onSaveSettings, pre
       <Row path={rowPath('model', subpage, 'second-model')} title="Second model" description="Asked when the first is busy, down or cannot be reached. Mobius says when it answers instead." highlight={highlight === 'second-model'}>
         <FallbackPopUp baseUrl={settings.fallbackBaseUrl ?? ''} model={settings.fallbackModel ?? ''} />
       </Row>
-      <Row path={rowPath('model', subpage, 'quick-model')} title="Quick model" description="For quick jobs, like checking a step in Act mode before it runs. A small, fast model fits. Same as chat uses the chat model." highlight={highlight === 'quick-model'}>
+      <Row path={rowPath('model', subpage, 'quick-model')} title="Quick model" description="For quick jobs, like checking a step in Auto before it runs. A small, fast model fits. Same as chat uses the chat model." highlight={highlight === 'quick-model'}>
         <QuickPopUp quick={preferences.quickModel ?? ''} />
       </Row>
       <ImagesRow path={rowPath('model', subpage, 'images')} highlight={highlight === 'images'} chosen={preferences.imageModel ?? ''} />
@@ -360,7 +378,7 @@ function PrivacyReport({ baseUrl }: { baseUrl: string }) {
 }
 
 const ACCESS_OPTIONS: ReadonlyArray<{ id: AccessLevel; label: string }> = [
-  { id: 'follow', label: 'Follow the mode' },
+  { id: 'follow', label: 'Follow your permission' },
   { id: 'always', label: 'Always ask' },
   { id: 'off', label: 'Off' },
 ];
@@ -387,11 +405,10 @@ const ACCESS_APPS: ReadonlyArray<{ id: keyof AppAccess; label: string; help: { o
 ];
 
 /** What a level means for one app, in the mode chosen now. */
-function accessHelp(help: { off: string; ask: string }, level: AccessLevel, mode: Parameters<typeof modeOf>[0]): string {
+function accessHelp(help: { off: string; ask: string }, level: AccessLevel, current: PermissionInfo): string {
   if (level === 'off') return help.off;
   if (level === 'always') return help.ask.replace('Mobius asks before', 'Mobius asks you every time before');
-  const current = modeOf(mode);
-  return `Follows your mode, ${current.name}: ${current.hint.charAt(0).toLowerCase()}${current.hint.slice(1)}.`;
+  return `Follows your permission, ${current.name}: ${current.hint.charAt(0).toLowerCase()}${current.hint.slice(1)}.`;
 }
 
 /** What Mobius remembers, each with Forget. Read again whenever it changes, by the agent or here. */
@@ -429,6 +446,13 @@ function MemoryList() {
 
 export function SafetySection({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
   const { grants, remove } = useGrants();
+  const [apply, setApply] = useApply();
+  const permission = permissionOf(preferences.approvalMode, apply);
+  const choosePermission = (id: Permission) => {
+    const next = PERMISSIONS.find((p) => p.id === id) ?? PERMISSIONS[1]!;
+    setApply(next.id === 'apply');
+    void onPreferences({ approvalMode: next.approval });
+  };
   const path = (row: string) => rowPath('safety', subpage, row);
   if (subpage === 'memory') {
     return (
@@ -462,11 +486,11 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
   }
   return (
     <>
-      <Row path={path('approval-mode')} title="Approval mode" description="Ask first asks before each tool. Propose changes your workspace without asking and waits for Keep, Discard or Try another. Act does the work, checking each step." highlight={highlight === 'approval-mode'}>
-        <Choice label="Approval mode" name="approval-mode" value={modeOf(preferences.approvalMode).id} options={APPROVAL_MODES} onChange={(approvalMode) => void onPreferences({ approvalMode })} />
-        <p className="srow-text" data-testid="approval-mode-help">{modeOf(preferences.approvalMode).help}</p>
+      <Row path={path('approval-mode')} title="Permission" description="How much Mobius does without asking. The same choice as Permission under the message box." highlight={highlight === 'approval-mode'}>
+        <Choice label="Permission" name="approval-mode" value={permission.id} options={PERMISSION_CHOICES} onChange={choosePermission} />
+        <p className="srow-text" data-testid="approval-mode-help">{PERMISSION_HELP[permission.id]}</p>
       </Row>
-      <Row path={path('app-access')} title="What Mobius may do in each app" description="For each app: follow the mode, always ask you, or off. Paying, sending, deleting and running commands ask in every mode." highlight={highlight === 'app-access'}>
+      <Row path={path('app-access')} title="What Mobius may do in each app" description="For each app: follow your permission, always ask you, or off. Paying, sending, deleting and running commands ask in every mode." highlight={highlight === 'app-access'}>
         <div className="access-all" role="group" aria-label="Every app at once">
           <span>Set every app to</span>
           {ACCESS_OPTIONS.map((o) => (
@@ -479,7 +503,7 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
               <span className="access-app"><svg viewBox="0 0 20 20" aria-hidden="true" data-app={app.id}>{APP_ICONS[app.id]}</svg>{app.label}</span>
               <Choice label={`${app.label}: what Mobius may do`} name={`access-${app.id}`} value={preferences.appAccess[app.id] ?? 'follow'} options={ACCESS_OPTIONS}
                 onChange={(level) => void onPreferences({ appAccess: { ...preferences.appAccess, [app.id]: level } })} />
-              <p className="srow-text access-help">{accessHelp(app.help, preferences.appAccess[app.id] ?? 'follow', preferences.approvalMode)}</p>
+              <p className="srow-text access-help">{accessHelp(app.help, preferences.appAccess[app.id] ?? 'follow', permission)}</p>
             </div>
           ))}
         </div>

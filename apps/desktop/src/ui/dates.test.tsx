@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { dayMonthOrder, setLocaleForTests, uses12Hour, weekStart } from '../dates';
-import { DateField, MonthPicker, TimeField, dateWords } from './DateField';
+import { DateField, MonthPicker, TimeField, TimeRange, dateWords } from './DateField';
 import { lengthLabel, monthGrid, nextWeek, parseDate, parseTime } from './dateText';
 
 // Saturday 14 November 2026, 10:05.
@@ -103,6 +103,13 @@ describe('date and time fields', () => {
     expect(html).toContain('role="combobox"');
     expect(lengthLabel(45)).toBe('45 min');
     expect(lengthLabel(120)).toBe('2 hr');
+  });
+  it('shows a range’s length once, after both times, so it never covers the end time', () => {
+    setLocaleForTests('en-GB');
+    const html = renderToStaticMarkup(<TimeRange label="Meeting" start={780} end={870} onChange={() => {}} />);
+    expect(html.match(/1 hr 30 min/g)).toHaveLength(1);
+    expect(html).toMatch(/class="ui-time-span">1 hr 30 min</);
+    expect(html).not.toContain('ui-field-unit');
   });
   it('takes the week start, day order and clock from the computer', () => {
     setLocaleForTests('en-US');

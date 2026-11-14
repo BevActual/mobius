@@ -4,16 +4,16 @@ The first time Mobius opens, it asks two things: how much it should do on its ow
 
 ## 1. How much should Mobius do?
 
-Pick one of three modes. You can change it later from the message box (Shift+Tab steps through them) or in
-**Settings › Approvals and safety**.
+Pick a permission. You can change it later from the message box or in **Settings › Approvals and safety**.
 
-| Mode | In short |
+| Permission | In short |
 | --- | --- |
-| **Ask first** | Mobius asks before it uses each tool. |
-| **Propose** (recommended) | Mobius changes your notes, documents, tasks and other files without asking, and every change waits for you to **Keep**, **Discard** or **Try another**. Browsing, mail and commands still ask. |
-| **Act** | Mobius does the work and checks each step first with your model. Anything risky or unclear stops and waits for you. |
+| **Ask each time** | Mobius asks before every step. |
+| **Review changes** (recommended) | Mobius changes your notes, documents, tasks and other files without asking, and every change waits for you to **Keep**, **Discard** or **Try another**. Browsing, mail and commands still ask. |
+| **Apply changes** | Like Review changes, but changes go in at once and **Undo** takes them back. |
+| **Auto** | Mobius does the work and checks each step first with your model. Anything risky or unclear stops and waits for you. |
 
-In every mode, paying, sending, deleting and running commands ask you each time. See
+Whatever you pick, paying, sending, deleting and running commands ask you each time. See
 [Working with Mobius](../guide/working-with-mobius.md) for the details.
 
 ## 2. Choose a model

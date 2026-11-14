@@ -62,7 +62,7 @@ blocks it), **needs X**, **n/a** (Hermes-specific, no Mobius meaning).
 |---|---|---|
 | approvals: grants list, revoke | Approvals | done |
 | command allowlist | - | needs shell tool |
-| approval mode (manual / smart / off) | Approval mode: Manual / Smart / Off | done. Smart: your model reviews each question first (approve = this one use only, deny = asked, once only, unsure/failed = asked). Off still honours blocks. Hermes extras not copied: denial circuit breaker, separate reviewer model, custom reviewer rules |
+| approval mode (manual / smart / off) | Permission: Ask each time / Review changes / Apply changes / Auto | done. Smart: your model reviews each question first (approve = this one use only, deny = asked, once only, unsure/failed = asked). Off still honours blocks. Hermes extras not copied: denial circuit breaker, separate reviewer model, custom reviewer rules |
 | privacy (redaction, secrets) | partly (activity never has arguments) | next |
 | checkpoints / rollback | - | needs file tools |
 

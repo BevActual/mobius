@@ -50,7 +50,8 @@ function readCollapsed(): string[] {
   }
 }
 
-const ACTIVITY_TEXT = { working: 'Working…', needs_you: 'Needs you' } as const;
+const ACTIVITY_TEXT = { working: 'Working…', needs_you: 'Needs you', failed: 'Failed' } as const;
+const ACTIVITY_TONE = { working: 'good', needs_you: 'warn', failed: 'bad' } as const;
 
 function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived, onMakeBot }: { conversation: ConversationInfo; current: boolean; onSelect: () => void; onDelete: () => Promise<string | null>; onArchive?: (archived: boolean) => void; isArchived?: boolean; onMakeBot?: () => void }) {
   const [confirming, setConfirming] = useState(false);
@@ -60,7 +61,7 @@ function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived,
       <button type="button" className="clist-main" aria-current={current ? 'true' : undefined} onClick={onSelect}>
         <span className="clist-title">{conversation.title}</span>
         <span className="clist-sub">
-          {conversation.activity !== 'idle' && <span className="badge" data-tone={conversation.activity === 'needs_you' ? 'warn' : 'good'}>{ACTIVITY_TEXT[conversation.activity]}</span>}
+          {conversation.activity !== 'idle' && <span className="badge" data-tone={ACTIVITY_TONE[conversation.activity]}>{ACTIVITY_TEXT[conversation.activity]}</span>}
           {relativeTime(conversation.updated_ms, Date.now())}
         </span>
       </button>
@@ -159,7 +160,7 @@ function useScheduleList(): ScheduleInfo[] {
 }
 
 /** What is scheduled, as a list with when each runs: the Activity page's card. Choosing one opens Settings › Schedules. */
-export function ScheduledList({ onOpen }: { onOpen: () => void }) {
+export function ScheduledList({ onOpen, glyph }: { onOpen: () => void; /** Activity: the clock in its icon column. */ glyph?: ReactNode }) {
   const list = useScheduleList();
   if (list.length === 0) return null;
   return (
@@ -169,8 +170,11 @@ export function ScheduledList({ onOpen }: { onOpen: () => void }) {
         {list.map((s) => (
           <li key={s.id}>
             <button type="button" className="clist-item scheduled-item" data-off={!s.enabled || undefined} onClick={onOpen} title="Change in Settings › Schedules">
-              <span className="clist-title">{s.title}</span>
-              <span className="scheduled-when">{describeWhen(s.days, s.time)}{s.enabled ? '' : ' · Off'}</span>
+              {glyph}
+              <span className="scheduled-text">
+                <span className="clist-title">{s.title}</span>
+                <span className="scheduled-when">{describeWhen(s.days, s.time)}{s.enabled ? '' : ' · Off'}</span>
+              </span>
             </button>
           </li>
         ))}
@@ -197,8 +201,10 @@ function ScheduledSection({ onOpen }: { onOpen: () => void }) {
  * Changes not yet kept or discarded, from today's conversations, one row per conversation: the design's Activity
  * history with Undo, for each conversation's last turn. Keep and Discard do what they do in the strip.
  */
-export function ChangesWaiting({ conversations, onSelect, onRows }: {
+export function ChangesWaiting({ conversations, onSelect, onRows, glyph }: {
   conversations: ConversationInfo[];
+  /** Activity: the icon for a row's changes, in its icon column. */
+  glyph?: (files: string[]) => ReactNode;
   onSelect: (id: string) => void;
   /** Activity (marked, Activity only): which conversations are listed, so it doesn't list them twice. */
   onRows?: (ids: string[]) => void;
@@ -235,6 +241,7 @@ export function ChangesWaiting({ conversations, onSelect, onRows }: {
       <ul className="clist" role="list" aria-label="Changes to review">
         {rows.map(({ conversation, turn, files }) => (
           <li key={conversation.id} className="clist-item change-row">
+            {glyph?.(files)}
             <button type="button" className="clist-main" onClick={() => onSelect(conversation.id)}>
               <span className="clist-title">{conversation.title}</span>
               <span className="clist-sub">Changed {files.length === 1 ? '1 item' : `${files.length} items`}</span>

@@ -6,10 +6,29 @@ import { onCommand } from './commands';
 import { useMorphIn } from './motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
-import { addDays, weekStart, allDayOn, atMinutes, calendarColor, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
+import { AppGlance, useGlanceSlot } from './PanelSlots';
+
+/** Calendar's Glance (Instrument, "The Mobius panel: slots"): the rest of today, whatever day the grid shows. It reads
+ * today's events itself, again when the calendar changes and each minute, and leaves out hidden calendars. */
+export function CalendarGlance({ calendar }: { calendar: CalendarState }) {
+  const slot = useGlanceSlot();
+  const [today, setToday] = useState<CalendarEvent[]>([]);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(t); }, []);
+  const day = isoDay(now);
+  useEffect(() => {
+    let live = true;
+    void window.mobius.calendar?.events(day, day).then((got) => { if (live && !isNotesFailure(got)) setToday(got); });
+    return () => { live = false; };
+  }, [day, calendar.events]);
+  if (!slot) return null;
+  const shown = today.filter((e) => !calendar.hidden.has(e.calendar));
+  return <AppGlance slot={slot} title="Rest of today" facts={calendarGlance(shown, now)} />;
+}
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { useCalendarReview, type CalendarReview } from './useCalendarReview';
 import type { Start } from './SideNew';
@@ -917,7 +936,7 @@ function changeSaid(changed: readonly CalendarEvent[], first: CalendarEvent): st
     : `Mobius changed ${changed.length} events in its last turn, from ${when}.`;
 }
 
-export function CalendarPage({ calendar, newToken = 0, review = null }: { calendar: CalendarState; newToken?: number; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null }) {
+export function CalendarPage({ calendar, newToken = 0, review = null, working = false }: { calendar: CalendarState; newToken?: number; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null; /** Mobius's turn is still running: its changes are drawn as they come, and Keep waits for the end. */ working?: boolean }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [undoable, setUndoable] = useState<Undoable | null>(null);
   useEffect(() => { if (!undoable) return undefined; const t = window.setTimeout(() => setUndoable(null), 10_000); return () => window.clearTimeout(t); }, [undoable]);
@@ -1082,7 +1101,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null }: { calend
           </div>
         </div>
       </ToolbarControls>
-      {review && firstChange && (
+      {review && firstChange && !working && (
         <div className="note-review cal-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{changeSaid(proposal.changed, firstChange)}<WhyThis conversation={review.conversation} /></span>

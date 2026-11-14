@@ -31,6 +31,11 @@ const shell = () => mobius!.shell;
 function file() { return path.join(userData, 'workspace', 'studio', 'Songs', 'Night Drive.json'); }
 const saved = () => JSON.parse(fs.readFileSync(file(), 'utf8')) as typeof SONG;
 const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
+/** Device starts hidden: the Panels menu shows it in the inspector. */
+const openDevice = async () => {
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Device' }).click();
+};
 
 /** Adds a track from Sounds in the sidebar. */
 async function addTrack(name: string): Promise<void> {
@@ -42,7 +47,8 @@ async function openNotes(name: string): Promise<void> {
   await expect(shell().getByRole('grid', { name: `Notes of ${name}` })).toBeVisible();
 }
 
-async function start(replies: ModelReply[] = []): Promise<void> {
+/** Starts Mobius on Music's Night Drive, with the notes of `track` open. */
+async function start(replies: ModelReply[] = [], track = 'Keys'): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
@@ -50,8 +56,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Music');
   await shell().keyboard.press('Enter');
   await shell().getByRole('button', { name: 'Night Drive', exact: true }).click();
-  await expect(tracks().getByRole('listitem', { name: 'Keys' })).toBeVisible();
-  await openNotes('Keys');
+  await expect(tracks().getByRole('listitem', { name: track })).toBeVisible();
+  await openNotes(track);
 }
 
 test('a song is tracks of notes: added by clicking, with tracks to add, mute and play', async () => {
@@ -71,8 +77,11 @@ test('a song is tracks of notes: added by clicking, with tracks to add, mute and
   await shell().getByRole('spinbutton', { name: 'Tempo' }).fill('96');
   await expect.poll(() => saved().tempo).toBe(96);
 
-  // The Device panel sets how the chosen track sounds, kept in the song.
+  // The Device panel sets how the chosen track sounds, kept in the song. Until it moves to the bottom area it is in the
+  // inspector, shown from the Panels menu.
   await tracks().getByRole('listitem', { name: 'Keys' }).click();
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Device' }).click();
   const cutoff = shell().getByRole('region', { name: 'Device' }).getByRole('slider', { name: 'Cutoff and resonance' });
   await cutoff.focus();
   await shell().keyboard.press('ArrowLeft');
@@ -137,16 +146,15 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
     callsTool('files-write', { path: 'studio/Songs/Night Drive.json', content: JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }) }),
     says(['Added a bass line on the roots, on 1 and the and of 3.']),
   ]);
-  // Music's Device tab is first in the right panel; Mobius is beside it. The window is made wide enough for the panel
+  // Music's Device is in the inspector and Mobius in its own panel beside it. The window is made wide enough for both
   // to sit beside the page rather than over it.
   await resizeWindow(mobius!.app, 1440, 900);
-  await shell().getByRole('tab', { name: 'Mobius' }).click();
   await shell().getByRole('button', { name: 'Add a bass line' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log.locator('.msg.assistant')).toContainText('bass line');
-  // What Mobius proposes is kept or discarded in the Device tab.
-  await shell().getByRole('tab', { name: 'Device' }).click();
+  // What Mobius proposes is kept or discarded in the Device panel.
+  await openDevice();
   const change = shell().getByRole('group', { name: "Mobius's change" });
   await expect(change).toContainText('Mobius changed Bass');
   // The new part's clip is dashed; the Keys clip is not.
@@ -160,6 +168,7 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
 test('a track is panned and a drum kit is tuned in the Device panel, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, { id: 't3', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [] }] }));
   await start();
+  await openDevice();
   const device = shell().getByRole('region', { name: 'Device' });
   const pan = device.getByRole('slider', { name: 'Pan' });
   await pan.focus();
@@ -169,7 +178,7 @@ test('a track is panned and a drum kit is tuned in the Device panel, kept in the
   // A drums track has a kit instead of an oscillator: tuning it moves every drum together.
   await tracks().getByRole('listitem', { name: 'Drums' }).click();
   await expect(device.getByRole('slider', { name: 'Cutoff and resonance' })).toHaveCount(0);
-  const tune = device.getByRole('slider', { name: 'Tune' });
+  const tune = device.getByRole('region', { name: 'Kit' }).getByRole('slider', { name: 'Tune' });
   await tune.focus();
   await shell().keyboard.press('ArrowRight');
   await expect.poll(() => (saved().tracks[1] as { kit?: { tune: number } }).kit?.tune).toBe(1);
@@ -179,6 +188,7 @@ test('a track is panned and a drum kit is tuned in the Device panel, kept in the
 test('effects are added to a track, switched off and moved, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify(SONG));
   await start();
+  await openDevice();
   const device = shell().getByRole('region', { name: 'Device' });
   for (const name of ['Delay', 'EQ']) {
     await device.getByRole('button', { name: 'Add effect' }).click();
@@ -192,6 +202,25 @@ test('effects are added to a track, switched off and moved, kept in the song', a
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string; on: boolean }[] }).fx?.map((e) => `${e.kind} ${e.on}`)).toEqual(['eq true', 'delay false']);
   await device.getByRole('button', { name: 'Remove Delay' }).click();
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['eq']);
+});
+
+test('a drum kit has a pad per drum with its own settings, and its notes can be written as steps', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [{ id: 't1', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [{ pitch: 36, start: 0, length: 0.25, velocity: 0.8 }] }] }));
+  await start([], 'Drums');
+  await openDevice();
+  const device = shell().getByRole('region', { name: 'Device' });
+  // Each drum is a pad; the chosen pad's knobs set that drum alone, kept in the song by its pitch.
+  await device.getByRole('group', { name: 'Drum pads' }).getByRole('button', { name: 'Snare', exact: true }).click();
+  const tune = device.getByRole('region', { name: 'Snare settings' }).getByRole('slider', { name: 'Tune' });
+  await tune.focus();
+  await shell().keyboard.press('ArrowRight');
+  await expect.poll(() => (saved().tracks[0] as { pads?: Record<string, { tune: number }> }).pads?.['38']?.tune).toBe(1);
+  // In the notes, Steps shows a bar of the drums as steps: a click switches one on, as a sixteenth note.
+  await tracks().getByRole('listitem', { name: 'Drums' }).press('Enter');
+  await shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Steps' }).click();
+  await expect(shell().getByRole('group', { name: 'Kick' }).getByRole('button', { name: /^Kick, step 1, velocity/ })).toBeVisible();
+  await shell().getByRole('group', { name: 'Snare' }).getByRole('button', { name: 'Snare, step 5', exact: true }).click();
+  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 38)).toMatchObject({ start: 1, length: 0.25 });
 });
 
 test('velocity is drawn under the roll and dragged per note; the track list fits its tracks and resizes', async () => {
@@ -253,6 +282,7 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await tracks().getByRole('listitem', { name: 'Keys' }).click({ position: { x: 6, y: 6 } });
   await shell().keyboard.press('m');
   await expect.poll(() => (saved().tracks[0] as { muted?: boolean }).muted).toBe(true);
+  await openDevice();
   await shell().getByRole('region', { name: 'Device' }).getByRole('radio', { name: 'Coral' }).click();
   await expect.poll(() => (saved().tracks[0] as { color?: string }).color).toBe('coral');
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });

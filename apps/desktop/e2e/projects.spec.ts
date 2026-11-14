@@ -52,6 +52,10 @@ async function openProjects(): Promise<void> {
     throw new Error(`Projects did not open: ${JSON.stringify(seen)}`);
   }
 }
+/** The toolbar's ⋯, where the open project's own commands come first. */
+async function openMenu(): Promise<void> {
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
+}
 async function newProject(name: string): Promise<void> {
   await shell().getByRole('button', { name: 'New project' }).first().click();
   await shell().getByRole('textbox', { name: 'Project name' }).fill(name);
@@ -215,15 +219,15 @@ test('a project can be renamed, and its folder and its memory page follow the na
   const workspace = (...p: string[]) => path.join(userData, 'workspace', ...p);
   fs.writeFileSync(workspace('wiki', 'Projects', 'Kestrel.md'), '# Kestrel\n\n- Builds start on Mondays\n');
   fs.writeFileSync(workspace('projects', 'Kestrel', 'brief.md'), 'brief');
-  // Rename is in the page's More menu (and a sidebar row's right-click menu).
-  await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: 'More' }).click();
+  // Rename is in the toolbar's ⋯ (and a sidebar row's right-click menu, F2 and a double-click).
+  await openMenu();
   await shell().getByRole('menuitem', { name: 'Rename…' }).click();
   const field = shell().getByRole('region', { name: 'Kestrel' }).getByRole('textbox', { name: 'Project name' });
   await field.fill('Kestrel P3');
   await field.press('Enter');
   const page = shell().getByRole('region', { name: 'Kestrel P3' });
   await expect(page).toBeVisible();
-  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('button')).toHaveText(['Kestrel P3']);
+  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('list').getByRole('button')).toHaveText(['Kestrel P3']);
   expect(fs.readFileSync(workspace('projects', 'Kestrel P3', 'brief.md'), 'utf8')).toBe('brief');
   expect(fs.existsSync(workspace('projects', 'Kestrel'))).toBe(false);
   expect(fs.readFileSync(workspace('wiki', 'Projects', 'Kestrel P3.md'), 'utf8')).toContain('Builds start on Mondays');
@@ -233,6 +237,11 @@ test('a project can be renamed, and its folder and its memory page follow the na
   await expect(shell().getByRole('region', { name: 'Kestrel P3' }).getByRole('textbox', { name: 'Project name' })).toBeFocused();
   await shell().keyboard.press('Escape');
   await expect(shell().getByRole('region', { name: 'Kestrel P3' }).getByRole('textbox', { name: 'Project name' })).toHaveCount(0);
+  // F2 on the focused row, as its menu shows.
+  await shell().getByRole('navigation', { name: 'Projects' }).getByRole('button', { name: 'Kestrel P3' }).focus();
+  await shell().keyboard.press('F2');
+  await expect(shell().getByRole('region', { name: 'Kestrel P3' }).getByRole('textbox', { name: 'Project name' })).toBeFocused();
+  await shell().keyboard.press('Escape');
 });
 
 test('a bot asked from a project thread works in a side thread of its own and reports back into the thread', async () => {
@@ -274,12 +283,12 @@ test('deleting a project keeps its threads, its folder and its memory page', asy
   await expect(check).toContainText('are kept');
   await check.getByRole('button', { name: 'Cancel' }).click();
   await expect(check).toHaveCount(0);
-  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('button')).toHaveText(['Kestrel']);
-  // From the page's More menu, and this time Delete.
-  await shell().getByRole('region', { name: 'Kestrel' }).getByRole('button', { name: 'More' }).click();
+  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('list').getByRole('button')).toHaveText(['Kestrel']);
+  // From the toolbar's ⋯, and this time Delete.
+  await openMenu();
   await shell().getByRole('menuitem', { name: 'Delete project…' }).click();
   await shell().getByRole('alertdialog', { name: 'Delete Kestrel?' }).getByRole('button', { name: 'Delete' }).click();
-  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('button')).toHaveCount(0);
+  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('list').getByRole('button')).toHaveCount(0);
   await expect(shell().getByText('No projects yet', { exact: true })).toBeVisible();
   expect(fs.readFileSync(workspace('projects', 'Kestrel', 'brief.md'), 'utf8')).toBe('brief');
   expect(fs.readFileSync(workspace('wiki', 'Projects', 'Kestrel.md'), 'utf8')).toContain('Builds start on Mondays');

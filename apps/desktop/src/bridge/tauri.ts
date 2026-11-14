@@ -128,6 +128,7 @@ export function createTauriBridge(): MobiusBridge {
       rename: (id, name) => call('profiles', 'rename', [id, name], () => ({ ok: false as const, error: 'Not here.' })),
       remove: (id) => call('profiles', 'remove', [id], () => ({ ok: false as const, error: 'Not here.' })),
       switch: (id) => call('profiles', 'switch', [id], () => ({ ok: false as const, error: 'Not here.' })),
+      openDemo: () => call('profiles', 'openDemo', [], () => ({ ok: false as const, error: 'Not here.' })),
     },
     signins: {
       list: (conversation) => call('signins', 'list', [conversation], () => refused),
@@ -169,7 +170,7 @@ export function createTauriBridge(): MobiusBridge {
       onStatus: (listener) => on<CoreStatus>('mobius:core-status', listener, () => call<CoreStatus>('core', 'getStatus', [], () => 'failed')),
     },
     agent: {
-      send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || options.ask || options.quick || options.mode || options.app || (options.images && options.images.length > 0)) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
+      send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || options.ask || options.quick || options.mode || options.app || (options.images && options.images.length > 0) || (options.reads && options.reads.length > 0) || options.finish || (options.tools && options.tools.length > 0)) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
       models: () => call('agent', 'models', [], () => refused),
       setModel: (model) => call('agent', 'setModel', [model], () => refused),
       transcribe: (audio, mime) => call('agent', 'transcribe', [toBase64(audio), mime], () => refused),
@@ -291,6 +292,7 @@ export function createTauriBridge(): MobiusBridge {
     extensions: {
       connectors: () => call('extensions', 'connectors', [], () => ({ running: [], failed: [], problem: null })),
       addConnector: (draft) => call('extensions', 'addConnector', [draft], () => ({ ok: false as const, error: 'Not available.' })),
+      startConnector: (name) => call('extensions', 'startConnector', [name], () => ({ ok: false as const, error: 'Not available.' })),
       removeConnector: (name) => call('extensions', 'removeConnector', [name], () => ({ ok: false as const, error: 'Not available.' })),
     },
     share: {
@@ -563,6 +565,8 @@ export function createTauriBridge(): MobiusBridge {
       createPage: (notebook, title) => call('songs', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Music is not available.' })),
       remove: (path) => call('songs', 'remove', [path], () => ({ ok: false as const, message: 'Music is not available.' })),
       search: (query) => call('songs', 'search', [query], () => []),
+      saveExport: (path, name, data) => call('songs', 'saveExport', [path, name, data], () => ({ ok: false as const, message: 'Music is not available.' })),
+      showExports: () => call('songs', 'showExports', [], () => ({ ok: false as const, message: 'Music is not available.' })),
       onChanged: (listener) => on<NotesChange>('mobius:songs-changed', listener),
     },
     bookmarks: {
@@ -620,6 +624,7 @@ export function createTauriBridge(): MobiusBridge {
       snapshot: () => call('browser', 'snapshot', [], () => null),
       reopenClosed: () => call('browser', 'reopenClosed', [], () => null),
       duplicate: (id) => call('browser', 'duplicate', [id], () => null),
+      openPage: (path) => call('browser', 'openPage', [path], () => null),
       pin: (id, pinned) => fire('browser', 'pin', [id, pinned]),
       moveTab: (id, index) => fire('browser', 'moveTab', [id, index]),
       getState: () => call('browser', 'getState', [], () => EMPTY_BROWSER),

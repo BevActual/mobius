@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent } from 'react';
+import { afterPaint } from './frame';
 
 export interface ViewChoice<T extends string> { id: T; name: string }
 
@@ -16,10 +17,10 @@ export function ViewSwitch<T extends string>({ label, views, value, onChange }: 
     const at = views.findIndex((v) => v.id === value);
     const next = views[(at + by + views.length) % views.length]!;
     onChange(next.id);
-    requestAnimationFrame(() => group.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
+    afterPaint(() => group.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
   };
   return (
-    <div ref={group} className="ui-views" role="radiogroup" aria-label={label} onKeyDown={key}>
+    <div ref={group} className="ui-views" role="radiogroup" aria-label={label} data-priority="keep" onKeyDown={key}>
       {views.map((v) => (
         <button key={v.id} type="button" role="radio" className="ui-view" aria-checked={v.id === value} tabIndex={v.id === value ? 0 : -1} onClick={() => onChange(v.id)}>
           {v.name}

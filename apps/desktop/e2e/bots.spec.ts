@@ -302,7 +302,9 @@ test('a conversation can be made a bot: its form is filled in from it, says what
   await expect(form).toContainText('What it may touch');
   await form.getByRole('textbox').first().fill('Week planner');
   await form.getByRole('radio', { name: 'On a schedule' }).click();
-  await form.getByLabel('At', { exact: true }).fill('07:30');
+  // At is the shared time field: type a time, and leaving the field keeps it.
+  await form.getByRole('combobox', { name: 'At', exact: true }).fill('07:30');
+  await form.getByRole('combobox', { name: 'At', exact: true }).press('Tab');
   await form.getByRole('button', { name: 'Create' }).click();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.schedules?.list() ?? Promise.resolve([]))).map((s) => `${s.title} ${s.time}`)).toContain('Week planner 07:30');
   // The schedule runs as the new agent, not as Mobius.

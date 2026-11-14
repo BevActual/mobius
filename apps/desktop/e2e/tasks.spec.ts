@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -24,6 +24,11 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 const page = (): Locator => shell().locator('.tasks-page');
+/** A shared pop-up in Details (Repeat, List): open it and pick a choice by its words. */
+async function choose(scope: Locator, label: string, choice: string): Promise<void> {
+  await scope.getByRole('combobox', { name: label, exact: true }).click();
+  await shell().getByRole('option', { name: choice, exact: true }).click();
+}
 const lists = (): Locator => shell().getByRole('navigation', { name: 'Lists' });
 const todo = (): Locator => page().getByRole('list', { name: 'To do' });
 const file = (list: string) => path.join(userData, 'workspace', 'tasks', `${list}.md`);
@@ -32,6 +37,8 @@ const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  // Room for the whole toolbar: in a narrow window its controls move into the ⋯ menu.
+  await resizeWindow(mobius.app, 1440, 900);
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Tasks');
@@ -74,6 +81,8 @@ test('rewording, dates in plain words, new lists, and Today gathering from every
   await expect(todo().locator('.task').first().locator('.task-due')).toHaveAttribute('data-tone', 'late');
   await expect(todo().locator('.task').nth(1)).toContainText('Today');
   await expect(todo().locator('.task').nth(1)).toContainText('Home');
+  // The Mobius panel's Glance counts the day across every list: one late, one due today, none flagged.
+  await expect(shell().getByRole('region', { name: 'Your day' }).locator('.glance-fact')).toHaveText([/Overdue\s*1/, /Due today\s*1/, /Flagged\s*0/]);
 
   await lists().getByRole('button', { name: /^Home/ }).click();
   await page().getByRole('button', { name: 'Someday', exact: true }).click();
@@ -113,6 +122,23 @@ test('the agent adds a task from the panel beside the list, and it appears witho
   expect(await page().evaluate((el) => el.contains(document.activeElement))).toBe(false);
 });
 
+test('a task Mobius adds is marked as it lands, and Keep comes when the turn ends', async () => {
+  // The answer comes slowly, so the turn is still running when the task is in the list.
+  await start([callsTool('tasks-add', { list: 'Inbox', text: 'Call the venue' }), says(['Added ', 'it to your Inbox.'], 3000)]);
+  await lists().getByRole('button', { name: /^Inbox/ }).click();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Remind me to call the venue');
+  await composer.press('Enter');
+  await shell().getByRole('button', { name: 'Allow once' }).click();
+  const row = todo().locator('.task', { hasText: 'Call the venue' });
+  await expect(row).toHaveAttribute('data-proposed', 'true');
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).not.toHaveText('Added it to your Inbox.');
+  await expect(page().getByRole('button', { name: 'Keep' })).toHaveCount(0);
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Added it to your Inbox.', { timeout: 15_000 });
+  await expect(page().getByRole('button', { name: 'Keep' })).toBeVisible();
+  await expect(row).toHaveAttribute('data-proposed', 'true');
+});
+
 test('a suggestion in Tasks attaches the open list, so the agent sees what is on it', async () => {
   fs.mkdirSync(path.dirname(file('Inbox')), { recursive: true });
   fs.writeFileSync(file('Inbox'), '# Inbox\n\n- [ ] Write the report\n');
@@ -132,7 +158,8 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   await page().getByRole('button', { name: 'Details for Paint the door' }).click({ force: true });
   const details = page().getByRole('complementary', { name: 'Details' });
   await details.getByRole('textbox', { name: 'Notes' }).fill('White, not grey.');
-  await details.getByRole('switch', { name: 'Flagged' }).check();
+  await details.getByRole('switch', { name: 'Flagged' }).click();
+  await expect(details.getByRole('switch', { name: 'Flagged' })).toBeChecked();
   await details.getByRole('textbox', { name: 'New subtask' }).fill('Buy brushes');
   await details.getByRole('textbox', { name: 'New subtask' }).press('Enter');
   await expect(details.getByRole('checkbox', { name: 'Buy brushes' })).toBeVisible();
@@ -142,7 +169,7 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   await expect(row.locator('.task-note')).toHaveText('White, not grey.');
   await expect(row.getByRole('img', { name: 'Flagged' })).toBeVisible();
   await expect(row.locator('.task-subcount')).toHaveText('0/1');
-  await details.getByRole('combobox', { name: 'List' }).selectOption('Garden');
+  await choose(details, 'List', 'Garden');
   await expect.poll(() => fs.readFileSync(file('Garden'), 'utf8')).toBe('# Garden\n\n- [ ] Paint the door (flagged)\n  White, not grey.\n  - [ ] Buy brushes\n');
   // The move writes the new list, then takes the task out of the old one: two writes, so wait for the second.
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toBe('# Home\n\n- [ ] Fix the tap\n');
@@ -256,9 +283,11 @@ test('a task can have a time and repeat: typed in words, set in Details, and tic
   await page().getByRole('button', { name: 'Details for Fix the tap' }).click({ force: true });
   const details = page().getByRole('complementary', { name: 'Details' });
   await details.getByRole('button', { name: 'Tomorrow', exact: true }).click();
-  await details.getByLabel('Time', { exact: true }).fill('09:30');
+  // Time is the shared time field: type it, and leaving the field keeps it.
+  await details.getByRole('combobox', { name: 'Time', exact: true }).fill('09:30');
+  await details.getByRole('combobox', { name: 'Time', exact: true }).press('Tab');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Fix the tap (due ${day(1)} 09:30)`);
-  await details.getByRole('combobox', { name: 'Repeat' }).selectOption('month');
+  await choose(details, 'Repeat', 'Every Month');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Fix the tap (due ${day(1)} 09:30) (every month)`);
   await details.getByRole('button', { name: 'No date', exact: true }).click();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [ ] Fix the tap (every month)\n');

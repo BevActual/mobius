@@ -49,6 +49,8 @@ const inspector = (): Locator => shell().getByRole('region', { name: 'Inspector'
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  // Room for the whole toolbar: in a narrow window its controls move into the ⋯ menu.
+  await resizeWindow(mobius.app, 1440, 900);
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Design');

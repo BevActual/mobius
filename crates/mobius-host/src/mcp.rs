@@ -16,6 +16,8 @@ pub struct McpState {
     failed: Mutex<Vec<(String, String)>>,
     problem: Mutex<Option<String>>,
     starting: AtomicBool,
+    /// Held while servers are started or stopped, so two changes never race.
+    changing: Mutex<()>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -41,6 +43,7 @@ impl McpState {
         let this = self.clone();
         std::thread::spawn(move || {
             if lock(&this.hub).is_none() && !this.starting.swap(true, Ordering::SeqCst) {
+                let _changing = lock(&this.changing);
                 this.start(&config);
             }
             let hub = lock(&this.hub).clone();
@@ -48,6 +51,40 @@ impl McpState {
                 let _ = core.call("tools.register_external", tool, Duration::from_secs(5));
             }
         });
+    }
+
+    /// Start one server from mcp.json now (Abilities: a connector just added, or Start again on one that failed or
+    /// runs), and hand its tools to the core. A running one is restarted. Waits for the server's handshake.
+    pub fn start_one(&self, config: &std::path::Path, name: &str, core: &CoreProcess) -> Result<(), String> {
+        let servers = std::fs::read_to_string(config).map_err(|_| "mcp.json could not be read".to_owned()).and_then(|t| mobius_mcp::config::parse(&t))?;
+        let server = servers.get(name).ok_or_else(|| format!("There is no connector called {name} in mcp.json."))?;
+        let _changing = lock(&self.changing);
+        let mut next = lock(&self.hub).as_deref().cloned().unwrap_or_default();
+        let gone = next.stop_server(name);
+        let started = next.start_server(name, server);
+        lock(&self.failed).retain(|(s, _)| s != name);
+        for tool in gone {
+            let _ = core.call("tools.unregister_external", json!({ "name": tool }), Duration::from_secs(5));
+        }
+        if let Err(error) = &started {
+            lock(&self.failed).push((name.to_owned(), error.clone()));
+        }
+        for tool in next.descriptions_of(Some(name)) {
+            let _ = core.call("tools.register_external", tool, Duration::from_secs(5));
+        }
+        *lock(&self.hub) = Some(Arc::new(next));
+        started
+    }
+
+    /// Stop one server now (Abilities: a connector removed): its tools leave the core and its program ends.
+    pub fn stop_one(&self, name: &str, core: &CoreProcess) {
+        let _changing = lock(&self.changing);
+        lock(&self.failed).retain(|(s, _)| s != name);
+        let Some(mut next) = lock(&self.hub).as_deref().cloned() else { return };
+        for tool in next.stop_server(name) {
+            let _ = core.call("tools.unregister_external", json!({ "name": tool }), Duration::from_secs(5));
+        }
+        *lock(&self.hub) = Some(Arc::new(next));
     }
 
     fn start(&self, config: &std::path::Path) {
@@ -99,7 +136,7 @@ fn write_root(config: &std::path::Path, root: &Value) -> Result<(), String> {
     std::fs::rename(&tmp, config).map_err(|_| "mcp.json could not be written".to_owned())
 }
 
-/// Add a server to mcp.json (Abilities › Add a Connector). It starts the next time Mobius opens.
+/// Add a server to mcp.json (Abilities › Add a Connector). The caller starts it.
 pub fn add_server(config: &std::path::Path, name: &str, command: &str, args: &[String], env: &serde_json::Map<String, Value>) -> Result<(), String> {
     if !mobius_mcp::config::is_server_name(name) {
         return Err("Use a short name in lowercase letters, digits and _, starting with a letter (such as github).".into());
@@ -126,8 +163,7 @@ pub fn add_server(config: &std::path::Path, name: &str, command: &str, args: &[S
     write_root(config, &root)
 }
 
-/// Take a server out of mcp.json, giving back its entry so it can be put back (Undo). A server that is running stops
-/// the next time Mobius opens.
+/// Take a server out of mcp.json, giving back its entry so it can be put back (Undo). The caller stops it.
 pub fn remove_server(config: &std::path::Path, name: &str) -> Result<Value, String> {
     let mut root = read_root(config)?;
     let removed = root.get_mut("servers").and_then(Value::as_object_mut).and_then(|s| s.remove(name));

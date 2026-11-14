@@ -47,8 +47,13 @@
 @media (prefers-reduced-motion: reduce) { .ui-undo { animation: none; } }
 
 /* The frame (AppFrame): the toolbar's middle, where an app's own controls go. */
-/* The app's controls keep their own width; the title beside them gives way (ellipsizes) first. */
-.ui-toolbar-slot { display: flex; align-items: center; gap: var(--sp-2); flex: 0 0 auto; justify-content: center; }
+/* The app's controls keep their own width; the title beside them gives way (ellipsizes) first. When even that is not
+   enough, controls drop out whole into the ⋯ menu (toolbarFit.ts), lowest priority first, so nothing spills over the
+   buttons at the toolbar's end or the panel beside it. The slot never clips: a control's popover opens from it. */
+.ui-toolbar-slot { display: flex; align-items: center; gap: var(--sp-2); flex: 0 1 auto; min-width: 0; justify-content: center; }
+.ui-toolbar-slot > .ui-toolbar-group { flex: none; }
+.ui-toolbar-item { display: contents; }
+:is(.ui-toolbar-slot, .strip-right) [data-dropped] { display: none !important; }
 .ui-toolbar-slot:empty { display: none; }
 .ui-toolbar-slot[hidden] { display: none; }
 .ui-toolbar-group { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; }

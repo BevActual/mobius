@@ -226,3 +226,23 @@ export function eqFromBand(i: number, band: EqBand): Partial<EqEffect> {
   if (i === 1) return { mid: c('mid', band.gain), midFreq: c('midFreq', band.freq), midQ: c('midQ', band.q) };
   return { high: c('high', band.gain), highFreq: c('highFreq', band.freq) };
 }
+
+/** Steps in a bar: sixteenth notes, four to a beat. */
+export const STEPS_PER_BAR = BEATS_PER_BAR * 4;
+const sameBeat = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+
+/** A bar of drum notes as step cells, one row per pitch: each step is the velocity of a hit starting on it, or 0. */
+export function stepCells(notes: readonly SongNote[], bar: number, pitches: readonly number[]): number[][] {
+  return pitches.map((pitch) => Array.from({ length: STEPS_PER_BAR }, (_, i) => {
+    const at = bar * BEATS_PER_BAR + i / 4;
+    return notes.find((n) => n.pitch === pitch && sameBeat(n.start, at))?.velocity ?? 0;
+  }));
+}
+
+/** A step switched on (a sixteenth hit at that velocity), changed, or off (velocity 0); the notes stay in order. */
+export function setStep(notes: readonly SongNote[], bar: number, pitch: number, step: number, velocity: number): SongNote[] {
+  const at = bar * BEATS_PER_BAR + step / 4;
+  const kept = notes.filter((n) => !(n.pitch === pitch && sameBeat(n.start, at)));
+  if (velocity > 0) kept.push({ pitch, start: at, length: 0.25, velocity: Math.min(1, velocity) });
+  return kept.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mailReadIn } from './MailPlan';
+import { mailReadIn, triagePrompt } from './MailPlan';
 import { nextAt } from './Mail';
 
 describe('ask your mail', () => {
@@ -23,5 +23,17 @@ describe('send later', () => {
     expect(new Date(nextAt(9, 1, wed))).toEqual(new Date(2026, 10, 16, 9, 0));
     const mon = new Date(2026, 10, 16, 7, 0);
     expect(new Date(nextAt(9, 1, mon))).toEqual(new Date(2026, 10, 23, 9, 0));
+  });
+});
+
+describe('triagePrompt', () => {
+  it('asks about the open message, by its subject and sender', () => {
+    expect(triagePrompt({ subject: 'Brake kit', from: { name: 'Dana', email: 'dana@example.com' } }, 3)).toBe('Triage this message: “Brake kit” from Dana.');
+    expect(triagePrompt({ subject: '', from: { email: 'ops@example.com' } }, 0)).toBe('Triage this message: “(no subject)” from ops@example.com.');
+  });
+  it('otherwise asks about the unread, and offers nothing with none', () => {
+    expect(triagePrompt(null, 1)).toBe('Triage my unread message.');
+    expect(triagePrompt(null, 7)).toBe('Triage my 7 unread messages.');
+    expect(triagePrompt(null, 0)).toBeNull();
   });
 });

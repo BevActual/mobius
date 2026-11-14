@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setLocaleForTests } from './dates';
 import type { TaskItem } from '@mobius/shared';
-import { byDay, byList, dueLabel, LIST_COLORS, listColor, nest, parseWhen, parseWhenAndTime, searchTasks, smartView, splitDone, tasksIn, timeWords } from './tasks-view';
+import { byDay, byList, dueLabel, LIST_COLORS, listColor, nest, parseWhen, parseWhenAndTime, searchTasks, smartView, splitDone, tasksGlance, tasksIn, timeWords } from './tasks-view';
 
 const t = (text: string, due: string | null = null, done = false, line = 0): TaskItem => ({ line, text, done, due });
 const today = new Date(2026, 10, 6, 15, 0); // 6 November 2026, afternoon
@@ -134,5 +134,18 @@ describe('times and repeats', () => {
   });
   it('knows the words of a task that has a time, a repeat and a flag', () => {
     expect([...tasksIn('- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)\n- [x] Pay (due 2026-11-01)')]).toEqual(['Stand-up', 'Pay']);
+  });
+});
+
+describe('the Glance in the Mobius panel', () => {
+  it('counts open tasks that are overdue, due today and flagged, across every list', () => {
+    const t = (line: number, due: string | null, extra: Partial<TaskItem> = {}): TaskItem => ({ line, text: `t${line}`, done: false, due, ...extra });
+    const lists = {
+      Inbox: [t(1, '2026-11-12'), t(2, '2026-11-14'), t(3, '2026-11-14', { done: true }), t(4, null, { flagged: true })],
+      Garden: [t(1, '2026-11-13', { flagged: true }), t(2, '2026-11-20'), t(3, '2026-11-01', { done: true, flagged: true })],
+    };
+    expect(tasksGlance(lists, new Date(2026, 10, 14, 9))).toEqual([
+      { label: 'Overdue', value: '2' }, { label: 'Due today', value: '1' }, { label: 'Flagged', value: '2' },
+    ]);
   });
 });

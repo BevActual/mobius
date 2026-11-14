@@ -38,6 +38,12 @@ pub struct InvokeParams {
     pub args: Value,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UnregisterExternalParams {
+    pub name: String,
+}
+
 #[derive(Debug, Deserialize, TS)]
 #[serde(deny_unknown_fields)]
 #[ts(export)]
@@ -288,6 +294,11 @@ fn dispatch(core: &mut Core, extension: &mut dyn Extension, method: &str, params
                 spec = spec.with_input_schema(schema);
             }
             core.register_external_tool(spec)?;
+            Ok(json!({}))
+        }
+        "tools.unregister_external" => {
+            let params: UnregisterExternalParams = parse_params(params)?;
+            core.unregister_external_tool(&params.name)?;
             Ok(json!({}))
         }
         "permissions.check" => {

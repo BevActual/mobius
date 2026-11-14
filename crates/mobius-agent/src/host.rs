@@ -109,6 +109,16 @@ pub struct Host {
     effort: Option<String>,
     context_window: Option<usize>,
     compactions: HashMap<String, Compaction>,
+    /// Conversations whose last turn failed, with what that turn asked. Cleared by the next turn, a rewind or a
+    /// delete. Held in memory: after a restart the run reads as it was before it failed.
+    failed: HashMap<String, Failure>,
+}
+
+/// A turn that failed: its title (what was asked, first line) and the whole message, to send again.
+#[derive(Debug, Clone)]
+struct Failure {
+    title: String,
+    asked: String,
 }
 
 /// What the window needs to list a conversation.
@@ -125,6 +135,10 @@ pub struct ConversationInfo {
     /// Questions this conversation is waiting for a person to answer.
     #[ts(type = "number")]
     pub waiting: usize,
+    /// When the last turn failed: what it asked, so Try again can send it once more.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub retry: Option<String>,
 }
 
 /// What a conversation is doing right now.
@@ -135,6 +149,8 @@ pub enum Activity {
     Idle,
     Working,
     NeedsYou,
+    /// The last turn failed and nothing since has replaced it (a run Agents shows in red).
+    Failed,
 }
 
 const MAX_TITLE_CHARS: usize = 60;
@@ -182,7 +198,7 @@ impl Host {
             }
             Err(error) => eprintln!("mobius-agent: cannot load saved conversations: {error}"),
         }
-        Host { principal, engine: None, histories, updated, active: HashMap::new(), next_turn: 1, store, clock, effort: None, context_window: None, compactions }
+        Host { principal, engine: None, histories, updated, active: HashMap::new(), next_turn: 1, store, clock, effort: None, context_window: None, compactions, failed: HashMap::new() }
     }
 
     pub fn configure(&mut self, model: &str, system: &str) {
@@ -253,10 +269,25 @@ impl Host {
         }
         let turn_id = self.next_turn;
         self.next_turn += 1;
+        self.failed.remove(conversation);
         let compaction = self.compactions.get(conversation).cloned();
         let (turn, step) = engine.start_from(core, history, compaction, text, turn_id, setup);
         let mut outs = Vec::new();
         self.settle(Active { conversation: conversation.to_owned(), turn, cancel: Arc::new(AtomicBool::new(false)), theirs: false, held: None }, step, &mut outs);
+        Ok((turn_id, outs))
+    }
+
+    /// As `send_with`, doing the turn's first reads (`TurnSetup::reads`) before the model is asked.
+    pub fn send_reading(&mut self, core: &mut Core, conversation: &str, text: &str, setup: TurnSetup) -> Result<(u64, Vec<Out>), HostError> {
+        let (turn_id, mut outs) = self.send_with(core, conversation, text, setup)?;
+        if let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) {
+            if active.turn.has_reads() {
+                let step = engine.read_first(&mut active.turn, core);
+                self.settle(active, step, &mut outs);
+            } else {
+                self.active.insert(turn_id, active);
+            }
+        }
         Ok((turn_id, outs))
     }
 
@@ -286,6 +317,19 @@ impl Host {
     pub fn model_result(&mut self, core: &mut Core, turn_id: u64, result: Result<Completion, ProviderError>) -> Vec<Out> {
         let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) else { return Vec::new() };
         let step = engine.on_model(&mut active.turn, core, result);
+        let mut outs = Vec::new();
+        self.settle(active, step, &mut outs);
+        outs
+    }
+
+    /// The model, still answering, finished writing a tool call: it runs now when it can. Not while the person has
+    /// control: then it waits for the whole answer, like everything else Mobius would do.
+    pub fn call_ready(&mut self, core: &mut Core, turn_id: u64, call: crate::message::ToolCall) -> Vec<Out> {
+        if self.active.get(&turn_id).is_none_or(|a| a.theirs) {
+            return Vec::new();
+        }
+        let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) else { return Vec::new() };
+        let step = engine.on_early_call(&mut active.turn, core, call);
         let mut outs = Vec::new();
         self.settle(active, step, &mut outs);
         outs
@@ -410,7 +454,11 @@ impl Host {
             .into_iter()
             .map(|id| {
                 let messages = self.history(id);
-                ConversationInfo { id: id.clone(), title: title_of(&messages), updated_ms: self.updated.get(id).copied().unwrap_or_else(|| (self.clock)()), messages: messages.len(), activity: self.activity(id), waiting: self.waiting(id).len() }
+                let title = match self.failed.get(id) {
+                    Some(failure) if messages.is_empty() => failure.title.clone(),
+                    _ => title_of(&messages),
+                };
+                ConversationInfo { id: id.clone(), title, updated_ms: self.updated.get(id).copied().unwrap_or_else(|| (self.clock)()), messages: messages.len(), activity: self.activity(id), waiting: self.waiting(id).len(), retry: self.failed.get(id).map(|f| f.asked.clone()) }
             })
             .collect();
         list.sort_by(|a, b| b.updated_ms.cmp(&a.updated_ms).then_with(|| a.id.cmp(&b.id)));
@@ -450,6 +498,7 @@ impl Host {
                 eprintln!("mobius-agent: cannot save the conversation: {error}");
             }
         }
+        self.failed.remove(conversation);
         Ok(text)
     }
 
@@ -464,6 +513,7 @@ impl Host {
         self.histories.remove(conversation);
         self.updated.remove(conversation);
         self.compactions.remove(conversation);
+        self.failed.remove(conversation);
         if let Err(error) = self.store.delete(conversation) {
             eprintln!("mobius-agent: cannot delete a saved conversation: {error}");
         }
@@ -498,6 +548,8 @@ impl Host {
             Activity::NeedsYou
         } else if self.is_busy(conversation) {
             Activity::Working
+        } else if self.failed.contains_key(conversation) {
+            Activity::Failed
         } else {
             Activity::Idle
         }
@@ -557,6 +609,10 @@ impl Host {
                 self.histories.insert(active.conversation, messages);
             }
             Step::Failed { .. } => {
+                // What it was asked stays visible as the run's title, so a failed first run is not "New conversation".
+                let asked = active.turn.messages().iter().rev().find_map(|m| match m { Message::User { text, .. } => Some(text.clone()), _ => None }).unwrap_or_default();
+                self.failed.insert(active.conversation.clone(), Failure { title: title_of(active.turn.messages()), asked });
+                self.updated.insert(active.conversation.clone(), (self.clock)());
                 self.histories.entry(active.conversation).or_default();
             }
         }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeChange, icsEvents, rememberTitles, reviewShortcut } from './ReviewStrip';
+import { countOf, describeChange, icsEvents, movesIn, rememberTitles, reviewable, reviewShortcut } from './ReviewStrip';
 import { changeTarget } from './actions';
 
 describe('review strip names', () => {
@@ -7,6 +7,7 @@ describe('review strip names', () => {
     expect(describeChange('notes/Design/Split view.md')).toEqual({ kind: 'Note', name: 'Design / Split view' });
     expect(describeChange('tasks/This week.md')).toEqual({ kind: 'Tasks', name: 'This week' });
     expect(describeChange('calendar/Work.ics')).toEqual({ kind: 'Calendar', name: 'Work' });
+    expect(describeChange('sheets/Trip/.charts.json')).toEqual({ kind: 'Sheet', name: 'Charts in Trip' });
     expect(describeChange('drafts/plan.txt')).toEqual({ kind: 'File', name: 'drafts/plan.txt' });
     expect(describeChange('calendar/.suggestions.json')).toEqual({ kind: 'Calendar', name: 'Suggested events' });
   });
@@ -40,5 +41,30 @@ describe('a calendar file, by event', () => {
     expect(events.get('a1')).toEqual({ title: 'P2 brake kit review, with Priya', start: '20261119T100000' });
     expect(events.get('b2')).toEqual({ title: 'Long title that is folded here', start: '20261120' });
     expect(events.size).toBe(2);
+  });
+});
+
+describe('what a turn has to review', () => {
+  it('leaves out the comment threads Mobius answered in, and keeps everything else', () => {
+    expect(reviewable('.comments/mail/inbox~7.json')).toBe(false);
+    expect(reviewable('.comments\\sheets\\Budget~Costs.json')).toBe(false);
+    expect(reviewable('notes/Work/Plan.md')).toBe(true);
+    expect(reviewable('docs/.comments/Brief.json')).toBe(true);
+  });
+});
+
+describe('a moved file', () => {
+  it('is one change, not a delete and an add, while both its paths wait for review', () => {
+    const waiting = ['Downloads/a.zip', 'Downloads/Apps/a.zip', 'Downloads/b.md', 'Downloads/Docs/b.md', 'notes/Plan.md'];
+    const moved = movesIn(waiting, [{ from: 'Downloads/a.zip', to: 'Downloads/Apps/a.zip' }, { from: 'Downloads/b.md', to: 'Downloads/Docs/b.md' }]);
+    expect([...moved]).toEqual([['Downloads/Apps/a.zip', 'Downloads/a.zip'], ['Downloads/Docs/b.md', 'Downloads/b.md']]);
+    const listed = waiting.filter((f) => ![...moved.values()].includes(f));
+    expect(listed).toHaveLength(3);
+    expect(countOf([{ count: 1, unit: 'moved file' }, { count: 1, unit: 'moved file' }])).toBe('2 moved files');
+  });
+
+  it('is two changes again once one of its paths was kept or put back', () => {
+    expect(movesIn(['Downloads/Apps/a.zip'], [{ from: 'Downloads/a.zip', to: 'Downloads/Apps/a.zip' }]).size).toBe(0);
+    expect(movesIn(['x'], undefined).size).toBe(0);
   });
 });
