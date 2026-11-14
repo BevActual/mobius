@@ -308,6 +308,9 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 .ui-row-meta { flex: none; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ui-row-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 .ui-row-trail { display: inline-flex; align-items: center; gap: var(--sp-1); flex: none; }
+/* The field's box shows focus (an ink border); the input inside draws no ring of its own. */
+.ui-field-box .ui-field-input:not([type='checkbox'], [type='radio']):is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+
 
 /* Inline field: the name beside the box, for toolbars and bars. Quiet pop-up: text and chevrons, a fill on hover. */
 .ui-field[data-inline] { flex-direction: row; align-items: baseline; gap: var(--sp-2); }

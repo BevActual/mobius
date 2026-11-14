@@ -126,7 +126,16 @@ nudge by `step` and Shift+arrows by ten steps. Each axis can `format` its readou
   choices={[{ value: 'review', label: 'Review changes', meaning: 'Changes show dashed until you keep them' }, …]} />
 ```
 
-More controls (Dialog, Tabs) are added one at a time.
+### Dialogs and content tabs
+
+| Control | Use it for |
+| --- | --- |
+| `Dialog` | A small form or choice over a dimmed window (rename, export, a few settings): `open`, `onOpenChange`, `title`, one short `description`, the fields as children, and `actions` (buttons, primary last). Focus stays inside; Escape or a click outside closes it |
+| `Confirm` | Only for paying, sending, deleting for good and running commands. `action` names the button ("Delete 3 files"), `permanent` adds "This can’t be undone.", `onConfirm` and `onCancel`. A click outside does not close it; Cancel and Escape do |
+| `ContentTabs` | Apps that open several things at once (Browser, Code, Files): plain text tabs, the open one ink with an ink underline, a close on hover. `unsaved` shows a dot in place of the close, `byMobius` a dashed underline. Arrows move, Delete or Ctrl+W closes, middle-click closes. Give the content `role="tabpanel"` and `aria-labelledby={tabId(id)}` |
+
+Popovers that stay in place, toasts other than the undo pill, and date pickers are not shared yet; ask the library
+thread before building one in an app.
 
 ## Adopting the frame
 

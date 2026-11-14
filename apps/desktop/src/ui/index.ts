@@ -27,3 +27,5 @@ export { ObjectRow, ObjectCard, ObjectChip, KindIcon, type Thing, type TaskThing
 export { XYPad, type PadAxis, type PadPoint } from './XYPad';
 export { KeyHintBar, type KeyHint } from './KeyHintBar';
 export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './Popover';
+export { Dialog, Confirm } from './Dialog';
+export { ContentTabs, tabId, type TabItem } from './Tabs';
