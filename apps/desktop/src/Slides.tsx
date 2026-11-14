@@ -497,20 +497,20 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
       )}
       <ToolbarControls label="Slides">
         <span className="slides-tools-group">
-          <button type="button" className="strip-btn" aria-label="Add slide" title="Add a slide in this style" onClick={() => insert({ ...blankSlide(), style: current.style })}><Icon d={ICON.add} /></button>
+          <button type="button" className="strip-btn" aria-label="Add slide" title="Add slide" onClick={() => insert({ ...blankSlide(), style: current.style })}><Icon d={ICON.add} /></button>
           <Menu label="Slide layouts" entries={LAYOUTS.map((l) => ({ label: l.name, icon: <span className="slides-layout-icon" aria-hidden="true"><SlideFace slide={l.make()} /></span>, run: () => pickLayout(l) }))}
             trigger={<button type="button" className="strip-btn slides-more" aria-label="Choose a layout" title="Add a slide from a layout"><Icon d={ICON.chevron} /></button>} />
         </span>
         <span className="slides-tools-group">
-          <button type="button" className="strip-btn" aria-label="Duplicate slide" title="Duplicate (Ctrl+D)" onClick={() => duplicate()}><Icon d={ICON.duplicate} /></button>
-          <button type="button" className="strip-btn" aria-label="Delete slide" title="Delete slide (Delete). Ctrl+Z brings it back" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
+          <button type="button" className="strip-btn" aria-label="Duplicate slide" title="Duplicate slide (Ctrl+D)" aria-keyshortcuts="Control+D" onClick={() => duplicate()}><Icon d={ICON.duplicate} /></button>
+          <button type="button" className="strip-btn" aria-label="Delete slide" title="Delete slide (Delete)" aria-keyshortcuts="Delete" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
         </span>
         {canPicture && (
           <span className="slides-tools-group">
-            <button type="button" className="strip-btn" aria-label="Insert picture" title={adding ? 'Adding…' : 'Insert picture (or paste or drop one on the slide)'} aria-busy={adding || undefined} disabled={adding} onClick={() => picker.current?.click()}><Icon d={ICON.picture} /></button>
+            <button type="button" className="strip-btn" aria-label="Insert picture" title={adding ? 'Adding a picture' : 'Insert picture'} aria-busy={adding || undefined} disabled={adding} onClick={() => picker.current?.click()}><Icon d={ICON.picture} /></button>
           </span>
         )}
-        <button type="button" className="slides-play-btn" title="Play from this slide (Ctrl+Enter). While playing: P presenter view, B black, Esc stop" onClick={() => setPlaying(at)}><Icon d={ICON.play} /><span>Play</span></button>
+        <button type="button" className="slides-play-btn" title="Play (Ctrl+Enter)" aria-keyshortcuts="Control+Enter" onClick={() => setPlaying(at)}><Icon d={ICON.play} /><span>Play</span></button>
       </ToolbarControls>
       <input ref={picker} type="file" accept="image/*" hidden onChange={(e) => { void addPicture(e.target.files?.[0]); e.target.value = ''; }} />
       {pictureProblem && <p className="slides-problem" role="alert">{pictureProblem}<button type="button" className="slides-tool" onClick={() => setPictureProblem(null)}>OK</button></p>}

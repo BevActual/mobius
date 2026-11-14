@@ -617,7 +617,7 @@ impl Bridge {
                 })
             }
             ("extensions", "removeConnector") => Ok(match crate::mcp::remove_server(&self.data_dir.join("mcp.json"), arg(0).as_str().unwrap_or("")) {
-                Ok(()) => json!({ "ok": true, "status": self.mcp_status() }),
+                Ok(entry) => json!({ "ok": true, "status": self.mcp_status(), "removed": entry }),
                 Err(error) => json!({ "ok": false, "error": error }),
             }),
             // Settings, Voice: try the server chosen for listening or speaking, as it is set now.

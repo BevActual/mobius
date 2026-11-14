@@ -6,13 +6,18 @@ A full web browser, with Mobius able to read and work on pages for you.
 
 ![The Browser app in Mobius](../readme/apps/browser.png)
 
-- **Tabs** live in the sidebar, as in Safari and Arc. Pinned tabs sit in their own group above the rest; drag a tab to
-  reorder it or across the line to pin it. A small Mobius mark on a tab means Mobius is reading or using it; a hand means
-  you took it back.
+- **The toolbar** has back (Alt+Left), forward (Alt+Right) and reload (Ctrl+R), the address (Ctrl+L; the site in full
+  ink, the rest of the address in grey) and the star. Everything else about the page (Save to Reader, selected text,
+  pin to the sidebar) is in **⋯**. The address suggests open tabs, bookmarks and history as you type.
+- **The sidebar** holds New tab (Ctrl+T), a search for your tabs and bookmarks, then **Tabs**, **Pinned** and **From
+  Mobius**. Tabs live in the sidebar, as in Safari and Arc: each is a plain row whose buttons (pin, duplicate, close)
+  show when the pointer is on it, and right-clicking a tab gives the rest. Drag a tab to reorder it or across the line
+  to pin it. The Mobius mark shows only on tabs Mobius opened or is using; **From Mobius › Opened for research** shows
+  just those.
 - **A new tab** opens Mobius's start page: your favourites, other sites you visit most, and your reading list. It is drawn
   by Mobius, so none of it is shown to a web page.
 - **Bookmarks** with the star beside the address, **Find** (Ctrl+F), downloads and history. To pin a page to the
-  sidebar, right-click its tab and choose **Pin to the sidebar**.
+  sidebar, right-click its tab and choose **Pin to the sidebar**. **Reopen closed tab** is in the same menu (Ctrl+Shift+T).
 - **Mobius on the page.** Ask about the page, or select text and act on it. Opening a site the agent hasn't been allowed
   asks first, and clicking or typing on a page asks every time. When a page needs a sign-in, you sign in yourself.
 - Pages are shown by the system web view (WebView2) in the installer, or by Chromium (CEF) in a build from source that includes it.
@@ -93,13 +98,13 @@ Your whole workspace as a drive.
   arrow keys move, Backspace goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
 - **The toolbar** names the open folder with how many items it holds, and has Back, Forward and New folder. The
   **path bar** at the foot shows where the folder is; click any part to go back up.
-- **Search**, at the top of the sidebar, narrows the open folder by name. **Right-click** a row to open, rename, copy its path, show it in Explorer,
-  ask Mobius about it, or move it to the Trash.
+- **Search**, at the top of the sidebar, narrows the open folder by name. **Right-click** a row to open (Enter), rename (F2), copy its path
+  (Ctrl+Shift+C), show it in Explorer, ask Mobius about it, or move it to the Trash (Delete).
 - **New folder** (Ctrl+Shift+N) is named in place; **F2** renames; **Delete** moves to the Trash, with Undo in a toast
   at the foot of the page. The Trash is
   `workspace/.trash/`, hidden from Files' folders and from Mobius.
-- **Trash**, under Places in the sidebar, lists what you moved there, when, and where it was. **Put Back** (or a
-  double-click) returns it to that folder; **Empty Trash** and **Delete Immediately** (right-click) delete for good, and
+- **Trash**, under Places in the sidebar, lists what you moved there, when, and where it was. **Put Back** (Ctrl+Backspace, or a
+  double-click) returns it to that folder; **Empty Trash** (Ctrl+Shift+Backspace) and **Delete Immediately** (right-click, or Delete) delete for good, and
   always ask first. Mobius cannot empty the Trash. An app's own folder (notes/, docs/...) is never renamed or
   trashed from here.
 - **Date Modified** shows when each file and folder last changed. The agent's own `files.list` leaves dates out.

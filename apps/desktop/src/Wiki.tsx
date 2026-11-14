@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { MemoryCategory, MemoryItem, WikiChange, WikiVersion } from '@mobius/shared';
 import type { NotesState } from './useNotes';
 import type { Item } from './conversation';
@@ -33,13 +33,15 @@ export type WikiPlace = { kind: 'mine' } | { kind: 'shared' } | { kind: 'page' }
 export function useWikiIncoming() {
   const api = window.mobius.wiki;
   const [waiting, setWaiting] = useState<WikiChange[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const load = useCallback(async () => {
     const got = await api?.incoming?.().catch(() => null);
     setWaiting(Array.isArray(got) ? got : []);
+    setLoaded(true);
   }, [api]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => api?.onChanged(() => void load()), [api, load]);
-  return { waiting, load };
+  return { waiting, loaded, load };
 }
 export type WikiIncoming = ReturnType<typeof useWikiIncoming>;
 
@@ -108,7 +110,9 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
  */
 export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; onAnswer?: (requestId: number, approve: boolean) => void }) {
   const api = window.mobius.memory;
-  const [items, setItems] = useState<MemoryItem[]>([]);
+  const [loadedItems, setItems] = useState<MemoryItem[] | null>(null);
+  const items = loadedItems ?? [];
+  const addRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<MemoryCategory>('you');
   const [editing, setEditing] = useState<{ old: string; text: string; category: MemoryCategory } | null>(null);
   // What Mobius would like to remember waits here too, as it waits in the conversation.
@@ -137,7 +141,15 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
   const line = (m: MemoryItem) => (
     <li key={m.text} className="wiki-line" data-proposed={m.learned || undefined} data-editing={editing?.old === m.text || undefined} aria-label={m.learned ? `${m.text}, Mobius learned this` : m.text}
       onContextMenu={(e) => { if (editing?.old === m.text) return; e.preventDefault(); setMenu({ text: m.text, x: e.clientX, y: e.clientY }); }}
-      onKeyDown={(e) => { if (e.key === 'F10' && e.shiftKey && editing?.old !== m.text) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ text: m.text, x: r.left + 24, y: r.bottom - 4 }); } }}>
+      tabIndex={editing?.old === m.text ? undefined : 0}
+      onKeyDown={(e) => {
+        if (editing?.old === m.text) return;
+        if (e.key === 'F10' && e.shiftKey) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ text: m.text, x: r.left + 24, y: r.bottom - 4 }); return; }
+        // The keys the menu shows, on the line itself: Enter edits (or keeps what Mobius learned), Delete forgets.
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter') { e.preventDefault(); if (m.learned) void keep(m); else setEditing({ old: m.text, text: m.text, category: m.category }); }
+        else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); void (m.learned ? notTrue(m) : forget(m)); }
+      }}>
       {editing?.old === m.text ? (
         <form className="wiki-edit" onSubmit={(e) => { e.preventDefault(); void api.edit(editing.old, editing.text, editing.category).then((r) => done(r, null)).then(() => setEditing(null)); }}>
           <input autoFocus aria-label="Line" value={editing.text} maxLength={300} onChange={(e) => setEditing({ ...editing, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }} />
@@ -162,19 +174,19 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
             <span className="wiki-line-actions">
               <button type="button" className="review-btn" onClick={() => setEditing({ old: m.text, text: m.text, category: m.category })}>Edit</button>
               <button type="button" className="review-btn" title="Offer this line to the Knowledge others share" onClick={() => void share(m)}>Share</button>
-              <button type="button" className="review-btn" data-kind="danger" aria-label={`Forget: ${m.text}`} title="Forget this line (you can undo it)" onClick={() => void forget(m)}>Forget</button>
+              <button type="button" className="review-btn" data-kind="danger" aria-label={`Forget: ${m.text}`} title="Forget this line (Del)" onClick={() => void forget(m)}>Forget</button>
             </span>
           )}
         </>
       )}
       {menu?.text === m.text && createPortal(
         <ContextMenu x={menu.x} y={menu.y} label={m.text} onClose={() => setMenu((x) => (x?.text === m.text ? null : x))} items={m.learned ? [
-          { label: 'Keep', run: () => void keep(m) },
-          { label: 'Not true', run: () => void notTrue(m) },
+          { label: 'Keep', keys: 'Enter', run: () => void keep(m) },
+          { label: 'Not true', keys: 'Del', run: () => void notTrue(m) },
         ] : [
-          { action: 'rename', label: 'Edit', run: () => setEditing({ old: m.text, text: m.text, category: m.category }) },
+          { action: 'rename', label: 'Edit', keys: 'Enter', run: () => setEditing({ old: m.text, text: m.text, category: m.category }) },
           { action: 'share', label: 'Share', run: () => void share(m) },
-          { action: 'delete', label: 'Forget', danger: true, separated: true, run: () => void forget(m) },
+          { action: 'delete', label: 'Forget', danger: true, separated: true, keys: 'Del', run: () => void forget(m) },
         ]} />,
         document.body,
       )}
@@ -210,7 +222,8 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
           {learned.length > 0 && <ul className="wiki-lines" role="list" aria-label="Mobius learned">{learned.map(line)}</ul>}
         </section>
       )}
-      {items.length === 0 && asks.length === 0 && (
+      {loadedItems === null && <LoadingRows label="How I work" />}
+      {loadedItems !== null && items.length === 0 && asks.length === 0 && (
         <EmptyState app="wiki" title="Nothing here yet" line="Add how you work below. What Mobius learns waits here until you keep it." label="Nothing here yet" />
       )}
       {MEMORY_KINDS.map((k) => {
@@ -218,14 +231,16 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
         if (these.length === 0) return null;
         return (
           <section key={k.id} className="kn-group" aria-label={k.name}>
-            <h2 className="kn-group-head">{k.name}</h2>
+            <h2 className="kn-group-head">{k.name} <span className="kn-badge">{these.length}</span>
+              <button type="button" className="kn-group-add" aria-label={`Add to ${k.name}`} title={`Add to ${k.name}`} onClick={() => { setKind(k.id); addRef.current?.focus(); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>
+            </h2>
             <ul className="wiki-lines" role="list" aria-label={k.name}>{these.map(line)}</ul>
           </section>
         );
       })}
       <form className="wiki-add" onSubmit={(e) => { e.preventDefault(); const t = adding.trim(); if (!t) return; void api.add(t, kind).then((r) => done(r, null)).then(() => setAdding('')); }}>
         <span className="wiki-add-plus" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg></span>
-        <input aria-label="Add a line" placeholder="Add how you work, in one line" value={adding} maxLength={300} onChange={(e) => setAdding(e.target.value)} />
+        <input ref={addRef} aria-label="Add a line" placeholder="Add how you work, in one line" value={adding} maxLength={300} onChange={(e) => setAdding(e.target.value)} />
         <span className="kn-popup"><select aria-label="Kind of line" value={kind} onChange={(e) => setKind(e.target.value as MemoryCategory)}>{MEMORY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select></span>
         {adding.trim() && <button type="submit" className="review-btn" data-kind="keep">Add</button>}
       </form>
@@ -268,12 +283,12 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
       </header>
       {undo && <UndoToast text={undo.label} onUndo={() => void undoLast()} onDismiss={() => setUndo(null)} />}
       {problem && <p className="field-error" role="alert">{problem}</p>}
-      {incoming.waiting.length === 0 && <EmptyState app="wiki" title="Nothing is waiting" line="When someone, or Mobius, offers a line for a page, it waits here for you." label="Nothing is waiting" />}
+      {!incoming.loaded && <LoadingRows label="Suggested changes" />}
+      {incoming.loaded && incoming.waiting.length === 0 && <EmptyState app="wiki" title="Nothing is waiting" line="When someone, or Mobius, offers a line for a page, it waits here for you." label="Nothing is waiting" />}
       {incoming.waiting.length > 0 && (
         <ul className="wiki-lines kn-changes" role="list" aria-label="Waiting">
           {incoming.waiting.map((c) => (
             <li key={c.id} className="wiki-line wiki-change" data-proposed aria-label={`From ${fromName(c.from)}: ${c.text}`}>
-              <span className="wiki-from">From {fromName(c.from)} · for {pageName(c.page)}{c.whenMs ? ` · ${relativeTime(c.whenMs, at)}` : ''}</span>
               {editing?.id === c.id ? (
                 <form className="wiki-edit" onSubmit={(e) => { e.preventDefault(); void keep(c, editing.text); }}>
                   <input autoFocus aria-label="Edit the line" value={editing.text} onChange={(e) => setEditing({ id: c.id, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }} />
@@ -282,7 +297,10 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
                 </form>
               ) : (
                 <>
-                  <span className="wiki-line-text">{c.text}</span>
+                  <span className="wiki-line-body">
+                    <span className="wiki-from">From {fromName(c.from)} · for {pageName(c.page)}{c.whenMs ? ` · ${relativeTime(c.whenMs, at)}` : ''}</span>
+                    <span className="wiki-line-text">{c.text}</span>
+                  </span>
                   <span className="wiki-line-actions" data-always>
                     <button type="button" className="review-btn" onClick={() => void decline(c)}>Decline</button>
                     <button type="button" className="review-btn" onClick={() => setEditing({ id: c.id, text: c.text })}>Edit first</button>
@@ -295,6 +313,15 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
         </ul>
       )}
     </section>
+  );
+}
+
+/** While something loads: grey bars the shape of the rows that are coming, never a spinner. */
+function LoadingRows({ label, rows = 4 }: { label: string; rows?: number }) {
+  return (
+    <div className="kn-loading" role="status" aria-label={`Loading ${label}`}>
+      {Array.from({ length: rows }, (_, i) => <span key={i} className="kn-loading-bar" style={{ width: `${[72, 54, 64, 46][i % 4]}%` }} />)}
+    </div>
   );
 }
 
@@ -323,7 +350,7 @@ export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocu
   useEffect(() => { setOpen(false); setPutBack(null); }, [path]);
   const canLook = Boolean(path && window.mobius.wiki?.versions);
   const button = canLook ? (
-    <button type="button" className="doc-tool" aria-label="Versions" aria-pressed={open} title="Earlier versions of this page" onClick={() => setOpen((o) => !o)}>
+    <button type="button" className="doc-tool" aria-label="Versions" aria-pressed={open} title="Versions" onClick={() => setOpen((o) => !o)}>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 0 1.8-4.3M4 4v3.5h3.5M10 6.5V10l2.5 1.5" /></svg>
     </button>
   ) : null;
@@ -372,7 +399,7 @@ function WikiVersions({ path, text, onPutBack, onClose }: { path: string; text: 
       </header>
       <div className="kn-versions-body">
         <nav className="kn-versions-list" aria-label="Earlier versions">
-          {versions === null && <p className="note-empty">Looking…</p>}
+          {versions === null && <LoadingRows label="Versions" rows={3} />}
           {versions?.length === 0 && <p className="note-empty">No earlier versions yet. A version is kept each time Mobius starts a turn.</p>}
           {days.map((d) => (
             <div key={d.day} className="kn-versions-day">

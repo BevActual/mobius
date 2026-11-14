@@ -6,11 +6,12 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormE
 import { onCommand, sendCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { IS_MAC, cursorAt, deletePair, findAll, indentLines, keyLabel, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
-import { applyGroups, badgeOf, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, type DiffRow, type GitMark, type Lang } from './code-view';
+import { applyGroups, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, type DiffRow, type GitMark, type Lang } from './code-view';
 import { RowMark } from './RowMark';
 import type { CodeState } from './useCode';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
+import { AppSidebar, KeyCaps, SidebarRow, SidebarSection } from './ui';
 import './code.css';
 
 /** Projects, and the open project's files as a tree, with the ones the agent changed in its last turn marked. */
@@ -39,16 +40,13 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
   const changedInside = (folder: string) => code.project !== null && [...(changed ?? [])].some((c) => c.startsWith(`${code.project}/${folder}/`));
   const marks = useMemo(() => gitMarks(code.git.repo ? code.git.changes : []), [code.git]);
   return (
-    <aside className="side code-side" aria-label="Code sidebar">
-      <div className="side-head">
-        <span className="side-title">Projects</span>
-        <span className="side-actions">
-          {pin}
-          <button type="button" className="strip-btn" aria-label="New project" title="New project" onClick={() => { setNaming('project'); setName(''); }}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-          </button>
-        </span>
-      </div>
+    <AppSidebar label="Code sidebar" className="code-side">
+      {code.project && (
+<SideNew item="file" title="New file, in the folder of the open one" onNew={() => { setNaming('file'); setName(code.open ? code.open.path.split('/').slice(0, -1).concat('').join('/') : ''); }} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
+      )}
+      {code.project && (
+<input className="side-search code-filter" type="search" aria-label="Filter files" placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setFilter(''); if (e.key === 'Enter' && matching) { const first = [...matching][0]; if (first) void code.openFile(first); } }} />
+      )}
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
           <input autoFocus aria-label={naming === 'project' ? 'Project name' : 'File name'} placeholder={naming === 'project' ? 'Project name' : 'src/file.ts'} value={name} maxLength={naming === 'project' ? 80 : 300} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(null); }} />
@@ -57,26 +55,24 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
       )}
       {code.projects.length === 0 && !naming && (
         <div className="side-empty notes-empty">
-          <p>Each project is a folder in your workspace, real files you can open in any editor too. Mobius suggests changes; you keep them or not.</p>
+          <p>No projects yet.</p>
           <button type="button" className="btn primary" onClick={() => setNaming('project')}>New project</button>
         </div>
       )}
       {code.projects.length > 0 && (
-        <label className="code-project">
-          <span className="sr-only">Project</span>
-          <select aria-label="Project" value={code.project ?? ''} onChange={(e) => void code.openProject(e.target.value)}>
-            {code.projects.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
-          </select>
-        </label>
+        <SidebarSection title="Projects" action={<>
+          {pin}
+          <button type="button" className="strip-btn" aria-label="New project" title="New project" onClick={() => { setNaming('project'); setName(''); }}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
+          </button>
+        </>}>
+          {code.projects.map((p) => <SidebarRow key={p.name} label={p.name} current={p.name === code.project} onSelect={() => { if (p.name !== code.project) void code.openProject(p.name); }} />)}
+        </SidebarSection>
       )}
       {code.project && code.git.repo && <GitBar code={code} />}
       {code.project && (
-        <nav className="code-tree" aria-label="Files">
-          <div className="code-tree-head">
-            <span>Files</span>
-          </div>
-          <input className="side-search code-filter" type="search" aria-label="Filter files" placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setFilter(''); if (e.key === 'Enter' && matching) { const first = [...matching][0]; if (first) void code.openFile(first); } }} />
-          <SideNew item="file" title="New file, in the folder of the open one" onNew={() => { setNaming('file'); setName(code.open ? code.open.path.split('/').slice(0, -1).concat('').join('/') : ''); }} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
+        <nav className="ui-side-section code-tree" aria-label="Files">
+          <div className="side-head"><h3 className="side-title">Files</h3></div>
           <ul role="tree" aria-label={`Files in ${code.project}`}>
             {shown.map((e) => {
               const name = e.path.split('/').pop() ?? e.path;
@@ -90,7 +86,7 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
                         <svg className="code-caret" data-open={isOpen || undefined} viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
                         <svg className="code-folder" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h3.6l1.6 1.8H16a1.5 1.5 0 0 1 1.5 1.5v7.2A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z" /></svg>
                       </>
-                    ) : <span className="code-badge" data-lang={langOf(e.path)} aria-hidden="true">{badgeOf(e.path)}</span>}
+                    ) : <FileGlyph />}
                     <span className="code-file-name">{name}</span>
                     {mark ? <RowMark changed /> : !e.folder && marks.has(e.path) && <GitLetter mark={marks.get(e.path)!} />}
                   </button>
@@ -99,6 +95,12 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
             })}
           </ul>
           {matching && shown.length === 0 && <p className="side-empty">No file matches “{filter}”.</p>}
+          {!matching && code.entries.length === 0 && (
+            <div className="code-tree-empty">
+              <span>No files yet.</span>
+              <button type="button" className="code-quiet" title={`New file (${keyLabel('N')})`} onClick={() => { setNaming('file'); setName(''); }}>New file</button>
+            </div>
+          )}
           {removing && (
             <div className="code-confirm" role="alertdialog" aria-label={`Delete ${removing}?`}>
               <p>Delete <b>{removing.split('/').pop()}</b>? It is removed from the project folder.</p>
@@ -119,11 +121,16 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
         ]} />
       )}
       {code.project && <FromMobius items={[...(changed ?? [])].filter((c) => c.startsWith(`${code.project}/`)).map((c) => c.slice(code.project!.length + 1)).map((path) => ({ key: path, name: path.split('/').pop() ?? path, ...(path.includes('/') ? { where: path.split('/').slice(0, -1).join('/') } : {}), current: code.open?.path === path, onOpen: () => void code.openFile(path) }))} />}
-    </aside>
+    </AppSidebar>
   );
 }
 
 /** A file's right-click menu: the shared one, opened from a point inside the sidebar. */
+/** A file in the tree, tabs and breadcrumb: one grey line icon. The name already says the type. */
+function FileGlyph() {
+  return <svg className="code-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.75h5L12.25 5v8.5a.75.75 0 0 1-.75.75h-7.5a.75.75 0 0 1-.75-.75V2.5A.75.75 0 0 1 4 1.75Z" /><path d="M9 1.75V5h3.25" /></svg>;
+}
+
 function FileMenu({ x, y, label, items, onClose }: { x: number; y: number; label: string; items: ContextMenuItem[]; onClose: () => void }) {
   const side = document.querySelector('.code-side')?.getBoundingClientRect();
   const left = side ? Math.max(side.left + 4, Math.min(x, side.right - 214)) : x;
@@ -153,20 +160,34 @@ function GitBar({ code }: { code: CodeState }) {
     if (await code.commit(message)) { setWriting(false); setMessage(''); }
     setBusy(false);
   };
+  const status = `${changes.length === 0 ? 'Nothing to commit' : changes.length === 1 ? '1 change' : `${changes.length} changes`}${ahead ? ` · ${ahead} to push` : ''}`;
   return (
-    <section className="code-git" aria-label="Git">
+    <section className="ui-side-section code-git" aria-label="Changes">
+      <div className="side-head">
+        <h3 className="side-title">Changes</h3>
+        <div className="side-actions">
+          <button type="button" className="code-quiet" disabled={changes.length === 0 || writing} onClick={() => setWriting(true)}>Commit…</button>
+          <button type="button" className="code-quiet" disabled={busy} onClick={() => { setBusy(true); void code.push().finally(() => setBusy(false)); }}>Push</button>
+        </div>
+      </div>
       <div className="code-git-head">
         <span className="code-git-branch" title="Branch"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="4.5" r="1.8" /><circle cx="6" cy="15.5" r="1.8" /><circle cx="14" cy="7" r="1.8" /><path d="M6 6.3v7.4M14 8.8c0 3-3 3.2-8 4.9" /></svg>{branch || 'no branch'}</span>
-        <span className="code-git-count" role="status">{changes.length === 0 ? 'Nothing to commit' : changes.length === 1 ? '1 change' : `${changes.length} changes`}{ahead ? ` · ${ahead} to push` : ''}</span>
+        <span className="code-git-count" role="status">{status}</span>
       </div>
+      {writing && (
+        <form className="code-git-form" onSubmit={(e) => void submit(e)}>
+          <input autoFocus aria-label="Commit message" placeholder="What changed, and why" value={message} maxLength={500} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setWriting(false); }} />
+          <button type="submit" className="btn primary" disabled={busy || !message.trim()}>Commit</button>
+        </form>
+      )}
       {shown.length > 0 && (
-        <ul className="code-git-changes" aria-label="Changed files">
+        <ul className="ui-side-list code-git-changes" aria-label="Changed files">
           {shown.map(([path, mark]) => {
             const name = path.split('/').pop() ?? path;
             const where = path.slice(0, path.length - name.length - 1);
             return (
               <li key={path}>
-                <button type="button" className="code-git-change" aria-label={`${path}, ${mark.label.toLowerCase()}`} aria-current={code.open?.path === path ? 'page' : undefined} disabled={mark.letter === 'D'} title={path} onClick={() => void code.openFile(path)}>
+                <button type="button" className="list-row code-git-change" aria-label={`${path}, ${mark.label.toLowerCase()}`} disabled={mark.letter === 'D'} title={path} onClick={() => void code.openFile(path)}>
                   <span className="code-git-name">{name}</span>
                   {where && <span className="code-git-where">{where}</span>}
                   <GitLetter mark={mark} />
@@ -175,20 +196,9 @@ function GitBar({ code }: { code: CodeState }) {
             );
           })}
           {marks.length > SHOWN_CHANGES && (
-            <li><button type="button" className="code-git-more" onClick={() => setShowAll((all) => !all)}>{showAll ? 'Show fewer' : `${marks.length - SHOWN_CHANGES} more`}</button></li>
+            <li><button type="button" className="list-row code-git-more" onClick={() => setShowAll((all) => !all)}>{showAll ? 'Show fewer' : `${marks.length - SHOWN_CHANGES} more`}</button></li>
           )}
         </ul>
-      )}
-      {writing ? (
-        <form className="code-git-form" onSubmit={(e) => void submit(e)}>
-          <input autoFocus aria-label="Commit message" placeholder="What changed, and why" value={message} maxLength={500} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setWriting(false); }} />
-          <button type="submit" className="btn primary" disabled={busy || !message.trim()}>Commit</button>
-        </form>
-      ) : (
-        <div className="code-git-actions">
-          <button type="button" className="btn" disabled={changes.length === 0} onClick={() => setWriting(true)}>Commit…</button>
-          <button type="button" className="btn" disabled={busy} onClick={() => { setBusy(true); void code.push().finally(() => setBusy(false)); }}>Push</button>
-        </div>
       )}
     </section>
   );
@@ -245,7 +255,7 @@ function put(el: HTMLTextAreaElement, edit: Edit, setDraft: (text: string) => vo
 }
 
 const LINE = 20;
-const PAD_TOP = 10;
+const PAD_TOP = 8;
 /** Scrolls the text area so a line sits a third of the way down, as Go to line and Find do. */
 function reveal(el: HTMLTextAreaElement, line: number) {
   const top = PAD_TOP + (line - 1) * LINE;
@@ -266,8 +276,8 @@ function EditorBar({ mode, text, onClose, onFind, onLine }: { mode: 'find' | 'li
     return (
       <form className="code-bar" role="search" aria-label="Go to line" onSubmit={(e) => { e.preventDefault(); const n = Number.parseInt(query, 10); if (n > 0) onLine(Math.min(n, lines)); }}>
         <input ref={field} aria-label="Line number" inputMode="numeric" placeholder={`Line, 1 to ${lines}`} value={query} onChange={(e) => setQuery(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }} />
-        <button type="submit" className="btn">Go</button>
-        <button type="button" className="strip-btn" aria-label="Close" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
+        <button type="submit" className="btn" title="Go (Enter)">Go</button>
+        <button type="button" className="strip-btn" aria-label="Close" title="Close (Esc)" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
       </form>
     );
   }
@@ -280,9 +290,9 @@ function EditorBar({ mode, text, onClose, onFind, onLine }: { mode: 'find' | 'li
       }} />
       <span className="code-bar-count" aria-live="polite">{query ? (count === 0 ? 'No matches' : `${Math.min(at, count - 1) + 1} of ${count}`) : ''}</span>
       <button type="button" className="code-bar-case" aria-pressed={matchCase} title="Match case" onClick={() => setMatchCase((m) => !m)}>Aa</button>
-      <button type="button" className="strip-btn" aria-label="Previous match" disabled={count === 0} onClick={() => step(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 12 5-5 5 5" /></svg></button>
-      <button type="button" className="strip-btn" aria-label="Next match" disabled={count === 0} onClick={() => step(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg></button>
-      <button type="button" className="strip-btn" aria-label="Close find" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
+      <button type="button" className="strip-btn" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={count === 0} onClick={() => step(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 12 5-5 5 5" /></svg></button>
+      <button type="button" className="strip-btn" aria-label="Next match" title="Next match (Enter)" disabled={count === 0} onClick={() => step(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg></button>
+      <button type="button" className="strip-btn" aria-label="Close find" title="Close (Esc)" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
     </div>
   );
 }
@@ -390,7 +400,6 @@ function Editor({ code, lang, bar, setBar }: { code: CodeState; lang: Lang; bar:
         <span>Ln {here.line}, Col {here.col}{picked > 0 ? ` (${picked} selected)` : ''}</span>
         <span>{langName(path)}</span>
         <span>Spaces: 2</span>
-        <span className="code-status-keys">{keyLabel('P')} Open · {keyLabel('F')} Find · {keyLabel('G')} Line · {keyLabel('/')} Comment</span>
       </footer>
     </div>
   );
@@ -430,7 +439,7 @@ function QuickOpen({ code, onClose }: { code: CodeState; onClose: () => void }) 
             const where = path.slice(0, path.length - name.length - 1);
             return (
               <li key={path} id={`code-quick-${i}`} role="option" aria-selected={i === lit} onMouseEnter={() => setLit(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(path)}>
-                <span className="code-badge" data-lang={langOf(path)} aria-hidden="true">{badgeOf(path)}</span>
+                <FileGlyph />
                 <span className="code-quick-name">{name}</span>
                 {where && <span className="code-quick-where">{where}</span>}
               </li>
@@ -455,7 +464,7 @@ function FileTabs({ code }: { code: CodeState }) {
         return (
           <div key={path} className="code-tab" data-current={current || undefined} title={path} onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); void code.closeTab(path); } }}>
             <button type="button" role="tab" aria-selected={current} className="code-tab-main" onClick={() => { if (!current) void code.openFile(path); }}>
-              <span className="code-badge" data-lang={langOf(path)} aria-hidden="true">{badgeOf(path)}</span>
+              <FileGlyph />
               <span className="code-tab-name">{name}</span>
             </button>
             <button type="button" className="code-tab-close" data-unsaved={unsaved || undefined} aria-label={`Close ${path}${unsaved ? ' (not saved)' : ''}`} title={unsaved ? 'Not saved: closing drops what was typed' : 'Close'} onClick={() => void code.closeTab(path)}>
@@ -484,7 +493,7 @@ function TestsPanel({ code }: { code: CodeState }) {
         {summary ? <span className="code-tests-summary" data-state={tests.running ? 'running' : last?.passed ? 'pass' : 'fail'} role="status">{summary}{tests.by === 'assistant' && !tests.running ? ' · run by Mobius' : ''}</span> : <span className="code-tests-summary">{tests.command ? 'Not run yet' : 'No test command'}</span>}
         <span className="code-tests-actions">
           {!editing && tests.command && <code className="code-tests-command" title="The command Mobius runs for this project's tests">{tests.command}</code>}
-          {!editing && <button type="button" className="btn" onClick={start}>{tests.command ? 'Change' : 'Choose command'}</button>}
+          {!editing && <button type="button" className="code-quiet" onClick={start}>{tests.command ? 'Change' : 'Choose command'}</button>}
           {!editing && tests.command && <button type="button" className="btn primary" disabled={tests.running} onClick={() => void code.runTests()}>Run</button>}
         </span>
       </header>
@@ -561,8 +570,10 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
   return (
     <div className="code-none" role="region" aria-label="No file open">
       <div className="code-none-inner">
-        <h2 className="code-none-title">{code.project}</h2>
-        <p className="code-none-sub">{files.length === 1 ? '1 file' : `${files.length} files`}{code.git.repo ? ` · ${code.git.branch || 'no branch'}${changed ? ` · ${changed === 1 ? '1 change' : `${changed} changes`}` : ''}` : ''}</p>
+        <div className="code-none-head">
+          <h2 className="code-none-title">{code.project}</h2>
+          <p className="code-none-sub">{files.length === 1 ? '1 file' : `${files.length} files`}{code.git.repo ? ` · ${code.git.branch || 'no branch'}${changed ? ` · ${changed === 1 ? '1 change' : `${changed} changes`}` : ''}` : ''}</p>
+        </div>
         {code.recent.length > 0 && (
           <section className="code-none-group" aria-label="Recent files">
             <h3>Recent</h3>
@@ -573,7 +584,7 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
                 return (
                   <li key={path}>
                     <button type="button" className="code-none-row" onClick={() => void code.openFile(path)}>
-                      <span className="code-badge" data-lang={langOf(path)} aria-hidden="true">{badgeOf(path)}</span>
+                      <FileGlyph />
                       <span className="code-none-name">{name}</span>
                       {where && <span className="code-none-where">{where}</span>}
                     </button>
@@ -586,8 +597,8 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
         <section className="code-none-group" aria-label="Start">
           <h3>Start</h3>
           <ul>
-            <li><button type="button" className="code-none-row" onClick={onQuick}><span className="code-none-name">Open a file…</span><kbd>{keyLabel('P')}</kbd></button></li>
-            <li><button type="button" className="code-none-row" onClick={() => sendCommand('new-file')}><span className="code-none-name">New file…</span></button></li>
+            <li><button type="button" className="code-none-row" onClick={onQuick}><span className="code-none-name">Open a file…</span><KeyCaps keys={keyLabel('P')} /></button></li>
+            <li><button type="button" className="code-none-row" onClick={() => sendCommand('new-file')}><span className="code-none-name">New file…</span><KeyCaps keys={keyLabel('N')} /></button></li>
             {code.tests.command && <li><button type="button" className="code-none-row" disabled={code.tests.running} onClick={() => void code.runTests()}><span className="code-none-name">Run tests</span><code className="code-none-where">{code.tests.command}</code></button></li>}
           </ul>
         </section>
@@ -683,14 +694,14 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
                 {code.open.path.split('/').map((part, i, parts) => (
                   <Fragment key={i}>
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
-                    {i === parts.length - 1 ? <span className="code-path"><span className="code-badge" data-lang={lang} aria-hidden="true">{badgeOf(code.open!.path)}</span>{part}</span> : <span>{part}</span>}
+                    {i === parts.length - 1 ? <span className="code-path"><FileGlyph />{part}</span> : <span>{part}</span>}
                   </Fragment>
                 ))}
               </nav>
               {code.dirty && <span className="code-dirty" role="status">Not saved</span>}
               <span className="code-head-actions">
                 {code.dirty && <button type="button" className="btn" onClick={() => code.setDraft(code.open?.text ?? '')}>Revert</button>}
-                {code.open.text !== null && <button type="button" className="btn primary" disabled={!code.dirty} onClick={() => void code.save()}>Save <kbd>{keyLabel('S')}</kbd></button>}
+                {code.open.text !== null && <button type="button" className={code.dirty ? 'btn primary' : 'code-quiet'} disabled={!code.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void code.save()}>Save</button>}
               </span>
             </header>
             {code.message && <p className="tasks-message" role="alert">{code.message}</p>}
