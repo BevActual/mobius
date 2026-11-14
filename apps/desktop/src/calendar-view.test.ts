@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
 import { setLocaleForTests } from './dates';
-import { dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { calendarGlance, dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -201,5 +201,34 @@ describe('searching events', () => {
   it('shows a past repeating event by its latest time', () => {
     const past = [at('r', 'Retro', '2026-10-01T16:00', { repeats: true }), at('r', 'Retro', '2026-10-15T16:00', { repeats: true })];
     expect(searchEvents(past, 'retro', today).map((e) => e.start)).toEqual(['2026-10-15T16:00']);
+  });
+});
+
+describe('the Glance in the Mobius panel', () => {
+  const events = [
+    ev('Stand-up', '2026-11-14T09:00', '2026-11-14T09:30'),
+    ev('Supplier call', '2026-11-14T10:30', '2026-11-14T11:30'),
+    ev('Workshop', '2026-11-14T11:00', '2026-11-14T12:00'),
+    ev('Drinks', '2026-11-14T17:30', '2026-11-14T19:00'),
+    ev('Offsite', '2026-11-14', '2026-11-15', true),
+    ev('Tomorrow', '2026-11-15T10:00', '2026-11-15T11:00'),
+  ];
+  it('counts what is still to come, names when the next starts, and adds up the free time to the end of the working day', () => {
+    // At 10:00: the call and workshop overlap (10:30 to 12:00 busy) and drinks take 17:30 to 18:00, so 8 hours less 2 are free.
+    expect(calendarGlance(events, day('2026-11-14T10:00'))).toEqual([
+      { label: 'Still to come', value: '3' },
+      { label: 'Next', value: clock('2026-11-14T10:30') },
+      { label: 'Free time', value: '6 hr' },
+    ]);
+  });
+  it('counts an event under way, and says so when nothing else starts today', () => {
+    expect(calendarGlance(events, day('2026-11-14T17:45'))).toEqual([
+      { label: 'Still to come', value: '1' },
+      { label: 'Next', value: 'Nothing' },
+      { label: 'Free time', value: '0 min' },
+    ]);
+  });
+  it('leaves out the free time once the working day is over', () => {
+    expect(calendarGlance(events, day('2026-11-14T19:30'))[2]!.value).toBeNull();
   });
 });
