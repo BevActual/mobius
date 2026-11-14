@@ -107,6 +107,7 @@ export function ChoiceMenu<T extends string>({ label, title, trigger, value, cho
                   value={c.value}
                   label={c.label}
                   disabled={c.disabled}
+                  closeOnClick
                   className="ui-menu-item ui-choice"
                   data-separated={c.separated || undefined}
                   data-two-line={c.meaning ? true : undefined}

@@ -4,6 +4,7 @@ import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   PadGrid, type Pad,
+  DateField, TimeField, TimeRange, MonthPicker,
 } from '../ui';
 
 /**
@@ -337,6 +338,10 @@ export function Sheet() {
           <Floating />
         </Card>
 
+        <Card title="Date and time fields (open downward)" wide>
+          <Dates />
+        </Card>
+
         <Card title="Two-axis pad" wide>
           <Pads />
         </Card>
@@ -364,5 +369,34 @@ export function Sheet() {
         </Card>
       </div>
     </main>
+  );
+}
+
+/** A fixed "today" so the sheet and its shots don't move: Saturday 14 November 2026, 10:05. */
+const SHEET_NOW = new Date(2026, 10, 14, 10, 5);
+
+function Dates() {
+  const [due, setDue] = useState<Date | null>(new Date(2026, 10, 20));
+  const [none, setNone] = useState<Date | null>(null);
+  const [start, setStart] = useState<number | null>(13 * 60);
+  const [end, setEnd] = useState<number | null>(14 * 60 + 30);
+  const [at, setAt] = useState<number | null>(null);
+  const [day, setDay] = useState<Date | null>(new Date(2026, 10, 20));
+  return (
+    <div className="sheet-grid">
+      <div className="sheet-stack">
+        <DateField label="Due" value={due} onChange={(d) => setDue(d)} now={SHEET_NOW} />
+        <DateField label="Starts" value={none} onChange={(d) => setNone(d)} now={SHEET_NOW} />
+        <DateField label="Mobius proposed" value={new Date(2026, 10, 21)} onChange={() => {}} proposed now={SHEET_NOW} />
+        <TimeField label="Remind me at" value={at} onChange={setAt} now={SHEET_NOW} />
+        <div className="ui-field">
+          <span className="ui-field-label">Design review</span>
+          <TimeRange start={start} end={end} onChange={(s, e) => { setStart(s); setEnd(e); }} now={SHEET_NOW} />
+        </div>
+      </div>
+      <div className="sheet-month">
+        <MonthPicker value={day} onPick={setDay} now={SHEET_NOW} label="Month on its own" />
+      </div>
+    </div>
   );
 }
