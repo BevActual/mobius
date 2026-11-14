@@ -37,11 +37,11 @@ and Mobius can set them like anything else in the song (`fx`).
 
 | Effect | What it does | Status |
 | --- | --- | --- |
-| EQ | Low, Mid (with its frequency) and High. | Building |
-| Compressor | Threshold, Ratio, Attack, Release and Makeup. | Building |
-| Delay | Echoes in step with the tempo, with Feedback and Mix. | Building |
-| Reverb | A room from short to long, with Damp and Mix. | Building |
-| Drawn EQ | Bands you drag on a curve, replacing the three knobs. | Next (library `EqGraph`) |
+| EQ | Low, Mid (with its frequency) and High. | Have |
+| Compressor | Threshold, Ratio, Attack, Release and Makeup. | Have |
+| Delay | Echoes in step with the tempo, with Feedback and Mix. | Have |
+| Reverb | A room from short to long, with Damp and Mix. | Have |
+| Drawn EQ | Bands you drag on a curve: frequency, level and width. | Building |
 | Saturation and lo-fi | Warmth, clipping, fewer bits and a lower sample rate. | Next |
 | Moving filter | A filter that sweeps with the tempo or follows the level. | Next |
 | Chorus, phaser and flanger | Thickening and swirling. | Next |

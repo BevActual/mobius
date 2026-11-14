@@ -100,6 +100,7 @@ small and sparse next to the mocks.
 | Toolbar height | 48px | 52px comfortable, 44px compact |
 | Toolbar title | 13px semibold | 15px semibold |
 | Sidebar app name | 15px | 17px Inter Display |
+| Two-line row, for a list beside a reading pane (Mail, Notes) | None | 56px comfortable, 48px compact (`--row-list-2`) |
 | Reading pages (Home, a note, a doc) | Same as lists | 15 to 16px body, 44px rows, a column at most 680px wide |
 | Page heading on reading pages | None | 28 to 34px Inter Display, bold |
 
@@ -109,8 +110,11 @@ Rules that go with the sizes:
    hints.
 2. There is one row height per density in a view. Rows never vary in height to fit decoration.
 3. Daily apps (Mail, Tasks, Notes, Calendar, Files, Home) default to comfortable. Pro apps (Music, Video, Code,
-   Database, Sheets) default to compact.
+   Database, Sheets) are compact, and the frame makes them so, toolbar included. Apps never set their
+   own density selector.
 4. A short list is centred in a reading column or ends with a designed empty state. It never leaves a blank grey field.
+5. A list that sits beside a reading pane uses the two-line row: the title with the date at the trailing edge on line
+   one, the grey detail on line two. A list with the full width uses the one-line row.
 
 ## Colour
 
@@ -124,6 +128,10 @@ These mostly restate the adopted theme. Rules 4 and 5 are new.
 5. Content colour is shown as a small dot, a 3px edge or a soft tint. Solid colour blocks are only for things that are
    themselves coloured objects, such as a clip on a Music track.
 6. Red has two jobs only: something overdue or failed, and the current-time line in Calendar.
+7. Status has no other colour. A calm state ("Connected", "Key saved", "Signed in") is grey words with no dot. Only a
+   problem gets a red dot.
+8. One exception for content themes: Reader's Sepia, Grey and Night page colours are the reader's own and live in
+   Reader's stylesheet, named once. Text on any highlight tint must reach 4.5:1 in every page colour.
 
 ## Labels, numbers and keys
 
@@ -276,16 +284,28 @@ comfortable first, then compact. Comment on a row to change it.
 | Icon button | A line icon with no border. Hover is a grey fill. It always has a tooltip with its name and key. | 32px / 28px, 18px icon |
 | Text field | White with a hairline border. Focus is an ink border, not a glow. The unit or hint sits grey at the right. | 30px / 28px tall |
 | Pop-up (select) | Looks like a field with up and down chevrons at the right. Opens the shared menu. | Same |
-| Segmented control | Bordered group. The chosen segment has a grey fill and ink text. Used for view switches such as List, Board, Calendar. | 30px / 28px tall |
+| Segmented control | A grey track. The chosen segment is paper with a hairline and ink text. Used for view switches such as List, Board, Calendar. | 30px / 28px tall |
 | Checkbox | Rounded square. Checked is solid ink with a paper tick. Task circles in Tasks are the one round exception. | 18px |
 | Switch | Ink when on and grey when off. It sits at the trailing end of its row. | 32 by 18px |
-| Slider and meter | A thin grey track with an ink fill. Any value shown beside it uses tabular or mono figures. | 6px track |
+| Slider | A 6px grey track with an ink fill from zero to the value. The thumb is a 4 by 16px ink tick, not a round knob, so the fill reads at small values. The hit area is 24px. The value sits at the trailing edge in tabular figures, grey at zero and ink once moved. Both ends can be named ("Shorter", "Longer"). | 6px track |
+| Meter | The slider's track with no thumb. The bar stays ink; only the part past a threshold turns red. | 6px track |
+| Two-axis pad | One point sets two values. A frame-grey square with a quarter grid, a 14px ink point, crosshair lines to the edges, and a hollow mark where the value started. Both ends of both axes are named in words, and the values read out under it in mono. Arrows nudge, Shift+arrow nudges further, Home returns to the start. | 120px tall at least, square up to 240px |
+| Date field | Shows the date in words ("Thu 20 Nov") and takes typing ("tomorrow", "fri 3pm"). Opens a popover with quick picks first (Today, Tomorrow, Next week, No date, each with its key and the date it means in grey), then a month: month name with previous and next buttons, grey weekday letters, day cells in tabular figures. Today is an ink badge, the chosen day a grey fill. Week start and date format come from the shared date helpers. Arrows move by day, Page Up and Down by month, T jumps to today. | 280px popover, 32px day cells |
+| Time field | Takes typing ("9:30", "3pm") and opens a list of quarter hours scrolled to now. For a start and end, the end moves with the start and shows the length in grey ("1 hr"). 12 or 24 hour from the shared date helpers. | 30px rows |
+| Number field | A value you can type, nudge with the arrows (Shift for ten times), or drag up and down to scrub. Mono and tabular, with the unit in grey ("120 BPM"). Double-click resets. Out-of-range values clamp and say so in the tooltip. | 28px / 24px tall |
+| Readout | A read-only live value in JetBrains Mono, tabular and fixed width so it never jitters ("12 . 3 . 2"). Click switches its format (bars or time) or copies it. | Same height as a control |
+| Letter toggle | A small square toggle with one letter: M mute, S solo, R record, and the same for lock and hide. Off is a hairline square with a grey letter; on is an ink fill with a paper letter. An armed R is the one red fill, because recording has to read as a warning across the room. | 20px square |
+| Knob | A parameter cell as a dial for dense instrument panels. A 2px grey track arc, a 3px ink value arc and pointer with round caps, filling from the value's origin (pan from C, tune from 0). The value reads under it in mono: grey at its default, ink once changed. | 40px dial |
+| Envelope and filter graphs | A frame-grey plot with a light fill under one ink curve and hollow handles you drag. Readouts sit under the plot in mono. A modulated or "opens to" curve is a 1px solid muted line, never dashed, because dashed means Mobius. | Panel width, 120 to 160px tall |
+| EQ graph | The same plot with numbered band dots (across is frequency, up is gain) and the chosen band's own shape faint under the curve. Guides at ±6 and ±12 dB are solid hairlines at half the 0 dB line's strength, with faint mono labels at the left edge and 100, 1k, 10k along the foot. One column per band under the plot; the chosen band's dot and column are ink. | 144px tall, 120px compact |
+| Device frame | Head: grip, on/off switch, title, fold. Off dims the body only; the title stays ink so the device can be found in the chain. Collapsed shows the head alone. A device Mobius added waits with the dashed indigo edge. Labels are sentence case in fs-xs grey. | Head 32px, 28px compact |
+| Step grid | Rows of square steps in groups of four, with every other group on frame grey. An on-step is ink filled to its velocity height, an accent fills it. The playing column is outlined. | 32 to 36px steps, 4px gaps |
 | Menu | White, a hairline border, 10px corners and a soft shadow. Mobius actions come first where they exist, then the app's. Every item shows its key. | 30px rows |
 | Tooltip | Small ink label with the control's name, then its key. | 12px text |
 | Key cap | A small bordered cap with a heavier bottom edge. Used in menus, tooltips, the New button and the hint bar. | 11px text |
 | Chip (label or tag) | An outlined pill with a small colour dot and grey text. Never a solid colour fill. | 12px text |
 | Count | A plain grey number at the trailing edge. Never a black or coloured badge, except a dot on the rail. | 12.5px, tabular |
-| Avatar | A grey circle with initials, or the photo. | 22px in rows |
+| Avatar | A grey circle with initials, or the photo. | 24px in one-line rows, 32px in two-line rows, 40px on a card |
 | Focus ring | A 2px ink outline on keyboard focus only. | 2px |
 
 ### Content
@@ -293,7 +313,8 @@ comfortable first, then compact. Comment on a row to change it.
 | Element | How it looks and behaves | Size |
 | --- | --- | --- |
 | Content surface | The brightest surface in the window (paper). The frame around it is one step dimmer. | Fills its zone |
-| List row | One line: the control or icon, the title in full ink, then grey details and the date at the right. A hairline sits between rows, and selected is a grey fill. | 40px / 32px |
+| List row | One line: the control or icon, the title in full ink, then grey details and the date at the right. A hairline sits between rows, and selected is a grey fill that runs the full width, under any trailing date or button. Text ends with an ellipsis. | 40px / 32px |
+| Two-line row | For a list beside a reading pane. Line one: the title, with the date at the trailing edge. Line two: the grey detail. | 56px / 48px |
 | Group header | A quiet band with the group name, a grey count, and a plus at the right to add to that group. | 40px / 32px |
 | Table and grid | Hairline grid, a header row in grey semibold, and numbers right-aligned with tabular figures. The selected cell has an ink outline. | 32px / 28px rows |
 | Page heading | Only on reading pages such as Home, a note or a doc. Large Inter Display with a grey line of context under it. | 28 to 34px |
@@ -564,6 +585,12 @@ switch, a count or an arrow.
 Anything switched away from its default shows as a small chip above the composer ("Web search off", "3 skills"), so the
 state is always visible without opening the menu. Dropping or pasting a file onto the panel is the same as Add context.
 
+An item appears only once real per-chat state stands behind it; never show a switch that does nothing. The first build
+has Dictate (narrow panel), Add context, Apps Mobius can use, Permissions and Manage in Abilities. Skills, Plugins and
+connectors, Web search, Knowledge and Instructions join as they become real. The "up to 5 things" limits note belongs to
+Add context, so it sits in grey under that group, not at the foot of the menu. Every hairline in the menu runs the same
+width.
+
 ### How the composer is laid out
 
 Left to right on the bottom row: the plus button, Mode, Permission, then at the right the model and Send. Context chips
@@ -744,6 +771,69 @@ Repeat, and Watch for what should keep running.
 10. **At most two cards open at once** under a result. The rest fold to one line each, in the fixed order Sources,
     Adjust, Compare, Check.
 
+## Building the panel: each part's size and parts
+
+**This is the build sheet for everything above: the four states, the composer, the slots, Adjust and the cards. Every
+part is made from the shared controls in `src/ui/` and the shared object designs. Nothing here needs a new colour or
+size token.**
+
+### Resting panel, top to bottom
+
+| Part | How it's built | Size |
+| --- | --- | --- |
+| Head | "Mobius" as the last tab, then New chat, History, Pop out and Close as icon buttons | 52px / 44px tall, 32px buttons |
+| Glance (slot) | One paper card: up to three facts as a grey label over a value (tabular figures), and at most one quiet button. Hidden when the app gives none. | 8px corners, 12px inside |
+| Section heading | "Waiting for you", "For this email", "Earlier chats": grey semibold, sentence case, a count at the right, a hairline under it | 12.5px, 20px above |
+| Waiting card | One per pending change. Dashed indigo edge (1.5px). Line 1: app icon and what changed, one line, ending in an ellipsis. Line 2: grey app name and time. Then Show and Discard as quiet text buttons and one small ink Keep at the right. Three at most, then a "2 more" row. | 8px corners, 26px buttons |
+| Other chat needing you | A list row: the chat's title, and "Needs your answer" in indigo text at the right. No dot. | 36px / 32px row |
+| Actions (slot) | The ideas list. Up to four rows that follow the selection: a 16px line icon, the action, and its number key cap at the right. Grey fill on hover. Never outlined buttons, and never a lone button above the list. | 36px / 32px rows |
+| Earlier chats | List rows: title with an ellipsis, time at the right in grey tabular figures. Five at most, then "All chats" opens History. | 36px / 32px rows |
+
+### Composer
+
+| Part | How it's built | Size |
+| --- | --- | --- |
+| Box | Paper, 1px line, hint text in grey. Grows to six lines, then scrolls. | 9px corners, 12px inside |
+| Context chips | Inside the box, above the text: the shared chip with the app's icon and the thing's name ("Email: P2 build"). Selecting something adds its chip, the cross removes it. This replaces the "Sees" line. | 24px tall, 12px text |
+| Changed-setting chips | Under the context chips when anything in the plus menu is off its default ("Web search off", "3 skills") | fs-xs (12px, 11px compact), 6px corners, frame fill |
+| Bottom row | Plus (icon button), Mode, Permission (shield and short label), then at the right the model and an ink Send. Mode, Permission and model are quiet buttons with a small chevron. | 28px controls |
+| Narrow panel | Under 380px, Dictate moves into the plus menu as its first row and keeps its shortcut. The model never shows an ellipsis. When the row doesn't fit it gives way in this order, measured, not at fixed widths: Permission shows only its shield, then the model drops its effort suffix ("Sonnet 5.5 · High" becomes "Sonnet 5.5"), then the model shows only its icon. Each keeps its full name in the tooltip. While dictating, the model steps aside for the recording readout. | |
+| Menus | Open upward from their button. Rows with a check on the current choice and a key cap at the right. Permission and model rows are two lines: the name, and a grey line on what it means. | 30px rows, two-line rows 7px inside |
+
+### Working, Done and Asking
+
+| Part | How it's built | Size |
+| --- | --- | --- |
+| Steps | Numbered rows. The number in tabular grey, then the step naming its app ("Checking Calendar for the 23rd"). The current step is ink, done steps grey. | 28px rows |
+| Stop | A quiet button with Esc shown, always under the steps | 26px |
+| Reply | Plain 14px text, no bubble. Names of things it touched are indigo links. | 1.6 line height |
+| Under each reply | Rewind to here, Copy and one follow-up as grey text buttons. The model that answered in small grey text at the right. | 12.5px, model fs-xs |
+| Result (slot) | The real objects, drawn as shared object cards or rows | Shared object sizes |
+| Turn summary | One per turn that changed things. A paper card with a hairline between parts. Header: the title on one line with an ellipsis and "5 changes" in grey at the right. One row per app with its icon, what changed and Show. Footer: Discard all and Try another as quiet text on the left, one ink Keep all on the right, all on one line. | 8px corners, 36px header, 32px rows, 40px footer |
+| Question (Picker slot) | A paper card: the question, then up to three option rows with number keys. The suggested option has an ink edge. An approval for sending, paying or deleting is dashed and says it can't be undone. | 32px option rows |
+
+### Adjust and the cards
+
+All of them share one card shell, so Compare, Check, Repeat and Adjust look like one family.
+
+| Part | How it's built | Size |
+| --- | --- | --- |
+| Shell | Paper card with a 1px line | 8px corners |
+| Header | The card's name in semibold, and a close cross | 36px |
+| Body | The app's rows, built from shared controls (slider, segmented, switch, two-axis pad, object rows) | 12px inside |
+| Footer | Quiet text buttons on the left (Reset, Discard), one ink button on the right (Keep) | 40px |
+| How many | Two cards open at most. The rest fold to one line each, in the order Sources, Adjust, Compare, Check. | 36px folded |
+
+### Rules for building it
+
+1. **Sentence case in the panel.** The kind labels in small caps ("NOTES", "TASK") are for pro apps' own panels, not
+   for Mobius.
+2. **One ink button per card.** Everything else in a card is quiet text.
+3. **No stray marks.** No dot sits before a title unless it means a problem.
+4. **Titles never wrap into the buttons.** Text ends with an ellipsis, and the full text is in the tooltip.
+5. **Menus use the shared popover and menu rows** once the component library has them. Until then the existing menu
+   rows are fine.
+
 ## One app, not twenty
 
 Everything above unifies how Mobius looks. These three parts unify how it behaves and make the rules hold, which a look
@@ -751,8 +841,30 @@ alone can't do.
 
 ### The same thing looks the same everywhere
 
-A task, an event, a mail, a file, a person and a note each have one row design and one small card design, owned by the
-shell. Any app that shows one uses that design.
+A task, an event, a mail, a file, a person and a note each have one design, owned by the shell (`ObjectRow`,
+`ObjectCard`, `ObjectChip`). Any app that shows one uses it. Each comes in four forms:
+
+| Form | Size | Used for |
+| --- | --- | --- |
+| One-line row | 40px / 32px | Lists with the full width, results, dashboard tiles |
+| Two-line row | 56px / 48px | A list beside a reading pane |
+| Card | 280px or the panel's width, 10px corners | Mobius's results and Sources, Views, a peek on Space |
+| Chip | 22px tall, 6px corners, a hairline | Inside text: the composer, answers, notes |
+
+Every row has the same order: a leading mark that names the kind, the title in ink, one grey detail, then the date or
+count at the trailing edge in tabular figures.
+
+| Kind | Leading mark | Grey detail | Trailing |
+| --- | --- | --- | --- |
+| Task | Round check, solid ink when done | Note, or list and steps | Due date, red when overdue |
+| Event | 3px bar in the calendar's colour | Place and people | Day and time |
+| Mail | Small ink dot when unread; sender and subject semibold when unread | First words | Time today, otherwise the day |
+| File | The kind's line icon | App and folder | When it last changed |
+| Person | Grey initials | Role or address | A count, such as "3 emails" |
+
+Anything Mobius proposed or changed carries the dashed indigo edge in every form, inset 3px with 8px corners in a list,
+and its card's kind line says "changed by Mobius". Mock: `instrument/mobius-shared-objects.jpg`. The two-axis pad's mock
+is `instrument/mobius-xy-pad.jpg`.
 
 | Thing | Where else it shows up | Rule |
 | --- | --- | --- |
@@ -933,6 +1045,13 @@ reduced motion, contrast of 4.5 to 1, and keyboard reach. They stay as they are.
 - **How many cards open at once.** Two, with the rest folded? **Decided:** yes.
 - **First cards to build.** Sources and Check first (they build trust), then Compare, then Repeat and Watch?
   **Decided:** yes.
+
+### Shared objects and the two-axis pad (round 9)
+
+- Andrew, 2026-11-14 00:51: go ahead as drafted. Built as shared components (#200 controls, #202 objects and pad).
+- The slider thumb is an ink tick, taken from Photo's Instrument round.
+- Lists beside a reading pane use the two-line row (Mail, Notes).
+- Calm status is grey words with no dot; green is not used.
 
 ## How it rolls out
 

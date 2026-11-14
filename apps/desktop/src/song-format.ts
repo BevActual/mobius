@@ -51,14 +51,15 @@ export function nextColour(tracks: readonly { color: TrackColour }[]): TrackColo
 /**
  * An effect on a track, in the order the sound goes through them. Each can be switched off (`on`) and keeps its settings:
  *
- * - `eq`: `low` and `high` shelves and a `mid` bell at `midFreq` Hz, each in dB (-18 to +18).
+ * - `eq`: a `low` shelf below `lowFreq`, a `mid` bell at `midFreq` Hz `midQ` wide, and a `high` shelf above `highFreq`,
+ *   each in dB (-18 to +18). Older files without the frequencies get 120 Hz, Q 1 and 6 kHz.
  * - `compressor`: above `threshold` dB it turns the level down by `ratio` to 1, reacting in `attack` and letting go in
  *   `release` seconds, then lifts the whole track by `makeup` dB.
  * - `delay`: echoes `time` beats apart, each `feedback` (0 to 0.9) as loud as the last, blended in by `mix` (0 to 1).
  * - `reverb`: a room that rings for `size` seconds, its highs softened by `damp` (0 to 1), blended in by `mix`.
  */
 export type Effect =
-  | { id: string; kind: 'eq'; on: boolean; low: number; mid: number; midFreq: number; high: number }
+  | { id: string; kind: 'eq'; on: boolean; low: number; lowFreq: number; mid: number; midFreq: number; midQ: number; high: number; highFreq: number }
   | { id: string; kind: 'compressor'; on: boolean; threshold: number; ratio: number; attack: number; release: number; makeup: number }
   | { id: string; kind: 'delay'; on: boolean; time: number; feedback: number; mix: number }
   | { id: string; kind: 'reverb'; on: boolean; size: number; damp: number; mix: number };
@@ -67,7 +68,11 @@ export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'delay', 'reverb'
 export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', delay: 'Delay', reverb: 'Reverb' };
 /** Each effect's settings: range, and where a new one starts. */
 export const EFFECT_PARAMS: { [K in EffectKind]: Record<string, { lo: number; hi: number; start: number }> } = {
-  eq: { low: { lo: -18, hi: 18, start: 0 }, mid: { lo: -18, hi: 18, start: 0 }, midFreq: { lo: 200, hi: 8000, start: 1000 }, high: { lo: -18, hi: 18, start: 0 } },
+  eq: {
+    low: { lo: -18, hi: 18, start: 0 }, lowFreq: { lo: 30, hi: 400, start: 120 },
+    mid: { lo: -18, hi: 18, start: 0 }, midFreq: { lo: 200, hi: 8000, start: 1000 }, midQ: { lo: 0.3, hi: 8, start: 1 },
+    high: { lo: -18, hi: 18, start: 0 }, highFreq: { lo: 2000, hi: 16000, start: 6000 },
+  },
   compressor: { threshold: { lo: -60, hi: 0, start: -18 }, ratio: { lo: 1, hi: 20, start: 4 }, attack: { lo: 0.001, hi: 0.5, start: 0.01 }, release: { lo: 0.02, hi: 1, start: 0.2 }, makeup: { lo: 0, hi: 24, start: 0 } },
   delay: { time: { lo: 0.25, hi: 2, start: 0.75 }, feedback: { lo: 0, hi: 0.9, start: 0.35 }, mix: { lo: 0, hi: 1, start: 0.25 } },
   reverb: { size: { lo: 0.3, hi: 8, start: 2 }, damp: { lo: 0, hi: 1, start: 0.4 }, mix: { lo: 0, hi: 1, start: 0.25 } },
