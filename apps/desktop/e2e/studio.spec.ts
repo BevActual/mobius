@@ -394,6 +394,8 @@ test('automation draws a volume line under a track with points, kept in the song
 
 test('Export as WAV renders the song and saves it in the Exports folder', async () => {
   await start();
+  // Wide enough that Export stays in the toolbar rather than the ⋯ menu (it is the first control to drop).
+  await resizeWindow(mobius!.app, 1600, 900);
   await shell().getByRole('button', { name: 'Export as WAV' }).click();
   await expect(shell().getByRole('status').filter({ hasText: 'Exported “Night Drive.wav” to Exports' })).toBeVisible({ timeout: 30_000 });
   const wav = fs.readFileSync(path.join(userData, 'workspace', 'Exports', 'Night Drive.wav'));
