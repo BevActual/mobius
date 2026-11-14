@@ -784,7 +784,13 @@ export interface MobiusBridge {
     onChanged(listener: (change: PhotosChanged) => void): () => void;
   };
   /** The Studio app: songs kept like notes, as JSON in `studio/<folder>/<song>.json`. Only the Tauri shell has it. */
-  songs?: NonNullable<MobiusBridge['notes']>;
+  songs?: NonNullable<MobiusBridge['notes']> & {
+    /** Save a song rendered in the window (WAV, base64, up to 64 MB) in the workspace's `Exports` folder, never over a
+     *  file there: `saved` is where it went (`Exports/<name>`). */
+    saveExport?(path: string, name: string, base64: string): Promise<{ path: string; saved: string; name: string } | NotesFailure>;
+    /** Open the workspace's `Exports` folder in the system's file manager. */
+    showExports?(): Promise<{ ok: true } | NotesFailure>;
+  };
   /** The Design app: designs kept like notes, as JSON in `designs/<folder>/<design>.json`. Only the Tauri shell has it. */
   designs?: NonNullable<MobiusBridge['notes']>;
   /** The Canvas app: boards kept like notes, as JSON in `boards/<folder>/<board>.json`. Only the Tauri shell has it. */
@@ -1042,7 +1048,7 @@ const isFavourite = (v: unknown): v is Favourite => {
 export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'] as const;
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
-export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 340 } } as const;
+export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 340 }, inspector: { min: 240, max: 440, default: 280 } } as const;
 export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
