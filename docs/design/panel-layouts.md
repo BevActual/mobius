@@ -85,8 +85,7 @@ Narrow windows: adjacent in space on wide windows, stacked in time on narrow one
 | Window width | What happens |
 |---|---|
 | 1280px and up | Everything as placed |
-| 1280 to 1439px | With both the inspector and Mobius open, they take turns in one place: whichever was brought forward last shows (an app's own control, the Panels menu or opening the inspector brings it forward; asking Mobius brings Mobius back), and closing one uncovers the other |
-| 980 to 1279px | The inspector and Mobius overlay the content instead of pushing it, one at a time, taking turns the same way |
+| 980 to 1439px | With both the inspector and Mobius open, they share one column: whichever was brought forward last shows and the other steps aside (an app's own control, the Panels menu or opening the inspector brings it forward; asking Mobius or the toolbar's Mobius button brings Mobius back). Nothing lies over the content. The Mobius button shows pressed only while Mobius is in front |
 | 720 to 979px | The sidebar becomes an overlay too, opened from a button at the start of the toolbar; the bottom dock stays |
 | Under 720px | One thing at a time: content, or one panel full width. The rail stays |
 
