@@ -202,6 +202,64 @@ test('the Activity tab lists a turn’s changes to review, and Discard there put
   expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(false);
 });
 
+test('one Rewind to here puts six apps back at once: notes, docs, sheets, tasks, calendar and boards', async () => {
+  // The demo's Activity moment: one turn changes six apps, and one rewind undoes all of it.
+  const before: Record<string, string> = {
+    'notes/Work/Plan.md': '# Plan\n',
+    'docs/Brief.md': '# Brief\n',
+    'sheets/Budget.csv': 'Item,Cost\nVenue,500\n',
+    'tasks/Inbox.md': '# Inbox\n\n- [ ] Book the venue\n',
+    'calendar/Work.ics': 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Mobius//EN\r\nEND:VCALENDAR\r\n',
+    'boards/Launch.json': '{"items":[]}\n',
+  };
+  const after: Record<string, string> = {
+    'notes/Work/Plan.md': '# Plan\n\n- Venue booked\n',
+    'docs/Brief.md': '# Brief\n\nThe launch is on Friday.\n',
+    'sheets/Budget.csv': 'Item,Cost\nVenue,650\n',
+    'tasks/Inbox.md': '# Inbox\n\n- [x] Book the venue\n- [ ] Send invites\n',
+    'calendar/Work.ics': 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Mobius//EN\r\nBEGIN:VEVENT\r\nUID:launch@mobius\r\nDTSTAMP:20260101T090000Z\r\nDTSTART:20260102T090000Z\r\nDTEND:20260102T100000Z\r\nSUMMARY:Launch\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+    'boards/Launch.json': '{"items":[{"id":"a","kind":"note","x":0,"y":0,"text":"Launch"}]}\n',
+  };
+  for (const [file, text] of Object.entries(before)) {
+    fs.mkdirSync(path.dirname(workspace(file)), { recursive: true });
+    fs.writeFileSync(workspace(file), text);
+  }
+  await start([
+    callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.']),
+    ...Object.entries(after).map(([file, content]) => callsTool('files-write', { path: file, content })), says(['Planned the launch.']),
+  ]);
+  const ask = async (text: string, reply: string, approvals: number) => {
+    await expect(shell().getByRole('button', { name: 'Stop' })).toHaveCount(0);
+    await composer().fill(text);
+    await composer().press('Enter');
+    for (let i = 0; i < approvals; i += 1) {
+      await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
+    }
+    await expect(log().locator('.msg.assistant').last()).toHaveText(reply);
+  };
+  await ask('make an ideas page', 'Made it.', 1);
+  await ask('plan the launch everywhere', 'Planned the launch.', Object.keys(after).length);
+  for (const [file, text] of Object.entries(after)) expect(fs.readFileSync(workspace(file), 'utf8')).toBe(text);
+
+  await openApp('Agent');
+  await shell().getByRole('navigation', { name: 'Apps' }).locator('[data-app-library]').click();
+  await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Activity', exact: true }).click();
+  const activity = shell().getByRole('region', { name: 'Activity', exact: true });
+  const turns = activity.getByRole('list', { name: 'Turns of this conversation' });
+  const first = turns.getByRole('listitem').filter({ hasText: 'make an ideas page' });
+  await first.getByRole('button', { name: 'Rewind to here' }).click();
+  // Asked once, naming every app that will change.
+  const question = first.getByRole('group', { name: 'Rewind' });
+  await expect(question).toContainText('Rewind 1 later turn?');
+  for (const app of ['Notes', 'Docs', 'Sheets', 'Tasks', 'Calendar', 'Canvas']) await expect(question).toContainText(app);
+  await first.getByRole('button', { name: 'Rewind', exact: true }).click();
+  await expect(activity.getByRole('status').filter({ hasText: 'Rewound to' })).toBeVisible();
+  for (const [file, text] of Object.entries(before)) await expect.poll(() => fs.readFileSync(workspace(file), 'utf8')).toBe(text);
+  // The turn rewound to stays.
+  expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(true);
+  await expect(turns.getByRole('listitem')).toHaveCount(1);
+});
+
 test('Rewind to here in Activity puts the apps back as they were after that turn, asks once, and can be undone', async () => {
   fs.mkdirSync(workspace('notes', 'Work'), { recursive: true });
   fs.writeFileSync(workspace('notes', 'Work', 'Plan.md'), '# Plan\n');
