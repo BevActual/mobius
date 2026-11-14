@@ -3,6 +3,9 @@ import type { ProfilesState } from '@mobius/shared';
 import { Row } from './primitives';
 import { settingPath } from './manifest';
 
+/** The demo workspace's profile (crates/mobius-shell/src/profiles.rs). */
+const DEMO_ID = 'demo';
+
 /**
  * Settings › Advanced › Profiles: separate Mobiuses for separate parts of life, each with its own conversations, notes,
  * tasks, memory, schedules and settings. Switching starts Mobius again with the other profile.
@@ -44,6 +47,16 @@ export function ProfilesPane({ subpage, highlight }: { subpage: string; highligh
       {switching && <p className="srow-text" role="status">Starting Mobius again with that profile…</p>}
       {problem && <p className="srow-text" role="alert">{problem}</p>}
       <p className="srow-text">Switching starts Mobius again. Removing a profile takes it off this list; its files stay in the data folder.</p>
+      {api.openDemo && state && (
+        <div className="profile-demo">
+          <p className="srow-text">{state.current === DEMO_ID
+            ? 'This is the demo workspace: a made-up team\'s mail, calendar, notes and files. Reset it to start the tour over; what was changed is gone.'
+            : 'The demo workspace is a made-up team\'s mail, calendar, notes and files, for trying Mobius without your own. It opens as a profile of its own, fresh each time.'}</p>
+          <button type="button" className="btn" disabled={switching} onClick={() => { setSwitching(true); void api.openDemo!().then((r) => { if (!settle(r)) setSwitching(false); }); }}>
+            {state.current === DEMO_ID ? 'Reset the demo workspace' : 'Open the demo workspace'}
+          </button>
+        </div>
+      )}
     </Row>
   );
 }
