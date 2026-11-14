@@ -82,8 +82,9 @@ import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { agoLabel } from './desk-view';
 import { APP_ICONS, Rail, type OwnApp } from './Rail';
+import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
-import { AppFrame, PanelsMenu, RightPanelTabs, TooltipLayer, type AppMenuState } from './ui';
+import { AppFrame, InspectorDock, PanelsMenu, TooltipLayer, type AppMenuState } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
@@ -110,6 +111,19 @@ const NOTICES: Record<string, string> = {
   ask: 'Set up a model in the agent panel to ask questions.',
   blocked: 'Mobius only opens web addresses (http or https).',
 };
+
+/** The toolbar's Mobius button. Pressed means Mobius is in front: while it has stepped aside for the inspector (a window
+ * with room for only one of the two) it shows not pressed, and a press brings it forward instead of closing it. */
+function MobiusButton({ open, toggle }: { open: boolean; toggle: () => void }) {
+  const { aside, bringForward } = useMobiusStepAside();
+  const front = open && !aside;
+  return (
+    <button type="button" className="strip-btn strip-mobius" data-mobius-face aria-pressed={front} aria-label={front ? 'Hide Mobius' : 'Show Mobius'} title={front ? 'Hide Mobius' : 'Ask Mobius, beside the work'}
+      onClick={open && aside ? bringForward : toggle}>
+      <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
+    </button>
+  );
+}
 
 /** True while the window is narrower than `width` pixels. */
 function useNarrowWindow(width: number): boolean {
@@ -1672,12 +1686,7 @@ export function App() {
             ? <button type="button" className="btn primary agent-run" onClick={() => { conversation.startFresh(MAIN_BOT_ID); setAgentView(null); setSideMode('sessions'); }}>New session</button>
             : <button type="button" className="btn primary agent-run" onClick={() => { setAgentRun({ bot: shownAgent.id, text: shownAgent.instructions.trim() || shownAgent.name }); conversation.startFresh(shownAgent.id); setAgentView(null); setSideMode('sessions'); }}>Run now</button>)}
           {menuBar(appMenu)}
-          {hasRight && !settingsOpen && (
-            <button type="button" className="strip-btn strip-mobius" data-mobius-face aria-pressed={rightOpen} aria-label={rightOpen ? 'Hide Mobius' : 'Show Mobius'} title={rightOpen ? 'Hide Mobius' : 'Ask Mobius, beside the work'}
-              onClick={toggleMobius}>
-              <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
-            </button>
-          )}
+          {hasRight && !settingsOpen && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
         </>,
       }}
     >
@@ -1739,10 +1748,12 @@ export function App() {
           })}
           {toast && <div className="toast" role="status">{toast}</div>}
         </main>
+        {/* The inspector: the open app's own panels (PanelTab), between the content and Mobius. */}
+        <InspectorDock />
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
-            {/* The open app's own tabs (PanelTab) come first, then Mobius; with none, Mobius alone. */}
-            <RightPanelTabs mobius={chatPanel(null)} onClose={hideRight} />
+            {/* The Mobius panel is just Mobius: never a tab, never sharing its dock. */}
+            {chatPanel(null)}
             {resizer('right', 'Resize the agent panel')}
           </div>
         )}
