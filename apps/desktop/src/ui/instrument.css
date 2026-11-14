@@ -94,6 +94,8 @@
 
 /* Device chain: devices in a row, in signal order; the row scrolls sideways. */
 .ui-chain { display: flex; align-items: flex-start; gap: var(--sp-2); min-width: 0; overflow-x: auto; padding-bottom: var(--sp-1); }
+.ui-chain[data-orientation='vertical'] { flex-direction: column; align-items: stretch; width: 100%; overflow: hidden auto; padding-bottom: 0; }
+.ui-chain[data-orientation='vertical'] .ui-device { min-width: 0; }
 .ui-device {
   display: flex; flex-direction: column; flex: none; min-width: var(--device-min-w); border: var(--hairline-w) solid var(--line);
   border-radius: var(--radius-control); background: var(--paper);
@@ -125,3 +127,12 @@
 .ui-device[data-off] .ui-device-body { opacity: 0.45; }
 /* An EQ needs more height than an envelope: ±18 dB has to read. */
 .ui-eq .ui-graph-surface { height: var(--eq-h); }
+
+/* In a narrow side panel the four bands' values go two to a row, so no column runs into the next. */
+.ui-eq { container-type: inline-size; }
+/* Containment drops the values' own width, so a sideways chain keeps the EQ wide enough for four columns. */
+.ui-chain:not([data-orientation='vertical']) .ui-eq { min-width: 26rem; }
+.ui-graph-readout dt { overflow: hidden; text-overflow: ellipsis; }
+@container (width < 24rem) {
+  .ui-eq-readout { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--sp-3); }
+}

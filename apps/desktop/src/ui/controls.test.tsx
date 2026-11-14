@@ -138,4 +138,7 @@ describe('Music gaps, round 2', () => {
     const plain = renderToStaticMarkup(<ParamCell label="Cutoff" min={80} max={12000} value={1800} onChange={() => {}} />);
     expect(plain).not.toContain('data-size');
   });
+  it('lays a parameter grid four across', () => {
+    expect(renderToStaticMarkup(<ParamGrid label="Drive" columns={4}><span /></ParamGrid>)).toContain('data-columns="4"');
+  });
 });
