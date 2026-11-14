@@ -31,11 +31,6 @@ const shell = () => mobius!.shell;
 function file() { return path.join(userData, 'workspace', 'studio', 'Songs', 'Night Drive.json'); }
 const saved = () => JSON.parse(fs.readFileSync(file(), 'utf8')) as typeof SONG;
 const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
-/** Device starts hidden: the Panels menu shows it in the inspector. */
-const openDevice = async () => {
-  await shell().getByRole('button', { name: 'Panels' }).click();
-  await shell().getByRole('menuitemcheckbox', { name: 'Device' }).click();
-};
 
 /** Adds a track from Sounds in the sidebar. */
 async function addTrack(name: string): Promise<void> {
@@ -45,6 +40,14 @@ async function addTrack(name: string): Promise<void> {
 async function openNotes(name: string): Promise<void> {
   await tracks().getByRole('listitem', { name }).getByRole('button', { name: new RegExp(`^${name}, bars? 1`) }).dblclick();
   await expect(shell().getByRole('grid', { name: `Notes of ${name}` })).toBeVisible();
+}
+
+/** Opens a track's devices in the bottom area, with a double-click on its header. */
+async function openDevice(name: string): Promise<Locator> {
+  await tracks().getByRole('listitem', { name }).locator('.studio-track-no').dblclick();
+  const device = shell().getByRole('region', { name: 'Devices' });
+  await expect(device).toBeVisible();
+  return device;
 }
 
 /** Starts Mobius on Music's Night Drive, with the notes of `track` open. */
@@ -77,12 +80,10 @@ test('a song is tracks of notes: added by clicking, with tracks to add, mute and
   await shell().getByRole('spinbutton', { name: 'Tempo' }).fill('96');
   await expect.poll(() => saved().tempo).toBe(96);
 
-  // The Device panel sets how the chosen track sounds, kept in the song. Until it moves to the bottom area it is in the
-  // inspector, shown from the Panels menu.
-  await tracks().getByRole('listitem', { name: 'Keys' }).click();
-  await shell().getByRole('button', { name: 'Panels' }).click();
-  await shell().getByRole('menuitemcheckbox', { name: 'Device' }).click();
-  const cutoff = shell().getByRole('region', { name: 'Device' }).getByRole('slider', { name: 'Cutoff and resonance' });
+  // The chosen track's devices set how it sounds, kept in the song. Shift+Tab switches the bottom area to them.
+  await tracks().getByRole('listitem', { name: 'Keys' }).click({ position: { x: 6, y: 6 } });
+  await shell().keyboard.press('Shift+Tab');
+  const cutoff = shell().getByRole('region', { name: 'Devices' }).getByRole('slider', { name: 'Cutoff and resonance' });
   await cutoff.focus();
   await shell().keyboard.press('ArrowLeft');
   await expect.poll(() => (saved().tracks[0] as { sound?: { cutoff: number } }).sound?.cutoff).toBeLessThan(5000);
@@ -146,16 +147,14 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
     callsTool('files-write', { path: 'studio/Songs/Night Drive.json', content: JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }) }),
     says(['Added a bass line on the roots, on 1 and the and of 3.']),
   ]);
-  // Music's Device is in the inspector and Mobius in its own panel beside it. The window is made wide enough for both
-  // to sit beside the page rather than over it.
+  // The right panel is Mobius alone (devices are in the bottom area), made wide enough to sit beside the page rather than over it.
   await resizeWindow(mobius!.app, 1440, 900);
   await shell().getByRole('button', { name: 'Add a bass line' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log.locator('.msg.assistant')).toContainText('bass line');
-  // What Mobius proposes is kept or discarded in the Device panel.
-  await openDevice();
-  const change = shell().getByRole('group', { name: "Mobius's change" });
+  // What Mobius proposes is kept or discarded in the bar above the tracks.
+  const change = shell().getByRole('group', { name: 'A change Mobius made' });
   await expect(change).toContainText('Mobius changed Bass');
   // The new part's clip is dashed; the Keys clip is not.
   await expect(tracks().getByRole('listitem', { name: 'Bass' }).getByRole('button', { name: 'Bass, bars 1 to 4, proposed by Mobius' })).toHaveAttribute('data-proposed', 'true');
@@ -165,11 +164,30 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
   await expect(tracks().getByRole('listitem', { name: 'Bass' })).toHaveCount(0);
 });
 
-test('a track is panned and a drum kit is tuned in the Device panel, kept in the song', async () => {
+test('a sound from Mobius opens the track’s devices and says what moved, kept or put back', async () => {
+  const warmer = { ...SONG.tracks[0], sound: { shape: 0.2, detune: 0, sub: 0, drive: 0.15, cutoff: 1200, resonance: 0, envAmount: 0, attack: 0.005, decay: 0.8, sustain: 0.3, release: 0.3, vibrato: 0, rate: 5 } };
+  await start([
+    callsTool('files-write', { path: 'studio/Songs/Night Drive.json', content: JSON.stringify({ ...SONG, tracks: [warmer] }) }),
+    says(['Made the keys warmer: the filter is down to 1.2 kHz with a little drive.']),
+  ]);
+  await resizeWindow(mobius!.app, 1440, 900);
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('make the keys warmer');
+  await shell().keyboard.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
+  const change = shell().getByRole('group', { name: 'A change Mobius made' });
+  await expect(change).toContainText('Mobius changed Keys: drive 0% → 15%, cutoff 5.0 kHz → 1.2 kHz');
+  // The track's devices open, so the knobs Mobius moved are in view; its notes are not marked as changed.
+  await expect(shell().getByRole('region', { name: 'Devices' })).toBeVisible();
+  await expect(shell().getByRole('slider', { name: 'Cutoff and resonance' })).toHaveAttribute('aria-valuetext', /Cutoff 1\.2 kHz/);
+  await change.getByRole('button', { name: 'Discard' }).click();
+  await expect.poll(() => (saved().tracks[0] as { sound?: unknown }).sound).toBeUndefined();
+});
+
+test('a track is panned and a drum kit is tuned in its devices, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, { id: 't3', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [] }] }));
   await start();
-  await openDevice();
-  const device = shell().getByRole('region', { name: 'Device' });
+  const device = await openDevice('Keys');
   const pan = device.getByRole('slider', { name: 'Pan' });
   await pan.focus();
   await shell().keyboard.press('Shift+ArrowLeft');
@@ -188,8 +206,7 @@ test('a track is panned and a drum kit is tuned in the Device panel, kept in the
 test('effects are added to a track, switched off and moved, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify(SONG));
   await start();
-  await openDevice();
-  const device = shell().getByRole('region', { name: 'Device' });
+  const device = await openDevice('Keys');
   for (const name of ['Delay', 'EQ']) {
     await device.getByRole('button', { name: 'Add effect' }).click();
     await shell().getByRole('menuitem', { name, exact: true }).click();
@@ -202,25 +219,213 @@ test('effects are added to a track, switched off and moved, kept in the song', a
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string; on: boolean }[] }).fx?.map((e) => `${e.kind} ${e.on}`)).toEqual(['eq true', 'delay false']);
   await device.getByRole('button', { name: 'Remove Delay' }).click();
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['eq']);
+  // The instrument has its own switch too: it bypasses the instrument alone, and leaves the track unmuted.
+  await device.getByRole('switch', { name: 'Instrument on' }).click();
+  await expect.poll(() => (saved().tracks[0] as { instrumentOn?: boolean }).instrumentOn).toBe(false);
+  expect((saved().tracks[0] as { muted?: boolean }).muted).toBeUndefined();
+  // A device folds to its head, and opens again.
+  await device.getByRole('button', { name: 'Fold Instrument' }).click();
+  await expect(device.getByRole('region', { name: 'Oscillator' })).toHaveCount(0);
+  await device.getByRole('button', { name: 'Show Instrument' }).click();
+  await expect(device.getByRole('region', { name: 'Oscillator' })).toBeVisible();
 });
 
 test('a drum kit has a pad per drum with its own settings, and its notes can be written as steps', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [{ id: 't1', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [{ pitch: 36, start: 0, length: 0.25, velocity: 0.8 }] }] }));
   await start([], 'Drums');
-  await openDevice();
-  const device = shell().getByRole('region', { name: 'Device' });
+  const device = await openDevice('Drums');
   // Each drum is a pad; the chosen pad's knobs set that drum alone, kept in the song by its pitch.
   await device.getByRole('group', { name: 'Drum pads' }).getByRole('button', { name: 'Snare', exact: true }).click();
-  const tune = device.getByRole('region', { name: 'Snare settings' }).getByRole('slider', { name: 'Tune' });
+  const tune = device.getByRole('group', { name: 'Snare settings' }).getByRole('slider', { name: 'Tune' });
   await tune.focus();
   await shell().keyboard.press('ArrowRight');
   await expect.poll(() => (saved().tracks[0] as { pads?: Record<string, { tune: number }> }).pads?.['38']?.tune).toBe(1);
   // In the notes, Steps shows a bar of the drums as steps: a click switches one on, as a sixteenth note.
-  await tracks().getByRole('listitem', { name: 'Drums' }).press('Enter');
+  await shell().getByRole('radiogroup', { name: 'Show' }).getByRole('radio', { name: 'Notes' }).click();
   await shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Steps' }).click();
   await expect(shell().getByRole('group', { name: 'Kick' }).getByRole('button', { name: /^Kick, step 1, velocity/ })).toBeVisible();
   await shell().getByRole('group', { name: 'Snare' }).getByRole('button', { name: 'Snare, step 5', exact: true }).click();
   await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 38)).toMatchObject({ start: 1, length: 0.25 });
+});
+
+test('the Session view has clips to launch in scenes, each with its own notes, kept in the song', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
+  await start();
+  await shell().getByRole('radio', { name: 'Session' }).click();
+  const grid = shell().getByRole('grid', { name: 'Clips' });
+  // A click on an empty slot makes a one-bar clip there and opens its notes in the bottom area.
+  await grid.getByRole('button', { name: 'New clip on Keys, scene 1' }).click();
+  await expect.poll(() => (saved().tracks[0] as { slots?: unknown[] }).slots).toEqual([{ name: 'Keys 1', bars: 1, notes: [] }]);
+  await shell().getByRole('grid', { name: 'Notes of Keys' }).getByRole('gridcell', { name: 'E4 row' }).click({ position: { x: 5, y: 6 } });
+  await expect.poll(() => (saved().tracks[0] as { slots?: { notes: unknown[] }[] }).slots?.[0]?.notes).toEqual([{ pitch: 64, start: 0, length: 1, velocity: 0.8 }]);
+  // The arrangement's own notes are left as they were.
+  expect(saved().tracks[0]!.notes).toHaveLength(2);
+  await shell().getByRole('combobox', { name: 'Clip length' }).click();
+  await shell().getByRole('option', { name: '2 bars' }).click();
+  await expect.poll(() => (saved().tracks[0] as { slots?: { bars: number }[] }).slots?.[0]?.bars).toBe(2);
+  // A scene is named, and launching it plays its row.
+  await grid.getByRole('button', { name: 'New clip on Bass, scene 1' }).click();
+  await grid.getByRole('textbox', { name: 'Scene 1 name' }).fill('Verse');
+  await expect.poll(() => (saved() as { scenes?: string[] }).scenes).toEqual(['Verse']);
+  await grid.getByRole('button', { name: 'Launch scene Verse' }).click();
+  await expect(grid.getByRole('button', { name: 'Launch Keys 1, scene Verse' })).toHaveAttribute('aria-pressed', 'true');
+  await grid.getByRole('button', { name: 'Stop all' }).click();
+  await expect(grid.getByRole('button', { name: 'Launch Keys 1, scene Verse' })).toHaveAttribute('aria-pressed', 'false', { timeout: 6000 });
+  await shell().getByRole('button', { name: 'Stop', exact: true }).click();
+  // A clip's menu duplicates it into the slot below.
+  await grid.getByRole('button', { name: 'Bass 1, 1 bar' }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Bass 1' }).getByRole('menuitem', { name: 'Duplicate' }).click();
+  await expect.poll(() => (saved().tracks[1] as { slots?: { name: string }[] }).slots?.map((c) => c.name)).toEqual(['Bass 1', 'Bass 1']);
+  // Arrange is the song from start to end again.
+  await shell().getByRole('radio', { name: 'Arrange' }).click();
+  await expect(tracks()).toBeVisible();
+});
+
+test('a melody is written as steps too, a row per note of the key', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
+  await start([], 'Bass');
+  await shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Steps' }).click();
+  // A minor's notes from the C of the bass's octave: A2 is a row, A#2 is not.
+  await expect(shell().getByRole('group', { name: 'A2' })).toBeVisible();
+  await expect(shell().getByRole('group', { name: 'A♯2' })).toHaveCount(0);
+  await shell().getByRole('group', { name: 'C3' }).getByRole('button', { name: 'C3, step 3', exact: true }).click();
+  await expect.poll(() => saved().tracks[1]!.notes.find((n) => n.pitch === 48)).toMatchObject({ start: 0.5 });
+  // Another octave shows other rows.
+  await shell().getByRole('combobox', { name: 'Range' }).click();
+  await shell().getByRole('option', { name: 'C4–C6' }).click();
+  await expect(shell().getByRole('group', { name: 'E5' })).toBeVisible();
+});
+
+test('draw mode writes a note a grid step long in each step a drag crosses, takes them out from a note, and undoes as one', async () => {
+  await start();
+  const draw = shell().getByRole('button', { name: 'Draw' });
+  await draw.click();
+  await expect(draw).toHaveAttribute('aria-pressed', 'true');
+  const roll = shell().getByRole('grid', { name: 'Notes of Keys' });
+  const box = (await roll.boundingBox())!;
+  // Bars 3 and 4, clear of the song's two notes in bar 1.
+  const y = box.y + box.height * 0.6;
+  const x0 = box.x + box.width * 0.55;
+  await shell().mouse.move(x0, y);
+  await shell().mouse.down();
+  for (let x = x0; x <= x0 + 160; x += 6) await shell().mouse.move(x, y);
+  await shell().mouse.up();
+  await expect.poll(() => saved().tracks[0]!.notes.length).toBeGreaterThan(6);
+  const drawn = saved().tracks[0]!.notes.slice(2);
+  // One row, a grid step (1/16) each.
+  expect(new Set(drawn.map((n) => n.pitch)).size).toBe(1);
+  expect(drawn.every((n) => n.length === 0.25)).toBe(true);
+  // From a note, the stroke takes notes out.
+  const first = (await roll.locator('.studio-note').filter({ visible: true }).evaluateAll((els, at) => els.map((e) => e.getBoundingClientRect()).filter((r) => r.top <= at && r.bottom >= at).sort((a, b) => a.left - b.left).map((r) => r.left + r.width / 2), y))[0]!;
+  await shell().mouse.move(first, y);
+  await shell().mouse.down();
+  for (let x = first; x <= first + 60; x += 6) await shell().mouse.move(x, y);
+  await shell().mouse.up();
+  await expect.poll(() => saved().tracks[0]!.notes.length).toBeLessThan(drawn.length + 2);
+  // Each stroke is one step back.
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().tracks[0]!.notes.length).toBe(drawn.length + 2);
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().tracks[0]!.notes.length).toBe(2);
+  await shell().keyboard.press('b');
+  await expect(draw).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('picked notes are cut in two, joined back, and their bars looped, from the keyboard', async () => {
+  await start();
+  const roll = shell().getByRole('grid', { name: 'Notes of Keys' });
+  await roll.focus();
+  await shell().keyboard.press('Control+a');
+  // The playhead is at the start, outside the notes: each is cut at its middle, into two notes of 2 beats.
+  await shell().keyboard.press('Control+e');
+  await expect.poll(() => saved().tracks[0]!.notes.map((n) => `${n.pitch}@${n.start}+${n.length}`).sort()).toEqual(['57@0+2', '57@2+2', '60@0+2', '60@2+2']);
+  await shell().keyboard.press('Control+j');
+  await expect.poll(() => saved().tracks[0]!.notes.map((n) => `${n.pitch}@${n.start}+${n.length}`).sort()).toEqual(['57@0+4', '60@0+4']);
+  await shell().keyboard.press('Control+l');
+  await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('Record plays from the playhead and writes what is played on the computer keyboard into the track, undone as one take', async () => {
+  await start();
+  const rec = shell().getByRole('button', { name: 'Record' });
+  await rec.click();
+  await expect(rec).toHaveAttribute('aria-pressed', 'true');
+  await expect(shell().getByRole('button', { name: 'Computer keyboard' })).toHaveAttribute('aria-pressed', 'true');
+  // A plays C4 and H plays A4, each held a moment, once the playhead has moved off the song's own notes' start.
+  await shell().waitForTimeout(400);
+  await shell().keyboard.down('a');
+  await shell().waitForTimeout(300);
+  await shell().keyboard.up('a');
+  await shell().keyboard.down('h');
+  await shell().waitForTimeout(300);
+  await shell().keyboard.up('h');
+  await shell().getByRole('button', { name: 'Pause' }).click();
+  await expect(rec).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => saved().tracks[0]!.notes.map((n) => n.pitch).sort()).toEqual([57, 60, 60, 69]);
+  const played = saved().tracks[0]!.notes.filter((n) => n.length < 4);
+  expect(played.every((n) => n.length > 0.1 && n.velocity > 0.7)).toBe(true);
+  await shell().locator('.studio-page').focus();
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().tracks[0]!.notes).toHaveLength(2);
+});
+
+test('automation draws a volume line under a track with points, kept in the song', async () => {
+  await start();
+  // Wide enough that the Automation button stays in the toolbar rather than the ⋯ menu.
+  await resizeWindow(mobius!.app, 1600, 900);
+  await shell().getByRole('button', { name: 'Automation' }).click();
+  const lane = tracks().getByRole('listitem', { name: 'Keys' }).getByRole('group', { name: 'Volume automation' });
+  await expect(lane).toBeVisible();
+  // Clicks on the plot itself, which waits for the lane to finish opening (a box read early can miss it).
+  const plot = lane.locator('.ui-lane-plot');
+  const box = (await plot.boundingBox())!;
+  await plot.click({ position: { x: box.width * 0.25, y: box.height * 0.8 } });
+  await expect.poll(() => (saved().tracks[0] as { volumeAuto?: unknown[] }).volumeAuto?.length).toBe(1);
+  await plot.click({ position: { x: box.width * 0.75, y: box.height * 0.2 } });
+  await expect.poll(() => (saved().tracks[0] as { volumeAuto?: { beat: number; value: number }[] }).volumeAuto?.length).toBe(2);
+  const [a, b] = (saved().tracks[0] as unknown as { volumeAuto: { beat: number; value: number }[] }).volumeAuto;
+  expect(a!.beat).toBeLessThan(b!.beat);
+  expect(a!.value).toBeLessThan(b!.value);
+  // A hides the lines again; the points stay.
+  await shell().locator('.studio-page').focus();
+  await shell().keyboard.press('a');
+  await expect(lane).toHaveCount(0);
+});
+
+test('Export as WAV renders the song and saves it in the Exports folder', async () => {
+  await start();
+  await shell().getByRole('button', { name: 'Export as WAV' }).click();
+  await expect(shell().getByRole('status').filter({ hasText: 'Exported “Night Drive.wav” to Exports' })).toBeVisible({ timeout: 30_000 });
+  const wav = fs.readFileSync(path.join(userData, 'workspace', 'Exports', 'Night Drive.wav'));
+  expect(wav.subarray(0, 4).toString('latin1')).toBe('RIFF');
+  expect(wav.subarray(8, 12).toString('latin1')).toBe('WAVE');
+  // Four bars at 112 bpm plus a two-second tail, 16-bit stereo at 44.1 kHz.
+  expect(wav.length).toBe(44 + Math.ceil((16 * 60 / 112 + 2) * 44100) * 4);
+  // A second export never writes over the first.
+  await shell().getByRole('status').filter({ hasText: 'Exported' }).getByRole('button', { name: 'Dismiss' }).click();
+  await shell().locator('.studio-page').focus();
+  await shell().keyboard.press('Control+Shift+E');
+  await expect(shell().getByRole('status').filter({ hasText: 'Exported “Night Drive 2.wav” to Exports' })).toBeVisible({ timeout: 30_000 });
+});
+
+test('the computer keyboard plays notes, an octave and velocity at a time, shown on the roll keys while held', async () => {
+  await start();
+  // Wide enough that the Computer keyboard button stays in the toolbar rather than the ⋯ menu.
+  await resizeWindow(mobius!.app, 1600, 900);
+  const play = shell().getByRole('button', { name: 'Computer keyboard' });
+  await play.click();
+  await expect(play).toHaveAttribute('aria-pressed', 'true');
+  await expect(shell().getByRole('status').filter({ hasText: 'Computer keyboard from C4, velocity 100' })).toBeAttached();
+  // X goes up an octave and C down a velocity step; A plays C, H plays A.
+  await shell().keyboard.press('x');
+  await shell().keyboard.press('c');
+  await expect(shell().getByRole('status').filter({ hasText: 'Computer keyboard from C5, velocity 80' })).toBeAttached();
+  await shell().keyboard.down('h');
+  await expect(shell().locator('.studio-key[data-on]')).toHaveText('A5');
+  await shell().keyboard.up('h');
+  await expect(shell().locator('.studio-key[data-on]')).toHaveCount(0);
+  // Playing is not writing: the song is as it was.
+  expect(saved().tracks[0]!.notes).toHaveLength(2);
 });
 
 test('velocity is drawn under the roll and dragged per note; the track list fits its tracks and resizes', async () => {
@@ -278,12 +483,14 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Keys' }).getByRole('menuitem', { name: 'Solo' }).click();
   await expect.poll(() => (saved().tracks[0] as { solo?: boolean }).solo).toBe(true);
-  // The menu's keys work on the chosen track, and its colour is the person's to pick.
+  // The menu's keys work on the chosen track, and its colour is the person's to pick. The menu is gone before the track
+  // is clicked (while it closes, it can take the click), and the track has the focus before M is pressed.
+  await expect(shell().getByRole('menu', { name: 'Keys' })).toHaveCount(0);
   await tracks().getByRole('listitem', { name: 'Keys' }).click({ position: { x: 6, y: 6 } });
+  await expect(tracks().getByRole('listitem', { name: 'Keys' })).toBeFocused();
   await shell().keyboard.press('m');
   await expect.poll(() => (saved().tracks[0] as { muted?: boolean }).muted).toBe(true);
-  await openDevice();
-  await shell().getByRole('region', { name: 'Device' }).getByRole('radio', { name: 'Coral' }).click();
+  await (await openDevice('Keys')).getByRole('radio', { name: 'Coral' }).click();
   await expect.poll(() => (saved().tracks[0] as { color?: string }).color).toBe('coral');
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Keys' }).getByRole('menuitem', { name: 'Delete Track' }).click();

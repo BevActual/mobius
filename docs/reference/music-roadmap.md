@@ -23,12 +23,13 @@ not designs to copy.
 
 | Habit | In Music | Status |
 | --- | --- | --- |
-| One detail area for the chosen track | The bottom area shows the chosen track: its notes, or its devices in a row in signal order (instrument first, then effects). Shift+Tab switches between them, and double-clicking a track or clip opens it. | Asking (today the devices sit in the right panel) |
-| The computer keyboard is an instrument | A S D F… play the white keys and W E T Y… the black ones. Z and X move an octave, and C and V change velocity. You hear the chosen track's own sound. | Next |
-| Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Later, after the keyboard |
-| Draw mode | B switches the notes editor between drawing notes and picking them, so a click never does the wrong one. | Next |
-| Devices fold and switch off | Each device folds to its title bar and has its own on switch. Double-click the title to fold it. | Next (switches Have) |
-| Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Next (Ctrl+D, Delete and undo Have) |
+| Two views of a song | **Session** is a grid of clips, a column per track and a row per scene, for trying parts against each other live: a clip loops from the next bar when launched, and a scene launches its whole row. **Arrange** is the song from start to end. The switch is in the toolbar. | Building |
+| One detail area for the chosen track | The bottom area shows the chosen track: its notes, or its devices in a row in signal order (instrument first, then effects). Shift+Tab switches between them, and double-clicking a track or clip opens it. | Building |
+| The computer keyboard is an instrument | A S D F… play the white keys and W E T Y… the black ones. Z and X move an octave, and C and V change velocity. You hear the chosen track's own sound. | Building |
+| Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Building (notes from the computer keyboard into the chosen track; count-in next) |
+| Draw mode | B turns on drawing: drag along a row to write a note in each grid step, or start on a note to take notes out. Each stroke is one Undo. | Building |
+| Devices fold and switch off | Each device folds to its title bar with the arrow in its head, and has its own on switch. | Have |
+| Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Building (notes: Ctrl+D, Ctrl+E, Ctrl+J, Ctrl+L, Delete and undo; 0 and clips next) |
 | Drag sounds in | Drag a sound from the sidebar onto empty space for a new track, or onto a track to swap its instrument and keep the notes. Clicking a sound plays a short preview. | Next |
 | Track header controls | Every track header has a number, a name, on, solo, and (with recording) arm. Track rows fold and resize. | Partly (number, name, mute, solo Have) |
 | Follow | The view keeps the playhead in sight while playing, and scrolling by hand stops following until Play is pressed again. | Next |
@@ -85,7 +86,7 @@ notes for good, so the file always shows what you hear.
 | Keep to key | Moves stray notes into the song's key. | Next |
 | Chords | Plays a chord from each note, by degree in the key. | Next |
 | Arpeggio | Plays held chords as patterns in time. | Next |
-| Step grid | Sixteen steps per drum, for patterns. | Building |
+| Step sequencer | Sixteen steps a bar: a row per drum, or a row per note of the key for any other instrument, with an octave and a step length. | Building |
 | Strum and humanise | Small timing and loudness changes so parts feel played. | Later |
 | Chance | Each note plays some of the time, for variation. | Later |
 | Echo notes | Repeats each note, softer, in time. | Later |
@@ -97,7 +98,7 @@ notes for good, so the file always shows what you hear.
 | --- | --- | --- |
 | Envelope and sweep | Each note's own shape and filter sweep. | Have |
 | Vibrato | A wobble in pitch at a set rate. | Have |
-| Automation lanes | Draw how any setting changes along the song. | Next |
+| Automation lanes | Draw how any setting changes along the song. | Building (track volume in Arrange; other settings next) |
 | Wobblers | A slow wave that moves any setting, in time or free. | Later |
 | Follow | One track's level moving another's setting (ducking). | Later |
 
@@ -113,7 +114,8 @@ notes for good, so the file always shows what you hear.
 | Mobius's parts | Parts Mobius writes are dashed until you keep them. | Have |
 | Sections | Named parts of the song (verse, chorus) to move and repeat. | Next |
 | Time signature and tempo changes | Changes partway through a song. | Next |
-| Scenes | Short loops for each track that you start and stop live, to try ideas before arranging. | Later |
+| Scenes | Short loops for each track that you start and stop live, to try ideas before arranging (the Session view). | Building |
+| Session to song | Recording what you launch in Session into the Arrange view, and dragging clips between the two. | Next |
 | Groups | Tracks folded into a group with one level. | Later |
 | Edit many tracks | Editing notes on several tracks at once. | Later |
 | Swing | A feel applied to any part. | Later |
@@ -133,9 +135,9 @@ notes for good, so the file always shows what you hear.
 
 | Feature | What it does | Status |
 | --- | --- | --- |
-| Play notes from a keyboard | A MIDI keyboard or the computer keys. | Next |
-| Record notes | Recording what you play into a clip. | Next |
-| Export | The song as an audio file in your workspace. | Next |
+| Play notes from a keyboard | The computer keys now; a MIDI keyboard next. | Building |
+| Record notes | Recording what you play into a clip. | Building (Arrange; Session clips next) |
+| Export | The song as an audio file in your workspace. | Building (whole song as WAV; stems and MP3 next) |
 | Catch what you played | Getting back notes you played while not recording. | Later |
 | Audio tracks | Recording and placing audio, stretched to the tempo. | Later |
 | Takes | Several recordings of a part, choosing the best bits. | Later |
@@ -149,7 +151,7 @@ notes for good, so the file always shows what you hear.
 | Feature | What it does | Status |
 | --- | --- | --- |
 | Ask for a part | Mobius writes notes for a track; Keep, Discard or Try another. | Have |
-| Ask for a sound | Mobius sets a track's sound, kit and effects from words like "warmer" or "more space". | Next |
+| Ask for a sound | Mobius sets a track's sound, kit and effects from words like "warmer" or "more space". | Building (the review names each setting moved and opens the track's devices) |
 | Explain a song | Mobius says what a song does: key, chords, sections. | Next |
 | Sound library | Saved sounds and effects with tags, found by words or by being like another sound. | Later |
 | Map controls | Moving any setting with a hardware knob. | Later |

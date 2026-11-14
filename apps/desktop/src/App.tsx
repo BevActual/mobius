@@ -1158,7 +1158,7 @@ export function App() {
       },
       studio: {
         newSong: () => createActions.find((a) => a.id === 'song')!.run(),
-        play: () => (document.querySelector<HTMLButtonElement>('.studio-play'))?.click(), // Music (marked): the toolbar's Play
+        play: () => (document.querySelector<HTMLButtonElement>('.ui-transport > button'))?.click(), // Music (marked): the toolbar Transport's Play
       },
       photo: {
         newAlbum: () => void photos.createAlbum('Album'),

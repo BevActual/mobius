@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { linkedFrom } from './conversation';
 
 /**
@@ -75,7 +75,8 @@ export function ReviewActions({ onKeep, onDiscard, keepTitle, discardTitle, keep
  * The line under a change block, for pages drawn in React (Tasks): who changed it, then Discard, Try another and Keep.
  * The editor's pages draw the same line themselves (change-blocks.ts).
  */
-export function ChangeBar({ who, problem, ...actions }: Props & { who: string; problem?: string | null }) {
+// Music (marked): `who` may carry a Why this link after the words.
+export function ChangeBar({ who, problem, ...actions }: Props & { who: ReactNode; problem?: string | null }) {
   return (
     <div className="doc-change-bar" role="group" aria-label="A change Mobius made">
       <span>{who}</span>
