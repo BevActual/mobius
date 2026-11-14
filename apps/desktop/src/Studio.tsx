@@ -6,7 +6,7 @@ import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS
 import type { CSSProperties } from 'react';
 import { play, previewNote, type Player } from './studio-audio';
 import { GRIDS, addNote, clipsOf, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Switch, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
+import { AppSidebar, Button, Confirm, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -166,10 +166,10 @@ const KIT_CELLS: readonly { k: keyof KitSound; name: string; step: number; log?:
   { k: 'tune', name: 'Tune', step: 1 }, { k: 'decay', name: 'Decay', step: 0.01, log: true }, { k: 'tone', name: 'Tone', step: 0.01 },
 ];
 
-/** One of the Device panel's settings, as the shared parameter cell. Double-click puts it back to the instrument's own. */
+/** One of the Device panel's settings, as a shared knob. Double-click puts it back to the instrument's own. */
 function DeviceSlider({ name, k, value, base, onChange }: { name: string; k: keyof Sound; value: number; base: number; onChange: (v: number) => void }) {
   const { lo, hi } = SOUND_RANGE[k];
-  return <ParamCell size="compact" label={name} value={value} min={lo} max={hi} step={SOUND_STEP[k]} scale={LOG_SOUND.has(k) ? 'log' : 'linear'} reset={base} format={(v) => soundText(k, v)} onChange={onChange} />;
+  return <Knob label={name} value={value} min={lo} max={hi} step={SOUND_STEP[k]} scale={LOG_SOUND.has(k) ? 'log' : 'linear'} reset={base} format={(v) => soundText(k, v)} onChange={onChange} />;
 }
 
 /** How an effect's setting reads: "+3.0 dB", "1.2 kHz", "4:1", "12 ms", "35%", "2.0 s". */
@@ -188,24 +188,18 @@ const EFFECT_DETAILS: { [K in EffectKind]: string } = {
 };
 const DELAY_TIMES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '0.75', label: '3/16' }, { value: '1', label: '1/4' }, { value: '1.5', label: '3/8' }, { value: '2', label: '1/2' }] as const;
 
-/** One effect on the track: its name, on or off, moved up or down the chain or taken off, and its settings. */
-function EffectBlock({ effect, at, count, onChange, onMove, onRemove }: {
-  effect: Effect; at: number; count: number;
+/** One effect on the track, as a shared device: on or off, dragged along the chain by its grip, taken off, and its settings. */
+function EffectBlock({ effect, at, onChange, onRemove }: {
+  effect: Effect; at: number;
   onChange: (fn: (e: Effect) => void, tag?: string) => void;
-  onMove: (by: -1 | 1) => void;
   onRemove: () => void;
 }) {
   const name = EFFECT_NAMES[effect.kind];
   const values = effect as unknown as Record<string, number>;
   return (
-    <section className="studio-fx" aria-label={name} data-off={!effect.on || undefined}>
-      <div className="studio-fx-head">
-        <Switch label={`${name} on`} hideLabel checked={effect.on} onChange={(on) => onChange((e) => { e.on = on; })} />
-        <h5 className="studio-fx-name">{name}</h5>
-        <IconButton label={`Move ${name} up`} disabled={at === 0} icon={<Icon d="M10 15V5M5.5 9.5 10 5l4.5 4.5" />} onClick={() => onMove(-1)} />
-        <IconButton label={`Move ${name} down`} disabled={at === count - 1} icon={<Icon d="M10 5v10M5.5 10.5 10 15l4.5-4.5" />} onClick={() => onMove(1)} />
-        <IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />
-      </div>
+    <DeviceFrame title={name} index={at} on={effect.on} onToggle={(on) => onChange((e) => { e.on = on; })}
+      actions={<IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />}>
+      <div className="studio-fx-body">
       {effect.kind === 'delay' && (
         <Segmented label="Time" wide value={String(effect.time) as (typeof DELAY_TIMES)[number]['value']} choices={DELAY_TIMES} onChange={(v) => onChange((e) => { (e as Extract<Effect, { kind: 'delay' }>).time = Number(v); }, 'fx:time')} />
       )}
@@ -213,13 +207,14 @@ function EffectBlock({ effect, at, count, onChange, onMove, onRemove }: {
         <EqGraph label="EQ bands" bands={eqBands(effect)} reset={eqBands(newEffect('eq', effect.id) as EqEffect)}
           onChange={(i, band) => onChange((e) => { Object.assign(e, eqFromBand(i, band)); }, `fx:band${i}`)} />
       )}
-      {EFFECT_CELLS[effect.kind].length > 0 && <ParamGrid label={`${name} settings`}>
+      {EFFECT_CELLS[effect.kind].length > 0 && <ParamGrid label={`${name} settings`} columns={4}>
         {EFFECT_CELLS[effect.kind].map(({ k, name: cell, step, log, origin }) => {
           const r = EFFECT_PARAMS[effect.kind][k]!;
-          return <ParamCell size="compact" key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
+          return <Knob key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
         })}
       </ParamGrid>}
-    </section>
+      </div>
+    </DeviceFrame>
   );
 }
 
@@ -255,9 +250,9 @@ export function StudioDevice({ track, onTrack, proposal }: {
               <Swatches label="Colour" value={track.color} colors={TRACK_COLOURS} names={COLOUR_NAMES} onChange={(c) => onTrack((t) => { t.color = c as TrackColour; })} />
             </div>
           </div>
-          <ParamGrid label="Level">
+          <ParamGrid label="Level" columns={2}>
             <ParamCell size="compact" label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
-            <ParamCell size="compact" label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
+            <Knob label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
           </ParamGrid>
           {sound && base && SOUND_GROUPS.map((g) => (
             <section key={g.name} className="studio-dev-section" aria-label={g.name}>
@@ -271,7 +266,7 @@ export function StudioDevice({ track, onTrack, proposal }: {
                 <EnvelopeGraph label="Envelope shape" value={sound} reset={base}
                   onChange={(env) => setMany({ attack: env.attack, decay: env.decay, sustain: env.sustain, release: env.release }, 'envelope')} />
               )}
-              {g.cells.length > 0 && <ParamGrid label={g.name}>
+              {g.cells.length > 0 && <ParamGrid label={g.name} columns={4}>
                 {g.cells.map(([k, name]) => <DeviceSlider key={k} name={name} k={k} value={sound[k]} base={base[k]} onChange={(v) => set(k, v)} />)}
               </ParamGrid>}
             </section>
@@ -279,8 +274,8 @@ export function StudioDevice({ track, onTrack, proposal }: {
           {kit && (
             <section className="studio-dev-section" aria-label="Kit">
               <h4 className="studio-dev-head">Kit</h4>
-              <ParamGrid label="Kit">
-                {KIT_CELLS.map(({ k, name, step, log }) => <ParamCell size="compact" key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} onChange={(v) => setKit(k, v)} />)}
+              <ParamGrid label="Kit" columns={4}>
+                {KIT_CELLS.map(({ k, name, step, log }) => <Knob key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} onChange={(v) => setKit(k, v)} />)}
               </ParamGrid>
               <p className="studio-dev-note">Every drum in the kit, together. Each drum has its own row in the notes.</p>
             </section>
@@ -291,12 +286,16 @@ export function StudioDevice({ track, onTrack, proposal }: {
         <section className="studio-dev-section studio-fx-chain" aria-label="Effects">
           <h4 className="studio-dev-head">Effects</h4>
           {(track.fx ?? []).length === 0 && <p className="studio-dev-note">No effects on this track.</p>}
-          {(track.fx ?? []).map((e, i, all) => (
-            <EffectBlock key={e.id} effect={e} at={i} count={all.length}
-              onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) fn(x); }, tag ? `${tag}:${e.id}` : undefined)}
-              onMove={(by) => onTrack((t) => { const fx = t.fx ?? []; const j = fx.findIndex((f) => f.id === e.id); const to = j + by; if (j < 0 || to < 0 || to >= fx.length) return; [fx[j], fx[to]] = [fx[to]!, fx[j]!]; })}
-              onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
-          ))}
+          {(track.fx ?? []).length > 0 && (
+            <DeviceChain label={`${track.name} effects`} orientation="vertical" count={track.fx!.length}
+              onMove={(from, to) => onTrack((t) => { const fx = t.fx ?? []; const [moved] = fx.splice(from, 1); if (moved) fx.splice(to, 0, moved); })}>
+              {track.fx!.map((e, i) => (
+                <EffectBlock key={e.id} effect={e} at={i}
+                  onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) fn(x); }, tag ? `${tag}:${e.id}` : undefined)}
+                  onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
+              ))}
+            </DeviceChain>
+          )}
           <Menu label="Add effect" entries={EFFECT_KINDS.map((k) => ({ label: EFFECT_NAMES[k], detail: EFFECT_DETAILS[k], run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newEffect(k, freshEffectId(t))]; }) }))}
             trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add effect</Button>} />
         </section>

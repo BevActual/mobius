@@ -185,7 +185,9 @@ test('effects are added to a track, switched off and moved, kept in the song', a
     await shell().getByRole('menuitem', { name, exact: true }).click();
   }
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['delay', 'eq']);
-  await device.getByRole('button', { name: 'Move EQ up' }).click();
+  // Each effect is a device in the chain: its grip moves it with the arrow keys (or a drag).
+  await device.getByRole('button', { name: 'Move EQ', exact: true }).focus();
+  await shell().keyboard.press('ArrowUp');
   await device.getByRole('switch', { name: 'Delay on' }).click();
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string; on: boolean }[] }).fx?.map((e) => `${e.kind} ${e.on}`)).toEqual(['eq true', 'delay false']);
   await device.getByRole('button', { name: 'Remove Delay' }).click();
