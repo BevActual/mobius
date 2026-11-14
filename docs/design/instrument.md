@@ -294,7 +294,7 @@ comfortable first, then compact. Comment on a row to change it.
 | Time field | Takes typing ("9:30", "3pm") and opens a list of quarter hours scrolled to now. For a start and end, the end moves with the start and shows the length in grey ("1 hr"). 12 or 24 hour from the shared date helpers. | 30px rows |
 | Number field | A value you can type, nudge with the arrows (Shift for ten times), or drag up and down to scrub. Mono and tabular, with the unit in grey ("120 BPM"). Double-click resets. Out-of-range values clamp and say so in the tooltip. | 28px / 24px tall |
 | Readout | A read-only live value in JetBrains Mono, tabular and fixed width so it never jitters ("12 . 3 . 2"). Click switches its format (bars or time) or copies it. | Same height as a control |
-| Letter toggle | A small square toggle with one letter: M mute, S solo, R record, and the same for lock and hide. Off is a hairline square with a grey letter; on is an ink fill with a paper letter. | 20px square |
+| Letter toggle | A small square toggle with one letter: M mute, S solo, R record, and the same for lock and hide. Off is a hairline square with a grey letter; on is an ink fill with a paper letter. An armed R is the one red fill, because recording has to read as a warning across the room. | 20px square |
 | Menu | White, a hairline border, 10px corners and a soft shadow. Mobius actions come first where they exist, then the app's. Every item shows its key. | 30px rows |
 | Tooltip | Small ink label with the control's name, then its key. | 12px text |
 | Key cap | A small bordered cap with a heavier bottom edge. Used in menus, tooltips, the New button and the hint bar. | 11px text |
