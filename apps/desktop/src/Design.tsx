@@ -5,6 +5,7 @@ import { newestPage } from './useNotes';
 import { PanelLayout, ToolbarControls, type PanelSpec } from './ui';
 import { EmptyState } from './EmptyState';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { readBefore } from './readBefore';
 import { changedIds, componentOf, contrast, copyOf, detach, freshId, makeComponent, moveLayer, nextFramePlace, withOverride, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
 import type { NotesState } from './useNotes';
 import { onCommand } from './commands';
@@ -51,14 +52,11 @@ function useDesignReview(review: { conversation: string } | null | undefined, fi
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
   }, [review?.conversation, file, version]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    let live = true;
     if (!review || kept || !file) { setBefore(undefined); return; }
-    void window.mobius.changes.before(review.conversation, file).then((was) => {
-      if (!live || !was || !was.ok) return;
-      const parsed = was.text === null ? null : parseDesign(was.text);
+    return readBefore(review.conversation, file, (text) => {
+      const parsed = text === null ? null : parseDesign(text);
       setBefore(parsed === null ? null : 'doc' in parsed ? parsed.doc : undefined);
-    }).catch(() => {});
-    return () => { live = false; };
+    });
   }, [review?.conversation, kept, file, version]); // eslint-disable-line react-hooks/exhaustive-deps
   const keep = async () => {
     if (!review) return;

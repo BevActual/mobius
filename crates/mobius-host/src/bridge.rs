@@ -1241,6 +1241,14 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
+        // How long each tool took, when it was a second or more: a turn whose reply never came can be traced to it.
+        let started = std::time::Instant::now();
+        let out = self.run_host_tool(params);
+        slow("tool", params.get("tool").and_then(Value::as_str).unwrap_or("?"), started);
+        out
+    }
+
+    fn run_host_tool(&self, params: &Value) -> Result<Value, String> {
         // Nothing runs before the checkpoint at the start of the turn is taken.
         let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
