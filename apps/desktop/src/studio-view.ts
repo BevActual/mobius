@@ -279,3 +279,11 @@ export function stepOctave(notes: readonly SongNote[], fallback: number): number
   for (const n of notes) { const o = Math.floor(n.pitch / 12) - 1; counts.set(o, (counts.get(o) ?? 0) + 1); }
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]![0];
 }
+
+const FLAT_KEYS = new Set(['F major', 'Bb major', 'Eb major', 'Ab major', 'Db major', 'Gb major', 'D minor', 'G minor', 'C minor', 'F minor', 'Bb minor', 'Eb minor']);
+const SHARP_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+/** A note's name as the song's key spells it: B♭5 in F major, A♯5 in B major (C4 is middle C). */
+export function spellIn(pitch: number, key: string): string {
+  return `${(FLAT_KEYS.has(key) ? FLAT_NAMES : SHARP_NAMES)[pitch % 12]}${Math.floor(pitch / 12) - 1}`;
+}

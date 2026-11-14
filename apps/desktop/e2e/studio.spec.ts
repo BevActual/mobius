@@ -263,12 +263,12 @@ test('a melody is written as steps too, a row per note of the key', async () => 
   await shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Steps' }).click();
   // A minor's notes from the C of the bass's octave: A2 is a row, A#2 is not.
   await expect(shell().getByRole('group', { name: 'A2' })).toBeVisible();
-  await expect(shell().getByRole('group', { name: 'A#2' })).toHaveCount(0);
+  await expect(shell().getByRole('group', { name: 'A♯2' })).toHaveCount(0);
   await shell().getByRole('group', { name: 'C3' }).getByRole('button', { name: 'C3, step 3', exact: true }).click();
   await expect.poll(() => saved().tracks[1]!.notes.find((n) => n.pitch === 48)).toMatchObject({ start: 0.5 });
   // Another octave shows other rows.
-  await shell().getByRole('combobox', { name: 'Octave' }).click();
-  await shell().getByRole('option', { name: 'C4 to C6' }).click();
+  await shell().getByRole('combobox', { name: 'Range' }).click();
+  await shell().getByRole('option', { name: 'C4–C6' }).click();
   await expect(shell().getByRole('group', { name: 'E5' })).toBeVisible();
 });
 

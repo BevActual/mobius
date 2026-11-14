@@ -6,7 +6,7 @@ import { BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip,
 import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
-import { GRIDS, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { GRIDS, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -224,8 +224,8 @@ const DETAIL_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'device', lab
 const VIEWS = [{ id: 'session', name: 'Session' }, { id: 'arrange', name: 'Arrange' }] as const;
 const LENGTH_CHOICES = CLIP_BARS.map((b) => ({ value: String(b), label: `${b} ${b === 1 ? 'bar' : 'bars'}` }));
 /** The octaves a melody's steps can start from, named by the two octaves they show. */
-const OCTAVE_CHOICES = [1, 2, 3, 4, 5, 6].map((o) => ({ value: String(o), label: `C${o} to C${o + 2}` }));
-const STEP_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'steps', label: 'Steps' }] as const;
+const OCTAVE_CHOICES = [1, 2, 3, 4, 5, 6].map((o) => ({ value: String(o), label: `C${o}–C${o + 2}` }));
+const STEP_VIEWS = [{ value: 'notes', label: 'Piano roll' }, { value: 'steps', label: 'Steps' }] as const;
 /** The drums bottom to top, as pads and step rows read them: kick first. */
 const DRUMS_UP = [...DRUMS].reverse();
 /** The keys that play the pads while the grid has focus, laid out as the pads are: two rows of three. */
@@ -618,7 +618,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const notes = clip ? clip.notes : (track?.notes ?? []);
   // Steps: a row per drum, or for a melody a row per note of the key across two octaves, from the octave picked.
   const octave = track ? (stepOct[track.id] ?? stepOctave(notes, track.instrument === 'bass' ? 2 : 4)) : 4;
-  const stepRows = drums ? STEP_ROWS : scaleRows(inKey, octave).map((p) => ({ id: String(p), name: noteName(p) }));
+  const stepRows = drums ? STEP_ROWS : scaleRows(inKey, octave).map((p) => ({ id: String(p), name: spellIn(p, song.key) }));
   const pickedNotes = notes.filter((_, i) => picked.has(i));
 
   const setNotes = (fn: (n: SongNote[]) => { notes: SongNote[]; picked: Set<number> } | SongNote[], tag = '') => {
@@ -1055,9 +1055,10 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                 {detail === 'notes' && (view === 'arrange' || clip) && <>
                 <Segmented label="View" value={drumView} choices={STEP_VIEWS} onChange={setDrumView} />
                 {drumView === 'steps' ? (
-                  <Select inline label="Bar" value={String(Math.min(stepBar, spanBars - 1))} choices={Array.from({ length: spanBars }, (_, b) => ({ value: String(b), label: String(b + 1) }))} onChange={(b) => setStepBar(Number(b))} />
+                  <Select inline hideLabel label="Bar" value={String(Math.min(stepBar, spanBars - 1))} choices={Array.from({ length: spanBars }, (_, b) => ({ value: String(b), label: `Bar ${b + 1}` }))} onChange={(b) => setStepBar(Number(b))} />
                 ) : <Select inline label="Grid" value={String(grid)} choices={GRID_CHOICES} onChange={(g) => setGrid(Number(g))} />}
-                {drumView === 'steps' && !drums && <Select inline label="Octave" value={String(octave)} choices={OCTAVE_CHOICES} onChange={(o) => setStepOct((all) => ({ ...all, [track.id]: Number(o) }))} />}
+                {drumView === 'steps' && !drums && <span className="studio-step-key">{song.key}</span>}
+                {drumView === 'steps' && !drums && <Select inline hideLabel label="Range" value={String(octave)} choices={OCTAVE_CHOICES} onChange={(o) => setStepOct((all) => ({ ...all, [track.id]: Number(o) }))} />}
                 {!drums && <Select inline label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
                 {!(drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, span))}>Quantize</Button>}
                 <span className="studio-gap" />

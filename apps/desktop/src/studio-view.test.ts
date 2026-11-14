@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -171,6 +171,11 @@ describe('a melody as steps', () => {
   it('opens on the octave its notes sit in most', () => {
     expect(stepOctave([], 2)).toBe(2);
     expect(stepOctave([{ pitch: 45, start: 0, length: 1, velocity: 1 }, { pitch: 64, start: 0, length: 1, velocity: 1 }, { pitch: 60, start: 1, length: 1, velocity: 1 }], 2)).toBe(4);
+  });
+  it('names its rows as the key spells them', () => {
+    expect(spellIn(70, 'F major')).toBe('B♭4');
+    expect(spellIn(70, 'B major')).toBe('A♯4');
+    expect(spellIn(60, 'A minor')).toBe('C4');
   });
   it('writes a step as long as asked', () => {
     expect(setStep([], 0, 60, 4, 0.8, 0.5)).toEqual([{ pitch: 60, start: 1, length: 0.5, velocity: 0.8 }]);

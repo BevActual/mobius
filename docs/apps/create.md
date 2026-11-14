@@ -133,8 +133,8 @@ A small studio for writing songs as notes.
   chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
 - **The notes editor** draws, moves and stretches notes, selects with
   a box and snaps to the grid. Drums get a tall row per drum, named in full. **Steps** shows one bar as sixteen steps, the step sequencer: a row per
-  drum, or for any other instrument a row per note of the song's key across two octaves (pick them with Octave, and how
-  long each step plays with Note length). In either:
+  drum, or for any other instrument a row per note of the song's key across two octaves (pick them with Range, and how long each step plays with Note length). Rows are named as the song's key spells
+  them, so B♭ in F major. Piano roll and Steps switch how you edit the notes. In Steps,
   click a step to switch it on or off (Shift+click for an accent), drag across to paint, and pick the bar beside it. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
   side; Home fits the tracks again.
