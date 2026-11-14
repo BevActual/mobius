@@ -18,8 +18,9 @@ grouped as About you, Preferences, Projects, People and Learned skills.
 
 - Something Mobius learned waits at the top under **Waiting for you**, drawn **dashed**, until you **Keep** it, or say
   **Not true** and it is forgotten.
-- Point at a line (or reach it with Tab) to **Edit**, **Forget** or **Share** it. Add a line, with its kind, in the row
-  at the foot of the page.
+- Point at a line (or reach it with Tab) to **Edit**, **Forget** or **Share** it. On a line, Enter edits it and Delete
+  forgets it (for what Mobius learned, Enter keeps it and Delete says Not true). Add a line, with its kind, in the row
+  at the foot of the page, or with the **+** beside a section's name.
 - **Settings › Memory** lists the same facts with **Forget**.
 
 ## Shared knowledge

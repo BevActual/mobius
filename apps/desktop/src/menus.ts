@@ -69,7 +69,7 @@ export interface MenuContext {
     sheets: { newWorkbook: () => void; newSheet: () => void; insertRow: () => void };
     mail: { newMessage: () => void; getMail: () => void };
     slides: { newDeck: () => void };
-    calendar: { newEvent: () => void; newCalendar: () => void; today: () => void; mode: (mode: 'day' | 'week' | 'month') => void };
+    calendar: { newEvent: () => void; quickEvent: () => void; newCalendar: () => void; today: () => void; mode: (mode: 'day' | 'week' | 'month') => void };
     agent: { stop: () => void };
   };
 }
@@ -141,14 +141,14 @@ function appMenu(c: MenuContext): Menu | null {
   switch (c.app) {
     case 'browser':
       return { id: 'app', label: 'Browser', items: [
-        item('back', 'Back', d.browser.back, { disabled: !s.browser.canBack }),
-        item('forward', 'Forward', d.browser.forward, { disabled: !s.browser.canForward }),
-        item('reload', 'Reload', d.browser.reload, { disabled: !s.browser.hasPage }),
+        item('back', 'Back', d.browser.back, { keys: 'alt+left', disabled: !s.browser.canBack }),
+        item('forward', 'Forward', d.browser.forward, { keys: 'alt+right', disabled: !s.browser.canForward }),
+        item('reload', 'Reload', d.browser.reload, { keys: 'mod+r', disabled: !s.browser.hasPage }),
         item('address', 'Go to the address bar', d.browser.address, { keys: keys.address }),
         separator,
         item('bookmark', s.browser.bookmarked ? 'Remove bookmark' : 'Bookmark this page', d.browser.bookmark, { disabled: !s.browser.hasPage }),
         item('pin-page', s.browser.pinned ? 'Unpin from the sidebar' : 'Pin to the sidebar', d.browser.pin, { disabled: !s.browser.hasPage }),
-        item('reopen', 'Reopen closed tab', d.browser.reopen),
+        item('reopen', 'Reopen closed tab', d.browser.reopen, { keys: 'mod+shift+t' }),
         separator,
         item('selection', 'Selected text…', d.browser.selection, { disabled: !s.browser.hasPage }),
         item('save-to-reader', 'Save page to Reader', d.browser.saveToReader, { disabled: !s.browser.hasPage }),
@@ -249,14 +249,15 @@ function appMenu(c: MenuContext): Menu | null {
       ] };
     case 'calendar':
       return { id: 'app', label: 'Calendar', items: [
-        item('new-event', 'New event', d.calendar.newEvent),
+        item('new-event', 'New event', d.calendar.newEvent, { keys: 'mod+n' }),
+        item('quick-event', 'Quick event…', d.calendar.quickEvent, { keys: 'q' }),
         item('new-calendar', 'New calendar', d.calendar.newCalendar),
         separator,
-        item('show-today', 'Go to today', d.calendar.today),
+        item('show-today', 'Go to today', d.calendar.today, { keys: 't' }),
         separator,
-        item('day', 'Day', () => d.calendar.mode('day'), { checked: s.calendar.mode === 'day' }),
-        item('week', 'Week', () => d.calendar.mode('week'), { checked: s.calendar.mode === 'week' }),
-        item('month', 'Month', () => d.calendar.mode('month'), { checked: s.calendar.mode === 'month' }),
+        item('day', 'Day', () => d.calendar.mode('day'), { keys: 'd', checked: s.calendar.mode === 'day' }),
+        item('week', 'Week', () => d.calendar.mode('week'), { keys: 'w', checked: s.calendar.mode === 'week' }),
+        item('month', 'Month', () => d.calendar.mode('month'), { keys: 'm', checked: s.calendar.mode === 'month' }),
       ] };
     case 'agent':
       return { id: 'app', label: 'Conversation', items: [

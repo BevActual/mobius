@@ -92,6 +92,8 @@ export function useSkills() {
     if (l[0]) await load(l[0].name);
   }, [api, refresh, load]);
 
-  return { available: api !== undefined, list, open, text, edit, saved, message, openSkill, reload: () => (live.current.open ? load(live.current.open.name) : Promise.resolve(false)), create, restore, remove, names: list.map((s) => s.name) };
+  const close = useCallback(() => { setOpen(null); setText(''); }, []);
+
+  return { available: api !== undefined, close, list, open, text, edit, saved, message, openSkill, reload: () => (live.current.open ? load(live.current.open.name) : Promise.resolve(false)), create, restore, remove, names: list.map((s) => s.name) };
 }
 export type SkillsState = ReturnType<typeof useSkills>;
