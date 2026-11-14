@@ -177,6 +177,23 @@
   --app-review: linear-gradient(140deg, #ff7a45, #e5484d);
   --app-files: linear-gradient(140deg, #64d2ff, #0a84ff);
   --app-connect: linear-gradient(140deg, #8e8e93, #636366);
+  /* Shared controls (src/ui, Instrument "Controls" and "Pro app readouts"). Owned by the component library; compact
+     values are in the compact block below. */
+  --button-h: 30px;
+  --icon-button: 32px;
+  --icon-size: 18px;
+  --check-size: 18px;
+  --switch-w: 32px;
+  --switch-h: 18px;
+  --track-h: 6px;
+  --tick-w: 4px;
+  --tick-h: 16px;
+  --hit-min: 24px;
+  --focus-w: 2px;
+  --avatar-size: 22px;
+  --param-value: 30px;
+  --progress-h: 2px;
+  --dot-size: 6px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -252,6 +269,9 @@
 }
 
 html[data-density='compact'] {
+  --button-h: 28px;
+  --icon-button: 28px;
+  --param-value: 26px;
   --fs-xs: 11px;
   --fs-sm: 12px;
   --fs-md: 13px;
