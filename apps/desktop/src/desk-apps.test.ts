@@ -40,7 +40,7 @@ describe('In your apps', () => {
 
   it('names the note and doc edited last, only when that was in the last three days', () => {
     const rows = deskAppRows({ ...none, notes: [{ name: 'Work', pages: [page('Old', 100), page('Launch plan', 2)] }], docs: [{ name: 'Work', pages: [page('Spec', 80)] }] }, now);
-    expect(rows).toEqual([{ app: 'notes', item: 'Launch plan', text: 'Edited 2 h ago', target: { app: 'notes', path: 'Work/Launch plan.md', title: 'Launch plan' } }]);
+    expect(rows).toEqual([{ app: 'notes', item: 'Launch plan', text: 'Edited 2 hr ago', target: { app: 'notes', path: 'Work/Launch plan.md', title: 'Launch plan' } }]);
     expect(deskAppRows({ ...none, docs: [{ name: 'Work', pages: [page('Spec', 20)] }] }, now)[0]?.text).toBe('Edited yesterday');
   });
 

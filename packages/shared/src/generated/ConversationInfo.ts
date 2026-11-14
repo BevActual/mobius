@@ -8,4 +8,8 @@ export type ConversationInfo = { id: string, title: string, updated_ms: number, 
 /**
  * Questions this conversation is waiting for a person to answer.
  */
-waiting: number, };
+waiting: number, 
+/**
+ * When the last turn failed: what it asked, so Try again can send it once more.
+ */
+retry?: string, };

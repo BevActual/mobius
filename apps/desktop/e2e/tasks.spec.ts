@@ -24,6 +24,11 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 const page = (): Locator => shell().locator('.tasks-page');
+/** A shared pop-up in Details (Repeat, List): open it and pick a choice by its words. */
+async function choose(scope: Locator, label: string, choice: string): Promise<void> {
+  await scope.getByRole('combobox', { name: label, exact: true }).click();
+  await shell().getByRole('option', { name: choice, exact: true }).click();
+}
 const lists = (): Locator => shell().getByRole('navigation', { name: 'Lists' });
 const todo = (): Locator => page().getByRole('list', { name: 'To do' });
 const file = (list: string) => path.join(userData, 'workspace', 'tasks', `${list}.md`);
@@ -132,7 +137,8 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   await page().getByRole('button', { name: 'Details for Paint the door' }).click({ force: true });
   const details = page().getByRole('complementary', { name: 'Details' });
   await details.getByRole('textbox', { name: 'Notes' }).fill('White, not grey.');
-  await details.getByRole('switch', { name: 'Flagged' }).check();
+  await details.getByRole('switch', { name: 'Flagged' }).click();
+  await expect(details.getByRole('switch', { name: 'Flagged' })).toBeChecked();
   await details.getByRole('textbox', { name: 'New subtask' }).fill('Buy brushes');
   await details.getByRole('textbox', { name: 'New subtask' }).press('Enter');
   await expect(details.getByRole('checkbox', { name: 'Buy brushes' })).toBeVisible();
@@ -142,7 +148,7 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   await expect(row.locator('.task-note')).toHaveText('White, not grey.');
   await expect(row.getByRole('img', { name: 'Flagged' })).toBeVisible();
   await expect(row.locator('.task-subcount')).toHaveText('0/1');
-  await details.getByRole('combobox', { name: 'List' }).selectOption('Garden');
+  await choose(details, 'List', 'Garden');
   await expect.poll(() => fs.readFileSync(file('Garden'), 'utf8')).toBe('# Garden\n\n- [ ] Paint the door (flagged)\n  White, not grey.\n  - [ ] Buy brushes\n');
   // The move writes the new list, then takes the task out of the old one: two writes, so wait for the second.
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toBe('# Home\n\n- [ ] Fix the tap\n');
@@ -256,9 +262,11 @@ test('a task can have a time and repeat: typed in words, set in Details, and tic
   await page().getByRole('button', { name: 'Details for Fix the tap' }).click({ force: true });
   const details = page().getByRole('complementary', { name: 'Details' });
   await details.getByRole('button', { name: 'Tomorrow', exact: true }).click();
-  await details.getByLabel('Time', { exact: true }).fill('09:30');
+  // Time is the shared time field: type it, and leaving the field keeps it.
+  await details.getByRole('combobox', { name: 'Time', exact: true }).fill('09:30');
+  await details.getByRole('combobox', { name: 'Time', exact: true }).press('Tab');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Fix the tap (due ${day(1)} 09:30)`);
-  await details.getByRole('combobox', { name: 'Repeat' }).selectOption('month');
+  await choose(details, 'Repeat', 'Every Month');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Fix the tap (due ${day(1)} 09:30) (every month)`);
   await details.getByRole('button', { name: 'No date', exact: true }).click();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [ ] Fix the tap (every month)\n');
