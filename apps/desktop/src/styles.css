@@ -2569,3 +2569,8 @@ body { font-variant-numeric: tabular-nums; }
 .turn-summary-icon path[fill="currentColor"] { fill: var(--muted); }
 /* In the resting panel the summary lines up with the headings and rows around it. */
 .chat .resting .turn-summary { margin-left: 0; margin-right: 0; }
+
+/* Under each reply, the model it was sent to, in small grey text at the right (Instrument, Control 3: Honesty). */
+.msg-actions .msg-model { margin-left: auto; color: var(--faint, var(--muted)); font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+/* The model menu is as wide as the composer, as the other composer menus are, so it never runs off the window. */
+.composer-tools .model-menu { width: auto; }

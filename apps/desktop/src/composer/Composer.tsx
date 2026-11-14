@@ -14,7 +14,7 @@ import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem,
 import { useStageSelection } from '../useStageSelection';
 import { useDictation } from './useDictation';
 import { holdsHere, isHoldToTalk } from './hold-to-talk';
-import { CHAT_MODES, PERMISSIONS, chatModeOf, loadApply, loadChatMode, nextChatMode, permissionOf, saveApply, saveChatMode, sendOptionsOf, type ChatMode, type PermissionInfo } from '../chat-mode';
+import { CHAT_MODES, PERMISSIONS, bestFitQuick, loadBestFit, saveBestFit, chatModeOf, loadApply, loadChatMode, nextChatMode, permissionOf, saveApply, saveChatMode, sendOptionsOf, type ChatMode, type PermissionInfo } from '../chat-mode';
 
 const DICTATE_KEYS = typeof window !== 'undefined' && window.mobius?.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
@@ -36,7 +36,7 @@ export interface ComposerProps {
   /** How the ideas show where they are placed: centred chips (an empty chat), or rows of the panel's Actions list. */
   startersAs?: 'chips' | 'rows';
   /** While Mobius works, Enter puts the message in the queue above the box, sent when the turn ends. */
-  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; images?: string[] }) => void;
+  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; model?: string; images?: string[] }) => void;
   /** Settings, Voice, for when nothing is set up to listen. */
   onOpenVoice?: () => void;
   /** Suggestions are for starting: once the conversation has begun there are none. */
@@ -56,7 +56,7 @@ export interface ComposerProps {
   settings: AgentSettings | null;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; images?: string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; model?: string; images?: string[] }) => void;
   onStop: () => void;
   /** While it works: take over, so Mobius pauses at the next safe point and the apps are yours. */
   onTakeOver?: () => Promise<string | null>;
@@ -89,6 +89,11 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const [models, setModels] = useState<ModelList>({ state: 'idle' });
   const [find, setFind] = useState('');
   const preferences = usePreferences();
+  // Best fit: short questions go to the quick model chosen in Settings. Without one it changes nothing, so it is off.
+  const [bestFitOn, setBestFitOn] = useState(loadBestFit);
+  const quickName = (preferences.value.quickModel ?? '').split('|')[1] ?? '';
+  const bestFit = bestFitOn && quickName !== '';
+  const chooseBestFit = (on: boolean) => { setBestFitOn(on); saveBestFit(on); };
   const [adding, setAdding] = useState(false);
   // Pictures for this message, for models that read them; sent with it and then cleared.
   const [pictures, setPictures] = useState<string[]>([]);
@@ -184,7 +189,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     if (items.some((i) => i.source === item.source)) return items;
     return [withSelection(item, selected()), ...items].slice(0, MAX_CONTEXT_ITEMS);
   };
-  const go = (text: string, items: ContextItem[], options: { plan?: boolean; ask?: boolean; images?: string[] } | undefined, queue: boolean) => {
+  const go = (text: string, items: ContextItem[], options: { plan?: boolean; ask?: boolean; quick?: boolean; model?: string; images?: string[] } | undefined, queue: boolean) => {
     if (going.current) return;
     going.current = true;
     void withHere(items).then((all) => {
@@ -203,7 +208,9 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     }
     if (!canSend && !canQueue) return;
     setProblem(null);
-    const options = { ...sendOptionsOf(mode), ...(pictures.length > 0 ? { images: pictures } : {}) };
+    const quick = bestFit && pictures.length === 0 && bestFitQuick(draft, context.length, mode);
+    const answering = quick ? quickName : modelName;
+    const options = { ...sendOptionsOf(mode), ...(quick ? { quick: true } : {}), ...(answering ? { model: answering } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
     go(draft, context, Object.keys(options).length > 0 ? options : undefined, !canSend);
     setPictures([]);
   };
@@ -309,6 +316,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     group.active && (group.kind === 'local' ? model.current === true : models.state === 'ready' && model.id === models.catalog.current);
   const chooseModel = async (group: ModelGroup, model: { id: string; current?: boolean }, close: () => void) => {
     close();
+    chooseBestFit(false);
     if (isCurrent(group, model)) return;
     setProblem(null);
     const result =
@@ -468,10 +476,14 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               </>
             )}
           </PopMenu>
-          <PopMenu label="Model" className="pill pill-model" disabled={!configured || busy} onOpen={loadModels} title={modelName ? `Model: ${modelName}${effort ? ` · ${effortLabel} effort` : ''}` : 'Model'} trigger={<><svg className="pill-model-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2" /></svg><span className="pill-text">{modelName || 'Model'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+          <PopMenu label="Model" className="pill pill-model" disabled={!configured || busy} onOpen={loadModels} title={bestFit ? `Model: Best fit (${quickName} for short questions, ${modelName} for the rest)${effort ? ` · ${effortLabel} effort` : ''}` : modelName ? `Model: ${modelName}${effort ? ` · ${effortLabel} effort` : ''}` : 'Model'} trigger={<><svg className="pill-model-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2" /></svg><span className="pill-text">{bestFit ? 'Best fit' : modelName || 'Model'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <div className="model-menu">
                 <input type="search" className="model-find" aria-label="Find a model" placeholder="Find a model" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />
+                {/* Best fit first: the default, once a quick model is chosen in Settings. */}
+                <button type="button" role="menuitemradio" aria-checked={bestFit} disabled={!quickName} className="popmenu-item popmenu-checkable popmenu-two model-best-fit" onClick={() => { close(); chooseBestFit(true); }}>
+                  <Check on={bestFit} /><span className="popmenu-two-text"><span>Best fit</span><span className="popmenu-hint">{quickName ? `${quickName} for short questions, ${modelName || 'the chat model'} for the rest` : 'Choose a quick model in Settings to use it'}</span></span>
+                </button>
                 <div className="model-groups">
                   {models.state !== 'ready' && modelName && <p className="popmenu-item popmenu-checkable" aria-current="true"><Check on /><span>{modelName}</span></p>}
                   {models.state !== 'ready' && <p className="popmenu-note" role="status">Loading models…</p>}
@@ -482,8 +494,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                       <header className="model-group-head"><span>{group.name}</span><span className="popmenu-hint">{group.active ? 'In use' : KIND_NOTE[group.kind]}</span></header>
                       {group.error && <p className="popmenu-note" role="alert">{group.error}</p>}
                       {group.models.map((model) => (
-                        <button key={model.id} type="button" role="menuitemradio" aria-checked={isCurrent(group, model)} className="popmenu-item popmenu-checkable" title={`${model.label} · ${group.name}`} onClick={() => void chooseModel(group, model, close)}>
-                          <Check on={isCurrent(group, model)} /><span>{model.label}</span>
+                        <button key={model.id} type="button" role="menuitemradio" aria-checked={!bestFit && isCurrent(group, model)} className="popmenu-item popmenu-checkable" title={`${model.label} · ${group.name}`} onClick={() => void chooseModel(group, model, close)}>
+                          <Check on={!bestFit && isCurrent(group, model)} /><span>{model.label}</span>
                         </button>
                       ))}
                     </section>
