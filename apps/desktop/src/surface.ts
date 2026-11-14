@@ -38,9 +38,14 @@ export interface SurfaceState {
   code?: { title: string; source: string; text: string; failing: boolean } | null;
   /** The email open in Mail, if any. */
   mail?: { id: string; title: string; text: string } | null;
+  /** The folder open in Files, relative to the workspace ('' is the workspace itself), if a folder is open there. */
+  folder?: string | null;
   /** Settings is open over the app: nothing the app offers applies, so nothing is suggested. */
   settings?: boolean;
 }
+
+/** Tidy the folder open in Files: one files.move, so every move is checkpointed together and undone together. */
+export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them, and make a clearly unhelpful name clearer only where it helps. Leave what is already tidy where it is. Delete nothing. Then say in a few lines what went where, with the number of files moved as files.move answers it.`;
 
 /**
  * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
@@ -196,9 +201,11 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
           ];
     case 'files':
       return [
+        // The demo's Files moment: a messy folder sorted in one undoable step, each move shown before it is kept.
+        ...(state.folder ? [{ label: 'Tidy this folder', prompt: tidyFolder(state.folder) }] : []),
         { label: 'What changed lately?', prompt: 'Look through my workspace with files.list and tell me which files changed most recently, and where they are. Change nothing.' },
         { label: 'Find a file…', prompt: 'Find the file in my workspace that ' },
-        { label: 'Tidy a folder…', prompt: 'Suggest a tidier layout for this folder in my workspace, as a short list of moves, and change nothing until I agree: ' },
+        ...(state.folder ? [] : [{ label: 'Tidy a folder…', prompt: 'Suggest a tidier layout for this folder in my workspace, as a short list of moves, and change nothing until I agree: ' }]),
       ];
     case 'wiki':
       return [

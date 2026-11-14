@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { COMPARE_TABS, isStarter, MAKE_A_DECK, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext, WHAT_STANDS_OUT } from './surface';
+import { COMPARE_TABS, isStarter, MAKE_A_DECK, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
 
 describe('what each app suggests', () => {
   it('offers page suggestions in the browser only when a page is showing, and they attach the page', () => {
@@ -29,6 +29,16 @@ describe('what each app suggests', () => {
   it('suggests nothing from the app underneath while Settings is open', () => {
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null }).length).toBeGreaterThan(0);
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null, settings: true })).toEqual([]);
+  });
+  it('offers Tidy this folder in an open folder of Files, as one files.move that deletes nothing', () => {
+    expect(suggestionsFor({ app: 'files', hasPage: false, note: null, folder: null }).map((s) => s.label)).not.toContain('Tidy this folder');
+    const open = suggestionsFor({ app: 'files', hasPage: false, note: null, folder: 'Downloads' });
+    expect(open[0]).toEqual({ label: 'Tidy this folder', prompt: tidyFolder('Downloads') });
+    expect(open.map((s) => s.label)).not.toContain('Tidy a folder…');
+    expect(tidyFolder('Downloads')).toContain('one files.move call');
+    expect(tidyFolder('Downloads')).toContain('Delete nothing.');
+    // What the second demo run showed: two approvals to list, twelve folders, and three different counts.
+    for (const words of ['only once', 'at most six folders', 'no folders inside them', 'files.move answers']) expect(tidyFolder('Downloads')).toContain(words);
   });
   it('offers a one-page brief from an open document, written beside it and leaving it as it is', () => {
     const brief = suggestionsFor({ app: 'docs', hasPage: false, note: { path: 'Documents/Plan.md', title: 'Plan', text: '# Plan' } })[0];
