@@ -15,7 +15,7 @@ import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem,
 import { useStageSelection } from '../useStageSelection';
 import { useDictation } from './useDictation';
 import { holdsHere, isHoldToTalk } from './hold-to-talk';
-import { CHAT_MODES, PERMISSIONS, modesFor, bestFitQuick, loadBestFit, saveBestFit, chatModeOf, loadApply, loadChatMode, nextChatMode, permissionOf, saveApply, saveChatMode, sendOptionsOf, type ChatMode, type PermissionInfo } from '../chat-mode';
+import { CHAT_MODES, PERMISSIONS, modesFor, bestFitQuick, loadBestFit, saveBestFit, chatModeOf, loadApply, nextChatMode, permissionOf, saveApply, sendOptionsOf, useChatMode, type ChatMode, type PermissionInfo } from '../chat-mode';
 
 const DICTATE_KEYS = typeof window !== 'undefined' && window.mobius?.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
@@ -88,8 +88,7 @@ const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.t
 export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, onOpenAbilities, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, startersAs = 'chips', started = false, onOpenVoice, onQueue, hint, onAnswer }: ComposerProps) {
   // Mode, the kind of help: Agent, Ask (reads and answers, changes nothing) or Plan (nothing runs until you start the
   // plan). Kept on this computer.
-  const [mode, setModeState] = useState<ChatMode>(loadChatMode);
-  const setMode = (m: ChatMode) => { setModeState(m); saveChatMode(m); };
+  const [mode, setMode] = useChatMode();
   // Permission: the approval mode, with Apply changes as Review changes that keeps each turn at once.
   const [apply, setApplyState] = useState(loadApply);
   const [problem, setProblem] = useState<string | null>(null);
