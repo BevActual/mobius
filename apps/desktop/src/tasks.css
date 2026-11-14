@@ -181,7 +181,6 @@
 .inspector-label { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-md); }
 .inspector-label .task-flagged svg { width: 15px; height: 15px; }
 .inspector-label .task-repeat { margin-right: var(--sp-1); }
-.inspector-row select { max-width: 60%; height: var(--control-h); }
 .inspector-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .inspector-chips .chip { height: var(--control-h); padding: 0 var(--sp-3); border: 0; border-radius: var(--radius-pill); background: var(--sel); font-size: var(--fs-sm); }
 .inspector-chips .chip:hover { background: color-mix(in srgb, var(--ink) 12%, var(--sel)); }
@@ -201,22 +200,12 @@
 .task-inspector-foot .btn.danger { background: transparent; border-color: transparent; color: var(--danger); font-weight: var(--fw-medium); }
 .task-inspector-foot .btn.danger:hover { background: var(--danger-wash); }
 
-/* Details: the due date as words on a pop-up button; the real date field sits over it, invisible, so a click or the
-   keyboard reaches the system's picker. */
 .inspector-date { position: relative; display: inline-flex; align-items: center; }
-.inspector-date-btn, .task-time { height: var(--control-h); padding: 0 var(--sp-3); border: 0; border-radius: var(--radius-control); background: var(--sel); color: var(--ink); font: inherit; font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
-.inspector-date[data-tone="late"] .inspector-date-btn { color: var(--danger); }
-.inspector-date-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.inspector-date-input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; opacity: 0; cursor: pointer; }
-.inspector-date:has(.inspector-date-input:focus-visible) .inspector-date-btn, .task-time:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+/* Details: the shared date and time fields; an overdue date reads red. */
+.inspector-date[data-tone="late"] .ui-date-value { color: var(--danger); }
 .inspector-time { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.inspector-time > .ui-time-field { width: 132px; }
 
-/* A switch: a grey track, ink when on. */
-.inspector-switch input[role="switch"] { appearance: none; flex: none; position: relative; width: 36px; height: 20px; margin: 0; border-radius: var(--radius-pill); background: var(--faint); transition: background var(--dur-fast) var(--ease); cursor: pointer; }
-.inspector-switch input[role="switch"]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); box-shadow: var(--shadow-1); transition: transform var(--dur-fast) var(--ease); }
-.inspector-switch input[role="switch"]:checked { background: var(--ink); }
-.inspector-switch input[role="switch"]:checked::after { transform: translateX(16px); }
-.inspector-switch input[role="switch"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   .task-inspector, .list-confirm, .task-when, .task-went, .task-skeleton-bar { animation: none; }
