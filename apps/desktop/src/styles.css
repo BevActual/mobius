@@ -1102,8 +1102,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .menu-name[aria-current] { background: var(--field); font-weight: 600; }
 .menu-items { display: flex; flex-direction: column; min-width: 236px; }
 .menu-item { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border-radius: 7px; font-size: var(--fs-sm); color: var(--ink); cursor: default; outline: none; }
-.menu-item:hover:not([aria-disabled]), .menu-item:focus-visible, .menu-item:focus:not([aria-disabled]) { background: var(--accent); color: var(--on-accent, #fff); }
-.menu-item:hover:not([aria-disabled]) .ui-keycap, .menu-item:focus:not([aria-disabled]) .ui-keycap { border-color: color-mix(in srgb, currentColor 35%, transparent); background: transparent; color: inherit; }
+/* The shared menu's highlight (ui.css .ui-menu-item): a grey fill, never ink. */
+.menu-item:hover:not([aria-disabled]), .menu-item:focus-visible, .menu-item:focus:not([aria-disabled]) { background: color-mix(in srgb, var(--sel) 50%, transparent); color: inherit; }
 .menu-item[aria-disabled] .ui-keycap { opacity: 0.6; }
 .menu-item[aria-disabled] { color: var(--muted); opacity: 0.6; }
 .menu-check { font-size: var(--fs-sm); text-align: center; }
