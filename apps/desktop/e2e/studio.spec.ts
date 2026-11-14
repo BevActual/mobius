@@ -311,6 +311,20 @@ test('draw mode writes a note a grid step long in each step a drag crosses, take
   await expect(draw).toHaveAttribute('aria-pressed', 'false');
 });
 
+test('picked notes are cut in two, joined back, and their bars looped, from the keyboard', async () => {
+  await start();
+  const roll = shell().getByRole('grid', { name: 'Notes of Keys' });
+  await roll.focus();
+  await shell().keyboard.press('Control+a');
+  // The playhead is at the start, outside the notes: each is cut at its middle, into two notes of 2 beats.
+  await shell().keyboard.press('Control+e');
+  await expect.poll(() => saved().tracks[0]!.notes.map((n) => `${n.pitch}@${n.start}+${n.length}`).sort()).toEqual(['57@0+2', '57@2+2', '60@0+2', '60@2+2']);
+  await shell().keyboard.press('Control+j');
+  await expect.poll(() => saved().tracks[0]!.notes.map((n) => `${n.pitch}@${n.start}+${n.length}`).sort()).toEqual(['57@0+4', '60@0+4']);
+  await shell().keyboard.press('Control+l');
+  await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('the computer keyboard plays notes, an octave and velocity at a time, shown on the roll keys while held', async () => {
   await start();
   const play = shell().getByRole('button', { name: 'Computer keyboard' });

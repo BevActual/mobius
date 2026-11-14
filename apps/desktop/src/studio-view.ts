@@ -82,6 +82,44 @@ export function quantizeNotes(notes: readonly SongNote[], picked: Picked, grid: 
   }));
 }
 
+/**
+ * The picked notes cut in two (Ctrl+E): at `at` where it falls inside a note, else on the grid line nearest its middle.
+ * A note too short to cut is left whole. Both halves stay picked.
+ */
+export function splitNotes(notes: readonly SongNote[], picked: Picked, at: number, grid: number) {
+  return settle(notes.flatMap((note, i): { note: SongNote; picked: boolean }[] => {
+    if (!picked.has(i)) return [{ note, picked: false }];
+    const end = note.start + note.length;
+    const inside = at > note.start + 1e-6 && at < end - 1e-6;
+    const cut = round(inside ? at : snapNear(note.start + note.length / 2, grid));
+    if (cut <= note.start + 1e-6 || cut >= end - 1e-6) return [{ note, picked: true }];
+    return [{ note: { ...note, length: round(cut - note.start) }, picked: true }, { note: { ...note, start: cut, length: round(end - cut) }, picked: true }];
+  }));
+}
+
+/**
+ * The picked notes of each pitch made one (Ctrl+J): from the first start to the last end, at the first note's
+ * loudness. Notes alone on their pitch are left as they are.
+ */
+export function joinNotes(notes: readonly SongNote[], picked: Picked) {
+  const groups = new Map<number, number[]>();
+  notes.forEach((n, i) => { if (picked.has(i)) groups.set(n.pitch, [...(groups.get(n.pitch) ?? []), i]); });
+  const gone = new Set<number>();
+  const joined: SongNote[] = [];
+  for (const at of groups.values()) {
+    if (at.length < 2) continue;
+    const these = at.map((i) => notes[i]!).sort(byTime);
+    const first = these[0]!;
+    const end = Math.max(...these.map((n) => n.start + n.length));
+    joined.push({ ...first, length: round(end - first.start) });
+    at.forEach((i) => gone.add(i));
+  }
+  return settle([
+    ...notes.flatMap((note, i) => (gone.has(i) ? [] : [{ note, picked: picked.has(i) }])),
+    ...joined.map((note) => ({ note, picked: true })),
+  ]);
+}
+
 /** The picked notes set to one loudness (0 to 1). */
 export function setVelocity(notes: readonly SongNote[], picked: Picked, velocity: number): SongNote[] {
   const v = round(Math.max(0, Math.min(1, velocity)));

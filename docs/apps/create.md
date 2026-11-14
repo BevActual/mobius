@@ -133,7 +133,8 @@ A small studio for writing songs as notes.
   chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
 - **The notes editor** draws, moves and stretches notes, selects with
   a box and snaps to the grid. **Draw** (the pencil, or B) makes a drag write a note in each grid step along the row it
-  started on, or take notes out when it starts on one; each stroke is one Undo. When a note is picked, its name, Velocity
+  started on, or take notes out when it starts on one; each stroke is one Undo. With notes picked, Ctrl+E cuts each at the playhead (or at
+  its middle), Ctrl+J joins those of a pitch into one, and Ctrl+L loops the bars they are in. When a note is picked, its name, Velocity
   and Delete join the bar, on a second line if the bar is narrow. Drums get a tall row per drum, named in full. **Steps** shows one bar as sixteen steps, the step sequencer: a row per
   drum, or for any other instrument a row per note of the song's key across two octaves (pick them with Range, and how long each step plays with Note length). Rows are named as the song's key spells
   them, so B♭ in F major. Piano roll and Steps switch how you edit the notes. In Steps,

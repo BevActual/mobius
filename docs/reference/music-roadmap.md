@@ -29,7 +29,7 @@ not designs to copy.
 | Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Later, after the keyboard |
 | Draw mode | B turns on drawing: drag along a row to write a note in each grid step, or start on a note to take notes out. Each stroke is one Undo. | Building |
 | Devices fold and switch off | Each device folds to its title bar with the arrow in its head, and has its own on switch. | Have |
-| Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Next (Ctrl+D, Delete and undo Have) |
+| Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Building (notes: Ctrl+D, Ctrl+E, Ctrl+J, Ctrl+L, Delete and undo; 0 and clips next) |
 | Drag sounds in | Drag a sound from the sidebar onto empty space for a new track, or onto a track to swap its instrument and keep the notes. Clicking a sound plays a short preview. | Next |
 | Track header controls | Every track header has a number, a name, on, solo, and (with recording) arm. Track rows fold and resize. | Partly (number, name, mute, solo Have) |
 | Follow | The view keeps the playhead in sight while playing, and scrolling by hand stops following until Play is pressed again. | Next |

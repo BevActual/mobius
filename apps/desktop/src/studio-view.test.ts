@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -200,5 +200,24 @@ describe('the computer keyboard as an instrument', () => {
     expect(nudgeKeyVelocity(100, 1)).toBe(120);
     expect(nudgeKeyVelocity(120, 1)).toBe(127);
     expect(nudgeKeyVelocity(10, -1)).toBe(1);
+  });
+});
+
+describe('splitNotes and joinNotes', () => {
+  const n = (pitch: number, start: number, length: number) => ({ pitch, start, length, velocity: 0.8 });
+  it('cuts a picked note at the playhead inside it, or on the grid at its middle', () => {
+    expect(splitNotes([n(60, 0, 2)], new Set([0]), 0.5, 0.25).notes).toEqual([n(60, 0, 0.5), n(60, 0.5, 1.5)]);
+    expect(splitNotes([n(60, 0, 2)], new Set([0]), 8, 0.25).notes).toEqual([n(60, 0, 1), n(60, 1, 1)]);
+    const r = splitNotes([n(60, 0, 2), n(62, 0, 1)], new Set([0]), 8, 0.25);
+    expect(r.notes).toHaveLength(3);
+    expect(r.picked.size).toBe(2);
+  });
+  it('leaves a note too short to cut', () => {
+    expect(splitNotes([n(60, 0, 0.25)], new Set([0]), 8, 0.25).notes).toEqual([n(60, 0, 0.25)]);
+  });
+  it('joins picked notes of a pitch from the first start to the last end', () => {
+    const r = joinNotes([n(60, 0, 0.5), n(60, 1, 0.5), n(62, 0, 1), n(60, 3, 1)], new Set([0, 1, 2]));
+    expect(r.notes).toEqual([n(60, 0, 1.5), n(62, 0, 1), n(60, 3, 1)]);
+    expect([...r.picked].sort()).toEqual([0, 1]);
   });
 });
