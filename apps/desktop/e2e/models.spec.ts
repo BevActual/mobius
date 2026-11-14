@@ -4,10 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { fakeLlama, patterned, startHub, type FakeHub, type FakeRepo } from './hub-fixture';
+import { says, startModel, type ModelFixture } from './model-fixture';
 
 let fixture: Fixture;
 let hub: FakeHub | undefined;
 let mobius: Launched | undefined;
+let model: ModelFixture | undefined;
 
 test.beforeEach(async () => {
   fixture = await startFixture();
@@ -17,6 +19,8 @@ test.afterEach(async () => {
   mobius = undefined;
   await hub?.close();
   hub = undefined;
+  await model?.close();
+  model = undefined;
   await fixture.close();
 });
 
@@ -30,11 +34,11 @@ const repos = (): FakeRepo[] => [
 const GB = 1e9;
 const PRETEND_COMPUTER = JSON.stringify({ gpu_name: 'Test GPU', vram_total: 8 * GB, vram_free: 7 * GB, ram_total: 32 * GB, ram_free: 24 * GB });
 
-async function start(options: { slowMs?: number; down?: number; llama?: string | null; userData?: string; repoList?: FakeRepo[] } = {}): Promise<Launched> {
+async function start(options: { slowMs?: number; down?: number; llama?: string | null; userData?: string; repoList?: FakeRepo[]; agent?: Record<string, string> } = {}): Promise<Launched> {
   hub = await startHub(options.repoList ?? repos(), { ...(options.slowMs ? { slowMs: options.slowMs } : {}), ...(options.down ? { down: options.down } : {}) });
   const llama = options.llama === undefined ? fakeLlama() : options.llama;
   mobius = await launch(fixture.origin + '/', {
-    env: { MOBIUS_TEST_HUB: hub.url, MOBIUS_TEST_HARDWARE: PRETEND_COMPUTER, ...(llama ? { MOBIUS_TEST_LLAMA: llama } : { MOBIUS_TEST_LLAMA: 'C:/no/such/llama-server.exe' }) },
+    env: { ...options.agent, MOBIUS_TEST_HUB: hub.url, MOBIUS_TEST_HARDWARE: PRETEND_COMPUTER, ...(llama ? { MOBIUS_TEST_LLAMA: llama } : { MOBIUS_TEST_LLAMA: 'C:/no/such/llama-server.exe' }) },
     ...(options.userData ? { userData: options.userData } : {}),
   });
   return mobius;
@@ -149,6 +153,41 @@ test('a downloaded model is run, loaded, used by the agent, and stopped', async 
   await page().getByRole('tab', { name: 'This computer', exact: true }).click();
   await page().getByRole('button', { name: 'Stop Tiny-1B-Q8_0' }).click();
   await expect(page().getByText('Nothing is running.')).toBeVisible();
+});
+
+test('switching to a model on this computer mid-chat keeps the conversation going, and Usage shows it as free', async () => {
+  // The demo's Settings moment: the same conversation moves from a hosted model to one on this computer.
+  model = await startModel([says(['From the first model.'])]);
+  await start({ agent: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  const replies = shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant');
+  await expect(composer).toBeEnabled({ timeout: 15_000 });
+  await composer.fill('first question');
+  await composer.press('Enter');
+  await expect(replies).toHaveText(['From the first model.']);
+
+  await openLocal();
+  await suggest();
+  await results().getByRole('button', { name: 'Download Tiny-1B-Q8_0' }).click();
+  await expect(mine().getByRole('listitem')).toHaveCount(1, { timeout: 20_000 });
+  await mine().getByRole('button', { name: 'Run Tiny-1B-Q8_0' }).click();
+  await expect(page().getByRole('status').filter({ hasText: 'Tiny-1B-Q8_0' })).toContainText('The agent is using this model.', { timeout: 20_000 });
+  await closeSettings();
+
+  // The same conversation, now answered on this computer.
+  await expect(composer).toBeEnabled({ timeout: 15_000 });
+  await composer.fill('second question');
+  await composer.press('Enter');
+  await expect(replies).toHaveText(['From the first model.', 'hello'], { timeout: 15_000 });
+
+  await openSettings(shell());
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Usage', exact: true }).click();
+  await expect(page().getByRole('region', { name: 'Totals' })).toContainText(/Requests\s*2(?!\d)/, { timeout: 10_000 });
+  const byModel = page().getByRole('table', { name: 'Usage by model' });
+  await expect(byModel).toContainText('fake-model');
+  const local = byModel.getByRole('row').filter({ hasText: 'Tiny-1B' });
+  await expect(local).toHaveCount(1);
+  await expect(local.getByRole('cell').last()).toHaveText('Free');
 });
 
 test('the context size chosen in settings is the one the model is started with', async () => {
