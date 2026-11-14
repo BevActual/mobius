@@ -60,7 +60,7 @@ Work is taken in this order. A lower line never holds up a higher one.
 | Row sizes for Home and Activity (#245) | Builder | Building | Home's and Activity's next rounds |
 | Glance and Result slots (#249) | Builder | Building | Sheets, Code, then every app |
 | A failed state for runs (#250) | Builder | Building | Agents |
-| `AutomationLane` | Design lead | Building | Music's automation round |
+| `Chart` | Design lead | Building | Sheets' demo moment |
 | Artifacts moved into `docs/` (#242) | Design lead | Building | Retiring the artifacts |
 | Drum pads on the library's `StepGrid` and `PadGrid` | Music | Next | The first new instrument |
 | README screenshots and launch checklist | Launch | Building | The launch list below |
@@ -88,11 +88,12 @@ that round's pull request.
 | Order | Library piece | First user |
 | --- | --- | --- |
 | 1 | Anything an open pull request is waiting on | That pull request |
-| 2 | `AutomationLane` | Music: movement over time |
-| 3 | `LetterToggle` (mute, solo and the like) | Video: track lanes; Music: tracks |
+| 2 | `Chart` | Sheets' demo moment; Views tiles |
+| 3 | A before and after hold | Photo's demo moment |
 | 4 | Mixer strip built on `LevelMeter` | Music: mixer view |
+| 5 | A folded `DeviceFrame` as a strip | Music: devices in the bottom dock |
 
-`StepGrid` and `PadGrid` are already on `main`, so Music's drum pads wait on nothing.
+`StepGrid`, `PadGrid`, `AutomationLane` and `LetterToggle` are already on `main`.
 
 Music's note editor already exists inside Music. It moves into the library only when a second app needs it or Music's
 next round has to change it; until then it is not a library task.
