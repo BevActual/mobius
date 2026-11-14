@@ -205,7 +205,7 @@ export interface PhotoAlbum { name: string; photos: PhotoInfo[] }
 export interface PhotoContent { path: string; dataUrl: string; edits: string | null; modified: number; editsModified: number | null }
 export interface PhotosChanged { path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** A Video project: its clips (footage, never changed) and whether it has a cut yet. */
-export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio' }[]; hasCut: boolean }
+export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio'; /** How long it plays, read from its header; null when unknown (WebM and MP3 for now). */ durationMs?: number | null }[]; hasCut: boolean }
 export interface VideoChanged { project: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** One agent turn: the checkpoint before it, whether its end was marked, when, what was asked, and what it changed. */
 export interface TurnRecord { start: string; ended: boolean; when: number; ask: string; files: string[]; moves?: { from: string; to: string }[] }

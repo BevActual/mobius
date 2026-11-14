@@ -121,6 +121,7 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'drives.write': return `${s('version') ? 'replace' : 'write'} ${s('path') ? quote(s('path')) : 'a file'} ${onDrive()}${s('from') ? ` with ${quote(s('from'))} from the workspace` : ''}`;
     case 'drives.move': return `move ${s('from') ? quote(s('from')) : 'something'} to ${s('to') ? quote(s('to')) : 'another place'} ${onDrive()}`;
     case 'drives.delete': return `delete ${s('path') ? quote(s('path')) : 'something'} ${onDrive()}`;
+    case 'video.clips': return s('project') ? `see the clips in the Video project ${quote(s('project'))}` : 'see your Video projects and clips';
     case 'skills.list': return 'see your skills';
     case 'skills.read': return s('name') ? `read the skill ${quote(s('name'))}` : 'read a skill';
     default: return null;
