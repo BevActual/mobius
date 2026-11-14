@@ -208,7 +208,7 @@ export interface PhotosChanged { path: string | null; by: 'person' | 'assistant'
 export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio' }[]; hasCut: boolean }
 export interface VideoChanged { project: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** One agent turn: the checkpoint before it, whether its end was marked, when, what was asked, and what it changed. */
-export interface TurnRecord { start: string; ended: boolean; when: number; ask: string; files: string[] }
+export interface TurnRecord { start: string; ended: boolean; when: number; ask: string; files: string[]; moves?: { from: string; to: string }[] }
 /** A skill: a procedure Mobius follows, `skills/<name>/SKILL.md`, with its earlier versions kept. */
 export interface SkillInfo { name: string; description: string; modified: number; version: number }
 export interface SkillContent { name: string; text: string; modified: number; version: number; versions: { version: number; modified: number; description: string }[] }
@@ -1072,7 +1072,8 @@ export interface AboutInfo {
 
 /** What the settings panel may know. The key itself is never sent back to the renderer. */
 /** The files an agent turn changed, relative to the workspace, and the checkpoint taken before it began. */
-export interface TurnChanges { checkpoint: string | null; files: string[] }
+/** A moved (or renamed) file is in `files` by both its paths, and in `moves` once. */
+export interface TurnChanges { checkpoint: string | null; files: string[]; moves?: { from: string; to: string }[] }
 export interface AgentFailure { ok: false; error: string }
 
 export interface AgentSettings {

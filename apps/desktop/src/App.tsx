@@ -94,6 +94,7 @@ import { activityOf } from './activity';
 import type { HubTarget } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
+import { useLiveMarks } from './liveMarks';
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
@@ -540,6 +541,8 @@ export function App() {
   const activity = activityOf(conversation.state);
   const callsDone = useMemo(() => conversation.state.items.filter((item) => item.kind === 'tool' && item.status === 'done').length, [conversation.state.items]);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone);
+  // Tasks and Calendar draw the running turn's changes as each call lands; the other apps when the turn ends.
+  const liveMarks = useLiveMarks(conversation.state.conversation, conversation.state.busy, turnMarks);
   /** The views Mobius changed in its last turn and that wait for Keep. */
   const viewMarks = useMemo(() => new Set(turnMarks.files.filter((f) => f.startsWith('views/')).map((f) => f.slice('views/'.length))), [turnMarks.files]);
   // An app Mobius changed things in loads, so its changes show there when the turn ends, even if it was never opened.
@@ -1034,11 +1037,11 @@ export function App() {
             ) : inDocs ? (
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
-              <CalendarSidebar calendar={calendar} pin={pinNode} changed={turnMarks.calendars} review={turnMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...turnMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
+              <CalendarSidebar calendar={calendar} pin={pinNode} changed={liveMarks.calendars} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inSearch ? (
               <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
             ) : inTasks ? (
-              <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
+              <TasksSidebar tasks={tasks} pin={pinNode} changed={liveMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
           <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />
             )}
@@ -1379,7 +1382,7 @@ export function App() {
       case 'notes':
         return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} review={notes.page && turnMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'tasks':
-        return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && turnMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} />;
+        return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && liveMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'docs':
         return <DocEditor docs={docs} inFrame autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
       case 'slides':
@@ -1450,7 +1453,7 @@ export function App() {
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && turnMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} />;
       case 'calendar':
-        return <CalendarPage calendar={calendar} newToken={eventToken} review={turnMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...turnMarks.calendars] } : null} />; // Calendar app: what Mobius's last turn changed
+        return <CalendarPage calendar={calendar} newToken={eventToken} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} working={conversation.state.busy} />; // Calendar app: what Mobius's last turn changed
       case 'search':
         return (
           <SearchPage
