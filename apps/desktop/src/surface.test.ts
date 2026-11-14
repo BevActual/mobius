@@ -53,6 +53,14 @@ describe('what each app suggests', () => {
     expect(open.slice(0, 2).map((s) => s.label)).toEqual(['One-page brief', 'Make this a deck']);
     for (const bit of ['slides/Presentations/', '---', 'Notes:', 'Leave this document as it is.', 'read no other file', 'at most half the slides have bullets']) expect(MAKE_A_DECK).toContain(bit);
   });
+  it('writes meeting notes as a change to keep, and checks Tasks before adding to-dos', () => {
+    const got = suggestionsFor({ app: 'notes', hasPage: false, note: { path: 'Work/Standup.md', title: 'Standup', text: '# Standup', folder: 'notes' } });
+    const meeting = got.find((s) => s.label === 'Meeting notes')?.prompt ?? '';
+    expect(meeting).toContain('under its first heading');
+    expect(meeting).not.toContain('Show me the change before saving');
+    const todo = got.find((s) => s.label === 'Make a to-do list')?.prompt ?? '';
+    for (const bit of ['tasks.list first', 'leave out any action a task there already covers', 'no name in front']) expect(todo).toContain(bit);
+  });
   it('never asks the agent app to attach anything', () => {
     expect(suggestionsFor({ app: 'agent', hasPage: true, note: null }).every((s) => s.attach === undefined)).toBe(true);
   });
