@@ -78,3 +78,5 @@ The *Launch* thread writes the content; each lead adds what their app's moment n
 - Whatever else the leads list in the demo plan's "Needs" column as they confirm their rows.
 
 Keep it small: short footage and audio, no file over a few megabytes.
+
+Every moment's real-model runs, with their times and what was weak, are in [results.md](results.md).
