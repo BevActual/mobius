@@ -94,6 +94,7 @@ export function Sheet() {
   const [width, setWidth] = useState('1280');
   const [tone, setTone] = useState<'plain' | 'warm' | 'formal'>('warm');
   const [grid, setGrid] = useState<'1/8' | '1/16' | '1/32'>('1/16');
+  const [noteLength, setNoteLength] = useState<'1/4' | '1/8d' | '1/16t'>('1/16t');
   const [key, setKey] = useState<'C' | 'Am' | 'G'>('Am');
   const [swatch, setSwatch] = useState<ContentColor>('teal');
   const [view, setView] = useState<'list' | 'board' | 'calendar'>('list');
@@ -147,6 +148,11 @@ export function Sheet() {
             <TextField label="Email" value="kestrel@" onChange={() => {}} error="That is not a whole address. Add the part after @." />
             <Select label="Tone" value={tone} onChange={setTone} choices={[{ value: 'plain', label: 'Plain' }, { value: 'warm', label: 'Warm' }, { value: 'formal', label: 'Formal' }]} />
             <Select label="Grid" inline value={grid} onChange={setGrid} choices={[{ value: '1/8', label: '1/8' }, { value: '1/16', label: '1/16' }, { value: '1/32', label: '1/32' }]} />
+            <div className="sheet-bar" aria-label="A crowded bar">
+              <Select label="Grid" inline value={grid} onChange={setGrid} choices={[{ value: '1/8', label: '1/8' }, { value: '1/16', label: '1/16' }, { value: '1/32', label: '1/32' }]} />
+              <Select label="Note length" inline value={noteLength} onChange={setNoteLength} choices={[{ value: '1/4', label: '1/4' }, { value: '1/8d', label: '1/8 dotted' }, { value: '1/16t', label: '1/16 triplet' }]} />
+              <span className="sheet-bar-fill">Notes bar, squeezed</span>
+            </div>
             <div className="sheet-row">
               <span className="sheet-sub">Key</span>
               <Select label="Key" hideLabel quiet value={key} onChange={setKey} choices={[{ value: 'C', label: 'C major' }, { value: 'Am', label: 'A minor' }, { value: 'G', label: 'G major' }]} />

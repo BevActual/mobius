@@ -22,3 +22,5 @@ body { overflow: auto; background: var(--frame); }
 .sheet-pads { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .sheet-pads { align-items: start; }
 .sheet-sub { font-size: 12px; color: var(--muted); }
+.sheet-bar { display: flex; align-items: center; gap: 12px; width: 400px; overflow: hidden; border: 1px dashed var(--line); padding: 4px; }
+.sheet-bar-fill { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
