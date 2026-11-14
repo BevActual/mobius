@@ -225,15 +225,20 @@
 .cal-loading-bar:nth-child(2) { width: 80%; }
 .cal-loading-bar:nth-child(3) { width: 60%; }
 
-/* Year view: twelve small months on paper. A day with events carries a dot under its number; today is the ink badge. */
-.calendar-page .cal-year { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); align-content: start; gap: var(--sp-6) var(--sp-8); padding: var(--sp-6) var(--sp-8); }
-.calendar-page .cal-year-month { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
-.calendar-page .cal-year-name { align-self: flex-start; height: var(--control-h); padding: 0 var(--sp-2); margin-left: calc(-1 * var(--sp-2)); border: 0; border-radius: var(--radius-control); background: transparent; font: inherit; font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); cursor: pointer; }
+/* Year view: the whole year on one screen, four months across and three down. A day with events carries a dot under its
+   number, past days are grey so today reads as the edge, and today is the ink badge. */
+.calendar-page .cal-year { flex: 1; min-height: 0; overflow: auto; container-type: inline-size; padding: var(--sp-5) var(--sp-6); }
+.calendar-page .cal-year-months { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-content: start; gap: var(--sp-4) var(--sp-6); }
+@container (max-width: 720px) { .calendar-page .cal-year-months { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (max-width: 520px) { .calendar-page .cal-year-months { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.calendar-page .cal-year-month { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.calendar-page .cal-year-name { align-self: flex-start; height: 24px; padding: 0 var(--sp-1); margin-left: calc(-1 * var(--sp-1)); border: 0; border-radius: var(--radius-control); background: transparent; font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); cursor: pointer; }
 .calendar-page .cal-year-name:hover { background: var(--sel); }
-.calendar-page .cal-year-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 2px; font-variant-numeric: tabular-nums; }
-.calendar-page .cal-year-weekday { display: grid; place-items: center; height: 20px; font-size: var(--fs-floor); color: var(--muted); }
-.calendar-page .cal-year-day { position: relative; justify-self: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; font: inherit; font-size: var(--fs-xs); color: var(--ink); cursor: pointer; }
+.calendar-page .cal-year-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); font-variant-numeric: tabular-nums; }
+.calendar-page .cal-year-weekday { display: grid; place-items: center; height: 18px; font-size: var(--fs-floor); color: var(--muted); }
+.calendar-page .cal-year-day { position: relative; justify-self: center; width: 28px; max-width: 100%; height: 28px; padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; font: inherit; font-size: calc((var(--fs-xs) + var(--fs-sm)) / 2); color: var(--ink); cursor: pointer; }
 .calendar-page .cal-year-day:hover { background: var(--sel); }
+.calendar-page .cal-year-day[data-past] { color: var(--muted); }
 .calendar-page .cal-year-day[data-busy]::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--muted); }
 .calendar-page .cal-year-day[data-today] { background: var(--ink); color: var(--on-ink); font-weight: var(--fw-semibold); }
 .calendar-page .cal-year-day[data-today]::after { background: var(--on-ink); }
