@@ -3395,6 +3395,10 @@ impl Bridge {
                 if let Some(finish) = arg(3).get("finish") {
                     request["finish"] = finish.clone();
                 }
+                // { tools: ["tasks", "calendar"] }: only the tools of the apps the suggestion works in are offered.
+                if let Some(tools) = arg(3).get("tools") {
+                    request["tools"] = tools.clone();
+                }
                 // { quick: true } is Best fit choosing the quick model for a short question.
                 if let Some(quick) = arg(3).get("quick") {
                     request["quick"] = quick.clone();

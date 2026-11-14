@@ -154,6 +154,8 @@ pub struct SendRequest {
     pub reads: Vec<(String, Value)>,
     /// The suggestion ends in changes: the turn is done once they are made, with no closing answer.
     pub finish: bool,
+    /// The kinds of tools the suggestion works with (`tasks`, `calendar`): only theirs are offered. Empty offers all.
+    pub tools: Vec<String>,
 }
 
 /// An app's own mode (Instrument, "Modes, permissions"): a preset, not new machinery. A name the window shows, the app
@@ -168,6 +170,8 @@ pub struct AppMode {
     pub reads: &'static [(&'static str, &'static str)],
     /// The mode ends in changes: the turn is done once a round's changes are all made, with no closing answer.
     pub finish: bool,
+    /// The kinds of tools the mode works with: only theirs are offered. Empty offers all.
+    pub tools: &'static [&'static str],
 }
 
 pub const APP_MODES: &[AppMode] = &[
@@ -178,6 +182,7 @@ pub const APP_MODES: &[AppMode] = &[
         read_only: false,
         reads: &[("mail.search", r#"{"mailbox":"inbox","unread":true,"limit":100}"#), ("tasks.list", "{}")],
         finish: true,
+        tools: &["mail", "tasks", "calendar"],
     },
     AppMode {
         id: "review",
@@ -186,6 +191,7 @@ pub const APP_MODES: &[AppMode] = &[
         read_only: false,
         reads: &[],
         finish: false,
+        tools: &[],
     },
     AppMode {
         id: "analyse",
@@ -194,6 +200,7 @@ pub const APP_MODES: &[AppMode] = &[
         read_only: true,
         reads: &[],
         finish: false,
+        tools: &[],
     },
     AppMode {
         id: "debug",
@@ -202,6 +209,7 @@ pub const APP_MODES: &[AppMode] = &[
         read_only: false,
         reads: &[],
         finish: false,
+        tools: &[],
     },
 ];
 
@@ -246,6 +254,10 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
         None | Some(Value::Null) => false,
         Some(f) => f.as_bool()?,
     };
+    let tools = match v.get("tools") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(list) => parse_tools(list)?,
+    };
     let images = match v.get("images") {
         None | Some(Value::Null) => Vec::new(),
         Some(list) => {
@@ -253,7 +265,13 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
             list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
         }
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode, reads, finish })
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode, reads, finish, tools })
+}
+
+/// At most twelve kinds of tools, each a plain name (the part of a tool's name before the dot).
+fn parse_tools(list: &Value) -> Option<Vec<String>> {
+    let list = list.as_array().filter(|l| l.len() <= 12)?;
+    list.iter().map(|k| k.as_str().filter(|k| !k.is_empty() && k.len() <= 32 && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')).map(str::to_owned)).collect()
 }
 
 /// At most six reads, each a tool name and an object of arguments.
@@ -560,6 +578,16 @@ impl AgentService {
         }
         if request.finish || request.mode.is_some_and(|m| m.finish) {
             params.insert("finish".into(), json!(true));
+        }
+        // Only the tools of the apps the mode or suggestion works in; both, when both name some.
+        let mut tools: Vec<String> = request.mode.map(|m| m.tools).unwrap_or(&[]).iter().map(|k| (*k).to_owned()).collect();
+        for kind in &request.tools {
+            if !tools.contains(kind) {
+                tools.push(kind.clone());
+            }
+        }
+        if !tools.is_empty() {
+            params.insert("tools".into(), json!(tools));
         }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),

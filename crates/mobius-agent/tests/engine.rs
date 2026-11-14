@@ -572,7 +572,7 @@ fn the_chosen_effort_goes_to_the_model_but_never_to_the_reviewer() {
 #[test]
 fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_model() {
     let mut w = smart_world();
-    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false };
+    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![] };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
     assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", with_rule("You are the research bot.").as_str()));
@@ -587,10 +587,10 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
 #[test]
 fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![] });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", with_rule("You are a test.").as_str()));
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![] });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", with_rule("S").as_str()));
 }
@@ -922,4 +922,15 @@ fn a_turn_that_ends_in_changes_tells_the_model_to_say_its_piece_before_the_calls
     assert!(request_of(&step).system.contains(mobius_agent::engine::FINISH_ON_CHANGES));
     let (_, plain) = w.engine.start(&w.core, vec![], "go", 2);
     assert!(!request_of(&plain).system.contains(mobius_agent::engine::FINISH_ON_CHANGES));
+}
+
+#[test]
+fn a_turn_that_names_its_kinds_of_tools_is_offered_only_those_and_the_engines_own() {
+    let mut w = world(10);
+    w.core.register_tool(ToolSpec::new("tasks.list", "Lists tasks.", "tasks.read").unwrap(), Box::new(|_| Ok(json!([])))).unwrap();
+    let (_, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { tools: vec!["tasks".to_owned()], ..TurnSetup::default() });
+    let names: Vec<String> = request_of(&step).tools.iter().map(|t| t.name.clone()).collect();
+    assert_eq!(names, ["tasks.list", "todo.write", "ask.person"]);
+    let (_, all) = w.engine.start(&w.core, vec![], "go", 2);
+    assert!(request_of(&all).tools.iter().any(|t| t.name == "demo.echo"), "a turn that names none is offered every tool");
 }

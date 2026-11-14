@@ -213,6 +213,10 @@ pub struct TurnSetup {
     /// what changed stands in for a closing answer, so the model is not asked again just to say it. A suggestion or
     /// mode that ends in changes asks for this.
     pub finish_on_changes: bool,
+    /// The kinds of application tools the turn is offered, by the part of their name before the dot (`tasks`, `mail`):
+    /// a suggestion or mode that knows which apps it works in sends only theirs, so the model reads (and is billed for)
+    /// a much shorter request. Empty offers every tool.
+    pub tools: Vec<String>,
 }
 
 /// Told to the model when the turn ends once its changes are made (`TurnSetup::finish_on_changes`).
@@ -803,6 +807,7 @@ impl Engine {
         } else {
             (system, core.tools())
         };
+        let outside: Vec<_> = if turn.setup.tools.is_empty() { outside } else { outside.into_iter().filter(|t| turn.setup.tools.iter().any(|k| t.name.split_once('.').is_some_and(|(kind, _)| kind == k))).collect() };
         let system = if system.is_empty() { untrusted::ENVELOPE_RULE.to_owned() } else { format!("{system}\n\n{}", untrusted::ENVELOPE_RULE) };
         let system = if turn.reread { format!("{system}\n\n{HANDED_BACK}") } else { system };
         let system = if turn.setup.finish_on_changes { format!("{system}\n\n{FINISH_ON_CHANGES}") } else { system };
