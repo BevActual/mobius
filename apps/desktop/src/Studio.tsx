@@ -114,6 +114,7 @@ const ICONS = {
   loop: 'M4 9V8a3 3 0 0 1 3-3h8l-2.2-2.2M16 11v1a3 3 0 0 1-3 3H5l2.2 2.2',
   keys: 'M3.5 5.5h13v9h-13zM7.5 5.5v5M10 10.5v4M12.5 5.5v5',
   quantize: 'M4 4v12M10 4v12M16 4v12M4 10h6',
+  draw: 'M12.5 4.5l3 3-8 8H4.5v-3zM10.5 6.5l3 3',
 };
 
 /** A track's notes as clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while Mobius proposes them. */
@@ -347,7 +348,9 @@ export function StudioDevice({ track, onTrack }: {
 type Gesture =
   | { kind: 'move'; x: number; y: number; db: number; dr: number; moved: boolean; hit: number; wasPicked: boolean; shift: boolean }
   | { kind: 'stretch'; x: number; dl: number; these: Picked }
-  | { kind: 'empty'; x: number; y: number; beat: number; row: number; box: boolean; shift: boolean };
+  | { kind: 'empty'; x: number; y: number; beat: number; row: number; box: boolean; shift: boolean }
+  // Draw mode: a stroke along one row that writes a note in each grid cell it crosses, or takes them out if it began on one.
+  | { kind: 'paint'; row: number; erase: boolean; done: Set<number>; tag: string };
 
 /** One song: transport, tracks laid out by bar, and the chosen track's notes on a piano roll to draw, move and stretch. */
 export function StudioEditor({ songs, review }: { songs: NotesState; review?: { conversation: string } | null }) {
@@ -372,6 +375,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [stepOct, setStepOct] = useState<Record<string, number>>({});
   const [stepBar, setStepBar] = useState(0);
   const [drawLength, setDrawLength] = useState(1);
+  // Draw mode (B): a press or a drag on the roll writes notes a grid step long; on a note, it takes notes out.
+  const [draw, setDraw] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [gesture, setGestureState] = useState<Gesture | null>(null);
   // The gesture is read back from a ref as well, so a pointer-up that comes before React has drawn the last move still
@@ -815,6 +820,14 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     roll.current?.focus({ preventScroll: true });
     const noteEl = target.closest<HTMLElement>('.studio-note');
     e.currentTarget.setPointerCapture(e.pointerId);
+    if (draw) {
+      const p = at(e);
+      const g: Gesture = { kind: 'paint', row: p.row, erase: !!noteEl, done: new Set(), tag: `paint:${e.timeStamp}` };
+      setPicked(new Set());
+      setGesture(g);
+      paintAt(g, p.beat);
+      return;
+    }
     if (noteEl) {
       const i = Number(noteEl.dataset.i);
       const n = notes[i]!;
@@ -838,9 +851,25 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     const p = at(e);
     setGesture({ kind: 'empty', x: e.clientX, y: e.clientY, beat: p.beat, row: p.row, box: false, shift: e.shiftKey });
   };
+  /** One cell of a draw-mode stroke: a note there, or the notes there gone. */
+  const paintAt = (g: Extract<Gesture, { kind: 'paint' }>, beatAt: number) => {
+    if (!track) return;
+    const cell = Math.floor(Math.max(0, Math.min(span - 1e-6, beatAt)) / grid) * grid;
+    if (g.done.has(cell)) return;
+    g.done.add(cell);
+    const pitch = rows[g.row]!.pitch;
+    if (g.erase) {
+      setNotes((n) => n.filter((x) => !(x.pitch === pitch && x.start < cell + grid && x.start + x.length > cell)), g.tag);
+      return;
+    }
+    const length = Math.min(drums ? Math.min(grid, 0.25) : grid, span - cell);
+    setNotes((n) => (n.some((x) => x.pitch === pitch && x.start === cell) ? n : [...n, { pitch, start: cell, length, velocity: 0.8 }]), g.tag);
+    if (g.done.size === 1) previewNote(track.instrument, pitch, undefined, undefined, track.sound, track.kit);
+  };
   const onRollMove = (e: { clientX: number; clientY: number }) => {
     const g = gestureRef.current;
     if (!g) return;
+    if (g.kind === 'paint') { paintAt(g, at(e).beat); return; }
     if (g.kind === 'move') {
       const db = Math.round((e.clientX - g.x) / rbw / grid) * grid;
       const dr = Math.round((e.clientY - g.y) / rowH);
@@ -862,7 +891,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     onRollMove(e);
     const g = gestureRef.current;
     setGesture(null);
-    if (!g || !track) return;
+    if (!g || !track || g.kind === 'paint') return;
     if (g.kind === 'move') {
       if (g.moved) lastPress.current = null;
       if (g.moved && (g.db !== 0 || g.dr !== 0)) moveByRows(g.db, g.dr);
@@ -972,6 +1001,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
     if (!mod && !e.altKey && k === 'l') { setLoop((l) => !l); return true; }
+    if (!mod && !e.altKey && k === 'b' && editing && detail === 'notes' && drumView !== 'steps') { setDraw((d) => !d); return true; }
     if (!mod && !e.altKey && k === 'k') { setClick((c) => !c); return true; }
     // Shift+Tab switches the bottom area between the chosen track's notes and its devices, opening it if it's shut.
     if (e.key === 'Tab' && e.shiftKey && !mod && !e.altKey && track) { if (!editing) { setEditing(true); setDetail('device'); } else setDetail((d) => (d === 'notes' ? 'device' : 'notes')); return true; }
@@ -1107,14 +1137,15 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                 {drumView === 'steps' && !drums && <span className="studio-step-key">{song.key}</span>}
                 {drumView === 'steps' && !drums && <Select inline hideLabel label="Range" value={String(octave)} choices={OCTAVE_CHOICES} onChange={(o) => setStepOct((all) => ({ ...all, [track.id]: Number(o) }))} />}
                 {!drums && <Select inline label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
+                {!(drumView === 'steps') && <IconButton label="Draw" keys="B" pressed={draw} title={draw ? 'Draw mode: drag to write notes a grid step long, or drag over notes to take them out' : 'Draw mode'} icon={<Icon d={ICONS.draw} />} onClick={() => setDraw((d) => !d)} />}
                 {!(drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" icon={<Icon d={ICONS.quantize} />} onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, span))}>Quantize</Button>}
                 <span className="studio-gap" />
                 {velocity !== null && !(drumView === 'steps') ? (
-                  <>
+                  <span className="studio-picked-group">
                     <span className="studio-picked">{pickedNotes.length === 1 ? `${drums ? (DRUMS.find((d) => d.pitch === pickedNotes[0]!.pitch)?.name ?? '') : noteName(pickedNotes[0]!.pitch)} at ${position(pickedNotes[0]!.start, song.tempo).bars}` : `${pickedNotes.length} notes`}</span>
                     <Slider className="studio-velocity" label="Velocity" value={Math.round(velocity * 100) / 100} min={0} max={1} step={0.01} format={(v) => String(Math.round(v * 127))} onChange={(v) => setNotes((n) => setVelocity(n, picked, v), 'velocity')} />
                     <Button kind="quiet" danger aria-label="Delete notes" title="Delete" keys="Delete" onClick={() => { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); }}>Delete</Button>
-                  </>
+                  </span>
                 ) : null}
                 </>}
                 <IconButton className="studio-roll-close" label={detail === 'notes' ? 'Hide notes' : 'Hide devices'} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
@@ -1136,10 +1167,10 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             </div>
           ) : <>
           {/* How to draw, while there is nothing drawn yet; the bar keeps to controls so none of them is cut short. */}
-          {notes.length === 0 && <p className="studio-dev-note studio-roll-hint">Click to draw a note, drag to move it, drag its end to stretch it.</p>}
+          {notes.length === 0 && <p className="studio-dev-note studio-roll-hint">{draw ? 'Drag along a row to write a note in each grid step, or start on a note to take notes out. B leaves draw mode.' : 'Click to draw a note, drag to move it, drag its end to stretch it. B draws a run of notes.'}</p>}
           <div className="studio-roll" ref={roll} role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
             <div
-              className="studio-roll-inner"
+              className="studio-roll-inner" data-draw={draw || undefined}
               ref={inner}
               style={{ width: keysW + span * rbw, height: rows.length * rowH, ['--row' as string]: `${rowH}px`, ['--keys' as string]: `${keysW}px` }}
               onPointerDown={onRollDown}

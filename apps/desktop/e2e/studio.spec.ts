@@ -271,6 +271,41 @@ test('a melody is written as steps too, a row per note of the key', async () => 
   await expect(shell().getByRole('group', { name: 'E5' })).toBeVisible();
 });
 
+test('draw mode writes a note a grid step long in each step a drag crosses, takes them out from a note, and undoes as one', async () => {
+  await start();
+  const draw = shell().getByRole('button', { name: 'Draw' });
+  await draw.click();
+  await expect(draw).toHaveAttribute('aria-pressed', 'true');
+  const roll = shell().getByRole('grid', { name: 'Notes of Keys' });
+  const box = (await roll.boundingBox())!;
+  // Bars 3 and 4, clear of the song's two notes in bar 1.
+  const y = box.y + box.height * 0.6;
+  const x0 = box.x + box.width * 0.55;
+  await shell().mouse.move(x0, y);
+  await shell().mouse.down();
+  for (let x = x0; x <= x0 + 160; x += 6) await shell().mouse.move(x, y);
+  await shell().mouse.up();
+  await expect.poll(() => saved().tracks[0]!.notes.length).toBeGreaterThan(6);
+  const drawn = saved().tracks[0]!.notes.slice(2);
+  // One row, a grid step (1/16) each.
+  expect(new Set(drawn.map((n) => n.pitch)).size).toBe(1);
+  expect(drawn.every((n) => n.length === 0.25)).toBe(true);
+  // From a note, the stroke takes notes out.
+  const first = (await roll.locator('.studio-note').filter({ visible: true }).evaluateAll((els, at) => els.map((e) => e.getBoundingClientRect()).filter((r) => r.top <= at && r.bottom >= at).sort((a, b) => a.left - b.left).map((r) => r.left + r.width / 2), y))[0]!;
+  await shell().mouse.move(first, y);
+  await shell().mouse.down();
+  for (let x = first; x <= first + 60; x += 6) await shell().mouse.move(x, y);
+  await shell().mouse.up();
+  await expect.poll(() => saved().tracks[0]!.notes.length).toBeLessThan(drawn.length + 2);
+  // Each stroke is one step back.
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().tracks[0]!.notes.length).toBe(drawn.length + 2);
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().tracks[0]!.notes.length).toBe(2);
+  await shell().keyboard.press('b');
+  await expect(draw).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('the computer keyboard plays notes, an octave and velocity at a time, shown on the roll keys while held', async () => {
   await start();
   const play = shell().getByRole('button', { name: 'Computer keyboard' });

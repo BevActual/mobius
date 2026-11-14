@@ -116,16 +116,19 @@
 .studio-divider { flex: none; position: relative; height: var(--hairline-w); background: var(--line); cursor: row-resize; z-index: 5; touch-action: none; outline: none; }
 .studio-divider::before { content: ""; position: absolute; left: 0; right: 0; top: calc(-1 * var(--sp-1)); bottom: calc(-1 * var(--sp-1)); }
 .studio-divider:hover, .studio-divider:focus-visible { background: var(--ink); }
-.studio-roll-bar { flex: none; display: flex; align-items: center; gap: var(--sp-2); height: var(--row-list); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--paper); font-size: var(--fs-sm); }
+.studio-roll-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--sp-2); min-height: var(--row-list); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--paper); font-size: var(--fs-sm); }
 .studio-roll-close { margin-left: auto; color: var(--muted); }
 .studio-roll-title { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: var(--fw-semibold); white-space: nowrap; }
 /* Where the velocity slider sits in the roll bar: its width only. */
 .studio-roll-bar .studio-velocity { width: calc(var(--sp-8) * 6); }
+.studio-picked-group { display: flex; align-items: center; gap: var(--sp-2); margin-left: auto; }
+.studio-roll-bar .studio-velocity { flex: none; }
 .studio-picked { font-weight: var(--fw-semibold); white-space: nowrap; }
 .studio-hint { flex: 1 1 0; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .studio-page .studio-roll { flex: 0 1 auto; min-height: 0; overflow: auto; border-top: 0; outline: none; background: var(--paper); }
 .studio-page .studio-roll-inner { position: relative; touch-action: none; user-select: none; }
+.studio-page .studio-roll-inner[data-draw], .studio-page .studio-roll-inner[data-draw] .studio-note { cursor: crosshair; }
 .studio-page .studio-row { position: absolute; left: 0; right: 0; display: flex; }
 .studio-page .studio-row[data-shade] .studio-row-cells { background-color: color-mix(in srgb, var(--ink) 3.5%, transparent); }
 .studio-page .studio-row[data-black] .studio-row-cells { background-color: color-mix(in srgb, var(--ink) 5.5%, transparent); }
