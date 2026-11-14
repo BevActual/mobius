@@ -20,8 +20,9 @@ keep or discard.
 
 - [x] Every app's README picture retaken in the Instrument style, light and dark. *Launch*
 - [x] README says the composer's permissions the new way (Ask each time, Review changes, Apply changes, Auto). *Launch*
-- [ ] `docs/` says the same: the guide, first run, shortcuts, troubleshooting and app pages still say Ask first,
-      Propose and Act. *Launch*
+- [x] `docs/` says the same: the guide, first run, shortcuts, glossary, troubleshooting and app pages. *Launch*
+- [ ] The app says the same: the first-run screen, Settings › Approvals and safety, and Projects rules still say Ask
+      first, Propose and Act, and per-app access says "Follow the mode". *Builder*
 - [ ] Retake the pictures in `docs/` that show the old frame. *Launch*
 - [ ] Mark the "early" apps in the README and the app guide. *Launch, with the Apps lead*
 - [ ] "Where it stands" in the README matches the release that ships. *Launch*

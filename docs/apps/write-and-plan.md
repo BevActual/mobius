@@ -185,7 +185,7 @@ A place for one piece of work.
 
 ![The Projects app in Mobius](../readme/apps/projects.png)
 
-- **Rules**: how much Mobius may do in each app inside the project (Ask first, Propose or Act). Paying, sending,
+- **Rules**: how much Mobius may do in each app inside the project (Ask each time, Review changes, Apply changes or Auto). Paying, sending,
   deleting and running commands always ask, whatever a project says.
 - **Threads**: the project's conversations. Move an existing conversation in and the project's rules apply to it.
   Right-click a thread and choose **Remove from project** to take it out again: the conversation is kept, and the
