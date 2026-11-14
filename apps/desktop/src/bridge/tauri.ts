@@ -128,6 +128,7 @@ export function createTauriBridge(): MobiusBridge {
       rename: (id, name) => call('profiles', 'rename', [id, name], () => ({ ok: false as const, error: 'Not here.' })),
       remove: (id) => call('profiles', 'remove', [id], () => ({ ok: false as const, error: 'Not here.' })),
       switch: (id) => call('profiles', 'switch', [id], () => ({ ok: false as const, error: 'Not here.' })),
+      openDemo: () => call('profiles', 'openDemo', [], () => ({ ok: false as const, error: 'Not here.' })),
     },
     signins: {
       list: (conversation) => call('signins', 'list', [conversation], () => refused),
