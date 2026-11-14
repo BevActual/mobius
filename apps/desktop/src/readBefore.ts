@@ -15,7 +15,11 @@ export function readBefore(conversation: string, file: string, use: (text: strin
       .catch((e: unknown) => ({ ok: false as const, error: String(e) }))
       .then((was) => {
         if (!live) return;
-        if (was && was.ok) { use(was.text); return; }
+        if (was && was.ok) {
+          console.log(`[mobius] review: before read for ${file} (${was.text === null ? 'made in the turn' : `${was.text.length} chars`})`);
+          use(was.text);
+          return;
+        }
         console.warn(`[mobius] review: before failed for ${file}: ${was && 'error' in was ? was.error : 'no answer'}${last ? '' : ', reading again'}`);
         if (last) failed?.();
         else again = setTimeout(() => read(true), RETRY_MS);
