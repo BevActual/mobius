@@ -7,8 +7,8 @@ import { clipToNotes } from './clip';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { EmptyState } from './EmptyState';
-import { SideNew } from './SideNew';
-import { AppSidebar, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
+import { SideNew, newKeys } from './SideNew';
+import { AppSidebar, KeyCaps, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import './reader.css';
 
 /** The toolbar's grey line for the open article: the site it came from, which opens the original in the Browser. */
@@ -36,7 +36,7 @@ export function ReaderSidebar({ reading, pin, changed }: { reading: NotesState; 
   const remove = async (path: string) => { await reading.remove(path); };
   return (
     <AppSidebar label="Reader sidebar">
-      <SideNew item="article" onNew={() => sendCommand('save-link')} title="Save a link to read later" />
+      <SideNew item="article" onNew={() => sendCommand('save-link')} title={`Save a link (${newKeys()})`} />
       <SidebarSearch label="Search articles" value={query} onChange={setQuery} />
       {lists.map((nb, i) => {
         const pages = [...nb.pages].sort((x, y) => y.modified - x.modified).filter((pg) => !q || pg.title.toLowerCase().includes(q));
@@ -271,7 +271,7 @@ export function ReaderPage({ reading, review, tab, onAsk }: { reading: NotesStat
     return (
       <section className="reader-page" aria-label="Reader" data-theme={look.theme}>
         <ToolbarControls label="Reader">
-          <button type="button" className="strip-btn" aria-label="Save a link" title="Save a link to read later" onClick={startAdding}><LinkGlyph /></button>
+          <button type="button" className="strip-btn" aria-label="Save a link" title={`Save a link (${newKeys()})`} onClick={startAdding}><LinkGlyph /></button>
         </ToolbarControls>
         {saveBar}
         {message && <p className="reader-message" role="alert">{message}</p>}
@@ -286,9 +286,9 @@ export function ReaderPage({ reading, review, tab, onAsk }: { reading: NotesStat
   return (
     <section className="reader-page" aria-label="Reader" data-theme={look.theme}>
       <ToolbarControls label="Reader">
-        <button type="button" className="strip-btn" aria-label="Save a link" title="Save a link to read later" onClick={startAdding}><LinkGlyph /></button>
+        <button type="button" className="strip-btn" aria-label="Save a link" title={`Save a link (${newKeys()})`} onClick={startAdding}><LinkGlyph /></button>
         <LookPanel look={look} onChange={setLook} />
-        {!inArchive && <button type="button" className="strip-btn" aria-label="Done reading" title="Done reading: move it to Archive (E)" aria-keyshortcuts="E" onClick={() => void archive()}><ArchiveGlyph /></button>}
+        {!inArchive && <button type="button" className="strip-btn" aria-label="Done reading" title="Done reading (E)" aria-keyshortcuts="E" onClick={() => void archive()}><ArchiveGlyph /></button>}
       </ToolbarControls>
       {adding && saveBar}
       {message && <p className="reader-message" role="alert">{message}</p>}
@@ -325,7 +325,7 @@ export function ReaderPage({ reading, review, tab, onAsk }: { reading: NotesStat
               onClick={(e) => { const m = (e.target as HTMLElement).closest('mark'); if (m && !window.getSelection()?.toString()) setMarked({ text: m.textContent ?? '', ...place(m.getBoundingClientRect()) }); else if (!m) setMarked(null); }}
             >
               <RichText text={article.body} />
-              {picked && <div className="selection-bar reader-mark-bar" role="toolbar" aria-label="Selected text" style={{ top: picked.top, left: picked.left }}><button type="button" className="selection-btn" onPointerDown={(e) => e.preventDefault()} onClick={() => highlight()}>Highlight <kbd>H</kbd></button>{onAsk && <button type="button" className="selection-btn" onPointerDown={(e) => e.preventDefault()} onClick={() => ask(picked.text)}>Ask Mobius</button>}</div>}
+              {picked && <div className="selection-bar reader-mark-bar" role="toolbar" aria-label="Selected text" style={{ top: picked.top, left: picked.left }}><button type="button" className="selection-btn" onPointerDown={(e) => e.preventDefault()} onClick={() => highlight()}>Highlight <KeyCaps keys="H" /></button>{onAsk && <button type="button" className="selection-btn" onPointerDown={(e) => e.preventDefault()} onClick={() => ask(picked.text)}>Ask Mobius</button>}</div>}
               {marked && <div className="selection-bar reader-mark-bar" role="toolbar" aria-label="Highlight" style={{ top: marked.top, left: marked.left }}><button type="button" className="selection-btn" onClick={() => unmark(marked.text)}>Remove highlight</button>{onAsk && <button type="button" className="selection-btn" onClick={() => ask(marked.text)}>Ask Mobius</button>}</div>}
             </div>
           </article>

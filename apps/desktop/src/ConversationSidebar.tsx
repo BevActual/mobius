@@ -181,7 +181,7 @@ function BotRow({ bot, sessions, current, first, last, onOpen, onNew, onUpdate, 
         <span className="clist-title">{bot.name}</span>
         <span className="clist-sub">{main ? 'Built in' : bot.model || 'Model from settings'} · {sessionCount(sessions)}</span>
       </button>
-      <button type="button" className="bot-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
+      <button type="button" className="bot-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More (Shift+F10)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
       </button>
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={bot.name} items={items} onClose={() => setMenu(null)} />, document.body)}
@@ -251,8 +251,15 @@ function ScheduledSection({ onOpen }: { onOpen: () => void }) {
  * Changes not yet kept or discarded, from today's conversations, one row per conversation: the design's Activity
  * history with Undo, for each conversation's last turn. Keep and Discard do what they do in the strip.
  */
-export function ChangesWaiting({ conversations, onSelect }: { conversations: ConversationInfo[]; onSelect: (id: string) => void }) {
+export function ChangesWaiting({ conversations, onSelect, onRows }: {
+  conversations: ConversationInfo[];
+  onSelect: (id: string) => void;
+  /** Activity (marked, Activity only): which conversations are listed, so it doesn't list them twice. */
+  onRows?: (ids: string[]) => void;
+}) {
   const [rows, setRows] = useState<{ conversation: ConversationInfo; turn: string | null; files: string[] }[]>([]);
+  const listed = rows.map((r) => r.conversation.id).join(',');
+  useEffect(() => { onRows?.(listed ? listed.split(',') : []); }, [listed]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tick, setTick] = useState(0);
   const ids = conversations.map((c) => c.id).join(',');
   useEffect(() => {
