@@ -215,11 +215,15 @@
   --step-size: 20px;
   --step-gap: 2px;
   --step-name-w: 72px;
+  --step-max: 64px;
+  --step-fill-h: 28px;
   --band-dot: 16px;
   --eq-h: 144px;
+  --lane-h: 56px;
   --device-min-w: 220px;
   --device-head-h: 32px;
   --pad-cell: 56px;
+  --pad-max: 112px;
   --dialog-w: 480px;
   --z-dialog: 900;
   --tab-h: 36px;
@@ -333,8 +337,11 @@ html[data-density='compact'], .app[data-density='compact'] {
   --knob-size: 32px;
   --graph-h: 80px;
   --step-size: 18px;
+  --step-max: 56px;
+  --step-fill-h: 24px;
   --device-head-h: 28px;
   --eq-h: 120px;
+  --lane-h: 44px;
   --pad-cell: 48px;
 }
 

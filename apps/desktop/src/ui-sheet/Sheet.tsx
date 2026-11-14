@@ -7,6 +7,7 @@ import {
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   WaveformView, peaksOf, type WaveRange,
   PadGrid, type Pad,
+  AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
 } from '../ui';
@@ -129,6 +130,8 @@ function Instruments() {
   const [cells, setCells] = useState<number[][]>([
     bar([0, 4, 8, 12], 0.7, [0]), bar([4, 12], 0.7), bar([12], 0.5), bar([0, 2, 4, 6, 8, 10, 12, 14], 0.5, [2, 10]), bar([7, 15], 0.6), bar([], 0.7),
   ]);
+  const [lane, setLane] = useState<AutomationPoint[]>([{ beat: 0, value: 0.3 }, { beat: 4, value: 0.8 }, { beat: 10, value: 0.8 }, { beat: 14, value: 0.45 }]);
+  const [cutLane, setCutLane] = useState<AutomationPoint[]>([]);
   return (
     <div className="sheet-instruments">
       <div className="sheet-col"><span className="sheet-note">Envelope (drag a handle; arrows, Shift; on the decay corner Up and Down set sustain; double-click resets)</span>
@@ -145,6 +148,11 @@ function Instruments() {
         </div></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: an on-step is ink to its velocity, an accent full height; click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
         <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">Steps with fill: the same grid stretched across the width, each step up to a wide cell</span>
+        <StepGrid label="Drums, fill" fill rows={drums.slice(0, 3)} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">Automation lanes, 4 bars at 32 per beat: click adds a point and drags it, double-click or Delete removes, arrows nudge (Alt drags off the grid, Ctrl+arrows move between points, Enter adds one a step later). The second is empty, at the setting's own level.</span>
+        <AutomationLane label="Volume" points={lane} beats={16} pxPerBeat={32} grid={0.25} onChange={setLane} />
+        <AutomationLane label="Filter cutoff" points={cutLane} beats={16} pxPerBeat={32} grid={0.25} empty={0.6} onChange={setCutLane} /></div>
     </div>
   );
 }
@@ -217,6 +225,10 @@ function DrumPads() {
       <PadGrid label="Drum kit" pads={pads} chosen={chosen} lit={lit} onChoose={setChosen} onPlay={(i) => { setLit([i]); setTimeout(() => setLit([]), 120); }}>
         <div className="sheet-row"><Slider label="Tune" value={tune} min={-12} max={12} step={1} format={(v) => (v > 0 ? `+${v} st` : `${v} st`)} onChange={setTune} /></div>
       </PadGrid>
+      <span className="sheet-note">With fill, six pads in three columns share a Device panel's width</span>
+      <div style={{ width: 'var(--panel-w)' }}>
+        <PadGrid label="Drum kit, fill" fill columns={3} pads={pads.slice(0, 6)} chosen={chosen} onChoose={setChosen} />
+      </div>
     </div>
   );
 }

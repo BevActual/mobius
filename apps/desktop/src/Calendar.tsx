@@ -6,7 +6,7 @@ import { onCommand } from './commands';
 import { useMorphIn } from './motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
-import { addDays, dayLabel, parseDayText, parseTimeText, timeLabel, weekStart, allDayOn, atMinutes, calendarColor, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { addDays, weekStart, allDayOn, atMinutes, calendarColor, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
@@ -14,7 +14,7 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { useCalendarReview, type CalendarReview } from './useCalendarReview';
 import type { Start } from './SideNew';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, ViewSwitch } from './ui';
+import { AppSidebar, DateField, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, ViewSwitch } from './ui';
 
 /** An hour's height: 64 in the comfortable density (a working day shows whole), 48 in the compact one. */
 const hourPx = () => (document.documentElement.dataset.density === 'compact' ? 48 : 64);
@@ -613,85 +613,12 @@ function YearGrid({ calendar }: { calendar: CalendarState }) {
 const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 const fromMinutes = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-/**
- * A day in the event sheet, written the way the person writes dates ("Thu, 12 Nov 2026"). Typing a date or words
- * ("fri", "12 dec") changes it when the field is left; ↑ and ↓ move a day; the mini month picks one.
- */
-function DayField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  const [text, setText] = useState<string | null>(null);
-  const [picking, setPicking] = useState(false);
-  const wrap = useRef<HTMLSpanElement>(null);
-  const commit = () => {
-    if (text !== null) { const day = parseDayText(text, new Date(), parseWhen); if (day) onChange(day); }
-    setText(null);
-  };
-  useEffect(() => {
-    if (!picking) return undefined;
-    const away = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node)) setPicking(false); };
-    window.addEventListener('pointerdown', away, true);
-    return () => window.removeEventListener('pointerdown', away, true);
-  }, [picking]);
-  const shown = localDate(value);
-  const month = new Date(shown.getFullYear(), shown.getMonth(), 1);
-  const [view, setView] = useState(month);
-  useEffect(() => setView(month), [value]); // eslint-disable-line react-hooks/exhaustive-deps
-  const first = weekStart(view);
-  const cells = Array.from({ length: 42 }, (_, i) => addDays(first, i));
-  return (
-    <span className="cal-field" ref={wrap}>
-      <input
-        aria-label={label} className="cal-field-day" value={text ?? dayLabel(value)} required spellCheck={false}
-        onFocus={(e) => e.currentTarget.select()}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setText(null); onChange(isoDay(addDays(shown, e.key === 'ArrowUp' ? -1 : 1))); }
-          else if (e.key === 'Enter') { e.preventDefault(); commit(); }
-        }}
-      />
-      <button type="button" className="cal-field-pick" aria-label="Pick a day" aria-expanded={picking} onClick={() => setPicking((p) => !p)}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
-      </button>
-      {picking && (
-        <div className="cal-field-month" role="dialog" aria-label={label}>
-          <div className="cal-field-month-head">
-            <b>{formatWith(view, { month: 'long', year: 'numeric' })}</b>
-            <button type="button" className="strip-btn" aria-label="Previous month" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
-            <button type="button" className="strip-btn" aria-label="Next month" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
-          </div>
-          <div className="cal-field-days">
-            {cells.slice(0, 7).map((d) => <span key={`h${d.getDay()}`}>{formatWith(d, { weekday: 'narrow' })}</span>)}
-            {cells.map((d) => (
-              <button key={isoDay(d)} type="button" aria-label={formatWith(d, { weekday: 'long', day: 'numeric', month: 'long' })} aria-pressed={isoDay(d) === value} data-out={d.getMonth() !== view.getMonth() || undefined} data-today={sameDay(d, new Date()) || undefined} onClick={() => { onChange(isoDay(d)); setPicking(false); }}>{d.getDate()}</button>
-            ))}
-          </div>
-        </div>
-      )}
-    </span>
-  );
-}
-
-/** A time in the event sheet, written as the person's locale writes times; "2pm" or "1430" typed, ↑ and ↓ by 15 minutes. */
-function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  const [text, setText] = useState<string | null>(null);
-  const commit = () => { if (text !== null) { const t = parseTimeText(text); if (t) onChange(t); } setText(null); };
-  return (
-    <input
-      aria-label={label} className="cal-field-time" value={text ?? timeLabel(value)} required spellCheck={false} inputMode="numeric"
-      onFocus={(e) => e.currentTarget.select()}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-          e.preventDefault();
-          const m = minutesOf(value) + (e.key === 'ArrowUp' ? -15 : 15);
-          setText(null);
-          onChange(fromMinutes(((Math.round(m / 15) * 15) % 1440 + 1440) % 1440));
-        } else if (e.key === 'Enter') { e.preventDefault(); commit(); }
-      }}
-    />
-  );
-}
+/** The quick picks in an event's day field: an event always has a day, so there is no "No date". */
+const DAY_PICKS = [
+  { label: 'Today', keys: 'T', day: (now: Date) => new Date(now.getFullYear(), now.getMonth(), now.getDate()) },
+  { label: 'Tomorrow', keys: 'M', day: (now: Date) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) },
+  { label: 'Next week', keys: 'W', day: (now: Date) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7) },
+] as const;
 
 /** Today, a day picked in the mini month, or the day on screen: where a new event starts. */
 const newStart = (anchor: Date) => {
@@ -781,7 +708,8 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
     if (!at) return undefined;
     const away = (e: PointerEvent) => {
       const t = e.target as Element | null;
-      if (sheet.current?.contains(t) || t?.closest?.('.ui-menu')) return;
+      // The shared fields' lists and months open in a layer of their own, outside the sheet.
+      if (sheet.current?.contains(t) || t?.closest?.('.ui-menu, .ui-menu-positioner, .ui-popover')) return;
       const l = live.current;
       if (l.busy) return;
       if (l.changed()) void l.save(); else onClose();
@@ -811,27 +739,29 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
         <input ref={field} className="cal-editor-title" aria-label="Title" placeholder="New event" value={title} maxLength={200} required onChange={(e) => setTitle(e.target.value)} />
         <input className="cal-editor-place" aria-label="Place" placeholder="Add a place" value={where} maxLength={200} onChange={(e) => setWhere(e.target.value)} />
         <div className="cal-editor-group">
-          <label className="cal-editor-row cal-editor-check"><span>All day</span><input type="checkbox" aria-label="All day" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} /></label>
+          <Switch className="cal-editor-row cal-editor-check" label="All day" checked={allDay} onChange={setAllDay} />
           <div className="cal-editor-row">
             <span>Starts</span>
-            <DayField label="Start day" value={startDay} onChange={(v) => { const was = localDate(startDay).getTime(); setStartDay(v); setEndDay(isoDay(new Date(localDate(endDay).getTime() + localDate(v).getTime() - was))); }} />
-            {!allDay && <TimeField label="Start time" value={startTime} onChange={(v) => { const length = minutesOf(endTime) - minutesOf(startTime); setStartTime(v); if (startDay === endDay && length > 0) setEndTime(fromMinutes(Math.min(23 * 60 + 59, minutesOf(v) + length))); }} />}
+            <DateField label="Start day" hideLabel quick={DAY_PICKS} value={localDate(startDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); const was = localDate(startDay).getTime(); setStartDay(v); setEndDay(isoDay(new Date(localDate(endDay).getTime() + localDate(v).getTime() - was))); }} />
+            {!allDay && <TimeField label="Start time" hideLabel placeholder="Time" value={minutesOf(startTime)} onChange={(m) => { if (m === null) return; const v = fromMinutes(m % 1440); const length = minutesOf(endTime) - minutesOf(startTime); setStartTime(v); if (startDay === endDay && length > 0) setEndTime(fromMinutes(Math.min(23 * 60 + 59, minutesOf(v) + length))); }} />}
           </div>
           <div className="cal-editor-row">
             <span>Ends</span>
-            <DayField label="End day" value={endDay} onChange={(v) => setEndDay(v < startDay ? startDay : v)} />
-            {!allDay && <TimeField label="End time" value={endTime} onChange={setEndTime} />}
+            <DateField label="End day" hideLabel quick={DAY_PICKS} value={localDate(endDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); setEndDay(v < startDay ? startDay : v); }} />
+            {!allDay && <TimeField label="End time" hideLabel placeholder="Time" value={minutesOf(endTime)} from={startDay === endDay ? minutesOf(startTime) : null} onChange={(m) => {
+              if (m === null) return;
+              // Past midnight from the start: the event ends the next day.
+              if (m >= 1440) { setEndDay(isoDay(addDays(localDate(startDay), 1))); setEndTime(fromMinutes(m - 1440)); } else setEndTime(fromMinutes(m));
+            }} />}
           </div>
-          <label className="cal-editor-row"><span>Repeat</span>
-            <select aria-label="Repeat" value={repeat} onChange={(e) => setRepeat(e.target.value)}>
-              {REPEAT_OPTIONS.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              {initialRepeat === 'custom' && <option value="custom" disabled>Custom (set in another app)</option>}
-            </select>
-          </label>
+          <div className="cal-editor-row"><span>Repeat</span>
+            <Select label="Repeat" hideLabel value={repeat} onChange={setRepeat}
+              choices={[...REPEAT_OPTIONS.map((r) => ({ value: r.id as string, label: r.name })), ...(initialRepeat === 'custom' ? [{ value: 'custom', label: 'Custom (set in another app)', disabled: true }] : [])]} />
+          </div>
           {!original && writable.length > 1 && (
-            <label className="cal-editor-row"><span>Calendar</span>
-              <select aria-label="Calendar" value={into} onChange={(e) => setInto(e.target.value)}>{writable.map((c) => <option key={c} value={c}>{c}</option>)}</select>
-            </label>
+            <div className="cal-editor-row"><span>Calendar</span>
+              <Select label="Calendar" hideLabel value={into} onChange={setInto} choices={writable.map((c) => ({ value: c, label: c }))} />
+            </div>
           )}
         </div>
         <textarea aria-label="Notes" placeholder="Notes" value={notes} maxLength={4000} rows={3} onChange={(e) => setNotes(e.target.value)} />

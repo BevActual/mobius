@@ -62,7 +62,7 @@ import { SkillEditor } from './Skills';
 // Abilities (marked): the toolbar's title, grey line and controls, the skills list, and New skill.
 import { AbilitiesSub, abilitiesTitle, ExtensionsPage, ExtensionsSidebar, requestNewSkill, SkillList, SkillsToolbar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, filesSub, filesTitle, useFiles } from './Files';
-import { MailPlanCard } from './MailPlan';
+import { MailActions } from './MailPlan';
 import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
 import { HowIWork, SharedQueue, WikiPage, WikiSidebar, useWikiIncoming, type WikiPlace } from './Wiki';
 import { useSkills } from './useSkills';
@@ -1012,6 +1012,8 @@ export function App() {
   const [incoming, setIncoming] = useState<{ token: number; item?: ContextItem; text?: string } | null>(null);
   /** A start from an app's New row: its words go in the message box, for the person to finish and send. */
   const startWithMobius = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), text: prompt }); };
+  // Mail (marked): a Triage action sends its turn in Mail's Triage mode, whatever the composer's mode.
+  const triageMail = (prompt: string) => { if (!shows('agent')) setChatOpen(true); void conversation.send(prompt, [], { mode: 'triage' }); };
   /** Mobius's starts for the open app: the suggestions that need nothing attached. */
   const startsFor = (id: AppId) => suggestionsFor({ ...surface, settings: false, app: id }).filter((s) => !s.attach).slice(0, 2);
   // Pinned favourites: notes and task lists one click away in the sidebar.
@@ -1470,7 +1472,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={inMail ? (mail.open ? null : <MailPlanCard onChanged={() => void mail.refresh()} />) : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
+            appCard={inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
@@ -1515,7 +1517,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={inMail ? (mail.open ? null : <MailPlanCard onChanged={() => void mail.refresh()} />) : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
+            appCard={inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
