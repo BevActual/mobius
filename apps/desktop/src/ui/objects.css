@@ -134,7 +134,8 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-choice[data-two-line], .ui-menu-item[data-two-line] { height: auto; min-height: var(--menu-row-h); padding-block: calc(var(--sp-2) - var(--hairline-w)); align-items: flex-start; }
 .ui-choice-text { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: calc(var(--sp-1) / 2); }
 .ui-choice-meaning { font-size: var(--fs-sm); color: var(--muted); white-space: normal; line-height: var(--lh-tight); }
-.ui-choice[data-highlighted] .ui-choice-meaning, .ui-menu-item[data-highlighted] .ui-choice-meaning { color: var(--body); }
+.ui-choice[data-highlighted] .ui-choice-meaning { color: var(--body); }
+.ui-menu-item[data-highlighted] .ui-choice-meaning { color: var(--muted); }
 .ui-menu:has(.ui-menu-item[data-two-line]) { min-width: calc(var(--card-w) - var(--sp-8)); max-width: calc(var(--card-w) + var(--sp-8)); }
 .ui-choice-mark { display: inline-grid; place-items: center; flex: none; width: var(--sp-4); height: var(--sp-4); visibility: hidden; }
 .ui-choice-mark[data-checked] { visibility: visible; }
