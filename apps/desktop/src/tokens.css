@@ -202,6 +202,9 @@
   --pad-min: 120px;
   --pad-point: 14px;
   --pad-start: 8px;
+  --dialog-w: 480px;
+  --z-dialog: 900;
+  --tab-h: 36px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -277,6 +280,7 @@
 }
 
 html[data-density='compact'] {
+  --tab-h: 32px;
   --button-h: 28px;
   --icon-button: 28px;
   --param-value: 26px;

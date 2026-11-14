@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select,
-  Slider, StatusLetter, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
+  Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
 } from '../ui';
 
 /**
@@ -115,6 +115,31 @@ function Composer() {
       <ChoiceMenu label="Model" title="Model" value={model} onChange={setModel} align="end" trigger={quiet({ best: 'Best fit', quick: 'Quick', deep: 'Deep' }[model], 'Model')}
         choices={[{ value: 'best', label: 'Best fit', meaning: 'Picks the model for each step' }, { value: 'quick', label: 'Quick', meaning: 'Fast answers for small jobs' }, { value: 'deep', label: 'Deep', meaning: 'Slower, for long and careful work' }]} />
       <IconButton label="Send" keys="Enter" primary icon={<Icon d={SEND} />} />
+    </div>
+  );
+}
+
+function Floating() {
+  const [dialog, setDialog] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [name, setName] = useState('P2 budget');
+  const [tabs, setTabs] = useState([
+    { id: 'brief', label: 'Build brief.md' }, { id: 'budget', label: 'P2 budget.xlsx', unsaved: true }, { id: 'plan', label: 'Launch plan for the Northway dealer preview.md' }, { id: 'motor', label: 'motor.ts', byMobius: true },
+  ]);
+  const [tab, setTab] = useState('budget');
+  return (
+    <div className="sheet-col">
+      <ContentTabs label="Open files" tabs={tabs} value={tab} onChange={setTab} onClose={(id) => setTabs(tabs.filter((t) => t.id !== id))}
+        trailing={<IconButton label="New tab" keys="Ctrl+T" icon={<Icon d={PLUS} />} />} />
+      <div className="sheet-row" style={{ marginTop: 12 }}>
+        <Button onClick={() => setDialog(true)}>Rename…</Button>
+        <Button onClick={() => setConfirm(true)}>Delete 3 files…</Button>
+      </div>
+      <Dialog open={dialog} onOpenChange={setDialog} title="Rename sheet" description="The new name shows everywhere this sheet is linked."
+        actions={<><Button onClick={() => setDialog(false)}>Cancel</Button><Button kind="primary" onClick={() => setDialog(false)}>Rename</Button></>}>
+        <TextField label="Name" value={name} onChange={setName} />
+      </Dialog>
+      <Confirm open={confirm} title="Delete 3 files?" description="They leave P2 build and every app that shows them." permanent action="Delete 3 files" onConfirm={() => setConfirm(false)} onCancel={() => setConfirm(false)} />
     </div>
   );
 }
@@ -268,6 +293,10 @@ export function Sheet() {
 
         <Card title="Popover and choice menus (composer: plus, Mode, Permission, model open upward)" wide>
           <Composer />
+        </Card>
+
+        <Card title="Content tabs and dialogs" wide>
+          <Floating />
         </Card>
 
         <Card title="Two-axis pad" wide>
