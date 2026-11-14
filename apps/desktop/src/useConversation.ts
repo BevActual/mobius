@@ -3,6 +3,14 @@ import { MAIN_BOT_ID, botOfConversation, conversationIdFor, splitContext, type C
 import { preferencesSettled } from './usePreferences';
 import { findToolArguments, findToolResult, initialConversation, reduce, type ConversationState } from './conversation';
 
+/**
+ * A turn's steps, with the time since it was sent, on the console as `[mobius] turn …`: the e2e runs print these, so a
+ * reply that never showed tells whether the approval reached the core, or the turn was slow, or it never ended.
+ */
+const TIMED = new Set(['needs_approval', 'tool_result', 'done', 'failed', 'cancelled']);
+let turnStarted = 0;
+const turnLog = (step: string) => console.info(`[mobius] turn ${step} +${Math.round(performance.now() - turnStarted)} ms`);
+
 const STORAGE_KEY = 'mobius.conversation';
 const newId = (bot: string = MAIN_BOT_ID) => conversationIdFor(bot, crypto.randomUUID());
 
@@ -67,6 +75,7 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   useEffect(
     () =>
       window.mobius.agent.onNotification((notification) => {
+        if (notification.method === 'agent.event' && TIMED.has(notification.params.event.kind)) turnLog(notification.params.event.kind);
         dispatch({ type: 'notification', notification });
         if (notification.method === 'agent.event' && ['done', 'failed', 'cancelled', 'needs_approval', 'tool_result', 'question'].includes(notification.params.event.kind)) void refresh();
         // A turn started elsewhere (a schedule, Little Mobius) was opened while it ran, before its request was saved:
@@ -109,6 +118,8 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   const send = useCallback(
     async (text: string, context: ContextItem[] = [], options: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[] } = {}) => {
       const images = options.images ?? [];
+      turnStarted = performance.now();
+      turnLog('sent');
       dispatch({ type: 'sent', text, context, images, ...(options.model ? { model: options.model } : {}) });
       const id = active.current;
       sending.current = id;
@@ -116,6 +127,7 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
       // A choice made just before sending (the effort, say) reaches the core first.
       await preferencesSettled();
       const result = await window.mobius.agent.send(id, text, context, Object.keys(extra).length > 0 ? extra : undefined);
+      turnLog(result.ok ? 'taken by the core' : 'not taken by the core');
       sending.current = null;
       if (!result.ok) dispatch({ type: 'send-failed', message: result.error });
       // Stop was pressed before the core had the request: the cancel could have arrived first and been lost.
@@ -143,7 +155,9 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   const answer = useCallback(async (requestId: number, approve: boolean, duration: Duration) => {
     // Show the answer straight away: the news that follows it can arrive before the reply to this call does.
     dispatch({ type: 'answered', requestId, approve });
+    turnLog(approve ? 'allowed' : 'declined');
     const result = await window.mobius.agent.resolve(requestId, approve, duration);
+    turnLog(result.ok ? 'answer taken by the core' : 'answer not taken by the core');
     if (result.ok) return null;
     dispatch({ type: 'answer-failed', requestId });
     return result.error;

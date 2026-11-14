@@ -56,6 +56,18 @@ pub struct Account {
     pub validity: BTreeMap<String, u32>,
 }
 
+impl Account {
+    /// An account kept only on this computer (the demo workspace's): never mirrored, and sending keeps the mail in
+    /// Sent here.
+    #[must_use]
+    pub fn is_local(&self) -> bool {
+        self.imap_host == LOCAL_HOST
+    }
+}
+
+/// The server name of an account kept only on this computer.
+pub const LOCAL_HOST: &str = "local";
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Person {
     pub name: String,
@@ -334,6 +346,34 @@ pub fn html_text(html: &str) -> String {
 }
 
 /// The parts of a message the window shows: who, when, the text (and the HTML, which the window shows sandboxed).
+/// The message with its Date header set to `at` (seconds), or one added if it had none.
+fn with_date(raw: &[u8], at: i64) -> Vec<u8> {
+    let date = chrono::DateTime::from_timestamp(at, 0).unwrap_or_default().with_timezone(&chrono::Local).to_rfc2822();
+    let text = String::from_utf8_lossy(raw);
+    let end = text.find("\r\n\r\n").or_else(|| text.find("\n\n")).unwrap_or(text.len());
+    let (head, body) = text.split_at(end);
+    let mut lines: Vec<String> = Vec::new();
+    let mut found = false;
+    let mut in_date = false;
+    for line in head.split_inclusive('\n') {
+        if in_date && (line.starts_with(' ') || line.starts_with('\t')) {
+            continue;
+        }
+        in_date = line.len() >= 5 && line[..5].eq_ignore_ascii_case("date:");
+        if in_date {
+            found = true;
+            let eol = if line.ends_with("\r\n") { "\r\n" } else { "\n" };
+            lines.push(format!("Date: {date}{eol}"));
+        } else {
+            lines.push(line.to_owned());
+        }
+    }
+    let mut out = if found { String::new() } else { format!("Date: {date}\r\n") };
+    out.push_str(&lines.concat());
+    out.push_str(body);
+    out.into_bytes()
+}
+
 pub fn read_message(raw: &[u8]) -> Value {
     let Some(m) = MessageParser::default().parse(raw) else { return json!({ "text": String::from_utf8_lossy(raw) }) };
     // Only a real HTML part: for a plain message the parser makes HTML out of the text, which adds nothing.
@@ -357,6 +397,48 @@ impl Mail {
         let dir = data_dir.join("mail");
         let saved = std::fs::read_to_string(dir.join("mail.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
         Mail { dir, secrets, state: Mutex::new(saved), connector }
+    }
+
+    /// Makes a mail account kept only on this computer from a folder of messages (the demo workspace's): `account.json`
+    /// (`{"name","email"}`), then `inbox/*.eml` and `sent/*.eml`, in file-name order. The messages are moved in time so
+    /// the newest arrived a few minutes ago, keeping their spacing; a message with `X-Mobius-Seen: yes` is already read
+    /// and one with `X-Mobius-Flagged: yes` is flagged. Mail already in `data_dir` is left as it is.
+    pub fn import_local(data_dir: &Path, seed: &Path) -> Res<usize> {
+        let dir = data_dir.join("mail");
+        if dir.join("mail.json").exists() {
+            return Ok(0);
+        }
+        let about: Value = std::fs::read_to_string(seed.join("account.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).ok_or("The demo mail needs account.json.")?;
+        let email = about["email"].as_str().filter(|e| e.contains('@')).ok_or("account.json needs an email.")?.to_owned();
+        let name = about["name"].as_str().unwrap_or(&email).to_owned();
+        let account = Account { id: new_id(), name, email, imap_host: LOCAL_HOST.into(), imap_port: 0, smtp_host: LOCAL_HOST.into(), smtp_port: 0, last_sync_ms: now_ms(), problem: None, validity: BTreeMap::new() };
+        let mut files: Vec<(&str, Vec<u8>)> = Vec::new();
+        for which in ["inbox", "sent"] {
+            let mut names: Vec<PathBuf> = std::fs::read_dir(seed.join(which)).map(|r| r.filter_map(Result::ok).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("eml"))).collect()).unwrap_or_default();
+            names.sort();
+            for path in names {
+                files.push((which, std::fs::read(&path).map_err(|e| e.to_string())?));
+            }
+        }
+        let date_of = |raw: &[u8]| MessageParser::default().parse(raw).and_then(|m| m.date().map(mail_parser::DateTime::to_timestamp)).unwrap_or(0);
+        let newest = files.iter().map(|(_, raw)| date_of(raw)).max().unwrap_or(0);
+        let shift = if newest > 0 { chrono::Utc::now().timestamp() - 10 * 60 - newest } else { 0 };
+        let mut saved = Saved { accounts: vec![account.clone()], ..Saved::default() };
+        let mut uids: HashMap<&str, u32> = HashMap::new();
+        for (which, raw) in files {
+            let raw = if shift == 0 { raw } else { with_date(&raw, date_of(&raw) + shift) };
+            let uid = uids.entry(which).and_modify(|u| *u += 1).or_insert(1);
+            let folder = dir.join(&account.id).join(which);
+            std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+            std::fs::write(folder.join(format!("{uid}.eml")), &raw).map_err(|e| e.to_string())?;
+            let header = |h: &str| MessageParser::default().parse_headers(&raw).and_then(|m| m.header_raw(h).map(|v| v.trim().eq_ignore_ascii_case("yes")));
+            let flags: Vec<String> = [("X-Mobius-Seen", "\\Seen"), ("X-Mobius-Flagged", "\\Flagged")].iter().filter(|(h, _)| header(h).unwrap_or(false)).map(|(_, f)| (*f).to_owned()).collect();
+            saved.messages.push(Self::index_entry(&account.id, which, *uid, &flags, &raw));
+        }
+        let count = saved.messages.len();
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        std::fs::write(dir.join("mail.json"), serde_json::to_string(&saved).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        Ok(count)
     }
 
     /// Plain TCP, for a test server only.
@@ -385,7 +467,7 @@ impl Mail {
     }
 
     pub fn accounts(&self) -> Value {
-        json!(self.lock().accounts.iter().map(|a| json!({ "id": a.id, "name": a.name, "email": a.email, "lastSyncMs": a.last_sync_ms, "problem": a.problem })).collect::<Vec<_>>())
+        json!(self.lock().accounts.iter().map(|a| json!({ "id": a.id, "name": a.name, "email": a.email, "lastSyncMs": a.last_sync_ms, "problem": a.problem, "local": a.is_local() })).collect::<Vec<_>>())
     }
 
     /// Signs in to see that it works, keeps the password, and mirrors the mail.
@@ -443,7 +525,7 @@ impl Mail {
     pub fn sync(&self, only: Option<&str>) -> bool {
         let accounts: Vec<Account> = self.lock().accounts.iter().filter(|a| only.is_none_or(|id| a.id == id)).cloned().collect();
         let mut changed = false;
-        for mut account in accounts {
+        for mut account in accounts.into_iter().filter(|a| !a.is_local()) {
             let result = match self.secrets.get(&secret_name(&account.id)) {
                 Some(password) => self.sync_account(&mut account, &password),
                 None => Err("The password for this account is missing. Remove it and connect it again.".into()),
@@ -461,7 +543,7 @@ impl Mail {
     }
 
     pub fn sync_due(&self) -> bool {
-        let due: Vec<String> = self.lock().accounts.iter().filter(|a| now_ms().saturating_sub(a.last_sync_ms) >= SYNC_EVERY_MS).map(|a| a.id.clone()).collect();
+        let due: Vec<String> = self.lock().accounts.iter().filter(|a| !a.is_local() && now_ms().saturating_sub(a.last_sync_ms) >= SYNC_EVERY_MS).map(|a| a.id.clone()).collect();
         let mut changed = false;
         for id in &due {
             changed |= self.sync(Some(id));
@@ -507,7 +589,7 @@ impl Mail {
                     let folder = self.dir.join(&account.id).join(which);
                     std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
                     std::fs::write(folder.join(format!("{}.eml", f.uid)), &f.raw).map_err(|e| e.to_string())?;
-                    added.push(self.index_entry(&account.id, which, f.uid, &f.flags, &f.raw));
+                    added.push(Self::index_entry(&account.id, which, f.uid, &f.flags, &f.raw));
                 }
             }
             changed |= !added.is_empty();
@@ -524,7 +606,7 @@ impl Mail {
         Ok(changed)
     }
 
-    fn index_entry(&self, account: &str, mailbox: &str, uid: u32, flags: &[String], raw: &[u8]) -> Message {
+    fn index_entry(account: &str, mailbox: &str, uid: u32, flags: &[String], raw: &[u8]) -> Message {
         let has = |f: &str| flags.iter().any(|x| x.eq_ignore_ascii_case(f));
         let parsed = MessageParser::default().parse(raw);
         let (from, to, cc, subject, date_ms, text, attachments, message_id, references, list) = match &parsed {
@@ -597,7 +679,7 @@ impl Mail {
         }
         // On the server too, in the background of this call: a failure leaves it to the next mirror.
         let account = self.lock().accounts.iter().find(|a| a.id == m.account).cloned();
-        if let (Some(a), Some(password)) = (account, self.secrets.get(&secret_name(&m.account))) {
+        if let (Some(a), Some(password)) = (account.filter(|a| !a.is_local()), self.secrets.get(&secret_name(&m.account))) {
             let result = (|| -> Res<()> {
                 let mut c = (self.connector)(&a.imap_host, a.imap_port)?;
                 c.login(&a.email, &password)?;
@@ -722,7 +804,7 @@ impl Mail {
         accounts.dedup();
         for account_id in accounts {
             let account = self.lock().accounts.iter().find(|a| a.id == account_id).cloned();
-            let (Some(a), Some(password)) = (account, self.secrets.get(&secret_name(&account_id))) else { continue };
+            let (Some(a), Some(password)) = (account.filter(|a| !a.is_local()), self.secrets.get(&secret_name(&account_id))) else { continue };
             let done: Vec<(String, Option<String>)> = (|| -> Res<Vec<(String, Option<String>)>> {
                 let mut c = (self.connector)(&a.imap_host, a.imap_port)?;
                 c.login(&a.email, &password)?;
@@ -938,7 +1020,7 @@ impl Mail {
             let o = d.reply_to.as_ref().and_then(|r| saved.messages.iter().find(|m| &m.id == r).cloned());
             (d, a, o)
         };
-        let password = self.secrets.get(&secret_name(&account.id)).ok_or("The password for this account is missing.")?;
+        let password = if account.is_local() { String::new() } else { self.secrets.get(&secret_name(&account.id)).ok_or("The password for this account is missing.")? };
         let parse = |list: &str| -> Res<Vec<Addr>> { list.split([',', ';']).map(str::trim).filter(|x| !x.is_empty()).map(|x| x.parse::<Addr>().map_err(|_| format!("{x} is not an email address"))).collect() };
         let to = parse(&draft.to)?;
         if to.is_empty() {
@@ -958,6 +1040,20 @@ impl Mail {
             builder = builder.in_reply_to(id.clone()).references(o.references.iter().map(|r| format!("<{}>", r.trim_matches(['<', '>']))).chain([id]).collect::<Vec<_>>().join(" "));
         }
         let message = builder.header(ContentType::TEXT_PLAIN).body(draft.body.clone()).map_err(|e| e.to_string())?;
+        if account.is_local() {
+            // Kept here, in Sent: nothing leaves this computer.
+            let raw = message.formatted();
+            let mut saved = self.lock();
+            let uid = saved.messages.iter().filter(|m| m.account == account.id && m.mailbox == "sent").map(|m| m.uid).max().unwrap_or(0) + 1;
+            let folder = self.dir.join(&account.id).join("sent");
+            std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+            std::fs::write(folder.join(format!("{uid}.eml")), &raw).map_err(|e| e.to_string())?;
+            let entry = Self::index_entry(&account.id, "sent", uid, &[], &raw);
+            saved.messages.push(entry);
+            saved.drafts.retain(|d| d.id != id);
+            self.save(&saved);
+            return Ok(json!({ "ok": true }));
+        }
         let transport = if test_server(&account.smtp_host) {
             Ok(lettre::SmtpTransport::builder_dangerous(&account.smtp_host))
         } else if account.smtp_port == 465 {
@@ -1042,6 +1138,41 @@ mod tests {
 
     const ASK: &[u8] = b"From: Priya Nair <priya@example.com>\r\nTo: Ana <ana@example.com>\r\nSubject: Build week\r\nDate: Mon, 09 Nov 2026 09:10:00 +0000\r\n\r\nCan you confirm the build week and send the plan to the team?\r\n";
     const QUESTION: &[u8] = b"From: Priya Nair <priya@example.com>\r\nTo: Ana <ana@example.com>\r\nSubject: Dinner\r\nDate: Tue, 10 Nov 2026 09:20:00 +0000\r\n\r\nDinner on Friday?\r\n";
+
+    #[test]
+    fn a_local_account_is_made_from_a_folder_of_messages_moved_to_now_and_sends_into_sent() {
+        let seed = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(seed.path().join("inbox")).unwrap();
+        std::fs::write(seed.path().join("account.json"), r#"{"name":"Ana Ruiz","email":"ana@northway.example"}"#).unwrap();
+        std::fs::write(seed.path().join("inbox/01-rui.eml"), RUI).unwrap();
+        let mut seen = b"X-Mobius-Seen: yes\r\n".to_vec();
+        seen.extend_from_slice(ASK);
+        std::fs::write(seed.path().join("inbox/02-priya.eml"), seen).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(Mail::import_local(dir.path(), seed.path()).unwrap(), 2);
+        assert_eq!(Mail::import_local(dir.path(), seed.path()).unwrap(), 0, "mail already there is left alone");
+        let mail = Mail::with_connector(dir.path(), Arc::new(MemorySecrets::new(true)), Box::new(|_, _| Err("no network".into())));
+        let accounts = mail.accounts();
+        assert_eq!(accounts[0]["email"], "ana@northway.example");
+        assert_eq!(accounts[0]["local"], true);
+        // The newest is ten minutes old, and the older one keeps its day and a half before it.
+        let saved = mail.lock().messages.clone();
+        let newest = saved.iter().map(|m| m.date_ms).max().unwrap();
+        let now = chrono::Utc::now().timestamp_millis();
+        assert!((now - newest - 600_000).abs() < 60_000, "{}", now - newest);
+        let (rui, priya) = (saved.iter().find(|m| m.subject.starts_with("Terrace")).unwrap(), saved.iter().find(|m| m.subject == "Build week").unwrap());
+        assert_eq!(priya.date_ms - rui.date_ms, (24 * 60 + 8) * 60_000);
+        assert!(!rui.seen && priya.seen);
+        assert!(mail.read(&rui.id, false).unwrap()["dateMs"].as_i64().unwrap() == rui.date_ms);
+        // Never mirrored, so never a problem; a reply is kept in Sent here.
+        assert!(!mail.sync(None));
+        assert!(mail.accounts()[0]["problem"].is_null());
+        let draft = mail.save_draft(&json!({ "replyTo": rui.id, "body": "Yes please, eight it is." }), "you").unwrap();
+        mail.send(draft["id"].as_str().unwrap()).unwrap();
+        let sent = mail.lock().messages.iter().find(|m| m.mailbox == "sent").cloned().unwrap();
+        assert_eq!(sent.subject, "Re: Terrace + lunch for the 13th");
+        assert!(mail.drafts().as_array().unwrap().is_empty());
+    }
 
     fn connected(messages: Vec<(u32, &'static str, Vec<u8>)>) -> (Mail, tempfile::TempDir) {
         let (addr, _log) = fake_server(messages);

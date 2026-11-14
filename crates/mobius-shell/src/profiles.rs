@@ -6,6 +6,11 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 
 pub const DEFAULT_ID: &str = "default";
+/// The demo workspace: a profile like the others, but built from the seed shipped with Mobius each time it is opened.
+pub const DEMO_ID: &str = "demo";
+const DEMO_NAME: &str = "Demo workspace";
+/// Where a fresh demo workspace waits until Mobius starts again, so it never replaces files that are open.
+const DEMO_NEXT: &str = "demo-next";
 const MAX_PROFILES: usize = 12;
 const MAX_NAME: usize = 40;
 
@@ -22,7 +27,7 @@ pub struct Profiles {
 }
 
 fn is_id(id: &str) -> bool {
-    id == DEFAULT_ID || (id.len() == 8 && id.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()))
+    id == DEFAULT_ID || id == DEMO_ID || (id.len() == 8 && id.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()))
 }
 
 fn clean_name(name: &str) -> Option<String> {
@@ -103,12 +108,50 @@ impl Profiles {
         if self.list.len() == before { Err("That profile is gone.".into()) } else { Ok(()) }
     }
 
+    /// Opens the demo workspace fresh from `seed` (or opens it again from the start, when it is the one open): a new
+    /// copy is made beside it and takes its place when Mobius starts again (`settle_demo`).
+    pub fn open_demo(&mut self, base: &Path, seed: &Path) -> Result<(), String> {
+        let next = base.join("profiles").join(DEMO_NEXT);
+        remove_folder(&next)?;
+        if let Err(e) = mobius_host::demo::build(seed, &next) {
+            let _ = remove_folder(&next);
+            return Err(e);
+        }
+        if !self.list.iter().any(|p| p.id == DEMO_ID) {
+            if self.list.len() >= MAX_PROFILES {
+                return Err(format!("There can be at most {MAX_PROFILES} profiles."));
+            }
+            self.list.push(Profile { id: DEMO_ID.into(), name: DEMO_NAME.into() });
+        }
+        self.current = DEMO_ID.into();
+        Ok(())
+    }
+
     pub fn switch(&mut self, id: &str) -> Result<(), String> {
         if !self.list.iter().any(|p| p.id == id) {
             return Err("That profile is gone.".into());
         }
         self.current = id.into();
         Ok(())
+    }
+}
+
+/// Before anything is opened: a fresh demo workspace made last time takes the old one's place.
+pub fn settle_demo(base: &Path) -> Result<(), String> {
+    let folder = base.join("profiles");
+    if !folder.join(DEMO_NEXT).is_dir() {
+        return Ok(());
+    }
+    remove_folder(&folder.join(DEMO_ID))?;
+    std::fs::rename(folder.join(DEMO_NEXT), folder.join(DEMO_ID)).map_err(|e| e.to_string())
+}
+
+/// Removes a folder of Mobius's own, never following a link out of it.
+fn remove_folder(path: &Path) -> Result<(), String> {
+    match std::fs::symlink_metadata(path) {
+        Err(_) => Ok(()),
+        Ok(m) if m.file_type().is_symlink() => std::fs::remove_file(path).map_err(|e| e.to_string()),
+        Ok(_) => std::fs::remove_dir_all(path).map_err(|e| e.to_string()),
     }
 }
 
@@ -153,5 +196,37 @@ mod tests {
         std::fs::write(dir.path().join("profiles.json"), r#"{ "current": "../x", "list": [{ "id": "../x", "name": "Bad" }, { "id": "abcdef01", "name": "" }] }"#).unwrap();
         let p = Profiles::read(dir.path());
         assert_eq!((p.current.as_str(), p.list.len()), (DEFAULT_ID, 1));
+    }
+
+    #[test]
+    fn the_demo_workspace_is_built_fresh_beside_the_open_one_and_takes_its_place_at_the_next_start() {
+        let dir = tempfile::tempdir().unwrap();
+        let seed = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(seed.path().join("workspace/notes/Team")).unwrap();
+        std::fs::write(seed.path().join("workspace/notes/Team/Plan.md"), "# Plan\n").unwrap();
+        let mut p = Profiles::read(dir.path());
+        p.open_demo(dir.path(), seed.path()).unwrap();
+        p.write(dir.path()).unwrap();
+        assert_eq!(p.current, DEMO_ID);
+        assert_eq!(p.list.iter().filter(|q| q.id == DEMO_ID).count(), 1);
+        settle_demo(dir.path()).unwrap();
+        let demo = Profiles::read(dir.path()).folder(dir.path());
+        assert_eq!(demo, dir.path().join("profiles/demo"));
+        assert!(demo.join("workspace/notes/Team/Plan.md").is_file());
+        // What a run changed goes on Reset.
+        std::fs::write(demo.join("workspace/notes/Team/Plan.md"), "changed").unwrap();
+        std::fs::write(demo.join("workspace/notes/Team/New.md"), "new").unwrap();
+        p.open_demo(dir.path(), seed.path()).unwrap();
+        assert_eq!(std::fs::read_to_string(demo.join("workspace/notes/Team/Plan.md")).unwrap(), "changed", "the open one is left until Mobius starts again");
+        settle_demo(dir.path()).unwrap();
+        assert_eq!(std::fs::read_to_string(demo.join("workspace/notes/Team/Plan.md")).unwrap(), "# Plan\n");
+        assert!(!demo.join("workspace/notes/Team/New.md").exists());
+        assert_eq!(p.list.iter().filter(|q| q.id == DEMO_ID).count(), 1);
+        // A build without the seed says so and changes nothing.
+        let mut q = Profiles::read(dir.path());
+        q.switch(DEFAULT_ID).unwrap();
+        assert!(q.open_demo(dir.path(), &dir.path().join("missing")).is_err());
+        assert_eq!(q.current, DEFAULT_ID);
+        assert!(!dir.path().join("profiles/demo-next").exists());
     }
 }

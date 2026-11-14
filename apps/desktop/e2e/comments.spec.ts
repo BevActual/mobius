@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { startMailServers, type MailFixture } from './mail-fixture';
-import { says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
+import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -87,6 +87,41 @@ test('a comment on a sheet cell is pinned there and can be kept as a note, for p
   await expect(comments()).toHaveAttribute('aria-pressed', 'false');
   // Nothing was asked of Mobius.
   expect(model!.requests).toHaveLength(0);
+});
+
+test('a comment sent to Mobius comes back resolved once its change is kept', async () => {
+  // The demo's comments moment: pin a request on a cell, send it, Mobius makes the change, and keeping it closes the pin.
+  await start([
+    callsTool('files-write', { path: 'sheets/Offsite budget/Budget.csv', content: 'Item,Qty,Unit,Total\nHotel,14,300,=B2*C2\nTotal,,,=SUM(D2:D2)\n' }),
+    says(['Changed the rate to 300.']),
+  ]);
+  // Review changes: Mobius writes without asking, and the change waits to be kept.
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'propose' }));
+  await openApp('Sheets');
+  await shell().getByRole('navigation', { name: 'Workbooks' }).getByRole('button', { name: /^Offsite budget/ }).click();
+  const cell = shell().getByRole('grid').getByRole('gridcell', { name: 'C2', exact: true });
+  await expect(cell).toHaveText('320');
+
+  await comments().click();
+  await cell.click();
+  const draft = shell().getByRole('dialog', { name: 'New comment' });
+  await draft.getByRole('textbox', { name: 'Comment' }).fill('Make the rate 300, as agreed.');
+  await draft.getByRole('button', { name: 'Comment' }).click();
+  const card = shell().getByRole('dialog', { name: 'Comment on C2' });
+  await card.getByRole('button', { name: 'Send to Mobius' }).click();
+  await expect(card).toContainText('Changed the rate to 300.');
+  const pin = shell().getByRole('button', { name: /^Comment on C2/ });
+  await expect(pin).toHaveAttribute('data-state', 'sent');
+  await expect.poll(() => fs.readFileSync(path.join(userData, 'workspace', 'sheets', 'Offsite budget', 'Budget.csv'), 'utf8')).toContain('Hotel,14,300');
+
+  // Keeping the change resolves the comment, with Mobius's reply kept on it.
+  await shell().keyboard.press('Escape');
+  const strip = shell().getByRole('region', { name: 'Changes from the last turn' });
+  await strip.getByRole('button', { name: 'Keep' }).click();
+  await expect(pin).toHaveAttribute('data-state', 'resolved');
+  const kept = path.join(userData, 'workspace', '.comments', 'sheets', 'Offsite budget~Budget.json');
+  const state = () => { try { return JSON.parse(fs.readFileSync(kept, 'utf8'))[0]?.state; } catch { return undefined; } };
+  await expect.poll(state).toBe('resolved');
 });
 
 test('a comment on a mail message goes to Mobius with the message, and the reply comes back into the thread', async () => {

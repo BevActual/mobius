@@ -1,0 +1,7 @@
+Item,Supplier,Qty,Unit cost,Cost
+Battery packs,Veltro,8,6000,=C2*D2
+Sled hire,Northfield,1,6500,=C3*D3
+Motor test rig,Brakes & Co,1,1800,=C4*D4
+Jigs,In house,4,240,=C5*D5
+Caliper brackets,Orbis,8,155,=C6*D6
+Total,,,,=SUM(E2:E6)
