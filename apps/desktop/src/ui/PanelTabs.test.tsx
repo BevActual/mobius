@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { InspectorDock, PanelTab, PanelTabsProvider, frontTab, inspectorStartsOpen, useShowPanelTab } from './PanelTabs';
+import { InspectorDock, PanelTab, PanelTabsProvider, frontTab, inspectorStartsOpen, mobiusSteppedAside, useShowPanelTab } from './PanelTabs';
 
 const tab = (id: string, shown = false) => ({ id, name: id, shown });
 
@@ -35,5 +35,11 @@ describe('the inspector', () => {
     expect(opened).toBe(0);
     show!('mobius');
     expect(opened).toBe(1);
+  });
+  it('steps Mobius aside only where the window has room for one and the open inspector is in front', () => {
+    expect(mobiusSteppedAside(true, true, 'inspector')).toBe(true);
+    expect(mobiusSteppedAside(false, true, 'inspector')).toBe(false);
+    expect(mobiusSteppedAside(true, false, 'inspector')).toBe(false);
+    expect(mobiusSteppedAside(true, true, 'mobius')).toBe(false);
   });
 });

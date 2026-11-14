@@ -138,6 +138,41 @@ export function useInspector(): { panels: { id: string; name: string }[]; open: 
   return useMemo(() => ({ panels: (api?.tabs ?? []).map(({ id, name }) => ({ id, name })), open: api?.open ?? false, active: api?.active ?? null, setOpen: api?.setOpen ?? (() => undefined), show: api?.show ?? (() => undefined) }), [api]);
 }
 
+/** The width under which the inspector and Mobius take turns in one column (styles.css). */
+export const SHARED_COLUMN_QUERY = '(max-width: 1439px)';
+
+function useSharedColumn(): boolean {
+  const has = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
+  const [narrow, setNarrow] = useState(() => has && window.matchMedia(SHARED_COLUMN_QUERY).matches);
+  useEffect(() => {
+    if (!has) return undefined;
+    const list = window.matchMedia(SHARED_COLUMN_QUERY);
+    const on = () => setNarrow(list.matches);
+    on();
+    list.addEventListener('change', on);
+    return () => list.removeEventListener('change', on);
+  }, [has]);
+  return narrow;
+}
+
+/** Whether Mobius is stepped aside: the window has room for one of the two and the open inspector is in front. */
+export const mobiusSteppedAside = (narrow: boolean, inspectorOpen: boolean, front: 'inspector' | 'mobius'): boolean =>
+  narrow && inspectorOpen && front === 'inspector';
+
+/**
+ * For the toolbar's Mobius button: whether Mobius is stepped aside for the inspector, and a way to bring it forward.
+ * Pressed always means Mobius is in front, so while it is stepped aside the button shows not pressed and a press
+ * brings it forward rather than closing it.
+ */
+export function useMobiusStepAside(): { aside: boolean; bringForward: () => void } {
+  const api = useContext(PanelTabsContext);
+  const narrow = useSharedColumn();
+  const aside = !!api && api.tabs.length > 0 && mobiusSteppedAside(narrow, api.open, api.front);
+  const show = api?.show;
+  const bringForward = useCallback(() => show?.('mobius'), [show]);
+  return { aside, bringForward };
+}
+
 const inspectorWidth = (): number => {
   const n = Number(read(WIDTH_KEY));
   const { min, max, default: usual } = SIDEBAR_WIDTH.inspector;
