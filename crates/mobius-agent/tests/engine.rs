@@ -572,7 +572,7 @@ fn the_chosen_effort_goes_to_the_model_but_never_to_the_reviewer() {
 #[test]
 fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_model() {
     let mut w = smart_world();
-    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![] };
+    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
     assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", with_rule("You are the research bot.").as_str()));
@@ -587,10 +587,10 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
 #[test]
 fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![] });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", with_rule("You are a test.").as_str()));
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![] });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", with_rule("S").as_str()));
 }
@@ -881,4 +881,45 @@ fn a_first_read_that_would_ask_or_does_not_only_read_is_left_for_the_model() {
     assert!(matches!(&request.messages[0], Message::User { text, .. } if text == "go"), "nothing was read: one needed asking, the other changes things");
     assert_eq!(w.runs.load(Ordering::SeqCst), 0);
     assert!(w.core.pending().is_empty(), "and nobody was asked");
+}
+
+#[test]
+fn a_turn_that_ends_in_changes_is_done_once_they_are_all_made_with_no_closing_round() {
+    let mut w = reading_world();
+    allow_always(&mut w, "demo.echo");
+    allow_always(&mut w, "demo.remote");
+    let provider = ScriptedProvider::new(vec![calls("Your day:", vec![call("c1", "demo.echo", json!({ "text": "a" })), call("r1", "demo.remote", json!({}))]), text("never asked")]);
+    let (mut turn, step) = w.engine.start_with(&w.core, vec![], "plan my day", 1, TurnSetup { finish_on_changes: true, ..TurnSetup::default() });
+    let step = drive(&mut w, &mut turn, &provider, step);
+    expect_run(step);
+    assert_eq!(w.engine.on_tool_result(&mut turn, &mut w.core, "r1", Ok("ok".to_owned())), Step::Done);
+    assert_eq!(provider.requests().len(), 1, "the model is not asked again just to sum up");
+    assert!(turn.is_finished());
+}
+
+#[test]
+fn a_turn_that_ends_in_changes_still_asks_again_after_a_failure_a_read_or_a_plan() {
+    for (round, why) in [
+        (vec![call("c1", "demo.echo", json!({})), call("f1", "demo.fail", json!({}))], "a call failed"),
+        (vec![call("l1", "demo.list", json!({}))], "it only read, so there is more to do"),
+        (vec![call("t1", "todo.write", json!({ "items": [{ "text": "a", "status": "pending" }] }))], "a plan is not a change"),
+    ] {
+        let mut w = reading_world();
+        for t in ["demo.echo", "demo.fail", "demo.list"] {
+            allow_always(&mut w, t);
+        }
+        let provider = ScriptedProvider::new(vec![calls("", round), text("Done.")]);
+        let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { finish_on_changes: true, ..TurnSetup::default() });
+        assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+        assert_eq!(provider.requests().len(), 2, "{why}");
+    }
+}
+
+#[test]
+fn a_turn_that_ends_in_changes_tells_the_model_to_say_its_piece_before_the_calls() {
+    let w = world(10);
+    let (_, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { finish_on_changes: true, ..TurnSetup::default() });
+    assert!(request_of(&step).system.contains(mobius_agent::engine::FINISH_ON_CHANGES));
+    let (_, plain) = w.engine.start(&w.core, vec![], "go", 2);
+    assert!(!request_of(&plain).system.contains(mobius_agent::engine::FINISH_ON_CHANGES));
 }

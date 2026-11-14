@@ -361,7 +361,12 @@ fn a_modes_and_a_suggestions_first_reads_go_to_the_core_and_bad_ones_are_refused
     let plain = parse_send(&json!({ "conversation": "c-3", "text": "hi" })).unwrap();
     s.service.send(&plain, None);
     let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
-    assert!(last["params"].get("reads").is_none());
+    assert!(last["params"].get("reads").is_none() && last["params"].get("finish").is_none());
+    assert_eq!(sends[0]["finish"], json!(true), "Triage ends in its changes");
+    let finishing = parse_send(&json!({ "conversation": "c-4", "text": "plan my day", "finish": true })).unwrap();
+    s.service.send(&finishing, None);
+    let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
+    assert_eq!(last["params"]["finish"], json!(true));
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": [{ "tool": "tasks list" }] })).is_none(), "not a tool name");
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": [{ "tool": "tasks.list", "arguments": [1] }] })).is_none(), "arguments are an object");
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": vec![json!({ "tool": "tasks.list" }); 7] })).is_none(), "at most six");

@@ -209,7 +209,14 @@ pub struct TurnSetup {
     /// does not spend a round asking for them: each tool's name and arguments. Only reads that would run without
     /// asking anyone are done; the others are left for the model.
     pub reads: Vec<(String, serde_json::Value)>,
+    /// The turn is done once a round's calls have all gone through and none of them only read: the window's summary of
+    /// what changed stands in for a closing answer, so the model is not asked again just to say it. A suggestion or
+    /// mode that ends in changes asks for this.
+    pub finish_on_changes: bool,
 }
+
+/// Told to the model when the turn ends once its changes are made (`TurnSetup::finish_on_changes`).
+pub const FINISH_ON_CHANGES: &str = "This turn ends as soon as your changes are made, and the person sees a summary of them: you are not asked again afterwards. So in the answer that makes the changes, write what you would tell the person first (the list or the few lines asked for), then make all the calls in that same answer. If you still need to read something, read it first, in an answer of its own.";
 
 /// Reads done before the model is first asked, with what they gave, kept with the person's message.
 pub const READS_OPEN: &str = "\n\n<reads>\nAlready read for this message (use these; read again only what is missing):\n";
@@ -255,6 +262,15 @@ pub struct Turn {
     early: Early,
     /// Reads still to do before the model is first asked, and what those done gave.
     reads: Option<Reads>,
+    /// This model round's calls: whether one failed, was declined or asked something, and whether one only read.
+    round: Round,
+}
+
+#[derive(Default, Clone)]
+struct Round {
+    /// The tools whose results came back.
+    tools: Vec<String>,
+    troubled: bool,
 }
 
 #[derive(Default)]
@@ -426,7 +442,7 @@ impl Engine {
         } else {
             setup.reads.iter().take(MAX_READS).enumerate().map(|(i, (name, arguments))| ToolCall { id: format!("read-{id}-{i}"), name: name.clone(), arguments: arguments.clone() }).collect()
         };
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None };
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default() };
         if !reads.is_empty() {
             // The reads need the core to run them: the caller goes on with `read_first`.
             turn.reads = Some(Reads { waiting: reads, ..Reads::default() });
@@ -765,6 +781,7 @@ impl Engine {
     fn call_model(&self, core: &Core, turn: &mut Turn) -> Step {
         turn.steps += 1;
         turn.early = Early::default();
+        turn.round = Round::default();
         let request = self.request(core, turn);
         let used = compaction::tokens_of(&request.system, &request.messages, &request.tools);
         turn.events.push(AgentEvent::Context { used, limit: self.budget.context_tokens });
@@ -788,6 +805,7 @@ impl Engine {
         };
         let system = if system.is_empty() { untrusted::ENVELOPE_RULE.to_owned() } else { format!("{system}\n\n{}", untrusted::ENVELOPE_RULE) };
         let system = if turn.reread { format!("{system}\n\n{HANDED_BACK}") } else { system };
+        let system = if turn.setup.finish_on_changes { format!("{system}\n\n{FINISH_ON_CHANGES}") } else { system };
         ChatRequest {
             model: self.model_of(turn),
             system,
@@ -840,7 +858,11 @@ impl Engine {
             // It ran while the model was still answering: its result is ready, or it is still with the application.
             if turn.early.has(&call.id) {
                 match turn.early.result(&call.id).cloned() {
-                    Some((content, is_error)) => turn.messages.push(Message::Tool { call_id: call.id.clone(), name: call.name.clone(), content, is_error }),
+                    Some((content, is_error)) => {
+                        turn.round.tools.push(call.name.clone());
+                        turn.round.troubled |= is_error;
+                        turn.messages.push(Message::Tool { call_id: call.id.clone(), name: call.name.clone(), content, is_error });
+                    }
                     None => {
                         queue.push_front(call);
                         turn.early.held = Some(queue);
@@ -861,6 +883,7 @@ impl Engine {
             if call.name == ASK_TOOL {
                 match parse_question(&call.arguments) {
                     Ok((question, choices)) => {
+                        turn.round.troubled = true;
                         turn.events.push(AgentEvent::Question { call_id: call.id.clone(), question, choices });
                         let call_id = call.id.clone();
                         turn.asking = Some(Dispatched { call, remaining: queue });
@@ -905,6 +928,14 @@ impl Engine {
                 }
                 Executed::Fatal(message) => return self.fail(turn, message),
             }
+        }
+        // Everything this round asked for is done, and it all changed something: nothing is left to say that the
+        // summary of the changes does not.
+        // A call that failed or asked, or one that only read, means the model has more to do or say.
+        let round = &turn.round;
+        let read = round.tools.iter().any(|t| t != TODO_TOOL && core.capability_of(t).is_none_or(|c| is_reading(c.as_str())));
+        if turn.setup.finish_on_changes && round.tools.iter().any(|t| t != TODO_TOOL) && !round.troubled && !read {
+            return self.finish(turn);
         }
         self.next_model_call(core, turn)
     }
@@ -982,6 +1013,8 @@ impl Engine {
     }
 
     fn push_result(&self, turn: &mut Turn, call: &ToolCall, content: String, is_error: bool) {
+        turn.round.tools.push(call.name.clone());
+        turn.round.troubled |= is_error;
         turn.events.push(AgentEvent::ToolResult { call_id: call.id.clone(), name: call.name.clone(), is_error });
         turn.messages.push(Message::Tool { call_id: call.id.clone(), name: call.name.clone(), content, is_error });
     }

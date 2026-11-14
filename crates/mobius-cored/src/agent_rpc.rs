@@ -106,6 +106,9 @@ struct SendParams {
     /// Reads to do before the model is first asked (a suggestion's or a mode's).
     #[serde(default)]
     reads: Vec<ReadParam>,
+    /// Done once a round's calls all went through and changed things: no closing answer is asked for.
+    #[serde(default)]
+    finish: bool,
 }
 
 #[derive(Deserialize)]
@@ -570,7 +573,7 @@ impl Extension for Agent {
                     return Err(ExtensionError::invalid_params("reads are at most six tools, each with an object of arguments"));
                 }
                 let reads = p.reads.iter().map(|r| (r.tool.clone(), if r.arguments.is_null() { json!({}) } else { r.arguments.clone() })).collect();
-                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads };
+                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish };
                 let (turn, outs) = self.host.send_reading(core, &p.conversation, &p.text, setup).map_err(|e| host_error(&e))?;
                 if p.quick && p.model.is_none() && self.quick.is_some() {
                     // The last few turns Best fit sent to the quick model; older ones have long finished.

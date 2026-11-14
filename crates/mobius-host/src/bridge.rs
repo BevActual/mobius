@@ -97,6 +97,11 @@ fn wait_for_marks(marking: &(Mutex<u32>, std::sync::Condvar)) {
     }
 }
 
+/// A turn's moves for the window: each moved file's old path and new one.
+fn moves_json(moves: &[(String, String)]) -> Value {
+    moves.iter().map(|(from, to)| json!({ "from": from, "to": to })).collect()
+}
+
 /// Says in the log when something the turn or the window waits on took long (a second or more), so a slow step on a
 /// slow computer can be told from one that hangs.
 fn slow(what: &str, step: &str, started: std::time::Instant) {
@@ -418,6 +423,23 @@ impl Bridge {
             lock(&bridge.preferences).set(&json!({ "installedApps": preferences::DEFAULT_APPS }));
         }
         let _ = bridge.restore_quick();
+        // The first checkpoint of a session is slow (every file is looked at); done now, while the window loads, the
+        // first turn's checkpoint only has to save. Counted as a mark, so what waits for marks (Remove all data among
+        // them) waits for it too.
+        let workspace = mobius_workspace::files::Workspace::new(bridge.data_dir.join("workspace"), bridge.data_dir.join("checkpoints"));
+        let marking = Arc::clone(&bridge.marking);
+        *lock(&marking.0) += 1;
+        std::thread::spawn(move || {
+            let started = std::time::Instant::now();
+            if let Err(error) = workspace.warm() {
+                eprintln!("[changes] checkpoints not readied: {error}");
+            }
+            slow("checkpoints", "readied at start", started);
+            let (count, done) = &*marking;
+            let mut n = lock(count);
+            *n = n.saturating_sub(1);
+            done.notify_all();
+        });
         bridge
     }
 
@@ -767,6 +789,8 @@ impl Bridge {
         lock(&self.chatgpt).clone().sign_out();
         self.mcp_server.forget();
         self.core.stop_shared();
+        // A checkpoint still being taken would write into the folder while it is emptied.
+        wait_for_marks(&self.marking);
         let mut failures = 0;
         let mut removed = 0;
         if let Ok(entries) = std::fs::read_dir(&self.data_dir) {
@@ -3129,12 +3153,8 @@ impl Bridge {
                     .turns(conversation)
                     .into_iter()
                     .filter_map(|t| {
-                        let files = match &t.end {
-                            Some(end) => self.workspace.changed_between(&t.start, end),
-                            None => self.workspace.changed_since(&t.start),
-                        }
-                        .ok()?;
-                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": files }))
+                        let diff = self.workspace.turn_diff(&t.start, t.end.as_deref()).ok()?;
+                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": diff.files, "moves": moves_json(&diff.moves) }))
                     })
                     .collect();
                 json!({ "ok": true, "turns": turns })
@@ -3305,8 +3325,9 @@ impl Bridge {
         };
         let changed_later = |path: &str| end.as_deref().and_then(|e| self.workspace.changed_since(e).ok()).is_some_and(|f| f.iter().any(|p| p == path));
         Ok(match method {
-            "lastTurn" => match turn_files() {
-                Ok(files) => json!({ "checkpoint": mark, "files": files }),
+            // A move is listed as both its paths in `files`, and paired in `moves`, so the window counts it once.
+            "lastTurn" => match self.workspace.turn_diff(&mark, end.as_deref()) {
+                Ok(diff) => json!({ "checkpoint": mark, "files": diff.files, "moves": moves_json(&diff.moves) }),
                 Err(e) => failed(e),
             },
             "undo" => match (&end, turn_files()) {
@@ -3390,6 +3411,10 @@ impl Bridge {
                 // { reads: [{ tool, arguments }] } are the reads a suggestion always starts with, done before the model is asked.
                 if let Some(reads) = arg(3).get("reads") {
                     request["reads"] = reads.clone();
+                }
+                // { finish: true }: the suggestion ends in changes, and the turn is done once they are made.
+                if let Some(finish) = arg(3).get("finish") {
+                    request["finish"] = finish.clone();
                 }
                 // { quick: true } is Best fit choosing the quick model for a short question.
                 if let Some(quick) = arg(3).get("quick") {
