@@ -110,9 +110,7 @@ A small studio for writing songs as notes.
 
   A drums track has a Kit instead: Tune (in semitones), Decay and Tone, which move every drum together. Under it,
   **Pads** has a pad per drum: press one to hear it (higher on the pad is louder, or Q W E and A S D once the pads have
-  focus), and the chosen pad's Tune, Decay,
-  Level and Pan set that drum alone (saved as `pads`). Volume is a
-  slider; the other settings are knobs, four to a row, with their value in mono under each. Drag a knob up or down
+  focus), and the chosen pad's Tune, Decay, Level and Pan set that drum alone (saved as `pads`). Volume is a slider; the other settings are knobs, four to a row, with their value in mono under each. Drag a knob up or down
   (Shift for finer), or use the arrows, and double-click it to put it back. Everything is saved in the song (`pan`, `sound`, `kit`), so Mobius can read and set it
   too.
 - **Effects** follow the sound in the Device panel. **Add effect** puts an EQ (three numbered bands on a curve: drag a
