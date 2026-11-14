@@ -1429,7 +1429,7 @@ impl Bridge {
         let browser = self.browser.get().ok_or("no window is open")?.clone();
         let prefs = self.preference("agentPrivateUrls");
         let pages = self.pages.clone();
-        let deps = BrowserTools { browser: browser.clone(), allow_private: Box::new(move || prefs == Value::Bool(true)), own_page: Box::new(move |url| pages.is_own(url)) };
+        let deps = BrowserTools { browser: browser.clone(), allow_private: Box::new(move || prefs == Value::Bool(true)), own_file: Box::new(move |url| pages.file_of(url)) };
         let result = run_browser_tool(tool, &args, &deps)?;
         let conversation = params.get("conversation").and_then(Value::as_str).unwrap_or("");
         self.mark_driver(&browser, tool, &args, &result, conversation);

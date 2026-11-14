@@ -55,6 +55,16 @@ impl Pages {
     pub fn is_own(&self, address: &str) -> bool {
         matches!(self.origin.get(), Some(Ok(origin)) if address.strip_prefix(origin.as_str()).is_some_and(|rest| rest.starts_with('/')))
     }
+
+    /// The workspace file (`pages/…`) a tab's address serves, when it is one of the person's own pages.
+    #[must_use]
+    pub fn file_of(&self, address: &str) -> Option<String> {
+        let Some(Ok(origin)) = self.origin.get() else { return None };
+        let rest = address.strip_prefix(origin.as_str())?.strip_prefix('/')?.split(['?', '#']).next()?;
+        let decoded = decode(rest);
+        resolve(&self.root, &decoded)?;
+        Some(format!("{FOLDER}/{decoded}"))
+    }
 }
 
 fn secret() -> Result<String, String> {
@@ -112,6 +122,11 @@ fn resolve(root: &Path, relative: &str) -> Option<PathBuf> {
     (real.starts_with(&real_root) && real.is_file()).then_some(real)
 }
 
+/// A path from an address, with `%20` and the like turned back into what they stand for.
+fn decode(path: &str) -> String {
+    url::form_urlencoded::parse(format!("p={}", path.replace('+', "%2B")).as_bytes()).next().map(|(_, v)| v.into_owned()).unwrap_or_default()
+}
+
 fn content_type(path: &Path) -> &'static str {
     match path.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref() {
         Some("html" | "htm") => "text/html; charset=utf-8",
@@ -165,8 +180,7 @@ fn respond(request: &str, root: &Path, prefix: &str) -> (&'static str, &'static 
         return ("405 Method Not Allowed", "text/plain; charset=utf-8", b"Only reading".to_vec());
     }
     let Some(rest) = target.split(['?', '#']).next().and_then(|p| p.strip_prefix(prefix)) else { return (MISSING.0, MISSING.1, MISSING.2.to_vec()) };
-    let decoded: String = url::form_urlencoded::parse(format!("p={}", rest.replace('+', "%2B")).as_bytes()).next().map(|(_, v)| v.into_owned()).unwrap_or_default();
-    match resolve(root, &decoded).and_then(|file| std::fs::read(&file).ok().map(|bytes| (content_type(&file), bytes))) {
+    match resolve(root, &decode(rest)).and_then(|file| std::fs::read(&file).ok().map(|bytes| (content_type(&file), bytes))) {
         Some((kind, bytes)) => ("200 OK", kind, bytes),
         None => (MISSING.0, MISSING.1, MISSING.2.to_vec()),
     }
@@ -218,6 +232,7 @@ mod tests {
         let url = served.url("pages/packs/Veltro 60 kWh pack.html").unwrap();
         assert!(url.ends_with("/packs/Veltro%2060%20kWh%20pack.html"), "{url}");
         assert!(served.is_own(&url));
+        assert_eq!(served.file_of(&format!("{url}#:~:text=60")).as_deref(), Some("pages/packs/Veltro 60 kWh pack.html"));
         let (head, body) = get(&url);
         assert!(head.starts_with("HTTP/1.1 200") && head.contains("text/html") && head.contains("no-referrer"), "{head}");
         assert_eq!(body, "<h1>Veltro</h1>");
