@@ -1262,6 +1262,7 @@ impl Bridge {
         let out = self.run_host_tool(params, &stage);
         stage.store(2, std::sync::atomic::Ordering::Relaxed);
         slow("tool", &name, started);
+        self.note_timing(json!({ "step": "tool", "conversation": params["conversation"], "name": name, "ms": started.elapsed().as_millis(), "ok": out.is_ok() }));
         out
     }
 
@@ -3358,6 +3359,7 @@ impl Bridge {
                 None => failed("Those settings are not valid."),
             },
             "send" => {
+                self.note_timing(json!({ "step": "sent", "conversation": arg(0), "chars": arg(1).as_str().map_or(0, str::len) }));
                 let mut request = json!({ "conversation": arg(0), "text": arg(1) });
                 if !arg(2).is_null() {
                     request["context"] = arg(2).clone();
@@ -3546,6 +3548,20 @@ impl Bridge {
 
     /// A model call's tokens, counted under the day, the gateway that answered, the model, and the app the conversation
     /// was last written to from.
+    /// One step of a turn, with when it happened, kept in `turn-timings.jsonl` (the last few thousand lines): the
+    /// message sent, each model round (from the core: start-up, first word, end, tokens), each event the window saw,
+    /// and each tool the application ran. Read to see where a slow turn's time went.
+    fn note_timing(&self, mut step: Value) {
+        step["at"] = json!(now_ms());
+        let file = self.data_dir.join("turn-timings.jsonl");
+        if std::fs::metadata(&file).is_ok_and(|m| m.len() > 4 * 1024 * 1024) {
+            let _ = std::fs::rename(&file, self.data_dir.join("turn-timings.old.jsonl"));
+        }
+        if let Ok(mut out) = std::fs::OpenOptions::new().create(true).append(true).open(&file) {
+            let _ = std::io::Write::write_all(&mut out, format!("{step}\n").as_bytes());
+        }
+    }
+
     fn record_usage(&self, p: &Value) {
         let n = |k: &str| p.get(k).and_then(Value::as_u64).unwrap_or(0);
         let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or("");
@@ -3567,6 +3583,14 @@ impl Bridge {
 
     /// A message from the core that is not an answer. Only well formed conversation progress reaches the window.
     pub fn on_core_notification(&self, method: &str, params: &Value) {
+        if method == "agent.timing" {
+            self.note_timing(json!({ "step": "model", "conversation": params["conversation"], "turn": params["turn"], "model": params["model"], "startup_ms": params["startup_ms"], "first_text_ms": params["first_text_ms"], "ms": params["ms"], "input": params["input"], "cached": params["cached"], "output": params["output"], "tools_offered": params["tools_offered"], "tool_calls": params["tool_calls"], "ok": params["ok"] }));
+            return;
+        }
+        if method == "agent.event" {
+            let event = &params["event"];
+            self.note_timing(json!({ "step": "event", "conversation": params["conversation"], "turn": params["turn"], "kind": event["kind"], "name": event.get("name").or_else(|| event.get("tool")) }));
+        }
         if method == "agent.usage" {
             self.record_usage(params);
             return;

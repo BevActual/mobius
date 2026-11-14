@@ -1633,6 +1633,22 @@ fn changes_after_a_turn_ends_do_not_join_it() {
     assert_eq!(std::fs::read_to_string(ws.join("docs/Mine.md")).unwrap(), "# Mine\n", "the person's doc stays");
 }
 
+/// Each step of a turn is kept with when it happened, so a slow turn can be taken apart afterwards.
+#[test]
+fn a_turns_steps_are_kept_with_their_times() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "plan my day"]))["ok"], true);
+    b.on_core_notification("agent.timing", &json!({ "conversation": "c-1", "turn": 1, "step": "model", "model": "m", "startup_ms": 2400, "first_text_ms": 3100, "ms": 5200, "input": 9000, "cached": 0, "output": 80, "tools_offered": 47, "tool_calls": 3, "ok": true }));
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "tool_call", "call_id": "a", "name": "tasks.list", "arguments": {} } }));
+    let kept = std::fs::read_to_string(dir.path().join("turn-timings.jsonl")).unwrap();
+    let steps: Vec<serde_json::Value> = kept.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(steps[0]["step"], "sent");
+    let model = steps.iter().find(|s| s["step"] == "model").unwrap();
+    assert_eq!((model["startup_ms"].as_u64(), model["tools_offered"].as_u64()), (Some(2400), Some(47)));
+    assert!(steps.iter().any(|s| s["step"] == "event" && s["name"] == "tasks.list"));
+    assert!(steps.iter().all(|s| s["at"].is_u64()));
+}
+
 /// Mobius reads the comments on a document, answers one under it and resolves it; Docs is told so it shows them.
 #[test]
 fn mobius_reads_answers_and_resolves_comments() {
