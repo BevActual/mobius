@@ -112,6 +112,8 @@
   flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink);
 }
+.ui-device-head:has(.ui-device-lead) .ui-device-title { flex: 0 1 auto; }
+.ui-device-lead { display: inline-flex; flex: 1; align-items: center; min-width: 0; }
 .ui-device-actions { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .ui-device-head .ui-device-grip, .ui-device-head .ui-device-fold {
   display: grid; place-items: center; width: var(--hit-min); height: var(--hit-min); padding: 0; border: 0; border-radius: var(--radius-small);
