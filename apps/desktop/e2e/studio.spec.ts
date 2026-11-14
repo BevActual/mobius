@@ -207,6 +207,7 @@ test('effects are added to a track, switched off and moved, kept in the song', a
 test('a drum kit has a pad per drum with its own settings, and its notes can be written as steps', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [{ id: 't1', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [{ pitch: 36, start: 0, length: 0.25, velocity: 0.8 }] }] }));
   await start([], 'Drums');
+  await openDevice();
   const device = shell().getByRole('region', { name: 'Device' });
   // Each drum is a pad; the chosen pad's knobs set that drum alone, kept in the song by its pitch.
   await device.getByRole('group', { name: 'Drum pads' }).getByRole('button', { name: 'Snare', exact: true }).click();
