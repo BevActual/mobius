@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { isStarter, noteContext, suggestionsFor, tasksContext } from './surface';
+import { isStarter, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext } from './surface';
 
 describe('what each app suggests', () => {
   it('offers page suggestions in the browser only when a page is showing, and they attach the page', () => {
@@ -19,6 +19,11 @@ describe('what each app suggests', () => {
   it('suggests nothing from the app underneath while Settings is open', () => {
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null }).length).toBeGreaterThan(0);
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null, settings: true })).toEqual([]);
+  });
+  it('leads Home and Tasks with Plan my day: the same ask, which times tasks and suggests blocks but sends nothing', () => {
+    for (const app of ['agent', 'tasks'] as const) expect(suggestionsFor({ app, hasPage: false, note: null })[0]).toMatchObject({ label: 'Plan my day', prompt: PLAN_MY_DAY });
+    for (const tool of ['tasks.list', 'calendar.list', 'tasks.update', 'calendar.suggest', 'mail.draft']) expect(PLAN_MY_DAY).toContain(tool);
+    expect(PLAN_MY_DAY).toContain('Do not send anything');
   });
   it('never asks the agent app to attach anything', () => {
     expect(suggestionsFor({ app: 'agent', hasPage: true, note: null }).every((s) => s.attach === undefined)).toBe(true);
