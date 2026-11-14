@@ -117,6 +117,8 @@
   --row-h: 36px;
   --row-side: 36px;
   --row-list: 40px;
+  /* A two-line row in a master list beside a reading pane (Mail, Notes): sender or title, then a line of preview. */
+  --row-list-2: 56px;
   --row-reading: 44px;
   --toolbar-h: 52px;
   --panel-head-h: 30px;
@@ -268,8 +270,8 @@
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2397a1ae' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
-/* Music (marked): a pro app, so compact wherever it is open (docs/design/instrument.md, Type and density). */
-html[data-density='compact'], .app[data-app='studio'] {
+/* Compact: chosen in Settings (on the page), or a pro app's own start (on the frame, from COMPACT_APPS). */
+html[data-density='compact'], .app[data-density='compact'] {
   --button-h: 28px;
   --icon-button: 28px;
   --param-value: 26px;
@@ -281,6 +283,7 @@ html[data-density='compact'], .app[data-app='studio'] {
   --row-h: 30px;
   --row-side: 30px;
   --row-list: 32px;
+  --row-list-2: 48px;
   --control-h: 24px;
   --control-h-lg: 30px;
   --menu-row-h: 26px;
