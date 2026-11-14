@@ -22,9 +22,16 @@ export function useSkills() {
     return ok;
   }, [api]);
 
-  const load = useCallback(async (name: string) => {
+  // Typing bumps this. A read that was already on its way when the person typed (the new skill opening, a save's
+  // re-read) must not put the older text back over theirs: it brings the skill's newest version, and keeps their words.
+  const edits = useRef(0);
+  const load = useCallback(async (name: string, onlyIfNoneOpen = false) => {
+    const at = edits.current;
     const got = await api?.read(name);
     if (!got || isNotesFailure(got)) { if (got) setMessage(got.message); return false; }
+    // The first skill shown on opening gives way to one opened (or made) while it was being read.
+    if (onlyIfNoneOpen && live.current.open) return false;
+    if (edits.current !== at && live.current.open?.name === name) { setOpen(got); return true; }
     setOpen(got);
     setText(got.text);
     setSaved(true);
@@ -44,6 +51,7 @@ export function useSkills() {
   }, [api, load, refresh]);
 
   const edit = useCallback((next: string) => {
+    edits.current += 1;
     setText(next);
     setSaved(false);
     window.clearTimeout(timer.current);
@@ -56,7 +64,7 @@ export function useSkills() {
   }, [load, save]);
 
   useEffect(() => {
-    void refresh().then((l) => { if (!live.current.open && l[0]) void load(l[0].name); });
+    void refresh().then((l) => { if (!live.current.open && l[0]) void load(l[0].name, true); });
     return api?.onChanged((c) => {
       void refresh();
       const now = live.current;

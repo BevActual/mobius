@@ -292,7 +292,7 @@ export function ReaderPage({ reading, review, tab, onAsk }: { reading: NotesStat
       </ToolbarControls>
       {adding && saveBar}
       {message && <p className="reader-message" role="alert">{message}</p>}
-      {/* Highlights: a tab in the right panel, before Mobius. */}
+      {/* Highlights: a panel in the inspector, beside Mobius (never a tab with it). */}
       <PanelTab id="highlights" name="Highlights">
         <div className="reader-notes" role="region" aria-label="Highlights">
           {highlights.length === 0

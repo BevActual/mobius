@@ -1,5 +1,5 @@
 import { attachmentApp } from './surface';
-import { splitContext, type AgentNotification, type AgentWaiting, type ContextItem, type Message, type TodoItem } from '@mobius/shared';
+import { splitContext, splitReads, type AgentNotification, type AgentWaiting, type ContextItem, type Message, type TodoItem } from '@mobius/shared';
 
 /** Tools the agent answers itself: shown as a plan or a question, never as tool steps. */
 export const TODO_TOOL = 'todo.write';
@@ -114,7 +114,7 @@ function fromHistory(state: ConversationState, messages: Message[]): Conversatio
   let next: ConversationState = { ...state, items: [], nextId: 1 };
   for (const message of messages) {
     if (message.role === 'user') {
-      const parts = splitContext(message.text);
+      const parts = splitContext(splitReads(message.text));
       next = withItem(next, (id) => ({ kind: 'user', id, text: parts.text, ...(parts.items.length > 0 ? { attachments: parts.items } : {}), ...(message.images && message.images.length > 0 ? { images: message.images } : {}), ...(message.at_ms !== undefined ? { at: message.at_ms } : {}) }));
     }
     else if (message.role === 'assistant') {
@@ -215,8 +215,11 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         case 'question':
           return withQuestion(base, { callId: event.call_id, question: event.question, choices: event.choices });
         case 'message': {
-          const last = base.items.at(-1);
-          if (last?.kind === 'assistant' && last.streaming) return { ...base, items: [...base.items.slice(0, -1), { ...last, text: event.text, streaming: false }] };
+          // Calls now run while the model is still writing, so their rows can come after the text it streamed. That text
+          // is this message: it is settled where it is, not added again below the calls.
+          const streamed = base.items.filter((item) => item.kind === 'assistant' && item.streaming);
+          if (streamed.length === 1) return { ...base, items: base.items.map((item) => (item === streamed[0] ? { ...item, text: event.text, streaming: false } : item)) };
+          if (streamed.length > 1) return { ...base, items: settleStreaming(base.items) };
           return withItem(base, (id) => ({ kind: 'assistant', id, text: event.text, streaming: false }));
         }
         case 'tool_call': {

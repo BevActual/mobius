@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Menu, type MenuEntry } from './Menu';
+import { useInspector } from './PanelTabs';
 
 /**
  * Panels (docs/design/panel-layouts.md, stage 1: show, hide, resize). A panel is a named, self-contained piece of an
@@ -232,8 +233,14 @@ export function PanelsMenu({ app, shell, describeKeys, onReset }: {
   /** The shell's part of Reset layout (the sidebar and Mobius back as they start). */
   onReset?: () => void;
 }) {
+  // The inspector's panels: shown means the inspector is open with that panel in front.
+  const inspector = useInspector();
   const entries: MenuEntry[] = [
     ...shell.map((s) => ({ label: s.name, checked: s.shown, run: s.toggle, ...(s.keys ? { keys: describeKeys(s.keys) } : {}), ...(s.disabled ? { disabled: true } : {}) })),
+    ...inspector.panels.map((p, i) => {
+      const on = inspector.open && inspector.active === p.id;
+      return { label: p.name, checked: on, run: () => (on ? inspector.setOpen(false) : inspector.show(p.id)), separated: i === 0 };
+    }),
     ...(app?.panels ?? []).map((p, i) => ({ label: p.name, checked: p.shown, run: () => app!.toggle(p.id), separated: i === 0, ...(p.keys ? { keys: describeKeys(p.keys) } : {}) })),
     { label: 'Reset layout', separated: true, run: () => { app?.reset(); onReset?.(); } },
   ];

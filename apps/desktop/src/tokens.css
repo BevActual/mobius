@@ -89,6 +89,20 @@
   --c-stone: #a8a39a;
   --on-content: #1b1b1a;
 
+  /* Chart steps of the content colours: deeper, so a bar or line holds its own on paper. A chart series coloured
+     "blue" uses --chart-blue; the swatch, track and tag keep --c-blue. Unnamed series take them in this order, checked
+     for colour-blind separation: blue, coral, teal, amber, pink, green, violet, yellow (dataviz validator, light and
+     dark). Contrast against paper is under 3:1 for some, so every chart carries a legend and a table for screen readers. */
+  --chart-blue: #2a78d6;
+  --chart-coral: #eb6834;
+  --chart-teal: #1baf7a;
+  --chart-amber: #eda100;
+  --chart-pink: #e87ba4;
+  --chart-green: #008300;
+  --chart-violet: #6250d6;
+  --chart-yellow: #b8a000;
+  --chart-stone: #8a867e;
+
   /*
    * Today's names, kept as aliases while apps move over to the names above. New code uses the new names.
    * --accent is now ink: the primary action and the current place. Anything Mobius made, proposes or is doing uses
@@ -196,6 +210,7 @@
   --param-value: 30px;
   --progress-h: 2px;
   --dot-size: 6px;
+  --spark-h: 32px;
   --round-check: 16px;
   --edge-w: 3px;
   --chip-h: 22px;
@@ -239,6 +254,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --chart-blue: #3987e5;
+    --chart-coral: #d95926;
+    --chart-teal: #199e70;
+    --chart-amber: #c98500;
+    --chart-pink: #d55181;
+    --chart-green: #0ca30c;
+    --chart-violet: #9085e9;
+    --chart-yellow: #a89200;
+    --chart-stone: #8f8b83;
     --frame: #1a1a19;
     --paper: #222221;
     --raised: #2b2b29;
@@ -290,6 +314,15 @@
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%234f4f49' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 :root[data-theme="cool"] {
+  --chart-blue: #3987e5;
+  --chart-coral: #d95926;
+  --chart-teal: #199e70;
+  --chart-amber: #c98500;
+  --chart-pink: #d55181;
+  --chart-green: #0ca30c;
+  --chart-violet: #9085e9;
+  --chart-yellow: #a89200;
+  --chart-stone: #8f8b83;
   --frame: #171b21;
   --paper: #1e232b;
   --raised: #262d36;
