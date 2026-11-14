@@ -243,11 +243,20 @@ export function App() {
   }, [app, other]);
   const panesNow = useRef({ panes, focused });
   panesNow.current = { panes, focused };
+  // Whether Mobius opened the second pane itself, beside the conversation, rather than the person choosing a split.
+  const splitByMobius = useRef(false);
   /** Open an app in the focused pane. If the other pane already shows it, go there instead. */
   const setApp = useCallback((id: AppId) => {
     const { panes: [a, b], focused: f } = panesNow.current;
     if (b !== null && (f === 0 ? b : a) === id) { setFocused(f === 0 ? 1 : 0); return; }
-    // The conversation stays in a split: another app goes in the other pane, which then has the focus.
+    // Leaving a split Mobius opened beside the conversation goes to the app alone, with Mobius in its panel again.
+    if (b !== null && splitByMobius.current && (f === 0 ? a : b) === 'agent' && id !== 'agent') {
+      splitByMobius.current = false;
+      setPanes([id, null]);
+      setFocused(0);
+      return;
+    }
+    // The conversation stays in a split the person chose: another app goes in the other pane, which then has the focus.
     if (b !== null && (f === 0 ? a : b) === 'agent' && id !== 'agent') {
       setPanes(f === 0 ? [a, id] : [id, b]);
       setFocused(f === 0 ? 1 : 0);
@@ -263,17 +272,20 @@ export function App() {
   const openSplit = useCallback(() => {
     const { panes: [a], focused: f } = panesNow.current;
     const here = f === 1 ? panesNow.current.panes[1] ?? a : a;
+    splitByMobius.current = false;
     setPanes([here, companionFor(here)]);
     setFocused(0);
   }, []);
   const closePane = useCallback((index: 0 | 1) => {
     const { panes: [a, b] } = panesNow.current;
+    splitByMobius.current = false;
     setPanes([index === 0 ? (b ?? a) : a, null]);
     setFocused(0);
   }, []);
   const choosePane = useCallback((index: 0 | 1, id: AppId) => {
     const { panes: [a, b] } = panesNow.current;
     if (b === null) return;
+    splitByMobius.current = false;
     // Choosing what the other pane shows swaps them, so the same app is never open twice.
     if (index === 0) setPanes(id === b ? [b, a] : [id, b]);
     else setPanes(id === a ? [b, a] : [a, id]);
@@ -351,6 +363,7 @@ export function App() {
     if (focusedApp !== 'agent') return false;
     if (otherApp === id) return true;
     if (otherApp !== null) return false;
+    splitByMobius.current = true;
     setPanes([a, id]);
     return true;
   }, []);
