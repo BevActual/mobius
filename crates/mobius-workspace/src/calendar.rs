@@ -31,6 +31,10 @@ const MAX_WHY: usize = 300;
 /// Events the agent suggests, waiting for the person to add or decline them. In the calendar folder, so they are
 /// checkpointed with it, but hidden from the list of calendars.
 const SUGGESTIONS: &str = ".suggestions.json";
+/// Other people's calendars, read only to see when they are busy (shared with the person, or seeded in the demo):
+/// `calendar/people/<Name>.ics`. Never listed as the person's own.
+pub const PEOPLE: &str = "people";
+const MAX_FREE: usize = 8;
 
 /// When an event starts or ends: a whole day, or a time of day.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -555,6 +559,15 @@ pub fn tool_descriptions() -> Vec<Value> {
                 "end": { "type": "string", "description": format!("{when} Leave out for an hour (or the one day).") },
                 "location": { "type": "string" }, "notes": { "type": "string" },
                 "why": { "type": "string", "description": "One short sentence the person reads: why this, and why then." } }, "required": ["title", "start", "why"] } }),
+        json!({ "name": "calendar.free", "capability": "calendar.read",
+            "description": "Find times when the person is free, and the people named are too (from the calendars they share), for a meeting of a given length. Weekdays, in working hours, from now on. Then offer the best two or three with calendar.suggest; to invite, draft an email with mail.draft.",
+            "input_schema": { "type": "object", "properties": {
+                "with": { "type": "array", "items": { "type": "string" }, "description": "People who must be free too, by name (a first name is enough)." },
+                "minutes": { "type": "integer", "description": "How long, in minutes. Defaults to 60." },
+                "from": { "type": "string", "description": "First day to look at, YYYY-MM-DD. Defaults to today." },
+                "to": { "type": "string", "description": "Last day, YYYY-MM-DD. Defaults to seven days on." },
+                "dayStart": { "type": "string", "description": "When the working day starts, HH:MM. Defaults to 09:00." },
+                "dayEnd": { "type": "string", "description": "When it ends, HH:MM. Defaults to 17:30." } } } }),
         json!({ "name": "calendar.update", "capability": "calendar.write", "resource_arg": "calendar",
             "description": "Change an event in the Calendar app, found by the id calendar.list gave: its title, times, place, notes or how it repeats. For a repeating event, a new start moves the whole series to start there.",
             "input_schema": { "type": "object", "properties": {
@@ -567,6 +580,28 @@ pub fn tool_descriptions() -> Vec<Value> {
 
 pub fn is_calendar_tool(name: &str) -> bool {
     tool_descriptions().iter().any(|d| d["name"] == name)
+}
+
+/// Each time the events happen between `start` and `end` (repeats one entry per time), as `(start, event)`.
+fn expand(calendar: &str, events: &[Event], (start, end): (NaiveDateTime, NaiveDateTime), read_only: bool, found: &mut Vec<(NaiveDateTime, Value)>) {
+    for e in events {
+        let length = e.end.moment() - e.start.moment();
+        // Times a repeating event skips, or that a changed copy of that one time replaces.
+        let mut skip = moments_in(e, "EXDATE");
+        if e.repeat.is_some() {
+            skip.extend(events.iter().filter(|o| o.uid == e.uid && o.repeat.is_none()).flat_map(|o| moments_in(o, "RECURRENCE-ID")));
+        }
+        for when in occurrences(e, end) {
+            if e.repeat.is_some() && skip.contains(&when.moment()) {
+                continue;
+            }
+            let (s, f) = (when.moment(), when.moment() + length);
+            // Overlaps the range; an event of no length counts at its moment.
+            if s < end && (f > start || (f == s && s >= start)) {
+                found.push((s, event_json(calendar, e, when, read_only)));
+            }
+        }
+    }
 }
 
 fn event_json(calendar: &str, e: &Event, start: When, read_only: bool) -> Value {
@@ -712,27 +747,86 @@ impl Calendar {
             let read_only = self.mirror(&calendar).is_some_and(|m| !m.writable);
             // A calendar that cannot be read (a damaged file, one too big) is left out rather than hiding the rest.
             let Ok((events, _)) = self.load(&calendar) else { continue };
-            for e in &events {
-                let length = e.end.moment() - e.start.moment();
-                // Times a repeating event skips, or that a changed copy of that one time replaces.
-                let mut skip = moments_in(e, "EXDATE");
-                if e.repeat.is_some() {
-                    skip.extend(events.iter().filter(|o| o.uid == e.uid && o.repeat.is_none()).flat_map(|o| moments_in(o, "RECURRENCE-ID")));
-                }
-                for when in occurrences(e, end) {
-                    if e.repeat.is_some() && skip.contains(&when.moment()) {
-                        continue;
-                    }
-                    let (s, f) = (when.moment(), when.moment() + length);
-                    // Overlaps the range; an event of no length counts at its moment.
-                    if s < end && (f > start || (f == s && s >= start)) {
-                        found.push((s, event_json(&calendar, e, when, read_only)));
-                    }
-                }
-            }
+            expand(&calendar, &events, (start, end), read_only, &mut found);
         }
         found.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1["title"].as_str().cmp(&b.1["title"].as_str())));
         Ok(Value::Array(found.into_iter().map(|(_, v)| v).collect()))
+    }
+
+    /// The people whose calendars are shared here (`calendar/people/<Name>.ics`), by name.
+    pub fn people(&self) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(self.root.join(PEOPLE))
+            .map(|dir| dir.filter_map(Result::ok).filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".ics")).map(str::to_owned)).filter(|n| calendar_ok(n)).collect())
+            .unwrap_or_default();
+        names.sort_by_key(|n| n.to_lowercase());
+        names
+    }
+
+    /// Times of `minutes` when the person and everyone in `with` are free, on weekdays between `day` hours, from
+    /// `now` on: `{ with, unknown, free: [{start, end}] }`, the first few, at most one each morning and afternoon.
+    pub fn free(&self, with: &[String], minutes: i64, (from, to): (NaiveDate, NaiveDate), day: (NaiveTime, NaiveTime), now: NaiveDateTime) -> Res<Value> {
+        if !(15..=8 * 60).contains(&minutes) {
+            return Err("a meeting is 15 minutes to 8 hours".into());
+        }
+        if to < from || (to - from).num_days() > 31 {
+            return Err("look at most a month ahead, from a day to a later one".into());
+        }
+        let range = (from.and_time(NaiveTime::MIN), (to + Duration::days(1)).and_time(NaiveTime::MIN));
+        let mut busy: Vec<(NaiveDateTime, NaiveDateTime)> = Vec::new();
+        let mut add = |list: &[(NaiveDateTime, Value)]| {
+            for (_, e) in list {
+                // An all-day event (a holiday, a deadline) does not fill the day.
+                if e["allDay"] == true {
+                    continue;
+                }
+                if let (Some(s), Some(f)) = (e["start"].as_str().and_then(When::parse), e["end"].as_str().and_then(When::parse)) {
+                    busy.push((s.moment(), f.moment()));
+                }
+            }
+        };
+        let own: Vec<(NaiveDateTime, Value)> = self.events(&from.format("%Y-%m-%d").to_string(), &to.format("%Y-%m-%d").to_string())?.as_array().cloned().unwrap_or_default().into_iter().map(|v| (NaiveDateTime::MIN, v)).collect();
+        add(&own);
+        let people = self.people();
+        let (mut found, mut unknown) = (Vec::new(), Vec::new());
+        for name in with {
+            let wanted = name.trim().to_lowercase();
+            let Some(person) = people.iter().find(|p| p.to_lowercase() == wanted || p.to_lowercase().split_whitespace().next() == Some(wanted.as_str())) else {
+                unknown.push(name.trim().to_owned());
+                continue;
+            };
+            let text = fs::read_to_string(self.root.join(PEOPLE).join(format!("{person}.ics"))).unwrap_or_default();
+            let (events, _) = if text.len() <= MAX_FILE { parse(&text) } else { (Vec::new(), Vec::new()) };
+            let mut theirs = Vec::new();
+            expand(person, &events, range, true, &mut theirs);
+            add(&theirs);
+            found.push(person.clone());
+        }
+        let length = Duration::minutes(minutes);
+        let step = Duration::minutes(30);
+        let mut free = Vec::new();
+        let mut date = from;
+        while date <= to && free.len() < MAX_FREE {
+            if date.weekday().number_from_monday() <= 5 {
+                let (open, close) = (date.and_time(day.0), date.and_time(day.1));
+                // From the next half hour after now.
+                let mut at = open;
+                while at < now {
+                    at += step;
+                }
+                let mut taken_half = [false, false];
+                while at + length <= close && free.len() < MAX_FREE {
+                    let end = at + length;
+                    let half = usize::from(at.time() >= NaiveTime::from_hms_opt(12, 0, 0).unwrap_or(NaiveTime::MIN));
+                    if !taken_half[half] && !busy.iter().any(|(s, f)| *s < end && *f > at) {
+                        free.push(json!({ "start": at.format("%Y-%m-%dT%H:%M").to_string(), "end": end.format("%Y-%m-%dT%H:%M").to_string() }));
+                        taken_half[half] = true;
+                    }
+                    at += step;
+                }
+            }
+            date += Duration::days(1);
+        }
+        Ok(json!({ "with": found, "unknown": unknown, "known": people, "free": free }))
     }
 
     fn checked(draft: &Draft, base: Option<&Event>) -> Res<(String, When, When, String, String)> {
@@ -841,6 +935,15 @@ impl Calendar {
                 let to = text("to").map_or_else(|| (today + Duration::days(6)).format("%Y-%m-%d").to_string(), str::to_owned);
                 self.events(&from, &to)?
             }
+            "calendar.free" => {
+                let now = Local::now().naive_local();
+                let day = |k: &str, d: &str| NaiveDate::parse_from_str(text(k).unwrap_or(d), "%Y-%m-%d").map_err(|_| format!("{k} is a day, YYYY-MM-DD"));
+                let time = |k: &str, d: &str| NaiveTime::parse_from_str(text(k).unwrap_or(d), "%H:%M").map_err(|_| format!("{k} is a time, HH:MM"));
+                let today = now.date().format("%Y-%m-%d").to_string();
+                let week = (now.date() + Duration::days(7)).format("%Y-%m-%d").to_string();
+                let with: Vec<String> = args.get("with").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).take(10).map(str::to_owned).collect()).unwrap_or_default();
+                self.free(&with, args.get("minutes").and_then(Value::as_i64).unwrap_or(60), (day("from", &today)?, day("to", &week)?), (time("dayStart", "09:00")?, time("dayEnd", "17:30")?), now)?
+            }
             "calendar.add" => {
                 self.checkpoint(&format!("before the agent added an event to {calendar}"));
                 self.add(calendar, &Draft::from_json(args))?
@@ -942,6 +1045,36 @@ mod tests {
     }
     fn draft(title: &str, start: &str, end: Option<&str>) -> Draft {
         Draft { title: Some(title.into()), start: Some(start.into()), end: end.map(str::to_owned), ..Draft::default() }
+    }
+
+    #[test]
+    fn free_times_leave_out_what_the_person_and_the_people_named_have_on() {
+        let (dir, c) = store();
+        // Monday 16 November 2026: the person is in a meeting from 9 to 10, Sam from 10 to 12 and every afternoon
+        // until 15:00; an all-day deadline fills nothing.
+        c.add("Calendar", &draft("Stand-up", "2026-11-16T09:00", Some("2026-11-16T10:00"))).unwrap();
+        c.add("Calendar", &draft("Parts list due", "2026-11-16", None)).unwrap();
+        let people = dir.path().join("workspace/calendar/people");
+        fs::create_dir_all(&people).unwrap();
+        fs::write(people.join("Sam Okafor.ics"), "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:s1\r\nSUMMARY:Supplier call\r\nDTSTART:20261116T100000\r\nDTEND:20261116T120000\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:s2\r\nSUMMARY:Workshop\r\nDTSTART:20261116T120000\r\nDTEND:20261116T150000\r\nRRULE:FREQ=DAILY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n").unwrap();
+        assert_eq!(c.people(), vec!["Sam Okafor"]);
+        assert_eq!(c.calendars(), vec!["Calendar"], "someone else's calendar is not the person's own");
+        let at = |d: &str, t: &str| NaiveDate::parse_from_str(d, "%Y-%m-%d").unwrap().and_time(NaiveTime::parse_from_str(t, "%H:%M").unwrap());
+        let day = (NaiveTime::from_hms_opt(9, 0, 0).unwrap(), NaiveTime::from_hms_opt(17, 30, 0).unwrap());
+        let monday = NaiveDate::from_ymd_opt(2026, 11, 16).unwrap();
+        let out = c.free(&["sam".into(), "Jo".into()], 60, (monday, monday + Duration::days(6)), day, at("2026-11-16", "08:00")).unwrap();
+        assert_eq!(out["with"], json!(["Sam Okafor"]));
+        assert_eq!(out["unknown"], json!(["Jo"]));
+        let free: Vec<&str> = out["free"].as_array().unwrap().iter().map(|f| f["start"].as_str().unwrap()).collect();
+        // Monday: only 15:00 in the afternoon (morning is all taken); Tuesday: 9:00 and 15:00; nothing on the weekend.
+        assert_eq!(&free[..3], &["2026-11-16T15:00", "2026-11-17T09:00", "2026-11-17T15:00"]);
+        assert!(free.iter().all(|f| !f.starts_with("2026-11-21") && !f.starts_with("2026-11-22")));
+        // Alone, the morning after the stand-up is free; from midday on, only times after now.
+        let alone = c.free(&[], 60, (monday, monday), day, at("2026-11-16", "12:10")).unwrap();
+        assert_eq!(alone["free"][0]["start"], "2026-11-16T12:30");
+        assert!(c.free(&[], 5, (monday, monday), day, at("2026-11-16", "08:00")).is_err());
+        let tool: Value = serde_json::from_str(&c.run("calendar.free", &json!({ "with": ["Sam"], "from": "2026-11-16", "to": "2026-11-16", "minutes": 30 })).unwrap()).unwrap();
+        assert_eq!(tool["with"], json!(["Sam Okafor"]));
     }
 
     #[test]
