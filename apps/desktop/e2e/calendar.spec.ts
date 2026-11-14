@@ -227,7 +227,8 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await openCalendar();
 
   const group = shell().getByRole('region', { name: 'Holidays' });
-  await expect(group.getByRole('button', { name: 'Holidays', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  // The row's name includes its lock ("Holidays Read only"), so match from the start.
+  await expect(group.getByRole('button', { name: /^Holidays/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(group.getByRole('img', { name: 'Read only' })).toBeVisible();
   const event = page().getByRole('button', { name: /^Founders Day, All day, Holidays/ });
   await expect(event).toBeVisible();
