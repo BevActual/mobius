@@ -27,6 +27,13 @@ const priorityOf = (el: Element): ToolbarPriority => {
   return p === 'low' || p === 'keep' ? p : 'normal';
 };
 
+/** Where a control ends on screen (a ToolbarItem draws no box of its own: its children's). */
+function rightOf(el: Element): number {
+  const box = el.getBoundingClientRect();
+  if (box.width > 0 || box.height > 0) return box.right;
+  return Math.max(0, ...[...el.children].map(rightOf));
+}
+
 /** The controls of the slot that can drop: the children of each group, dividers aside. */
 function controlsOf(slot: HTMLElement): HTMLElement[] {
   return [...slot.querySelectorAll<HTMLElement>(':scope > .ui-toolbar-group > *')].filter((el) => !isDivider(el));
@@ -70,7 +77,13 @@ export function fitToolbar(slot: HTMLElement, strip: HTMLElement | null = slot.p
   const trail = strip ? [...strip.querySelectorAll<HTMLElement>(':scope > .strip-right > [data-priority="low"]')] : [];
   [...trail, ...slot.querySelectorAll<HTMLElement>(':scope > .ui-toolbar-group > *')].forEach((el) => el.removeAttribute('data-dropped'));
   const controls = controlsOf(slot);
-  const fits = () => slot.scrollWidth <= slot.clientWidth + 1 && (!strip || strip.scrollWidth <= strip.clientWidth + 1);
+  // Measured by where the controls end, not by scroll width: an open popover inside a control is not a control.
+  const end = strip?.querySelector<HTMLElement>(':scope > .strip-right');
+  const fits = () => {
+    const room = slot.getBoundingClientRect().right + 1;
+    if (controls.some((el) => !el.hasAttribute('data-dropped') && rightOf(el) > room)) return false;
+    return !strip || !end || end.getBoundingClientRect().right <= strip.getBoundingClientRect().right + 1;
+  };
   const dropped = new Set<HTMLElement>();
   const order = [...trail, ...dropOrder(controls.map(priorityOf)).map((i) => controls[i]!)];
   for (const el of order) {
