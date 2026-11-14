@@ -1241,6 +1241,14 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
+        // How long each tool took, when it was a second or more: a turn whose reply never came can be traced to it.
+        let started = std::time::Instant::now();
+        let out = self.run_host_tool(params);
+        slow("tool", params.get("tool").and_then(Value::as_str).unwrap_or("?"), started);
+        out
+    }
+
+    fn run_host_tool(&self, params: &Value) -> Result<Value, String> {
         // Nothing runs before the checkpoint at the start of the turn is taken.
         let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
@@ -3278,15 +3286,13 @@ impl Bridge {
                     }
                     Err(e) => failed(e),
                 },
-                (Some(_), Ok(files)) => {
+                (Some(end), Ok(files)) => {
                     // The turn's files only; one changed again since is left as it is, and said.
-                    let mut kept = Vec::new();
-                    for path in &files {
-                        if changed_later(path) {
-                            kept.push(path.clone());
-                        } else if let Err(e) = self.workspace.restore_file(&mark, path) {
-                            return Ok(failed(e));
-                        }
+                    let (kept, back): (Vec<String>, Vec<String>) = files.into_iter().partition(|path| changed_later(path));
+                    // All at once: one by one, each took a checkpoint of its own, and a tidy of a hundred files took
+                    // most of a minute to undo.
+                    if let Err(e) = self.workspace.restore_turn(&mark, end, &back) {
+                        return Ok(failed(e));
                     }
                     self.reload_after_undo(None);
                     json!({ "ok": true, "kept": kept })

@@ -7,6 +7,7 @@ import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { cellName, changedCells, chartData, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
+import { readBefore } from './readBefore';
 import './sheets.css';
 import type { SheetsState } from './useSheets';
 import { ReviewActions, WhyThis } from './ReviewBar';
@@ -279,29 +280,22 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     // Checked again when the sheet changes: a new turn's change is not kept yet.
   }, [review?.conversation, file, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    let live = true;
     if (!review || kept || !file || !data) { setChanged(new Set()); return; }
-    void window.mobius.changes.before(review.conversation, file).then((was) => {
-      if (!live) return;
-      setChanged(was && was.ok && was.text !== null ? changedCells(parseCsv(was.text), data.cells) : new Set(data.cells.flatMap((row, r) => row.map((t, c) => (t ? `${r}:${c}` : '')).filter(Boolean))));
-    }).catch(() => {});
-    return () => { live = false; };
+    const every = () => setChanged(new Set(data.cells.flatMap((row, r) => row.map((t, c) => (t ? `${r}:${c}` : '')).filter(Boolean))));
+    return readBefore(review.conversation, file, (text) => { if (text === null) every(); else setChanged(changedCells(parseCsv(text), data.cells)); }, every);
   }, [review?.conversation, kept, file, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   // Charts Mobius added or changed in that turn are dashed until kept, like its cells.
   const [newCharts, setNewCharts] = useState<Set<string>>(new Set());
   const chartKey = (c: { kind: string; range: string; at: string; title?: string | undefined }) => `${c.kind}|${c.range}|${c.at}|${c.title ?? ''}`;
   useEffect(() => {
-    let live = true;
     const charts = data?.charts ?? [];
     if (!review || kept || !data || charts.length === 0) { setNewCharts(new Set()); return; }
-    void window.mobius.changes.before(review.conversation, `sheets/${data.workbook}/.charts.json`).then((was) => {
-      if (!live || !was || !was.ok) return;
+    return readBefore(review.conversation, `sheets/${data.workbook}/.charts.json`, (text) => {
       let before: { kind: string; range: string; at: string; title?: string; sheet?: string }[] = [];
-      try { before = was.text ? JSON.parse(was.text) : []; } catch { before = []; }
+      try { before = text ? JSON.parse(text) : []; } catch { before = []; }
       const old = new Set(before.filter((c) => c.sheet === undefined || c.sheet === data.sheet).map(chartKey));
       setNewCharts(new Set(charts.map(chartKey).filter((k) => !old.has(k))));
-    }).catch(() => {});
-    return () => { live = false; };
+    });
   }, [review?.conversation, kept, data?.workbook, data?.sheet, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   const keepAll = async () => {
     if (!review) return;

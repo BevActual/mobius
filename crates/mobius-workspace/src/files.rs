@@ -33,7 +33,7 @@ pub fn tool_descriptions() -> Vec<Value> {
             "input_schema": { "type": "object", "properties": { "query": { "type": "string", "description": "The text to find." }, "path": path("A folder inside the workspace to look in. Defaults to all of it.") }, "required": ["query"] } }),
         json!({ "name": "files.write", "description": "Create a text file in the workspace, or replace one completely. A checkpoint is taken first so the person can undo it. Prefer files.edit for small changes to an existing file.", "capability": "files.write", "resource_arg": "path",
             "input_schema": { "type": "object", "properties": { "path": path("The file, relative to the workspace."), "content": { "type": "string", "description": "The whole new content." } }, "required": ["path", "content"] } }),
-        json!({ "name": "files.edit", "description": "Change part of a text file: replace one piece of text with another. Fails unless the old text appears exactly once (or replaceAll is true), so it cannot change the wrong place. A checkpoint is taken first.", "capability": "files.write", "resource_arg": "path",
+        json!({ "name": "files.edit", "description": "Change part of a text file: replace one piece of text with another. Fails unless the old text appears exactly once (or replaceAll is true), so it cannot change the wrong place; the spaces and line breaks between its words may differ from the file's. A checkpoint is taken first.", "capability": "files.write", "resource_arg": "path",
             "input_schema": { "type": "object", "properties": { "path": path("The file, relative to the workspace."), "old": { "type": "string", "description": "The exact text to replace." }, "new": { "type": "string", "description": "What to put there." }, "replaceAll": { "type": "boolean", "description": "Replace every occurrence. Defaults to false." } }, "required": ["path", "old", "new"] } }),
         json!({ "name": "files.move", "description": "Move or rename files and folders inside one folder of the workspace, all in one go (to tidy it: into folders by kind or date, or to clearer names). Paths are relative to that folder; folders are made as needed; nothing is ever replaced. A checkpoint is taken first, so the person sees every move and can undo them all.", "capability": "files.write", "resource_arg": "folder",
             "input_schema": { "type": "object", "properties": { "folder": path("The folder whose contents are moved, relative to the workspace, such as Downloads. Moves stay inside it."), "moves": { "type": "array", "maxItems": MAX_MOVES, "description": "Each move: from (where it is now) and to (where it goes, with its name), both relative to folder, such as {\"from\":\"IMG_2041.jpg\",\"to\":\"Photos/2026-11/IMG_2041.jpg\"}.", "items": { "type": "object", "properties": { "from": { "type": "string" }, "to": { "type": "string" } }, "required": ["from", "to"] } } }, "required": ["folder", "moves"] } }),
@@ -156,6 +156,13 @@ impl Workspace {
     pub fn restore_file(&self, checkpoint: &str, path: &str) -> Res<()> {
         let root = self.real_root()?;
         self.checkpoints.restore_file(&root, checkpoint, path).map_err(|e| e.to_string())
+    }
+
+    /// Puts a turn's files back as they were at `checkpoint`, all at once, and moves back what its moves (up to `end`)
+    /// left where they went (archives and videos, which checkpoints leave out). Folders left empty are taken away.
+    pub fn restore_turn(&self, checkpoint: &str, end: &str, paths: &[String]) -> Res<()> {
+        let root = self.real_root()?;
+        self.checkpoints.restore_files(&root, checkpoint, paths, Some(end)).map_err(|e| e.to_string())
     }
 
     /// The person browsing a folder in Files: like `files.list`, with when each entry last changed (ms since 1970).
@@ -492,13 +499,29 @@ impl Workspace {
                     return Err("that file is not there".into());
                 }
                 let text = Self::read_text(&file)?;
-                let count = text.matches(old).count();
+                let exact = text.matches(old).count();
+                // Not found as written: the same words with the line breaks and spaces between them laid out
+                // differently (a paragraph wrapped in the file and copied as one line, or the other way round).
+                let loose = if exact == 0 { loose_find(&text, old) } else { Vec::new() };
+                let count = if exact > 0 { exact } else { loose.len() };
                 match (count, all) {
                     (0, _) => return Err("the old text was not found; read the file again and copy it exactly".into()),
                     (n, false) if n > 1 => return Err(format!("the old text appears {n} times; include more around it so it is unique, or set replaceAll")),
                     _ => {}
                 }
-                let changed = if all { text.replace(old, new) } else { text.replacen(old, new, 1) };
+                let changed = if exact > 0 {
+                    if all { text.replace(old, new) } else { text.replacen(old, new, 1) }
+                } else {
+                    let mut out = String::with_capacity(text.len());
+                    let mut at = 0;
+                    for (start, end) in loose.iter().take(if all { usize::MAX } else { 1 }) {
+                        out.push_str(&text[at..*start]);
+                        out.push_str(new);
+                        at = *end;
+                    }
+                    out.push_str(&text[at..]);
+                    out
+                };
                 let mut result = self.save(relative, &changed, &format!("before the assistant edited {relative}"))?;
                 result["replaced"] = json!(count);
                 Ok(result.to_string())
@@ -532,20 +555,71 @@ impl Workspace {
                     }
                     planned.push((from_rel, to_rel, source, target));
                 }
-                let checkpointed = self.checkpoint(&format!("before the assistant moved {} in {}", planned.len(), if folder.is_empty() { "the workspace" } else { folder }));
+                // A checkpoint of its own, even when nothing it keeps changed since the last: the moves are counted from it.
+                let reason = format!("before the assistant moved {} in {}", planned.len(), if folder.is_empty() { "the workspace" } else { folder });
+                let root = self.real_root().ok();
+                let before = root.as_deref().and_then(|r| self.checkpoints.snapshot_always(r, &reason).ok()).map(|c| c.id);
+                let checkpointed = before.is_some();
                 let mut done = Vec::new();
+                let mut pairs = Vec::new();
+                let mut failed = None;
                 for (from_rel, to_rel, source, target) in &planned {
                     let moved = target.parent().map_or(Ok(()), fs::create_dir_all).and_then(|()| fs::rename(source, target));
                     if let Err(e) = moved {
-                        return Err(format!("moved {} of {}, then {from_rel} could not be moved ({e}); undo puts the rest back", done.len(), planned.len()));
+                        failed = Some(format!("moved {} of {}, then {from_rel} could not be moved ({e}); undo puts the rest back", done.len(), planned.len()));
+                        break;
                     }
                     done.push(json!({ "from": from_rel, "to": to_rel }));
+                    pairs.push((from_rel.clone(), to_rel.clone()));
+                }
+                // Checkpoints leave archives and videos out; noting the moves lets undo bring those back as well.
+                if let (Some(root), Some(before)) = (root.as_deref(), before.as_deref()) {
+                    if !pairs.is_empty() {
+                        let _ = self.checkpoints.note_moves(root, before, &pairs);
+                    }
+                }
+                if let Some(failed) = failed {
+                    return Err(failed);
                 }
                 Ok(json!({ "moved": done, "checkpoint": checkpointed }).to_string())
             }
             _ => Err("unknown tool".into()),
         }
     }
+}
+
+/// Where `old` is in `text` when the words must match exactly but any run of spaces and line breaks between them may
+/// be any other such run: byte ranges, in order, not overlapping. Spaces before the first word and after the last are
+/// not part of what is matched.
+fn loose_find(text: &str, old: &str) -> Vec<(usize, usize)> {
+    let words: Vec<&str> = old.split_whitespace().collect();
+    let Some(first) = words.first() else { return Vec::new() };
+    let mut found = Vec::new();
+    let mut from = 0;
+    while let Some(offset) = text[from..].find(first) {
+        let start = from + offset;
+        let mut at = start + first.len();
+        let mut whole = true;
+        for word in &words[1..] {
+            let gap = text[at..].len() - text[at..].trim_start().len();
+            if gap == 0 || !text[at + gap..].starts_with(word) {
+                whole = false;
+                break;
+            }
+            at += gap + word.len();
+        }
+        // Whole words at both ends: "is a test" is not found inside "this a test".
+        let alnum = |c: Option<char>| c.is_some_and(char::is_alphanumeric);
+        let starts_clean = !(alnum(first.chars().next()) && alnum(text[..start].chars().next_back()));
+        let ends_clean = !(alnum(words.last().and_then(|w| w.chars().next_back())) && alnum(text[at..].chars().next()));
+        if whole && starts_clean && ends_clean {
+            found.push((start, at));
+            from = at;
+        } else {
+            from = start + first.len();
+        }
+    }
+    found
 }
 
 #[cfg(test)]
@@ -738,6 +812,21 @@ mod tests {
     }
 
     #[test]
+    fn edit_finds_a_paragraph_wrapped_differently_in_the_file() {
+        let (_dir, ws) = setup();
+        let wrapped = "# Brief\n\nSo basically the build runs\nthe week of the 23rd, and what we\nare trying to do is ship.\n\n## Next\n";
+        call(&ws, "files.write", json!({ "path": "docs/Brief.md", "content": wrapped })).unwrap();
+        // Copied as one line, as an editor shows a paragraph: only that paragraph changes, the rest stays as it was.
+        let one_line = "So basically the build runs the week of the 23rd, and what we are trying to do is ship.";
+        call(&ws, "files.edit", json!({ "path": "docs/Brief.md", "old": one_line, "new": "The build runs the week of the 23rd." })).unwrap();
+        assert_eq!(std::fs::read_to_string(ws.root().join("docs/Brief.md")).unwrap(), "# Brief\n\nThe build runs the week of the 23rd.\n\n## Next\n");
+        // Words must still match whole, and twice is still too many.
+        call(&ws, "files.write", json!({ "path": "a.txt", "content": "this a test\nis a\ntest and is a test" })).unwrap();
+        assert!(call(&ws, "files.edit", json!({ "path": "a.txt", "old": "is a test", "new": "x" })).unwrap_err().contains("2 times"));
+        assert!(call(&ws, "files.edit", json!({ "path": "a.txt", "old": "his  a", "new": "x" })).unwrap_err().contains("not found"));
+    }
+
+    #[test]
     fn edit_needs_one_clear_match() {
         let (_d, ws) = setup();
         call(&ws, "files.write", json!({ "path": "a.txt", "content": "one two two" })).unwrap();
@@ -836,5 +925,42 @@ mod tests {
         assert_ne!(mark, before);
         ws.restore(&ws.history(3).unwrap()[1].0).unwrap();
         assert!(root.join("Downloads/IMG_1.txt").is_file() && root.join("Downloads/Old/a.md").is_file() && root.join("Downloads/report.md").is_file());
+    }
+
+    #[test]
+    fn undoing_a_tidy_brings_back_archives_and_takes_away_the_folders_it_made() {
+        let (_d, ws) = setup();
+        let root = ws.root().to_path_buf();
+        call(&ws, "files.write", json!({ "path": "Downloads/notes.md", "content": "notes" })).unwrap();
+        // Checkpoints leave archives out, so only the noted moves can bring these back.
+        fs::write(root.join("Downloads/setup.zip"), b"zip one").unwrap();
+        fs::create_dir_all(root.join("Downloads/Old")).unwrap();
+        fs::write(root.join("Downloads/Old/backup.zip"), b"zip two").unwrap();
+        fs::write(root.join("Downloads/Old/read.md"), "old").unwrap();
+        let start = ws.mark("the turn starts").unwrap().expect("a checkpoint");
+        call(&ws, "files.move", json!({ "folder": "Downloads", "moves": [
+            { "from": "setup.zip", "to": "Installers/Apps/setup.zip" },
+            { "from": "notes.md", "to": "Documents/notes.md" },
+            { "from": "Old", "to": "Archive/2026/Old" },
+        ] })).unwrap();
+        let end = ws.mark("the turn ends").unwrap().expect("a checkpoint");
+        // A later turn's move is its own: undoing this turn leaves it.
+        fs::write(root.join("Downloads/later.zip"), b"later").unwrap();
+        call(&ws, "files.move", json!({ "folder": "Downloads", "moves": [{ "from": "later.zip", "to": "Later/later.zip" }] })).unwrap();
+        // Undo of the ended turn, as Mobius does it: its own files, all at once.
+        let files = ws.changed_between(&start, &end).unwrap();
+        ws.restore_turn(&start, &end, &files).unwrap();
+        assert!(root.join("Downloads/Later/later.zip").is_file(), "the later move stays");
+        assert_eq!(fs::read(root.join("Downloads/setup.zip")).unwrap(), b"zip one");
+        assert_eq!(fs::read(root.join("Downloads/Old/backup.zip")).unwrap(), b"zip two");
+        assert_eq!(fs::read_to_string(root.join("Downloads/Old/read.md")).unwrap(), "old");
+        assert_eq!(fs::read_to_string(root.join("Downloads/notes.md")).unwrap(), "notes");
+        for made in ["Downloads/Installers", "Downloads/Documents", "Downloads/Archive"] {
+            assert!(!root.join(made).exists(), "{made} is taken away again");
+        }
+        // Restoring the whole folder to the start again: the turn's moves were turned back once and forgotten, and the
+        // later move goes back now.
+        ws.restore(&start).unwrap();
+        assert!(root.join("Downloads/setup.zip").is_file() && root.join("Downloads/later.zip").is_file() && !root.join("Downloads/Later").exists());
     }
 }

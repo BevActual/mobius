@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { COMPARE_TABS, isStarter, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext, WHAT_STANDS_OUT } from './surface';
+import { COMPARE_TABS, isStarter, MAKE_A_DECK, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext, WHAT_STANDS_OUT } from './surface';
 
 describe('what each app suggests', () => {
   it('offers page suggestions in the browser only when a page is showing, and they attach the page', () => {
@@ -40,6 +40,11 @@ describe('what each app suggests', () => {
     const first = suggestionsFor({ app: 'sheets', hasPage: false, note: null, sheet: { title: 'Sales', source: 'sheets/Sales.json', text: 'A1: Month' } })[0];
     expect(first).toEqual({ label: 'What stands out?', prompt: WHAT_STANDS_OUT, attach: 'sheet' });
     for (const bit of ['sheets.read', 'sheets.write', 'SUM', 'AVERAGE', 'Stands out', 'column chart (charts)']) expect(WHAT_STANDS_OUT).toContain(bit);
+  });
+  it('offers Make this a deck from an open document, in the deck format with notes', () => {
+    const open = suggestionsFor({ app: 'docs', hasPage: false, note: { path: 'Documents/Plan.md', title: 'Plan', text: '# Plan', folder: 'docs' } });
+    expect(open.slice(0, 2).map((s) => s.label)).toEqual(['One-page brief', 'Make this a deck']);
+    for (const bit of ['slides/Presentations/', '---', 'Notes:', 'Leave this document as it is.']) expect(MAKE_A_DECK).toContain(bit);
   });
   it('never asks the agent app to attach anything', () => {
     expect(suggestionsFor({ app: 'agent', hasPage: true, note: null }).every((s) => s.attach === undefined)).toBe(true);
