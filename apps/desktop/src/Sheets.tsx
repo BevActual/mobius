@@ -6,13 +6,13 @@ import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
+import { cellName, changedCells, chartData, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
 import './sheets.css';
 import type { SheetsState } from './useSheets';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
-import { Menu, PointMenu, ToolbarControls, type MenuEntry } from './ui';
+import { Chart, Menu, PointMenu, ToolbarControls, type MenuEntry } from './ui';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
 
 /** The open sheet's selection, for the Glance in the Mobius panel: the grid publishes it, the panel's Glance reads it. */
@@ -287,6 +287,22 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     }).catch(() => {});
     return () => { live = false; };
   }, [review?.conversation, kept, file, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Charts Mobius added or changed in that turn are dashed until kept, like its cells.
+  const [newCharts, setNewCharts] = useState<Set<string>>(new Set());
+  const chartKey = (c: { kind: string; range: string; at: string; title?: string | undefined }) => `${c.kind}|${c.range}|${c.at}|${c.title ?? ''}`;
+  useEffect(() => {
+    let live = true;
+    const charts = data?.charts ?? [];
+    if (!review || kept || !data || charts.length === 0) { setNewCharts(new Set()); return; }
+    void window.mobius.changes.before(review.conversation, `sheets/${data.workbook}/.charts.json`).then((was) => {
+      if (!live || !was || !was.ok) return;
+      let before: { kind: string; range: string; at: string; title?: string; sheet?: string }[] = [];
+      try { before = was.text ? JSON.parse(was.text) : []; } catch { before = []; }
+      const old = new Set(before.filter((c) => c.sheet === undefined || c.sheet === data.sheet).map(chartKey));
+      setNewCharts(new Set(charts.map(chartKey).filter((k) => !old.has(k))));
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [review?.conversation, kept, data?.workbook, data?.sheet, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   const keepAll = async () => {
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
@@ -837,6 +853,20 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
           </tbody>
         </table>
       </div>
+      {(data.charts?.length ?? 0) > 0 && (
+        <div className="sheet-charts" role="group" aria-label="Charts">
+          {data.charts!.map((c) => {
+            const drawn = chartData(c.range, data.values);
+            const name = c.title || `${c.range} chart`;
+            return (
+              <figure key={chartKey(c)} className="sheet-chart" data-proposed={newCharts.has(chartKey(c)) || undefined}>
+                <figcaption>{name}</figcaption>
+                {drawn ? <Chart label={name} kind={c.kind} categories={drawn.categories} series={drawn.series} height={200} proposed={newCharts.has(chartKey(c))} /> : <p className="note-empty">No numbers in {c.range} to draw.</p>}
+              </figure>
+            );
+          })}
+        </div>
+      )}
       {edit && popupAt && (fnMatches.length > 0 || fnHint) && createPortal(
         <div className="sheet-suggest" style={{ top: popupAt.bottom + 4, left: Math.min(popupAt.left, window.innerWidth - 300) }} onMouseDown={keep}>
           {fnMatches.length > 0
