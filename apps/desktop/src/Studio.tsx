@@ -193,15 +193,16 @@ const EFFECT_DETAILS: { [K in EffectKind]: string } = {
 const DELAY_TIMES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '0.75', label: '3/16' }, { value: '1', label: '1/4' }, { value: '1.5', label: '3/8' }, { value: '2', label: '1/2' }] as const;
 
 /** One effect on the track, as a shared device: on or off, dragged along the chain by its grip, taken off, and its settings. */
-function EffectBlock({ effect, at, onChange, onRemove }: {
+function EffectBlock({ effect, at, onChange, onRemove, folded, onFold }: {
   effect: Effect; at: number;
+  folded: boolean; onFold: (folded: boolean) => void;
   onChange: (fn: (e: Effect) => void, tag?: string) => void;
   onRemove: () => void;
 }) {
   const name = EFFECT_NAMES[effect.kind];
   const values = effect as unknown as Record<string, number>;
   return (
-    <DeviceFrame className={`studio-fx studio-fx-${effect.kind}`} title={name} index={at} on={effect.on} onToggle={(on) => onChange((e) => { e.on = on; })}
+    <DeviceFrame className={`studio-fx studio-fx-${effect.kind}`} title={name} index={at} on={effect.on} onToggle={(on) => onChange((e) => { e.on = on; })} collapsed={folded} onCollapse={onFold}
       actions={<IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />}>
       <div className="studio-fx-body">
       {effect.kind === 'delay' && (
@@ -258,6 +259,9 @@ export function StudioDevice({ track, onTrack }: {
   const set = (k: keyof Sound, v: number) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), [k]: v }; }, `sound:${k}`);
   const setMany = (patch: Partial<Sound>, tag: string) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), ...patch }; }, `sound:${tag}`);
   const [pad, setPad] = useState(0);
+  // Folded devices, by track and device, so a long chain fits: the head stays, with its switch and name.
+  const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
+  const fold = (key: string) => (on: boolean) => setFolded((f) => { const next = new Set(f); if (on) next.add(key); else next.delete(key); return next; });
   const setKit = (k: keyof KitSound, v: number) => onTrack((t) => { if (t.instrument !== 'drums') return; t.kit = { ...(t.kit ?? KIT_DEFAULTS), [k]: v }; }, `kit:${k}`);
   if (!track) return <div className="studio-device" aria-label="Devices" role="region"><p className="studio-dev-note">Add a track from Sounds in the sidebar to set how it sounds.</p></div>;
   const fx = track.fx ?? [];
@@ -274,6 +278,7 @@ export function StudioDevice({ track, onTrack }: {
       </section>
       {/* Then the instrument, as sound flows: its switch bypasses it alone, as each effect's does (M mutes the track). */}
       <DeviceFrame className="studio-instrument" title="Instrument" index={0} on={track.instrumentOn !== false} onToggle={(on) => onTrack((t) => { if (on) delete t.instrumentOn; else t.instrumentOn = false; })}
+        collapsed={folded.has(`${track.id}:instrument`)} onCollapse={fold(`${track.id}:instrument`)}
         actions={<Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; })} />}>
         <div className="studio-dev-cols">
           {sound && base && SOUND_GROUPS.map((g) => (
@@ -331,7 +336,7 @@ export function StudioDevice({ track, onTrack }: {
           <DeviceChain label={`${track.name} effects`} count={fx.length}
             onMove={(from, to) => onTrack((t) => { const list = t.fx ?? []; const [moved] = list.splice(from, 1); if (moved) list.splice(to, 0, moved); })}>
             {fx.map((e, i) => (
-              <EffectBlock key={e.id} effect={e} at={i}
+              <EffectBlock key={e.id} effect={e} at={i} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
                 onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) fn(x); }, tag ? `${tag}:${e.id}` : undefined)}
                 onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
             ))}
