@@ -17,10 +17,10 @@ const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
   { id: 'all', label: 'All' },
 ];
 
-/** "9:02" today, "Thu" this week, "3 Nov" before. */
 /** The message list's keys, shown in the key-hint bar until they are learned. */
 const MAIL_KEYS = [{ keys: 'E', label: 'Archive' }, { keys: 'R', label: 'Reply' }, { keys: 'H', label: 'Later' }] as const;
 
+/** "9:02" today, "Thu" this week, "3 Nov" before. */
 export function when(ms: number, now = new Date()): string {
   if (!ms) return '';
   const d = new Date(ms);
