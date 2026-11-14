@@ -3393,6 +3393,10 @@ impl Bridge {
                 if let Some(reads) = arg(3).get("reads") {
                     request["reads"] = reads.clone();
                 }
+                // { finish: true }: the suggestion ends in changes, and the turn is done once they are made.
+                if let Some(finish) = arg(3).get("finish") {
+                    request["finish"] = finish.clone();
+                }
                 // { quick: true } is Best fit choosing the quick model for a short question.
                 if let Some(quick) = arg(3).get("quick") {
                     request["quick"] = quick.clone();

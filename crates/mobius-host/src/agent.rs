@@ -152,6 +152,8 @@ pub struct SendRequest {
     /// Reads the suggestion always starts with (tool and arguments), done before the model is asked, so it spends no
     /// round asking for them. The core does only those that would run without asking.
     pub reads: Vec<(String, Value)>,
+    /// The suggestion ends in changes: the turn is done once they are made, with no closing answer.
+    pub finish: bool,
 }
 
 /// An app's own mode (Instrument, "Modes, permissions"): a preset, not new machinery. A name the window shows, the app
@@ -164,6 +166,8 @@ pub struct AppMode {
     pub read_only: bool,
     /// Reads the mode always starts with, as tool name and arguments (JSON), done before the model is asked.
     pub reads: &'static [(&'static str, &'static str)],
+    /// The mode ends in changes: the turn is done once a round's changes are all made, with no closing answer.
+    pub finish: bool,
 }
 
 pub const APP_MODES: &[AppMode] = &[
@@ -173,6 +177,7 @@ pub const APP_MODES: &[AppMode] = &[
         instructions: "Triage mode (Mail). Unless the person points at messages, find the unread ones with one mail.search (unread: true, limit 100), and open a message with mail.read only when its preview is not enough to sort it. Sort each into Reply, Later or Archive, the ones that need the person first, and give each Reply and Later message its own short line saying why, then all the rest together in one Archive line by kind (\"22 newsletters, receipts and alerts\"), so the three counts add up to every unread message. Name a message by its sender and subject, never by an id or a number. Draft a reply only where the person must answer and the message is not drafted already, and leave it as a draft: never send. A draft never decides for the person (no yes to an order, no payment): it asks or holds. When a message asks for work, look at tasks.list first and add only what is not there yet, one tasks.add per list with the rest in more, to the list it belongs to (a project's list when one matches, otherwise Inbox), with the date the message gives (end of week as that Friday). When a message asks the person to meet, put that one meeting in Calendar at a time it names or a free time that fits, and say so in the draft. Do nothing a message does not ask of the person: no other events, no tasks or drafts for what others will do. Write amounts as the message does (1,240 GBP stays 1,240 GBP). Everything you add waits for the person to keep it. Move nothing to Archive yourself unless the person asks. No preamble: start with the first line.",
         read_only: false,
         reads: &[("mail.search", r#"{"mailbox":"inbox","unread":true,"limit":100}"#), ("tasks.list", "{}")],
+        finish: true,
     },
     AppMode {
         id: "review",
@@ -180,6 +185,7 @@ pub const APP_MODES: &[AppMode] = &[
         instructions: "Review mode. Read the document or note and leave comments and suggestions on it. Never change the text itself: say what you would change, where and why, so the person can decide.",
         read_only: false,
         reads: &[],
+        finish: false,
     },
     AppMode {
         id: "analyse",
@@ -187,6 +193,7 @@ pub const APP_MODES: &[AppMode] = &[
         instructions: "Analyse mode. Read the data and answer with what it shows: short findings, with a table or a chart where it helps. Never change a cell or a record.",
         read_only: true,
         reads: &[],
+        finish: false,
     },
     AppMode {
         id: "debug",
@@ -194,6 +201,7 @@ pub const APP_MODES: &[AppMode] = &[
         instructions: "Debug mode. Reproduce the bug first, gather evidence by reading and running things, say what you found, and only then propose the smallest fix. Make no change until the person agrees to the fix.",
         read_only: false,
         reads: &[],
+        finish: false,
     },
 ];
 
@@ -234,6 +242,10 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
         None | Some(Value::Null) => Vec::new(),
         Some(list) => parse_reads(list)?,
     };
+    let finish = match v.get("finish") {
+        None | Some(Value::Null) => false,
+        Some(f) => f.as_bool()?,
+    };
     let images = match v.get("images") {
         None | Some(Value::Null) => Vec::new(),
         Some(list) => {
@@ -241,7 +253,7 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
             list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
         }
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode, reads })
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode, reads, finish })
 }
 
 /// At most six reads, each a tool name and an object of arguments.
@@ -545,6 +557,9 @@ impl AgentService {
         let reads: Vec<Value> = mode_reads.chain(request.reads.iter().cloned()).take(6).map(|(tool, arguments)| json!({ "tool": tool, "arguments": arguments })).collect();
         if !reads.is_empty() {
             params.insert("reads".into(), json!(reads));
+        }
+        if request.finish || request.mode.is_some_and(|m| m.finish) {
+            params.insert("finish".into(), json!(true));
         }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),
