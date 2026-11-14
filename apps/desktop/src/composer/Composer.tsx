@@ -357,7 +357,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const permission = permissionOf(preferences.value.approvalMode, apply);
   const choosePermission = (p: PermissionInfo) => { setApplyState(p.id === 'apply'); saveApply(p.id === 'apply'); void preferences.set({ approvalMode: p.approval }); };
   const modeInfo = chatModeOf(mode);
-  // The row gives way in one order and never truncates: first Permission drops to its shield, then the model to its chip.
+  // The row gives way in one order and never truncates: first Permission drops to its shield, then the effort suffix, then the model to its chip.
   const toolsRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const row = toolsRef.current;
@@ -365,8 +365,10 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     const fit = () => {
       delete row.dataset.fit;
       if (row.scrollWidth <= row.clientWidth) return;
-      row.dataset.fit = 'perm';
-      if (row.scrollWidth > row.clientWidth) row.dataset.fit = 'model';
+      for (const step of ['perm', 'effort', 'model']) {
+        row.dataset.fit = step;
+        if (row.scrollWidth <= row.clientWidth) return;
+      }
     };
     fit();
     if (typeof ResizeObserver === 'undefined') return;

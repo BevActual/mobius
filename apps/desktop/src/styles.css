@@ -2616,5 +2616,6 @@ body { font-variant-numeric: tabular-nums; }
 .composer-tools .pill.pill-model { max-width: none; }
 .composer-tools .pill-model .pill-text { overflow: visible; text-overflow: clip; }
 .composer-tools[data-fit] .pill-compact:has(.pill-icon) .pill-text { display: none; }
+.composer-tools[data-fit="effort"] .pill-model .pill-suffix, .composer-tools[data-fit="model"] .pill-model .pill-suffix { display: none; }
 .composer-tools[data-fit="model"] .pill-model .pill-text { display: none; }
 .composer-tools[data-fit="model"] .pill-model-icon { display: block; }
