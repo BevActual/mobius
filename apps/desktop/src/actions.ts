@@ -20,6 +20,12 @@ export function previewArguments(name: string, args: unknown): { label: string; 
       const lines = [...cut(s('old'), 6).split('\n').map((l) => `− ${l}`), ...cut(s('new'), 8).split('\n').map((l) => `+ ${l}`)];
       return { label: 'The change', text: lines.join('\n'), mono: true };
     }
+    case 'files.move': {
+      const moves = Array.isArray(a.moves) ? (a.moves as unknown[]).filter((m): m is { from: string; to: string } => typeof m === 'object' && m !== null && typeof (m as { from?: unknown }).from === 'string' && typeof (m as { to?: unknown }).to === 'string') : [];
+      if (moves.length === 0) return null;
+      const shown = moves.slice(0, 12).map((m) => `${m.from} → ${m.to}`);
+      return { label: 'The moves', text: moves.length > 12 ? `${shown.join('\n')}\n… ${moves.length - 12} more` : shown.join('\n'), mono: true };
+    }
     case 'db.query': case 'db.execute': return s('sql') ? { label: 'The statement', text: s('sql'), mono: true } : null;
     case 'code.run': case 'code.start': return s('command') ? { label: 'The command', text: s('command'), mono: true } : null;
     case 'web.search': return s('query') ? { label: 'Searching for', text: s('query'), mono: false } : null;
@@ -69,6 +75,7 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'files.search': return s('query') ? `search your notes and files for ${quote(s('query'), 40)}` : 'search your notes and files';
     case 'files.write': return `write ${place(s('path'))}`;
     case 'files.edit': return `change ${place(s('path'))}`;
+    case 'files.move': { const n = Array.isArray(a.moves) ? a.moves.length : 0; return `move ${n === 1 ? 'one file or folder' : `${n} files and folders`} in ${s('folder') ? quote(s('folder')) : 'your workspace'}`; }
     case 'tasks.list': return s('list') ? `read your ${quote(s('list'))} tasks` : 'read your task lists';
     case 'tasks.add': return s('text') ? `add ${quote(s('text'))} to ${s('list') || 'Inbox'} in Tasks` : 'add a task';
     case 'tasks.update': return s('task') || s('text') ? `change the task ${quote(s('task') || s('text'))}` : 'change a task';
@@ -161,6 +168,7 @@ export function groupSummary(name: string, argsList: readonly unknown[]): string
     case 'calendar.add': return `Added ${n} events to the calendar`;
     case 'files.write': return `Wrote ${n} files`;
     case 'files.edit': return `Changed ${n} files`;
+    case 'files.move': return `Moved files ${n} times${same('folder') ? ` in “${same('folder')}”` : ''}`;
     case 'files.read': return `Read ${n} files`;
     case 'sheets.write': return `Changed ${n} parts of ${same('workbook') ? `“${same('workbook')}”` : 'your sheets'}`;
     case 'mail.draft': return `Drafted ${n} emails`;
