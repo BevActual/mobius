@@ -46,7 +46,7 @@ export interface SurfaceState {
  * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
  * linked to the words on the page it came from.
  */
-export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List them with browser.tabs and read each with browser.read (its tabId). Write the comparison as a new note in my Notes called "Compare: <what they are>": one table with a column for each page, headed by its title linked to its address, and a row for each thing worth comparing (such as price, size, what is included, delivery). Link each cell to where it came from on its page, with a #:~:text= link to those words. Where a page does not say, write "not stated". Under the table, say in three short lines which suits whom. Keep the pages\' facts exactly. Change nothing else.';
+export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List them with browser.tabs and read each with browser.read (its tabId). Write the comparison as a new note in my Notes called "<what they are> compared" (no colon or slash in the name): one table with a column for each page, headed by its title linked to its address, and a row for each thing the pages give that is worth comparing, taken from what they say (a row no page answers is left out). Link each cell to where it came from on its page, with a #:~:text= link to those words. Where only some pages say, write "not stated" for the others. Under the table, say in three short lines which suits whom. Keep the pages\' facts exactly. Change nothing else.';
 
 /**
  * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
@@ -84,7 +84,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
       return state.note
         ? [
             // The demo's second Docs beat: a long draft becomes a one-page brief, a new document beside it.
-            { label: 'One-page brief', prompt: 'Make a one-page brief from this document, as a new document beside it in my Docs, named after it with brief at the end: a title, two or three sentences on what it is and why it matters, then its main points as short sections that follow its outline, each a few lines, and what is decided and what is next. About 400 words. Keep its facts and numbers exactly; add nothing it does not say. Leave this document as it is.', attach: 'note' },
+            { label: 'One-page brief', prompt: 'Make a one-page brief from this document, as a new document beside it in my Docs, named after it with brief at the end: a title, two or three sentences on what it is and why it matters, then its main points as short sections that follow its outline, each a few lines, and what is decided and what is next. At most 450 words, and do not state its length. Keep its facts and numbers exactly; add nothing it does not say. Leave this document as it is.', attach: 'note' },
             { label: 'Tighten it', prompt: 'Make this document shorter and clearer, keeping its meaning and my voice. Make the changes in the document itself.', attach: 'note' },
             { label: 'What is missing?', prompt: 'Read this document and tell me what a reader would still want to know.', attach: 'note' },
           ]
