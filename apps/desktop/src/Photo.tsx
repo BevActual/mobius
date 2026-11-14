@@ -13,7 +13,7 @@ import { ASPECTS, GRID_SIZES, HANDLES, aspectRatio, dragCrop, fitAspect, flipped
 import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
-import { AppSidebar, PanelTab, Select, SidebarSearch, SidebarSection, Slider as UiSlider, ToolbarControls, useShowPanelTab } from './ui';
+import { AppSidebar, PanelTab, Select, SidebarSearch, SidebarSection, Slider as UiSlider, ToolbarControls, ToolbarItem, useShowPanelTab } from './ui';
 
 import './photo.css';
 
@@ -249,23 +249,30 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
     <section className="photo-page photo-library" aria-label="Photo" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       {/* The album's own controls sit in the window's toolbar, after its name: how many photos, their size, and adding. */}
       <ToolbarControls label="Album">
-        <div className="photo-tools">
-        <span className="photo-meta" title={bin && list.length > 0 ? 'Kept until you empty Recently Deleted' : undefined}>{list.length === 1 ? '1 photo' : `${list.length} photos`}</span>
+        <ToolbarItem priority="low" menu={[]}>
+          <span className="photo-meta" title={bin && list.length > 0 ? 'Kept until you empty Recently Deleted' : undefined}>{list.length === 1 ? '1 photo' : `${list.length} photos`}</span>
+        </ToolbarItem>
         {list.length > 0 && (
-          <label className="photo-zoom" title="Zoom (− and +)">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1.5" /></svg>
-            <input type="range" aria-label="Photo size" min={0} max={GRID_SIZES.length - 1} step={1} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" /></svg>
-          </label>
+          <ToolbarItem priority="low" menu={[
+            { label: 'Smaller photos', keys: '−', disabled: zoom <= 0, run: () => setZoom(zoomStep(zoom, -1)) },
+            { label: 'Larger photos', keys: '+', disabled: zoom >= GRID_SIZES.length - 1, run: () => setZoom(zoomStep(zoom, 1)) },
+          ]}>
+            <label className="photo-zoom" title="Zoom (− and +)">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1.5" /></svg>
+              <input type="range" aria-label="Photo size" min={0} max={GRID_SIZES.length - 1} step={1} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+              <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" /></svg>
+            </label>
+          </ToolbarItem>
         )}
         {album && <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden aria-hidden="true" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length) void photos.addFiles(album.name, files); }} />}
-        {album && <button type="button" className="strip-btn photo-tb" onClick={() => picker.current?.click()}><Icon d={PLUS} /><span>Add photos</span></button>}
+        {album && <ToolbarItem priority="keep"><button type="button" className="strip-btn photo-tb" onClick={() => picker.current?.click()}><Icon d={PLUS} /><span>Add photos</span></button></ToolbarItem>}
         {bin && list.length > 0 && (
-          <button type="button" className="strip-btn photo-tb" data-danger={emptying || undefined} onClick={() => { if (emptying) { setEmptying(false); void photos.emptyDeleted(); } else setEmptying(true); }}>
-            <Icon d={TRASH} /><span>{emptying ? `Delete ${list.length === 1 ? '1 photo' : `${list.length} photos`} for good` : 'Empty'}</span>
-          </button>
+          <ToolbarItem>
+            <button type="button" className="strip-btn photo-tb" data-danger={emptying || undefined} onClick={() => { if (emptying) { setEmptying(false); void photos.emptyDeleted(); } else setEmptying(true); }}>
+              <Icon d={TRASH} /><span>{emptying ? `Delete ${list.length === 1 ? '1 photo' : `${list.length} photos`} for good` : 'Empty'}</span>
+            </button>
+          </ToolbarItem>
         )}
-        </div>
       </ToolbarControls>
       {photos.message && <p className="tasks-message" role="alert">{photos.message}</p>}
       {list.length === 0 ? (
@@ -611,28 +618,32 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
     <section className="photo-page photo-view" aria-label="Photo" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       {/* The photo's controls, in the window's toolbar after its name: where it sits, how it is edited, and what to do. */}
       <ToolbarControls label="Photo">
-        <div className="photo-tools">
-        <span className="photo-tools-group" role="group" aria-label="Where">
-        <button type="button" className="strip-btn photo-tb photo-back" aria-label={`Back to ${photos.album ?? 'the album'}`} title={`Back to ${photos.album ?? 'the album'} (Esc)`} onClick={back}>
-          <Icon d="M12.5 4.5L7 10l5.5 5.5" /><span>{photos.album}</span>
-        </button>
-        <span className="photo-meta">{at >= 0 ? `${at + 1} of ${order.length}` : ''}</span>
-        </span>
-        <span className="photo-tools-group">
-        <div className="photo-tabs" role="tablist" aria-label="Edit">
-          {TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" id={`photo-tab-${t.id}`} aria-controls="photo-tabpanel" aria-selected={tab === t.id} className="photo-tab" onClick={() => { setTab(t.id); showPanel('adjust'); }}>{t.name}</button>
-          ))}
-        </div>
-        </span>
-        <span className="photo-tools-group" role="group" aria-label="Photo actions">
-        <button type="button" className="strip-btn photo-tb" aria-label="Show original" aria-pressed={before} title="Show original (M)" onPointerDown={() => setBefore(true)} onPointerUp={() => setBefore(false)} onPointerLeave={() => setBefore(false)} onKeyDown={(e) => { if (e.key === ' ') setBefore(true); }} onKeyUp={() => setBefore(false)}>
-          <Icon d="M3.5 4.5h13v11h-13zM10 4.5v11M10 8l6.5-3.5M10 12.5l6.5-3.5" />
-        </button>
-        <button type="button" className="strip-btn photo-tb" disabled={edits.adjustments.length === 0 && isPlain(edits.geometry)} aria-label="Revert" title="Revert all edits" onClick={revert}><Icon d="M7.5 5 4 8.5 7.5 12M4 8.5h7.5a4.5 4.5 0 0 1 0 9H9" /><span>Revert</span></button>
-        <button type="button" className="photo-export" disabled={!img} aria-label="Export" title="Export a copy with the edits" onClick={() => void exportIt()}><Icon d="M10 3v9M6.5 6.5 10 3l3.5 3.5M4.5 11v4.5h11V11" /><span>Export</span></button>
-        </span>
-        </div>
+        {/* Each control on its own, so a short toolbar moves the least used into the ⋯ menu: the edit switch always stays. */}
+        <ToolbarItem priority="low" menu={[{ label: `Back to ${photos.album ?? 'the album'}`, keys: 'Esc', run: back }]}>
+          <button type="button" className="strip-btn photo-tb photo-back" aria-label={`Back to ${photos.album ?? 'the album'}`} title={`Back to ${photos.album ?? 'the album'} (Esc)`} onClick={back}>
+            <Icon d="M12.5 4.5L7 10l5.5 5.5" /><span>{photos.album}</span>
+          </button>
+          <span className="photo-meta">{at >= 0 ? `${at + 1} of ${order.length}` : ''}</span>
+        </ToolbarItem>
+        <ToolbarItem priority="keep">
+          <div className="photo-tabs" role="tablist" aria-label="Edit">
+            {TABS.map((t) => (
+              <button key={t.id} type="button" role="tab" id={`photo-tab-${t.id}`} aria-controls="photo-tabpanel" aria-selected={tab === t.id} className="photo-tab" onClick={() => { setTab(t.id); showPanel('adjust'); }}>{t.name}</button>
+            ))}
+          </div>
+        </ToolbarItem>
+        {/* Holding M still shows the original when this button has moved into the ⋯ menu, where a row cannot be held. */}
+        <ToolbarItem priority="low" menu={[]}>
+          <button type="button" className="strip-btn photo-tb" aria-label="Show original" aria-pressed={before} title="Show original (M)" onPointerDown={() => setBefore(true)} onPointerUp={() => setBefore(false)} onPointerLeave={() => setBefore(false)} onKeyDown={(e) => { if (e.key === ' ') setBefore(true); }} onKeyUp={() => setBefore(false)}>
+            <Icon d="M3.5 4.5h13v11h-13zM10 4.5v11M10 8l6.5-3.5M10 12.5l6.5-3.5" />
+          </button>
+        </ToolbarItem>
+        <ToolbarItem>
+          <button type="button" className="strip-btn photo-tb photo-revert" disabled={edits.adjustments.length === 0 && isPlain(edits.geometry)} aria-label="Revert" title="Revert all edits" onClick={revert}><Icon d="M7.5 5 4 8.5 7.5 12M4 8.5h7.5a4.5 4.5 0 0 1 0 9H9" /><span>Revert</span></button>
+        </ToolbarItem>
+        <ToolbarItem>
+          <button type="button" className="photo-export" disabled={!img} aria-label="Export" title="Export a copy with the edits" onClick={() => void exportIt()}><Icon d="M10 3v9M6.5 6.5 10 3l3.5 3.5M4.5 11v4.5h11V11" /><span>Export</span></button>
+        </ToolbarItem>
       </ToolbarControls>
       {photos.message && <p className="tasks-message" role="alert">{photos.message}</p>}
       <div className="photo-body">
