@@ -151,18 +151,21 @@
 .ui-track {
   -webkit-appearance: none; appearance: none; width: 100%; height: var(--hit-min); margin: 0;
   background: transparent; cursor: default;
-  /* The thumb's centre travels from half a hit square in to half a hit square from the end, so the fill does too. */
+  /* The tick's centre travels from half a hit square in to half a hit square from the end; the grey track spans just
+     that travel, so its ends, the zero point and the tick's extremes are the same places, and the fill follows. */
+  --track-start: calc(var(--hit-min) / 2);
+  --track-end: calc(100% - var(--hit-min) / 2);
   --fill-from: calc(var(--hit-min) / 2 + (100% - var(--hit-min)) * var(--from, 0));
   --fill-to: calc(var(--hit-min) / 2 + (100% - var(--hit-min)) * var(--to, 0));
 }
 .ui-track:focus-visible { outline: none; }
 .ui-track::-webkit-slider-runnable-track {
   height: var(--track-h); border-radius: var(--radius-pill);
-  background: linear-gradient(to right, var(--line) var(--fill-from), var(--ink) var(--fill-from), var(--ink) var(--fill-to), var(--line) var(--fill-to));
+  background: linear-gradient(to right, transparent var(--track-start), var(--line) var(--track-start), var(--line) var(--fill-from), var(--ink) var(--fill-from), var(--ink) var(--fill-to), var(--line) var(--fill-to), var(--line) var(--track-end), transparent var(--track-end));
 }
 .ui-track::-moz-range-track {
   height: var(--track-h); border-radius: var(--radius-pill);
-  background: linear-gradient(to right, var(--line) var(--fill-from), var(--ink) var(--fill-from), var(--ink) var(--fill-to), var(--line) var(--fill-to));
+  background: linear-gradient(to right, transparent var(--track-start), var(--line) var(--track-start), var(--line) var(--fill-from), var(--ink) var(--fill-from), var(--ink) var(--fill-to), var(--line) var(--fill-to), var(--line) var(--track-end), transparent var(--track-end));
 }
 /* The thumb is a slim ink tick inside a hit square (a transparent border takes the pointer); keyboard focus rings it. */
 .ui-track::-webkit-slider-thumb {
@@ -304,7 +307,7 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 .ui-row-trail { display: inline-flex; align-items: center; gap: var(--sp-1); flex: none; }
 
 /* Inline field: the name beside the box, for toolbars and bars. Quiet pop-up: text and chevrons, a fill on hover. */
-.ui-field[data-inline] { flex-direction: row; align-items: center; gap: var(--sp-2); }
+.ui-field[data-inline] { flex-direction: row; align-items: baseline; gap: var(--sp-2); }
 .ui-field[data-inline] .ui-field-label { white-space: nowrap; }
 .ui-select[data-quiet] { border-color: transparent; background: transparent; color: var(--body); padding-inline: var(--sp-1); }
 .ui-select[data-quiet]:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); color: var(--ink); }
