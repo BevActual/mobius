@@ -16,6 +16,7 @@ pub mod code_tests;
 pub mod code_git;
 pub mod code_processes;
 pub mod web;
+pub mod pages;
 pub mod database;
 pub mod terminal;
 pub mod workspace_guide;

@@ -32,6 +32,14 @@ document.addEventListener('contextmenu', (event) => {
   event.preventDefault();
 });
 
+// A page that stops answering for half a second or more says so on the console (the e2e logs print it), so a change
+// that showed late can be told from a slow read on the host.
+try {
+  new PerformanceObserver((list) => {
+    for (const task of list.getEntries()) if (task.duration >= 500) console.log(`[mobius] page busy ${Math.round(task.duration)} ms`);
+  }).observe({ type: 'longtask', buffered: false });
+} catch { /* Not every web view reports long tasks. */ }
+
 // Shortcuts pressed before the saved ones are read are kept, and answered once they are (see App).
 startKeepingEarlyKeys();
 

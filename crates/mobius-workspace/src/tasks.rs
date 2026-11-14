@@ -246,6 +246,10 @@ pub struct Tasks {
 }
 
 pub fn tool_descriptions() -> Vec<Value> {
+    crate::batch::with_more(tool_list(), &["tasks.add", "tasks.update"], "list")
+}
+
+fn tool_list() -> Vec<Value> {
     let list = json!({ "type": "string", "description": "The list's name, such as Inbox (the default list) or Groceries." });
     vec![
         json!({ "name": "tasks.list", "description": "Read the person's task lists in the Tasks app: every list with its tasks (done or not, and due dates), or one list.", "capability": "tasks.read",
@@ -303,9 +307,13 @@ impl Tasks {
     /// Every list by name, each with how many tasks are open and done. Inbox is always there.
     pub fn lists(&self) -> Res<Value> {
         fs::create_dir_all(&self.root).map_err(|e| format!("the tasks folder cannot be used: {e}"))?;
+        // Made in one step that only one reader can win: two reads at start-up both writing it
+        // through the same temp file left one of them failing.
         let inbox = self.root.join(format!("{DEFAULT_LIST}.md"));
-        if !inbox.exists() {
-            Self::store(&inbox, &format!("# {DEFAULT_LIST}\n\n"))?;
+        match fs::OpenOptions::new().write(true).create_new(true).open(&inbox) {
+            Ok(mut f) => std::io::Write::write_all(&mut f, format!("# {DEFAULT_LIST}\n\n").as_bytes()).map_err(|e| e.to_string())?,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(format!("the Inbox cannot be made: {e}")),
         }
         let mut names: Vec<String> = fs::read_dir(&self.root)
             .map_err(|e| e.to_string())?
@@ -597,8 +605,15 @@ impl Tasks {
         self.read(list)
     }
 
-    /// A tool the agent called. A checkpoint is taken before any change, so the person can undo it.
+    /// A tool the agent called. A checkpoint is taken before any change, so the person can undo it. tasks.add and
+    /// tasks.update take `more`: further tasks in the same list, done in the same call, so a plan of six tasks is one
+    /// call the model writes, not six. Each gets its own answer; one that fails says why and the rest still go.
     pub fn run(&self, tool: &str, args: &Value) -> Res<String> {
+        if matches!(tool, "tasks.add" | "tasks.update") {
+            if let Some(all) = crate::batch::run_more(args, "list", |one| self.run(tool, one)) {
+                return Ok(all);
+            }
+        }
         let text = |k: &str| args.get(k).and_then(Value::as_str);
         let list = text("list").filter(|l| !l.trim().is_empty()).unwrap_or(DEFAULT_LIST).trim();
         let result = match tool {
@@ -770,6 +785,29 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let tasks = Tasks::new(dir.path().join("work"), dir.path().join("store"));
         (dir, tasks)
+    }
+    #[test]
+    fn lists_read_at_the_same_moment_all_answer_on_a_new_workspace() {
+        // The app reads the lists twice as it starts; both used to write the new Inbox through one temp file,
+        // and the one that lost the rename failed, so Tasks could open with no lists at all.
+        for _ in 0..50 {
+            let (_dir, tasks) = setup();
+            let tasks = std::sync::Arc::new(tasks);
+            let start = std::sync::Arc::new(std::sync::Barrier::new(8));
+            let runs: Vec<_> = (0..8)
+                .map(|_| {
+                    let (tasks, start) = (tasks.clone(), start.clone());
+                    std::thread::spawn(move || {
+                        start.wait();
+                        tasks.lists()
+                    })
+                })
+                .collect();
+            for run in runs {
+                let got = run.join().unwrap().expect("every read answers");
+                assert_eq!(got[0]["name"], DEFAULT_LIST);
+            }
+        }
     }
     fn texts(v: &Value) -> Vec<String> {
         v["tasks"].as_array().unwrap().iter().map(|t| t["text"].as_str().unwrap().to_owned()).collect()
@@ -1074,5 +1112,24 @@ mod tests {
         tasks.run("tasks.update", &json!({ "list": "Inbox", "task": "Stand-up", "time": "", "repeat": "" })).unwrap();
         assert_eq!(fs::read_to_string(dir.path().join("work/tasks/Inbox.md")).unwrap(), "# Inbox\n\n- [ ] Stand-up (due 2026-11-16)\n");
         assert!(tasks.run("tasks.add", &json!({ "text": "Call", "time": "09:00" })).is_err());
+    }
+
+    #[test]
+    fn several_tasks_go_in_one_call_and_stay_in_its_list() {
+        let (dir, tasks) = setup();
+        let added: Value = serde_json::from_str(&tasks.run("tasks.add", &json!({ "list": "Work", "text": "Send report", "more": [{ "text": "Book van", "due": "2026-11-20" }, { "list": "Home", "text": "Elsewhere" }] })).unwrap()).unwrap();
+        let answers = added.as_array().unwrap();
+        assert_eq!(answers.len(), 3);
+        assert!(answers[2]["error"].as_str().unwrap().contains("own list"), "{added}");
+        let work = fs::read_to_string(dir.path().join("work/tasks/Work.md")).unwrap();
+        assert!(work.contains("- [ ] Send report\n") && work.contains("- [ ] Book van (due 2026-11-20)"), "{work}");
+        assert!(!dir.path().join("work/tasks/Home.md").exists());
+        // One update call times both, and a task that is not there says so without stopping the others.
+        let timed: Value = serde_json::from_str(&tasks.run("tasks.update", &json!({ "list": "Work", "task": "Send report", "due": "2026-11-16", "time": "09:00", "more": [{ "task": "Nope", "time": "10:00" }, { "task": "Book van", "time": "11:00" }] })).unwrap()).unwrap();
+        assert!(timed[1]["error"].is_string() && timed[2]["error"].is_null(), "{timed}");
+        assert!(fs::read_to_string(dir.path().join("work/tasks/Work.md")).unwrap().contains("Book van (due 2026-11-20 11:00)"));
+        let described = tool_descriptions();
+        let add = described.iter().find(|d| d["name"] == "tasks.add").unwrap();
+        assert!(add["input_schema"]["properties"]["more"]["items"]["properties"].get("list").is_none());
     }
 }

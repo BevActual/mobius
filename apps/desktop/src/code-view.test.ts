@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyGroups, changeGroups, gitMark, gitMarks, highlight, langOf, lineDiff, parentsOf, testLineKind } from './code-view';
+import { applyGroups, changeGroups, gitMark, gitMarks, highlight, langOf, lineDiff, parentsOf, testLineKind, testsGlance } from './code-view';
 
 const OLD = `import { Share } from './types'
 
@@ -73,5 +73,25 @@ describe('git marks', () => {
   it('marks a renamed file under its new name', () => {
     const marks = gitMarks([{ status: 'R', path: 'src/old.js -> src/new.js' }, { status: '??', path: 'notes.txt' }]);
     expect([...marks.keys()]).toEqual(['src/new.js', 'notes.txt']);
+  });
+});
+
+describe('Code in Glance', () => {
+  it('shows nothing when the tests passed or never ran', () => {
+    expect(testsGlance(null, 'npm test')).toBeNull();
+    expect(testsGlance({ passed: true, output: 'ok', seconds: 1, timedOut: false }, 'npm test')).toBeNull();
+  });
+  it('leads with the line that says what failed, then the command and the time', () => {
+    const facts = testsGlance({ passed: false, output: 'running 3 tests\n  ✓ adds\n  ✗ total: expected 30, received 29\n2 passed, 1 failed', seconds: 1.23, timedOut: false }, 'npm test');
+    expect(facts).toEqual([{ label: 'Failed', value: '✗ total: expected 30, received 29' }, { label: 'Command', value: 'npm test' }, { label: 'Took', value: '1.2 s' }]);
+  });
+  it('names the failing test from node --test, in TAP or spec form', () => {
+    const tap = 'TAP version 13\n# Subtest: voltage\nok 1 - voltage\n# Subtest: pack temperature\nnot ok 2 - pack temperature\n  ---\n  failureType: \'testCodeFailure\'\n  error: |-\n    Expected values to be strictly equal:\n# fail 1';
+    expect(testsGlance({ passed: false, output: tap, seconds: 0.4, timedOut: false }, 'npm test')?.[0]).toEqual({ label: 'Failed', value: 'pack temperature fails' });
+    const spec = '✔ voltage (0.8ms)\n✖ pack temperature (2.1ms)\n  AssertionError [ERR_AssERTION]: Expected values to be strictly equal:\nℹ fail 1\n✖ failing tests:';
+    expect(testsGlance({ passed: false, output: spec, seconds: 0.4, timedOut: false }, 'npm test')?.[0]).toEqual({ label: 'Failed', value: 'pack temperature fails' });
+  });
+  it('says a run that ran out of time took too long', () => {
+    expect(testsGlance({ passed: false, output: '', seconds: 120, timedOut: true }, 'cargo test')?.[0]).toEqual({ label: 'Failed', value: 'Took too long' });
   });
 });

@@ -339,8 +339,53 @@ fn an_apps_own_mode_adds_its_instructions_held_by_the_host_and_a_read_only_one_a
     let system = sends[0]["system"].as_str().unwrap();
     assert!(system.starts_with("Triage mode (Mail).") && system.ends_with("Remembered: likes tea."), "{system}");
     assert!(sends[0].get("ask").is_none(), "Triage drafts replies, so it may change things");
+    // What the third demo run showed: one search for the unread, messages named by sender and subject, no duplicate tasks.
+    for words in ["unread: true", "never by an id", "look at tasks.list first", "not drafted already", "1,240 GBP stays 1,240 GBP", "never decides for the person", "add up to every unread message"] {
+        assert!(system.contains(words), "{words}");
+    }
     assert!(sends[1]["system"].as_str().unwrap().starts_with("Analyse mode."));
     assert_eq!(sends[1]["ask"], json!(true), "Analyse never changes a cell");
+}
+
+#[test]
+fn a_modes_and_a_suggestions_first_reads_go_to_the_core_and_bad_ones_are_refused() {
+    let s = service(true);
+    s.service.configure(&cfg("http://a/v1", "am"));
+    let triage = parse_send(&json!({ "conversation": "c-1", "text": "sort my inbox", "mode": "triage" })).unwrap();
+    s.service.send(&triage, None);
+    let plan = parse_send(&json!({ "conversation": "c-2", "text": "plan my day", "reads": [{ "tool": "tasks.list", "arguments": {} }, { "tool": "calendar.list", "arguments": { "from": "2026-11-14", "to": "2026-11-14" } }] })).unwrap();
+    s.service.send(&plan, None);
+    let sends: Vec<Value> = calls(&s.core).into_iter().filter(|c| c["method"] == "agent.send").map(|c| c["params"].clone()).collect();
+    assert_eq!(sends[0]["reads"], json!([{ "tool": "mail.search", "arguments": { "mailbox": "inbox", "unread": true, "limit": 100 } }, { "tool": "tasks.list", "arguments": {} }]));
+    assert_eq!(sends[1]["reads"][1], json!({ "tool": "calendar.list", "arguments": { "from": "2026-11-14", "to": "2026-11-14" } }));
+    let plain = parse_send(&json!({ "conversation": "c-3", "text": "hi" })).unwrap();
+    s.service.send(&plain, None);
+    let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
+    assert!(last["params"].get("reads").is_none() && last["params"].get("finish").is_none());
+    assert_eq!(sends[0]["finish"], json!(true), "Triage ends in its changes");
+    let finishing = parse_send(&json!({ "conversation": "c-4", "text": "plan my day", "finish": true })).unwrap();
+    s.service.send(&finishing, None);
+    let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
+    assert_eq!(last["params"]["finish"], json!(true));
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": [{ "tool": "tasks list" }] })).is_none(), "not a tool name");
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": [{ "tool": "tasks.list", "arguments": [1] }] })).is_none(), "arguments are an object");
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": vec![json!({ "tool": "tasks.list" }); 7] })).is_none(), "at most six");
+}
+
+#[test]
+fn a_mode_or_suggestion_offers_only_its_apps_tools_and_a_plain_message_offers_all() {
+    let s = service(true);
+    s.service.configure(&cfg("http://a/v1", "am"));
+    let sent = |request: Value| {
+        s.service.send(&parse_send(&request).unwrap(), None);
+        calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap()["params"].clone()
+    };
+    assert_eq!(sent(json!({ "conversation": "c-1", "text": "sort my inbox", "mode": "triage" }))["tools"], json!(["mail", "tasks", "calendar"]));
+    assert_eq!(sent(json!({ "conversation": "c-2", "text": "plan my day", "tools": ["tasks", "calendar", "mail"] }))["tools"], json!(["tasks", "calendar", "mail"]));
+    assert_eq!(sent(json!({ "conversation": "c-3", "text": "sort", "mode": "triage", "tools": ["files", "mail"] }))["tools"], json!(["mail", "tasks", "calendar", "files"]), "both, once each");
+    assert!(sent(json!({ "conversation": "c-4", "text": "hi" })).get("tools").is_none());
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": ["tasks.list"] })).is_none(), "a kind, not a tool");
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": vec!["a"; 13] })).is_none(), "at most twelve");
 }
 
 #[test]

@@ -19,9 +19,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # A pull request that changes only docs (Markdown anywhere, or anything under docs/) takes no Windows machine: the
+  # suite is skipped and the e2e check still reports success. Pushes to main and runs by hand always test.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          files=$(git diff --name-only "$(git merge-base "$BASE" "$HEAD")" "$HEAD")
+          echo "$files"
+          if [ -n "$files" ] && ! echo "$files" | grep -qvE '(^docs/|\.md$)'; then
+            echo "Only docs changed: the suite is skipped."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
+
   # The suite is split by file across three machines that run at once, so a full run takes about a third as long.
   shard:
     name: e2e shard ${{ matrix.shard }}/3
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
     strategy:
@@ -95,19 +123,21 @@ jobs:
   # nothing, rather than a failure for code that was never tested.
   e2e:
     if: ${{ !cancelled() }}
-    needs: shard
+    needs: [changes, shard]
     runs-on: ubuntu-latest
     steps:
       - name: Every shard passed
         run: |
-          echo "shards: ${{ needs.shard.result }}"
+          echo "changes: ${{ needs.changes.result }} (code: ${{ needs.changes.outputs.code }}); shards: ${{ needs.shard.result }}"
+          test "${{ needs.changes.result }}" = "success"
+          if [ "${{ needs.changes.outputs.code }}" = "false" ]; then echo "Only docs changed; nothing to test."; exit 0; fi
           test "${{ needs.shard.result }}" = "success"
 
   # The screenshots, published as one commit on the branch ci-screens/<branch> (replaced on every run), so reviewers
   # whose network cannot fetch Actions artifacts can read them at raw.githubusercontent.com/<repo>/ci-screens/<branch>/.
   # Pushes made with the workflow's own token start no workflows.
   screens:
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.shard.result != 'skipped' }}
     needs: shard
     runs-on: ubuntu-latest
     permissions:

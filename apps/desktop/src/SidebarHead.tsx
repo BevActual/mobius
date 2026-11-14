@@ -3,6 +3,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import type { Favourite } from '@mobius/shared';
 import { APP_ICONS } from './Rail';
 import { newKeys } from './SideNew';
+import { afterPaint } from './ui/frame';
 
 interface Props {
   /** What the sidebar belongs to: the open app's name, or Settings. */
@@ -66,7 +67,7 @@ export function SidebarHead({ title, create, favourites = [], onOpenFavourite, o
                       next.splice(to, 0, next.splice(at, 1)[0]!);
                       onReorderFavourites(next);
                       const button = event.currentTarget;
-                      requestAnimationFrame(() => button.focus());
+                      afterPaint(() => button.focus());
                     } : undefined}>
                     <svg viewBox="0 0 20 20" aria-hidden="true" data-app={app}>{APP_ICONS[app]}</svg>
                     <span className="rail-pin-name">{fav.title}</span>

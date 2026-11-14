@@ -6,6 +6,7 @@ import { byDay, byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, pa
 import type { TasksState } from './useTasks';
 import { ChangeBar, ReviewActions, WhyThis } from './ReviewBar';
 import { keepTurn, turnId } from './ReviewStrip';
+import { useTurnFileChanged } from './liveMarks';
 import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
@@ -364,6 +365,9 @@ function useListReview(conversation: string | null, list: string | null) {
   const [before, setBefore] = useState<ReadonlySet<string> | null>(null);
   const [turn, setTurn] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // Read again as the running turn changes the list, so a later turn never reads the earlier one's before.
+  const [asked, setAsked] = useState(0);
+  useTurnFileChanged(conversation, list ? `tasks/${list}.md` : null, () => setAsked((n) => n + 1));
   useEffect(() => {
     setProblem(null);
     if (!conversation || !list) { setBefore(null); setTurn(null); return undefined; }
@@ -376,7 +380,7 @@ function useListReview(conversation: string | null, list: string | null) {
       setBefore(before && before.ok ? tasksIn(before.text ?? '') : null);
     })();
     return () => { live = false; };
-  }, [conversation, list]);
+  }, [conversation, list, asked]);
   return {
     /** A task Mobius added in that turn. */
     isNew: (text: string) => before !== null && !before.has(text),
@@ -560,7 +564,7 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
 }
 
 /** The open list or view: a field to add to it at the top, the open tasks, and the completed ones folded away. */
-export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tasks: TasksState; focusToken?: number; /** Mobius's last turn changed the open list, and it waits to be kept. */ review?: { conversation: string } | null; onAsk?: (prompt: string) => void }) {
+export function TasksPage({ tasks, focusToken = 0, review = null, working = false, onAsk }: { tasks: TasksState; focusToken?: number; /** Mobius's last turn changed the open list, and it waits to be kept. */ review?: { conversation: string } | null; /** Mobius's turn is still running: its changes are marked as they come, and Keep waits for the end. */ working?: boolean; onAsk?: (prompt: string) => void }) {
   const [showDone, setShowDone] = useState(false);
   const [dropEnd, setDropEnd] = useState(false);
   const now = new Date();
@@ -609,7 +613,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
         <ul className="task-items" role="list" aria-label="To do">
           {open.map((task) => [
             row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }),
-            task === lastNew && review && (
+            task === lastNew && review && !working && (
               <li key="mobius-change" className="task-change">
                 <ChangeBar who="Mobius changed this list" onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
                   discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
@@ -676,7 +680,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
   return (
     <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
       <div className="tasks-main">
-        {review && view.kind === 'list' && !changeShown && (
+        {review && !working && view.kind === 'list' && !changeShown && (
           <div className="note-review" role="status">
             <span className="review-dot" aria-hidden="true" />
             <span className="note-review-text">Mobius changed this list in its last turn.<WhyThis conversation={review.conversation} /></span>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KEPT_EVENT, fileKept, keepTurn, scopeOf, turnId } from './ReviewStrip';
+import { readBefore } from './readBefore';
 
 /**
  * What the agent's last turn did to one workspace file: the file as it was before (`null` when the turn made it,
@@ -23,10 +24,8 @@ export function useFileReview(review: { conversation: string } | null | undefine
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
   }, [review?.conversation, file, version]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    let live = true;
     if (!review || kept || !file) { setBefore(undefined); return; }
-    void window.mobius.changes.before(review.conversation, file).then((was) => { if (live && was && was.ok) setBefore(was.text); }).catch(() => {});
-    return () => { live = false; };
+    return readBefore(review.conversation, file, setBefore);
   }, [review?.conversation, kept, file, version]); // eslint-disable-line react-hooks/exhaustive-deps
   const keep = async () => {
     if (!review) return;

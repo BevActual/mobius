@@ -324,6 +324,30 @@ impl Core {
         Ok(())
     }
 
+    /// Whether `invoke_in` would run this call straight away, by a standing rule, grant or approval mode, without
+    /// asking anyone or using up a one-time grant. Changes nothing and logs nothing: for running a call the model is
+    /// still writing out, before its answer is finished.
+    pub fn would_run_in(&self, principal: &Principal, tool: &str, args: &Value, project: Option<&str>) -> bool {
+        let Some(tool) = self.tools.get(tool) else { return false };
+        let resource = match &tool.spec.resource_arg {
+            None => None,
+            Some(key) => match args.get(key) {
+                Some(Value::String(value)) if tool.spec.resource_origin => match origin_of(value) {
+                    Ok(origin) => Some(origin),
+                    Err(_) => return false,
+                },
+                Some(Value::String(value)) if validate_resource(value).is_ok() => Some(value.clone()),
+                _ => return false,
+            },
+        };
+        if principal.validate().is_err() {
+            return false;
+        }
+        let rules: &[crate::permissions::Rule] = project.and_then(|p| self.project_rules.get(p)).map_or(&[], Vec::as_slice);
+        let now = (self.clock)();
+        matches!(self.policy.evaluate_in(&self.grants, now, principal, &tool.spec.capability, resource.as_deref(), rules), Verdict::Allow { consume: None })
+    }
+
     /// As `invoke_guarded`, for a call made in a project's conversation: that project's rules count too.
     pub fn invoke_in(&mut self, principal: &Principal, tool: &str, args: &Value, person_only: bool, project: Option<&str>) -> Result<InvokeOutcome, CoreError> {
         principal.validate()?;

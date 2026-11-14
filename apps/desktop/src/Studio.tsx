@@ -17,6 +17,7 @@ import { ChangeBar, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import './studio.css';
+import { afterPaint } from './ui/frame';
 
 export const STUDIO_WORDS: SidebarWords = { app: 'Music', group: 'folder', groups: 'Folders', item: 'song', items: 'songs', about: 'Songs are kept as JSON files in your workspace: tracks of notes, never audio, so the agent can read and write them like a score.', defaultGroup: 'Songs' };
 
@@ -737,7 +738,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     setClipAt(null);
     setEditing(true);
     setDetail('notes');
-    requestAnimationFrame(() => { if (roll.current) roll.current.scrollLeft = Math.max(0, fromBeat * ROLL_BEAT_W * zoom - 8); });
+    afterPaint(() => { if (roll.current) roll.current.scrollLeft = Math.max(0, fromBeat * ROLL_BEAT_W * zoom - 8); });
   };
   /** Opens the bottom area on a track's devices, as double-clicking a track's name does in a studio. */
   const openDevice = (id: string) => { setSelected(id); setEditing(true); setDetail('device'); };

@@ -277,6 +277,20 @@ impl Host {
         Ok((turn_id, outs))
     }
 
+    /// As `send_with`, doing the turn's first reads (`TurnSetup::reads`) before the model is asked.
+    pub fn send_reading(&mut self, core: &mut Core, conversation: &str, text: &str, setup: TurnSetup) -> Result<(u64, Vec<Out>), HostError> {
+        let (turn_id, mut outs) = self.send_with(core, conversation, text, setup)?;
+        if let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) {
+            if active.turn.has_reads() {
+                let step = engine.read_first(&mut active.turn, core);
+                self.settle(active, step, &mut outs);
+            } else {
+                self.active.insert(turn_id, active);
+            }
+        }
+        Ok((turn_id, outs))
+    }
+
     /// The conversation a running turn belongs to, for an application tool that works per task (sign-ins).
     #[must_use]
     pub fn conversation_of(&self, turn_id: u64) -> Option<&str> {
@@ -303,6 +317,19 @@ impl Host {
     pub fn model_result(&mut self, core: &mut Core, turn_id: u64, result: Result<Completion, ProviderError>) -> Vec<Out> {
         let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) else { return Vec::new() };
         let step = engine.on_model(&mut active.turn, core, result);
+        let mut outs = Vec::new();
+        self.settle(active, step, &mut outs);
+        outs
+    }
+
+    /// The model, still answering, finished writing a tool call: it runs now when it can. Not while the person has
+    /// control: then it waits for the whole answer, like everything else Mobius would do.
+    pub fn call_ready(&mut self, core: &mut Core, turn_id: u64, call: crate::message::ToolCall) -> Vec<Out> {
+        if self.active.get(&turn_id).is_none_or(|a| a.theirs) {
+            return Vec::new();
+        }
+        let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) else { return Vec::new() };
+        let step = engine.on_early_call(&mut active.turn, core, call);
         let mut outs = Vec::new();
         self.settle(active, step, &mut outs);
         outs

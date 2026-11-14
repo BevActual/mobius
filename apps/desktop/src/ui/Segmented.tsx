@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { afterPaint } from './frame';
 
 export interface SegmentChoice<T extends string> {
   value: T;
@@ -33,7 +34,7 @@ export function Segmented<T extends string>({ label, choices, value, onChange, i
     const at = open.findIndex((c) => c.value === value);
     const next = open[(at + by + open.length) % open.length]!;
     onChange(next.value);
-    requestAnimationFrame(() => group.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
+    afterPaint(() => group.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
   };
   return (
     <div ref={group} className={className ? `ui-segmented ${className}` : 'ui-segmented'} data-wide={wide || undefined} role="radiogroup" aria-label={label} aria-disabled={disabled || undefined} onKeyDown={disabled ? undefined : key}>
