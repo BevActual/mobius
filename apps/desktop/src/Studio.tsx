@@ -683,7 +683,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const proposal = changed.size > 0 ? (
     <div className="studio-dev-proposal" role="group" aria-label="Mobius's change">
       <h4 className="studio-dev-head">Proposed by Mobius</h4>
-      <p>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} /></>}</p>
+      <p>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} file={file ?? undefined} /></>}</p>
       <div className="studio-dev-actions"><ReviewActions onKeep={keep} onDiscard={discard} /></div>
     </div>
   ) : null;
