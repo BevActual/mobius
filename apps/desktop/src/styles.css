@@ -2667,3 +2667,5 @@ body { font-variant-numeric: tabular-nums; }
 /* While dictating, the recording readout takes the model's place; the row never runs under Stop. */
 .composer:has(.composer-mic[data-recording]) .composer-tools > .popmenu:has(> .pill-model) { display: none; }
 .composer-actions { position: relative; z-index: 1; }
+/* At the narrowest panel the permission shows as its shield alone (its name is in the tooltip and the menu). */
+@container (max-width: 240px) { .chat .composer .composer-tools .pill-compact:has(.pill-icon) .pill-text { display: none; } }
