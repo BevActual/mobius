@@ -20,6 +20,12 @@ describe('what each app suggests', () => {
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null }).length).toBeGreaterThan(0);
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null, settings: true })).toEqual([]);
   });
+  it('starts Find a time with… in the box, for the person to name who, and it uses calendar.free', () => {
+    const first = suggestionsFor({ app: 'calendar', hasPage: false, note: null })[0]!;
+    expect(first.label).toBe('Find a time with…');
+    expect(isStarter(first)).toBe(true);
+    for (const tool of ['calendar.free', 'calendar.suggest', 'mail.draft']) expect(first.prompt).toContain(tool);
+  });
   it('never asks the agent app to attach anything', () => {
     expect(suggestionsFor({ app: 'agent', hasPage: true, note: null }).every((s) => s.attach === undefined)).toBe(true);
   });
