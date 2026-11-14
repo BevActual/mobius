@@ -64,7 +64,7 @@ describe('pro controls', () => {
     const html = renderToStaticMarkup(<GainReductionMeter label="Bus gain reduction" range={20} />);
     expect(html).toContain('role="meter"');
     expect(html).toContain('aria-valuemax="20"');
-    expect(html).toContain('>0.0</button>');
+    expect(html).toContain('>0.0</span><span class="ui-reduce-unit"> dB</span></button>');
     expect(renderToStaticMarkup(<GainReductionMeter label="GR" readout={false} />)).not.toContain('<button');
   });
   it('writes positions in bars and in time', () => {

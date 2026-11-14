@@ -365,6 +365,8 @@ button.ui-readout:focus-visible { outline: var(--focus-w) solid var(--ink); outl
 .ui-reduce-hold { position: absolute; left: 0; right: 0; top: calc(var(--hold) * 100%); height: var(--hairline-w); margin-top: calc(var(--hairline-w) * -1); background: var(--ink); }
 .ui-reduce-figure {
   flex: none; padding: 0; border: 0; background: none; color: var(--muted); cursor: default;
-  font-family: var(--font-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; min-width: 4ch; text-align: center;
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; min-width: 7ch; text-align: center;
 }
 .ui-reduce-figure:hover { color: var(--body); }
+.ui-reduce-unit { font-family: var(--font); color: var(--muted); }
+.ui-reduce-figure { white-space: pre; }

@@ -474,7 +474,7 @@ export const GainReductionMeter = forwardRef<ReductionFeed, { label: string; ran
   ref,
 ) {
   const bar = useRef<HTMLDivElement>(null);
-  const figure = useRef<HTMLButtonElement>(null);
+  const figure = useRef<HTMLSpanElement>(null);
   const held = useRef({ db: 0, at: 0 });
   const most = useRef(0);
 
@@ -511,7 +511,7 @@ export const GainReductionMeter = forwardRef<ReductionFeed, { label: string; ran
         <div className="ui-reduce-hold" />
       </div>
       {readout && (
-        <button ref={figure} type="button" className="ui-reduce-figure" aria-label={`${label}, most taken off. Clear`} title="Most taken off. Click to clear" onClick={reset}>0.0</button>
+        <button type="button" className="ui-reduce-figure" aria-label={`${label}, most taken off. Clear`} title="Most taken off. Click to clear" onClick={reset}><span ref={figure}>0.0</span><span className="ui-reduce-unit"> dB</span></button>
       )}
     </div>
   );
