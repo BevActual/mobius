@@ -419,6 +419,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       if (selected.length === 0) return;
       const step = e.shiftKey ? 10 : 1;
       if (e.key === 'Enter' && one && doc && findNode(doc, one)?.node?.type === 'text') { e.preventDefault(); setEditing(one); }
+      if (e.key === 'F2' && one) { e.preventDefault(); setRenaming(one); }
       else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); remove(); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-step, 0); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); nudge(step, 0); }
@@ -560,7 +561,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     const paste: ContextMenuItem = { action: 'paste', keys: 'Ctrl+V', disabled: !copied.current, run: () => { if (copied.current) pasteNodes(copied.current, 16); } };
     if (selected.length === 0) return [paste, { label: 'Zoom to fit', keys: 'Shift+1', separated: true, run: fit }];
     const zoomIn: ContextMenuItem = { label: 'Zoom to selection', keys: 'Shift+2', separated: true, run: zoomToSelection };
-    const rename: ContextMenuItem = { action: 'rename', label: 'Rename…', disabled: !one, run: () => { if (one) setRenaming(one); } };
+    const rename: ContextMenuItem = { action: 'rename', label: 'Rename…', keys: 'F2', disabled: !one, run: () => { if (one) setRenaming(one); } };
     if (picked.length === 0) {
       const exportOne: ContextMenuItem = { label: 'Export as PNG', separated: true, disabled: !one, run: () => { if (one) void exportPng(one); } };
       const frame = one ? doc.frames.find((f) => f.id === one) : null;
@@ -689,7 +690,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
                   </div>
                   <div className="design-segment" role="radiogroup" aria-label="Align">
                     {(['left', 'center', 'right'] as Align[]).map((a) => (
-                      <button key={a} type="button" role="radio" aria-checked={at.node!.align === a} aria-label={a === 'center' ? 'Centre' : a === 'left' ? 'Left' : 'Right'} onClick={() => setNode((n) => { n.align = a; })}>
+                      <button key={a} type="button" role="radio" aria-checked={at.node!.align === a} aria-label={a === 'center' ? 'Centre' : a === 'left' ? 'Left' : 'Right'} title={`Align text ${a === 'center' ? 'centre' : a}`} onClick={() => setNode((n) => { n.align = a; })}>
                         <Icon d={a === 'left' ? 'M3 5h14M3 9h9M3 13h14M3 17h9' : a === 'center' ? 'M3 5h14M5.5 9h9M3 13h14M5.5 17h9' : 'M3 5h14M8 9h9M3 13h14M8 17h9'} />
                       </button>
                     ))}
@@ -739,6 +740,12 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
       <div className="design-body">
         <nav className="design-layers" aria-label="Layers">
           <div className="design-panel-title">Layers</div>
+          {doc.frames.length === 0 && (
+            <div className="design-layers-empty">
+              <p>No frames yet.</p>
+              <button type="button" className="btn" title="New frame (F)" onClick={() => add('frame')}>New frame</button>
+            </div>
+          )}
           <ul role="tree" aria-label="Frames and layers" aria-multiselectable>
             {doc.frames.map((f) => (
               <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded data-drop={moving?.target === f.id || undefined} onDragOver={(e) => { if (!moving) return; e.preventDefault(); if (moving.target !== f.id) setMoving({ id: moving.id, target: f.id, place: 'above' }); }} onDrop={(e) => { e.preventDefault(); dropLayer(); }}>

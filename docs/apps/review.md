@@ -26,6 +26,7 @@ Dashboards of live tiles from your other apps.
 - **Add tile** adds one at the end. A tile's **…** menu (or a right-click) makes it wide or small, changes what it
   shows, moves it, or removes it. **Edit** shows a remove button on every tile and lets you drag tiles into a new order;
   **Alt+←/→** moves the focused tile. Removing a tile can be undone.
+- **Keys on a tile:** Enter opens its app, Delete removes it, and Shift+F10 opens its menu.
 - **A new view** starts with the usual tiles. Views are kept in folders in the sidebar, like notes.
 
 Views only point at things: the tasks, events, mail and notes stay in their own apps, and a view never changes them.

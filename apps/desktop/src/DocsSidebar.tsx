@@ -134,7 +134,13 @@ export function DocsSidebar({ docs, changed, starts, onStart }: {
         </SidebarSection>
       ) : (
         <>
-          {docs.notebooks.length === 0 && !naming && (
+          {/* Until the folders are read: grey bars the shape of the rows, not "No documents yet". */}
+          {!(docs.loaded || !docs.available) && (
+            <ul className="doc-side-loading" aria-label="Loading documents" aria-busy="true">
+              {[64, 48, 72, 56].map((w) => <li key={w}><span style={{ width: `${w}%` }} /></li>)}
+            </ul>
+          )}
+          {(docs.loaded || !docs.available) && docs.notebooks.length === 0 && !naming && (
             <div className="side-empty notes-empty">
               <p>No documents yet.</p>
             </div>
