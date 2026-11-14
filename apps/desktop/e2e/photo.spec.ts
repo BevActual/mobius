@@ -68,7 +68,7 @@ test('adjustments are kept beside the photo, which never changes, and Export sav
   expect(fs.readFileSync(path.join(album(), 'coastline edited.jpg')).subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
   // Escape goes back to the album, which now has the exported picture in it.
   // In a narrow window the inspector floats over the right of the page, so the photo is clicked at its corner.
-  await shell().getByRole('img', { name: 'The photo with edits' }).click({ position: { x: 4, y: 4 } });
+  await shell().getByRole('img', { name: 'The photo with edits' }).click();
   await shell().keyboard.press('Escape');
   const grid = shell().getByRole('list', { name: 'Photos in Lisbon' });
   await expect(grid.getByRole('button', { name: 'coastline edited.jpg' })).toBeVisible();
@@ -121,7 +121,7 @@ test('a filter and a turn are kept with the edits, and undo takes them back one 
   await expect.poll(() => read()?.geometry?.turns).toBe(1);
   await crop.getByRole('button', { name: 'Done' }).click();
   // In a narrow window the inspector floats over the right of the page, so the photo is clicked at its corner.
-  await shell().getByRole('img', { name: 'The photo with edits' }).click({ position: { x: 4, y: 4 } });
+  await shell().getByRole('img', { name: 'The photo with edits' }).click();
   await shell().keyboard.press('Control+z');
   await expect.poll(() => read()?.geometry).toBeUndefined();
   await shell().keyboard.press('Control+z');
