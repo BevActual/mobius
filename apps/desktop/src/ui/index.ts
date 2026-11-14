@@ -25,3 +25,4 @@ export { Chip, Count, Avatar, Dot, StatusText, StatusLetter, initials, CONTENT_C
 export { ListRow } from './ListRow';
 export { ObjectRow, ObjectCard, ObjectChip, KindIcon, type Thing, type TaskThing, type EventThing, type MailThing, type FileThing, type PersonThing, type FileType } from './Objects';
 export { XYPad, type PadAxis, type PadPoint } from './XYPad';
+export { KeyHintBar, type KeyHint } from './KeyHintBar';

@@ -228,11 +228,11 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Shared objects: one-line row, two-line row, card, chip (round 9, not yet reviewed by Andrew)" wide>
+        <Card title="Shared objects: one-line row, two-line row, card, chip" wide>
           <Objects />
         </Card>
 
-        <Card title="Two-axis pad (round 9, not yet reviewed by Andrew)" wide>
+        <Card title="Two-axis pad" wide>
           <Pads />
         </Card>
 

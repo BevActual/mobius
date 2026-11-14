@@ -278,7 +278,7 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 .ui-row[data-lines="2"] { min-height: var(--row-two); }
 .ui-row:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); }
 .ui-row[data-current] { background: var(--sel); }
-.ui-row[data-proposed] { outline: calc(var(--hairline-w) * 1.5) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -1.5); }
+.ui-row[data-proposed] { outline: calc(var(--hairline-w) * 1.5) dashed var(--mobius); outline-offset: calc(var(--edge-w) * -1); border-radius: var(--radius-panel); }
 .ui-row-lead { display: inline-flex; align-items: center; flex: none; }
 .ui-row-main {
   display: flex; flex-direction: column; justify-content: center; gap: calc(var(--sp-1) / 2); flex: 1; min-width: 0;

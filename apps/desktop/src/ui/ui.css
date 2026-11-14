@@ -119,3 +119,12 @@
   background: var(--paper, var(--bg)); color: var(--muted); font: var(--fw-medium) var(--fs-xs)/1 var(--font); font-variant-numeric: tabular-nums;
 }
 .ui-tooltip .ui-keycap { border-color: color-mix(in srgb, var(--on-ink) 35%, transparent); background: transparent; color: color-mix(in srgb, var(--on-ink) 85%, transparent); }
+
+/* The key-hint bar (KeyHintBar.tsx): floats at the bottom of a list with its most useful keys. */
+.ui-key-hints {
+  position: sticky; bottom: var(--sp-3); z-index: 1; display: flex; align-items: center; gap: var(--sp-4); width: fit-content;
+  height: var(--control-h-lg); margin: auto auto var(--sp-3); flex-shrink: 0; padding: 0 var(--sp-3); box-sizing: border-box;
+  border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-2);
+  color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; pointer-events: none;
+}
+.ui-key-hint { display: inline-flex; align-items: center; gap: var(--sp-1); }

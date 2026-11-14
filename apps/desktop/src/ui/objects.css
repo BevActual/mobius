@@ -25,11 +25,10 @@ button.ui-task-check:focus-visible { outline: var(--focus-w) solid var(--ink); o
 .ui-unread-dot[data-on] { background: var(--ink); }
 .ui-row-icon { display: inline-grid; place-items: center; color: var(--muted); }
 .ui-kind-icon { width: var(--sp-4); height: var(--sp-4); flex: none; }
-.ui-thing .ui-row-detail { display: flex; align-items: center; gap: var(--sp-1); }
-.ui-thing .ui-row-detail .ui-dot { margin-right: var(--sp-1); }
+.ui-thing .ui-row-detail .ui-dot { margin-right: var(--sp-1); vertical-align: middle; }
 /* An email's one-line row: the sender in a fixed column, then the subject, then the first words. */
 .ui-thing-mail .ui-row-title { display: flex; gap: var(--sp-3); min-width: 0; }
-.ui-thing-mail .ui-mail-from { flex: none; width: calc(var(--card-w) * 0.4); overflow: hidden; text-overflow: ellipsis; }
+.ui-thing-mail .ui-mail-from { flex: 0 0 auto; max-width: calc(var(--sp-8) * 2.75); overflow: hidden; text-overflow: ellipsis; }
 .ui-thing-mail .ui-mail-subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ui-thing-mail[data-lines="2"] .ui-row-title { display: block; }
 .ui-row-detail .ui-mail-subject { color: var(--ink); }
@@ -80,13 +79,13 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-object-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* The two-axis pad: the y axis's ends at the left, the pad, the x axis's ends under it, then the readout. */
-.ui-pad { display: grid; grid-template-columns: var(--sp-4) minmax(0, 1fr); gap: var(--sp-1) var(--sp-2); }
+.ui-pad { display: grid; justify-content: start; grid-template-columns: var(--sp-4) minmax(var(--pad-min), var(--pad-h)); gap: var(--sp-1) var(--sp-2); }
 .ui-pad[data-disabled] { opacity: 0.45; }
 .ui-pad-ends { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--muted); }
 .ui-pad-ends-y { grid-row: 1; writing-mode: vertical-rl; transform: rotate(180deg); }
 .ui-pad-ends-x { grid-column: 2; }
 .ui-pad-surface {
-  position: relative; grid-column: 2; grid-row: 1; height: var(--pad-h); min-height: var(--pad-min); overflow: hidden;
+  position: relative; grid-column: 2; grid-row: 1; aspect-ratio: 1 / 1; min-height: var(--pad-min); overflow: hidden;
   border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); touch-action: none; cursor: crosshair;
   background:
     linear-gradient(var(--line-soft) var(--hairline-w), transparent var(--hairline-w)) 0 0 / 100% 25%,
@@ -119,4 +118,4 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-pad-readout b { font: var(--fw-medium) var(--fs-2xl) / 1.3 var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
 .ui-row-lead:has(> .ui-event-bar) { align-self: stretch; }
 .ui-thing-mail .ui-row-detail { display: block; }
-.ui-thing-mail[data-lines="1"] .ui-row-title { flex: 0 1 auto; max-width: 72%; }
+.ui-thing-mail .ui-mail-subject { flex: 0 1 auto; }

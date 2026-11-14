@@ -46,6 +46,7 @@ const SECTIONS: readonly SettingsSection[] = [
         row('right-sidebar', 'Agent panel', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'right', 'chat panel'),
         row('sidebar-size', 'Sidebar sizes', 'Drag the edge of a sidebar to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back.', 'width', 'resize', 'wider', 'narrower', 'reset size'),
         row('density', 'List density', 'How tightly tabs and conversations are packed.', 'compact', 'comfortable', 'spacing', 'sidebar', 'dense'),
+        row('key-hints', 'Key hints', 'A small bar under lists with their most useful keys. It hides itself once you use them.', 'keyboard', 'shortcuts', 'keys', 'hints', 'hint bar'),
       ] },
       { id: 'chat-display', label: 'Conversation', rows: [
         row('text-direction', 'Text direction', 'Left to right, right to left, or decided by each message.', 'rtl', 'ltr', 'right to left', 'left to right', 'arabic', 'hebrew', 'bidi', 'direction'),
