@@ -78,9 +78,9 @@ test('a writing tool asks Mobius, and its changes are marked in the page, each k
   // Mobius's writing tools are at the top of the window's one ⋯, on the whole document when nothing is chosen.
   await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
   await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: 'Make it shorter' }).click();
-  // The right panel has the document's Outline as a tab before Mobius; Mobius's tab has the conversation.
-  await expect(shell().getByRole('tablist', { name: 'Panel' }).getByRole('tab', { name: 'Outline' })).toBeVisible();
-  await shell().getByRole('tablist', { name: 'Panel' }).getByRole('tab', { name: 'Mobius' }).click();
+  // The Mobius panel is just Mobius: the document's Outline waits, hidden, in the inspector, never as a tab beside it.
+  await expect(shell().getByRole('tab', { name: 'Mobius' })).toHaveCount(0);
+  await expect(shell().getByRole('complementary', { name: 'Inspector' })).toBeHidden();
 
   const log = shell().getByRole('log', { name: 'Conversation' });
   for (let i = 0; i < 2; i++) await log.getByRole('button', { name: 'Allow once' }).first().click();
