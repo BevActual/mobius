@@ -11,6 +11,7 @@ Working notes that inform how Mobius is built. They are kept for reference and a
 | [The bar for each app](app-bar.md) | What "finished" means for an app, and the app each one is measured against |
 | [Market research, November 2026](market-research-2026-11.md) | Rival agents in November 2026, and ideas from them not yet on the roadmap |
 | [Build plan](build-plan.md) | What is being worked on now, in what order, who owns each part and what waits on what |
+| [Apps roadmap](apps-roadmap.md) | Every app's state, its next round, and the rounds that cross apps |
 | [Music roadmap](music-roadmap.md) | The instruments, effects, note tools and studio features Music works toward, each with its status |
 
 Hermes Agent (Nous Research) is a reference, not a dependency. See

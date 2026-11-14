@@ -3302,6 +3302,10 @@ impl Bridge {
                 if let Some(ask) = arg(3).get("ask") {
                     request["ask"] = ask.clone();
                 }
+                // { mode: "triage" } is an app's own mode; the host holds what it means.
+                if let Some(mode) = arg(3).get("mode") {
+                    request["mode"] = mode.clone();
+                }
                 // { quick: true } is Best fit choosing the quick model for a short question.
                 if let Some(quick) = arg(3).get("quick") {
                     request["quick"] = quick.clone();

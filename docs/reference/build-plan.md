@@ -48,27 +48,30 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 | Item | Owner | Status | Unblocks |
 | --- | --- | --- | --- |
-| Apps roadmap (#237) | Apps lead, Builder merges | Building | Every link to it, including this page's |
+| Mail's Triage mode, on the app modes now in the composer | Apps lead | Next | The launch workflow |
 | Projects Instrument round (#186) | Apps lead | Building | The last app without an Instrument round |
-| App modes in the composer (#239) | Builder | Building | Mail's Triage, then Review, Analyse and Debug |
-| Drum pads on the library's `StepGrid` and `PadGrid` | Music | Next | The first new instrument |
+| Permission wording and shared selects: Settings, then Agents | Apps lead | Building | Old wording gone from the apps |
+| Row sizes for Home and Activity (#245) | Builder | Building | Home's and Activity's next rounds |
+| Glance and Result slots (#249) | Builder | Building | Sheets, Code, then every app |
+| A failed state for runs (#250) | Builder | Building | Agents |
+| `AutomationLane` | Design lead | Building | Music's automation round |
 | Artifacts moved into `docs/` (#242) | Design lead | Building | Retiring the artifacts |
+| Drum pads on the library's `StepGrid` and `PadGrid` | Music | Next | The first new instrument |
 | README screenshots and launch checklist | Launch | Building | The launch list below |
-| Permission wording and shared selects: Settings, then Agents | Apps lead | Next | Old wording gone from the apps |
 
 ## Shell queue
 
 The Builder's order for the pieces apps wait on. Each row names what it lets the apps do.
 
-| Order | Shell piece | Apps waiting |
-| --- | --- | --- |
-| 1 | App modes in the composer, with Mail's Triage as the first | Mail, then Notes and Docs (Review), Sheets and Database (Analyse), Code (Debug) |
-| 2 | Row sizes and the reading column from the shell for Home and Activity | Home, Activity |
-| 3 | The panel's Glance and Result slots | Sheets, Code, then every app |
-| 4 | A failed state for runs | Agents |
-| 5 | Start and stop a connector while Mobius runs | Abilities |
+| Order | Shell piece | Apps waiting | Status |
+| --- | --- | --- | --- |
+| 1 | App modes in the composer, with Mail's Triage as the first | Mail, then Notes and Docs (Review), Sheets and Database (Analyse), Code (Debug) | Have (#239) |
+| 2 | Row sizes and the reading column from the shell for Home and Activity | Home, Activity | Building (#245) |
+| 3 | The panel's Glance and Result slots | Sheets, Code, then every app | Building (#249) |
+| 4 | A failed state for runs | Agents | Building (#250) |
+| 5 | Start and stop a connector while Mobius runs | Abilities | Next |
 
-App modes come first because they unblock the launch workflow's Mail round and four more apps. Home's sizes come second
+App modes came first because they unblock the launch workflow's Mail round and four more apps. Home's sizes are second
 because Home is in the launch workflow.
 
 ## Library queue
