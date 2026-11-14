@@ -1799,3 +1799,19 @@ fn a_model_calls_tokens_are_counted_for_settings_usage_and_the_window_is_told() 
     call(&b, "usage", "clear", json!([]));
     assert_eq!(call(&b, "usage", "query", json!([{ "from": "2000-01-01", "to": "2999-12-31" }])), json!([]));
 }
+
+#[test]
+fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
+    let (b, _c) = bridge();
+    assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = format!("http://{}", listener.local_addr().unwrap());
+    drop(listener);
+    let added = call(&b, "drives", "add", json!([{ "name": "Cloud", "server": address, "username": "ana", "password": "p" }]));
+    assert_eq!(added["ok"], false);
+    assert!(added["message"].as_str().unwrap().starts_with("Could not reach"), "{added}");
+    let missing = call(&b, "drives", "browse", json!(["nope", ""]));
+    assert_eq!((missing["ok"].clone(), missing["message"].clone(), missing["conflict"].clone()), (json!(false), json!("That drive is gone."), json!(false)));
+    assert_eq!(call(&b, "drives", "browse", json!([]))["message"], "A drive is needed.");
+    assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
+}

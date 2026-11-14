@@ -48,6 +48,7 @@ you want to build or change Mobius, go to **Developers**.
 | [Architecture](developers/architecture.md) | The processes, the crates, and how a request flows through them |
 | [Testing and CI](developers/testing.md) | Unit tests, end-to-end tests and the GitHub workflows |
 | [Shared controls](developers/shared-controls.md) | The component library every app uses, from `src/ui`, one page per group with pictures |
+| [Drives](developers/drives.md) | Folders on the person's own servers (WebDAV, Nextcloud): versions, quirks, notes for sync |
 | [Driving the app from an agent](developers/driving-the-app.md) | The `mobius-drive` MCP server for Claude Code |
 | [Releases and updates](developers/releasing.md) | Packaging the installer, signing, and the in-app updater |
 | [Architecture decisions](adr/README.md) | Why Mobius is built the way it is (ADRs) |
