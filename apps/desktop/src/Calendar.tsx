@@ -552,12 +552,15 @@ function YearGrid({ calendar }: { calendar: CalendarState }) {
   const months = Array.from({ length: 12 }, (_, i) => new Date(year, i, 1));
   const weekdays = daysFor('week', months[0]!).map((d) => formatWith(d, { weekday: 'narrow' }));
   const go = (d: Date, mode: CalendarMode) => { calendar.setAnchor(d); calendar.setMode(mode); };
-  // Opens with the month in hand on screen, so November is not below the fold.
+  // The year fits one screen; when the window is too short, it scrolls just enough to show the month in hand, January
+  // still starting at the top.
   const box = useRef<HTMLDivElement>(null);
   const anchorMonth = calendar.anchor.getMonth();
   useLayoutEffect(() => { box.current?.children[anchorMonth]?.scrollIntoView({ block: 'nearest' }); }, [year, anchorMonth]);
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   return (
-    <div className="cal-year" role="list" aria-label={String(year)} ref={box}>
+    <div className="cal-year">
+    <div className="cal-year-months" role="list" aria-label={String(year)} ref={box}>
       {months.map((first) => {
         const days = daysFor('month', first);
         const name = formatWith(first, { month: 'long' });
@@ -574,7 +577,7 @@ function YearGrid({ calendar }: { calendar: CalendarState }) {
                 const said = [events ? `${events} ${events === 1 ? 'event' : 'events'}` : '', tasks ? `${tasks} ${tasks === 1 ? 'task' : 'tasks'} due` : ''].filter(Boolean);
                 const label = [formatWith(d, { weekday: 'long', day: 'numeric', month: 'long' }), ...said].join(', ');
                 return (
-                  <button key={isoDay(d)} type="button" className="cal-year-day" aria-label={label} title="Open this day" data-today={sameDay(d, today) || undefined} data-busy={count > 0 || undefined} onClick={() => go(d, 'day')}>
+                  <button key={isoDay(d)} type="button" className="cal-year-day" aria-label={label} title="Open this day" data-today={sameDay(d, today) || undefined} data-past={d < startOfToday || undefined} data-busy={count > 0 || undefined} onClick={() => go(d, 'day')}>
                     {d.getDate()}
                   </button>
                 );
@@ -583,6 +586,7 @@ function YearGrid({ calendar }: { calendar: CalendarState }) {
           </section>
         );
       })}
+    </div>
     </div>
   );
 }

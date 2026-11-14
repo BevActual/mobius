@@ -105,7 +105,8 @@ Your calendars by day, week or month.
   current-time line is the only loud colour. The all-day row shows two items a day;
   **+N more** shows the rest, and **Fewer** folds them away again. The **Calendar** menu shows each key: Ctrl+N, Q, T, D,
   W, M and Y.
-- **Year view** (Y) shows the twelve months small. A day with events has a dot under it and today is the ink badge;
+- **Year view** (Y) shows the whole year on one screen, four months across. A day with events has a dot under it,
+  past days are grey and today is the ink badge;
   press a day to open it, or a month's name to open the month.
 - **Open an event** with a click: it edits in a popover beside it. Changes are kept when you click elsewhere or press
   Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
