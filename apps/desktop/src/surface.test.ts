@@ -62,7 +62,7 @@ describe('what each app suggests', () => {
     for (const tool of ['tasks.list', 'calendar.list', 'tasks.update', 'calendar.suggest', 'mail.draft']) expect(PLAN_MY_DAY).toContain(tool);
     expect(PLAN_MY_DAY).toContain('Do not send anything');
     // What the third demo run showed: a task due tomorrow was planned for today, and two replies were drafted.
-    for (const words of ['not for today', 'draft no others', 'one line of a few words']) expect(PLAN_MY_DAY).toContain(words);
+    for (const words of ['not for today', 'draft no others', 'one line of a few words', 'back to back', 'Focus time']) expect(PLAN_MY_DAY).toContain(words);
   });
   it('leads an open sheet with What stands out?, which leaves its working in the sheet as formulas', () => {
     const first = suggestionsFor({ app: 'sheets', hasPage: false, note: null, sheet: { title: 'Sales', source: 'sheets/Sales.json', text: 'A1: Month' } })[0];
