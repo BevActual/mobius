@@ -1,3 +1,4 @@
+import { shellStandsDown } from './ui/keyboardClaim';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { MenuBar } from './MenuBar';
 import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menusAsData } from './menus';
@@ -37,7 +38,7 @@ import { NotesSidebar } from './NotesSidebar';
 import { TasksPage, TasksSidebar } from './Tasks';
 import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
-import { SheetGrid, SheetsSidebar } from './Sheets';
+import { SheetGrid, SheetsGlance, SheetsSidebar } from './Sheets';
 import { MailPage, MailSidebar, mailPlace } from './Mail';
 import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
@@ -653,6 +654,7 @@ export function App() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== 'c' || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (shellStandsDown(event)) return;
       const t = event.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       if (document.querySelector('dialog[open]')) return;
@@ -868,7 +870,7 @@ export function App() {
       // Stop is fixed (Cmd-period, Ctrl-period elsewhere) unless that press was given to something else.
       else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'Period' && conversation.state.busy) { claim(); void conversation.stop(); }
     };
-    const onKey = (event: KeyboardEvent) => answer(pressOf(event), () => event.preventDefault());
+    const onKey = (event: KeyboardEvent) => { if (!shellStandsDown(event)) answer(pressOf(event), () => event.preventDefault()); };
     window.addEventListener('keydown', onKey);
     for (const press of takeEarlyKeys(performance.now())) answer(press, () => undefined);
     return () => window.removeEventListener('keydown', onKey);
@@ -1472,7 +1474,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
+            appCard={<>{app === 'sheets' && <SheetsGlance />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
@@ -1517,7 +1519,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
+            appCard={<>{app === 'sheets' && <SheetsGlance />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}

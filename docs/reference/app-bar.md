@@ -9,8 +9,8 @@ An app meets the bar when it passes all five:
 
 1. **Core features.** Someone could switch from the rival below for everyday use and not miss anything they reach for
    daily.
-2. **Polish.** It feels like an Apple app, with the Human Interface Guidelines as the guide, and it follows the
-   [design rules](../design/rules.md). It has keyboard shortcuts, empty and error states, Undo, fast loading of large
+2. **Polish.** It follows [Instrument](../design/instrument.md), the agreed design style, and the
+   [design rules](../design/rules.md), and it is built from the [shared controls](../developers/shared-controls.md). It has keyboard shortcuts, empty and error states, Undo, fast loading of large
    items, and works in light and dark.
 3. **Mobius built in.** Verbs on the selection, the result dashed in place, Why this on the object, Try another in
    place, and progress with Stop. Linked from in the panel, and tools the agent can call to read and change the app's
