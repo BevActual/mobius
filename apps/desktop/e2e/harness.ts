@@ -189,12 +189,17 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
   const port = await freePort();
   const child = spawn(exe, [], {
     env: { ...process.env, MOBIUS_TEST: '1', MOBIUS_USER_DATA: userData, MOBIUS_START_URL: startUrl, MOBIUS_HIDE_WINDOW: '1', WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --disable-features=msSmartScreenProtection --safebrowsing-disable-download-protection --use-fake-device-for-media-stream --use-fake-ui-for-media-stream`, WEBVIEW2_USER_DATA_FOLDER: path.join(userData, 'webview'), ...env },
-    stdio: ['ignore', 'ignore', process.env.MOBIUS_TAURI_LOG ? fs.openSync(process.env.MOBIUS_TAURI_LOG, 'a') : 'pipe'],
+    stdio: ['ignore', 'ignore', 'pipe'],
   });
+  // Everything the host says goes to MOBIUS_TAURI_LOG when set (CI keeps it with a failed run). It is read here too,
+  // never sent there instead: the [slow] lines below are what say where a late reply or change spent its time.
+  const shellLog = process.env.MOBIUS_TAURI_LOG ? fs.openSync(process.env.MOBIUS_TAURI_LOG, 'a') : null;
+  child.stderr?.on('close', () => { if (shellLog !== null) fs.closeSync(shellLog); });
   // The host's own word on a step that took a second or more ("[slow] changes lastTurn: 2400 ms"), shown with the
   // test, so a change that showed late says where the time went.
   let heard = '';
   child.stderr?.on('data', (chunk: Buffer) => {
+    if (shellLog !== null) fs.writeSync(shellLog, chunk);
     heard += chunk.toString();
     const lines = heard.split('\n');
     heard = lines.pop() ?? '';
