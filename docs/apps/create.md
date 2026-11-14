@@ -91,7 +91,7 @@ A small studio for writing songs as notes.
   track of it to the open song. **From Mobius** lists songs with a part Mobius wrote that you have not kept yet. The
   last song you had open opens when you come back. Right-click a song to delete it; Music asks first.
 - **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play (Space), Stop
-  (twice, or Enter, to go back to the start), the position and tempo in mono figures, Loop (L), the computer keyboard, and the Session and Arrange switch. Every song is in 4 / 4 for now.
+  (twice, or Enter, to go back to the start), Record (F9), Loop (L) and the metronome (K), the position and tempo in mono figures, the computer keyboard, and the Session and Arrange switch. Every song is in 4 / 4 for now.
 - **Two views**, switched in the toolbar. **Arrange** is the song from start to end, as below. **Session** is a grid
   of clips, a column per track and a row per scene. Click an empty slot to make a clip there; its notes open in the
   bottom area, where Clip length sets how long it goes round (1 to 16 bars). Press a clip's triangle to launch it: it
@@ -144,7 +144,7 @@ A small studio for writing songs as notes.
 - **The computer keyboard** plays the chosen track: turn it on with the keys button in the toolbar. A S D F G H J K
   play the white keys from C and W E T Y U the black ones; Z and X move down or up an octave and C and V make it
   softer or louder (the octave and velocity show beside the button). On a drums track, A S D F G H are the drums from the
-  top. The keys you hold light up on the notes editor's keyboard. **Record** (the red dot, or F9) plays from the playhead with the computer
+  top. The keys you hold light up on the notes editor's keyboard. **Record** (the dot after Stop, or F9) plays from the playhead with the computer
   keyboard on and writes what you play into the chosen track as notes, as you play them; Record or Stop ends the take,
   and one Undo takes the take back. It records in the Arrange view for now.
 - **Automation** (the line button in the toolbar, or A): a Volume line under each track in the Arrange view. Click it
