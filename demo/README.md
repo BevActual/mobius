@@ -60,7 +60,7 @@ The *Launch* thread writes the content; each lead adds what their app's moment n
 | Files | `Downloads/` | Sixty untidy files to sort. |
 | Sheets | `sheets/P2 budget/`, `sheets/Sales 2025/` | The P2 budget, and a year of sales with two odd months (April low, September high). |
 | Database | `databases/Customers.sqlite` | Eighteen customers and their orders; a few haven't ordered since June. |
-| Code | `code/kestrel-telemetry/` | A small Python project with one failing test (`test_pack_temperature`). |
+| Code | `code/kestrel-telemetry/` | A small Node project with one failing test (`pack temperature`, a sign error); `npm test` needs nothing installed. |
 | Music | `studio/Songs/Demo.json` | Four bars at 96 bpm in A minor: drums, chords and a bright pad, and no bass, so Mobius can add one. From the Music lead. |
 | Design | `designs/Kestrel app/Charging screen.json` | One rough phone screen to ask three takes on. |
 | Canvas | `boards/Kestrel/P2 brainstorm.json` | Thirty stickies from a brainstorm, to group. |
