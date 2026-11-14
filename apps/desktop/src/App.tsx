@@ -5,7 +5,7 @@ import { sendCommand } from './commands';
 import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type SidebarMode } from '@mobius/shared';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
-import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS } from './apps';
+import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS, COMPACT_APPS } from './apps';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
@@ -73,7 +73,7 @@ import { editsPathFor } from './photo-edit';
 import { sheetContext } from './sheets-view';
 import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
-import { heading as calendarHeading, eventsOn } from './calendar-view';
+import { heading as calendarHeading, eventsOn, isoWeek } from './calendar-view';
 import { Desk } from './Desk';
 import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
@@ -981,7 +981,7 @@ export function App() {
             ) : inDocs ? (
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
-              <CalendarSidebar calendar={calendar} pin={pinNode} changed={turnMarks.calendars} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
+              <CalendarSidebar calendar={calendar} pin={pinNode} changed={turnMarks.calendars} review={turnMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...turnMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inSearch ? (
               <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
             ) : inTasks ? (
@@ -1161,6 +1161,7 @@ export function App() {
       },
       calendar: {
         newEvent: () => createActions.find((a) => a.id === 'event')!.run(),
+        quickEvent: () => sendCommand('quick-event'),
         newCalendar: () => sendCommand('new-calendar'),
         today: () => calendar.setAnchor(new Date()),
         mode: (mode) => calendar.setMode(mode),
@@ -1560,7 +1561,7 @@ export function App() {
       openRight={openRight}
       mobiusAsked={`${focusToken}:${incoming?.token ?? 0}:${lastWaiting.current}`}
       style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px', '--side-col': leftAttached ? `${leftWidth}px` : '0px' } as React.CSSProperties}
-      data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
+      data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-density': COMPACT_APPS.has(app) && !settingsOpen ? 'compact' : undefined, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
       rail={
         <Rail
           mobius={{ open: (rightOpen || !hasRight) && !settingsOpen, toggle: () => { if (settingsOpen) { closeSettings(); if (hasRight && !rightOpen) toggleMobius(); return; } if (hasRight) toggleMobius(); else openApp('agent'); } }}
@@ -1597,7 +1598,8 @@ export function App() {
           : inReader && reading.page ? readerSub(reading.text) // Reader: the site the article came from
           : inMail ? (mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`)
           : inSheets && sheets.data ? sheets.data.sheet
-          : inCalendar ? (eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
+          // Calendar: the week number in Week view (short, so it fits beside the controls), otherwise what today holds.
+          : inCalendar ? (calendar.mode === 'week' ? `Week ${isoWeek(calendar.anchor)}` : eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
           : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
           : inFiles ? filesSub(files) // Files: how many items
           : inSkills ? <AbilitiesSub place={extPlace} skills={skills} /> // Abilities (marked)

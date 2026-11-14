@@ -1,0 +1,295 @@
+/*
+ * The look of the shared controls (Button, IconButton, TextField, Select, Switch, Checkbox, Segmented, Slider,
+ * ParamCell, Meter, Progress, Chip, Count, Avatar, Dot, StatusText, ListRow). Instrument, docs/design/instrument.md:
+ * "Controls", "States" and "Pro app readouts". Values come only from tokens.css (ui/guards.test.ts checks this).
+ *
+ * States are the same everywhere: hover is a grey fill half the strength of selected; pressed and selected are the
+ * selected fill; keyboard focus is an ink ring (--focus-w) (never for mouse clicks); disabled is 40% strength.
+ */
+
+.ui-button, .ui-icon-button, .ui-segment, .ui-chip, .ui-select, .ui-row-main, .ui-chip-x {
+  -webkit-tap-highlight-color: transparent;
+}
+:is(.ui-button, .ui-icon-button, .ui-segment, .ui-select, .ui-switch, .ui-check-box, .ui-chip, .ui-chip-x, .ui-row-main):focus-visible {
+  outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w);
+}
+:is(.ui-button, .ui-icon-button, .ui-segment, .ui-select, .ui-chip):disabled,
+:is(.ui-switch, .ui-check-box, .ui-select)[data-disabled] { opacity: 0.4; pointer-events: none; }
+
+/* Buttons: primary ink, secondary paper with a hairline, quiet text only. */
+.ui-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); flex: none;
+  height: var(--button-h); padding: 0 var(--sp-3); border: var(--hairline-w) solid transparent;
+  border-radius: var(--radius-control); background: transparent; color: var(--ink);
+  font: inherit; font-size: var(--fs-md); font-weight: var(--fw-medium); line-height: 1; white-space: nowrap; cursor: default;
+}
+.ui-button[data-kind="primary"] { background: var(--ink); color: var(--on-ink); }
+.ui-button[data-kind="primary"]:hover { background: color-mix(in srgb, var(--ink) 86%, var(--paper)); }
+.ui-button[data-kind="primary"]:active { background: color-mix(in srgb, var(--ink) 76%, var(--paper)); }
+.ui-button[data-kind="secondary"] { background: var(--paper); border-color: var(--line); }
+.ui-button[data-kind="secondary"]:hover { background: color-mix(in srgb, var(--sel) 50%, var(--paper)); }
+.ui-button[data-kind="quiet"] { padding: 0 var(--sp-2); }
+.ui-button[data-kind="quiet"]:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-button:is([data-kind="secondary"], [data-kind="quiet"]):active,
+.ui-button[aria-pressed="true"] { background: var(--sel); }
+.ui-button[data-danger] { color: var(--red); }
+.ui-button-icon, .ui-icon-button-icon, .ui-segment-icon { display: inline-grid; place-items: center; flex: none; }
+.ui-button-icon svg { width: var(--sp-4); height: var(--sp-4); }
+.ui-icon-button {
+  display: inline-grid; place-items: center; flex: none; width: var(--icon-button); height: var(--icon-button); padding: 0;
+  border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); cursor: default;
+}
+.ui-icon-button svg { width: var(--icon-size); height: var(--icon-size); }
+.ui-icon-button:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); color: var(--ink); }
+.ui-icon-button:active, .ui-icon-button[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
+.ui-icon-button[data-danger]:hover { color: var(--red); }
+
+/* Fields: paper, a hairline border, an ink border on focus; the unit grey at the trailing end. */
+.ui-field { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.ui-field-label { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.ui-field-label[data-hidden] {
+  position: absolute; width: var(--hairline-w); height: var(--hairline-w); overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.ui-field-box {
+  display: flex; align-items: center; gap: var(--sp-2); height: var(--button-h); padding: 0 var(--sp-2);
+  border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper);
+}
+.ui-field-box:focus-within { border-color: var(--ink); }
+.ui-field[data-invalid] .ui-field-box { border-color: var(--red); }
+.ui-field-input {
+  flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent;
+  color: var(--ink); font: inherit; font-size: var(--fs-md); font-variant-numeric: tabular-nums;
+}
+.ui-field-input::placeholder { color: var(--faint); }
+.ui-field-unit { flex: none; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.ui-field-error { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--fs-sm); color: var(--ink); }
+
+/* Pop-up: a field with up and down chevrons; its menu is the shared menu with a tick on the chosen row. */
+.ui-select {
+  display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 0; height: var(--button-h); padding: 0 var(--sp-2);
+  border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper);
+  color: var(--ink); font: inherit; font-size: var(--fs-md); text-align: left; cursor: default;
+}
+.ui-select:hover { background: color-mix(in srgb, var(--sel) 50%, var(--paper)); }
+.ui-select[data-popup-open] { border-color: var(--ink); }
+.ui-select-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-select-icon { display: inline-grid; place-items: center; flex: none; color: var(--muted); }
+.ui-select-icon svg, .ui-select-tick svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.ui-select-menu { background: var(--raised); max-height: var(--available-height); overflow-y: auto; }
+.ui-select-tick { display: inline-grid; place-items: center; flex: none; width: var(--sp-4); visibility: hidden; }
+.ui-select-tick svg { width: var(--sp-4); height: var(--sp-4); stroke-width: 1.6; }
+.ui-select-tick[data-selected] { visibility: visible; }
+.ui-menu-item[data-selected] { font-weight: var(--fw-medium); }
+
+/* Switch: ink when on, grey when off, at the trailing end of its row. */
+.ui-switch-row { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--row-h); }
+.ui-switch-row[data-disabled] { opacity: 0.4; }
+.ui-switch-label { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: var(--fs-md); color: var(--ink); }
+.ui-switch-detail { font-size: var(--fs-sm); color: var(--muted); }
+.ui-switch {
+  position: relative; flex: none; width: var(--switch-w); height: var(--switch-h); padding: 0; border: 0;
+  border-radius: var(--radius-pill); background: var(--line); cursor: default;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.ui-switch:not([data-checked]) { background: color-mix(in srgb, var(--ink) 14%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) var(--faint); }
+.ui-switch[data-checked] { background: var(--ink); }
+.ui-switch-thumb {
+  position: absolute; top: var(--focus-w); left: var(--focus-w);
+  width: calc(var(--switch-h) - 2 * var(--focus-w)); height: calc(var(--switch-h) - 2 * var(--focus-w));
+  border-radius: var(--radius-pill); background: var(--paper);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.ui-switch-thumb[data-checked] { transform: translateX(calc(var(--switch-w) - var(--switch-h))); background: var(--on-ink); }
+
+/* Checkbox: a rounded square, solid ink with a paper tick when checked. */
+.ui-check { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--hit-min); font-size: var(--fs-md); color: var(--ink); }
+.ui-check[data-disabled] { opacity: 0.4; }
+.ui-check-box {
+  display: inline-grid; place-items: center; flex: none; width: var(--check-size); height: var(--check-size); padding: 0;
+  border: calc(var(--hairline-w) * 1.5) solid var(--faint); border-radius: var(--radius-small); background: var(--paper); cursor: default;
+}
+.ui-check-box:hover { border-color: var(--muted); }
+.ui-check-box:is([data-checked], [data-indeterminate]) { border-color: var(--ink); background: var(--ink); color: var(--on-ink); }
+.ui-check-mark { display: inline-grid; place-items: center; }
+.ui-check-mark svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Segmented: a grey track; the chosen segment on paper with a hairline and ink text. */
+.ui-segmented {
+  display: inline-flex; align-items: stretch; gap: 0; flex: none; height: var(--button-h); padding: calc(var(--sp-1) / 2);
+  border-radius: var(--radius-control); background: var(--sel);
+}
+.ui-segmented[data-wide] { display: flex; flex: 1; }
+.ui-segmented[data-wide] .ui-segment { flex: 1; }
+.ui-segmented[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
+.ui-segment {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-1); min-width: 0; padding: 0 var(--sp-3);
+  border: 0; border-radius: var(--radius-small); background: transparent; color: var(--muted);
+  font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap; cursor: default;
+}
+.ui-segment:hover:not([aria-checked="true"]) { color: var(--ink); }
+.ui-segment[aria-checked="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 var(--hairline-w) var(--line); }
+.ui-segment svg { width: var(--sp-4); height: var(--sp-4); }
+.ui-segment:has(.ui-segment-icon):not(:has(.ui-segment-icon + *)) { padding: 0 var(--sp-2); }
+
+/* Slider: the name, a grey track with an ink fill from the origin, a slim ink tick, and the value. */
+.ui-slider {
+  display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 10fr) minmax(min-content, 3fr); align-items: center;
+  gap: 0 var(--sp-2); min-height: var(--row-h); font-size: var(--fs-md); color: var(--ink);
+}
+.ui-slider[data-bare] { grid-template-columns: minmax(0, 1fr) minmax(min-content, auto); }
+.ui-slider[data-disabled] { opacity: 0.4; }
+.ui-slider-name { display: inline-flex; align-items: center; gap: var(--sp-1); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-slider-value { text-align: right; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ui-slider[data-changed] .ui-slider-value { color: var(--ink); }
+.ui-slider-ends {
+  grid-column: 2; display: flex; justify-content: space-between; gap: var(--sp-2); margin-top: calc(var(--sp-1) * -1);
+  font-size: var(--fs-xs); color: var(--muted);
+}
+.ui-slider[data-bare] .ui-slider-ends { grid-column: 1; }
+.ui-remake { display: inline-grid; place-items: center; color: var(--mobius); }
+
+.ui-track {
+  -webkit-appearance: none; appearance: none; width: 100%; height: var(--hit-min); margin: 0;
+  background: transparent; cursor: default;
+}
+.ui-track:focus-visible { outline: none; }
+.ui-track::-webkit-slider-runnable-track {
+  height: var(--track-h); border-radius: var(--radius-pill);
+  background: linear-gradient(to right, var(--line) var(--from), var(--ink) var(--from), var(--ink) var(--to), var(--line) var(--to));
+}
+.ui-track::-moz-range-track {
+  height: var(--track-h); border-radius: var(--radius-pill);
+  background: linear-gradient(to right, var(--line) var(--from), var(--ink) var(--from), var(--ink) var(--to), var(--line) var(--to));
+}
+/* The thumb is a slim ink tick inside a hit square (a transparent border takes the pointer); keyboard focus rings it. */
+.ui-track::-webkit-slider-thumb {
+  -webkit-appearance: none; box-sizing: border-box; width: var(--hit-min); height: var(--hit-min);
+  margin-top: calc((var(--track-h) - var(--hit-min)) / 2);
+  border: solid transparent; border-width: calc((var(--hit-min) - var(--tick-h)) / 2) calc((var(--hit-min) - var(--tick-w)) / 2);
+  border-radius: var(--radius-control); background: var(--ink); background-clip: content-box;
+}
+.ui-track::-moz-range-thumb {
+  box-sizing: border-box; width: var(--hit-min); height: var(--hit-min);
+  border: solid transparent; border-width: calc((var(--hit-min) - var(--tick-h)) / 2) calc((var(--hit-min) - var(--tick-w)) / 2);
+  border-radius: var(--radius-control); background: var(--ink); background-clip: content-box;
+}
+.ui-track:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 var(--focus-w) var(--ink); }
+.ui-track:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 var(--focus-w) var(--ink); }
+/* In a parameter cell the track is a hairline pair and the tick shorter, under the large value. */
+.ui-track[data-thin]::-webkit-slider-runnable-track { height: var(--progress-h); }
+.ui-track[data-thin]::-moz-range-track { height: var(--progress-h); }
+.ui-track[data-thin]::-webkit-slider-thumb {
+  margin-top: calc((var(--progress-h) - var(--hit-min)) / 2);
+  border-width: calc((var(--hit-min) - var(--sp-3)) / 2) calc((var(--hit-min) - var(--progress-h)) / 2);
+}
+.ui-track[data-thin]::-moz-range-thumb { border-width: calc((var(--hit-min) - var(--sp-3)) / 2) calc((var(--hit-min) - var(--progress-h)) / 2); }
+
+/* Parameter cell: a small all-caps label, the value large in mono with its unit, and a thin slider under it. */
+.ui-param-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3) var(--sp-4); }
+.ui-param { position: relative; display: grid; gap: 0; min-width: 0; }
+.ui-param[data-disabled] { opacity: 0.4; }
+.ui-param-name {
+  font-size: var(--fs-floor); font-weight: var(--fw-semibold); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+.ui-param-key {
+  position: absolute; top: 0; right: 0; min-width: var(--sp-4); padding: 0 var(--sp-1);
+  border: var(--hairline-w) solid var(--line); border-bottom-width: var(--focus-w); border-radius: var(--radius-small);
+  font: var(--fw-semibold) var(--fs-floor) / 1.3 var(--font-mono); color: var(--muted); text-align: center;
+}
+.ui-param-value {
+  display: flex; align-items: baseline; gap: var(--sp-1); margin-top: var(--sp-1); min-width: 0; overflow: hidden; white-space: nowrap;
+  font: var(--fw-regular) var(--param-value) / 1.1 var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.ui-param-unit { font-size: var(--fs-sm); color: var(--muted); }
+
+/* Meter and progress: read-only levels. */
+.ui-meter {
+  display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 10fr) minmax(min-content, 3fr); align-items: center;
+  gap: var(--sp-2); min-height: var(--row-h); font-size: var(--fs-md); color: var(--ink);
+}
+.ui-meter[data-bare] { display: block; min-height: 0; }
+.ui-meter-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-meter-value { text-align: right; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ui-meter-track { height: var(--track-h); border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
+.ui-meter-track { position: relative; }
+.ui-meter-fill { position: absolute; top: 0; bottom: 0; left: 0; background: var(--ink); transition: width var(--dur-fast) linear; }
+/* Past its threshold only the overage is red; the reading itself stays ink. */
+.ui-meter-over { position: absolute; top: 0; bottom: 0; background: var(--red); }
+.ui-progress { height: var(--progress-h); background: var(--line); overflow: hidden; }
+.ui-progress-fill { height: 100%; background: var(--ink); transition: width var(--dur-med) var(--ease); }
+
+/* Dots, chips, counts, letters, avatars and status text. */
+.ui-dot { display: inline-block; flex: none; width: var(--dot-size); height: var(--dot-size); border-radius: var(--radius-pill); background: var(--faint); }
+.ui-dot[data-tone="red"] { background: var(--red); }
+.ui-dot[data-tone="ink"] { background: var(--ink); }
+.ui-dot[data-tone="mobius"] { background: var(--mobius); }
+.ui-dot[data-tone="amber"] { background: var(--c-amber); }
+.ui-dot[data-tone="yellow"] { background: var(--c-yellow); }
+.ui-dot[data-tone="green"] { background: var(--c-green); }
+.ui-dot[data-tone="teal"] { background: var(--c-teal); }
+.ui-dot[data-tone="blue"] { background: var(--c-blue); }
+.ui-dot[data-tone="violet"] { background: var(--c-violet); }
+.ui-dot[data-tone="pink"] { background: var(--c-pink); }
+.ui-dot[data-tone="coral"] { background: var(--c-coral); }
+.ui-dot[data-tone="stone"] { background: var(--c-stone); }
+
+.ui-chip {
+  display: inline-flex; align-items: center; gap: var(--sp-1); max-width: 100%; height: calc(var(--fs-xs) * 1.75); padding: 0 var(--sp-2);
+  border: var(--hairline-w) solid var(--line); border-radius: var(--radius-pill); background: transparent;
+  color: var(--muted); font: inherit; font-size: var(--fs-xs); line-height: 1; white-space: nowrap; vertical-align: middle;
+}
+button.ui-chip { cursor: default; }
+button.ui-chip:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); color: var(--ink); }
+button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(--faint); color: var(--ink); }
+.ui-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ui-chip:has(.ui-chip-x) { padding-right: calc(var(--sp-1) / 2); }
+.ui-chip-x {
+  display: inline-grid; place-items: center; width: var(--sp-4); height: var(--sp-4); padding: 0; border: 0;
+  border-radius: var(--radius-pill); background: transparent; color: var(--muted);
+}
+.ui-chip-x:hover { background: var(--sel); color: var(--ink); }
+.ui-chip-x svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+
+.ui-count { flex: none; font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ui-letter {
+  display: inline-block; flex: none; min-width: var(--sp-3); text-align: center;
+  font: var(--fw-semibold) var(--fs-floor) / 1 var(--font-mono); color: var(--muted);
+}
+.ui-letter[data-tone="red"] { color: var(--red); }
+.ui-avatar {
+  display: inline-grid; place-items: center; flex: none; width: var(--avatar-size); height: var(--avatar-size); overflow: hidden;
+  border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--muted);
+  font-size: calc(var(--avatar-size) * 0.42); font-weight: var(--fw-semibold); line-height: 1; letter-spacing: 0.02em;
+}
+.ui-avatar[data-size="large"] { width: calc(var(--avatar-size) * 2); height: calc(var(--avatar-size) * 2); font-size: calc(var(--avatar-size) * 0.8); }
+.ui-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ui-status { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
+.ui-status[data-problem] { color: var(--ink); }
+
+/* List rows: one line on --row-list, two lines on --row-list-2; a hairline between rows, the chosen one grey. */
+.ui-list { margin: 0; padding: 0; list-style: none; }
+.ui-row {
+  --row-two: var(--row-list-2, calc(var(--row-list) + var(--sp-4)));
+  display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-list); padding: 0 var(--sp-3);
+  border-bottom: var(--hairline-w) solid var(--line-soft); border-radius: 0; color: var(--ink);
+}
+.ui-row[data-lines="2"] { min-height: var(--row-two); }
+.ui-row:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-row[data-current] { background: var(--sel); }
+.ui-row[data-proposed] { outline: calc(var(--hairline-w) * 1.5) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -1.5); }
+.ui-row-lead { display: inline-flex; align-items: center; flex: none; }
+.ui-row-main {
+  display: flex; flex-direction: column; justify-content: center; gap: calc(var(--sp-1) / 2); flex: 1; min-width: 0;
+  align-self: stretch; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: default;
+}
+.ui-row-line { display: flex; align-items: baseline; gap: var(--sp-3); min-width: 0; }
+.ui-row-title {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-md); color: var(--ink);
+}
+.ui-row-title[data-unread] { font-weight: var(--fw-semibold); }
+.ui-row[data-current] .ui-row-title { font-weight: var(--fw-medium); }
+.ui-row[data-current] .ui-row-title[data-unread] { font-weight: var(--fw-semibold); }
+.ui-row-meta { flex: none; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ui-row-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
+.ui-row-trail { display: inline-flex; align-items: center; gap: var(--sp-1); flex: none; }

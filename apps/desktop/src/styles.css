@@ -328,6 +328,12 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .slider { display: flex; align-items: center; gap: 12px; width: 100%; }
 .slider input { flex: 1; accent-color: var(--accent); }
 .slider output { width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+/* Shared with other apps (Canvas, Views, Research, Database, Skills, Terminal): a panel title, a hint, a review bar, a zoom readout. Design styles its own in design.css. */
+.design-zoom { min-width: 44px; text-align: center; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.design-panel-title { padding: 4px 6px; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+.design-review { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); border: 1px dashed color-mix(in srgb, var(--mobius) 45%, var(--line)); background: var(--bg); box-shadow: var(--shadow-2); font-size: var(--fs-sm); white-space: nowrap; cursor: default; }
+.design-hint { margin: 0; color: var(--muted); font-size: var(--fs-xs); }
+.design-hint[data-bad] { color: var(--danger); }
 .slist { list-style: none; margin: 0; padding: 0; width: 100%; border: 1px solid var(--line); border-radius: var(--radius-group); overflow: hidden; }
 .slist-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .slist-item:last-child { border-bottom: 0; }
@@ -794,7 +800,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
    macOS 27 era: the sidebar runs edge to edge and full height, one toolbar spans the work area, the work area is flush
    with both, controls are capsules, and indigo is the one accent. Glass stays on the top layer only (hub, launcher,
    menus), so the window reads the same on every platform and with Reduce Transparency. */
-.app { background: var(--bg); --context: var(--toolbar-h); }
+.app { background: var(--bg); --context: var(--toolbar-h); font-size: var(--fs-md); }
 
 /* Sidebar */
 .rail { background: var(--sidebar); border-right: 0.5px solid var(--hairline); }
@@ -1179,7 +1185,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .cal-days, .cal-all-day { display: grid; border-bottom: 1px solid var(--line); }
 .cal-day-head { padding: 6px 10px; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; }
 .cal-day-head b { font-size: var(--fs-xl); color: var(--ink); font-weight: 600; }
-.cal-day-head[data-today] b { display: inline-grid; place-items: center; min-width: 28px; height: 28px; border-radius: 14px; background: var(--accent); color: var(--on-accent); }
+.cal-day-head[data-today] b { display: inline-grid; place-items: center; min-width: var(--control-h); height: var(--control-h); border-radius: var(--radius-control); background: var(--ink); color: var(--on-ink); }
 .cal-all-day-cell { display: flex; flex-direction: column; gap: 2px; padding: 3px 2px; border-left: 1px solid var(--line); min-width: 0; }
 .cal-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .cal-grid { position: relative; display: grid; }
@@ -1188,7 +1194,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .cal-all-day > .cal-hour { position: static; transform: none; align-self: center; text-align: right; padding-right: 6px; }
 .cal-column { position: relative; border-left: 1px solid var(--line); background-image: linear-gradient(var(--line) 1px, transparent 1px); }
 .cal-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--danger); pointer-events: none; z-index: 2; }
-.cal-now::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 4px; background: var(--danger); }
+.cal-now::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 .cal-event { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; padding: 3px 7px; text-align: left; font-size: var(--fs-xs); line-height: 1.3; border-radius: 6px; overflow: hidden;
   background: color-mix(in srgb, var(--event) 16%, var(--bg)); border-left: 3px solid var(--event); color: var(--ink); }
 .cal-column > .cal-event { position: absolute; z-index: 1; }
@@ -1212,15 +1218,10 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .cal-more { align-self: flex-start; padding: 0 6px; font-size: var(--fs-xs); color: var(--muted); }
 .cal-more:hover { color: var(--ink); }
 .calendar-list { list-style: none; margin: 0; padding: 0 var(--sp-2); }
-.calendar-row { display: flex; align-items: center; gap: var(--sp-2); height: 30px; padding: 0 var(--sp-1); border-radius: var(--radius-control); cursor: pointer; }
+.calendar-row { display: flex; align-items: center; gap: var(--sp-2); height: var(--row-side); padding: 0 var(--sp-1); border-radius: var(--radius-control); cursor: pointer; }
 .calendar-row:hover { background: var(--soft); }
-.calendar-row input { appearance: none; width: 14px; height: 14px; margin: 0; border-radius: 4px; border: 2px solid var(--swatch); background: var(--swatch); cursor: pointer; }
-.calendar-row input:not(:checked) { background: transparent; }
-/* A white tick on the colour, so a shown calendar never reads as an empty box. */
-.calendar-row input:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.5 7.2 6 9.6l4.6-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-size: 100% 100%; }
-.calendar-row input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .calendar-side-note { margin: auto var(--sp-3) var(--sp-3); font-size: var(--fs-xs); color: var(--muted); }
-.cal-editor-backdrop { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(0, 0, 0, 0.18); }
+.cal-editor-backdrop { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: color-mix(in srgb, var(--ink) 18%, transparent); }
 .cal-editor { width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4); border-radius: var(--radius-panel); background: var(--bg); box-shadow: var(--shadow-3); }
 .cal-editor input:not([type="checkbox"]), .cal-editor select, .cal-editor textarea { min-height: var(--control-h); padding: 4px 8px; border-radius: var(--radius-control); background: var(--field); border: 1px solid transparent; font: inherit; color: inherit; }
 .cal-editor textarea { resize: vertical; }
@@ -1241,9 +1242,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .calendar-account-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
 .calendar-account-problem { margin: 2px var(--sp-3); font-size: var(--fs-xs); color: var(--danger); }
 .cal-lock { width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.5; flex-shrink: 0; }
-.calendar-add-account { align-self: flex-start; margin: var(--sp-1) var(--sp-3); padding: 4px 6px; font-size: var(--fs-sm); color: var(--accent); border-radius: var(--radius-control); }
-.calendar-add-account:hover { background: var(--wash); }
-.calendar-row .list-name { flex: 1; }
 .cal-modal-layer { position: fixed; inset: 0; z-index: 50; }
 .cal-event[data-suggested] { background: color-mix(in srgb, var(--mobius) 7%, var(--bg)); border: 1.5px dashed color-mix(in srgb, var(--mobius) 70%, var(--bg)); color: var(--mobius); }
 .cal-event[data-suggested] span { color: color-mix(in srgb, var(--mobius) 70%, var(--muted)); }
@@ -1600,56 +1598,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .canvas-review { z-index: 2; }
 
 /* Design: frames on a canvas, layers on the left, an inspector on the right; Mobius's changes dashed. */
-.stage .design-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
-.design-page.empty { align-items: center; justify-content: center; padding: var(--sp-6); }
-.design-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 10px; border-bottom: 1px solid var(--line); }
-.design-bar-gap { flex: 1; }
-.design-zoom { min-width: 44px; text-align: center; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
-.design-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 180px 1fr 240px; }
-.design-layers, .design-inspector { overflow: auto; padding: var(--sp-2); background: var(--panel); }
-.design-layers { border-right: 1px solid var(--line); }
-.design-inspector { border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: var(--sp-2); }
-.design-panel-title { padding: 4px 6px; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
-.design-layers ul { list-style: none; margin: 0; padding: 0; }
-.design-layers ul ul { padding-left: 12px; }
-.design-layer { width: 100%; display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px; border-radius: 6px; font-size: var(--fs-sm); text-align: left; color: inherit; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.design-layer[data-frame] { font-weight: 600; }
-.design-layer:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
-.design-layer[aria-current] { background: var(--wash); color: var(--accent); }
-.design-layer[data-changed]::after { content: ""; width: 7px; height: 7px; margin-left: auto; flex-shrink: 0; border-radius: 50%; border: 1.5px dashed var(--mobius); }
-.design-layer-kind { width: 14px; text-align: center; color: var(--muted); font-size: var(--fs-xs); }
-.design-view { position: relative; overflow: hidden; background: color-mix(in srgb, var(--ink) 5%, var(--bg)); cursor: grab; touch-action: none; outline: none; }
-.design-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.design-frame { position: absolute; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 8px 30px rgba(0, 0, 0, 0.08); }
-.design-clip { position: absolute; inset: 0; overflow: hidden; cursor: default; }
-.design-frame-name { position: absolute; left: 0; white-space: nowrap; color: var(--muted); cursor: default; user-select: none; line-height: 1; }
-.design-frame[data-selected] > .design-frame-name { color: var(--accent); }
-.design-node { position: absolute; cursor: default; user-select: none; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }
-.design-node[data-selected] { cursor: move; }
-.design-frame[data-proposed], .design-node[data-proposed] { outline: 2px dashed var(--mobius); outline-offset: 2px; }
-.design-handles { position: absolute; border: solid var(--accent); pointer-events: none; }
-.design-handle { position: absolute; background: #fff; border: 1px solid var(--accent); border-radius: 2px; pointer-events: auto; cursor: nwse-resize; }
-.design-review { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); border: 1px dashed color-mix(in srgb, var(--mobius) 45%, var(--line)); background: var(--bg); box-shadow: var(--shadow-2); font-size: var(--fs-sm); white-space: nowrap; cursor: default; }
-.design-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
-.design-inspector { overflow-x: hidden; }
-.design-field { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: var(--radius-control); background: var(--field); font-size: var(--fs-sm); }
-.design-field[data-wide] { grid-column: span 2; }
-.design-field span { color: var(--muted); font-size: var(--fs-xs); min-width: 12px; }
-.design-field input { flex: 1; min-width: 0; width: 100%; border: 0; background: none; font: inherit; color: inherit; outline: none; font-variant-numeric: tabular-nums; }
-.design-text { display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-xs); color: var(--muted); }
-.design-text select { appearance: none; background: var(--bg) var(--chevron) no-repeat right 6px center / 11px !important; }
-.design-text input, .design-text textarea, .design-text select { padding: 5px 8px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); resize: vertical; }
-.design-color { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); }
-.design-color-label { min-width: 46px; color: var(--muted); font-size: var(--fs-xs); }
-.design-color input[type="color"], .design-styles input[type="color"] { width: 26px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
-.design-color select { flex: 1; min-width: 0; height: 28px; padding: 0 22px 0 8px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg) var(--chevron) no-repeat right 6px center / 11px; appearance: none; font: inherit; font-size: var(--fs-sm); color: inherit; }
-.design-styles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.design-styles li { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); }
-.design-hint { margin: 0; color: var(--muted); font-size: var(--fs-xs); }
-.design-hint[data-bad] { color: var(--danger); }
-.design-row { display: flex; gap: 6px; }
-.design-row .btn { flex: 1; }
-@media (max-width: 1100px) { .design-body { grid-template-columns: 140px 1fr 210px; } }
 
 /* Photo: the picture with its adjustments, the adjustments as layers beside it. */
 .stage .photo-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
@@ -2230,6 +2178,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .empty-state-title { margin: 0; font-size: var(--fs-lg, 15px); font-weight: 600; color: var(--ink); }
 .empty-state-line { margin: 0; font-size: var(--fs-sm); color: var(--muted); line-height: 1.45; }
 .empty-state-action { margin-top: var(--sp-2); }
+.empty-state-keys { margin-top: var(--sp-1); color: var(--muted); font-size: var(--fs-xs); }
 
 /* From Mobius is a filter (FromMobius.tsx): pressed, a sidebar shows only the rows Mobius made or changed. */
 .from-mobius-filter { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 30px; padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--mobius); font-size: var(--fs-sm); font-weight: var(--fw-medium); text-align: left; }

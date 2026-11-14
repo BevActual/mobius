@@ -103,6 +103,9 @@ Your whole workspace as a drive.
 - **New folder** (Ctrl+Shift+N) is named in place; **F2** renames; **Delete** moves to the Trash, with Undo in a toast
   at the foot of the page. The Trash is
   `workspace/.trash/`, hidden from Files' folders and from Mobius.
+- **Drag** a file or folder onto a folder row, a folder in the sidebar, or a folder in the path bar to move it there, with
+  Undo in a toast. The folder it would land in is ringed while you hover. From the keyboard, **Cut** (Ctrl+X) and then
+  **Paste** (Ctrl+V) in another folder; Escape lets go. Something Mobius made stays put until you keep or discard it.
 - **Trash**, under Places in the sidebar, lists what you moved there, when, and where it was. **Put Back** (Ctrl+Backspace, or a
   double-click) returns it to that folder; **Empty Trash** (Ctrl+Shift+Backspace) and **Delete Immediately** (right-click, or Delete) delete for good, and
   always ask first. Mobius cannot empty the Trash. An app's own folder (notes/, docs/...) is never renamed or
