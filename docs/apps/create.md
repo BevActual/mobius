@@ -98,9 +98,13 @@ A small studio for writing songs as notes.
   duplicate (Ctrl+D), mute (M), solo (S) or delete it (Delete); the keys work on the chosen track. Deleting says what
   went, with Undo. **Add track** after the last track adds one from the same sounds.
 - **A part from Mobius** is drawn dashed in indigo and unfilled until you keep it. Keep, Discard and Try another are in
-  the Device panel.
-- **The Device panel** sets how the chosen track sounds. It shows the track's instrument and colour, then its level
-  (Volume and Pan), and then its sound in four groups:
+  the bar above the tracks. The panel on the right is always Mobius.
+- **The bottom area** shows the chosen track: its notes or its devices. **Shift+Tab** switches between them (or pick
+  Notes or Device at the left of its bar), double-clicking a clip opens the notes and double-clicking a track's header
+  opens its devices.
+- **Devices** run left to right in the order the sound flows: the instrument first, then its effects. The instrument
+  has a switch to turn the track off and a menu to change it, then the track's colour, Volume and Pan, and then its
+  sound in four groups:
   - Oscillator: Shape (sine to saw), Detune, Sub (a sine an octave down) and Drive.
   - Filter: a curve with one point to drag, across for Cutoff and up for Resonance. Sweep, in the row of values under
     it (drag it or type), opens the filter at each note's start and closes it over the decay; the thin line and Opens to
@@ -112,16 +116,16 @@ A small studio for writing songs as notes.
   **Pads** has a pad per drum: press one to hear it (higher on the pad is louder, or Q W E and A S D once the pads
   have focus), and the chosen pad's Tune, Decay, Level and Pan set that drum alone.
 
-  Volume is a slider; the other settings are knobs, four to a row, with their value in mono under each. Drag a knob
+  Volume is a slider; the other settings are knobs, two to a row, with their value in mono under each. Drag a knob
   up or down (Shift for finer), or use the arrows, and double-click it to put it back. Everything is saved in the song
   (`pan`, `sound`, `kit`, `pads`), so Mobius can read and set it too.
-- **Effects** follow the sound in the Device panel. **Add effect** puts an EQ (three numbered bands on a curve: drag a
+- **Effects** follow the instrument, to its right. **Add effect** puts an EQ (three numbered bands on a curve: drag a
   band across for its frequency and up for its level, and scroll on the bell to make it wider or narrower), a
   Compressor (Threshold, Ratio, Attack, Release, Makeup), a Delay (a time in notes, Feedback, Mix) or a Reverb (Size,
-  Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, a grip to drag it up or down the
+  Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, a grip to drag it along the
   chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
-- **The notes editor** opens under the tracks when you double-click a clip: draw, move and stretch notes, select with
-  a box, snap to the grid. Drums get a tall row per drum, named in full. For drums, **Steps** shows one bar as sixteen steps per drum:
+- **The notes editor** draws, moves and stretches notes, selects with
+  a box and snaps to the grid. Drums get a tall row per drum, named in full. For drums, **Steps** shows one bar as sixteen steps per drum:
   click a step to switch it on or off (Shift+click for an accent), drag across to paint, and pick the bar beside it. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
   side; Home fits the tracks again.

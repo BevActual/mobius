@@ -12,7 +12,7 @@ import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
 import { useFileReview } from './useFileReview';
 import type { NotesState } from './useNotes';
-import { ReviewActions, WhyThis } from './ReviewBar';
+import { ChangeBar, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import './studio.css';
@@ -197,7 +197,7 @@ function EffectBlock({ effect, at, onChange, onRemove }: {
   const name = EFFECT_NAMES[effect.kind];
   const values = effect as unknown as Record<string, number>;
   return (
-    <DeviceFrame title={name} index={at} on={effect.on} onToggle={(on) => onChange((e) => { e.on = on; })}
+    <DeviceFrame className={`studio-fx studio-fx-${effect.kind}`} title={name} index={at} on={effect.on} onToggle={(on) => onChange((e) => { e.on = on; })}
       actions={<IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />}>
       <div className="studio-fx-body">
       {effect.kind === 'delay' && (
@@ -218,6 +218,7 @@ function EffectBlock({ effect, at, onChange, onRemove }: {
   );
 }
 
+const DETAIL_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'device', label: 'Device' }] as const;
 const DRUM_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'steps', label: 'Steps' }] as const;
 /** The drums bottom to top, as pads and step rows read them: kick first. */
 const DRUMS_UP = [...DRUMS].reverse();
@@ -235,13 +236,12 @@ const KEY_CHOICES = KEYS.map((k) => ({ value: k, label: k }));
 const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label }));
 
 /**
- * The Device panel: how the chosen track sounds (its instrument, volume, oscillator, filter and envelope), and what
- * Mobius proposes for this song, to keep or discard. It sits as a tab beside Mobius in the right panel.
+ * The chosen track's devices, in the bottom area beside its notes (Shift+Tab switches): its instrument first (the
+ * track's colour and level, then how it sounds), then its effects, left to right in the order the sound goes.
  */
-export function StudioDevice({ track, onTrack, proposal }: {
+export function StudioDevice({ track, onTrack }: {
   track: Track | null;
   onTrack: (fn: (t: Track) => void, tag?: string) => void;
-  proposal: ReactNode;
 }) {
   const sound = track ? soundOf(track) : null;
   const base = track && track.instrument !== 'drums' ? SOUND_DEFAULTS[track.instrument] : null;
@@ -250,25 +250,24 @@ export function StudioDevice({ track, onTrack, proposal }: {
   const setMany = (patch: Partial<Sound>, tag: string) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), ...patch }; }, `sound:${tag}`);
   const [pad, setPad] = useState(0);
   const setKit = (k: keyof KitSound, v: number) => onTrack((t) => { if (t.instrument !== 'drums') return; t.kit = { ...(t.kit ?? KIT_DEFAULTS), [k]: v }; }, `kit:${k}`);
+  if (!track) return <div className="studio-device" aria-label="Device" role="region"><p className="studio-dev-note">Add a track from Sounds in the sidebar to set how it sounds.</p></div>;
+  const fx = track.fx ?? [];
   return (
-    <div className="studio-device" aria-label="Device" role="region">
-      {track ? (
-        <>
-          <h3 className="studio-dev-title" style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
-            <span className="studio-dev-dot" aria-hidden="true" />{track.name === INSTRUMENT_NAMES[track.instrument] ? track.name : `${track.name} · ${INSTRUMENT_NAMES[track.instrument]}`}
-          </h3>
-          <div className="studio-dev-group">
-            <Select className="studio-dev-row" label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; })} />
-            <div className="studio-colour-row"><span aria-hidden="true">Colour</span>
-              <Swatches label="Colour" value={track.color} colors={TRACK_COLOURS} names={COLOUR_NAMES} onChange={(c) => onTrack((t) => { t.color = c as TrackColour; })} />
-            </div>
-          </div>
-          <ParamGrid label="Level" columns={2}>
-            <ParamCell size="compact" label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
-            <Knob label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
-          </ParamGrid>
+    <div className="studio-device" aria-label="Device" role="region" style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
+      {/* The instrument comes first in the row, as sound flows: its switch turns the whole track on or off. */}
+      <DeviceFrame className="studio-instrument" title={INSTRUMENT_NAMES[track.instrument]} index={0} on={!track.muted} onToggle={(on) => onTrack((t) => { t.muted = !on; })}
+        actions={<Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; })} />}>
+        <div className="studio-dev-cols">
+          <section className="studio-dev-section studio-dev-col" aria-label="Track">
+            <h4 className="studio-dev-head">Track</h4>
+            <Swatches label="Colour" value={track.color} colors={TRACK_COLOURS} names={COLOUR_NAMES} onChange={(c) => onTrack((t) => { t.color = c as TrackColour; })} />
+            <ParamGrid label="Level" columns={2}>
+              <ParamCell size="compact" label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
+              <Knob label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
+            </ParamGrid>
+          </section>
           {sound && base && SOUND_GROUPS.map((g) => (
-            <section key={g.name} className="studio-dev-section" aria-label={g.name}>
+            <section key={g.name} className="studio-dev-section studio-dev-col" data-graph={g.name === 'Filter' || g.name === 'Envelope' || undefined} aria-label={g.name}>
               <h4 className="studio-dev-head">{g.name}</h4>
               {g.name === 'Filter' && (
                 <FilterGraph label="Filter curve" value={{ cutoff: sound.cutoff, resonance: sound.resonance }} reset={{ cutoff: base.cutoff, resonance: base.resonance }}
@@ -280,60 +279,57 @@ export function StudioDevice({ track, onTrack, proposal }: {
                 <EnvelopeGraph label="Envelope shape" value={sound} reset={base}
                   onChange={(env) => setMany({ attack: env.attack, decay: env.decay, sustain: env.sustain, release: env.release }, 'envelope')} />
               )}
-              {g.cells.length > 0 && <ParamGrid label={g.name} columns={4}>
+              {g.cells.length > 0 && <ParamGrid label={g.name} columns={2}>
                 {g.cells.map(([k, name]) => <DeviceSlider key={k} name={name} k={k} value={sound[k]} base={base[k]} onChange={(v) => set(k, v)} />)}
               </ParamGrid>}
             </section>
           ))}
           {kit && (
-            <section className="studio-dev-section" aria-label="Kit">
+            <section className="studio-dev-section studio-dev-col" aria-label="Kit">
               <h4 className="studio-dev-head">Kit</h4>
-              <ParamGrid label="Kit" columns={4}>
+              <ParamGrid label="Kit" columns={2}>
                 {KIT_CELLS.map(({ k, name, step, log }) => <Knob key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} onChange={(v) => setKit(k, v)} />)}
               </ParamGrid>
-              <p className="studio-dev-note">Every drum in the kit, together. Each drum also has its own pad below.</p>
+              <p className="studio-dev-note">Every drum together. Each drum also has its own pad.</p>
             </section>
           )}
-          {kit && track && (() => {
+          {kit && (() => {
             const drum = DRUMS_UP[Math.min(pad, DRUMS_UP.length - 1)]!;
             const own = padOf(track, drum.pitch);
             return (
-              <section className="studio-dev-section" aria-label="Pads">
+              <section className="studio-dev-section studio-dev-col" data-wide aria-label="Pads">
                 <h4 className="studio-dev-head">Pads</h4>
-                <PadGrid fill label="Drum pads" columns={3} chosen={pad} onChoose={setPad}
-                  pads={DRUMS_UP.map((d, i) => ({ id: String(d.pitch), name: d.name, color: track.color, key: PAD_KEYS[i] }))}
-                  onPlay={(i, v) => { const d = DRUMS_UP[i]!; previewNote('drums', d.pitch, v, undefined, undefined, kit, padOf(track, d.pitch)); }}>
-                  <ParamGrid label={`${drum.name} settings`} columns={4}>
+                <div className="studio-pads">
+                  <PadGrid fill label="Drum pads" columns={3} chosen={pad} onChoose={setPad}
+                    pads={DRUMS_UP.map((d, i) => ({ id: String(d.pitch), name: d.name, color: track.color, key: PAD_KEYS[i] }))}
+                    onPlay={(i, v) => { const d = DRUMS_UP[i]!; previewNote('drums', d.pitch, v, undefined, undefined, kit, padOf(track, d.pitch)); }} />
+                  <ParamGrid label={`${drum.name} settings`} columns={2}>
                     {PAD_CELLS.map(({ k, name, step, log, format }) => (
                       <Knob key={k} label={name} value={own[k]} min={PAD_RANGE[k].lo} max={PAD_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={PAD_DEFAULTS[k]} reset={PAD_DEFAULTS[k]} format={format}
                         onChange={(v) => onTrack((t) => { t.pads = { ...(t.pads ?? {}), [drum.pitch]: { ...padOf(t, drum.pitch), [k]: v } }; }, `pad:${drum.pitch}:${k}`)} />
                     ))}
                   </ParamGrid>
-                </PadGrid>
+                </div>
               </section>
             );
           })()}
-        </>
-      ) : <p className="studio-dev-note">Add a track from Sounds in the sidebar to set how it sounds.</p>}
-      {track && (
-        <section className="studio-dev-section studio-fx-chain" aria-label="Effects">
-          <h4 className="studio-dev-head">Effects</h4>
-          {(track.fx ?? []).length === 0 && <p className="studio-dev-note">No effects on this track.</p>}
-          {(track.fx ?? []).length > 0 && (
-            <DeviceChain label={`${track.name} effects`} orientation="vertical" count={track.fx!.length}
-              onMove={(from, to) => onTrack((t) => { const fx = t.fx ?? []; const [moved] = fx.splice(from, 1); if (moved) fx.splice(to, 0, moved); })}>
-              {track.fx!.map((e, i) => (
-                <EffectBlock key={e.id} effect={e} at={i}
-                  onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) fn(x); }, tag ? `${tag}:${e.id}` : undefined)}
-                  onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
-              ))}
-            </DeviceChain>
-          )}
-          <Menu label="Add effect" entries={EFFECT_KINDS.map((k) => ({ label: EFFECT_NAMES[k], detail: EFFECT_DETAILS[k], run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newEffect(k, freshEffectId(t))]; }) }))}
-            trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add effect</Button>} />
-        </section>
-      )}
-      {proposal}
+        </div>
+      </DeviceFrame>
+      {/* Then the effects, left to right in the order the sound goes through them. */}
+      <section className="studio-fx-chain" aria-label="Effects">
+        {fx.length > 0 && (
+          <DeviceChain label={`${track.name} effects`} count={fx.length}
+            onMove={(from, to) => onTrack((t) => { const list = t.fx ?? []; const [moved] = list.splice(from, 1); if (moved) list.splice(to, 0, moved); })}>
+            {fx.map((e, i) => (
+              <EffectBlock key={e.id} effect={e} at={i}
+                onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) fn(x); }, tag ? `${tag}:${e.id}` : undefined)}
+                onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
+            ))}
+          </DeviceChain>
+        )}
+        <Menu label="Add effect" entries={EFFECT_KINDS.map((k) => ({ label: EFFECT_NAMES[k], detail: EFFECT_DETAILS[k], run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newEffect(k, freshEffectId(t))]; }) }))}
+          trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add effect</Button>} />
+      </section>
     </div>
   );
 }
@@ -388,6 +384,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [rowSize, setRowSize] = useState({ lane: 32, ruler: 30 });
   // Whether the notes editor is open under the tracks; a double-click on a clip opens it.
   const [editing, setEditing] = useState(false);
+  /** What the bottom area shows for the chosen track: its notes or its devices. */
+  const [detail, setDetail] = useState<'notes' | 'device'>('notes');
   const [undoText, setUndoText] = useState<string | null>(null);
   useEffect(() => {
     const el = page.current;
@@ -610,8 +608,11 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const openNotes = (id: string, fromBeat = 0) => {
     setSelected(id);
     setEditing(true);
+    setDetail('notes');
     requestAnimationFrame(() => { if (roll.current) roll.current.scrollLeft = Math.max(0, fromBeat * ROLL_BEAT_W * zoom - 8); });
   };
+  /** Opens the bottom area on a track's devices, as double-clicking a track's name does in a studio. */
+  const openDevice = (id: string) => { setSelected(id); setEditing(true); setDetail('device'); };
   const cycle = cycleFor(song);
   const loopWords = cycle && range ? (cycle.to - cycle.from === BEATS_PER_BAR ? `bar ${cycle.from / BEATS_PER_BAR + 1}` : `bars ${cycle.from / BEATS_PER_BAR + 1} to ${cycle.to / BEATS_PER_BAR}`) : 'the whole song';
   /** A press on the ruler: along its top it picks the bars to loop (twice quickly loops the whole song); below, it moves the playhead. */
@@ -801,10 +802,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const velocity = pickedNotes.length ? pickedNotes.reduce((a, n) => a + n.velocity, 0) / pickedNotes.length : null;
 
   const proposal = changed.size > 0 ? (
-    <div className="studio-dev-proposal" role="group" aria-label="Mobius's change">
-      <h4 className="studio-dev-head">Proposed by Mobius</h4>
-      <p>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} file={file ?? undefined} /></>}</p>
-      <div className="studio-dev-actions"><ReviewActions onKeep={keep} onDiscard={discard} /></div>
+    <div className="studio-review">
+      <ChangeBar who={<>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} file={file ?? undefined} /></>}</>} onKeep={keep} onDiscard={discard} />
     </div>
   ) : null;
   const stopOrRewind = () => { if (playing) stop(); else seek(0); };
@@ -813,6 +812,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     const k = e.key.toLowerCase();
     if (!mod && !e.altKey && k === 'l') { setLoop((l) => !l); return true; }
     if (!mod && !e.altKey && k === 'k') { setClick((c) => !c); return true; }
+    // Shift+Tab switches the bottom area between the chosen track's notes and its devices, opening it if it's shut.
+    if (e.key === 'Tab' && e.shiftKey && !mod && !e.altKey && track) { if (!editing) { setEditing(true); setDetail('device'); } else setDetail((d) => (d === 'notes' ? 'device' : 'notes')); return true; }
     if (!track || !t.closest('.studio-tracks')) return false;
     if (mod && k === 'd') { duplicateTrack(track.id); return true; }
     if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) { deleteTrack(track.id); return true; }
@@ -838,6 +839,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
         <IconButton label="Loop" title={loop ? `Looping ${loopWords}` : 'Loop'} keys="L" pressed={loop} icon={<Icon d={ICONS.loop} />} onClick={() => setLoop((l) => !l)} />
       </ToolbarControls>
       <div className="studio-main">
+        {proposal}
         <div className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px`, ...(editing ? { height: listH, flex: 'none' } : {}) }}
           onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
           <div className="studio-ruler-row">
@@ -876,7 +878,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           <div className="studio-tracks" role="list" aria-label="Tracks" style={{ ['--grid' as string]: `${ticks * BEATS_PER_BAR * bw}px` }}>
             {song.tracks.map((t, n) => (
               <div key={t.id} role="listitem" aria-label={t.name} tabIndex={-1} className="studio-track" style={{ '--tc': `var(--c-${t.color})` } as CSSProperties} aria-current={track?.id === t.id || undefined} data-instrument={t.instrument} data-muted={(t.muted || (song.tracks.some((x) => x.solo) && !t.solo)) || undefined} onClick={() => setSelected(t.id)}>
-                <div className="studio-track-head" onContextMenu={(e) => { e.preventDefault(); setSelected(t.id); trackMenu(t, e.clientX, e.clientY); }} onDoubleClick={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') openNotes(t.id); }}>
+                <div className="studio-track-head" onContextMenu={(e) => { e.preventDefault(); setSelected(t.id); trackMenu(t, e.clientX, e.clientY); }} onDoubleClick={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') openDevice(t.id); }}>
                   <span className="studio-track-no" aria-hidden="true">{String(n + 1).padStart(2, '0')}</span>
                   <input className="studio-track-name" aria-label="Track name" value={t.name} maxLength={60} onChange={(e) => setTrack(t.id, (x) => { x.name = e.target.value; }, `name:${t.id}`)} />
                   {t.name !== INSTRUMENT_NAMES[t.instrument] && <span className="studio-track-sub">{INSTRUMENT_NAMES[t.instrument]}</span>}
@@ -913,8 +915,10 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
               onKeyDown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setArrangeH(Math.max(96, Math.min(listH + (e.key === 'ArrowUp' ? -24 : 24), Math.max(96, room)))); } else if (e.key === 'Home') { e.preventDefault(); setArrangeH(null); } }}
             />
             <div className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
-              <div className="studio-roll-bar" role="toolbar" aria-label="Notes">
+              <div className="studio-roll-bar" role="toolbar" aria-label={detail === 'notes' ? 'Notes' : 'Device'}>
                 <span className="studio-roll-title"><span className="studio-dev-dot" aria-hidden="true" />{track.name}</span>
+                <Segmented label="Show" value={detail} choices={DETAIL_VIEWS} onChange={setDetail} />
+                {detail === 'notes' && <>
                 {drums && <Segmented label="View" value={drumView} choices={DRUM_VIEWS} onChange={setDrumView} />}
                 {drums && drumView === 'steps' ? (
                   <Select inline label="Bar" value={String(Math.min(stepBar, song.bars - 1))} choices={Array.from({ length: song.bars }, (_, b) => ({ value: String(b), label: String(b + 1) }))} onChange={(b) => setStepBar(Number(b))} />
@@ -929,9 +933,13 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                     <Button kind="quiet" danger aria-label="Delete notes" title="Delete" keys="Delete" onClick={() => { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); }}>Delete</Button>
                   </>
                 ) : <span className="studio-hint">{drums && drumView === 'steps' ? 'Click a step to switch it on or off, Shift+click for an accent.' : 'Click to draw a note, drag to move it, drag its end to stretch it.'}</span>}
+                </>}
+                {detail === 'device' && <span className="studio-gap" />}
                 <IconButton className="studio-roll-close" label="Hide notes" icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
               </div>
-          {drums && drumView === 'steps' ? (
+          {detail === 'device' ? (
+            <StudioDevice track={track} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
+          ) : drums && drumView === 'steps' ? (
             <div className="studio-steps">
               <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, song.bars - 1) + 1}`} rows={STEP_ROWS} cells={stepCells(notes, Math.min(stepBar, song.bars - 1), STEP_ROWS.map((r) => Number(r.id)))}
                 now={playing && Math.floor(beat / BEATS_PER_BAR) === Math.min(stepBar, song.bars - 1) ? Math.floor((beat % BEATS_PER_BAR) * 4) : undefined}
@@ -1018,16 +1026,9 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           </>
         )}
       </div>
-      <DevicePlace>
-        <StudioDevice track={track} onTrack={(fn, tag) => { if (track) setTrack(track.id, fn, tag ? `${tag}:${track.id}` : ''); }} proposal={proposal} />
-      </DevicePlace>
       {undoText && <UndoToast text={undoText} onUndo={() => { undo(); setUndoText(null); }} onDismiss={() => setUndoText(null)} />}
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={() => setMenu(null)} />, document.body)}
     </section>
   );
 }
 
-/** The Device panel, as a tab before Mobius in the right panel. */
-function DevicePlace({ children }: { children: ReactNode }) {
-  return <PanelTab id="device" name="Device">{children}</PanelTab>;
-}

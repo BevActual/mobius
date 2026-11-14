@@ -23,7 +23,7 @@ not designs to copy.
 
 | Habit | In Music | Status |
 | --- | --- | --- |
-| One detail area for the chosen track | The bottom area shows the chosen track: its notes, or its devices in a row in signal order (instrument first, then effects). Shift+Tab switches between them, and double-clicking a track or clip opens it. | Asking (today the devices sit in the right panel) |
+| One detail area for the chosen track | The bottom area shows the chosen track: its notes, or its devices in a row in signal order (instrument first, then effects). Shift+Tab switches between them, and double-clicking a track or clip opens it. | Building |
 | The computer keyboard is an instrument | A S D F… play the white keys and W E T Y… the black ones. Z and X move an octave, and C and V change velocity. You hear the chosen track's own sound. | Next |
 | Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Later, after the keyboard |
 | Draw mode | B switches the notes editor between drawing notes and picking them, so a click never does the wrong one. | Next |
