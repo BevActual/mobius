@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 
 /**
  * Small pieces that show a fact (Instrument, "Controls" and "Colour"): chips, counts, avatars, dots and status text.
@@ -90,5 +90,50 @@ export function StatusText({ children, problem, className }: { children: ReactNo
       {problem && <Dot color="red" />}
       {children}
     </span>
+  );
+}
+
+/**
+ * A colour picker for content: round swatches of the content colours in a radio group. The chosen one has a ring;
+ * each swatch's name is its tooltip and accessible name; arrows move and choose. A track's, list's or calendar's colour.
+ */
+export function Swatches({ label, value, onChange, colors = CONTENT_COLORS, names, disabled }: {
+  label: string;
+  value: ContentColor;
+  onChange: (color: ContentColor) => void;
+  colors?: readonly ContentColor[];
+  /** Names to show ("Teal"); the colour's own name capitalised by default. */
+  names?: Partial<Record<ContentColor, string>>;
+  disabled?: boolean;
+}) {
+  const nameOf = (c: ContentColor) => names?.[c] ?? c.charAt(0).toUpperCase() + c.slice(1);
+  const key = (e: KeyboardEvent<HTMLDivElement>) => {
+    const by = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    const at = colors.indexOf(value);
+    const next: number | null = by ? (at + by + colors.length) % colors.length : e.key === 'Home' ? 0 : e.key === 'End' ? colors.length - 1 : null;
+    if (next === null) return;
+    e.preventDefault();
+    const color = colors[next]!;
+    onChange(color);
+    (e.currentTarget.querySelector(`[data-color="${color}"]`) as HTMLElement | null)?.focus();
+  };
+  return (
+    <div className="ui-swatches" role="radiogroup" aria-label={label} aria-disabled={disabled || undefined} onKeyDown={key}>
+      {colors.map((c) => (
+        <button
+          key={c}
+          type="button"
+          role="radio"
+          className="ui-swatch"
+          data-color={c}
+          aria-checked={c === value}
+          aria-label={nameOf(c)}
+          title={nameOf(c)}
+          tabIndex={c === value ? 0 : -1}
+          disabled={disabled}
+          onClick={() => onChange(c)}
+        />
+      ))}
+    </div>
   );
 }
