@@ -2648,7 +2648,7 @@ body { font-variant-numeric: tabular-nums; }
 .composer-tools .pill { gap: 3px; padding: 0 4px; }
 .composer-tools .pill-model .chev { display: none; }
 .chat .composer .composer-actions { gap: 2px; }
-.chat .composer { margin-left: 8px; margin-right: 8px; padding-left: 10px; padding-right: 6px; }
+.chat .composer { margin-left: 8px; margin-right: 8px; padding-left: 10px; padding-right: 4px; }
 .chat .composer .composer-bar .round { width: 26px; height: 26px; }
 .chat .composer .composer-bar .round.send, .chat .composer .composer-bar .round.stop { width: 28px; height: 28px; }
 /* Under 380px of panel the mic moves into the plus menu, so the model keeps its words (Instrument build sheet). */
