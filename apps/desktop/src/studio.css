@@ -100,7 +100,9 @@
 .studio-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--ink); }
 .studio-swatch:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .studio-dev-note { margin: var(--sp-2) 0; color: var(--muted); font-size: var(--fs-sm); }
-.studio-dev-proposal { margin-top: var(--sp-4); }
+/* What Mobius proposes: the dashed indigo edge every Mobius change carries until it is kept. */
+.studio-dev-proposal { margin-top: var(--sp-4); padding: var(--sp-3); border: calc(var(--hairline-w) * 1.5) dashed var(--mobius); border-radius: var(--radius-panel); }
+.studio-dev-proposal .studio-dev-head { margin-top: 0; }
 .studio-dev-proposal p { margin: var(--sp-1) 0 var(--sp-3); line-height: var(--lh-body); }
 .studio-dev-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 
