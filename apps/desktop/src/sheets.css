@@ -135,11 +135,13 @@
 }
 
 /* Charts on the sheet (sheets.write's charts), below the grid: dashed in Mobius's colour while its change is not kept. */
-.sheet-page .sheet-body { flex: 1; min-height: 0; display: flex; flex-direction: column; container-type: inline-size; }
+/* The page is the container: a query applies to what is inside it, so the body can turn into a row. */
+.sheet-page { container-type: inline-size; }
+.sheet-page .sheet-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .sheet-page .sheet-body > .sheet-scroll { min-width: 0; }
-@container (min-width: 1000px) {
+@container (min-width: 720px) {
   .sheet-page .sheet-body { flex-direction: row; }
-  .sheet-page .sheet-body > .sheet-charts { flex-direction: column; flex-wrap: nowrap; width: 380px; max-height: none; border-top: 0; border-left: var(--hairline-w) solid var(--line); }
+  .sheet-page .sheet-body > .sheet-charts { flex-direction: column; flex-wrap: nowrap; width: 320px; max-height: none; border-top: 0; border-left: var(--hairline-w) solid var(--line); }
   .sheet-page .sheet-body > .sheet-charts .sheet-chart { flex: none; max-width: none; }
 }
 .sheet-page .sheet-charts { flex-shrink: 0; display: flex; flex-wrap: wrap; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-top: var(--hairline-w) solid var(--line); background: var(--bg); max-height: 45%; overflow: auto; }
