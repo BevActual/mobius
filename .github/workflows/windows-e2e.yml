@@ -57,8 +57,8 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     steps:
-      # CI only, on GitHub's throwaway runners (Andrew's yes, 2026-11-14): Defender scanning every file the tests write
-      # starved the disk, so a checkpoint took up to 4.7 s and tests timed out. Nothing in the app, the installer or any
+      # CI only, on GitHub's throwaway runners (Andrew's yes, 2026-11-14). With the next step it keeps every checkpoint
+      # under a second; with the next step alone, some took 1.4 s (#371). Nothing in the app, the installer or any
       # script that runs on a person's computer does this.
       - name: Keep Defender out of the test folders (CI runner only)
         shell: pwsh
