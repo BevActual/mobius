@@ -5,6 +5,7 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { AppSidebar, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
 import { APP_ICONS } from './Rail';
 import { appOf } from './review-view';
+import { TURN_FILES_EVENT, type TurnFiles } from './useTurnChanges';
 import { appName, type AppId } from './apps';
 import { fileKind, sortEntries, type FilesSort } from './files-view';
 import { relativeTime } from './relative-time';
@@ -55,6 +56,16 @@ export function useFiles(conversation: string, busy: boolean) {
   }, [conversation]);
   useEffect(() => { setLoading(true); void list(); setQuery(''); }, [list]);
   useEffect(() => { if (!busy) { void loadMade(); void list(); void listRoots(); } }, [busy, loadMade, list, listRoots]);
+  // While a turn runs, each call that changes files lists the folder again and marks what Mobius changed, so its
+  // moves show dashed as they land rather than when the turn ends.
+  useEffect(() => {
+    const said = (e: Event) => {
+      if ((e as CustomEvent<TurnFiles>).detail.conversation !== conversation) return;
+      void loadMade(); void list(); void listRoots();
+    };
+    window.addEventListener(TURN_FILES_EVENT, said);
+    return () => window.removeEventListener(TURN_FILES_EVENT, said);
+  }, [conversation, loadMade, list, listRoots]);
   useEffect(() => {
     const again = () => void loadMade();
     window.addEventListener(KEPT_EVENT, again);
@@ -176,6 +187,8 @@ export function useFiles(conversation: string, busy: boolean) {
   const show = (path: string) => void window.mobius.files?.show?.(path);
   const can = { change: typeof window.mobius.files?.rename === 'function', move: typeof window.mobius.files?.move === 'function', show: typeof window.mobius.files?.show === 'function', trash: typeof window.mobius.files?.trashList === 'function' };
   return {
+    /** Mobius's turn is still running: its changes show, and Keep and Discard wait for the end. */
+    working: busy,
     place, setPlace, back, forward, canBack: trail.at > 0, canForward: trail.at < trail.places.length - 1,
     entries, roots, problem, made, conversation, keep, discard, sort, setSort, query, setQuery,
     newFolder, rename, trash, putBack, show, trashed, moved, moveTo, undoMove, dismissMoved: () => setMoved(null), drag, drop, dragging, cut, setCut, paste, trashItems, putBackItem, emptyTrash, seen, loading, dismissTrashed: () => setTrashed(null), notice, dismissNotice: () => setNotice(null), can,
@@ -361,7 +374,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
           <>
             <div className="files-review" role="group" aria-label="Mobius's change">
               <span>{files.made.files.length === 1 ? 'One file from Mobius' : `${files.made.files.length} files from Mobius`}<WhyThis conversation={files.conversation} /></span>
-              <ReviewActions onKeep={files.keep} onDiscard={files.discard} />
+              {!files.working && <ReviewActions onKeep={files.keep} onDiscard={files.discard} />}
             </div>
             <div className="files-table" role="listbox" aria-label="Made by Mobius">
               {files.made.files.filter((path) => !files.query.trim() || path.toLowerCase().includes(files.query.trim().toLowerCase())).map((path) => {
