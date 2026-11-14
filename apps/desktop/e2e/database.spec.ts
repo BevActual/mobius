@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture } from './model-fixture';
 
 let fixture: Fixture;
@@ -32,6 +32,8 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
     says(['Changed Memmo to 999.']),
   ]);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  // Room for the whole toolbar: in a narrow window its controls move into the ⋯ menu.
+  await resizeWindow(mobius.app, 1440, 900);
   const shell = mobius.shell;
   await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await shell.keyboard.press('Control+k');
@@ -139,6 +141,8 @@ test('a sheet from Sheets becomes a table, with its worked-out values', async ()
   fs.writeFileSync(path.join(userData, 'workspace', 'sheets', 'Budget', 'Costs.csv'), 'Item,Cost\nHotel,1200\nFlights,800\nTotal,=SUM(B2:B3)\n');
   model = await startModel([]);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  // Room for the whole toolbar: in a narrow window its controls move into the ⋯ menu.
+  await resizeWindow(mobius.app, 1440, 900);
   const shell = mobius.shell;
   await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await shell.keyboard.press('Control+k');

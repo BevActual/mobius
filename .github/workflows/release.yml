@@ -1,11 +1,12 @@
 # A release: pushing a tag v1.2.3 builds the Windows installer (the core beside the app), has it signed through
-# SignPath when that is set up, makes the files the in-app updater reads (the installer's signature and latest.json)
+# Azure Artifact Signing when that is set up, makes the files the in-app updater reads (the installer's signature and latest.json)
 # from the installer as shipped, and puts them in a draft GitHub Release for that tag. Publish the draft by hand; the
 # updater only sees published releases.
 #
-# Code signing (Windows): free code signing provided by SignPath.io, certificate by SignPath Foundation; see
-# docs/CODE_SIGNING_POLICY.md. Needs the repository variable SIGNPATH_ORGANIZATION_ID and the secret SIGNPATH_API_TOKEN.
-# Until the variable is set, the installer is released unsigned (SmartScreen warns about it).
+# Code signing (Windows): Azure Artifact Signing, see docs/reference/code-signing-options.md. Needs the repository
+# variables AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT and AZURE_CERTIFICATE_PROFILE, and the secrets AZURE_CLIENT_ID,
+# AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID. Until AZURE_SIGNING_ACCOUNT is set, the installer is released unsigned
+# (SmartScreen warns about it).
 #
 # Updater signature: the secrets TAURI_SIGNING_PRIVATE_KEY (the key from `npx tauri signer generate`; its public half is
 # in crates/mobius-shell/tauri.conf.json, plugins.updater.pubkey) and TAURI_SIGNING_PRIVATE_KEY_PASSWORD (empty if it
@@ -19,13 +20,15 @@ on:
 
 permissions:
   contents: write
-  # SignPath fetches the uploaded installer from this run's artifacts.
-  actions: read
+  # Signing in to Azure through OpenID Connect.
+  id-token: write
 
 jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 120
+    # Azure trusts this environment, not a tag name (federated credentials can't match v*).
+    environment: release
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -55,41 +58,39 @@ jobs:
           "path=$($setup.FullName)" >> $env:GITHUB_OUTPUT
           "name=$($setup.Name)" >> $env:GITHUB_OUTPUT
 
-      # ---- Code signing (Windows), through SignPath; skipped until SIGNPATH_ORGANIZATION_ID is set -------------------
-      - name: Upload the unsigned installer for signing
-        id: unsigned
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: actions/upload-artifact@v5
+      # ---- Code signing (Windows), through Azure Artifact Signing; skipped until AZURE_SIGNING_ACCOUNT is set --------
+      # Signs the installer in place. Signing in through OpenID Connect: no password is stored, Azure trusts this
+      # repository's `release` environment (see docs/reference/code-signing-options.md for the setup).
+      - name: Sign in to Azure
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: azure/login@v3
         with:
-          name: unsigned-installer
-          path: ${{ steps.setup.outputs.path }}
-          if-no-files-found: error
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Sign the installer
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@v1
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: azure/artifact-signing-action@v2
         with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: mobius
-          signing-policy-slug: release-signing
-          artifact-configuration-slug: installer
-          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files: ${{ steps.setup.outputs.path }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Mobius
+          description-url: https://github.com/${{ github.repository }}
 
-      - name: Use the signed installer
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+      - name: Check the signature
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
         shell: pwsh
         env:
           SETUP: ${{ steps.setup.outputs.path }}
-          NAME: ${{ steps.setup.outputs.name }}
         run: |
-          $signed = Get-ChildItem signed -Recurse -Filter $env:NAME | Select-Object -First 1
-          if (-not $signed) { throw "SignPath returned no $env:NAME" }
-          $check = Get-AuthenticodeSignature $signed.FullName
+          $check = Get-AuthenticodeSignature $env:SETUP
           if ($check.Status -ne 'Valid') { throw "The signed installer does not verify: $($check.Status) $($check.StatusMessage)" }
-          Copy-Item $signed.FullName $env:SETUP -Force
           Write-Host "Signed by $($check.SignerCertificate.Subject)"
       # -------------------------------------------------------------------------------------------------------------
 

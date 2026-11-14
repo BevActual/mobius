@@ -262,6 +262,8 @@ export interface TimeFieldProps {
   onChange: (minutes: number | null) => void;
   /** For an end time: the start, so each listed time shows its length ("1 hr") and the list begins there. */
   from?: number | null;
+  /** With `from`: whether the box shows the length after the time too (TimeRange shows it after both fields instead). */
+  boxLength?: boolean;
   proposed?: boolean;
   placeholder?: string;
   disabled?: boolean;
@@ -273,7 +275,7 @@ export interface TimeFieldProps {
 const QUARTERS = Array.from({ length: DAY_MINUTES / 15 }, (_, i) => i * 15);
 const clockWords = (minutes: number): string => timeLabel(atTime(new Date(2026, 0, 1), ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES));
 
-export function TimeField({ label, hideLabel, value, onChange, from = null, proposed, placeholder = 'No time', disabled, now: given, className }: TimeFieldProps) {
+export function TimeField({ label, hideLabel, value, onChange, from = null, boxLength = true, proposed, placeholder = 'No time', disabled, now: given, className }: TimeFieldProps) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<number | null>(null);
@@ -358,7 +360,7 @@ export function TimeField({ label, hideLabel, value, onChange, from = null, prop
             else if (typedRead !== null) commit(from !== null && typedRead < from ? typedRead + DAY_MINUTES : typedRead);
           }}
         />
-        {from !== null && value !== null && <span className="ui-field-unit">{lengthLabel(((value - from) % DAY_MINUTES + DAY_MINUTES) % DAY_MINUTES)}</span>}
+        {boxLength && from !== null && value !== null && <span className="ui-field-unit">{lengthLabel(((value - from) % DAY_MINUTES + DAY_MINUTES) % DAY_MINUTES)}</span>}
         <span className="ui-date-icon" aria-hidden="true">{CLOCK}</span>
       </div>
       <BasePopover.Root open={open && !disabled} onOpenChange={(next, details) => { if (!next && details.event?.target !== input.current) { setOpen(false); setHighlight(null); } }}>
@@ -418,7 +420,8 @@ export function TimeRange({ label = 'Time', start, end, onChange, proposed, disa
         onChange={(next) => onChange(next, next === null ? end : (next + length) % DAY_MINUTES)}
       />
       <span className="ui-time-to" aria-hidden="true">–</span>
-      <TimeField label="Ends" hideLabel value={end} from={start} proposed={proposed} disabled={disabled} now={now} onChange={(next) => onChange(start, next)} />
+      <TimeField label="Ends" hideLabel value={end} from={start} boxLength={false} proposed={proposed} disabled={disabled} now={now} onChange={(next) => onChange(start, next)} />
+      {start !== null && end !== null && <span className="ui-time-span">{lengthLabel(length)}</span>}
     </div>
   );
 }

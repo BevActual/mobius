@@ -161,6 +161,15 @@ export function selectionStats(values: readonly string[]): { count: number; numb
 /** A number for the status bar: grouped the way this computer writes numbers, with at most two decimals. */
 export const statNumber = (n: number) => n.toLocaleString(systemLocale(), { maximumFractionDigits: 2 });
 
+/** What the Mobius panel's Glance says about a selection of more than one cell: the sum, average and count of its
+ * numbers, or only how many cells hold something when none of them is a number. */
+export function selectionGlance(stats: ReturnType<typeof selectionStats>): { label: string; value: string }[] {
+  const count = { label: 'Count', value: String(stats.count) };
+  return stats.numbers > 0
+    ? [{ label: 'Sum', value: statNumber(stats.sum) }, { label: 'Average', value: statNumber(stats.average) }, count]
+    : [count];
+}
+
 /** How a column shows its numbers. Automatic shows them as worked out or typed; the file keeps them plain either way. */
 export type NumberFormat = 'auto' | 'number' | 'currency' | 'percent';
 export const NUMBER_FORMATS: readonly { id: NumberFormat; label: string; example: string }[] = [

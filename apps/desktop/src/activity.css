@@ -22,6 +22,9 @@
 .act-mark[data-mobius] { background: var(--mobius, var(--accent)); }
 .act-mark[data-state="needs"] { background: var(--ink); }
 .act-mark[data-state="working"] { background: var(--ink); }
+/* A run whose last turn failed: the mark and its state line in red (never a red fill on the row). */
+.act-mark[data-state="failed"] { background: var(--red); }
+.act-sub[data-failed] { color: var(--red); }
 
 .act-icon { width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .act-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -33,6 +36,8 @@
 /* Open: on the row, shown on hover or focus, over the time. */
 .act-act { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); padding: 2px 10px; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--paper, var(--bg)); color: var(--ink); font: inherit; font-size: var(--fs-sm); opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
 .act-row:hover .act-act, .act-act:focus-visible, .act-row[data-picked] .act-act { opacity: 1; }
+/* Try again on a failed run shows without hovering, so Needs you can be acted on at a glance. */
+.act-act[data-always] { opacity: 1; }
 .act-act:hover { background: var(--soft); }
 .act-row:hover .act-time, .act-row[data-picked] .act-time { visibility: hidden; }
 

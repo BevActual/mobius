@@ -137,7 +137,7 @@ export function agentWhen(bot: { id: string; name: string }, schedules: readonly
  */
 function RunRow({ c, onOpen }: { c: ConversationInfo; onOpen: (id: string) => void }) {
   const waiting = c.activity === 'needs_you' || c.waiting > 0;
-  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : 'Finished';
+  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : c.activity === 'failed' ? 'Failed' : 'Finished';
   return (
     <li className="act-row">
       <button type="button" className="act-main" onClick={() => onOpen(c.id)}>
@@ -145,7 +145,7 @@ function RunRow({ c, onOpen }: { c: ConversationInfo; onOpen: (id: string) => vo
         <svg viewBox="0 0 20 20" aria-hidden="true" className="act-icon">{APP_ICONS.agent}</svg>
         <span className="act-text">
           <span className="act-what">{c.title || 'A session'}</span>
-          <span className="act-sub">{state}</span>
+          <span className="act-sub" data-failed={(!waiting && c.activity === 'failed') || undefined}>{state}</span>
         </span>
         <time className="act-time" dateTime={new Date(c.updated_ms).toISOString()} title={dateTimeLabel(c.updated_ms)}>{relativeTime(c.updated_ms, Date.now())}</time>
       </button>

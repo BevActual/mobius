@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { audible, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
+import { audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -112,5 +112,19 @@ describe('a track\'s effects', () => {
     const t = song(JSON.stringify({ tracks: [{ id: 'a', fx: [{ id: 'fx1', kind: 'reverb' }], notes: [] }] })).tracks[0]!;
     expect(freshEffectId(t)).toBe('fx2');
     expect(newEffect('compressor', 'fx2')).toEqual({ id: 'fx2', kind: 'compressor', on: true, threshold: -18, ratio: 4, attack: 0.01, release: 0.2, makeup: 0 });
+  });
+});
+
+describe('a drum kit\'s pads', () => {
+  it('keeps each drum\'s own settings, kept to their ranges, and leaves out drums at their defaults', () => {
+    const s = song(JSON.stringify({ tracks: [
+      { id: 'd', instrument: 'drums', pads: { 38: { tune: 3, pan: -2 }, 36: {}, 99: { tune: 1 } }, notes: [] },
+      { id: 'p', instrument: 'piano', pads: { 38: { tune: 3 } }, notes: [] },
+    ] }));
+    expect(s.tracks[0]!.pads).toEqual({ 38: { tune: 3, decay: 1, level: 1, pan: -1 }, 36: PAD_DEFAULTS });
+    expect(s.tracks[1]!.pads).toBeUndefined();
+    const text = writeSong(s);
+    expect(song(text).tracks[0]!.pads).toEqual({ 38: { tune: 3, decay: 1, level: 1, pan: -1 } });
+    expect(drumKit({ tune: 2, decay: 1.5, tone: 0.5 }, { tune: 3, decay: 2, level: 1, pan: 0 })).toEqual({ tune: 5, decay: 3, tone: 0.5 });
   });
 });
