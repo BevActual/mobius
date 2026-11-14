@@ -58,7 +58,7 @@ test('a task typed into a list is a line in a real file, and ticking it off fold
   await expect.poll(() => fs.readFileSync(file('Inbox'), 'utf8')).toBe('# Inbox\n\n- [x] Call the plumber\n');
   // Clearing them is in the Completed fold's own menu (and the window's ⋯ menu), not a button in the toolbar.
   await page().getByRole('button', { name: 'More for Completed' }).click({ force: true });
-  await shell().getByRole('menuitem', { name: 'Clear 1 Completed' }).click();
+  await shell().getByRole('menuitem', { name: 'Clear 1 completed' }).click();
   await expect(page().getByText('Completed · 1')).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Inbox'), 'utf8')).toBe('# Inbox\n\n');
 });
@@ -141,7 +141,7 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   const row = todo().locator('.task', { hasText: 'Paint the door' }).first();
   await expect(row.locator('.task-note')).toHaveText('White, not grey.');
   await expect(row.getByRole('img', { name: 'Flagged' })).toBeVisible();
-  await expect(row.locator('.task-subcount')).toHaveText('0 of 1');
+  await expect(row.locator('.task-subcount')).toHaveText('0/1');
   await details.getByRole('combobox', { name: 'List' }).selectOption('Garden');
   await expect.poll(() => fs.readFileSync(file('Garden'), 'utf8')).toBe('# Garden\n\n- [ ] Paint the door (flagged)\n  White, not grey.\n  - [ ] Buy brushes\n');
   // The move writes the new list, then takes the task out of the old one: two writes, so wait for the second.
@@ -209,7 +209,7 @@ test('Scheduled sorts by day, a task has a right-click menu, and the keyboard mo
   await shell().getByRole('menuitem', { name: 'Flag', exact: true }).click();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Fix the tap (due ${day(0)}) (flagged)`);
   await tap.click({ button: 'right', position: { x: 4, y: 4 } });
-  await shell().getByRole('menuitem', { name: 'Due Tomorrow' }).click();
+  await shell().getByRole('menuitem', { name: 'Due tomorrow' }).click();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Fix the tap (due ${day(1)})`);
   await tap.click({ button: 'right', position: { x: 4, y: 4 } });
   await shell().getByRole('menuitem', { name: 'Move to Garden' }).click();
