@@ -31,7 +31,8 @@ promises or dates. Changes to it land in pull requests like any other doc.
 
 ## Next
 
-- **Polish the existing apps** against the HIG and against real workflows, app by app.
+- **Polish the existing apps** against Instrument and against real workflows, one round per app. The
+  [apps roadmap](reference/apps-roadmap.md) lists each app's state and its next round.
 - **Music as a full small studio**: more instruments (drum pads, a morph synth, a sampler), effects on every track,
   note tools and automation, built on the shared controls. The [Music roadmap](reference/music-roadmap.md) lists each
   one and its status.
