@@ -724,3 +724,119 @@ fn stopping_while_a_question_is_open_closes_it() {
 fn with_rule(system: &str) -> String {
     format!("{system}\n\n{}", untrusted::ENVELOPE_RULE)
 }
+
+fn tool_events(turn: &mut Turn) -> Vec<String> {
+    turn.drain_events()
+        .into_iter()
+        .filter_map(|e| match e {
+            AgentEvent::ToolCall { call_id, .. } => Some(format!("call {call_id}")),
+            AgentEvent::ToolResult { call_id, .. } => Some(format!("result {call_id}")),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn calls_run_while_the_model_is_still_writing_and_are_not_run_again_when_its_answer_is_in() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    allow_always(&mut w, "demo.remote");
+    let (c1, r1, c2) = (call("c1", "demo.echo", json!({ "text": "a" })), call("r1", "demo.remote", json!({ "n": 1 })), call("c2", "demo.echo", json!({ "text": "b" })));
+    let provider = ScriptedProvider::new(vec![calls("On it.", vec![c1.clone(), r1.clone(), c2.clone()]), text("Done.")]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "go", 1);
+    assert!(matches!(step, Step::CallModel(_)));
+
+    assert_eq!(w.engine.on_early_call(&mut turn, &mut w.core, c1), Step::Idle);
+    assert_eq!(w.runs.load(Ordering::SeqCst), 1, "the first call ran as soon as it was written");
+    assert_eq!(tool_events(&mut turn), ["call c1", "result c1"], "and the window saw it straight away");
+    assert_eq!(expect_run(w.engine.on_early_call(&mut turn, &mut w.core, r1)).0, "r1");
+    assert_eq!(w.engine.on_early_call(&mut turn, &mut w.core, c2), Step::Idle, "the next waits for the one the application is running");
+    assert_eq!(w.runs.load(Ordering::SeqCst), 1);
+    assert_eq!(w.engine.on_tool_result(&mut turn, &mut w.core, "r1", Ok("ok".to_owned())), Step::Idle);
+    assert_eq!(w.runs.load(Ordering::SeqCst), 2, "then it runs, in the order written");
+    assert_eq!(tool_events(&mut turn), ["call r1", "result r1", "call c2", "result c2"]);
+
+    let next = w.engine.on_model(&mut turn, &mut w.core, provider.complete(&request_of(&step), &mut |_| true));
+    assert_eq!(w.runs.load(Ordering::SeqCst), 2, "nothing runs twice");
+    assert_eq!(tool_events(&mut turn), Vec::<String>::new(), "nor is announced twice");
+    let ids: Vec<String> = tool_messages(&turn).into_iter().map(|t| t.0).collect();
+    assert_eq!(ids, ["c1", "r1", "c2"], "every call has its one result, in order, after the answer that made them");
+    assert!(matches!(&turn.messages()[turn.messages().len() - 4], Message::Assistant { tool_calls, .. } if tool_calls.len() == 3));
+    assert_eq!(drive(&mut w, &mut turn, &provider, next), Step::Done);
+}
+
+fn request_of(step: &Step) -> ChatRequest {
+    match step {
+        Step::CallModel(r) => r.clone(),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn a_call_that_would_ask_stops_early_running_and_everything_after_it_waits_for_the_answer() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.remote");
+    let (c1, r1) = (call("c1", "demo.echo", json!({ "text": "a" })), call("r1", "demo.remote", json!({})));
+    let (mut turn, _) = w.engine.start(&w.core, vec![], "go", 1);
+    assert_eq!(w.engine.on_early_call(&mut turn, &mut w.core, c1.clone()), Step::Idle);
+    assert_eq!(w.engine.on_early_call(&mut turn, &mut w.core, r1.clone()), Step::Idle, "allowed, but after one that asks: it keeps its place");
+    assert_eq!(w.runs.load(Ordering::SeqCst), 0);
+    assert!(w.core.pending().is_empty(), "nobody is asked while the model is still writing");
+    let step = w.engine.on_model(&mut turn, &mut w.core, calls("", vec![c1, r1]));
+    assert!(matches!(step, Step::AwaitApproval { .. }), "{step:?}");
+    assert_eq!(tool_events(&mut turn), ["call c1"]);
+}
+
+#[test]
+fn an_answer_that_arrives_while_a_call_is_still_running_waits_for_it() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    allow_always(&mut w, "demo.remote");
+    let (r1, c1) = (call("r1", "demo.remote", json!({})), call("c1", "demo.echo", json!({ "text": "a" })));
+    let (mut turn, _) = w.engine.start(&w.core, vec![], "go", 1);
+    expect_run(w.engine.on_early_call(&mut turn, &mut w.core, r1.clone()));
+    assert_eq!(w.engine.on_model(&mut turn, &mut w.core, calls("", vec![r1, c1])), Step::Idle);
+    assert_eq!(w.runs.load(Ordering::SeqCst), 0, "the later call keeps its place behind the running one");
+    let step = w.engine.on_tool_result(&mut turn, &mut w.core, "r1", Ok("ok".to_owned()));
+    assert!(matches!(step, Step::CallModel(_)), "{step:?}");
+    assert_eq!(w.runs.load(Ordering::SeqCst), 1);
+    let ids: Vec<String> = tool_messages(&turn).into_iter().map(|t| t.0).collect();
+    assert_eq!(ids, ["r1", "c1"]);
+}
+
+#[test]
+fn a_failed_answer_keeps_the_calls_that_already_ran_and_asks_the_model_again() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    let (mut turn, _) = w.engine.start(&w.core, vec![], "go", 1);
+    w.engine.on_early_call(&mut turn, &mut w.core, call("c1", "demo.echo", json!({ "text": "a" })));
+    let step = w.engine.on_model(&mut turn, &mut w.core, Err(ProviderError::Network("cut short".into())));
+    let request = request_of(&step);
+    assert!(matches!(&request.messages[request.messages.len() - 2], Message::Assistant { tool_calls, .. } if tool_calls[0].id == "c1"));
+    assert!(matches!(request.messages.last(), Some(Message::Tool { call_id, is_error: false, .. }) if call_id == "c1"));
+    assert_eq!(w.runs.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn stopping_while_the_model_writes_keeps_what_ran_and_closes_what_is_running() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    allow_always(&mut w, "demo.remote");
+    let (mut turn, _) = w.engine.start(&w.core, vec![], "go", 1);
+    w.engine.on_early_call(&mut turn, &mut w.core, call("c1", "demo.echo", json!({ "text": "a" })));
+    expect_run(w.engine.on_early_call(&mut turn, &mut w.core, call("r1", "demo.remote", json!({}))));
+    w.engine.cancel(&mut turn, &mut w.core);
+    let results = tool_messages(&turn);
+    assert_eq!(results.len(), 2);
+    assert!(!results[0].2 && results[1].2 && results[1].1 == "cancelled", "{results:?}");
+    assert!(matches!(&turn.messages()[1], Message::Assistant { tool_calls, .. } if tool_calls.len() == 2));
+}
+
+#[test]
+fn nothing_runs_early_in_ask_mode_unless_it_only_reads() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    let (mut turn, _) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { read_only: true, ..TurnSetup::default() });
+    assert_eq!(w.engine.on_early_call(&mut turn, &mut w.core, call("c1", "demo.echo", json!({}))), Step::Idle);
+    assert_eq!(w.runs.load(Ordering::SeqCst), 0);
+}

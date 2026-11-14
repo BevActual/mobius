@@ -292,6 +292,7 @@ fn main() -> ExitCode {
             }
             Inbox::Text { turn_id, text } => work.extend(agent.on_text(turn_id, &text)),
             Inbox::Switched { turn_id, model, why } => work.extend(agent.on_switched(turn_id, &model, &why)),
+            Inbox::CallReady { turn_id, call } => work.extend(agent.on_call_ready(&mut core, turn_id, call)),
             Inbox::ModelDone { turn_id, result } => work.extend(agent.on_model_done(&mut core, turn_id, result)),
             Inbox::Usage { turn_id, kind, usage } => work.extend(agent.on_usage(turn_id, kind, &usage)),
             Inbox::Verdict { turn_id, request_id, result } => work.extend(agent.on_review_done(&mut core, turn_id, request_id, result)),

@@ -308,6 +308,19 @@ impl Host {
         outs
     }
 
+    /// The model, still answering, finished writing a tool call: it runs now when it can. Not while the person has
+    /// control: then it waits for the whole answer, like everything else Mobius would do.
+    pub fn call_ready(&mut self, core: &mut Core, turn_id: u64, call: crate::message::ToolCall) -> Vec<Out> {
+        if self.active.get(&turn_id).is_none_or(|a| a.theirs) {
+            return Vec::new();
+        }
+        let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) else { return Vec::new() };
+        let step = engine.on_early_call(&mut active.turn, core, call);
+        let mut outs = Vec::new();
+        self.settle(active, step, &mut outs);
+        outs
+    }
+
     /// The reviewer model answered about question `request_id`.
     pub fn review_result(&mut self, core: &mut Core, turn_id: u64, request_id: u64, result: Result<Completion, ProviderError>) -> Vec<Out> {
         let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) else { return Vec::new() };

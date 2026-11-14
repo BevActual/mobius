@@ -43,8 +43,9 @@ export function marksOf(files: readonly string[]): TurnMarks {
   return { files: [...files], notes, lists, docs, sheets, slides, code, designs, boards, research, reading, databases, photos, songs, video, skills, calendars };
 }
 
-/** Read when a turn ends, when another conversation is shown, and after anything is put back. */
-export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
+/** Read when a turn ends, when another conversation is shown, and after anything is put back. While the turn runs, read
+ * again after each call it finishes (`progress` counts them), so a change is drawn when it is made, not at the end. */
+export function useTurnChanges(conversation: string, busy: boolean, progress = 0): TurnMarks {
   const [marks, setMarks] = useState<TurnMarks>(NONE);
   // Only the latest read counts: one made before the turn (on opening, say) can come back after the one made when it
   // ended on a busy computer, and would take every dashed edge away (canvas.spec:139 once saw that).
@@ -62,6 +63,12 @@ export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
     setMarks(result && 'files' in result && !(id && keptTurns().includes(id)) ? marksOf(result.files.filter((f) => !(id && fileKept(id, f)))) : NONE);
   }, [conversation]);
   useEffect(() => { if (!busy) void load(); }, [busy, load]);
+  // A burst of calls is one read, a moment after the last of them.
+  useEffect(() => {
+    if (!busy || progress === 0) return;
+    const later = setTimeout(() => void load(), 150);
+    return () => clearTimeout(later);
+  }, [busy, progress, load]);
   useEffect(() => {
     const kept = () => void load();
     window.addEventListener(KEPT_EVENT, kept);
