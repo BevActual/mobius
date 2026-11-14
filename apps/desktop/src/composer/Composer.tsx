@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import { ActionRow } from '../ActionsSlot';
 import { MobiusMark } from '../MobiusMark';
 import { withSteps, MAX_CONTEXT_ITEMS, MAX_CONTEXT_ITEM_CHARS, MAX_CONTEXT_TOTAL_CHARS, MAX_TYPED_CHARS, type AgentSettings, type ContextItem, type EffortChoice, type ModelCatalog, type ModelGroup } from '@mobius/shared';
 import { usePreferences } from '../usePreferences';
@@ -31,6 +32,8 @@ type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: Mode
 export interface ComposerProps {
   /** In an empty conversation: where three starters go, as plain text under the greeting, instead of chips here. */
   startersIn?: HTMLElement | null;
+  /** How the ideas show where they are placed: centred chips (an empty chat), or rows of the panel's Actions list. */
+  startersAs?: 'chips' | 'rows';
   /** While Mobius works, Enter puts the message in the queue above the box, sent when the turn ends. */
   onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
   /** Settings, Voice, for when nothing is set up to listen. */
@@ -74,7 +77,7 @@ export interface ComposerProps {
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, started = false, onOpenVoice, onQueue, hint }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, startersAs = 'chips', started = false, onOpenVoice, onQueue, hint }: ComposerProps) {
   // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
   const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
   const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
@@ -328,7 +331,11 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           )}
         </div>
       )}
-      {suggestions.length > 0 && startersIn && createPortal(
+      {suggestions.length > 0 && startersIn && startersAs === 'rows' && createPortal(
+        <>{suggestions.slice(0, 3).map((s) => <ActionRow key={s.label} label={s.label} onRun={() => void suggest(s)} />)}</>,
+        startersIn,
+      )}
+      {suggestions.length > 0 && startersIn && startersAs === 'chips' && createPortal(
         <div className="starters" role="group" aria-label="Suggestions">
           {suggestions.slice(0, 3).map((s) => (
             <button key={s.label} type="button" className="starter" onClick={() => void suggest(s)}>{s.label}</button>

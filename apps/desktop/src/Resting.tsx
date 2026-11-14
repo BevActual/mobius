@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { ConversationInfo } from '@mobius/shared';
 import { ReviewStrip } from './ReviewStrip';
 import type { HubTarget } from './search-hub';
@@ -35,11 +35,13 @@ export function RestingPanel({ conversations, active, onSelect, onOpenItem, idea
   ideas: ReactNode;
 }) {
   const r = restingOf(conversations, active);
+  const [changes, setChanges] = useState(false);
+  const waiting = r.needsYou.length + (r.latest && changes ? 1 : 0);
   return (
     <div className="resting">
       {(r.needsYou.length > 0 || r.latest) && (
         <section className="resting-part resting-waiting" aria-label="Waiting for you">
-          <h3 className="resting-title">Waiting for you</h3>
+          <h3 className="resting-title">Waiting for you{waiting > 0 && <span className="resting-count">{waiting}</span>}</h3>
           {r.needsYou.map((c) => (
             <button key={c.id} type="button" className="resting-row resting-needs" onClick={() => onSelect(c.id)} title={`Open ${c.title}`}>
               <span className="resting-row-title">{c.title}</span>
@@ -49,7 +51,7 @@ export function RestingPanel({ conversations, active, onSelect, onOpenItem, idea
           {/* The last chat's changes, with Keep and Discard; it says nothing when none are left. */}
           {r.latest && (
             <div className="resting-changes" data-from={r.latest.title}>
-              <ReviewStrip conversation={r.latest.id} busy={false} onOpenItem={onOpenItem} />
+              <ReviewStrip conversation={r.latest.id} busy={false} onOpenItem={onOpenItem} onShown={setChanges} />
             </div>
           )}
         </section>

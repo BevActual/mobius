@@ -12,6 +12,7 @@ import { ReviewStrip, TurnHistory } from './ReviewStrip';
 import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
+import { ActionsList, ActionsSlotContext, actionKey } from './ActionsSlot';
 import { modeOf } from './approval-modes';
 import { stampLabel, startsGroup } from './time-stamps';
 import { useSpeech } from './useSpeech';
@@ -584,6 +585,27 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const runs = toolRuns(state.items);
   const inRun = new Set([...runs].flatMap(([at, n]) => Array.from({ length: n - 1 }, (_, k) => at + k + 1)));
   const here = hereOf(surface);
+  // The resting panel's Actions list: an app's own actions go in first (Mail's Get to zero), then the ideas.
+  const [appSlot, setAppSlot] = useState<HTMLDivElement | null>(null);
+  const resting = state.items.length === 0 && configured && !desk && variant === 'panel';
+  const actionsHere = resting ? appSlot : null;
+  // Number keys pick an action while the panel has the focus and nothing is being typed.
+  useEffect(() => {
+    if (!resting) return undefined;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest('aside.chat')) return;
+      const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
+      const n = actionKey(event, typing);
+      if (n === null) return;
+      const row = target.closest('aside.chat')?.querySelectorAll<HTMLButtonElement>('.actions-list .action-row')[n - 1];
+      if (!row) return;
+      event.preventDefault();
+      row.click();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [resting]);
   const [hereOff, setHereOff] = useState<string | null>(null);
   const hereShown = here && here.key !== hereOff ? here : null;
   // A page in the browser is seen (it can be added from Add context) but does not go by itself.
@@ -674,7 +696,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
         </div>
       ) : (
         <>
-          {appCard}
+          <ActionsSlotContext.Provider value={actionsHere}>{appCard}</ActionsSlotContext.Provider>
           <div
             ref={log}
             className="chat-scroll messages"
@@ -692,7 +714,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
               ) : configured && variant === 'panel' ? (
                 // Beside an app, never empty: what waits for you, ideas for what is open, then earlier chats.
                 <RestingPanel conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onOpenItem={onOpenItem}
-                  ideas={<div className="empty empty-quiet"><div ref={setStarterSlot} className="empty-starters" /></div>} />
+                  ideas={<ActionsList title={here ? `For ${here.what}` : 'Ideas'} appSlot={setAppSlot} ideaSlot={setStarterSlot} />} />
               ) : (
                 <div className="empty">
                   <MobiusMark size={44} turning={!configured} className="empty-mark" />
@@ -797,6 +819,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {...(onOpenVoice ? { onOpenVoice } : {})}
             {...(hint ? { hint } : {})}
             startersIn={state.items.length === 0 ? starterSlot : null}
+            startersAs={resting ? 'rows' : 'chips'}
             started={state.items.length > 0}
             draft={draft}
             onDraft={setDraft}

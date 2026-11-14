@@ -185,7 +185,7 @@ async function suggestedInTurn(conversation: string): Promise<CalendarSuggestion
   return now.filter((x) => !before.has(x.id));
 }
 
-export function ReviewStrip({ conversation, busy, onOpenItem, since }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined; /** When the last turn was asked (ms): replies Mobius suggested in Mail since then are part of it. */ since?: number | undefined }) {
+export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined; /** When the last turn was asked (ms): replies Mobius suggested in Mail since then are part of it. */ since?: number | undefined; /** Told whether there is anything to keep or discard, for a count beside it. */ onShown?: ((shown: boolean) => void) | undefined }) {
   const [files, setFiles] = useState<string[]>([]);
   const [drafts, setDrafts] = useState<MailDraft[]>([]);
   const [suggested, setSuggested] = useState<CalendarSuggestion[]>([]);
@@ -273,6 +273,7 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since }: { convers
   const apps = [...appsOf(files), ...(drafts.length > 0 && !appsOf(files).includes('Mail') ? ['Mail'] : [])];
   const count = listed.length + suggested.length + drafts.length;
   const shown = !busy && count > 0;
+  useEffect(() => { onShown?.(shown); }, [shown, onShown]);
   const discardNow = useRef(undoAll);
   discardNow.current = undoAll;
   useEffect(() => {
