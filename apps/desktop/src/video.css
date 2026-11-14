@@ -124,3 +124,17 @@
   .video-progress > span { transition: none; }
   .video-clip-thumb[data-loading] { animation: none; }
 }
+
+/* A narrow window: Video's tools give way before they could spill over the right panel. The zoom goes first (Fit
+   still fits the cut), then undo and redo (Ctrl+Z and the Edit menu keep them), then the cut's tools (their keys and
+   the shot's menu keep them). Export stays. */
+.context-strip .ui-toolbar-slot:has(.video-zoom) { flex-shrink: 1; min-width: 0; overflow: hidden; }
+.video-tools { display: flex; align-items: center; min-width: 0; }
+.context-strip .video-tools > .ui-toolbar-group { flex: none; }
+@media (max-width: 1359px) { .context-strip .video-tools > .video-zoom-group { display: none; } }
+@media (max-width: 1179px) {
+  .context-strip .video-tools > .video-history { display: none; }
+  .context-strip .video-tools > .video-history + .ui-toolbar-group { margin-left: 0; padding-left: 0; }
+  .context-strip .video-tools > .video-history + .ui-toolbar-group::before { content: none; }
+}
+@media (max-width: 1099px) { .context-strip .video-tools > .video-cut-tools { display: none; } .context-strip .video-tools > .video-cut-tools + .ui-toolbar-group { margin-left: 0; padding-left: 0; } .context-strip .video-tools > .video-cut-tools + .ui-toolbar-group::before { content: none; } }

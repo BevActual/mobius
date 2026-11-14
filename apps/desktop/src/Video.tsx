@@ -511,16 +511,17 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   return (
     <section ref={page} className="video-page" aria-label="Video" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ToolbarControls label="Edit">
-        <div className="ui-toolbar-group">
+        <div className="video-tools">
+        <div className="ui-toolbar-group video-history">
           <button type="button" className="strip-btn" aria-label="Undo" title={`Undo (${MOD()}Z)`} disabled={history.current.past.length === 0} onClick={undo}><Icon d="M7.5 6 4 9.5 7.5 13M4.5 9.5H12a4 4 0 0 1 0 8h-2" /></button>
           <button type="button" className="strip-btn" aria-label="Redo" title={`Redo (${MOD()}Y)`} disabled={history.current.future.length === 0} onClick={redo}><Icon d="M12.5 6 16 9.5 12.5 13M15.5 9.5H8a4 4 0 0 0 0 8h2" /></button>
         </div>
-        <div className="ui-toolbar-group">
+        <div className="ui-toolbar-group video-cut-tools">
           <button type="button" className="strip-btn" aria-label="Split at the playhead" title="Split at the playhead (S)" disabled={!canSplit} onClick={split}><Icon d="M10 3v14M6 6l-3 4 3 4M14 6l3 4-3 4" /></button>
           <button type="button" className="strip-btn" aria-label="Duplicate shot" title={`Duplicate the chosen shot (${MOD()}D)`} disabled={!sel} onClick={() => sel && duplicate(sel.id)}><Icon d="M4 4h9v9H4zM7 7h9v9H7z" /></button>
           <button type="button" className="strip-btn" aria-label="Remove shot" title="Remove the chosen shot (Delete)" disabled={!sel} onClick={() => sel && remove(sel.id)}><Icon d="M5 6h10M8 6V4.5h4V6M6.5 6l.7 9.5h5.6l.7-9.5" /></button>
         </div>
-        <div className="ui-toolbar-group">
+        <div className="ui-toolbar-group video-zoom-group">
           <label className="video-zoom" title="Zoom the timeline">
             <Icon d="M4 10h12" />
             <input type="range" aria-label="Zoom" min={10} max={240} step={1} value={Math.round(pxPerSec)} onChange={(e) => setZoom(Number(e.target.value))} />
@@ -541,6 +542,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
               <button type="button" className="btn" onClick={() => stopExport.current?.abort()}>Stop</button>
             </span>
           )}
+        </div>
         </div>
       </ToolbarControls>
       <div ref={viewer} className="video-viewer" data-full={full || undefined}>
