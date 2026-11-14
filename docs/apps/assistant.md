@@ -26,9 +26,19 @@ The same conversation is available in every app in the right panel beside your w
 
 ## Agents
 
-Agents are named helpers for jobs you repeat. Open them from **Agents** at the foot of the rail; **+** beside the list makes a new one.
+Agents are named helpers for jobs you repeat. Open them from **Agents** at the foot of the rail, or type "Agents" in
+Ctrl+K. The sidebar lists your agents, then **From Mobius**: the runs of your agents waiting for you to review.
 
-- Each agent has a name, its instructions, a model, and how it starts: **When you ask**, or **On a schedule** (weekdays or every day, at a time; it still starts when you ask, too).
+![An agent's page in Mobius](../readme/apps/agents.png)
+
+- Choosing an agent opens **its page**. The toolbar shows its name, when it runs, and **Run now**, which starts a new
+  session with it and sends its instructions. The page has four parts: **What it does** (its instructions and model,
+  with **Edit**), **When it runs**, **What it can use** (from Settings › Safety) and **Recent runs**, its sessions,
+  each opening with one press.
+- **+** beside the list makes a new agent, on the same page.
+- Each agent has a name, its instructions, a model (type one, or pick from the models you have), and how it starts:
+  **When you ask**, or **On a schedule** (weekdays or every day, at a time; it still starts when you ask, too). A
+  schedule runs as the agent, with its instructions and model.
 - An agent's **More** button (⋯), or a right-click on it, has New session, Edit, Move up, Move down and Remove. Mobius
   itself is built in, so its menu only starts a session.
 - **Make an agent from a conversation**: its name comes from the conversation's title and its instructions from what

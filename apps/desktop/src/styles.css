@@ -462,10 +462,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .seg-btn[aria-selected="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
 .clist-tools { display: flex; gap: 2px; opacity: 0; }
 .clist-item:hover .clist-tools, .clist-item:focus-within .clist-tools { opacity: 1; }
-.botform { display: flex; flex-direction: column; gap: 8px; margin: 8px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-group); font-size: var(--fs-sm); }
-.botform label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); }
-.botform input, .botform textarea { padding: 5px 7px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; resize: vertical; }
-.botform-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
 .side-search { margin: 0 8px 6px; padding: 5px 9px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
 .clist-group { margin: 8px 6px 2px; }
@@ -494,53 +490,10 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .note-delete:focus-visible, .note-delete.confirm { opacity: 1; }
 .note-delete.confirm { padding: 0 var(--sp-2); background: var(--danger); color: var(--on-accent); font-size: var(--fs-sm); }
 .stage .note-editor { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
-.note-editor.empty { display: grid; place-items: center; }
 .note-empty { color: var(--muted); }
-.note-bar { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); height: 36px; padding: 0 var(--sp-5); font-size: var(--fs-sm); color: var(--muted); }
 .note-status[data-status="error"], .note-status[data-status="conflict"] { color: var(--warning); }
 .note-conflict { display: flex; align-items: center; gap: var(--sp-2); margin: 0 var(--sp-5) var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-group); background: var(--warning-wash); color: var(--ink); font-size: var(--fs-sm); }
 .note-conflict span { flex: 1; }
-.note-text { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: var(--sp-4) var(--sp-8) var(--sp-8); border: 0; outline: none; resize: none; background: transparent; color: var(--ink); font-size: var(--fs-lg); line-height: 1.65; }
-
-/* Notes: the page as formatted text, kept as Markdown. The Markdown view is the same column as a text box. */
-.note-format { gap: 2px; }
-.note-format .note-insert { width: auto; max-width: none; margin: 0; padding: 0; }
-.note-source[aria-pressed="true"] { background: var(--wash); color: var(--accent); }
-.note-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
-.note-scroll[hidden] { display: none; }
-.note-scroll > .note-text { flex: 1; min-height: 60vh; }
-.note-meta { width: 100%; max-width: 760px; margin: 0 auto; padding: var(--sp-4) var(--sp-8) 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--muted); font-size: var(--fs-sm); }
-.note-meta > span + span::before { content: "·"; margin-right: 10px; }
-.note-meta-tag { height: 20px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--wash); color: var(--accent); font-size: var(--fs-sm); }
-.note-meta-tag:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
-.note-paper { width: 100%; max-width: 760px; margin: 0 auto; flex: 1; }
-.note-page { min-height: 60vh; padding: var(--sp-3) var(--sp-8) var(--sp-8); outline: none; color: var(--ink); font-size: var(--fs-lg); line-height: 1.65; }
-.note-page:focus-visible { outline: none; }
-.note-page h1 { font-size: 26px; line-height: 1.2; margin: 0 0 0.5em; letter-spacing: -0.01em; }
-.note-page h2 { font-size: 19px; margin: 1.3em 0 0.35em; }
-.note-page h3 { font-size: 16px; margin: 1.1em 0 0.3em; }
-.note-page p { margin: 0 0 0.7em; }
-.note-page ul, .note-page ol { margin: 0 0 0.7em; padding-left: 1.4em; }
-.note-page li p, .note-page td p, .note-page th p { margin: 0; }
-.note-page blockquote { margin: 0 0 0.7em; padding-left: 14px; border-left: 3px solid var(--line-strong); color: var(--muted); }
-.note-page a { color: var(--accent); }
-.note-page code { font-family: var(--font-mono); font-size: 0.9em; padding: 1px 4px; border-radius: 4px; background: var(--soft); }
-.note-page pre { padding: 12px 14px; border-radius: 8px; background: var(--soft); overflow: auto; }
-.note-page pre code { padding: 0; background: none; }
-.note-page hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
-.note-page table { border-collapse: collapse; width: 100%; margin: 0 0 1em; table-layout: fixed; font-size: 14px; }
-.note-page th, .note-page td { border: 1px solid var(--line-strong); padding: 6px 8px; vertical-align: top; position: relative; }
-.note-page th { background: var(--panel); text-align: left; font-weight: 600; }
-.note-page .selectedCell::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--accent) 14%, transparent); pointer-events: none; }
-.note-page .is-empty::before { content: attr(data-placeholder); float: left; height: 0; color: var(--muted); pointer-events: none; }
-.note-page ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
-.note-page ul[data-type="taskList"] ul[data-type="taskList"] { padding-left: 1.4em; margin: 0; }
-.note-page ul[data-type="taskList"] > li { display: flex; align-items: flex-start; gap: 8px; }
-.note-page ul[data-type="taskList"] > li > label { flex-shrink: 0; margin-top: 0.3em; }
-.note-page ul[data-type="taskList"] > li > label input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
-.note-page ul[data-type="taskList"] > li > div { flex: 1; min-width: 0; }
-.note-page ul[data-type="taskList"] > li[data-checked="true"] > div > p { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
-.note-tag { padding: 0 3px; border-radius: 4px; background: var(--wash); color: var(--accent); }
 
 /* Settings > Providers */
 .providers { display: grid; gap: var(--sp-3); }
@@ -891,7 +844,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .btn:hover:not(:disabled) { background: var(--soft); }
 .btn.primary, .btn.danger { box-shadow: none; }
 .btn.link { box-shadow: none; }
-.tool, .plan-card, .question-card, .download, .dl-item, .backup, .botform { border-radius: 12px; }
+.tool, .plan-card, .question-card, .download, .dl-item, .backup { border-radius: 12px; }
 .tool { border: 0; box-shadow: inset 0 0 0 0.5px var(--hairline); }
 .tool[data-status="waiting"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 55%, transparent); background: color-mix(in srgb, var(--warning-wash) 60%, var(--panel)); }
 .approval { border-top-color: var(--hairline); }
@@ -1009,14 +962,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 @media (prefers-reduced-motion: reduce) { .msg.assistant[data-streaming="true"] > :last-child::after { animation: none; } }
 
 /* On-canvas actions: a capsule over text selected in a note. It floats on the top layer. */
-.note-editor { position: relative; }
-.note-insert { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; width: 100%; max-width: 760px; margin: 0 auto; padding: 8px var(--sp-8) 0; }
-.note-insert-btn { height: 26px; padding: 0 9px; border-radius: var(--radius-pill); color: var(--muted); font-size: var(--fs-sm); }
-.note-insert-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
-.note-insert-btn[aria-expanded="true"] { color: var(--accent); }
-.note-insert-btn[data-recording] { color: #fff; background: var(--danger); }
-.note-clip { display: flex; gap: 6px; margin-left: 6px; }
-.note-clip input { width: 240px; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--field); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
 .selection-bar { position: absolute; z-index: 5; display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-2); animation: app-in var(--dur-fast) var(--ease); }
 .selection-btn { height: 28px; padding: 0 12px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); white-space: nowrap; }
 .selection-btn:hover, .selection-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
@@ -1753,28 +1698,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .approval-head { margin: 0 0 2px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.02em; color: var(--mobius); }
 
 /* A bot's form: how it starts, and what it may touch. */
-.botform-starts { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); }
-.botform-label { color: var(--muted); }
-.botform-hint { font-size: var(--fs-xs); color: var(--muted); }
-/* How it starts: a segmented control, both halves the same width, as in Apple's pickers. */
-.botform-seg { display: flex; min-width: 0; }
-.botform-seg .seg-btn { flex: 1; min-width: 0; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.botform-seg .seg-btn[aria-checked="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
-.botform-when { display: flex; gap: 6px; }
-.botform-when select, .botform-when input { flex: 1; min-width: 0; height: 28px; padding: 0 7px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; }
-/* An agent row: the name and one line under it take the row; its actions are in the More menu. */
-.bot-row { flex-wrap: wrap; }
-.bot-row .clist-main { min-width: 0; }
-.bot-row .clist-title, .bot-row .clist-sub { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bot-row .clist-sub { display: block; }
-.bot-more { flex: none; width: 24px; height: 24px; margin-right: 4px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
-.bot-more svg { width: 16px; height: 16px; fill: currentColor; }
-.bot-row:hover .bot-more, .bot-more:focus-visible, .bot-more[aria-expanded="true"] { opacity: 1; }
-.bot-more:hover { background: var(--wash); color: var(--ink); }
-.bot-confirm { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; margin: 0 8px 8px; padding: 8px 10px; border-radius: 10px; background: var(--soft); font-size: var(--fs-sm); }
-.bot-confirm p { margin: 0; }
-.botform-touch { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
-.botform-touch b { color: var(--ink); font-weight: var(--fw-medium); }
 
 /* Sign in once per task: the card that asks, and the line while it lasts. */
 .signin-card { margin: var(--sp-2) 0; }
@@ -2457,8 +2380,6 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .composer-tools { flex-wrap: nowrap; }
 .composer-tools .pill { height: 24px; padding: 0 4px; background: none; box-shadow: none; color: var(--muted); font-weight: 400; }
 .composer-tools .pill:hover:not(:disabled), .composer-tools .pill[aria-expanded="true"] { background: var(--sel); color: var(--ink); }
-.composer-tools .pill .chev { display: none; }
-.composer-tools .pill-compact::before { content: "·"; margin-right: 6px; color: var(--faint); }
 .empty-quiet .starters { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; margin: 0; }
 /* Sidebar pieces as in the timeless mocks. */
 /* Quiet section headers: their tools (float, refresh, +) stay out of sight until the header is hovered or focused. */
@@ -2529,3 +2450,108 @@ body { font-variant-numeric: tabular-nums; }
 .resting-needs .resting-row-meta { color: var(--mobius); }
 .resting-changes:empty { display: none; }
 .resting-changes .review-strip { margin: 0; border: var(--hairline-w) dashed var(--mobius); }
+
+/* Composer menus: a two-line row (the name, then a grey line on what it means), with the check before it. */
+.popmenu-item.popmenu-two { align-items: flex-start; padding-top: var(--sp-2); padding-bottom: var(--sp-2); }
+.popmenu-two-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.popmenu-two .check { margin-top: 2px; }
+
+/* Composer row (Instrument): plus, Mode, Permission keep their words; the model sits at the right and gives way first. */
+.composer-tools { flex: 1 1 auto; }
+.composer-tools > .popmenu:has(> .pill-compact) { flex: none; }
+.composer-tools .pill-compact { min-width: 0; }
+.composer-tools .pill-compact .pill-text { overflow: visible; }
+.composer-tools > .popmenu:has(> .pill-model) { flex: 0 1 auto; min-width: 0; margin-left: auto; }
+.composer-tools .pill-model { max-width: 100%; }
+.composer-tools .pill-model-icon { display: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+/* In a narrow Mobius panel the model shows as a chip; its name is in the tooltip and the menu. */
+@container (max-width: 260px) { .composer-tools .pill-model .pill-text { display: none; } .composer-tools .pill-model-icon { display: block; } .composer-tools .pill.pill-model { min-width: 0; } }
+.composer-tools .pill { gap: 4px; }
+.composer-tools .pill .chev { display: block; }
+.chat .composer .composer-tools .pill-compact .pill-icon { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.popmenu-two .popmenu-hint { white-space: nowrap; }
+.composer-tools .popmenu-list:has(.popmenu-two) { min-width: max-content; }
+.popmenu-keys { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.composer-tools > .popmenu:first-child { flex: none; }
+
+/* Selected text uses the theme's selection grey: indigo is for Mobius alone. */
+::selection { background: var(--sel); color: inherit; }
+.composer-tools .pill.pill-model { min-width: 28px; }
+.composer-tools { gap: 2px; }
+.composer-tools .pill { gap: 3px; padding: 0 4px; }
+.composer-tools .pill-model .chev { display: none; }
+.chat .composer .composer-actions { gap: 2px; }
+.chat .composer { margin-left: 8px; margin-right: 8px; padding-left: 10px; padding-right: 4px; }
+.chat .composer .composer-bar .round { width: 26px; height: 26px; }
+.chat .composer .composer-bar .round.send, .chat .composer .composer-bar .round.stop { width: 28px; height: 28px; }
+/* Under 380px of panel the mic moves into the plus menu, so the model keeps its words (Instrument build sheet). */
+.popmenu-item.popmenu-dictate { display: none; }
+@container (max-width: 315px) {
+  .composer-tools .popmenu-item.popmenu-dictate { display: flex; }
+  .composer-actions .composer-mic:not([data-recording]) { display: none; }
+}
+.composer-tools .pill-model .chev { display: block; }
+.composer-tools .pill { padding: 0 3px; }
+.chat .composer .composer-bar { gap: 2px; }
+.composer-tools .pill-model .pill-text { flex: 0 1 auto; }
+@container (max-width: 315px) { .composer-tools .popmenu-item.popmenu-dictate { flex-direction: row; align-items: center; justify-content: space-between; text-align: start; } }
+.composer-tools .pill { gap: 2px; }
+.chat .composer .composer-tools .pill { padding: 0 3px; }
+/* While dictating, the recording readout takes the model's place; the row never runs under Stop. */
+.composer:has(.composer-mic[data-recording]) .composer-tools > .popmenu:has(> .pill-model) { display: none; }
+.composer-actions { position: relative; z-index: 1; }
+/* At the narrowest panel the permission shows as its shield alone (its name is in the tooltip and the menu). */
+@container (max-width: 240px) { .chat .composer .composer-tools .pill-compact:has(.pill-icon) .pill-text { display: none; } }
+/* The change block in the Mobius panel (Instrument review, 2026-11-14): one header line (what changed, trimmed, then
+   Keep all in ink), no lone dot, sentence-case kinds as plain grey words, and Discard all / Try another as quiet text
+   buttons on the left. */
+.chat .review-strip .review-dot { display: none; }
+.chat .review-strip .review-head { flex-wrap: nowrap; row-gap: 0; }
+.chat .review-strip .review-toggle { flex: 1 1 auto; min-width: 0; position: relative; }
+.chat .review-strip .review-toggle .review-summary { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Out of sight but still part of the button's name ("1 change in Notes · Review"). */
+.chat .review-strip .review-toggle > span:not(.review-summary) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.chat .review-strip .review-head .review-actions { flex: none; flex-basis: auto; flex-wrap: nowrap; }
+.chat .review-strip .review-head .review-actions .review-btn { flex: none; }
+.chat .review-strip .review-kind { padding: 0; background: none; color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-regular); text-transform: none; font-variant: normal; letter-spacing: 0; min-width: 4.5em; }
+.chat .review-strip .review-more { justify-content: flex-start; gap: var(--sp-1); }
+.chat .review-strip .review-more .review-actions { margin-left: 0; flex-basis: auto; }
+.chat .review-strip .review-more .review-btn { flex: none; background: none; color: var(--muted); padding: 0 var(--sp-2); }
+.chat .review-strip .review-more .review-btn:hover, .chat .review-strip .review-more .review-btn:focus-visible { background: var(--sel); color: var(--ink); }
+/* An app's own action beside the panel (Mail's Get to zero) is a row, as the ideas are, not a lone outlined button. */
+.chat .mail-plan { margin: var(--sp-1) var(--sp-2) 0; }
+.chat .mail-plan-start { display: flex; align-items: center; justify-self: stretch; justify-content: flex-start; text-align: left; height: var(--row-side); padding: 0 var(--sp-2); border: 0; background: none; box-shadow: none; font-weight: var(--fw-medium); }
+.chat .mail-plan-start:hover { background: var(--sel); }
+
+/* One summary per turn (Instrument, the Done state): "N changes" with a quiet note, a row per app with Show, then
+   quiet Discard all and Try another and one ink Keep all. */
+.turn-summary { margin: 4px 0 8px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--bg); font-size: var(--fs-md); animation: app-in var(--dur-med) var(--ease); }
+.chat:not(.full) .turn-summary { margin-left: 12px; margin-right: 12px; }
+.chat.full .turn-summary { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+.turn-summary-head { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-h); padding: 0 var(--sp-3); }
+.turn-summary-toggle { flex: 1 1 auto; min-width: 0; justify-content: flex-start; padding: 0; height: auto; background: none; font-weight: var(--fw-medium); color: var(--ink); }
+.turn-summary-toggle:hover, .turn-summary-toggle:focus-visible { background: none; text-decoration: underline; text-underline-offset: 3px; }
+.turn-summary-note { flex: none; color: var(--muted); font-size: var(--fs-sm); }
+.turn-summary-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--hairline); }
+.turn-summary-row { display: flex; align-items: center; gap: var(--sp-1); min-height: var(--row-h); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: 1px solid var(--hairline); }
+.turn-summary-app { flex: none; color: var(--ink); }
+.turn-summary-sep { flex: none; color: var(--faint); }
+.turn-summary-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; color: var(--ink); }
+.turn-summary-name.link-btn { color: var(--ink); }
+.turn-summary-name.link-btn:hover, .turn-summary-name.link-btn:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+.turn-summary-undo, .turn-summary-show { flex: none; display: inline-flex; align-items: center; gap: 2px; height: 26px; padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control, 6px); background: none; color: var(--muted); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.turn-summary-undo { opacity: 0; }
+.turn-summary-row:hover .turn-summary-undo, .turn-summary-undo:focus-visible { opacity: 1; }
+.turn-summary-undo:hover, .turn-summary-show:hover, .turn-summary-undo:focus-visible, .turn-summary-show:focus-visible { background: var(--sel); color: var(--ink); }
+.turn-summary-show svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.turn-summary-foot { display: flex; align-items: center; gap: var(--sp-1); padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-1); }
+.turn-summary-foot .review-btn { flex: none; height: 30px; padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control, 6px); background: none; color: var(--muted); font: inherit; font-weight: var(--fw-regular); cursor: pointer; }
+.turn-summary-foot .review-btn:hover:not(:disabled), .turn-summary-foot .review-btn:focus-visible { background: var(--sel); color: var(--ink); }
+.turn-summary-foot .review-btn[data-kind="keep"] { margin-left: auto; padding: 0 var(--sp-3); background: var(--ink); color: var(--bg); font-weight: var(--fw-medium); }
+.turn-summary-foot .review-btn[data-kind="keep"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 88%, var(--bg)); color: var(--bg); }
+.turn-summary .review-problem { margin: 0; padding: 0 var(--sp-3) var(--sp-2); }
+.resting .turn-summary { margin-left: 0; margin-right: 0; }
+.turn-summary-icon { flex: none; width: 14px; height: 14px; margin-right: var(--sp-1); fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.turn-summary-icon path[fill="currentColor"] { fill: var(--muted); }
+/* In the resting panel the summary lines up with the headings and rows around it. */
+.chat .resting .turn-summary { margin-left: 0; margin-right: 0; }

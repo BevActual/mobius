@@ -76,6 +76,14 @@ density: the window's, or compact for pro apps (the frame sets it). Values use t
 and open `http://127.0.0.1:5180/ui-sheet.html` (add `?density=compact` or `?theme=mid`; dark follows the system). It is
 not part of the built app. Add each new control to it (`src/ui-sheet/Sheet.tsx`).
 
+Music asked for these, and they work everywhere:
+
+- `Select inline` puts the name beside the box, for toolbars and bars.
+- `Select quiet` is text with chevrons, with a grey fill on hover and while open, for a toolbar's sub line.
+- `ParamGrid columns={1}` takes a lone cell such as Volume. `columns={3}` also works, and a `wide` ParamCell spans its row.
+- On a log scale (Cutoff, Attack, Release), the arrows move a twelfth of an octave and Shift+arrows half an octave, always at least one `step`.
+- `Swatches` picks a content colour: round swatches in a radio group, a ring on the chosen one, names as tooltips, and arrows to move. Use it for track, list and calendar colours.
+
 ### Shared objects
 
 A task, an event, an email, a file and a person look the same in every app (Instrument, "One app, not twenty"). Pass

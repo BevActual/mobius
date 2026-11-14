@@ -141,8 +141,9 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 - **Calendar** (`calendar/*.ics`): day, week and month; subscribed links and CalDAV accounts (iCloud, Fastmail,
   Nextcloud) beside the person's own calendars; Mobius's suggestions dashed with Decline and Add. Google and Microsoft
   sign-in need app registrations ([calendar sign-in](../reference/calendar-sign-in.md)).
-- **Notes** controls, in the toolbar: Aa (styles and marks in one panel), a checklist, a table or a link at the cursor, Record (up
-  to ten minutes, turned into words by the speech model and kept as a section) and Share; the Notes menu (⋯)
+- **Notes** controls, in the toolbar: Aa (styles and marks in one panel), Checklist, Link and + (Insert: a table, a picture
+  or file, Dictate (up to ten minutes, turned into words by the speech model and kept as a section) or a clipped web
+  page), with Share at the end as in Docs; Table appears while the cursor is in one, for its rows and columns; the Notes menu (⋯)
   has Version history, Clip a web page (a page's first paragraphs quoted with its link) and the Markdown view.
 - **Docs** (`docs/<folder>/*.md`): a page with formatting, an outline, writing tools, and the agent's changes as
   proposals in the page.

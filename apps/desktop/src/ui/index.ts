@@ -20,8 +20,8 @@ export { Button, IconButton, type ButtonKind, type ButtonProps, type IconButtonP
 export { TextField, Select, type TextFieldProps, type SelectChoice } from './Field';
 export { Switch, Checkbox } from './Switch';
 export { Segmented, type SegmentChoice } from './Segmented';
-export { Slider, ParamCell, ParamGrid, Meter, Progress, type SliderProps } from './Slider';
-export { Chip, Count, Avatar, Dot, StatusText, StatusLetter, initials, CONTENT_COLORS, type ContentColor } from './Bits';
+export { Slider, ParamCell, ParamGrid, Meter, Progress, logNudge, type SliderProps } from './Slider';
+export { Chip, Count, Avatar, Dot, StatusText, StatusLetter, Swatches, initials, CONTENT_COLORS, type ContentColor } from './Bits';
 export { ListRow } from './ListRow';
 export { ObjectRow, ObjectCard, ObjectChip, KindIcon, type Thing, type TaskThing, type EventThing, type MailThing, type FileThing, type PersonThing, type FileType } from './Objects';
 export { XYPad, type PadAxis, type PadPoint } from './XYPad';
