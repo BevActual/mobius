@@ -18,7 +18,8 @@ promises or dates. Changes to it land in pull requests like any other doc.
 
 - The workspace: the five zones (a slim rail of apps, each app's own sidebar, one toolbar row, the content and the
   right panel), the launcher, the app hub, split view, the desk,
-  Mobius in the right panel beside the work (with a Glance at what is open and numbered actions), and Little Mobius.
+  Mobius in the right panel beside the work (with a Glance at what is open and numbered actions), an inspector
+  column for each app's own panels, and Little Mobius.
 - The agent: modes (Agent, Ask, Plan, and app modes such as Triage in Mail) and permissions (Ask each time, Review changes, Apply changes, Auto), Keep / Discard / Try another in every app, Rewind to here, plans,
   questions, a message queue, memory, past-conversation search, skills, connectors (MCP client and server), schedules
   and Agents.
@@ -32,8 +33,7 @@ promises or dates. Changes to it land in pull requests like any other doc.
 
 ## Next
 
-- **The Mobius panel holds only Mobius.** An app's own panels (an outline, an inspector) move to a column between the
-  content and Mobius, and wide ones, such as Music's devices, to a dock along the bottom.
+- **A bottom dock** for wide panels, such as Music's devices. Other app panels already sit in the inspector.
 - **Polish the existing apps** against Instrument and against real workflows, one round per app. The
   [apps roadmap](reference/apps-roadmap.md) lists each app's state and its next round.
 - **Music as a full small studio**: more instruments (a morph synth, a sampler), playing from the computer keyboard,
