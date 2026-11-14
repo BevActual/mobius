@@ -12,7 +12,7 @@ const CONVERSATIONS: ConversationInfo[] = [
   { id: 'main:p2-plan', title: 'Plan the P2 build week', updated_ms: now - 12 * min, messages: 14, activity: 'needs_you', waiting: 1 },
   { id: 'main:p2-cells', title: 'Compare the cell quotes', updated_ms: now - 3 * hour, messages: 8, activity: 'idle', waiting: 0 },
   { id: 'scout:p2-sled', title: 'Find a sled slot', updated_ms: now - 40 * min, messages: 4, activity: 'idle', waiting: 0 },
-  { id: 'scout:p2-torque', title: 'Check the torque spec sheet', updated_ms: now - 2 * hour, messages: 0, activity: 'failed', waiting: 0 },
+  { id: 'scout:p2-torque', title: 'Check the torque spec sheet', updated_ms: now - 2 * hour, messages: 0, activity: 'failed', waiting: 0, retry: 'Check the torque spec sheet against the P2 build plan' },
   { id: 'main:hire-1', title: 'Shortlist for the build engineer', updated_ms: now - 26 * hour, messages: 6, activity: 'idle', waiting: 0 },
   { id: 'main:loose', title: 'Weekend in Porto', updated_ms: now - 50 * hour, messages: 5, activity: 'idle', waiting: 0 },
 ];

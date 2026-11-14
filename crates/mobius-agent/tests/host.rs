@@ -208,11 +208,13 @@ fn a_run_whose_last_turn_failed_says_so_until_the_next_turn() {
     assert_eq!(info.activity, Activity::Failed);
     assert_eq!(info.title, "Check the build queue");
     assert_eq!(info.messages, 0);
+    assert_eq!(info.retry.as_deref(), Some("Check the build queue"), "Try again sends the whole message once more");
     // The next turn clears it: working while it runs, then idle once it succeeds.
     let (t2, _) = host.send(&core, "run1", "Try again").unwrap();
     assert_eq!(by_id(&host, "run1").activity, Activity::Working);
     host.model_result(&mut core, t2, text("done"));
     assert_eq!(by_id(&host, "run1").activity, Activity::Idle);
+    assert_eq!(by_id(&host, "run1").retry, None);
     // A later failure marks it again, and keeps the title of what was kept.
     let (t3, _) = host.send(&core, "run1", "Once more").unwrap();
     host.model_result(&mut core, t3, Err(ProviderError::Http { status: 500, message: "boom".into() }));
@@ -497,7 +499,7 @@ fn conversations_are_listed_newest_first_with_a_title_from_the_first_message() {
     say_and_finish(&mut core, &mut host, "mid", "Short");
     let list = host.conversations();
     assert_eq!(list.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(), ["new", "mid", "old"]);
-    assert_eq!(list[2], ConversationInfo { id: "old".into(), title: "Plan the trip".into(), updated_ms: 100, messages: 2, activity: Activity::Idle, waiting: 0 });
+    assert_eq!(list[2], ConversationInfo { id: "old".into(), title: "Plan the trip".into(), updated_ms: 100, messages: 2, activity: Activity::Idle, waiting: 0, retry: None });
     assert!(list[0].title.chars().count() <= 61 && list[0].title.ends_with('\u{2026}'), "long titles are shortened: {}", list[0].title);
     assert_eq!(list[1].title, "Short");
 }

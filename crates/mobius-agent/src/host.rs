@@ -109,9 +109,16 @@ pub struct Host {
     effort: Option<String>,
     context_window: Option<usize>,
     compactions: HashMap<String, Compaction>,
-    /// Conversations whose last turn failed, with what that turn asked (its title when nothing was kept). Cleared by
-    /// the next turn, a rewind or a delete. Held in memory: after a restart the run reads as it was before it failed.
-    failed: HashMap<String, String>,
+    /// Conversations whose last turn failed, with what that turn asked. Cleared by the next turn, a rewind or a
+    /// delete. Held in memory: after a restart the run reads as it was before it failed.
+    failed: HashMap<String, Failure>,
+}
+
+/// A turn that failed: its title (what was asked, first line) and the whole message, to send again.
+#[derive(Debug, Clone)]
+struct Failure {
+    title: String,
+    asked: String,
 }
 
 /// What the window needs to list a conversation.
@@ -128,6 +135,10 @@ pub struct ConversationInfo {
     /// Questions this conversation is waiting for a person to answer.
     #[ts(type = "number")]
     pub waiting: usize,
+    /// When the last turn failed: what it asked, so Try again can send it once more.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub retry: Option<String>,
 }
 
 /// What a conversation is doing right now.
@@ -417,10 +428,10 @@ impl Host {
             .map(|id| {
                 let messages = self.history(id);
                 let title = match self.failed.get(id) {
-                    Some(asked) if messages.is_empty() => asked.clone(),
+                    Some(failure) if messages.is_empty() => failure.title.clone(),
                     _ => title_of(&messages),
                 };
-                ConversationInfo { id: id.clone(), title, updated_ms: self.updated.get(id).copied().unwrap_or_else(|| (self.clock)()), messages: messages.len(), activity: self.activity(id), waiting: self.waiting(id).len() }
+                ConversationInfo { id: id.clone(), title, updated_ms: self.updated.get(id).copied().unwrap_or_else(|| (self.clock)()), messages: messages.len(), activity: self.activity(id), waiting: self.waiting(id).len(), retry: self.failed.get(id).map(|f| f.asked.clone()) }
             })
             .collect();
         list.sort_by(|a, b| b.updated_ms.cmp(&a.updated_ms).then_with(|| a.id.cmp(&b.id)));
@@ -572,7 +583,8 @@ impl Host {
             }
             Step::Failed { .. } => {
                 // What it was asked stays visible as the run's title, so a failed first run is not "New conversation".
-                self.failed.insert(active.conversation.clone(), title_of(active.turn.messages()));
+                let asked = active.turn.messages().iter().rev().find_map(|m| match m { Message::User { text, .. } => Some(text.clone()), _ => None }).unwrap_or_default();
+                self.failed.insert(active.conversation.clone(), Failure { title: title_of(active.turn.messages()), asked });
                 self.updated.insert(active.conversation.clone(), (self.clock)());
                 self.histories.entry(active.conversation).or_default();
             }
