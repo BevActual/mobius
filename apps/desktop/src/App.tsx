@@ -674,7 +674,9 @@ export function App() {
   const [selectionMenu, setSelectionMenu] = useState(false);
   // A menu from the toolbar is open: the web page shows as a picture under it, as under the other menus.
   const [menuOpen, setMenuOpen] = useState(false);
-  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen);
+  // Browser: the address bar's suggestions are open, so the page is covered by a picture of it.
+  const [addressSuggesting, setAddressSuggesting] = useState(false);
+  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen || addressSuggesting);
   const [cover, setCover] = useState<{ url: string | null } | null>(null);
   useEffect(() => {
     if (!needCover) { setCover(null); return undefined; }
@@ -982,7 +984,7 @@ export function App() {
             ) : inTasks ? (
               <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
-          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} />
+          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />
             )}
             <CommentsGroup threads={openComments} onOpen={(t) => { if (t.doc === commentDoc) setCommentFocus(t.id); }} />
           </>
@@ -1520,6 +1522,7 @@ export function App() {
       notice={notice}
       setNotice={setNotice}
       onSubmit={submit}
+      onSuggesting={setAddressSuggesting}
       findOpen={findOpen}
       finding={finding}
       onCloseFind={() => setFindOpen(false)}
@@ -1594,7 +1597,6 @@ export function App() {
           : inDatabase ? databaseSub(databases) // Database: the table's database and columns
           : undefined,
         middle: <>
-        {inBrowser && !settingsOpen && browserChrome}
         </>,
         // Words and icons never share a capsule: the update notice stands on its own, before the icons.
         status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
@@ -1623,6 +1625,8 @@ export function App() {
       }}
     >
       <div className="body" style={layout}>
+        {/* An app's own controls go in the toolbar's middle from wherever the app is drawn (ui/AppFrame). */}
+        {inBrowser && !settingsOpen && browserChrome}
         {hasLeft && leftOpen && (
           <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
             <SidebarHead

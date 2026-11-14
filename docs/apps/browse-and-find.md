@@ -6,13 +6,18 @@ A full web browser, with Mobius able to read and work on pages for you.
 
 ![The Browser app in Mobius](../readme/apps/browser.png)
 
-- **Tabs** live in the sidebar, as in Safari and Arc. Pinned tabs sit in their own group above the rest; drag a tab to
-  reorder it or across the line to pin it. A small Mobius mark on a tab means Mobius is reading or using it; a hand means
-  you took it back.
+- **The toolbar** has back (Alt+Left), forward (Alt+Right) and reload (Ctrl+R), the address (Ctrl+L; the site in full
+  ink, the rest of the address in grey) and the star. Everything else about the page (Save to Reader, selected text,
+  pin to the sidebar) is in **⋯**. The address suggests open tabs, bookmarks and history as you type.
+- **The sidebar** holds New tab (Ctrl+T), a search for your tabs and bookmarks, then **Tabs**, **Pinned** and **From
+  Mobius**. Tabs live in the sidebar, as in Safari and Arc: each is a plain row whose buttons (pin, duplicate, close)
+  show when the pointer is on it, and right-clicking a tab gives the rest. Drag a tab to reorder it or across the line
+  to pin it. The Mobius mark shows only on tabs Mobius opened or is using; **From Mobius › Opened for research** shows
+  just those.
 - **A new tab** opens Mobius's start page: your favourites, other sites you visit most, and your reading list. It is drawn
   by Mobius, so none of it is shown to a web page.
 - **Bookmarks** with the star beside the address, **Find** (Ctrl+F), downloads and history. To pin a page to the
-  sidebar, right-click its tab and choose **Pin to the sidebar**.
+  sidebar, right-click its tab and choose **Pin to the sidebar**. **Reopen closed tab** is in the same menu (Ctrl+Shift+T).
 - **Mobius on the page.** Ask about the page, or select text and act on it. Opening a site the agent hasn't been allowed
   asks first, and clicking or typing on a page asks every time. When a page needs a sign-in, you sign in yourself.
 - Pages are shown by the system web view (WebView2) in the installer, or by Chromium (CEF) in a build from source that includes it.

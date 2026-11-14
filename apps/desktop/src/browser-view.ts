@@ -9,23 +9,26 @@ import type { BookmarkEntry, BrowserTabState, HistoryEntry } from '@mobius/share
 export const hostOf = (url: string): string => { try { return new URL(url).hostname.replace(/^www\./, '') || url; } catch { return url; } };
 
 /** An address as Safari shows it at rest: whether the connection is private, and the site's name alone. */
-export function addressParts(url: string): { secure: boolean; host: string } | null {
+export function addressParts(url: string): { secure: boolean; host: string; path: string } | null {
   if (!url || !/^(https?|file):/i.test(url)) return null;
   try {
     const u = new URL(url);
-    if (u.protocol === 'file:') return { secure: false, host: decodeURIComponent(u.pathname.split('/').pop() || 'File') };
-    return { secure: u.protocol === 'https:', host: u.hostname.replace(/^www\./, '') };
+    if (u.protocol === 'file:') return { secure: false, host: decodeURIComponent(u.pathname.split('/').pop() || 'File'), path: '' };
+    // The path after the site's name, without its first slash or a lone trailing one ("packs/60kwh"); empty on a site's home.
+    const path = decodeURIComponent(`${u.pathname}${u.search}`).replace(/^\//, '').replace(/\/$/, '');
+    return { secure: u.protocol === 'https:', host: u.hostname.replace(/^www\./, ''), path };
   } catch {
     return null;
   }
 }
 
-/** A steady colour for a site's letter tile, picked from its name so it is the same every time. */
-const HUES = [211, 262, 330, 4, 28, 142, 174, 190, 291, 45];
-export function tileHue(site: string): number {
+/** The shared content palette (tokens.css): a site's letter tile takes one of these, never a colour of its own. */
+const TILE_COLOURS = ['amber', 'yellow', 'green', 'teal', 'blue', 'violet', 'pink', 'coral'] as const;
+/** A steady colour for a site's letter tile, from the shared palette and picked from its name, so it is the same every time. */
+export function tileColour(site: string): string {
   let h = 0;
   for (const ch of site) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return HUES[h % HUES.length]!;
+  return `var(--c-${TILE_COLOURS[h % TILE_COLOURS.length]!})`;
 }
 /** The letter a site's tile shows. */
 export const tileLetter = (site: string): string => (site.replace(/^[^a-z0-9]+/i, '')[0] ?? '?').toUpperCase();
@@ -76,4 +79,12 @@ export function dropPlan(tabs: readonly BrowserTabState[], dragId: string, overI
   const was = tabs.findIndex((t) => t.id === dragId);
   const unchanged = (dragged.pinned === true) === pinned && (at === was);
   return unchanged ? null : { pinned, index: at };
+}
+
+/** Whether a tab or bookmark matches the sidebar's search: every word in its title or address, any case. */
+export function sidebarMatch(query: string, title: string, url: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const text = `${title} ${url.replace(/^https?:\/\/(www\.)?/, '')}`.toLowerCase();
+  return words.every((w) => text.includes(w));
 }
