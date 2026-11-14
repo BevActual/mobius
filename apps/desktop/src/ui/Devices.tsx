@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type WheelEvent } from 'react';
 import { Switch } from './Switch';
-import { fromPosition, logNudge, toPosition } from './Slider';
+import { fromPosition, logNudge, toPosition, useGlideMany } from './Slider';
 import { ARROW, HandleDot, clamp, hertzLabel, useGraphDrag, type Handle } from './Instrument';
 import { afterPaint } from './frame';
 
@@ -182,17 +182,27 @@ const signed = (db: number) => `${db > 0 ? '+' : db < 0 ? '−' : ''}${Math.abs(
  * octave, 3 dB), Alt+Up and Alt+Down set Q. Two quick presses on a dot, or Home, put it back to `reset`. The chosen
  * band's own shape shows under the whole curve, and every band's values read underneath.
  */
-export function EqGraph({ label = 'EQ', bands, onChange, onCommit, reset, disabled, className }: {
+export function EqGraph({ label = 'EQ', bands, onChange: change, onCommit, reset, proposed, disabled, className }: {
   label?: string;
   bands: readonly EqBand[];
   onChange: (index: number, band: EqBand) => void;
   /** Called once a drag is let go. */
   onCommit?: (index: number, band: EqBand) => void;
   reset?: readonly EqBand[];
+  /** Per band, the settings Mobius moved that nobody has kept yet: they read in indigo, the band's dot and the curve dashed. */
+  proposed?: readonly (Partial<Record<'freq' | 'gain' | 'q', boolean>> | undefined)[];
   disabled?: boolean;
   className?: string;
 }) {
   const [chosen, setChosen] = useState(0);
+  // Every band's frequency (in octaves), gain and Q glide together when they change from outside.
+  const own = useRef<readonly number[] | null>(null);
+  const flat = (list: readonly EqBand[]) => list.flatMap((b) => [Math.log(b.freq), b.gain, b.q]);
+  const onChange = (i: number, band: EqBand) => { own.current = flat(bands.map((b, j) => (j === i ? band : b))); change(i, band); };
+  const g = useGlideMany(flat(bands), own);
+  const drawnBands = bands.map((b, i) => ({ ...b, freq: Math.exp(g[i * 3]!), gain: g[i * 3 + 1]!, q: g[i * 3 + 2]! }));
+  const bandProposed = (i: number) => { const x = proposed?.[i]; return !!x && !!(x.freq || x.gain || x.q); };
+  const anyProposed = bands.some((_, i) => bandProposed(i));
   const alt = useRef<{ y: number; q: number } | null>(null);
   const tidy = (b: EqBand): EqBand => ({
     ...b,
@@ -237,17 +247,20 @@ export function EqGraph({ label = 'EQ', bands, onChange, onCommit, reset, disabl
     }
     return `M ${pts.join(' L ')}`;
   };
-  const whole = curve((hz) => eqLevel(bands, hz));
-  const one = bands[chosen] ? curve((hz) => bandLevel(bands[chosen]!, hz)) : '';
-  const handles: Handle<`b${number}`>[] = bands.map((b, i) => ({
-    key: `b${i}`, x: toPosition(b.freq, EQ_MIN, EQ_MAX, 'log'), y: gainY(b.type === 'peak' || b.on === false ? b.gain : b.gain / 2),
-    label: `Band ${i + 1}, ${EQ_TYPE_NAMES[b.type]}`, text: `${hertzLabel(b.freq)}, ${signed(b.gain)}, Q ${b.q.toFixed(2)}${b.on === false ? ', off' : ''}`,
-    now: b.freq, min: EQ_MIN, max: EQ_MAX, mark: String(i + 1),
-  }));
+  const whole = curve((hz) => eqLevel(drawnBands, hz));
+  const one = drawnBands[chosen] ? curve((hz) => bandLevel(drawnBands[chosen]!, hz)) : '';
+  const handles: Handle<`b${number}`>[] = bands.map((b, i) => {
+    const d = drawnBands[i]!;
+    return {
+      key: `b${i}`, x: toPosition(d.freq, EQ_MIN, EQ_MAX, 'log'), y: gainY(b.type === 'peak' || b.on === false ? d.gain : d.gain / 2),
+      label: `Band ${i + 1}, ${EQ_TYPE_NAMES[b.type]}`, text: `${hertzLabel(b.freq)}, ${signed(b.gain)}, Q ${b.q.toFixed(2)}${b.on === false ? ', off' : ''}`,
+      now: b.freq, min: EQ_MIN, max: EQ_MAX, mark: String(i + 1), proposed: bandProposed(i),
+    };
+  });
   const zero = 100 - gainY(0) * 100;
   const changed = (i: number) => { const r = reset?.[i], b = bands[i]!; return !!r && (r.freq !== b.freq || r.gain !== b.gain || r.q !== b.q); };
   return (
-    <div className={className ? `ui-graph ui-eq ${className}` : 'ui-graph ui-eq'} role="group" aria-label={label} data-disabled={disabled || undefined}>
+    <div className={className ? `ui-graph ui-eq ${className}` : 'ui-graph ui-eq'} role="group" aria-label={label} data-proposed={anyProposed || undefined} data-disabled={disabled || undefined}>
       <div className="ui-graph-surface" data-held={held || undefined}>
         <div className="ui-graph-plot" {...surfaceProps}>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -266,12 +279,12 @@ export function EqGraph({ label = 'EQ', bands, onChange, onCommit, reset, disabl
         </div>
       </div>
       <dl className="ui-graph-readout ui-eq-readout">
-        {bands.map((b, i) => (
+        {drawnBands.map((b, i) => (
           <div key={i} data-changed={changed(i) || undefined} data-chosen={i === chosen || undefined} data-off={b.on === false || undefined}>
             <dt>{i + 1} · {EQ_TYPE_NAMES[b.type]}</dt>
-            <dd>{hertzLabel(b.freq)}</dd>
-            <dd>{signed(b.gain)}</dd>
-            <dd>Q {b.q.toFixed(2)}</dd>
+            <dd data-proposed={proposed?.[i]?.freq || undefined}>{hertzLabel(Math.round(b.freq))}</dd>
+            <dd data-proposed={proposed?.[i]?.gain || undefined}>{signed(b.gain)}</dd>
+            <dd data-proposed={proposed?.[i]?.q || undefined}>Q {b.q.toFixed(2)}</dd>
           </div>
         ))}
       </dl>
