@@ -113,6 +113,7 @@ const ICONS = {
   stop: 'M5.5 5.5h9v9h-9z',
   loop: 'M4 9V8a3 3 0 0 1 3-3h8l-2.2-2.2M16 11v1a3 3 0 0 1-3 3H5l2.2 2.2',
   keys: 'M3.5 5.5h13v9h-13zM7.5 5.5v5M10 10.5v4M12.5 5.5v5',
+  quantize: 'M4 4v12M10 4v12M16 4v12M4 10h6',
 };
 
 /** A track's notes as clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while Mobius proposes them. */
@@ -1106,7 +1107,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                 {drumView === 'steps' && !drums && <span className="studio-step-key">{song.key}</span>}
                 {drumView === 'steps' && !drums && <Select inline hideLabel label="Range" value={String(octave)} choices={OCTAVE_CHOICES} onChange={(o) => setStepOct((all) => ({ ...all, [track.id]: Number(o) }))} />}
                 {!drums && <Select inline label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
-                {!(drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, span))}>Quantize</Button>}
+                {!(drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" icon={<Icon d={ICONS.quantize} />} onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, span))}>Quantize</Button>}
                 <span className="studio-gap" />
                 {velocity !== null && !(drumView === 'steps') ? (
                   <>
