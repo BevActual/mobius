@@ -2619,3 +2619,23 @@ body { font-variant-numeric: tabular-nums; }
 .resting-needs .resting-row-meta { color: var(--mobius); }
 .resting-changes:empty { display: none; }
 .resting-changes .review-strip { margin: 0; border: var(--hairline-w) dashed var(--mobius); }
+
+/* The change block in the Mobius panel (Instrument review, 2026-11-14): one header line (what changed, trimmed, then
+   Keep all in ink), no lone dot, sentence-case kinds as plain grey words, and Discard all / Try another as quiet text
+   buttons on the left. */
+.chat .review-strip .review-dot { display: none; }
+.chat .review-strip .review-head { flex-wrap: nowrap; row-gap: 0; }
+.chat .review-strip .review-toggle { flex: 1 1 auto; min-width: 0; }
+.chat .review-strip .review-toggle .review-summary { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.chat .review-strip .review-toggle > span:not(.review-summary) { display: none; }
+.chat .review-strip .review-head .review-actions { flex: none; flex-basis: auto; flex-wrap: nowrap; }
+.chat .review-strip .review-head .review-actions .review-btn { flex: none; }
+.chat .review-strip .review-kind { padding: 0; background: none; color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-regular); text-transform: none; font-variant: normal; letter-spacing: 0; min-width: 4.5em; }
+.chat .review-strip .review-more { justify-content: flex-start; gap: var(--sp-1); }
+.chat .review-strip .review-more .review-actions { margin-left: 0; flex-basis: auto; }
+.chat .review-strip .review-more .review-btn { flex: none; background: none; color: var(--muted); padding: 0 var(--sp-2); }
+.chat .review-strip .review-more .review-btn:hover, .chat .review-strip .review-more .review-btn:focus-visible { background: var(--sel); color: var(--ink); }
+/* An app's own action beside the panel (Mail's Get to zero) is a row, as the ideas are, not a lone outlined button. */
+.chat .mail-plan { margin: var(--sp-1) var(--sp-2) 0; }
+.chat .mail-plan-start { display: flex; align-items: center; justify-self: stretch; justify-content: flex-start; text-align: left; height: var(--row-side); padding: 0 var(--sp-2); border: 0; background: none; box-shadow: none; font-weight: var(--fw-medium); }
+.chat .mail-plan-start:hover { background: var(--sel); }
