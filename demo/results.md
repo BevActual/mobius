@@ -7,8 +7,8 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
-| Home and Tasks: Plan my day (#293) | 14 Nov, 22ff2bd (#307), chip | Sonnet 5.5 | 39 s to last block, 54 s to end | Content yes, time no | Slower than before |
-| Mail: Triage (#291) | 14 Nov, 22ff2bd (#307), after Plan my day | Sonnet 5.5 | 41 s to last draft, 62 s to end | Content nearly, time no | Second Priya draft; extras not asked for |
+| Home and Tasks: Plan my day (#293, #334) | 14 Nov, 42bae04 + #339, chip | Sonnet 5.5 | 29.2 / 37.4 / 48.9 s | Content nearly, time no | No Focus hour; moves a task due tomorrow to today |
+| Mail: Triage (#291, #334) | 14 Nov, 42bae04 + #339, after Plan my day, no New chat | Sonnet 5.5 | 35.1 / 38.1 / 51.4 s | Content nearly, time no | 36 of 40 covered; Veltro draft commits; unasked meeting and task |
 | Calendar: Find a time with… (local, after #289) | 14 Nov, 62b8354, typed (suggestion read "Find time for…") | Sonnet 5.5 | 17.6 s, nothing dashed | No | 8 slots, none dashed, no invite drafted |
 | Notes: Meeting notes (#333) | 14 Nov, 13c5b55 (#333), chips | Sonnet 5.5 | 17.0 / 17.5 / 17.0 s; to-dos 23.3 / 24.1 s | Content nearly, time no | Extra "jigs" action; "end of week" left undated; spares wrong on main's older seed |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
@@ -19,6 +19,18 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Code: a failing test in Glance (local) | 14 Nov, a99e095, Glance card | Sonnet 5.5 | 14.7 s to passing | Yes | Explanation twice; raw prompt shown as the person's turn |
 
 ## Home and Tasks: Plan my day (#293)
+
+### Round 11 (42bae04 with #339's timings, main's seed, Saturday)
+
+- **Time:** first real thing (a tasks.update) 29.2 s, first dashed block 33.9 s, last (the draft) 37.4 s, Keep about
+  48.9 s, end 47.6 s.
+- **Where it goes (turn timings):** three model rounds take 38.9 s, of which Claude Code start-up is 3.1 s. Round 2 writes
+  all 13 calls in one 22.4 s generation (3,008 tokens out); the app's tools then run one at a time at 0.4 to 1.0 s each
+  (8.2 s in all); the closing reply round adds 10.2 s. Printout: `mobius-moments-shots\round11\P-turn-timings.txt`.
+- **What appeared:** six blocks from 11:40 to 17:45, local time, no overlaps, all before 18:00; overdue tasks timed; one
+  reply (Priya); "Can wait" in one line.
+- **Weak:** no Focus hour ("the afternoon is too full", with 4 h 27 min free); "Pay the Veltro deposit", due tomorrow,
+  was moved to today.
 
 ### Round 10 (22ff2bd, back to back)
 
@@ -54,6 +66,20 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 - **Screenshot:** Andrew's PC, `mobius-moments-shots\round3\` (A-planday-panel.txt).
 
 ## Mail: Triage (#291)
+
+### Round 11 (42bae04 with #339's timings, after Plan my day, no New chat)
+
+- **Time:** first real thing (a tasks.add) 35.1 s, first draft 36.5 s, last draft 38.1 s, Keep about 51.4 s, end 50.3 s.
+- **Where it goes (turn timings):** four model rounds take 46.9 s, of which start-up is 3.5 s; app tools 1.5 s. The first
+  word only appears in the last round, so nothing shows for 35 s. Printout: `mobius-moments-shots\round11\T-turn-timings.txt`.
+- **Fixed since round 10:** Triage showed in Mail's panel straight after Plan my day (#332); no second Priya draft; Archive
+  in one line (22 messages); amounts as the mail writes them; nothing for other people; nothing sent or archived; three
+  approval cards, each naming the right email.
+- **Weak:**
+  1. Covers 36 of 40 (Reply 6, Later 8, Archive 22); Dana's jigs, the train, the sign-in alert and a GitHub issue unnamed.
+  2. The Veltro draft commits to the order and the deposit, a decision that is Andrew's.
+  3. The brake test plan task is due tomorrow; Priya asked for the end of the week.
+  4. Not asked for: a "Re-plan test order with Sam" event on Monday, and an Inbox task for Finance.
 
 ### Round 10 (22ff2bd, back to back)
 
