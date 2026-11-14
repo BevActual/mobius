@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, KIT_DEFAULTS, audible, type Instrument, type KitSound, type Song, type Sound } from './song-format';
+import { BEATS_PER_BAR, KIT_DEFAULTS, audible, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
 import { songBeat, type Cycle } from './studio-view';
 
 /**
@@ -173,6 +173,79 @@ function tick(ctx: AudioContext, out: AudioNode, at: number, accent: boolean) {
   osc.stop(at + 0.06);
 }
 
+/** A room's ring: noise fading over `size` seconds, its highs fading faster as `damp` goes up. Made once per size. */
+function impulse(ctx: AudioContext, size: number, damp: number): AudioBuffer {
+  const length = Math.max(1, Math.round(ctx.sampleRate * size));
+  const buf = ctx.createBuffer(2, length, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buf.getChannelData(ch);
+    let low = 0;
+    for (let i = 0; i < length; i++) {
+      const fade = (1 - i / length) ** 3;
+      const white = Math.random() * 2 - 1;
+      // A one-pole low-pass, closing as the tail goes on, softens the highs.
+      const k = 1 - damp * Math.min(0.95, i / length + 0.2);
+      low += k * (white - low);
+      data[i] = low * fade;
+    }
+  }
+  return buf;
+}
+
+/**
+ * A track's effects, in order, from `input` to the returned output. An effect switched off is left out. The delay's
+ * echoes are timed to the song's beat.
+ */
+export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonly Effect[], secondsPerBeat: number): AudioNode {
+  let at: AudioNode = input;
+  for (const e of fx) {
+    if (!e.on) continue;
+    if (e.kind === 'eq') {
+      const low = ctx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 120; low.gain.value = e.low;
+      const mid = ctx.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = e.midFreq; mid.Q.value = 1; mid.gain.value = e.mid;
+      const high = ctx.createBiquadFilter(); high.type = 'highshelf'; high.frequency.value = 6000; high.gain.value = e.high;
+      at.connect(low); low.connect(mid); mid.connect(high); at = high;
+    } else if (e.kind === 'compressor') {
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = e.threshold; comp.ratio.value = e.ratio; comp.attack.value = e.attack; comp.release.value = e.release; comp.knee.value = 6;
+      const makeup = ctx.createGain(); makeup.gain.value = 10 ** (e.makeup / 20);
+      at.connect(comp); comp.connect(makeup); at = makeup;
+    } else {
+      // Delay and reverb: the dry sound goes straight on, the wet one is blended in by `mix`.
+      const out = ctx.createGain();
+      const dry = ctx.createGain(); dry.gain.value = 1 - e.mix * 0.5;
+      const wet = ctx.createGain(); wet.gain.value = e.mix;
+      at.connect(dry); dry.connect(out);
+      if (e.kind === 'delay') {
+        const delay = ctx.createDelay(4); delay.delayTime.value = Math.min(4, e.time * secondsPerBeat);
+        const back = ctx.createGain(); back.gain.value = e.feedback;
+        at.connect(delay); delay.connect(back); back.connect(delay); delay.connect(wet);
+      } else {
+        const room = ctx.createConvolver(); room.buffer = impulse(ctx as AudioContext, e.size, e.damp);
+        at.connect(room); room.connect(wet);
+      }
+      wet.connect(out);
+      at = out;
+    }
+  }
+  return at;
+}
+
+/** A track's way into the mix: its volume, then its effects, then its place left to right. Notes connect to `input`. */
+function trackStrip(ctx: AudioContext, t: Track, master: AudioNode, secondsPerBeat: number): AudioNode {
+  const input = ctx.createGain();
+  input.gain.value = t.volume;
+  let out = effectChain(ctx, input, t.fx ?? [], secondsPerBeat);
+  if (t.pan) {
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = t.pan;
+    out.connect(pan);
+    out = pan;
+  }
+  out.connect(master);
+  return input;
+}
+
 let sampler: AudioContext | null = null;
 /** One note heard at once, as a key is pressed or a note is put on the roll. */
 export function previewNote(instrument: Instrument, pitch: number, velocity = 0.8, seconds = 0.35, sound?: Sound, kit?: KitSound): void {
@@ -203,6 +276,8 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
   const cycle = loop && loop.to > loop.from ? { from: Math.max(0, loop.from), to: Math.min(total, loop.to) } : null;
   const start = ctx.currentTime + 0.08;
   const tracks = audible(song);
+  // Each track's volume, effects and pan are made once, so a delay's echoes and a reverb's tail carry on across beats.
+  const strips = new Map(tracks.map((t) => [t.id, trackStrip(ctx, t, master, spb)]));
   // Time is counted in beats played since Play; songBeat() turns that into where in the song it is.
   let scheduled = 0;
   let stopped = false;
@@ -225,14 +300,7 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
         }
       }
       for (const t of tracks) {
-        const out = ctx.createGain();
-        out.gain.value = t.volume;
-        if (t.pan) {
-          const pan = ctx.createStereoPanner();
-          pan.pan.value = t.pan;
-          out.connect(pan);
-          pan.connect(master);
-        } else out.connect(master);
+        const out = strips.get(t.id)!;
         for (const n of t.notes) {
           if (n.start < s - 1e-9 || n.start >= s + span - 1e-9) continue;
           // A note that runs past the loop's end is cut there, so it does not ring over the next time round.

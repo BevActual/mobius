@@ -176,6 +176,22 @@ test('a track is panned and a drum kit is tuned in the Device panel, kept in the
   await expect(tune).toHaveAttribute('aria-valuetext', '+1 st');
 });
 
+test('effects are added to a track, switched off and moved, kept in the song', async () => {
+  fs.writeFileSync(file(), JSON.stringify(SONG));
+  await start();
+  const device = shell().getByRole('region', { name: 'Device' });
+  for (const name of ['Delay', 'EQ']) {
+    await device.getByRole('button', { name: 'Add effect' }).click();
+    await shell().getByRole('menuitem', { name, exact: true }).click();
+  }
+  await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['delay', 'eq']);
+  await device.getByRole('button', { name: 'Move EQ up' }).click();
+  await device.getByRole('switch', { name: 'Delay on' }).click();
+  await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string; on: boolean }[] }).fx?.map((e) => `${e.kind} ${e.on}`)).toEqual(['eq true', 'delay false']);
+  await device.getByRole('button', { name: 'Remove Delay' }).click();
+  await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['eq']);
+});
+
 test('velocity is drawn under the roll and dragged per note; the track list fits its tracks and resizes', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();

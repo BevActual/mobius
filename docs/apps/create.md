@@ -89,7 +89,7 @@ A small studio for writing songs as notes.
 
 - **Songs** in the sidebar, newest first, with **Sounds** below them: pick Drums, Bass, Piano, Pad or Lead to add a
   track of it to the open song. **From Mobius** lists songs with a part Mobius wrote that you have not kept yet. The
-  last song you had open opens when you come back.
+  last song you had open opens when you come back. Right-click a song to delete it; Music asks first.
 - **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play (Space), Stop
   (twice, or Enter, to go back to the start), the position and tempo in mono figures, the meter and Loop (L).
 - **Tracks** are numbered rows in compact sizes: the number in the track's colour, the name and instrument on the left,
@@ -110,6 +110,10 @@ A small studio for writing songs as notes.
   is a labelled cell with its value in mono and a slider under it. Arrows nudge it, Shift goes further, and
   double-click puts it back. Everything is saved in the song (`pan`, `sound`, `kit`), so Mobius can read and set it
   too.
+- **Effects** follow the sound in the Device panel. **Add effect** puts an EQ (Low, Mid and its frequency, High), a
+  Compressor (Threshold, Ratio, Attack, Release, Makeup), a Delay (a time in notes, Feedback, Mix) or a Reverb (Size,
+  Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, arrows to move it up or down the
+  chain, and a button to remove it. They are saved in the song as `fx`.
 - **The notes editor** opens under the tracks when you double-click a clip: draw, move and stretch notes, select with
   a box, snap to the grid. Drums get a tall row per drum, named in full. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
