@@ -151,7 +151,7 @@ notes for good, so the file always shows what you hear.
 | Feature | What it does | Status |
 | --- | --- | --- |
 | Ask for a part | Mobius writes notes for a track; Keep, Discard or Try another. | Have |
-| Ask for a sound | Mobius sets a track's sound, kit and effects from words like "warmer" or "more space". | Next |
+| Ask for a sound | Mobius sets a track's sound, kit and effects from words like "warmer" or "more space". | Building (the review names each setting moved and opens the track's devices) |
 | Explain a song | Mobius says what a song does: key, chords, sections. | Next |
 | Sound library | Saved sounds and effects with tags, found by words or by being like another sound. | Later |
 | Map controls | Moving any setting with a hardware knob. | Later |

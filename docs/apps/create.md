@@ -157,6 +157,10 @@ A small studio for writing songs as notes.
 - **Loop**: drag along the top of the ruler to loop some bars. Right-click the ruler (or press its top twice quickly)
   to loop the whole song again; its menu also turns the metronome on (K), adds or removes four bars, and zooms.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
+- **Ask Mobius** for a part ("a bassline under this") or a sound ("make the pad warmer", "more space on the keys").
+  Its change is a proposal: new parts are dashed, and a sound change opens the track's devices, with the bar above
+  the tracks naming each setting it moved ("Pad: cutoff 4.2 kHz → 1.8 kHz"). Keep, Discard or Try another. While the
+  song plays, a change is heard within a beat or two without stopping it.
 
 **Kept in:** `workspace/studio/`, each song a JSON file of notes; exported sound in `workspace/Exports/`.
 

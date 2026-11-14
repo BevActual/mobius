@@ -1,5 +1,5 @@
 import type { EqBand } from './ui';
-import { BEATS_PER_BAR, EFFECT_PARAMS, type Effect, type EffectKind, type KitSound, type SongNote, type Sound } from './song-format';
+import { BEATS_PER_BAR, EFFECT_NAMES, EFFECT_PARAMS, KIT_DEFAULTS, kitOf, soundOf, type Effect, type EffectKind, type KitSound, type SongNote, type Sound, type Track } from './song-format';
 
 /**
  * The piano roll's editing, kept apart from the screen so it can be tested: notes picked by their place in the track,
@@ -388,4 +388,56 @@ export function toBase64(bytes: Uint8Array): string {
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
+}
+
+const SOUND_WORDS: Record<keyof Sound, string> = {
+  shape: 'shape', detune: 'detune', sub: 'sub', drive: 'drive', cutoff: 'cutoff', resonance: 'resonance', envAmount: 'filter envelope',
+  attack: 'attack', decay: 'decay', sustain: 'sustain', release: 'release', vibrato: 'vibrato', rate: 'vibrato rate',
+};
+const KIT_WORDS: Record<keyof KitSound, string> = { tune: 'tune', decay: 'decay', tone: 'tone' };
+
+/** One setting Mobius moved on a track: `key` names the knob (`sound:cutoff`, `kit:tone`, `fx:<id>:mix`, `fx:<id>`, `volume`, `pan`). */
+export interface SoundChange { key: string; text: string }
+
+/**
+ * What changed in how a track sounds, setting by setting, for the review bar: "cutoff 4.2 kHz → 1.1 kHz", "added Delay".
+ * Notes are not counted here. A track that is new has nothing to compare, so it gives none.
+ */
+export function soundChanges(was: Track | undefined, now: Track): SoundChange[] {
+  if (!was) return [];
+  const out: SoundChange[] = [];
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  if (was.volume !== now.volume) out.push({ key: 'volume', text: `volume ${pct(was.volume)} → ${pct(now.volume)}` });
+  if (was.pan !== now.pan) out.push({ key: 'pan', text: `pan ${panText(was.pan)} → ${panText(now.pan)}` });
+  const a = soundOf(was), b = soundOf(now);
+  if (a && b && was.instrument === now.instrument) {
+    for (const k of Object.keys(SOUND_WORDS) as (keyof Sound)[]) {
+      if (a[k] !== b[k]) out.push({ key: `sound:${k}`, text: `${SOUND_WORDS[k]} ${soundText(k, a[k])} → ${soundText(k, b[k])}` });
+    }
+  }
+  if (was.instrument === 'drums' && now.instrument === 'drums') {
+    const x = kitOf(was) ?? KIT_DEFAULTS, y = kitOf(now) ?? KIT_DEFAULTS;
+    for (const k of Object.keys(KIT_WORDS) as (keyof KitSound)[]) {
+      if (x[k] !== y[k]) out.push({ key: `kit:${k}`, text: `${KIT_WORDS[k]} ${kitText(k, x[k])} → ${kitText(k, y[k])}` });
+    }
+  }
+  const before = new Map((was.fx ?? []).map((e) => [e.id, e]));
+  for (const e of now.fx ?? []) {
+    const o = before.get(e.id);
+    const name = EFFECT_NAMES[e.kind];
+    if (!o || o.kind !== e.kind) { out.push({ key: `fx:${e.id}`, text: `added ${name}` }); continue; }
+    if (o.on !== e.on) out.push({ key: `fx:${e.id}`, text: `${name} ${e.on ? 'on' : 'off'}` });
+    for (const k of Object.keys(EFFECT_PARAMS[e.kind])) {
+      const p = (o as unknown as Record<string, number>)[k]!, q = (e as unknown as Record<string, number>)[k]!;
+      if (p !== q) out.push({ key: `fx:${e.id}:${k}`, text: `${e.kind === 'eq' ? 'EQ' : name.toLowerCase()} ${k} ${effectText(e.kind, k, p)} → ${effectText(e.kind, k, q)}` });
+    }
+  }
+  const kept = new Set((now.fx ?? []).map((e) => e.id));
+  for (const e of was.fx ?? []) if (!kept.has(e.id)) out.push({ key: `fx:${e.id}`, text: `took out ${EFFECT_NAMES[e.kind]}` });
+  return out;
+}
+
+/** Whether two versions of a track have different notes (by pitch, start, length and velocity). */
+export function notesDiffer(a: Track | undefined, b: Track): boolean {
+  return !a || JSON.stringify(a.notes) !== JSON.stringify(b.notes);
 }

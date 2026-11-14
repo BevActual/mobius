@@ -6,7 +6,7 @@ import { BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip,
 import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
-import { GRIDS, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { GRIDS, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -454,11 +454,25 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const history = useRef(new Map<string, { undo: string[]; redo: string[]; tag: string; at: number }>());
   const file = songs.page ? `studio/${songs.page.path}` : null;
   const { before, keep, discard } = useFileReview(review, file, songs.page?.base);
-  const changed = useMemo(() => {
-    if (!song || before === undefined) return new Set<string>();
-    const was = before === null ? null : parseSong(before);
-    return changedTracks(was && 'song' in was ? was.song : null, song);
-  }, [song, before]);
+  /** The song as it was before Mobius's change (null when Mobius made it), while there is one to review. */
+  const wasSong = useMemo(() => {
+    if (before === undefined || before === null) return null;
+    const was = parseSong(before);
+    return 'song' in was ? was.song : null;
+  }, [before]);
+  const changed = useMemo(() => (!song || before === undefined ? new Set<string>() : changedTracks(wasSong, song)), [song, before, wasSong]);
+  // A change Mobius made only to how a track sounds opens that track's devices, so the moved knobs are in view.
+  const soundOnly = useMemo(() => {
+    if (!song || !wasSong) return null;
+    return [...changed].find((id) => {
+      const was = wasSong.tracks.find((t) => t.id === id), now = song.tracks.find((t) => t.id === id);
+      return was && now && !notesDiffer(was, now) && soundChanges(was, now).length > 0;
+    }) ?? null;
+  }, [changed, song, wasSong]);
+  useEffect(() => {
+    if (!soundOnly) return;
+    setSelected(soundOnly); setEditing(true); setDetail('device');
+  }, [soundOnly]); // eslint-disable-line react-hooks/exhaustive-deps
   const path = songs.page?.path ?? '';
   const steps = history.current.get(path) ?? { undo: [], redo: [], tag: '', at: 0 };
   history.current.set(path, steps);
@@ -519,16 +533,20 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     setBeat(0);
     setPlaying(true);
   }, [song, click]);
+  /** What the playing song was started with that it cannot change while playing: a change to one of them restarts it. */
+  const heard = useRef('');
+  const playedAs = (s: Song, cycle: Cycle | null) => JSON.stringify([s.tempo, s.bars, cycle, click]);
   const startAt = useCallback((from: number) => {
     if (!song) return;
     player.current?.stop();
+    heard.current = playedAs(song, cycleFor(song));
     player.current = play(song, from >= song.bars * BEATS_PER_BAR ? 0 : from, cycleFor(song), click);
     setPlaying(true);
   }, [song, cycleFor, click]);
   const start = useCallback(() => (view === 'session' ? startSession() : startAt(Math.floor(beat))), [view, startSession, startAt, beat]);
   const seek = useCallback((to: number) => {
     setBeat(to);
-    if (playing && song) { player.current?.stop(); player.current = play(song, to, cycleFor(song), click); }
+    if (playing && song) { player.current?.stop(); heard.current = playedAs(song, cycleFor(song)); player.current = play(song, to, cycleFor(song), click); }
   }, [playing, song, cycleFor, click]);
   // While playing, the playhead follows; a change to the notes is heard from the next time round.
   useEffect(() => {
@@ -557,10 +575,18 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   // Each view plays its own way, so switching stops what is playing.
   useEffect(() => { stop(); setBeat(0); setClipAt(null); setPicked(new Set()); }, [view, stop]);
   useEffect(() => { setPicked(new Set()); }, [selected]);
-  // Restart from where it is when the notes or the loop and click change, so what is heard is what is shown.
+  // What is heard follows what is shown. A change to the notes, sounds or effects goes into what is playing, so a part
+  // Mobius adds (or Try another) comes in on time; a change of tempo, length, loop or click restarts from where it is.
   useEffect(() => {
     if (session.current && song) { session.current.update(song); return; }
-    if (playing && song) { const b = player.current?.beat() ?? 0; player.current?.stop(); player.current = play(song, Math.floor(b), cycleFor(song), click); }
+    if (!playing || !song) return;
+    const cycle = cycleFor(song);
+    const how = playedAs(song, cycle);
+    if (how === heard.current && player.current?.update) { player.current.update(song); return; }
+    heard.current = how;
+    const b = player.current?.beat() ?? 0;
+    player.current?.stop();
+    player.current = play(song, b, cycle, click);
   }, [songs.text, cycleFor, click]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keys for the chosen track and the loop, set each time the page is drawn (they need what the song has now).
@@ -812,14 +838,20 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     { label: t.solo ? 'Unsolo' : 'Solo', keys: 'S', run: () => setTrack(t.id, (v) => { v.solo = !v.solo; }) },
     { action: 'delete', label: 'Delete Track', keys: 'Delete', danger: true, separated: true, run: () => deleteTrack(t.id) },
   ] });
-  // What Mobius changed, by track and where: "Pad idea, bars 13 to 24".
-  const names = [...changed].map((id) => {
+  // What Mobius changed, by track and where: "Pad idea, bars 13 to 24", or how it sounds: "Pad: cutoff 4.2 kHz → 1.1 kHz".
+  const names = [...changed].flatMap((id) => {
     const t = song.tracks.find((x) => x.id === id);
-    if (!t) return id;
+    if (!t) return [id];
+    const was = wasSong?.tracks.find((x) => x.id === id);
+    const parts: string[] = [];
     const clips = clipsOf(t.notes, song.bars);
-    if (clips.length === 0) return t.name;
-    const from = clips[0]!.from + 1, to = clips[clips.length - 1]!.to;
-    return `${t.name}, ${from === to ? `bar ${from}` : `bars ${from} to ${to}`}`;
+    if (notesDiffer(was, t) && clips.length > 0) {
+      const from = clips[0]!.from + 1, to = clips[clips.length - 1]!.to;
+      parts.push(`${t.name}, ${from === to ? `bar ${from}` : `bars ${from} to ${to}`}`);
+    }
+    const moved = soundChanges(was, t);
+    if (moved.length) parts.push(`${t.name}: ${moved.slice(0, 3).map((c) => c.text).join(', ')}${moved.length > 3 ? ` and ${moved.length - 3} more` : ''}`);
+    return parts.length ? parts : [t.name];
   });
   const pos = position(beat, song.tempo);
 

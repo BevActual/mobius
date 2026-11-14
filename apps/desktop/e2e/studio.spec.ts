@@ -164,6 +164,26 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
   await expect(tracks().getByRole('listitem', { name: 'Bass' })).toHaveCount(0);
 });
 
+test('a sound from Mobius opens the track’s devices and says what moved, kept or put back', async () => {
+  const warmer = { ...SONG.tracks[0], sound: { shape: 0.2, detune: 0, sub: 0, drive: 0.15, cutoff: 1200, resonance: 0, envAmount: 0, attack: 0.005, decay: 0.8, sustain: 0.3, release: 0.3, vibrato: 0, rate: 5 } };
+  await start([
+    callsTool('files-write', { path: 'studio/Songs/Night Drive.json', content: JSON.stringify({ ...SONG, tracks: [warmer] }) }),
+    says(['Made the keys warmer: the filter is down to 1.2 kHz with a little drive.']),
+  ]);
+  await resizeWindow(mobius!.app, 1440, 900);
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('make the keys warmer');
+  await shell().keyboard.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
+  const change = shell().getByRole('group', { name: 'A change Mobius made' });
+  await expect(change).toContainText('Mobius changed Keys: drive 0% → 15%, cutoff 5.0 kHz → 1.2 kHz');
+  // The track's devices open, so the knobs Mobius moved are in view; its notes are not marked as changed.
+  await expect(shell().getByRole('region', { name: 'Devices' })).toBeVisible();
+  await expect(shell().getByRole('slider', { name: 'Cutoff and resonance' })).toHaveAttribute('aria-valuetext', /Cutoff 1\.2 kHz/);
+  await change.getByRole('button', { name: 'Discard' }).click();
+  await expect.poll(() => (saved().tracks[0] as { sound?: unknown }).sound).toBeUndefined();
+});
+
 test('a track is panned and a drum kit is tuned in its devices, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, { id: 't3', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [] }] }));
   await start();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { encodeWav, toBase64, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { soundChanges, notesDiffer, encodeWav, toBase64, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -253,5 +253,26 @@ describe('encodeWav', () => {
   });
   it('turns bytes into base64', () => {
     expect(toBase64(new Uint8Array([77, 111, 98]))).toBe('TW9i');
+  });
+});
+
+describe('soundChanges', () => {
+  const pad = { id: 't3', name: 'Pad', instrument: 'pad' as const, volume: 0.5, pan: 0, muted: false, solo: false, color: 'teal' as const, notes: [{ pitch: 60, start: 0, length: 4, velocity: 0.6 }] };
+  it('names each setting Mobius moved, with where it was and where it is', () => {
+    const warmer = { ...pad, sound: { shape: 1, detune: 14, sub: 0, drive: 0.2, cutoff: 900, resonance: 0.1, envAmount: 0, attack: 0.25, decay: 0.3, sustain: 1, release: 0.5, vibrato: 0, rate: 5 } };
+    const got = soundChanges(pad, warmer);
+    expect(got.map((c) => c.key)).toEqual(['sound:drive', 'sound:cutoff']);
+    expect(got[1]!.text).toBe('cutoff 1.8 kHz → 900 Hz');
+  });
+  it('counts effects added, changed, switched and taken out, and the mix', () => {
+    const a = { ...pad, fx: [{ id: 'fx1', kind: 'reverb' as const, on: true, size: 2, damp: 0.4, mix: 0.25 }, { id: 'fx2', kind: 'delay' as const, on: true, time: 0.75, feedback: 0.35, mix: 0.25 }] };
+    const b = { ...pad, volume: 0.6, fx: [{ id: 'fx1', kind: 'reverb' as const, on: false, size: 2, damp: 0.4, mix: 0.4 }, { id: 'fx3', kind: 'eq' as const, on: true, low: 3, lowFreq: 120, mid: 0, midFreq: 1000, midQ: 1, high: -2, highFreq: 6000 }] };
+    expect(soundChanges(a, b).map((c) => c.text)).toEqual(['volume 50% → 60%', 'Reverb off', 'reverb mix 25% → 40%', 'added EQ', 'took out Delay']);
+  });
+  it('has nothing to compare for a new track, and leaves notes to notesDiffer', () => {
+    expect(soundChanges(undefined, pad)).toEqual([]);
+    expect(soundChanges(pad, { ...pad, notes: [] })).toEqual([]);
+    expect(notesDiffer(pad, { ...pad, notes: [] })).toBe(true);
+    expect(notesDiffer(pad, { ...pad, volume: 1 })).toBe(false);
   });
 });

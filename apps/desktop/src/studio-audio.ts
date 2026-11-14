@@ -260,13 +260,19 @@ export function previewNote(instrument: Instrument, pitch: number, velocity = 0.
   } catch { /* No sound here (a test browser); the note is still put in. */ }
 }
 
-export interface Player { stop(): void; beat(): number }
+export interface Player {
+  stop(): void;
+  beat(): number;
+  /** The song as it is now (same tempo and length): a new part, a changed sound or effect is heard from the next beat or two, with no restart. */
+  update?(song: Song): void;
+}
 
 /**
  * Plays the song from `fromBeat`. With a `loop` it goes round those bars (a whole-song loop is { from: 0, to: the end });
  * without one it stops at the end. `beat()` says where it is now.
  */
-export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click = false): Player {
+export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, click = false): Player {
+  let song = songIn;
   const ctx = new AudioContext();
   void ctx.resume().catch(() => {});
   const master = ctx.createGain();
@@ -277,9 +283,9 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
   const total = song.bars * BEATS_PER_BAR;
   const cycle = loop && loop.to > loop.from ? { from: Math.max(0, loop.from), to: Math.min(total, loop.to) } : null;
   const start = ctx.currentTime + 0.08;
-  const tracks = audible(song);
-  // Each track's volume, effects and pan are made once, so a delay's echoes and a reverb's tail carry on across beats.
-  const strips = new Map(tracks.map((t) => [t.id, trackStrip(ctx, t, master, spb)]));
+  // Each track's volume, effects and pan are made once, so a delay's echoes and a reverb's tail carry on across beats. A
+  // change to them (or a new track) makes a new strip; the old one lets what it is playing ring out.
+  const stripOf = stripsFor(ctx, master, spb);
   // Time is counted in beats played since Play; songBeat() turns that into where in the song it is.
   let scheduled = 0;
   let stopped = false;
@@ -301,8 +307,8 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
           tick(ctx, master, at(b), b % BEATS_PER_BAR === 0);
         }
       }
-      for (const t of tracks) {
-        const out = strips.get(t.id)!;
+      for (const t of audible(song)) {
+        const out = stripOf(t);
         // Volume automation: the line from here to the end of this stretch, as ramps on the track's own gain.
         if (t.volumeAuto && t.volumeAuto.length > 0 && out instanceof GainNode) {
           const g = out.gain;
@@ -326,6 +332,26 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
   return {
     stop() { stopped = true; window.clearInterval(timer); void ctx.close(); },
     beat() { return songBeat(Math.max(0, (ctx.currentTime - start) / spb), fromBeat, cycle); },
+    update(next) { song = next; },
+  };
+}
+
+/** What a track's strip is built from: its pan and effects. Its volume is set on it as it changes. */
+export const stripKey = (t: Track) => JSON.stringify([t.pan, t.fx ?? []]);
+
+/**
+ * Each track's strip, made the first time it plays and kept, so echoes and reverb tails carry on. A change to its pan
+ * or effects makes a new one (the old one lets what it is playing ring out); a change of volume moves its fader.
+ */
+function stripsFor(ctx: BaseAudioContext, master: AudioNode, spb: number): (t: Track) => AudioNode {
+  const strips = new Map<string, { key: string; volume: number; out: AudioNode }>();
+  return (t) => {
+    const key = stripKey(t);
+    let s = strips.get(t.id);
+    if (!s || s.key !== key) { s = { key, volume: t.volume, out: trackStrip(ctx, t, master, spb) }; strips.set(t.id, s); }
+    if (s.volume !== t.volume && s.out instanceof GainNode && !t.volumeAuto?.length) s.out.gain.setTargetAtTime(t.volume, ctx.currentTime, 0.02);
+    s.volume = t.volume;
+    return s.out;
   };
 }
 
@@ -356,8 +382,7 @@ export function playSession(songIn: Song, click = false, launches: SessionQueued
   const noiseBuf = noise(ctx);
   const spb = 60 / song.tempo;
   const start = ctx.currentTime + 0.08;
-  const strips = new Map<string, AudioNode>();
-  const strip = (t: Track) => { let s = strips.get(t.id); if (!s) { s = trackStrip(ctx, t, master, spb); strips.set(t.id, s); } return s; };
+  const strip = stripsFor(ctx, master, spb);
   const playing: SessionPlaying = {};
   const queued: SessionQueued = { ...launches };
   let scheduled = 0;
