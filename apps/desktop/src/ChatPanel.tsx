@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
 import { Welcome } from './Welcome';
-import { describeAction, finalNote, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
+import { describeAction, finalNote, finalVerb, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
 import type { HubTarget } from './search-hub';
 import { APPS } from './apps';
 import { stepTag } from './step-access';
@@ -335,8 +335,9 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
           {/* Quiet choices on the left, the one that goes ahead in ink on the right (Instrument, the Asking state). */}
           <div className="approval-actions">
             <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(false, 'once')}>Decline</button>
-            {item.onceOnly ? null : <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(true, 'always')}>Always allow</button>}
-            <button type="button" className="btn primary approval-go" disabled={sending} onClick={() => void respond(true, 'once')}>Allow once</button>
+            {item.onceOnly || finalVerb(item.name) ? null : <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(true, 'always')}>Always allow</button>}
+            {/* Named by what it does when that can't be undone ("Send"); its full name still says it allows it once. */}
+            <button type="button" className="btn primary approval-go" disabled={sending} onClick={() => void respond(true, 'once')}>{finalVerb(item.name) ? <><span className="sr-only">Allow once: </span>{finalVerb(item.name)}</> : 'Allow once'}</button>
           </div>
           {problem && <p className="field-error" role="alert">{problem}</p>}
         </div>

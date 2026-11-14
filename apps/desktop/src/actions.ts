@@ -191,14 +191,22 @@ export function changeTarget(path: string): HubTarget | null {
   return null;
 }
 
-/** What can't be taken back once allowed, as the approval card says it: sending, paying, deleting, running a command
- * (the same verbs Activity counts as final). Null for everything else. */
-export function finalNote(tool: string): string | null {
+/** The verb for what can't be taken back once allowed: Send, Pay, Delete or Run (the same verbs Activity counts as
+ * final). Null for everything else. */
+export function finalVerb(tool: string): 'Send' | 'Pay' | 'Delete' | 'Run' | null {
   const words = tool.toLowerCase().split(/[.\-_]/);
   const has = (...w: string[]) => words.some((x) => w.includes(x));
-  if (has('send')) return 'Sending can\u2019t be undone.';
-  if (has('pay', 'payments')) return 'Paying can\u2019t be undone.';
-  if (has('delete')) return 'Deleting can\u2019t be undone.';
-  if (has('run', 'push', 'terminal', 'shell')) return 'Running it can\u2019t be undone.';
+  if (has('send')) return 'Send';
+  if (has('pay', 'payments')) return 'Pay';
+  if (has('delete')) return 'Delete';
+  if (has('run', 'push', 'terminal', 'shell')) return 'Run';
   return null;
+}
+
+const FINAL_NOTE = { Send: 'Sending', Pay: 'Paying', Delete: 'Deleting', Run: 'Running it' } as const;
+
+/** What the approval card says can't be undone, or null. */
+export function finalNote(tool: string): string | null {
+  const verb = finalVerb(tool);
+  return verb ? `${FINAL_NOTE[verb]} can\u2019t be undone.` : null;
 }

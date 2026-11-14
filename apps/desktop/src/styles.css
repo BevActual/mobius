@@ -2583,7 +2583,8 @@ body { font-variant-numeric: tabular-nums; }
 .question-choice-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; padding: var(--sp-1) 0; }
 .question-key { flex: none; }
 .question-note { margin: var(--sp-1) 0 0; color: var(--muted); font-size: var(--fs-sm); }
-.chat .approval { margin-top: var(--sp-2); padding: var(--sp-3); border: var(--hairline-w, 1px) dashed var(--mobius); border-top: var(--hairline-w, 1px) dashed var(--mobius); border-radius: var(--radius-panel); background: var(--bg); }
+.chat .tool[data-status="waiting"]:has(.approval) { padding: var(--sp-3); border: var(--hairline-w, 1px) dashed var(--mobius); border-radius: var(--radius-panel); outline: 0; box-shadow: none; background: var(--bg); }
+.chat .approval { margin-top: var(--sp-2); padding: 0; border: 0; }
 .chat .approval-text { font-weight: var(--fw-semibold); color: var(--ink); }
 .approval-final { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
 .chat .approval-actions { align-items: center; gap: var(--sp-1); margin-top: var(--sp-3); }

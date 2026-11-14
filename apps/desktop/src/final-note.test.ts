@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { finalNote } from './actions';
+import { finalNote, finalVerb } from './actions';
 
 describe('what an approval says cannot be undone', () => {
   it('names sending, paying, deleting and running', () => {
@@ -12,5 +12,12 @@ describe('what an approval says cannot be undone', () => {
   });
   it('says nothing for what can be put back', () => {
     for (const t of ['clock.now', 'mail.draft', 'files.write', 'todo-write', 'browser.navigate']) expect(finalNote(t)).toBeNull();
+  });
+});
+
+describe('the verb on the button that goes ahead', () => {
+  it('is the action for what cannot be undone, and nothing otherwise', () => {
+    expect(['mail.send', 'payments.pay', 'files.delete', 'code.run'].map(finalVerb)).toEqual(['Send', 'Pay', 'Delete', 'Run']);
+    expect(finalVerb('clock.now')).toBeNull();
   });
 });
