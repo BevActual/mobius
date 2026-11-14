@@ -913,6 +913,8 @@ export interface MobiusBridge {
     /** Only the Tauri shell provides these four; the interface offers them when they are there. */
     reopenClosed?(): Promise<string | null>;
     duplicate?(tabId: string): Promise<string | null>;
+    /** Open a workspace web page (a path under pages/) in a new tab, at the address the shell serves it on. Its tab id, or null. */
+    openPage?(path: string): Promise<string | null>;
     pin?(tabId: string, pinned: boolean): void;
     moveTab?(tabId: string, index: number): void;
   };

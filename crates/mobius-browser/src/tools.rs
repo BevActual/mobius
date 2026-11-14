@@ -13,6 +13,10 @@ pub trait ToolDeps {
     fn list(&self) -> Vec<TabInfo>;
     /// Whether the person has allowed the agent to use addresses on this computer or the local network.
     fn allow_private(&self) -> bool;
+    /// Whether an address is one of the person's own pages, served from their workspace on this computer.
+    fn own_page(&self, _url: &str) -> bool {
+        false
+    }
     /// The IP addresses a host name points at.
     fn resolve(&self, host: &str) -> Option<Vec<String>>;
     /// Open an address in a new tab, make it the active one, and return its id.
@@ -105,7 +109,8 @@ fn tab_for(args: &Value, deps: &dyn ToolDeps) -> Res<String> {
 
 /// Refuse an address on this computer or the local network unless the person allowed it.
 fn may_use(url: &str, deps: &dyn ToolDeps) -> Res<()> {
-    if deps.allow_private() {
+    // The person's own pages are their files, not something on their network.
+    if deps.allow_private() || deps.own_page(url) {
         return Ok(());
     }
     match check_agent_url(url, |host| deps.resolve(host)) {
@@ -195,6 +200,7 @@ mod tests {
         typed: RefCell<Vec<(String, String, String, bool)>>,
         hung: bool,
         allow_private: bool,
+        own: &'static str,
         hosts: Vec<(&'static str, Vec<String>)>,
         click_result: ActionResult,
         type_result: ActionResult,
@@ -213,6 +219,7 @@ mod tests {
             typed: RefCell::default(),
             hung: false,
             allow_private: false,
+            own: "",
             hosts: vec![],
             click_result: ActionResult { ok: true, what: "link \"More\"".into() },
             type_result: ActionResult { ok: true, what: "field \"Search\"".into() },
@@ -230,6 +237,9 @@ mod tests {
         }
         fn allow_private(&self) -> bool {
             self.allow_private
+        }
+        fn own_page(&self, url: &str) -> bool {
+            !self.own.is_empty() && url.starts_with(self.own)
         }
         fn resolve(&self, host: &str) -> Option<Vec<String>> {
             Some(self.hosts.iter().find(|(h, _)| *h == host).map_or_else(|| vec!["93.184.216.34".to_owned()], |(_, v)| v.clone()))
@@ -450,5 +460,13 @@ mod tests {
         assert_eq!(run("browser.tabs", json!({}), &d).unwrap().as_array().unwrap().len(), 1, "listing only names tabs");
         let allowed = Fake { allow_private: true, ..d };
         assert_eq!(run("browser.read", json!({}), &allowed).unwrap()["text"], "secret admin page");
+    }
+
+    #[test]
+    fn the_persons_own_pages_are_read_without_allowing_local_addresses() {
+        let own = "http://127.0.0.1:5000/abc/";
+        let d = Fake { own, ..fake_with(vec![tab("tab-1", "http://127.0.0.1:5000/abc/Veltro.html", "Veltro", "60 kWh", true), tab("tab-2", "http://127.0.0.1:5000/other", "Other", "x", false)]) };
+        assert_eq!(run("browser.read", json!({}), &d).unwrap()["text"], "60 kWh");
+        assert!(run("browser.read", json!({ "tabId": "tab-2" }), &d).unwrap_err().contains("local network"), "another address on the same port is not theirs");
     }
 }
