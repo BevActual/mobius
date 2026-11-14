@@ -354,7 +354,7 @@ export interface ChatPanelProps {
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; model?: string; images?: string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[] }) => void;
   /** Show a browser tab to the person (to sign in themselves). */
   onShowTab?: (tab: string) => void;
   onStop: () => void;
