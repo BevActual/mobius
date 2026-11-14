@@ -146,6 +146,50 @@ pub struct SendRequest {
     pub quick: bool,
     /// The project the conversation belongs to: its rules count for the turn. Set by the host, never by the window.
     pub project: Option<String>,
+    /// An app's own mode (Mail's Triage, say): one of `APP_MODES`, whose instructions the host holds; the window only
+    /// names it.
+    pub mode: Option<&'static AppMode>,
+}
+
+/// An app's own mode (Instrument, "Modes, permissions"): a preset, not new machinery. A name the window shows, the app
+/// it belongs to, instructions added to the usual ones for the turn, and whether it may change things.
+pub struct AppMode {
+    pub id: &'static str,
+    pub app: &'static str,
+    pub instructions: &'static str,
+    /// Reads and answers only, as Ask does: nothing that changes things runs.
+    pub read_only: bool,
+}
+
+pub const APP_MODES: &[AppMode] = &[
+    AppMode {
+        id: "triage",
+        app: "mail",
+        instructions: "Triage mode (Mail). Go through the inbox messages the person points at, or the unread ones, and sort each into Reply, Later or Archive. Say in one short line per message which it is and why. For each Reply, write a draft and leave it as a draft: never send. Move nothing to Archive yourself unless the person asks; list what you would archive.",
+        read_only: false,
+    },
+    AppMode {
+        id: "review",
+        app: "docs",
+        instructions: "Review mode. Read the document or note and leave comments and suggestions on it. Never change the text itself: say what you would change, where and why, so the person can decide.",
+        read_only: false,
+    },
+    AppMode {
+        id: "analyse",
+        app: "sheets",
+        instructions: "Analyse mode. Read the data and answer with what it shows: short findings, with a table or a chart where it helps. Never change a cell or a record.",
+        read_only: true,
+    },
+    AppMode {
+        id: "debug",
+        app: "code",
+        instructions: "Debug mode. Reproduce the bug first, gather evidence by reading and running things, say what you found, and only then propose the smallest fix. Make no change until the person agrees to the fix.",
+        read_only: false,
+    },
+];
+
+pub fn app_mode(id: &str) -> Option<&'static AppMode> {
+    APP_MODES.iter().find(|m| m.id == id)
 }
 
 pub const MAX_IMAGES: usize = 4;
@@ -173,6 +217,10 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
         None | Some(Value::Null) => false,
         Some(q) => q.as_bool()?,
     };
+    let mode = match v.get("mode") {
+        None | Some(Value::Null) => None,
+        Some(m) => Some(app_mode(m.as_str()?)?),
+    };
     let images = match v.get("images") {
         None | Some(Value::Null) => Vec::new(),
         Some(list) => {
@@ -180,7 +228,7 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
             list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
         }
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None })
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode })
 }
 
 const AUDIO_TYPES: [&str; 5] = ["audio/webm", "audio/ogg", "audio/mp4", "audio/wav", "audio/mpeg"];
@@ -436,9 +484,10 @@ impl AgentService {
         params.insert("conversation".into(), json!(request.conversation));
         params.insert("text".into(), json!(context::with_context(&request.text, &request.context)));
         let instructions = bot.map(|(i, _)| i).unwrap_or("");
-        if !instructions.is_empty() || !remembered.is_empty() {
+        let mode = request.mode.map(|m| m.instructions).unwrap_or("");
+        if !instructions.is_empty() || !remembered.is_empty() || !mode.is_empty() {
             // Added to the usual instructions by the core, never in place of them.
-            let joined = [instructions, remembered].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
+            let joined = [instructions, mode, remembered].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
             params.insert("system".into(), json!(joined));
         }
         if let Some((_, model)) = bot
@@ -449,7 +498,7 @@ impl AgentService {
         if request.plan {
             params.insert("plan".into(), json!(true));
         }
-        if request.ask {
+        if request.ask || request.mode.is_some_and(|m| m.read_only) {
             params.insert("ask".into(), json!(true));
         }
         // Best fit's quick model, unless the conversation is an agent's with its own model.

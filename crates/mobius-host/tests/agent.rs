@@ -324,6 +324,26 @@ fn a_message_goes_to_the_core_with_its_attachments_and_a_bots_instructions_added
 }
 
 #[test]
+fn an_apps_own_mode_adds_its_instructions_held_by_the_host_and_a_read_only_one_asks_for_ask() {
+    let s = service(true);
+    s.service.configure(&cfg("http://a/v1", "am"));
+    // The window only names the mode; an unknown name is refused rather than sent as instructions.
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "mode": "make-it-so" })).is_none());
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "mode": 3 })).is_none());
+    let triage = parse_send(&json!({ "conversation": "c-1", "text": "sort my inbox", "mode": "triage" })).unwrap();
+    assert_eq!(triage.mode.map(|m| m.app), Some("mail"));
+    s.service.send_remembering(&triage, None, "Remembered: likes tea.");
+    let analyse = parse_send(&json!({ "conversation": "c-1", "text": "what sold best", "mode": "analyse" })).unwrap();
+    s.service.send(&analyse, None);
+    let sends: Vec<Value> = calls(&s.core).into_iter().filter(|c| c["method"] == "agent.send").map(|c| c["params"].clone()).collect();
+    let system = sends[0]["system"].as_str().unwrap();
+    assert!(system.starts_with("Triage mode (Mail).") && system.ends_with("Remembered: likes tea."), "{system}");
+    assert!(sends[0].get("ask").is_none(), "Triage drafts replies, so it may change things");
+    assert!(sends[1]["system"].as_str().unwrap().starts_with("Analyse mode."));
+    assert_eq!(sends[1]["ask"], json!(true), "Analyse never changes a cell");
+}
+
+#[test]
 fn what_mobius_remembers_joins_the_instructions_after_a_bots() {
     let s = service(true);
     s.service.configure(&Configure { system: Some("Be brief.".into()), ..cfg("http://a/v1", "am") });

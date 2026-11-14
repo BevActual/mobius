@@ -94,7 +94,7 @@ export interface Launched { app: AppHandle; shell: Page; userData: string; close
 export async function launch(startUrl: string, options: { env?: Record<string, string>; userData?: string; /** Leave the agent's keep-out-of-local-addresses rule on, as a real person has it. */ realNetworkRules?: boolean; /** Start with the approval mode a new person gets (Propose), instead of Ask first, which most tests are written for. */ newPerson?: boolean; /** Start as a new person does, with Mobius open in the right panel: for tests about what Mobius does. */ openMobius?: boolean } = {}): Promise<Launched> {
   const userData = options.userData ?? fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-e2e-'));
   // Every fixture page lives on this computer, so the tests start with the agent allowed to use local addresses. They
-  // also start in Ask first, so each tool the agent uses shows its approval, unless the test is about a new person.
+  // also start in Ask each time, so each tool the agent uses shows its approval, unless the test is about a new person.
   const prefsFile = path.join(userData, 'preferences.json');
   if (!options.realNetworkRules && !fs.existsSync(prefsFile)) {
     fs.mkdirSync(userData, { recursive: true });
