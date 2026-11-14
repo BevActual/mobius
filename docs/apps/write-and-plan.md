@@ -34,7 +34,7 @@ Longer documents, with an outline and comments.
 - **A page to write on**, straight on the window's white: headings, lists, checklists, tables, pictures and links to
   other documents, kept as Markdown. Under the title a quiet line says when it was edited and how many words it has;
   click the count for characters or reading time, or select some text to count just that.
-- **The toolbar** has the paragraph style (**Body ⌄**), **B**, **I** and **U**, then a bulleted list, a table and a
+- **The toolbar** has the paragraph style (**Body ⌄**, or Ctrl+Alt+0 to 3 from the keyboard), **B**, **I** and **U**, then a bulleted list, a table and a
   link, then **Share**. While you are in a table, its button has the rows and columns. The window's **⋯** opens on
   the **Docs** menu with the rest: numbered lists, checklists, quotes, strikethrough and code; Insert (table, picture,
   divider, code block); Mobius's writing tools; the margin's comments; earlier versions; and a serif font.
@@ -52,22 +52,24 @@ Longer documents, with an outline and comments.
 
 ## Tasks
 
-Lists of things to do, as in Apple's Reminders.
+Lists of things to do. Each task is one line: its check, its words in full ink with any note in grey, then at the
+right edge its subtask count, its list (in views across lists), a flag and when it is due, grey unless it is overdue.
 
 ![The Tasks app in Mobius](../readme/apps/tasks.png)
 
 - **The sidebar** has Search, New list, the **Smart lists** (Today, Scheduled, All, Flagged and Completed), then
   **My lists**, each with a dot in its colour and how many are open. Hover a list to pin it or open its menu (Rename, Delete).
-  **Scheduled** sorts tasks under day headings: Overdue, Today, Tomorrow, each day of the coming week, then by month.
+  **All** and **Completed** group tasks under each list's name with a count; **Scheduled** groups them under day
+  headings with a count: Overdue (in red), Today, Tomorrow, each day of the coming week, then by month.
 - **Times and repeats**: type a time after the day ("Call Sam tomorrow at 3pm", "Stand-up mon 9:30"; a time on its
   own means today), or set a time and a repeat (every day, weekday, week, month or year) in the inspector. Ticking off
   a repeating task moves it to its next day and leaves it open.
-- **Right-click a task** to show its details, set it due today, tomorrow or next week, flag it, move it to another
+- **Right-click a task** to tick it, rename it, show its details, set it due today, tomorrow or next week, flag it, move it to another
   list or delete it.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
   the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it.
 - **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back. Completed
-  tasks fold away under the list; **Clear N Completed** in the fold's ⋯ menu (or the window's ⋯ menu) removes them.
+  tasks fold away under the list; **Clear N completed** in the fold's ⋯ menu (or the window's ⋯ menu) removes them. A list with nothing in it shows one plain line under the add row.
 - **Deleting** a task or a list shows **Undo** at the bottom of the page (Ctrl+Z works too).
 - **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
   picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
@@ -84,16 +86,24 @@ Your calendars by day, week or month.
 ![The Calendar app in Mobius](../readme/apps/calendar.png)
 
 - **Calendars it works with**: its own (`.ics` files in the workspace), subscribed links (`webcal://` or `https://…ics`,
-  read only), and CalDAV accounts with an app password, such as iCloud, Fastmail and Nextcloud. Google and Outlook can
-  be subscribed to through their private iCal address; signing in to them directly needs app registrations (see
-  [calendar sign-in](../reference/calendar-sign-in.md)).
+  read only), and CalDAV accounts with an app password, such as iCloud, Fastmail and Nextcloud. Add, refresh and
+  remove accounts in **Settings › Calendar**. Google and Outlook can be subscribed to through their private iCal
+  address; signing in to them directly needs app registrations (see [calendar sign-in](../reference/calendar-sign-in.md)).
+- **The sidebar** lists your calendars as plain rows, each with its colour as a dot. Press one to hide its events, and
+  again to show them; **Tasks with due dates** works the same way. Under **From Mobius**, **Suggested events** says how
+  many events Mobius suggested or added are waiting for you, and goes to the first.
 - **Make an event** by sweeping across the hours, double-clicking a time, right-clicking empty time, or with **New
-  event** at the top of the sidebar. The **+** in the toolbar takes one said in words, such as "Lunch fri 1pm". Drag an
-  event to move it, in any view.
+  event** at the top of the sidebar (Ctrl+N). **Q**, or **Calendar › Quick event**, takes one said in words, such as
+  "Lunch fri 1pm". Drag an event to move it, in any view.
 - **Search** at the top of the sidebar finds events from a month back to a year ahead, by title, place or notes. Pick
   one to go to its day.
-- **The toolbar** holds Back, Today and Forward, and Day, Week and Month. When Mobius is open beside a small window,
-  Today's word, then the +, then the views give way; T, N, D, W, M and the arrow keys still work.
+- **The toolbar** holds Back, Today and Forward, and Day, Week and Month; the title says the week's number. When Mobius
+  is open beside a small window, Today's word, then the views give way; T, N, Q, D, W, M and the arrow keys still work. An hour is taller in the comfortable density, so a working day
+  shows whole, and shorter in the compact one.
+- **Events** are a soft tint of their calendar's colour with a 3px edge in it; today's date is an ink badge, and the red
+  current-time line is the only loud colour. The all-day row shows two items a day;
+  **+N more** shows the rest, and **Fewer** folds them away again. The **Calendar** menu shows each key: Ctrl+N, Q, T, D,
+  W and M.
 - **Open an event** with a click: it edits in a popover beside it. Changes are kept when you click elsewhere or press
   Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
 - **The event you clicked stays picked out.** Press Delete to remove it, Enter to open it or Ctrl+D to duplicate it;
@@ -151,7 +161,8 @@ count beside it, and **Data**, **Structure** and **SQL** sit in the toolbar.
 
 **Search** at the top of the sidebar finds a database or table by name. Right-click a table, press Shift+F10 on it, or
 use its **⋯** button, to open it, copy all of it as CSV, rename it or delete it. Right-click a
-database to import a CSV file into it or delete it. Deleting asks first, as it can't be undone.
+database to import a CSV file into it or delete it. On a selected table, F2 renames it and Delete asks to delete it.
+Deleting asks first, as it can't be undone. Database is compact, like the other pro apps: 13px text on 32px rows.
 
 ![The Database app in Mobius](../readme/apps/database.png)
 

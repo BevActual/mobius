@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { APP_ICONS } from './Rail';
+import { KeyCaps } from './ui/Tooltip';
 
 export interface EmptyStateProps {
   /** The app whose icon and colour it shows (an app id, such as `docs`), or an icon of its own. */
@@ -9,8 +10,8 @@ export interface EmptyStateProps {
   title: string;
   /** One line on what to do, or what the app is for. */
   line?: string;
-  /** The one action, as "New document". */
-  action?: { label: string; run: () => void };
+  /** The one action, as "New document", and its shortcut ("Ctrl+N"), drawn as key caps under it. */
+  action?: { label: string; run: () => void; keys?: string };
   /** The region's name for screen readers; the title when not given. */
   label?: string;
 }
@@ -31,7 +32,8 @@ export function EmptyState({ app, icon, title, line, action, label }: EmptyState
       )}
       <h2 className="empty-state-title">{title}</h2>
       {said && <p className="empty-state-line">{said}</p>}
-      {action && <button type="button" className="btn primary empty-state-action" onClick={action.run}>{action.label}</button>}
+      {action && <button type="button" className="btn primary empty-state-action" onClick={action.run} aria-keyshortcuts={action.keys}>{action.label}</button>}
+      {action?.keys && <KeyCaps keys={action.keys} className="empty-state-keys" />}
     </section>
   );
 }

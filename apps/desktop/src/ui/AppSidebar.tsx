@@ -1,4 +1,4 @@
-import { useId, useState, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react';
+import { useId, useState, type DOMAttributes, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react';
 
 /**
  * An app's sidebar (zone 2), in the same order in every app: Search, the app's places in named sections, From Mobius,
@@ -48,7 +48,10 @@ export function SidebarSection({ title, action, children, foldable = false, open
 }
 
 /** One place or item in a section: an icon, its name, a count, and whether it is the one showing. */
-export function SidebarRow({ icon, label, sub, count, current = false, proposed = false, onSelect, onContextMenu, title, trail }: {
+/** What a row needs to take a drop: the drag handlers, and `data-drop` while something hovers over it. */
+export type SidebarRowDrop<T extends Element = HTMLButtonElement> = Pick<DOMAttributes<T>, 'onDragOver' | 'onDragLeave' | 'onDrop'> & { 'data-drop'?: true | undefined };
+
+export function SidebarRow({ icon, label, sub, count, current = false, proposed = false, onSelect, onContextMenu, title, trail, drop }: {
   icon?: ReactNode;
   label: string;
   /** A second, quieter line under the name (a note's first words, a date). */
@@ -63,6 +66,8 @@ export function SidebarRow({ icon, label, sub, count, current = false, proposed 
   title?: string;
   /** Extra controls drawn after the row button, inside the row (a hover Pin, an inline Confirm). */
   trail?: ReactNode;
+  /** Files: the row takes a dragged item (a folder row a file can be dropped on). `data-drop` marks it while one hovers. */
+  drop?: SidebarRowDrop | undefined;
 }) {
   const subId = useId();
   return (
@@ -78,6 +83,7 @@ export function SidebarRow({ icon, label, sub, count, current = false, proposed 
         aria-describedby={sub === undefined ? undefined : subId}
         onClick={onSelect}
         onContextMenu={onContextMenu}
+        {...drop}
       >
         {icon}
         {sub === undefined
