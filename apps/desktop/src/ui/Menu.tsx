@@ -1,5 +1,5 @@
 import { Menu as Base } from '@base-ui/react/menu';
-import { useCallback, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useId, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { growFrom, morphOut } from '../motion';
 import { KeyCaps } from './Tooltip';
 
@@ -92,11 +92,15 @@ const GAP = <span className="ui-menu-icon" aria-hidden="true" />;
 
 function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: () => void) => void }) {
   const gutter = entries.some((e) => e.icon || e.checked !== undefined);
+  // A detail describes the row; the row's name stays its label ("Delay"), for screen readers and for tests.
+  const base = useId();
   return entries.map((entry, i) => entry.checked !== undefined ? (
     <Base.CheckboxItem
       key={`${entry.label}-${i}`}
       className="ui-menu-item"
       data-two-line={entry.detail ? true : undefined}
+      aria-label={entry.detail ? entry.label : undefined}
+      aria-describedby={entry.detail ? `${base}-${i}` : undefined}
       label={entry.label}
       disabled={entry.disabled}
       closeOnClick={false}
@@ -106,7 +110,7 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
     >
       {entry.checked ? TICK : GAP}
       {entry.detail ? (
-        <span className="ui-choice-text"><span className="ui-menu-label">{entry.label}</span><span className="ui-choice-meaning">{entry.detail}</span></span>
+        <span className="ui-choice-text"><span className="ui-menu-label">{entry.label}</span><span className="ui-choice-meaning" id={`${base}-${i}`}>{entry.detail}</span></span>
       ) : <span className="ui-menu-label">{entry.label}</span>}
       {entry.keys && <KeyCaps className="ui-menu-keys" keys={entry.keys} />}
     </Base.CheckboxItem>
@@ -115,6 +119,8 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
       key={`${entry.label}-${i}`}
       className="ui-menu-item"
       data-two-line={entry.detail ? true : undefined}
+      aria-label={entry.detail ? entry.label : undefined}
+      aria-describedby={entry.detail ? `${base}-${i}` : undefined}
       label={entry.label}
       disabled={entry.disabled}
       closeOnClick={false}
@@ -124,7 +130,7 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
     >
       {entry.icon ?? (gutter && GAP)}
       {entry.detail ? (
-        <span className="ui-choice-text"><span className="ui-menu-label">{entry.label}</span><span className="ui-choice-meaning">{entry.detail}</span></span>
+        <span className="ui-choice-text"><span className="ui-menu-label">{entry.label}</span><span className="ui-choice-meaning" id={`${base}-${i}`}>{entry.detail}</span></span>
       ) : <span className="ui-menu-label">{entry.label}</span>}
       {entry.keys && <KeyCaps className="ui-menu-keys" keys={entry.keys} />}
     </Base.Item>

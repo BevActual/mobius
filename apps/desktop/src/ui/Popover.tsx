@@ -1,6 +1,6 @@
 import { Menu as BaseMenu } from '@base-ui/react/menu';
 import { Popover as BasePopover } from '@base-ui/react/popover';
-import { useCallback, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useId, type ReactElement, type ReactNode } from 'react';
 import { growFrom } from '../motion';
 import { KeyCaps } from './Tooltip';
 
@@ -93,6 +93,7 @@ export function ChoiceMenu<T extends string>({ label, title, trigger, value, cho
   footer?: readonly { label: string; run: () => void; keys?: string }[];
 }) {
   const grow = useGrow();
+  const id = useId();
   const two = choices.some((c) => c.meaning);
   return (
     <BaseMenu.Root>
@@ -102,7 +103,7 @@ export function ChoiceMenu<T extends string>({ label, title, trigger, value, cho
           <BaseMenu.Popup ref={grow} className="ui-menu ui-choices glass" aria-label={label} data-two-line={two || undefined}>
             {title && <div className="ui-popover-title">{title}</div>}
             <BaseMenu.RadioGroup value={value} onValueChange={(next) => onChange(next as T)}>
-              {choices.map((c) => (
+              {choices.map((c, i) => (
                 <BaseMenu.RadioItem
                   key={c.value}
                   value={c.value}
@@ -112,12 +113,14 @@ export function ChoiceMenu<T extends string>({ label, title, trigger, value, cho
                   className="ui-menu-item ui-choice"
                   data-separated={c.separated || undefined}
                   data-two-line={c.meaning ? true : undefined}
+                  aria-label={c.meaning ? c.label : undefined}
+                  aria-describedby={c.meaning ? `${id}-${i}` : undefined}
                 >
                   <BaseMenu.RadioItemIndicator className="ui-choice-mark" keepMounted>{CHECK}</BaseMenu.RadioItemIndicator>
                   {c.icon && <span className="ui-menu-icon" aria-hidden="true">{c.icon}</span>}
                   <span className="ui-choice-text">
                     <span className="ui-menu-label">{c.label}</span>
-                    {c.meaning && <span className="ui-choice-meaning">{c.meaning}</span>}
+                    {c.meaning && <span className="ui-choice-meaning" id={`${id}-${i}`}>{c.meaning}</span>}
                   </span>
                   {c.keys && <KeyCaps className="ui-menu-keys" keys={c.keys} />}
                 </BaseMenu.RadioItem>
