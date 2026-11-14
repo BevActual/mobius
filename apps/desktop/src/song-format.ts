@@ -2,7 +2,7 @@
  * A song is JSON, notes rather than sound, so the agent can read and write it like a score:
  *
  *     { "version": 1, "tempo": 112, "key": "A minor", "bars": 8,
- *       "tracks": [{ "id": "t1", "name": "Bass", "instrument": "bass", "volume": 0.8,
+ *       "tracks": [{ "id": "t1", "name": "Bass", "instrument": "bass", "color": "blue", "volume": 0.8,
  *         "notes": [{ "pitch": 45, "start": 0, "length": 1.5, "velocity": 0.9 }] }] }
  *
  * Bars are four beats. A note's `start` and `length` are in beats from the start of the song; `pitch` is a MIDI note
@@ -19,7 +19,19 @@ export interface SongNote { pitch: number; start: number; length: number; veloci
  * release in seconds. A track without one sounds as its instrument always has.
  */
 export interface Sound { shape: number; detune: number; cutoff: number; resonance: number; attack: number; release: number }
-export interface Track { id: string; name: string; instrument: Instrument; volume: number; muted: boolean; solo: boolean; notes: SongNote[]; sound?: Sound }
+/**
+ * A track's colour: one of the shared content colours (tokens.css, --c-<name>), chosen by the person. Its clips are
+ * drawn in it. A track without one takes the next colour along by its place in the song.
+ */
+export const TRACK_COLOURS = ['blue', 'amber', 'green', 'violet', 'teal', 'pink', 'yellow', 'coral', 'stone'] as const;
+export type TrackColour = (typeof TRACK_COLOURS)[number];
+export const COLOUR_NAMES: Record<TrackColour, string> = { blue: 'Blue', amber: 'Amber', green: 'Green', violet: 'Violet', teal: 'Teal', pink: 'Pink', yellow: 'Yellow', coral: 'Coral', stone: 'Stone' };
+/** The colour a new track gets: the first one no other track has (coral and stone last), else by count. */
+export function nextColour(tracks: readonly { color: TrackColour }[]): TrackColour {
+  const used = new Set(tracks.map((t) => t.color));
+  return TRACK_COLOURS.find((c) => !used.has(c)) ?? TRACK_COLOURS[tracks.length % TRACK_COLOURS.length]!;
+}
+export interface Track { id: string; name: string; instrument: Instrument; volume: number; muted: boolean; solo: boolean; color: TrackColour; notes: SongNote[]; sound?: Sound }
 export interface Song { version: 1; tempo: number; key: string; bars: number; tracks: Track[] }
 export const BEATS_PER_BAR = 4;
 export const DRUMS: { pitch: number; name: string }[] = [
@@ -62,7 +74,8 @@ export function parseSong(text: string): { song: Song } | { error: string } {
       if (typeof v.pitch !== 'number' || typeof v.start !== 'number') return [];
       return [{ pitch: Math.round(num(v.pitch, 60, 0, 127)), start: num(v.start, 0, 0, bars * BEATS_PER_BAR), length: num(v.length, 1, 0.0625, 64), velocity: num(v.velocity, 0.8, 0, 1) }];
     }).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
-    const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), muted: to.muted === true, solo: to.solo === true, notes };
+    const color = TRACK_COLOURS.includes(to.color as TrackColour) ? (to.color as TrackColour) : TRACK_COLOURS[i % (TRACK_COLOURS.length - 2)]!;
+    const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), muted: to.muted === true, solo: to.solo === true, color, notes };
     const so = obj(to.sound);
     if (instrument !== 'drums' && Object.keys(so).length > 0) {
       const base = SOUND_DEFAULTS[instrument];
@@ -77,7 +90,7 @@ export function parseSong(text: string): { song: Song } | { error: string } {
 export function writeSong(song: Song): string {
   const lines = ['{', '  "version": 1,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, '  "tracks": ['];
   song.tracks.forEach((t, i) => {
-    const head: Record<string, unknown> = { id: t.id, name: t.name, instrument: t.instrument, volume: t.volume };
+    const head: Record<string, unknown> = { id: t.id, name: t.name, instrument: t.instrument, color: t.color, volume: t.volume };
     if (t.muted) head.muted = true;
     if (t.solo) head.solo = true;
     if (t.sound && t.instrument !== 'drums') head.sound = t.sound;

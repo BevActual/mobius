@@ -1,0 +1,60 @@
+/* The Agents app: the agent rows in the Agent app's sidebar, the New/Edit agent form, and each agent's page. */
+
+/* The form, on an agent's page: grouped like Settings, in a card. */
+.botform { display: flex; flex-direction: column; gap: 12px; font-size: var(--fs-md); }
+.botform label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: var(--fs-sm); }
+.botform input, .botform textarea { padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-md); resize: vertical; }
+.botform-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.botform-starts { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); }
+.botform-label { color: var(--muted); }
+.botform-hint { font-size: var(--fs-xs); color: var(--muted); }
+/* How it starts: a segmented control, both halves the same width, as in Apple's pickers. */
+.botform .botform-seg { display: flex; min-width: 0; max-width: 320px; }
+.botform-seg .seg-btn { flex: 1; min-width: 0; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.botform-seg .seg-btn[aria-checked="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.botform-when { display: flex; gap: 6px; max-width: 320px; }
+.botform-when select, .botform-when input { flex: 1; min-width: 0; height: 28px; padding: 0 7px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; }
+.botform-touch { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+.botform-touch b { color: var(--ink); font-weight: var(--fw-medium); }
+.botform-touch .link-btn { margin-left: 2px; }
+
+/* An agent row: the name and one line under it take the row; its actions are in the More menu. */
+.bot-row { flex-wrap: wrap; }
+.bot-row .clist-main { min-width: 0; }
+.bot-row .clist-title, .bot-row .clist-sub { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-row .clist-sub { display: block; }
+.bot-more { flex: none; width: 24px; height: 24px; margin-right: 4px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
+.bot-more svg { width: 16px; height: 16px; fill: currentColor; }
+.ui-side-row-trail:hover > .bot-more, .bot-more:focus-visible, .bot-more[aria-expanded="true"] { opacity: 1; }
+/* The More button sits over the row's trailing edge, so the selected row runs the sidebar's full width like every other app's. */
+.agent-side .ui-side-row-trail { position: relative; flex-wrap: wrap; }
+.agent-side .ui-side-row-trail > .bot-more { position: absolute; right: var(--sp-1); top: 50%; transform: translateY(-50%); margin: 0; }
+.agent-side .ui-side-row-trail > .bot-confirm, .agent-side .ui-side-row-trail > .field-error { flex-basis: 100%; }
+.bot-more:hover { background: var(--wash); color: var(--ink); }
+.bot-confirm { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; margin: 0 8px 8px; padding: 8px 10px; border-radius: 10px; background: var(--soft); font-size: var(--fs-sm); }
+.bot-confirm p { margin: 0; }
+
+/* An agent's page: a header, then inset groups with small titles above them, as in Apple's Settings. */
+/* The agent's page: plain parts between hairlines, as in Mail (no cards). Name and Run now are in the toolbar. */
+.agent-page { height: 100%; overflow-y: auto; padding: var(--sp-4) var(--sp-6) var(--sp-8); }
+.agent-page > * { max-width: 680px; margin-left: auto; margin-right: auto; }
+.agent-part { padding: var(--sp-4) 0; border-bottom: 1px solid var(--line); }
+.agent-part:last-child { border-bottom: 0; }
+.agent-part-title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-semibold, 600); color: var(--muted); }
+.agent-text { margin: 0; white-space: pre-wrap; line-height: var(--lh-body, 1.45); }
+.agent-meta { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.agent-muted { color: var(--muted); }
+.agent-lede { margin: 0 0 var(--sp-3); color: var(--muted); }
+.agent-part .act-list { margin: 0; border-top: 1px solid var(--line); }
+/* From Mobius in the sidebar: how many agents' runs wait for you, in Mobius's colour, as Mail's Suggested replies. */
+.agent-to-review { padding-right: var(--sp-2); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--mobius, var(--accent)); white-space: nowrap; align-self: center; }
+/* Times and counts are tabular figures (Instrument). */
+.agent-when { font-variant-numeric: tabular-nums; }
+/* An empty Recent runs: one plain line and the New action. */
+.agent-empty { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+/* Loading: placeholder bars in the page's column, no spinner. */
+.agent-loading { display: grid; gap: var(--sp-3); padding-top: var(--sp-4); }
+.agent-loading span { display: block; height: 12px; border-radius: var(--radius-small); background: var(--soft); }
+.agent-loading span:nth-child(3n + 1) { width: 30%; }
+.agent-loading span:nth-child(3n + 2) { width: 90%; }
+.agent-loading span:nth-child(3n) { width: 60%; }

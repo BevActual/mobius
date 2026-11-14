@@ -71,7 +71,6 @@ test('the open sheet and the chosen cell go with a message, as a chip that can b
   await cell('D2').click();
   const chip = shell().locator('.chip[data-here]');
   await expect(chip).toContainText('Offsite budget › Budget');
-  await expect(shell().getByRole('button', { name: /^Sees this sheet/ })).toBeVisible();
   const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
   await composer.fill('Get this under the cap');
   await composer.press('Enter');
@@ -80,10 +79,9 @@ test('the open sheet and the chosen cell go with a message, as a chip that can b
   const sent = JSON.stringify(model!.requests[0]);
   expect(sent).toContain('Selected: D2');
   expect(sent).toContain('D5: 5420 (=SUM(D2:D4))');
-  // Removed, the next message goes without it, and the panel no longer says it sees the sheet.
+  // Removed, the next message goes without it.
   await shell().getByRole('button', { name: 'Remove Offsite budget › Budget' }).click();
   await expect(chip).toHaveCount(0);
-  await expect(shell().getByRole('button', { name: /^Sees this sheet/ })).toHaveCount(0);
   await composer.fill('And in general?');
   await composer.press('Enter');
   await expect(log.locator('.msg.assistant').last()).toHaveText('Without the sheet.');

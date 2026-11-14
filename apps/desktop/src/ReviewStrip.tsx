@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CalendarSuggestion, MailDraft, TurnChanges, TurnRecord } from '@mobius/shared';
 import { ReviewActions } from './ReviewBar';
+import { loadApply } from './chat-mode';
+import { APP_ICONS } from './Rail';
 import { changeTarget } from './actions';
 import type { HubTarget } from './search-hub';
 import { dateTimeLabel, nearDayLabel, timeLabel } from './dates';
@@ -273,6 +275,13 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since }: { convers
   const apps = [...appsOf(files), ...(drafts.length > 0 && !appsOf(files).includes('Mail') ? ['Mail'] : [])];
   const count = listed.length + suggested.length + drafts.length;
   const shown = !busy && count > 0;
+  // Apply changes: what the turn just changed is kept at once (Undo and Rewind still put it back). Only in the
+  // conversation's own strip, never for an earlier chat's changes listed in the resting panel.
+  const keepNow = useRef(keep);
+  keepNow.current = keep;
+  useEffect(() => {
+    if (shown && since !== undefined && loadApply()) void keepNow.current();
+  }, [shown, since]);
   const discardNow = useRef(undoAll);
   discardNow.current = undoAll;
   useEffect(() => {
@@ -292,65 +301,84 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since }: { convers
     return <div className="review-strip" role="status" data-state="undone"><span className="review-summary">Put back as it was before that turn.</span></div>;
   }
   if (count === 0) return null;
+  // One row per app (Instrument, the Done state): what changed there, named or counted, with Show to go to it.
+  const entries: SummaryEntry[] = [
+    ...listed.map((path): SummaryEntry => {
+      const described = describeChange(path);
+      const inCalendar = events[path];
+      const names = inCalendar && inCalendar.names.length > 0 ? inCalendar.names : null;
+      const target = inCalendar?.date ? { app: 'calendar' as const, date: inCalendar.date } : changeTarget(path);
+      return { key: path, app: appsOf([path])[0] ?? 'Files', name: names ? (names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(', ')) : described.name, count: names ? names.length : 1, unit: names ? 'event' : unitOf(described.kind), title: path, target, undo: () => void run(() => window.mobius.changes.undoFile(conversation, path)) };
+    }),
+    ...suggested.map((x): SummaryEntry => ({ key: x.id, app: 'Calendar', name: x.title, count: 1, unit: 'event', title: `${x.title} in Calendar`, target: { app: 'calendar', date: x.start.slice(0, 10) }, undo: () => void window.mobius.calendar?.decline(x.id).then(() => load()) })),
+    ...drafts.map((d): SummaryEntry => ({ key: d.id, app: 'Mail', name: d.subject || 'Suggested reply', count: 1, unit: 'draft reply', title: d.subject, target: d.replyTo ? { app: 'mail', id: d.replyTo } : null, undo: () => void window.mobius.mail?.deleteDraft(d.id).then(() => load()) })),
+  ];
+  const groups = groupByApp(entries);
+  const words = count === 1 ? '1 change' : `${count} changes`;
   return (
-    <section className="review-strip" aria-label="Changes from the last turn" data-open={open || undefined}>
-      <div className="review-head">
-        <span className="review-dot" aria-hidden="true" />
-        <button type="button" className="review-toggle" aria-expanded={open} title={open ? 'Hide what changed' : 'See what changed'} onClick={() => setOpen((o) => !o)}>
-          {/* Where the changes are, so a change in an app not on screen is not missed: "4 changes in Tasks, Calendar". */}
-          <span className="review-summary">{count === 1 ? '1 change' : `${count} changes`}{` in ${apps.join(', ')}`}</span>
-          <span className="review-sep" aria-hidden="true">·</span>
-          <span>Review</span>
-          <svg className="review-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
+    <section className="turn-summary" aria-label="Changes from the last turn" data-open={open || undefined}>
+      <div className="turn-summary-head">
+        <button type="button" className="review-toggle turn-summary-toggle" aria-expanded={open} title={open ? 'Hide what changed' : 'See what changed'} onClick={() => setOpen((o) => !o)}>
+          {/* Where the changes are, so a change in an app not on screen is not missed: "4 changes in Tasks, Calendar · Review". */}
+          <span className="turn-summary-count">{words}</span>
+          <span className="sr-only">{` in ${apps.join(', ')} · Review`}</span>
         </button>
-        <span className="review-actions">
-          {/* This one keeps everything the turn changed, so it says so, and in which apps. */}
-          <ReviewActions only="keep" onKeep={keep} onDiscard={undoAll} keepText={apps.length > 1 ? 'Keep all' : 'Keep'} keepLabel={`Keep all changes from this turn (${apps.join(', ')})`} keepTitle={`Keep all changes from this turn: ${apps.join(', ')} (${modKey()}+Enter)`} />
-        </span>
+        <span className="turn-summary-note">{drafts.length > 0 ? 'none sent yet' : 'not kept yet'}</span>
       </div>
       {open && (
-        <ul className="review-list">
-          {listed.map((path) => {
-            const described = describeChange(path);
-            const inCalendar = events[path];
-            const kind = inCalendar && inCalendar.names.length > 0 ? (inCalendar.names.length === 1 ? 'Event' : 'Events') : described.kind;
-            const name = inCalendar && inCalendar.names.length > 0 ? (inCalendar.names.length > 2 ? `${inCalendar.names.slice(0, 2).join(', ')} and ${inCalendar.names.length - 2} more` : inCalendar.names.join(', ')) : described.name;
+        <ul className="turn-summary-list">
+          {groups.map((g) => {
+            const first = g.entries[0]!;
+            const single = g.entries.length === 1;
+            const target = onOpenItem ? first.target : null;
             return (
-              <li key={path} className="review-item">
-                <span className="review-kind">{kind}</span>
-                {(() => { const target = onOpenItem ? (inCalendar?.date ? { app: 'calendar' as const, date: inCalendar.date } : changeTarget(path)) : null; return target ? <button type="button" className="review-name link-btn" title={`Open ${name} (${path})`} onClick={() => onOpenItem?.(target)}>{name}</button> : <span className="review-name" title={path}>{name}</span>; })()}
-                <button type="button" className="review-btn" aria-label={`Undo the change to ${name}`} onClick={() => void run(() => window.mobius.changes.undoFile(conversation, path))}>Undo</button>
+              <li key={g.app} className="turn-summary-row">
+                <svg className="turn-summary-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS[APP_IDS[g.app] ?? 'files']}</svg>
+                <span className="turn-summary-app">{g.app}</span>
+                <span className="turn-summary-sep" aria-hidden="true">·</span>
+                {/* What changed, counted; the names and paths are in the tooltip. */}
+                <span className="turn-summary-name" title={g.entries.map((e) => (e.title && e.title !== e.name ? `${e.name} (${e.title})` : e.name)).join('\n')}>{countOf(g.entries)}</span>
+                <button type="button" className="turn-summary-undo" aria-label={single ? `Undo the change to ${first.name}` : `Undo the changes in ${g.app}`} onClick={() => g.entries.forEach((e) => e.undo())}>Undo</button>
+                {target && <button type="button" className="turn-summary-show" aria-label={`Show in ${g.app}`} title={`Show ${first.name} in ${g.app}`} onClick={() => onOpenItem?.(target)}>Show<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg></button>}
               </li>
             );
           })}
-          {suggested.map((x) => (
-            <li key={x.id} className="review-item">
-              <span className="review-kind">Event</span>
-              {onOpenItem
-                ? <button type="button" className="review-name link-btn" title={`Open ${x.title} in Calendar`} onClick={() => onOpenItem({ app: 'calendar', date: x.start.slice(0, 10) })}>{x.title}</button>
-                : <span className="review-name">{x.title}</span>}
-              <button type="button" className="review-btn" aria-label={`Decline the suggested event ${x.title}`} onClick={() => void window.mobius.calendar?.decline(x.id).then(() => load())}>Undo</button>
-            </li>
-          ))}
-          {drafts.map((d) => (
-            <li key={d.id} className="review-item">
-              <span className="review-kind">Email</span>
-              {onOpenItem && d.replyTo
-                ? <button type="button" className="review-name link-btn" title={`Open the message this answers: ${d.subject}`} onClick={() => onOpenItem({ app: 'mail', id: d.replyTo! })}>{d.subject || 'Suggested reply'}</button>
-                : <span className="review-name">{d.subject || 'Suggested email'}</span>}
-              <button type="button" className="review-btn" aria-label={`Discard the suggested email ${d.subject}`} onClick={() => void window.mobius.mail?.deleteDraft(d.id).then(() => load())}>Undo</button>
-            </li>
-          ))}
         </ul>
       )}
-      {open && (
-        <div className="review-more">
-          <ReviewActions only="others" onKeep={keep} onDiscard={undoAll} discardText={apps.length > 1 ? 'Discard all' : 'Discard'} discardLabel={`Discard all changes from this turn (${apps.join(', ')})`} discardTitle={`Put everything this turn changed back as it was: ${apps.join(', ')} (${modKey()}+Backspace)`} />
-        </div>
-      )}
+      <div className="turn-summary-foot">
+        <ReviewActions onKeep={keep} onDiscard={undoAll} keepText={apps.length > 1 ? 'Keep all' : 'Keep'} keepLabel={`Keep all changes from this turn (${apps.join(', ')})`} keepTitle={`Keep all changes from this turn: ${apps.join(', ')} (${modKey()}+Enter)`} discardText={apps.length > 1 ? 'Discard all' : 'Discard'} discardLabel={`Discard all changes from this turn (${apps.join(', ')})`} discardTitle={`Put everything this turn changed back as it was: ${apps.join(', ')} (${modKey()}+Backspace)`} />
+      </div>
       {problem && <p className="review-problem" role="alert">{problem}</p>}
     </section>
   );
+}
+
+/** The rail's icon for each app the summary names. */
+const APP_IDS: Record<string, string> = { Notes: 'notes', Docs: 'docs', Slides: 'slides', Sheets: 'sheets', Tasks: 'tasks', Calendar: 'calendar', Code: 'code', Design: 'design', Canvas: 'canvas', Research: 'research', Reader: 'reader', Database: 'database', Photo: 'photo', Music: 'studio', Video: 'video', Abilities: 'skills', Files: 'files', Mail: 'mail' };
+
+interface SummaryEntry { key: string; app: string; name: string; count: number; unit: string; title: string; target: HubTarget | null; undo: () => void }
+
+/** What one changed item is called, to count them: "3 tasks lists" reads as "3 lists". */
+function unitOf(kind: ReturnType<typeof describeChange>['kind']): string {
+  const UNITS: Partial<Record<typeof kind, string>> = { Note: 'page', Doc: 'doc', Deck: 'deck', Sheet: 'sheet', Tasks: 'list', Calendar: 'calendar', Design: 'design', Board: 'board', Report: 'report', Article: 'article', Database: 'database', Photo: 'photo', Song: 'song', Cut: 'cut', Skill: 'skill', Code: 'file' };
+  return UNITS[kind] ?? 'file';
+}
+
+/** "3 events", or "2 pages, 1 sheet" when one app's changes are of different kinds. */
+export function countOf(entries: readonly { count: number; unit: string }[]): string {
+  const by = new Map<string, number>();
+  for (const e of entries) by.set(e.unit, (by.get(e.unit) ?? 0) + e.count);
+  return [...by].map(([unit, n]) => `${n} ${n === 1 ? unit : unit === 'draft reply' ? 'draft replies' : `${unit}s`}`).join(', ');
+}
+
+/** The turn's changes by app, in the order the apps first appear. */
+export function groupByApp<T extends { app: string }>(entries: readonly T[]): { app: string; entries: T[] }[] {
+  const out: { app: string; entries: T[] }[] = [];
+  for (const e of entries) {
+    const g = out.find((x) => x.app === e.app);
+    if (g) g.entries.push(e); else out.push({ app: e.app, entries: [e] });
+  }
+  return out;
 }
 
 const when = (ms: number) => (nearDayLabel(ms) === 'Today' ? timeLabel(ms) : dateTimeLabel(ms));

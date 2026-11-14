@@ -396,7 +396,7 @@ export interface MobiusBridge {
   agent: {
     /** `plan` asks the agent for a plan only: it proposes the steps and does nothing until the person starts it. */
     /** `options.images` attaches pictures, as `data:` URLs, for models that read them. `options.app` is the app it was sent from (Settings, Usage). */
-    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; images?: string[]; app?: string }): Promise<AgentResult<{ turn: number }>>;
+    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; images?: string[]; app?: string }): Promise<AgentResult<{ turn: number }>>;
     /** The models the server offers, for the switcher. */
     models(): Promise<AgentResult<{ models: string[] }>>;
     /** Use another model on the same server, with everything else as it was. */
@@ -1040,7 +1040,7 @@ const isFavourite = (v: unknown): v is Favourite => {
 export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'] as const;
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
-export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 320 } } as const;
+export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 340 } } as const;
 export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;

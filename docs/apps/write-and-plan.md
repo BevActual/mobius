@@ -6,12 +6,13 @@ Quick pages, saved as you type.
 
 ![The Notes app in Mobius](../readme/apps/notes.png)
 
-- **Notebooks** in the sidebar, each one folding away, newest pages first, each row showing when it was edited and how it starts, with search, **Pinned** pages at the top,
+- **Notebooks** in the sidebar, each one folding away, newest pages first, each page as its title with when it was edited at the end (the time today, the weekday this week, the date before that) and a grey line of how it starts, with search, **Pinned** pages at the top,
   **New notebook** under the notebooks and a **Tags** section built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
   recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
-  bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Table, Link,
-  Record, Picture and Share, so nothing sits between you and the page. The **Notes** menu (**⋯** in the toolbar)
+  bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Link and
+  **+** (Insert: a table, a picture or file, Dictate, or a clipped web page), with Share at the end, as in Docs, so
+  nothing sits between you and the page. While you dictate, Stop stays in the toolbar. The **Notes** menu (**⋯** in the toolbar)
   opens Version history, clips a web page into the note and shows the Markdown file itself.
 - **History** (Notes menu › Version history…) lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).
@@ -97,13 +98,16 @@ Your calendars by day, week or month.
   "Lunch fri 1pm". Drag an event to move it, in any view.
 - **Search** at the top of the sidebar finds events from a month back to a year ahead, by title, place or notes. Pick
   one to go to its day.
-- **The toolbar** holds Back, Today and Forward, and Day, Week and Month; the title says the week's number. When Mobius
-  is open beside a small window, Today's word, then the views give way; T, N, Q, D, W, M and the arrow keys still work. An hour is taller in the comfortable density, so a working day
+- **The toolbar** holds Back, Today and Forward, and Day, Week, Month and Year; the title says the week's number. When Mobius
+  is open beside a small window, Today's word, then the views give way; T, N, Q, D, W, M, Y and the arrow keys still work. An hour is taller in the comfortable density, so a working day
   shows whole, and shorter in the compact one.
 - **Events** are a soft tint of their calendar's colour with a 3px edge in it; today's date is an ink badge, and the red
   current-time line is the only loud colour. The all-day row shows two items a day;
   **+N more** shows the rest, and **Fewer** folds them away again. The **Calendar** menu shows each key: Ctrl+N, Q, T, D,
-  W and M.
+  W, M and Y.
+- **Year view** (Y) shows the whole year on one screen, four months across. A day with events has a dot under it,
+  past days are grey and today is the ink badge;
+  press a day to open it, or a month's name to open the month.
 - **Open an event** with a click: it edits in a popover beside it. Changes are kept when you click elsewhere or press
   Enter; Escape leaves it as it was. Delete Event is at the popover's foot.
 - **The event you clicked stays picked out.** Press Delete to remove it, Enter to open it or Ctrl+D to duplicate it;

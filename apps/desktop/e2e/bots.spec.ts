@@ -71,7 +71,7 @@ const fromMenu = async (agent: string, item: string) => {
 async function newBot(name: string, instructions = '', modelName = ''): Promise<void> {
   await openAgents();
   await list().getByRole('button', { name: 'New agent' }).click();
-  const form = list().getByRole('form', { name: 'New agent' });
+  const form = shell().getByRole('form', { name: 'New agent' });
   await form.getByLabel('Name').fill(name);
   await form.getByLabel('Instructions').fill(instructions);
   await form.getByLabel('Model').fill(modelName);
@@ -131,7 +131,12 @@ test('sessions are grouped under their bot and a bot opens its latest session', 
   await expect(list().getByRole('region', { name: 'Writer' })).toContainText('writer question');
   await expect(list().getByRole('region', { name: 'Mobius' })).toContainText('plain question');
   await openAgents();
+  // An agent's row opens its page, whose Recent runs are its sessions; choosing one opens it.
   await list().getByRole('button', { name: /^Mobius/ }).first().click();
+  const runs = shell().getByRole('list', { name: 'Sessions with Mobius' });
+  await expect(runs).toContainText('plain question');
+  await expect(runs).not.toContainText('writer question');
+  await runs.getByRole('button', { name: /plain question/ }).click();
   await expect(log().locator('.msg.user')).toHaveText('plain question');
 });
 
@@ -140,7 +145,7 @@ test('a bot can be renamed and its instructions changed, and the next message us
   await newBot('Helper', 'Old rules.');
   await openAgents();
   await fromMenu('Helper', 'Edit…');
-  const form = list().getByRole('form', { name: 'Edit agent' });
+  const form = shell().getByRole('form', { name: 'Edit agent' });
   await form.getByLabel('Name').fill('Coach');
   await form.getByLabel('Instructions').fill('New rules.');
   await form.getByRole('button', { name: 'Save' }).click();
@@ -158,13 +163,13 @@ test('a name already in use or an empty one is refused with a reason', async () 
   await newBot('Twin');
   await openAgents();
   await list().getByRole('button', { name: 'New agent' }).click();
-  const form = list().getByRole('form', { name: 'New agent' });
+  const form = shell().getByRole('form', { name: 'New agent' });
   await expect(form.getByRole('button', { name: 'Create' })).toBeDisabled();
   await form.getByLabel('Name').fill('twin');
   await form.getByRole('button', { name: 'Create' }).click();
   await expect(form.getByRole('alert')).toContainText('already an agent called');
   await form.getByRole('button', { name: 'Cancel' }).click();
-  await expect(list().getByRole('form', { name: 'New agent' })).toHaveCount(0);
+  await expect(shell().getByRole('form', { name: 'New agent' })).toHaveCount(0);
 });
 
 test('removing a bot asks first, takes its sessions with it, and leaves the others', async () => {
@@ -201,7 +206,9 @@ test('bots and their sessions are still there after a restart', async () => {
   await openApp('Agent');
   await openAgents();
   await expect(list().getByRole('region', { name: 'Agents' })).toContainText('Keeper');
-  await expect(list().getByRole('region', { name: 'Agents' })).toContainText('keeper-model');
+  // Its model is on its page.
+  await list().getByRole('button', { name: 'Keeper', exact: true }).click();
+  await expect(shell().getByRole('region', { name: 'Keeper' }).filter({ hasText: 'What it does' })).toContainText('keeper-model');
   await tab('Sessions').click();
   await expect(list().getByRole('region', { name: 'Keeper' })).toContainText('persist this');
 });
@@ -249,7 +256,7 @@ test('bots can be moved up and down, Mobius stays first, and the order is kept',
   await start();
   for (const name of ['Alpha', 'Beta', 'Gamma']) await newBot(name);
   await openAgents();
-  const names = async () => (await list().getByRole('region', { name: 'Agents' }).locator('.clist-title').allTextContents());
+  const names = async () => (await list().getByRole('region', { name: 'Agents' }).locator('.ui-side-name').allTextContents());
   await expect.poll(names).toEqual(['Mobius', 'Alpha', 'Beta', 'Gamma']);
   const menuItem = async (agent: string, item: string) => {
     await list().getByRole('button', { name: `More for ${agent}` }).click();
@@ -289,7 +296,7 @@ test('a conversation can be made a bot: its form is filled in from it, says what
   const row = list().getByRole('listitem').filter({ hasText: 'Look at my tasks and calendar' }).first();
   await row.hover();
   await row.getByRole('button', { name: /^Make .* an agent$/ }).click();
-  const form = list().getByRole('form', { name: 'New agent' });
+  const form = shell().getByRole('form', { name: 'New agent' });
   await expect(tab('Agents')).toHaveAttribute('aria-current', 'page');
   await expect(form.getByRole('textbox').nth(1)).toHaveValue(/Look at my tasks and calendar and plan the week/);
   await expect(form).toContainText('What it may touch');
@@ -298,4 +305,7 @@ test('a conversation can be made a bot: its form is filled in from it, says what
   await form.getByLabel('At', { exact: true }).fill('07:30');
   await form.getByRole('button', { name: 'Create' }).click();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.schedules?.list() ?? Promise.resolve([]))).map((s) => `${s.title} ${s.time}`)).toContain('Week planner 07:30');
+  // The schedule runs as the new agent, not as Mobius.
+  const schedules = await shell().evaluate(() => window.mobius.schedules?.list() ?? Promise.resolve([]));
+  expect(schedules.find((s) => s.title === 'Week planner')?.bot).toMatch(/^[a-z0-9]{6}$/);
 });

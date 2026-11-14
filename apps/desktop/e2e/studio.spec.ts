@@ -212,10 +212,20 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Keys' }).getByRole('menuitem', { name: 'Solo' }).click();
   await expect.poll(() => (saved().tracks[0] as { solo?: boolean }).solo).toBe(true);
+  // The menu's keys work on the chosen track, and its colour is the person's to pick.
+  await tracks().getByRole('listitem', { name: 'Keys' }).click({ position: { x: 6, y: 6 } });
+  await shell().keyboard.press('m');
+  await expect.poll(() => (saved().tracks[0] as { muted?: boolean }).muted).toBe(true);
+  await shell().getByRole('region', { name: 'Device' }).getByRole('radio', { name: 'Coral' }).click();
+  await expect.poll(() => (saved().tracks[0] as { color?: string }).color).toBe('coral');
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Keys' }).getByRole('menuitem', { name: 'Delete Track' }).click();
   await expect.poll(() => saved().tracks.length).toBe(0);
   // Deleting says what went, with Undo to bring it back.
   await shell().getByRole('status').filter({ hasText: 'Deleted “Keys”' }).getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys']);
+  // The row after the last track adds one.
+  await tracks().getByRole('button', { name: 'Add track' }).click();
+  await shell().getByRole('menu', { name: 'Add track' }).getByRole('menuitem', { name: 'Lead' }).click();
+  await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys', 'Lead']);
 });
